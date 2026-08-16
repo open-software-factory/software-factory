@@ -1,0 +1,14 @@
+# Local agent and brainstorming state
+.superpowers/
+
+# Temporary working context and implementation plans
+docs/temp-context/
+
+# Archived source documents are retained outside version control
+docs/research/source/archive/
+docs/superpowers/
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

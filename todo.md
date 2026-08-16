@@ -1,0 +1,28 @@
+# Bootstrap TODO
+
+This is disposable project-management state, not the factory backlog design.
+
+## Now
+
+- [ ] Review the reorganised documents and make the first repository commit.
+- [ ] Prepare the frozen UX benchmark brief, realistic fixture, interaction script, capture format and scorecard.
+- [ ] Run the baseline and first Claude Design lineage calibration.
+- [ ] Agree the smallest useful boundary for the first Factory Engine slice.
+
+## Next
+
+- [ ] Write the architecture and implementation design for the agreed first slice.
+- [ ] Validate ACP and AHP assumptions against real harness and host capabilities.
+- [ ] Define event and execution vocabulary from the real slice rather than in advance.
+- [ ] Build the first implementation with deterministic verification.
+
+## Later
+
+- [ ] Backlog adapters (GitHub / local / others).
+- [ ] Source-control/forge adapters.
+- [ ] Additional coding-agent harness integrations.
+- [ ] Remote runners and capability-aware scheduling.
+- [ ] Test/gate result deduplication and caching.
+- [ ] Parallel agent execution, scatter/gather and voting patterns.
+- [ ] Meta-loop: reliability, escaped-defect, false-positive and cost calibration.
+- [ ] Product-loop connections and production-evidence feedback.
