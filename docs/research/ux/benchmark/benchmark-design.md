@@ -372,8 +372,10 @@ docs/research/ux/benchmark/
   README.md
   benchmark-design.md
   benchmark-brief.md
+  domain-glossary.md
   context-manifest.json
   visualization-intent.md
+  constraint-sheet.md
   interaction-script.md
   scorecard.md
   capture-format.md
