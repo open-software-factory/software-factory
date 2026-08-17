@@ -1,5 +1,6 @@
 # Local agent and brainstorming state
 .superpowers/
+.worktrees/
 
 # Temporary working context and implementation plans
 docs/temp-context/
