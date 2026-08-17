@@ -293,4 +293,4 @@ Trystan's procedures remain useful source material, particularly for review pass
 
 ## Recommended next step
 
-Do not install all candidates into the repository. First create the frozen benchmark brief, fixture, interaction script, capture format, and scorecard. Then run the baseline and one Claude Design-lane candidate as a calibration pair. If the benchmark cannot distinguish them meaningfully, improve the benchmark before spending time on the full field. The remaining participants can then run in batches, with Kimi K3 added when access permits.
+Do not install all candidates into the repository. Implement the approved [`UX workflow benchmark design`](benchmark/benchmark-design.md), then run the Codex baseline and Trystan-SA calibration pair. Correct the benchmark only if calibration exposes a methodological defect; a well-supported tie is a valid result. The remaining participants can then run in batches, with Kimi K3 added when access permits.

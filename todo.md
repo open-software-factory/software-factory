@@ -4,7 +4,7 @@ This is disposable project-management state, not the factory backlog design.
 
 ## Now
 
-- [ ] Review the reorganised documents and make the first repository commit.
+- [x] Review the reorganised documents and make the first repository commit.
 - [ ] Prepare the frozen UX benchmark brief, realistic fixture, interaction script, capture format and scorecard.
 - [ ] Run the baseline and first Claude Design lineage calibration.
 - [ ] Agree the smallest useful boundary for the first Factory Engine slice.
