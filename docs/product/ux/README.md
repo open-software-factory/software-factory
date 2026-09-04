@@ -11,7 +11,8 @@ Read in this order:
 Supporting research:
 
 - [`../../research/ux/design-workflow-landscape.md`](../../research/ux/design-workflow-landscape.md): survey and proposed benchmark for AI-assisted design workflows, with non-designer usability as a hard gate.
-- [`../../research/ux/benchmark/benchmark-design.md`](../../research/ux/benchmark/benchmark-design.md): approved design for the controlled UX workflow benchmark and design-system promotion pass.
+- [`../../research/ux/agent-built-ui-lessons.md`](../../research/ux/agent-built-ui-lessons.md): what happened when coding agents built operator consoles from these documents, and the rules that follow.
+- [`../../research/ux/prototypes/README.md`](../../research/ux/prototypes/README.md): screenshots of four agent-built console prototypes, for visual reference only.
 - [`../../research/ux/ux-references.md`](../../research/ux/ux-references.md): products, tools, games and interface families to study, plus what to learn from each.
 
 ## Relationship to the software-factory vision

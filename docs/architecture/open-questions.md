@@ -43,6 +43,14 @@ See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-archit
 - How do we deduplicate expensive test/gate executions across agents and workflow steps?
 - How do deterministic gates and LLM-based review signals compose?
 - How is gate calibration measured over time?
+- How does the factory detect that a full set of green deterministic gates covered less than the requirement? In August 2026 four agent-built consoles passed every gate while showing test controls and design doctrine as product copy. See [`../research/ux/agent-built-ui-lessons.md`](../research/ux/agent-built-ui-lessons.md).
+- Which semantic assertions about state belong beside mechanical DOM and lint checks, and who writes them?
+- Whatever a test requires in the product, the agent builds into the product. How do test-only controls stay out of product surfaces?
+
+## Domain vocabulary
+- The UX benchmark left a draft entity, state, action and event vocabulary in [`draft-factory-vocabulary.md`](draft-factory-vocabulary.md). Which parts survive the smallest working engine, the smallest version of the engine that does one useful job from end to end?
+- Is the split between an immutable catalog and cumulative state natural when state comes from real providers?
+- Is attention an Engine entity or a console projection?
 
 ## Observability and meta-loop
 - What events/traces are first-class from day one?
