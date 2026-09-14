@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Date: 2026-08-16
+Date: 2026-08-16, amended 2026-09-15 with the vocabulary and the two rules below, before any verifier code existed.
 
 ## Context
 
@@ -13,6 +13,23 @@ Coding agents need fast feedback and the factory needs trustworthy evidence. Man
 When a property can be checked deterministically, the deterministic result is authoritative. The factory should invoke or consume existing repository, language, CI and delivery tooling rather than reimplement it.
 
 LLM review may interpret evidence, find issues outside deterministic coverage or recommend follow-up work. It does not turn a failing deterministic gate into a passing one.
+
+### Vocabulary
+
+The word "gate" was carrying three jobs. They are separate:
+
+| Term | Meaning |
+|---|---|
+| Verifier | Runs one check and emits evidence. It knows nothing about consequences. Any command can be a verifier; the factory ships defaults per language ecosystem. |
+| Reporter | Renders evidence onto a surface: a check, a pull-request block, a review, a store. |
+| Policy | Reads evidence and decides. A soft cap warns; a hard limit blocks. |
+| Gate | Not a component. The name for the moment a policy hard limit stops the work. |
+
+### Two rules every verifier and every reader of evidence follows
+
+**A read distinguishes "could not read" from "read, and found nothing".** A verifier that could not run reports that as a failure to run, never as a pass. A reader of a tracker, a forge or a store returns "unknown" when it could not read and an empty result when it read and there was nothing. The two are different facts and are recorded differently.
+
+**Green must be earned.** A change with no declared test command is held, not passed. A test suite whose collected test count shrinks between the base and the change does not pass on count alone; the shrink is a finding. A suppression added in a change (a lint or type-check silencer) is itself a finding for review. An empty result from an empty input is not a pass.
 
 ## Consequences
 
