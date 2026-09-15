@@ -1,0 +1,25 @@
+name: git-town
+
+# Draws the stack of related pull requests as a comment on each one.
+on:
+  pull_request:
+    branches: ['**']
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: git-town-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stack:
+    name: stack comment
+    if: github.head_ref != 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: git-town/action@670e1f4feb81fdef4226fc09deefe09018eb20d1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}

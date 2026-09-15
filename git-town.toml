@@ -1,0 +1,9 @@
+[branches]
+main = "main"
+
+[sync]
+feature-strategy = "rebase"
+push-new-branches = true
+
+[ship]
+strategy = "api"

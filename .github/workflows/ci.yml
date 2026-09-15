@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hygiene:
+    name: hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Scan tracked files
+        run: |
+          set -euo pipefail
+          fail=0
+          scan() {
+            local pattern="$1" label="$2"
+            if git grep -I -n -E "$pattern" -- . ':(exclude).github/workflows/ci.yml' > /tmp/hits.txt; then
+              echo "::error::$label"
+              cat /tmp/hits.txt
+              fail=1
+            fi
+          }
+          scan 'claude\.ai/code/session_' 'a link to a private working session is not allowed'
+          scan '^Co-Authored-By:' 'use the Code-Generator trailer, not Co-Authored-By'
+          scan '[A-Za-z]:\\Users\\' 'a local filesystem path from a contributor machine'
+          scan '/(home|Users)/[a-z0-9_-]+/' 'a local home directory path'
+          exit $fail
+
+      - name: Scan commit messages added by this change
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          git fetch --quiet origin "${{ github.base_ref }}"
+          messages=$(git log --format='%H%n%B%n--' "$base..HEAD")
+          fail=0
+          check() {
+            if printf '%s' "$messages" | grep -n -E "$1" > /tmp/m.txt; then
+              echo "::error::$2"
+              cat /tmp/m.txt
+              fail=1
+            fi
+          }
+          check 'claude\.ai/code/session_' 'a commit message links to a private working session'
+          check '^Co-Authored-By:' 'a commit message uses Co-Authored-By instead of Code-Generator'
+          check '[A-Za-z]:\\Users\\' 'a commit message contains a local filesystem path'
+          exit $fail
+
+      - name: Scan for a cross-repository reference to another owner
+        run: |
+          set -euo pipefail
+          # a reference such as other-owner/other-repo#12 means nothing to a reader here
+          if git grep -I -n -E '\b[a-z0-9][a-z0-9._-]+/[a-z0-9][a-z0-9._-]+#[0-9]+' \
+               -- '*.md' ':(exclude).github/workflows/ci.yml' \
+             | grep -v 'open-software-factory/' > /tmp/refs.txt; then
+            echo "::error::a cross-repository reference names an owner outside this project"
+            cat /tmp/refs.txt
+            exit 1
+          fi
+
+      - name: Scan for names on the private denylist
+        env:
+          DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DENYLIST:-}" ]; then
+            echo "::notice::no denylist configured for this run, structural checks above still applied"
+            exit 0
+          fi
+          if git grep -I -n -i -E "$DENYLIST" -- . > /tmp/deny.txt; then
+            echo "::error::a name on the private denylist appears in this repository"
+            cut -d: -f1,2 /tmp/deny.txt
+            exit 1
+          fi
+
+  rust:
+    name: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Look for a Rust workspace
+        id: detect
+        run: |
+          if [ -f Cargo.toml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::no Cargo.toml at the repository root, nothing to build yet"
+          fi
+
+      - name: Install the toolchain components
+        if: steps.detect.outputs.present == 'true'
+        run: rustup component add clippy rustfmt
+
+      - name: Cache the build
+        if: steps.detect.outputs.present == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Check formatting
+        if: steps.detect.outputs.present == 'true'
+        run: cargo fmt --all --check
+
+      - name: Lint
+        if: steps.detect.outputs.present == 'true'
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        if: steps.detect.outputs.present == 'true'
+        run: cargo test --workspace
+
+      - name: Check this project's own writing with its own tool
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          cargo build --release --bin osf
+          # --no-suppress so a suppression comment in the repository cannot hide a finding here
+          find . -name '*.md' -not -path './target/*' -print0 \
+            | xargs -0 ./target/release/osf lint writing --no-suppress --format sarif > osf.sarif
+          find . -name '*.md' -not -path './target/*' -print0 \
+            | xargs -0 ./target/release/osf lint writing --no-suppress --format human
+
+      - name: Keep the findings file
+        if: always() && steps.detect.outputs.present == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: writing-lint-findings
+          path: osf.sarif
+          if-no-files-found: ignore
