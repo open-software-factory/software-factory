@@ -2,9 +2,9 @@
 //! `tests/fixtures/skills`, plus a CLI-level check that `osf lint skill`
 //! prints the note about the checks it defers to `agnix`.
 
-use osf::config::SkillConfig;
+use osf::config::{SkillConfig, WritingConfig};
 use osf::lint::skill::{lint_skill, SkillFinding};
-use osf::lint::Level;
+use osf::lint::{load_known_names, KnownNames, Level};
 use std::path::{Path, PathBuf};
 
 fn fixture(name: &str) -> PathBuf {
@@ -13,8 +13,18 @@ fn fixture(name: &str) -> PathBuf {
         .join(name)
 }
 
+fn known() -> KnownNames {
+    load_known_names(&[], None).expect("built-in names load")
+}
+
 fn lint(dir: &Path) -> Vec<SkillFinding> {
-    lint_skill(dir, &SkillConfig::default()).expect("SKILL.md reads")
+    lint_skill(
+        dir,
+        &SkillConfig::default(),
+        &known(),
+        &WritingConfig::default(),
+    )
+    .expect("SKILL.md reads")
 }
 
 fn rule_ids(findings: &[SkillFinding]) -> Vec<&'static str> {
@@ -59,6 +69,8 @@ fn inert_injection_flags_the_escaped_syntax() {
     assert_all_errors(&findings);
 }
 
+/// Its three descriptive sentences each open with an undefined name too, on
+/// top of the three skill rules the manual shape itself fires.
 #[test]
 fn manual_shaped_fixture_reads_as_a_manual() {
     let findings = lint(&fixture("manual-shaped"));
@@ -68,6 +80,9 @@ fn manual_shaped_fixture_reads_as_a_manual() {
             "skill-descriptive-over-imperative",
             "skill-first-section-is-overview",
             "skill-reads-as-manual",
+            "undefined-name-at-start",
+            "undefined-name-at-start",
+            "undefined-name-at-start",
         ]
     );
     assert_all_errors(&findings);
@@ -118,6 +133,31 @@ fn an_unpinned_scoped_package_is_caught_alongside_every_other_unpinned_install()
     assert!(flagged.iter().any(|e| e.contains(":latest")));
 }
 
+/// Change 1: a skill file is structured text, expected to have headings,
+/// same as a document. `good-skill` carries a `##` heading and must still
+/// report nothing at all, including no heading finding.
+#[test]
+fn a_skill_with_headings_is_not_flagged_for_the_heading() {
+    let findings = lint(&fixture("good-skill"));
+    let rules = rule_ids(&findings);
+    assert!(findings.is_empty(), "expected no findings, got: {rules:?}");
+}
+
+/// Change 2: the writing lint runs over the body, and a finding's line
+/// must point at the real line in `SKILL.md`, not a line relative to the
+/// body, even past a folded description spanning several lines.
+#[test]
+fn a_long_sentence_in_the_body_is_reported_at_the_real_line() {
+    let findings = lint(&fixture("long-sentence-in-body"));
+    let long: Vec<&SkillFinding> = findings
+        .iter()
+        .filter(|f| f.finding.rule == "long-sentence")
+        .collect();
+    assert_eq!(long.len(), 1, "{:?}", rule_ids(&findings));
+    let finding = long.first().expect("exactly one long-sentence finding");
+    assert_eq!(finding.finding.line, 12, "{:?}", finding.finding);
+}
+
 #[test]
 fn a_first_section_at_the_budget_has_no_finding() {
     let findings = lint(&fixture("at-budget"));
@@ -133,17 +173,28 @@ fn a_tighter_configured_paragraph_budget_flags_the_same_section() {
         overview_max_paragraphs: 1,
         ..SkillConfig::default()
     };
-    let findings = lint_skill(&fixture("at-budget"), &cfg).expect("SKILL.md reads");
+    let findings = lint_skill(
+        &fixture("at-budget"),
+        &cfg,
+        &known(),
+        &WritingConfig::default(),
+    )
+    .expect("SKILL.md reads");
     assert_eq!(rule_ids(&findings), vec!["skill-first-section-is-overview"]);
 }
 
 /// The body is generated here instead of committing a long fixture file:
 /// two paragraphs, within the paragraph budget, but past the word budget.
+/// Built from short, repeated, real sentences so the writing lint's own
+/// long-sentence rule stays out of the way of this test.
 #[test]
 fn over_the_word_budget_fires_even_within_the_paragraph_budget() {
-    let words = "lorem ".repeat(65);
+    let sentence = "This tool checks the folder for problems that could block a release.";
+    let paragraph = std::iter::repeat_n(sentence, 7)
+        .collect::<Vec<_>>()
+        .join(" ");
     let content = format!(
-        "---\nname: over-words\ndescription: Use this skill when the user wants a word check.\n---\n## Overview\n\n{words}\n\n{words}\n\n## Steps\n\n1. Run the check.\n2. Report the result.\n\nStop when the check has run once.\n"
+        "---\nname: over-words\ndescription: Use this skill when the user wants a word check.\n---\n## Overview\n\n{paragraph}\n\n{paragraph}\n\n## Steps\n\n1. Run the check.\n2. Report the result.\n\nStop when the check has run once.\n"
     );
     let dir = std::env::temp_dir()
         .join("osf-skill-lint-test")
@@ -166,7 +217,12 @@ fn a_missing_skill_file_is_an_error() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp dir creates");
 
-    let result = lint_skill(&dir, &SkillConfig::default());
+    let result = lint_skill(
+        &dir,
+        &SkillConfig::default(),
+        &known(),
+        &WritingConfig::default(),
+    );
     assert!(result.is_err());
 
     std::fs::remove_dir_all(&dir).expect("temp dir cleans up");

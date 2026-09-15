@@ -9,7 +9,8 @@
 //! every run, so a clean result here is never read as a full validation.
 
 use super::meta::RuleMeta;
-use crate::config::SkillConfig;
+use super::{lint_writing, KnownNames};
+use crate::config::{SkillConfig, WritingConfig};
 use osf_lint_core::{resolve, Class, Context, Finding, Group, Level};
 use regex::Regex;
 use std::collections::HashSet;
@@ -65,13 +66,19 @@ struct Frontmatter {
     body_start: usize,
 }
 
-/// Reads `<dir>/SKILL.md` and runs every kept skill rule over it, plus every
-/// script under `<dir>/scripts`.
+/// Reads `<dir>/SKILL.md` and runs every kept skill rule over it, the
+/// writing lint over its body, and the script-pin check over every script
+/// under `<dir>/scripts`.
 ///
 /// # Errors
 ///
 /// Returns `Err` when `SKILL.md` cannot be read.
-pub fn lint_skill(dir: &Path, cfg: &SkillConfig) -> Result<Vec<SkillFinding>, String> {
+pub fn lint_skill(
+    dir: &Path,
+    cfg: &SkillConfig,
+    known: &KnownNames,
+    writing: &WritingConfig,
+) -> Result<Vec<SkillFinding>, String> {
     let path = dir.join("SKILL.md");
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
@@ -92,6 +99,7 @@ pub fn lint_skill(dir: &Path, cfg: &SkillConfig) -> Result<Vec<SkillFinding>, St
             finding,
         })
         .collect();
+    out.extend(body_writing_findings(&lines, fm.body_start, known, writing));
     out.extend(script_findings(dir));
     resolve_and_explain(&mut out);
     out.sort_by(|a, b| {
@@ -120,6 +128,28 @@ fn resolve_and_explain(findings: &mut [SkillFinding]) {
             sf.finding.message, sf.finding.rule
         );
     }
+}
+
+/// Runs the writing lint over the body only, under `Context::Skill`, and
+/// offsets every line by `body_start` so it points at the real line in
+/// `SKILL.md` rather than a line relative to the body.
+fn body_writing_findings(
+    lines: &[&str],
+    body_start: usize,
+    known: &KnownNames,
+    writing: &WritingConfig,
+) -> Vec<SkillFinding> {
+    let body = lines.get(body_start..).unwrap_or(&[]).join("\n");
+    lint_writing(&body, known, writing, Context::Skill, false, false)
+        .into_iter()
+        .map(|mut finding| {
+            finding.line += body_start;
+            SkillFinding {
+                file: "SKILL.md".to_string(),
+                finding,
+            }
+        })
+        .collect()
 }
 
 fn re(cell: &'static OnceLock<Regex>, pattern: &'static str) -> &'static Regex {

@@ -121,6 +121,9 @@ struct SkillLintArgs {
     /// A first section that is not step-shaped may hold this many words. Overrides the config file.
     #[arg(long)]
     overview_max_words: Option<usize>,
+    /// Extra names that need no description, one per line.
+    #[arg(long)]
+    known_names: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -642,6 +645,15 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
         }
     };
     let cfg = &loaded.config.skill;
+    let writing_cfg = &loaded.config.writing;
+    let known = match lint::load_known_names(&writing_cfg.known_names, args.known_names.as_deref())
+    {
+        Ok(k) => k,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
     if args.paths.is_empty() {
         eprintln!("osf: lint skill needs at least one skill folder");
         return ExitCode::from(2);
@@ -650,7 +662,7 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
     let mut tally = Tally::default();
     let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
     for dir in &args.paths {
-        let skill_findings = match lint::skill::lint_skill(dir, cfg) {
+        let skill_findings = match lint::skill::lint_skill(dir, cfg, &known, writing_cfg) {
             Ok(f) => f,
             Err(e) => {
                 eprintln!("osf: {e}");
