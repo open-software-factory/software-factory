@@ -3,9 +3,14 @@
 #
 # This is a speed bump, not a seal. It refuses --no-verify and -n on
 # "git commit", and --no-verify on "git push", then explains why. It does
-# nothing that git's own settings cannot already do without it, and a
-# person can skip it completely by calling the real git binary at its
-# full path, /usr/bin/git. This wrapper cannot stop that call.
+# nothing that git's own settings cannot already do without it.
+#
+# Two things defeat this wrapper, and it cannot stop either one:
+#   - calling the real git binary at its full path, /usr/bin/git.
+#   - "-c core.hooksPath=..." (or any other "-c" that changes what a
+#     hook does), because this wrapper must let "-c" through unchanged
+#     for it to still work for its ordinary job: setting a config value
+#     for one command, for example "git -c user.email=x commit ...".
 #
 # git push also takes a short flag -n, but there it means --dry-run, a
 # different and harmless option, so this wrapper does not block it.
@@ -16,7 +21,6 @@
 # See docs/development.md.
 
 REAL_GIT="/usr/bin/git"
-SUB="${1:-}"
 
 refuse() {
   flag="$1"
@@ -26,11 +30,68 @@ refuse() {
   exit 1
 }
 
+refuse_option() {
+  opt="$1"
+  echo "git: refused. '$opt' is a git option this wrapper does not know before the subcommand." >&2
+  echo "This wrapper only recognizes a fixed list of git's own options in that spot." >&2
+  echo "Run the real binary directly if you need it: $REAL_GIT $opt ..." >&2
+  echo "See docs/development.md." >&2
+  exit 1
+}
+
+# Git accepts its own options before the subcommand (commit, push, and so
+# on). This finds the subcommand by skipping those options, some of
+# which take a value and some of which do not. It shifts its own copy of
+# the arguments, a function's positional parameters in sh, so the
+# caller's "$@" used later to run the real command is untouched.
+find_subcommand() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -c | -C)
+        if [ "$#" -lt 2 ]; then
+          refuse_option "$1"
+        fi
+        shift 2
+        ;;
+      --git-dir | --work-tree | --namespace)
+        if [ "$#" -lt 2 ]; then
+          refuse_option "$1"
+        fi
+        shift 2
+        ;;
+      --git-dir=* | --work-tree=* | --namespace=* | --exec-path=*)
+        shift
+        ;;
+      --exec-path | --no-pager | --paginate | -p | -P | --bare | --literal-pathspecs)
+        shift
+        ;;
+      --)
+        SUB=""
+        return
+        ;;
+      -*)
+        # An option this wrapper does not recognize. It may or may not
+        # take a value, and guessing wrong would either misread the
+        # subcommand or eat a real argument. Refuse instead of guessing.
+        refuse_option "$1"
+        ;;
+      *)
+        SUB="$1"
+        return
+        ;;
+    esac
+  done
+  SUB=""
+}
+
+SUB=""
+find_subcommand "$@"
+
 case "$SUB" in
   commit)
     for arg in "$@"; do
       case "$arg" in
-        --no-verify|-n) refuse "$arg" ;;
+        --no-verify | -n) refuse "$arg" ;;
       esac
     done
     ;;
