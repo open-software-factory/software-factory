@@ -2,26 +2,20 @@
 //! reads like steps for an agent or like a manual for a person, script
 //! version pinning, and context-injection safety.
 //!
-//! `agnix`, a separate linter, already checks the skill name format, the
-//! description and compatibility length, required and unknown frontmatter
-//! keys, body length, link resolution, absolute paths, and reference depth.
-//! This lint does not repeat those checks; [`UNCHECKED_NOTE`] says so on
-//! every run, so a clean result here is never read as a full validation.
+//! The name format, the description and compatibility lengths, frontmatter
+//! keys, body length, link resolution, absolute paths and reference depth
+//! are checked as well, but not by rules written here: [`super::agnix`]
+//! runs them. Its findings are merged into the result of this function, so
+//! the command and the gate both get the whole check and neither can be
+//! wired up to get less.
 
 use super::meta::RuleMeta;
 use super::{lint_writing, KnownNames};
 use crate::config::{SkillConfig, WritingConfig};
 use osf_lint_core::{resolve, Class, Context, Finding, Group, Level};
 use regex::Regex;
-use std::collections::HashSet;
 use std::path::Path;
 use std::sync::OnceLock;
-
-/// The checks `osf lint skill` deliberately does not perform, and the tool
-/// that does them. Printed on every run of the command.
-pub const UNCHECKED_NOTE: &str = "osf does not check the skill name format, the description or \
-compatibility length, required or unknown frontmatter keys, body length, link resolution, \
-absolute paths, or reference depth. Run agnix for those checks.";
 
 /// A finding tied to the file it came from, since a skill folder holds more than one file.
 pub struct SkillFinding {
@@ -64,8 +58,6 @@ struct FmEntry {
 struct Frontmatter {
     entries: Vec<FmEntry>,
     body_start: usize,
-    /// The block opened with `---` but never closed with a second one.
-    unclosed: bool,
 }
 
 /// Reads `<dir>/SKILL.md` and runs every kept skill rule over it, the
@@ -86,16 +78,10 @@ pub fn lint_skill(
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let lines: Vec<&str> = text.lines().collect();
 
+    // A duplicate key and an unclosed block are both reported by the agnix
+    // engine, so no rule here repeats them and one defect gives one error.
     let fm = parse_frontmatter(&lines);
-    let mut findings = duplicate_findings(&fm.entries);
-    if fm.unclosed {
-        findings.push(finding_at(
-            1,
-            "skill-frontmatter-unclosed",
-            "the frontmatter opens with --- but is never closed with a second --- line".to_string(),
-            "---",
-        ));
-    }
+    let mut findings: Vec<Finding> = Vec::new();
     let (desc, desc_line) = description(&fm.entries);
     findings.extend(trigger_findings(&desc, desc_line, cfg));
     findings.extend(first_person_findings(&desc, desc_line));
@@ -111,6 +97,14 @@ pub fn lint_skill(
         .collect();
     out.extend(body_writing_findings(&lines, fm.body_start, known, writing));
     out.extend(script_findings(dir));
+    out.extend(
+        super::agnix::lint_file(&path, dir)
+            .into_iter()
+            .map(|finding| SkillFinding {
+                file: "SKILL.md".to_string(),
+                finding,
+            }),
+    );
     resolve_and_explain(&mut out);
     out.sort_by(|a, b| {
         (a.file.as_str(), a.finding.line, a.finding.rule).cmp(&(
@@ -178,7 +172,6 @@ fn parse_frontmatter(lines: &[&str]) -> Frontmatter {
         return Frontmatter {
             entries: Vec::new(),
             body_start: 0,
-            unclosed: false,
         };
     }
     let close = lines
@@ -189,14 +182,14 @@ fn parse_frontmatter(lines: &[&str]) -> Frontmatter {
         .map(|(i, _)| i);
     // No closing `---`: this is not a parsed frontmatter block, so every
     // rule that reads frontmatter entries gets none, the same as when the
-    // file never opened one. The rest of the file still reads as body, and
-    // `unclosed` makes the failure itself a finding, so the file is never
-    // silently skipped.
+    // file never opened one. The rest of the file still reads as body. The
+    // file is not silently skipped: the agnix engine reports the missing
+    // block, and `an_unclosed_frontmatter_is_reported_not_skipped` holds it
+    // to that.
     let Some(close) = close else {
         return Frontmatter {
             entries: Vec::new(),
             body_start: 1,
-            unclosed: true,
         };
     };
     // An indented line continues the entry above it: a `>` or `|` block scalar.
@@ -234,24 +227,7 @@ fn parse_frontmatter(lines: &[&str]) -> Frontmatter {
     Frontmatter {
         entries,
         body_start: close + 1,
-        unclosed: false,
     }
-}
-
-fn duplicate_findings(entries: &[FmEntry]) -> Vec<Finding> {
-    let mut seen: HashSet<&str> = HashSet::new();
-    entries
-        .iter()
-        .filter(|e| !seen.insert(e.key.as_str()))
-        .map(|e| {
-            finding_at(
-                e.line,
-                "skill-frontmatter-duplicate",
-                format!("the key \"{}\" appears twice in the frontmatter", e.key),
-                &e.key,
-            )
-        })
-        .collect()
 }
 
 fn description(entries: &[FmEntry]) -> (String, usize) {
@@ -744,51 +720,6 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         exception: None,
     },
     RuleMeta {
-        id: "skill-frontmatter-duplicate",
-        class: Class::Correctness,
-        group: Group::Comprehension,
-        citation: "house",
-        doc: "### What it does\n\
-              Flags a frontmatter key that appears more than once, such as two \
-              `description:` lines.\n\
-              ### Why it is bad\n\
-              A duplicate key resolves one way or another with no warning from the \
-              parser. The reader cannot tell which value takes effect.\n\
-              ### Class\n\
-              correctness: the frontmatter is objectively ambiguous; no opinion is \
-              involved in checking for it.\n\
-              ### Citation\n\
-              house\n\
-              ### Example\n\
-              Bad: description: First line.\\ndescription: Second line.\n\
-              Good: one description key, one value.",
-        exception: None,
-    },
-    RuleMeta {
-        id: "skill-frontmatter-unclosed",
-        class: Class::Correctness,
-        group: Group::Comprehension,
-        citation: "house",
-        doc: "### What it does\n\
-              Flags a SKILL.md whose frontmatter opens with a `---` line but never \
-              closes with a second `---` line.\n\
-              ### Why it is bad\n\
-              With no closing line, the parser cannot tell where the frontmatter ends. \
-              Every rule that reads the description or the body sees nothing there to \
-              check, and the file passes with no findings at all, indistinguishable \
-              from a clean file.\n\
-              ### Class\n\
-              correctness: the file is objectively broken; no opinion is involved in \
-              checking for it.\n\
-              ### Citation\n\
-              house\n\
-              ### Example\n\
-              Bad: a SKILL.md that opens with `---` and never closes it.\n\
-              Good: `---` on the first line, the frontmatter fields, then a second \
-              `---` line before the body starts.",
-        exception: None,
-    },
-    RuleMeta {
         id: "skill-script-unreadable",
         class: Class::Correctness,
         group: Group::Comprehension,
@@ -877,8 +808,6 @@ mod tests {
         "skill-descriptive-over-imperative",
         "skill-no-done-condition",
         "skill-first-person",
-        "skill-frontmatter-duplicate",
-        "skill-frontmatter-unclosed",
         "skill-script-unreadable",
         "skill-script-unpinned",
         "skill-context-injection",

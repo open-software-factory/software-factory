@@ -5,6 +5,7 @@
 //! checked. Every rule has an id, a level and a one-line message that names
 //! the offending text.
 
+pub mod agnix;
 mod meta;
 mod names;
 mod rules;

@@ -805,7 +805,7 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
             "osf lint skill: {} error(s), {} warning(s), {} suppressed",
             tally.errors, tally.warnings, tally.suppressed
         );
-        println!("{}", lint::skill::UNCHECKED_NOTE);
+        println!("{}", lint::agnix::checked_note());
     }
     if tally.errors > 0 {
         ExitCode::from(1)
