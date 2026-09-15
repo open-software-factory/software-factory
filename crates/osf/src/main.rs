@@ -60,6 +60,11 @@ enum Command {
         #[command(subcommand)]
         action: ConfigAction,
     },
+    /// Print a rule's doc text: what it does, why it is bad, its class, and an example.
+    Explain {
+        /// A rule id, such as `long-sentence`.
+        rule_id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -168,7 +173,21 @@ fn main() -> ExitCode {
         Command::Config {
             action: ConfigAction::Show,
         } => config_show(cli.config.as_deref()),
+        Command::Explain { rule_id } => explain(rule_id),
     }
+}
+
+fn explain(rule_id: &str) -> ExitCode {
+    let Some(meta) = lint::rule_meta(rule_id) else {
+        eprintln!("osf: no such rule: {rule_id}");
+        return ExitCode::from(2);
+    };
+    println!(
+        "{} (class: {}, group: {}, citation: {})\n",
+        meta.id, meta.class, meta.group, meta.citation
+    );
+    println!("{}", meta.doc);
+    ExitCode::SUCCESS
 }
 
 /// Builds the flag layer from the fields the user actually passed on the

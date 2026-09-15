@@ -5,9 +5,11 @@
 //! checked. Every rule has an id, a level and a one-line message that names
 //! the offending text.
 
+mod meta;
 mod names;
 mod rules;
 
+pub use meta::rule_meta;
 pub use osf_lint_core::{Finding, KnownNames, Level};
 
 use crate::config::WritingConfig;
@@ -61,7 +63,18 @@ pub fn lint_writing(
         osf_lint_core::apply_suppressions(text, findings, &rules::rule_ids())
     };
     osf_lint_core::sort_findings(&mut findings);
+    add_explain_pointers(&mut findings);
     findings
+}
+
+/// Points every finding at `osf explain <rule-id>`, so the reader can see
+/// the full doc text: what the rule does, why it is bad, and its class.
+fn add_explain_pointers(findings: &mut [Finding]) {
+    for f in findings.iter_mut() {
+        if meta::rule_meta(f.rule).is_some() {
+            f.message = format!("{} (see `osf explain {}`)", f.message, f.rule);
+        }
+    }
 }
 
 #[cfg(test)]

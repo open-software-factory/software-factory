@@ -6,6 +6,7 @@ mod config;
 mod engine;
 mod finding;
 mod human;
+mod meta;
 mod names;
 mod rule;
 mod sarif;
@@ -19,6 +20,7 @@ pub use config::{
 pub use engine::{run_analysers, run_rules, sort_findings};
 pub use finding::{Evidence, Finding, Level};
 pub use human::render_human;
+pub use meta::{Class, Group};
 pub use names::{load_known_names, KnownNames};
 pub use rule::{Analyser, FnRule, Rule, Scope, Tier};
 pub use sarif::{to_sarif, ToolInfo};
