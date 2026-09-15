@@ -329,7 +329,13 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, out: &mut Vec<Finding>) {
     );
     let sentences = &doc.sentences;
     let reduced: Vec<String> = sentences.iter().map(|s| reduce_inline(&s.text)).collect();
+    let lowercase = lowercase_words(sentences);
     let is_known = |name: &str| known.contains(name) || name.split(' ').all(|w| known.contains(w));
+    // A real product name is almost never also spelled in lowercase in the
+    // same document. A word that opens a sentence and is spelled lowercase
+    // elsewhere is ordinary English, not a name that needs a description.
+    let ordinary_at_start =
+        |name: &str, at_start: bool| at_start && lowercase.contains(&name.to_lowercase());
     let described = |i: usize, name: &str| {
         let after_name = reduced
             .get(i)
@@ -363,7 +369,9 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, out: &mut Vec<Finding>) {
         .flatten();
     out.extend(
         first_uses
-            .filter(|(i, name, _)| !is_known(name) && !described(*i, name))
+            .filter(|(i, name, at_start)| {
+                !is_known(name) && !described(*i, name) && !ordinary_at_start(name, *at_start)
+            })
             .filter_map(|(i, name, at_start)| {
                 let s = sentences.get(i)?;
                 Some(if at_start {
@@ -403,8 +411,7 @@ fn candidate_names(s: &TextUnit) -> Vec<Candidate> {
         .position(|w| w.chars().any(char::is_alphabetic))
         .unwrap_or(0);
     let tokens = words.iter().enumerate().map(|(idx, raw)| {
-        let w = raw.trim_matches(|c: char| !c.is_alphanumeric());
-        let w = w.strip_suffix("'s").unwrap_or(w);
+        let w = normalize_word(raw);
         let closes_run = !raw.ends_with(|c: char| c.is_alphanumeric());
         let word = is_name_word(w).then(|| w.to_string());
         let opens = idx == first_word && !has_inner_capital(w);
@@ -428,6 +435,28 @@ fn candidate_names(s: &TextUnit) -> Vec<Candidate> {
     let mut run = run;
     flush_run(&mut names, &mut run);
     names
+}
+
+/// Strip the punctuation a word picks up from its position in a sentence,
+/// and a trailing possessive, so the bare word is left for every test.
+fn normalize_word(raw: &str) -> &str {
+    let w = raw.trim_matches(|c: char| !c.is_alphanumeric());
+    w.strip_suffix("'s").unwrap_or(w)
+}
+
+/// Every word already spelled in lowercase somewhere in the document. A
+/// capitalised word that also occurs lowercase is ordinary English; a real
+/// product name is almost never written both ways in the same text.
+fn lowercase_words(sentences: &[TextUnit]) -> HashSet<String> {
+    sentences
+        .iter()
+        .flat_map(TextUnit::words)
+        .filter_map(|raw| {
+            let w = normalize_word(&raw);
+            let starts_lower = w.chars().next().is_some_and(char::is_lowercase);
+            starts_lower.then(|| w.to_string())
+        })
+        .collect()
 }
 
 fn flush_run(names: &mut Vec<Candidate>, run: &mut Vec<(String, bool)>) {

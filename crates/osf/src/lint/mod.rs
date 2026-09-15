@@ -227,6 +227,21 @@ mod tests {
     }
 
     #[test]
+    fn a_word_spelled_lowercase_elsewhere_is_not_a_name() {
+        // Real example from the false-positive analysis, AGENTS.md:9.
+        let t = "Deterministic checks are authoritative gates. LLM judgments may augment them but should not replace deterministic verification when deterministic tooling exists.";
+        assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
+
+    #[test]
+    fn a_name_never_spelled_lowercase_still_warns_at_start() {
+        assert_eq!(
+            rules_of("Vale runs fast. Vale never appears lowercase."),
+            vec!["undefined-name-at-start"]
+        );
+    }
+
+    #[test]
     fn heading_words_are_not_name_candidates() {
         let long = format!("## Result\n\n{}\n", "It ran. ".repeat(300));
         assert!(rules_of(&long).is_empty(), "{:?}", rules_of(&long));
