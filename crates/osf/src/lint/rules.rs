@@ -9,6 +9,7 @@ use osf_lint_core::segment::{reduce_inline, Doc, TextUnit};
 use osf_lint_core::{run_rules, Finding, FnRule, KnownNames, Level, Rule};
 use regex::Regex;
 use std::collections::HashSet;
+use std::ops::Range;
 use std::sync::OnceLock;
 
 const SENTENCE_RULES: &[FnRule<WritingConfig>] = &[
@@ -111,20 +112,51 @@ fn bare_reference(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         .collect()
 }
 
-/// `owner/repo#N` or `repo#N` must carry a bracketed description; a link is expected.
+/// Replaces every byte inside a range in `ranges` with an ASCII space, one
+/// space per byte of the original character, so the result stays the same
+/// length and every other byte offset in `text` still lines up.
+fn mask_ranges(text: &str, ranges: &[Range<usize>]) -> String {
+    let mut out = String::with_capacity(text.len());
+    for (i, ch) in text.char_indices() {
+        if ranges.iter().any(|r| r.contains(&i)) {
+            out.extend(std::iter::repeat_n(' ', ch.len_utf8()));
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+/// `owner/repo#N` or `repo#N` must carry a bracketed description; a link is
+/// expected. Judged per occurrence: a reference matched once inside a link
+/// and again bare, in the same sentence, is linked only the first time.
 fn reference_without_label(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = re(&RE, r"(?:[\w.-]+/)?[\w.-]+#\d+");
-    let text = reduce_inline(&s.text);
+    static REF: OnceLock<Regex> = OnceLock::new();
+    static LINK: OnceLock<Regex> = OnceLock::new();
+    static CODE: OnceLock<Regex> = OnceLock::new();
+    let ref_pattern = re(&REF, r"(?:[\w.-]+/)?[\w.-]+#\d+");
+    let link_pattern = re(&LINK, r"\[([^\]]*)\]\([^)]*\)");
+    let code_pattern = re(&CODE, r"`[^`]*`");
+
     let raw = &s.text;
-    re.find_iter(&text)
+    let code_ranges: Vec<Range<usize>> = code_pattern.find_iter(raw).map(|m| m.range()).collect();
+    let masked = mask_ranges(raw, &code_ranges);
+    let link_spans: Vec<Range<usize>> = link_pattern
+        .captures_iter(&masked)
+        .filter_map(|c| c.get(1))
+        .map(|g| g.range())
+        .collect();
+
+    ref_pattern
+        .find_iter(&masked)
         .flat_map(|m| {
             let reference = m.as_str().to_string();
-            let labelled = text
+            let labelled = raw
                 .get(m.end()..)
                 .is_some_and(|rest| rest.trim_start().starts_with('('));
-            let linked =
-                raw.contains(&format!("[{reference}")) || raw.contains(&format!("{reference}]("));
+            let linked = link_spans
+                .iter()
+                .any(|span| span.start <= m.start() && m.end() <= span.end);
             let label = (!labelled).then(|| {
                 finding(
                     s,

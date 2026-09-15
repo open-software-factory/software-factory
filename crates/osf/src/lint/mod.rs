@@ -179,6 +179,26 @@ mod tests {
         );
     }
 
+    /// A reference matched twice in one sentence, once inside a real
+    /// Markdown link and once bare, must flag only the bare occurrence.
+    #[test]
+    fn a_second_bare_occurrence_of_a_linked_reference_is_still_flagged() {
+        let t = "See [owner/repo#125 (the topic)](https://example.com) or owner/repo#125 (the topic) again.";
+        let findings = lint(t);
+        assert_eq!(
+            findings
+                .iter()
+                .filter(|f| f.rule == "reference-without-link")
+                .count(),
+            1,
+            "{findings:?}"
+        );
+        assert!(
+            findings.iter().all(|f| f.rule != "reference-without-label"),
+            "{findings:?}"
+        );
+    }
+
     #[test]
     fn chat_local_phrases() {
         assert_eq!(rules_of("Do Phase 2 next."), vec!["chat-local-reference"]);
