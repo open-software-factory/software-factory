@@ -5,5 +5,5 @@
 # machine and fails on a pull request is worse than no check.
 
 [scan]
-# A reference such as other-owner/other-repo#12 means nothing to a reader here.
+# A reference such as other-owner/other-repo#<number> means nothing to a reader here.
 project_owner = "open-software-factory"
