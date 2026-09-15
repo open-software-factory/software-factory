@@ -1,8 +1,9 @@
 //! Writing lint: deterministic checks on prose written for people.
 //!
 //! Text is split into paragraphs and sentences. Fenced code, tables, HTML
-//! comments and inline code are never checked. Every rule has an id, a level
-//! and a one-line message that names the offending text.
+//! comments, inline code and a `---`-delimited front-matter block are never
+//! checked. Every rule has an id, a level and a one-line message that names
+//! the offending text.
 
 mod names;
 mod rules;
@@ -187,6 +188,13 @@ mod tests {
     #[test]
     fn code_and_comments_are_skipped() {
         let t = "```\nUse Vale -> now; Phase 2 #1\n```\n<!-- Phase 2 -->\n";
+        assert!(lint(t).is_empty(), "{:?}", lint(t));
+    }
+
+    #[test]
+    fn front_matter_is_never_read_as_prose() {
+        // A skill file's front matter, the shape that first surfaced this bug.
+        let t = "---\nTitle: Demo\nPlatform: Windows\n---\n\nIt ran on Windows.\n";
         assert!(lint(t).is_empty(), "{:?}", lint(t));
     }
 

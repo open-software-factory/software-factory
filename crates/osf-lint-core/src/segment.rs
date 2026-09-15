@@ -171,8 +171,12 @@ fn step(
 ) -> Walk {
     if walk.skip > 0 {
         match event {
-            Event::Start(Tag::CodeBlock(_) | Tag::HtmlBlock) => walk.skip += 1,
-            Event::End(TagEnd::CodeBlock | TagEnd::HtmlBlock) => walk.skip -= 1,
+            Event::Start(Tag::CodeBlock(_) | Tag::HtmlBlock | Tag::MetadataBlock(_)) => {
+                walk.skip += 1;
+            }
+            Event::End(TagEnd::CodeBlock | TagEnd::HtmlBlock | TagEnd::MetadataBlock(_)) => {
+                walk.skip -= 1;
+            }
             _ => {}
         }
         return walk;
@@ -208,7 +212,7 @@ fn step(
                 .push_break(source_line, range.end);
             walk
         }
-        Event::Start(Tag::CodeBlock(_) | Tag::HtmlBlock) => {
+        Event::Start(Tag::CodeBlock(_) | Tag::HtmlBlock | Tag::MetadataBlock(_)) => {
             walk = walk.flush();
             walk.skip += 1;
             walk
@@ -278,7 +282,8 @@ fn sentence_units(block: &Block) -> Vec<TextUnit> {
 #[must_use]
 pub fn parse(text: &str) -> Doc {
     let doc_lines = line_starts(text);
-    let walk = Parser::new_ext(text, Options::ENABLE_TABLES)
+    let options = Options::ENABLE_TABLES | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS;
+    let walk = Parser::new_ext(text, options)
         .into_offset_iter()
         .fold(Walk::default(), |w, (event, range)| {
             step(w, text, &doc_lines, event, range)
