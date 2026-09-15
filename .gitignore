@@ -13,3 +13,8 @@ docs/superpowers/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Rust build output
+target/
+target-linux/
+
