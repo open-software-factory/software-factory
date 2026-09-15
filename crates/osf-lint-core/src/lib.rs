@@ -2,6 +2,7 @@
 //! names, text segmentation, rule and analyser traits, and output
 //! rendering. A caller supplies its own rules; this crate carries none.
 
+mod config;
 mod engine;
 mod finding;
 mod human;
@@ -11,6 +12,10 @@ mod sarif;
 pub mod segment;
 mod suppress;
 
+pub use config::{
+    apply_level_overrides, lookup, read_config_file, resolve_path, to_value, ConfigError, Layer,
+    Layered, LevelSetting,
+};
 pub use engine::{run_analysers, run_rules, sort_findings};
 pub use finding::{Evidence, Finding, Level};
 pub use human::render_human;

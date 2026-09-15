@@ -14,8 +14,13 @@ use std::path::Path;
 
 /// # Errors
 /// Returns an error if `path` is given and cannot be read.
-pub fn load_known_names(path: Option<&Path>) -> Result<KnownNames, String> {
-    osf_lint_core::load_known_names(names::BUILT_IN, path)
+pub fn load_known_names(extra: &[String], path: Option<&Path>) -> Result<KnownNames, String> {
+    let built_in: Vec<&str> = names::BUILT_IN
+        .iter()
+        .copied()
+        .chain(extra.iter().map(String::as_str))
+        .collect();
+    osf_lint_core::load_known_names(&built_in, path)
 }
 
 /// What the text is. A message is a reply to a person, where a heading in a
@@ -64,7 +69,7 @@ mod tests {
     fn lint(text: &str) -> Vec<Finding> {
         lint_writing(
             text,
-            &load_known_names(None).expect("built-in names load"),
+            &load_known_names(&[], None).expect("built-in names load"),
             Kind::Message,
             false,
             false,
@@ -73,7 +78,7 @@ mod tests {
 
     #[test]
     fn a_document_may_have_headings() {
-        let known = load_known_names(None).expect("built-in names load");
+        let known = load_known_names(&[], None).expect("built-in names load");
         assert!(lint_writing(
             "## Result\n\nIt passed.\n",
             &known,
@@ -374,7 +379,7 @@ mod tests {
 
     #[test]
     fn no_suppress_ignores_every_marker() {
-        let known = load_known_names(None).expect("built-in names load");
+        let known = load_known_names(&[], None).expect("built-in names load");
         let text = "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n";
         let f = lint_writing(text, &known, Kind::Message, false, true);
         let bare = f

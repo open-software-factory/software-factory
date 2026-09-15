@@ -20,6 +20,7 @@
 //! The dsh bridge sends no assistant text at all, which is why this project
 //! ships its own dsh plugin rather than relying on that bridge.
 
+use crate::config::WritingConfig;
 use crate::lint;
 use serde_json::Value;
 use std::io::Read;
@@ -73,7 +74,12 @@ fn answer_for(event: &Value) -> Answer {
     }
 }
 
-pub fn stop(known_names: Option<&Path>, max_bounces: u32, answer: Option<Answer>) -> ExitCode {
+pub fn stop(
+    known_names: Option<&Path>,
+    max_bounces: u32,
+    cfg: &WritingConfig,
+    answer: Option<Answer>,
+) -> ExitCode {
     let mut raw = String::new();
     if let Err(e) = std::io::stdin().read_to_string(&mut raw) {
         eprintln!("osf hook stop: cannot read standard input: {e}");
@@ -94,7 +100,7 @@ pub fn stop(known_names: Option<&Path>, max_bounces: u32, answer: Option<Answer>
         eprintln!("osf hook stop: no assistant message in the event, nothing checked");
         return ExitCode::SUCCESS;
     };
-    let known = match lint::load_known_names(known_names) {
+    let known = match lint::load_known_names(&cfg.known_names, known_names) {
         Ok(k) => k,
         Err(e) => {
             eprintln!("osf hook stop: {e}; message not checked");
@@ -102,11 +108,11 @@ pub fn stop(known_names: Option<&Path>, max_bounces: u32, answer: Option<Answer>
         }
     };
     // A stop check runs on every turn end, so it stays on the fast tier only.
-    let errors: Vec<lint::Finding> =
-        lint::lint_writing(&text, &known, lint::Kind::Message, true, false)
-            .into_iter()
-            .filter(|f| f.level == lint::Level::Error && f.suppressed.is_none())
-            .collect();
+    let findings = lint::lint_writing(&text, &known, lint::Kind::Message, true, false);
+    let errors: Vec<lint::Finding> = osf_lint_core::apply_level_overrides(findings, &cfg.levels)
+        .into_iter()
+        .filter(|f| f.level == lint::Level::Error && f.suppressed.is_none())
+        .collect();
 
     let counter = counter_path(&session, &prompt);
     if errors.is_empty() {
