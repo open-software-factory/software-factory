@@ -4,6 +4,7 @@
 //! runs, instead of shelling out to it.
 
 pub mod config;
+pub mod exclude;
 mod git;
 pub mod hook;
 pub mod lint;

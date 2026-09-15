@@ -2,6 +2,7 @@
 //! pre-push hook, and continuous integration can never drift apart.
 
 use crate::config::Config;
+use crate::exclude::Excluder;
 use crate::lint::{self, Context};
 use osf_lint_core::{Finding, Level};
 use std::path::Path;
@@ -14,17 +15,20 @@ pub enum Stage {
 }
 
 /// What `osf verify` needs to run: where the repository lives, the base to
-/// diff against, an optional commit message file, and the resolved config.
+/// diff against, an optional commit message file, the resolved config, and
+/// the exclude list already built into a matcher.
 pub struct Options<'a> {
     pub dir: &'a Path,
     pub base: Option<String>,
     pub message_file: Option<&'a Path>,
     pub config: &'a Config,
+    pub excluder: &'a Excluder,
 }
 
 struct CheckOutcome {
     name: &'static str,
     ran: bool,
+    excluded: usize,
     findings: Vec<(String, Finding)>,
 }
 
@@ -33,14 +37,16 @@ impl CheckOutcome {
         CheckOutcome {
             name,
             ran: false,
+            excluded: 0,
             findings: Vec::new(),
         }
     }
 
-    fn ran(name: &'static str, findings: Vec<(String, Finding)>) -> Self {
+    fn ran(name: &'static str, excluded: usize, findings: Vec<(String, Finding)>) -> Self {
         CheckOutcome {
             name,
             ran: true,
+            excluded,
             findings,
         }
     }
@@ -76,6 +82,14 @@ impl Report {
         self.checks.iter().map(CheckOutcome::warnings).sum()
     }
 
+    /// How many candidate files or folders the exclude list dropped,
+    /// across every check. Never silent: a gate that stops checking
+    /// something must say so, the same reasoning as a suppressed finding.
+    #[must_use]
+    pub fn total_excluded(&self) -> usize {
+        self.checks.iter().map(|c| c.excluded).sum()
+    }
+
     /// One line per check, then a total. A check that had nothing to run
     /// over says so plainly, never counted the same as a clean run.
     #[must_use]
@@ -86,10 +100,11 @@ impl Report {
             if check.ran {
                 writeln!(
                     out,
-                    "{}: {} error(s), {} warning(s)",
+                    "{}: {} error(s), {} warning(s), {} excluded",
                     check.name,
                     check.errors(),
-                    check.warnings()
+                    check.warnings(),
+                    check.excluded
                 )
                 .expect("writing to a string never fails");
             } else {
@@ -102,9 +117,10 @@ impl Report {
         } else {
             writeln!(
                 out,
-                "total: {} error(s), {} warning(s)",
+                "total: {} error(s), {} warning(s), {} excluded",
                 self.total_errors(),
-                self.total_warnings()
+                self.total_warnings(),
+                self.total_excluded()
             )
             .expect("writing to a string never fails");
         }
@@ -143,9 +159,10 @@ fn pre_commit(opts: &Options) -> Result<Report, String> {
     let scan_outcome = if staged.is_empty() {
         CheckOutcome::skipped("scan")
     } else {
+        let (kept, excluded) = opts.excluder.partition(staged);
         let rules = crate::scan::Rules::build(opts.config.scan.clone())?;
         let mut findings = Vec::new();
-        for path in &staged {
+        for path in &kept {
             let bytes = crate::git::staged_content(opts.dir, path).map_err(|e| e.to_string())?;
             if crate::scan::is_binary(&bytes) {
                 continue;
@@ -158,7 +175,7 @@ fn pre_commit(opts: &Options) -> Result<Report, String> {
                     .map(|f| (path.clone(), f)),
             );
         }
-        CheckOutcome::ran("scan", findings)
+        CheckOutcome::ran("scan", excluded, findings)
     };
 
     let message_outcome = match opts.message_file {
@@ -178,6 +195,7 @@ fn pre_commit(opts: &Options) -> Result<Report, String> {
             let label = path.display().to_string();
             CheckOutcome::ran(
                 "lint writing (commit message)",
+                0,
                 findings.into_iter().map(|f| (label.clone(), f)).collect(),
             )
         }
@@ -216,6 +234,109 @@ fn skill_folders(dir: &Path, changed: &[String]) -> Vec<std::path::PathBuf> {
     found.into_iter().collect()
 }
 
+fn scan_changed_files(opts: &Options, changed: &[String]) -> Result<CheckOutcome, String> {
+    if changed.is_empty() {
+        return Ok(CheckOutcome::skipped("scan"));
+    }
+    let (targets, excluded) = opts.excluder.partition(changed.to_vec());
+    let rules = crate::scan::Rules::build(opts.config.scan.clone())?;
+    let mut findings = Vec::new();
+    for path in &targets {
+        let bytes = crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?;
+        if crate::scan::is_binary(&bytes) {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&bytes);
+        findings.extend(
+            rules
+                .scan_text(&text, Context::Document)
+                .into_iter()
+                .map(|f| (path.clone(), f)),
+        );
+    }
+    Ok(CheckOutcome::ran("scan", excluded, findings))
+}
+
+fn lint_changed_markdown(
+    opts: &Options,
+    changed: &[String],
+    ignore_suppress: bool,
+) -> Result<CheckOutcome, String> {
+    let candidates: Vec<String> = changed
+        .iter()
+        .filter(|p| is_markdown(p) && !is_skill_file(p))
+        .cloned()
+        .collect();
+    if candidates.is_empty() {
+        return Ok(CheckOutcome::skipped("lint writing"));
+    }
+    let (markdown, excluded) = opts.excluder.partition(candidates);
+    let known = lint::load_known_names(&opts.config.writing.known_names, None)?;
+    let mut findings = Vec::new();
+    for path in &markdown {
+        let bytes = crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?;
+        let text = String::from_utf8_lossy(&bytes);
+        findings.extend(
+            lint::lint_writing(
+                &text,
+                &known,
+                &opts.config.writing,
+                Context::Document,
+                false,
+                ignore_suppress,
+            )
+            .into_iter()
+            .map(|f| (path.clone(), f)),
+        );
+    }
+    Ok(CheckOutcome::ran("lint writing", excluded, findings))
+}
+
+fn lint_changed_skill_folders(opts: &Options, changed: &[String]) -> Result<CheckOutcome, String> {
+    let candidates = skill_folders(opts.dir, changed);
+    if candidates.is_empty() {
+        return Ok(CheckOutcome::skipped("lint skill"));
+    }
+    let candidate_strings: Vec<String> = candidates
+        .iter()
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .collect();
+    let (skill_dirs, excluded) = opts.excluder.partition(candidate_strings);
+    let known = lint::load_known_names(&opts.config.writing.known_names, None)?;
+    let mut findings = Vec::new();
+    for label in &skill_dirs {
+        let full = opts.dir.join(label);
+        let skill_findings =
+            lint::skill::lint_skill(&full, &opts.config.skill, &known, &opts.config.writing)?;
+        findings.extend(
+            skill_findings
+                .into_iter()
+                .map(|sf| (format!("{label}/{}", sf.file), sf.finding)),
+        );
+    }
+    Ok(CheckOutcome::ran("lint skill", excluded, findings))
+}
+
+fn scan_pushed_commits(opts: &Options, base: &str) -> Result<CheckOutcome, String> {
+    let range = format!("{base}..HEAD");
+    let hashes = crate::git::commit_hashes(opts.dir, &range).map_err(|e| e.to_string())?;
+    if hashes.is_empty() {
+        return Ok(CheckOutcome::skipped("scan (commits)"));
+    }
+    let rules = crate::scan::Rules::build(opts.config.scan.clone())?;
+    let mut findings = Vec::new();
+    for hash in &hashes {
+        let message = crate::git::commit_message(opts.dir, hash).map_err(|e| e.to_string())?;
+        findings.extend(
+            rules
+                .scan_text(&message, Context::Commit)
+                .into_iter()
+                .map(|f| (hash.clone(), f)),
+        );
+    }
+    Ok(CheckOutcome::ran("scan (commits)", 0, findings))
+}
+
 fn pre_push(opts: &Options, ignore_suppress: bool) -> Result<Report, String> {
     let base = match &opts.base {
         Some(b) => b.clone(),
@@ -223,95 +344,10 @@ fn pre_push(opts: &Options, ignore_suppress: bool) -> Result<Report, String> {
     };
     let changed = crate::git::changed_files(opts.dir, &base).map_err(|e| e.to_string())?;
 
-    let scan_outcome = if changed.is_empty() {
-        CheckOutcome::skipped("scan")
-    } else {
-        let rules = crate::scan::Rules::build(opts.config.scan.clone())?;
-        let mut findings = Vec::new();
-        for path in &changed {
-            let bytes =
-                crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?;
-            if crate::scan::is_binary(&bytes) {
-                continue;
-            }
-            let text = String::from_utf8_lossy(&bytes);
-            findings.extend(
-                rules
-                    .scan_text(&text, Context::Document)
-                    .into_iter()
-                    .map(|f| (path.clone(), f)),
-            );
-        }
-        CheckOutcome::ran("scan", findings)
-    };
-
-    let markdown: Vec<&String> = changed
-        .iter()
-        .filter(|p| is_markdown(p) && !is_skill_file(p))
-        .collect();
-    let writing_outcome = if markdown.is_empty() {
-        CheckOutcome::skipped("lint writing")
-    } else {
-        let known = lint::load_known_names(&opts.config.writing.known_names, None)?;
-        let mut findings = Vec::new();
-        for path in &markdown {
-            let bytes =
-                crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?;
-            let text = String::from_utf8_lossy(&bytes);
-            findings.extend(
-                lint::lint_writing(
-                    &text,
-                    &known,
-                    &opts.config.writing,
-                    Context::Document,
-                    false,
-                    ignore_suppress,
-                )
-                .into_iter()
-                .map(|f| ((*path).clone(), f)),
-            );
-        }
-        CheckOutcome::ran("lint writing", findings)
-    };
-
-    let skill_dirs = skill_folders(opts.dir, &changed);
-    let skill_outcome = if skill_dirs.is_empty() {
-        CheckOutcome::skipped("lint skill")
-    } else {
-        let known = lint::load_known_names(&opts.config.writing.known_names, None)?;
-        let mut findings = Vec::new();
-        for skill_dir in &skill_dirs {
-            let full = opts.dir.join(skill_dir);
-            let label = skill_dir.to_string_lossy().replace('\\', "/");
-            let skill_findings =
-                lint::skill::lint_skill(&full, &opts.config.skill, &known, &opts.config.writing)?;
-            findings.extend(
-                skill_findings
-                    .into_iter()
-                    .map(|sf| (format!("{label}/{}", sf.file), sf.finding)),
-            );
-        }
-        CheckOutcome::ran("lint skill", findings)
-    };
-
-    let range = format!("{base}..HEAD");
-    let hashes = crate::git::commit_hashes(opts.dir, &range).map_err(|e| e.to_string())?;
-    let commit_outcome = if hashes.is_empty() {
-        CheckOutcome::skipped("scan (commits)")
-    } else {
-        let rules = crate::scan::Rules::build(opts.config.scan.clone())?;
-        let mut findings = Vec::new();
-        for hash in &hashes {
-            let message = crate::git::commit_message(opts.dir, hash).map_err(|e| e.to_string())?;
-            findings.extend(
-                rules
-                    .scan_text(&message, Context::Commit)
-                    .into_iter()
-                    .map(|f| (hash.clone(), f)),
-            );
-        }
-        CheckOutcome::ran("scan (commits)", findings)
-    };
+    let scan_outcome = scan_changed_files(opts, &changed)?;
+    let writing_outcome = lint_changed_markdown(opts, &changed, ignore_suppress)?;
+    let skill_outcome = lint_changed_skill_folders(opts, &changed)?;
+    let commit_outcome = scan_pushed_commits(opts, &base)?;
 
     Ok(Report {
         checks: vec![scan_outcome, writing_outcome, skill_outcome, commit_outcome],

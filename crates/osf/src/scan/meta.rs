@@ -13,7 +13,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a URL that contains `claude.ai/code/session_`.\n\
+              Flags a URL whose host is `claude.ai` and whose path starts `code/session_`.\n\
               ### Why it is bad\n\
               A session link points at one private conversation. A public reader cannot \
               open it, and its presence tells them work here runs through a coding agent \
@@ -24,7 +24,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               ### Citation\n\
               house\n\
               ### Example\n\
-              Bad: See https://claude.ai/code/session_01AbCdEf for the discussion.\n\
+              Bad: a link such as the host `claude.ai` followed by a path starting \
+              `code/session_` and an id, pasted into a discussion.\n\
               Good: no session link in the text at all.",
         exception: None,
     },
@@ -54,7 +55,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         citation: "house",
         doc: "### What it does\n\
               Flags a Windows user path, a drive letter followed by `:\\Users\\`, or a home \
-              path, `/home/<name>/` or `/Users/<name>/`.\n\
+              path that starts `/home/` or `/Users/`, then an account name, then another \
+              slash.\n\
               ### Why it is bad\n\
               A local path names a real machine and a real account. A public reader gains \
               nothing from it, and it can name the very person who wrote the text.\n\

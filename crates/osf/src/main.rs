@@ -1,5 +1,4 @@
-use osf::{config, hook, lint, scan, verify};
-mod exclude;
+use osf::{config, exclude, hook, lint, scan, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -111,6 +110,20 @@ struct ScanArgs {
     /// Scan commit messages in this git revision range instead of files.
     #[arg(long)]
     commits: Option<String>,
+    /// A path pattern to skip, on top of the configured list. Repeatable.
+    /// For a person running the tool by hand; a gate run does not accept it.
+    #[arg(long = "exclude", conflicts_with = "gate")]
+    exclude: Vec<String>,
+    /// Ignore the exclude list entirely and check everything. For a person
+    /// running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
+    no_exclude: bool,
+    /// Runs as a gate over a change nobody has approved yet: the exclude
+    /// list is the compiled defaults only, never the config file or the
+    /// environment, so that change cannot loosen this check by editing its
+    /// own configuration.
+    #[arg(long)]
+    gate: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -154,6 +167,20 @@ struct VerifyArgs {
     /// How to print findings: human, sarif, or json.
     #[arg(long, value_enum)]
     format: Option<Format>,
+    /// A path pattern to skip, on top of the configured list. Repeatable.
+    /// For a person running the tool by hand; a gate run does not accept it.
+    #[arg(long = "exclude", conflicts_with = "gate")]
+    exclude: Vec<String>,
+    /// Ignore the exclude list entirely and check everything. For a person
+    /// running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
+    no_exclude: bool,
+    /// Runs as a gate over a change nobody has approved yet: the exclude
+    /// list is the compiled defaults only, never the config file or the
+    /// environment, so that change cannot loosen this check by editing its
+    /// own configuration.
+    #[arg(long)]
+    gate: bool,
 }
 
 #[derive(Subcommand)]
@@ -788,7 +815,7 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
 }
 
 fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
-    let loaded = match config::load(config_flag, &[], &[], false) {
+    let loaded = match config::load(config_flag, &[], &args.exclude, args.gate) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -802,22 +829,37 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
             return ExitCode::from(2);
         }
     };
-    let dir = Path::new(".");
-    let scanned = if let Some(range) = &args.commits {
-        scan::scan_commits(dir, range, &rules)
-    } else {
-        scan::scan_paths(dir, &args.paths, &rules)
-    };
-    let results = match scanned {
-        Ok(r) => r,
+    let excluder = match build_excluder(&loaded.config.exclude, args.no_exclude) {
+        Ok(e) => e,
         Err(e) => {
             eprintln!("osf: {e}");
             return ExitCode::from(2);
         }
     };
+    let dir = Path::new(".");
+    let mut tally = Tally::default();
+    let results = if let Some(range) = &args.commits {
+        match scan::scan_commits(dir, range, &rules) {
+            Ok(r) => r,
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    } else {
+        match scan::scan_paths(dir, &args.paths, &rules, &excluder) {
+            Ok(outcome) => {
+                tally.excluded = outcome.excluded;
+                outcome.files
+            }
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    };
 
     let format = resolve_format(args.format, false);
-    let mut tally = Tally::default();
     let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
     for (name, raw_findings) in results {
         let findings =
@@ -851,8 +893,8 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
         }
     } else if format == Format::Human {
         println!(
-            "osf scan: {} error(s), {} warning(s), {} suppressed",
-            tally.errors, tally.warnings, tally.suppressed
+            "osf scan: {} error(s), {} warning(s), {} suppressed, {} excluded",
+            tally.errors, tally.warnings, tally.suppressed, tally.excluded
         );
     }
     if tally.errors > 0 {
@@ -863,8 +905,15 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
 }
 
 fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
-    let loaded = match config::load(config_flag, &[], &[], false) {
+    let loaded = match config::load(config_flag, &[], &args.exclude, args.gate) {
         Ok(l) => l,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let excluder = match build_excluder(&loaded.config.exclude, args.no_exclude) {
+        Ok(e) => e,
         Err(e) => {
             eprintln!("osf: {e}");
             return ExitCode::from(2);
@@ -875,6 +924,7 @@ fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitC
         base: args.base.clone(),
         message_file: args.message_file.as_deref(),
         config: &loaded.config,
+        excluder: &excluder,
     };
     let report = match verify::run(args.stage.into(), &opts) {
         Ok(r) => r,

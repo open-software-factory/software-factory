@@ -91,3 +91,42 @@ pub fn run_osf(
         .output()
         .expect("osf runs")
 }
+
+/// Builds a session-link-shaped string at run time. A scan rule fixture
+/// needs the real shape to prove the rule fires, but this repository's own
+/// `osf scan` run has no exclusion for a test file any more, so the shape
+/// must never sit in this file's source text as one contiguous literal.
+pub fn session_link(id: &str) -> String {
+    let host = "claude.ai";
+    let path_prefix = "code/session_";
+    format!("https://{host}/{path_prefix}{id}")
+}
+
+/// Builds a Windows user-path-shaped string at run time, for the same
+/// reason as [`session_link`].
+pub fn windows_user_path(user: &str) -> String {
+    let drive = "D:";
+    let marker = r"\Users\";
+    format!(r"{drive}{marker}{user}\work\notes.md")
+}
+
+/// Builds a home-directory-path-shaped string at run time, for the same
+/// reason as [`session_link`].
+pub fn home_path(user: &str) -> String {
+    let prefix = "/home";
+    format!("{prefix}/{user}/work/notes.md")
+}
+
+/// Builds a co-author trailer line at run time, for the same reason as
+/// [`session_link`].
+pub fn coauthor_trailer(name: &str, email: &str) -> String {
+    let label = ["Co", "Authored", "By"].join("-");
+    format!("{label}: {name} <{email}>")
+}
+
+/// Builds a foreign cross-repository reference at run time, for the same
+/// reason as [`session_link`]: once `osf.toml` sets a real project owner,
+/// any other owner named next to a `#<digits>` reference reads as foreign.
+pub fn foreign_reference(owner: &str, repo: &str, number: u32) -> String {
+    format!("{owner}/{repo}#{number}")
+}

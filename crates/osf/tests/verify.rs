@@ -4,16 +4,18 @@
 
 mod common;
 
-use common::{isolated_home, run_osf, TempRepo};
+use common::{coauthor_trailer, isolated_home, run_osf, session_link, TempRepo};
 use osf::config::Config;
+use osf::exclude::Excluder;
 use osf::verify::{run, Options, Stage};
 
-fn opts<'a>(dir: &'a std::path::Path, config: &'a Config) -> Options<'a> {
+fn opts<'a>(dir: &'a std::path::Path, config: &'a Config, excluder: &'a Excluder) -> Options<'a> {
     Options {
         dir,
         base: None,
         message_file: None,
         config,
+        excluder,
     }
 }
 
@@ -24,7 +26,9 @@ fn pre_commit_with_nothing_staged_and_no_message_says_so_and_exits_clean() {
     repo.commit("add a file");
 
     let config = Config::default();
-    let report = run(Stage::PreCommit, &opts(&repo.dir, &config)).expect("pre-commit runs");
+    let excluder = Excluder::none();
+    let report =
+        run(Stage::PreCommit, &opts(&repo.dir, &config, &excluder)).expect("pre-commit runs");
     assert_eq!(report.total_errors(), 0);
     let summary = report.render_summary("pre-commit");
     assert!(summary.contains("scan: nothing to check"), "{summary}");
@@ -42,12 +46,14 @@ fn pre_commit_scans_staged_content_not_the_working_tree() {
     repo.commit("add a clean file");
     repo.write(
         "notes.md",
-        "See https://claude.ai/code/session_abc123 here.\n",
+        &format!("See {} here.\n", session_link("abc123")),
     );
     repo.stage("notes.md");
 
     let config = Config::default();
-    let report = run(Stage::PreCommit, &opts(&repo.dir, &config)).expect("pre-commit runs");
+    let excluder = Excluder::none();
+    let report =
+        run(Stage::PreCommit, &opts(&repo.dir, &config, &excluder)).expect("pre-commit runs");
     assert_eq!(
         report.total_errors(),
         1,
@@ -66,11 +72,13 @@ fn pre_commit_lints_the_message_file_when_one_is_given() {
     std::fs::write(&message_path, "Do Phase 2 next.\n").expect("message file writes");
 
     let config = Config::default();
+    let excluder = Excluder::none();
     let options = Options {
         dir: &repo.dir,
         base: None,
         message_file: Some(&message_path),
         config: &config,
+        excluder: &excluder,
     };
     let report = run(Stage::PreCommit, &options).expect("pre-commit runs");
     assert_eq!(
@@ -91,14 +99,17 @@ fn push_fixture(name: &str) -> (TempRepo, String) {
 
     repo.write(
         "leak.md",
-        "See https://claude.ai/code/session_abc123 here.\n",
+        &format!("See {} here.\n", session_link("abc123")),
     );
     repo.write("guide.md", "Do Phase 2 next.\n");
     repo.write(
         "skills/demo/SKILL.md",
         "---\nname: demo\ndescription: Checks a folder for problems.\n---\n\n1. Run the check.\n",
     );
-    repo.commit("Fix the bug.\n\nCo-Authored-By: Someone <someone@example.com>\n");
+    repo.commit(&format!(
+        "Fix the bug.\n\n{}\n",
+        coauthor_trailer("Someone", "someone@example.com")
+    ));
 
     (repo, base)
 }
@@ -107,11 +118,13 @@ fn push_fixture(name: &str) -> (TempRepo, String) {
 fn pre_push_runs_every_check_against_the_base() {
     let (repo, base) = push_fixture("pp-every-check");
     let config = Config::default();
+    let excluder = Excluder::none();
     let options = Options {
         dir: &repo.dir,
         base: Some(base),
         message_file: None,
         config: &config,
+        excluder: &excluder,
     };
     let report = run(Stage::PrePush, &options).expect("pre-push runs");
     let summary = report.render_summary("pre-push");
@@ -130,16 +143,39 @@ fn pre_push_with_no_changes_against_its_own_head_says_so() {
     let head = repo.commit("only commit");
 
     let config = Config::default();
+    let excluder = Excluder::none();
     let options = Options {
         dir: &repo.dir,
         base: Some(head),
         message_file: None,
         config: &config,
+        excluder: &excluder,
     };
     let report = run(Stage::PrePush, &options).expect("pre-push runs");
     assert_eq!(report.total_errors(), 0);
     let summary = report.render_summary("pre-push");
     assert!(summary.contains("total: nothing to check"), "{summary}");
+}
+
+/// The compiled default exclude list is `target/**` only, so a changed file
+/// under a vendor path is not excluded unless the caller asks for it.
+#[test]
+fn a_changed_path_matching_the_excluder_is_dropped_and_counted() {
+    let (repo, base) = push_fixture("pp-exclude");
+
+    let config = Config::default();
+    let excluder = Excluder::build(&["leak.md".to_string()]).expect("one pattern builds");
+    let options = Options {
+        dir: &repo.dir,
+        base: Some(base),
+        message_file: None,
+        config: &config,
+        excluder: &excluder,
+    };
+    let report = run(Stage::PrePush, &options).expect("pre-push runs");
+    let summary = report.render_summary("pre-push");
+    assert!(summary.contains("scan: 0 error(s)"), "{summary}");
+    assert!(summary.contains("1 excluded"), "{summary}");
 }
 
 /// The same suppressed finding is silent at `pre-push` and loud at `ci`:
@@ -156,11 +192,13 @@ fn pre_push_honours_a_suppression_marker_that_ci_ignores() {
     repo.commit("add a suppressed finding");
 
     let config = Config::default();
+    let excluder = Excluder::none();
     let options = Options {
         dir: &repo.dir,
         base: Some(base.clone()),
         message_file: None,
         config: &config,
+        excluder: &excluder,
     };
     let pre_push_report = run(Stage::PrePush, &options).expect("pre-push runs");
     assert_eq!(
@@ -185,11 +223,13 @@ fn a_base_that_does_not_resolve_is_an_error_not_a_clean_report() {
     repo.commit("add a file");
 
     let config = Config::default();
+    let excluder = Excluder::none();
     let options = Options {
         dir: &repo.dir,
         base: Some("not-a-real-ref".to_string()),
         message_file: None,
         config: &config,
+        excluder: &excluder,
     };
     let result = run(Stage::PrePush, &options);
     assert!(
@@ -222,7 +262,7 @@ fn a_dirty_pre_push_exits_one() {
     let base = repo.commit("base commit");
     repo.write(
         "leak.md",
-        "See https://claude.ai/code/session_abc123 here.\n",
+        &format!("See {} here.\n", session_link("abc123")),
     );
     repo.commit("add a leak");
     let home = isolated_home("cli-exit-dirty");
@@ -249,4 +289,39 @@ fn a_pre_push_with_an_unresolvable_base_exits_two() {
         &["verify", "--stage", "pre-push", "--base", "not-a-real-ref"],
     );
     assert_eq!(output.status.code(), Some(2), "{output:?}");
+}
+
+/// `--gate` forces the exclude list back to the compiled defaults, ignoring
+/// a config file's own exclude setting, so a change under review cannot
+/// loosen the check it is being checked against.
+#[test]
+fn gate_ignores_a_config_files_exclude_list() {
+    let repo = TempRepo::new("verify-gate-ignores-config-file");
+    repo.write("base.md", "Clean.\n");
+    let base = repo.commit("base commit");
+    repo.write(
+        "leak.md",
+        &format!("See {} here.\n", session_link("abc123")),
+    );
+    repo.write("osf.toml", "exclude = [\"leak.md\"]\n");
+    repo.commit("add a leak and a loosened config");
+    let home = isolated_home("verify-gate-ignores-config-file");
+
+    let without_gate = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "--config", "osf.toml", "verify", "--stage", "pre-push", "--base", &base,
+        ],
+    );
+    assert_eq!(without_gate.status.code(), Some(0), "{without_gate:?}");
+
+    let with_gate = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "--config", "osf.toml", "verify", "--stage", "pre-push", "--base", &base, "--gate",
+        ],
+    );
+    assert_eq!(with_gate.status.code(), Some(1), "{with_gate:?}");
 }
