@@ -338,15 +338,26 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, out: &mut Vec<Finding>) {
         let next = reduced.get(i + 1).map_or("", String::as_str);
         definer.is_match(after_name) || definer.is_match(next)
     };
+    // A name used in a table and nowhere else gets no defining sentence from
+    // its position, so it is judged there. A name that also appears in the
+    // document's prose is already judged there, so its table appearance is
+    // dropped rather than reported a second time.
+    let prose_names: HashSet<String> = sentences
+        .iter()
+        .filter(|s| !s.in_table)
+        .flat_map(candidate_names)
+        .map(|c| c.name)
+        .collect();
     let first_uses = sentences
         .iter()
         .enumerate()
         .flat_map(|(i, s)| {
             candidate_names(s)
                 .into_iter()
-                .map(move |c| (i, c.name, c.at_start))
+                .map(move |c| (i, s.in_table, c.name, c.at_start))
         })
-        .scan(HashSet::new(), |seen, (i, name, at_start)| {
+        .filter(|(_, in_table, name, _)| !(*in_table && prose_names.contains(name)))
+        .scan(HashSet::new(), |seen, (i, _, name, at_start)| {
             Some(seen.insert(name.clone()).then_some((i, name, at_start)))
         })
         .flatten();

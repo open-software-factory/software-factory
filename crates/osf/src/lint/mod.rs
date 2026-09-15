@@ -198,6 +198,26 @@ mod tests {
     }
 
     #[test]
+    fn table_only_name_is_reported_the_factory_engine_example() {
+        // Real example from the false-positive analysis, docs/architecture/decisions/README.md:9.
+        let t = "| A | B |\n|---|---|\n| x | The Factory Engine starts in Go. |\n";
+        assert_eq!(rules_of(t), vec!["undefined-name-at-start"]);
+    }
+
+    #[test]
+    fn a_name_also_in_prose_is_not_reported_from_the_table() {
+        let t = "| A | B |\n|---|---|\n| x | The Factory Engine starts in Go. |\n\nThe Factory Engine has no upstream dependency.\n";
+        let f = lint(t);
+        let hits: Vec<_> = f
+            .iter()
+            .filter(|x| x.excerpt == "The Factory Engine")
+            .collect();
+        assert_eq!(hits.len(), 1, "{f:?}");
+        let hit = hits.first().expect("one hit checked above");
+        assert_eq!(hit.line, 5, "reported from prose, not the table");
+    }
+
+    #[test]
     fn a_name_that_starts_a_sentence_is_a_warning() {
         // "Vale runs fast." and "Build runs fast." parse the same, so this only warns.
         assert_eq!(rules_of("Vale runs fast."), vec!["undefined-name-at-start"]);
