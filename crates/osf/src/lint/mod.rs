@@ -192,6 +192,14 @@ mod tests {
     }
 
     #[test]
+    fn a_processor_architecture_a_developer_already_knows_needs_no_description() {
+        // Real case: a pull request table of processor architectures flagged
+        // Intel, Arm and Apple Silicon as undefined names.
+        assert!(rules_of("The build runs on Intel and Arm.").is_empty());
+        assert!(rules_of("Apple Silicon runs the same binary.").is_empty());
+    }
+
+    #[test]
     fn front_matter_is_never_read_as_prose() {
         // A skill file's front matter, the shape that first surfaced this bug.
         let t = "---\nTitle: Demo\nPlatform: Windows\n---\n\nIt ran on Windows.\n";
