@@ -1,0 +1,46 @@
+#!/bin/sh
+# Honest git wrapper.
+#
+# This is a speed bump, not a seal. It refuses --no-verify and -n on
+# "git commit", and --no-verify on "git push", then explains why. It does
+# nothing that git's own settings cannot already do without it, and a
+# person can skip it completely by calling the real git binary at its
+# full path, /usr/bin/git. This wrapper cannot stop that call.
+#
+# git push also takes a short flag -n, but there it means --dry-run, a
+# different and harmless option, so this wrapper does not block it.
+#
+# The real authority is the check that runs on a pull request, which a
+# contributor does not control. This wrapper only saves the two minutes
+# between a forgotten check and that pull-request check catching it.
+# See docs/development.md.
+
+REAL_GIT="/usr/bin/git"
+SUB="${1:-}"
+
+refuse() {
+  flag="$1"
+  echo "git: refused. This wrapper blocks '$flag' on 'git $SUB'." >&2
+  echo "Run the check by hand instead of skipping it. See docs/development.md." >&2
+  echo "This wrapper is a speed bump, not a seal: $REAL_GIT $SUB still bypasses it." >&2
+  exit 1
+}
+
+case "$SUB" in
+  commit)
+    for arg in "$@"; do
+      case "$arg" in
+        --no-verify|-n) refuse "$arg" ;;
+      esac
+    done
+    ;;
+  push)
+    for arg in "$@"; do
+      case "$arg" in
+        --no-verify) refuse "$arg" ;;
+      esac
+    done
+    ;;
+esac
+
+exec "$REAL_GIT" "$@"
