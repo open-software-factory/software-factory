@@ -53,7 +53,7 @@ pub fn stop(known_names: Option<&Path>, max_bounces: u32) -> ExitCode {
             return ExitCode::SUCCESS;
         }
     };
-    let errors: Vec<lint::Finding> = lint::lint_writing(&text, &known)
+    let errors: Vec<lint::Finding> = lint::lint_writing(&text, &known, lint::Kind::Message)
         .into_iter()
         .filter(|f| f.level == lint::Level::Error)
         .collect();

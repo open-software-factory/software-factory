@@ -8,7 +8,7 @@ the rules, because the rules are compiled in.
 
 | Command | What it does |
 |---|---|
-| `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, names used with no description, sentences over 25 words, dashes, arrows, filler, and headings in short texts. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. |
+| `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, names used with no description, sentences over 25 words, dashes, arrows, filler, and headings in short texts. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. `--message` marks the text as a reply to a person, where a heading in a short text is an error. |
 | `osf hook stop` | Reads a coding agent's Stop event from standard input, lints the final message, and refuses the stop when the message has errors. The agent gets the findings and rewrites. After two refusals in one turn the message goes through. |
 
 ## Wiring the stop check into an agent

@@ -46,6 +46,9 @@ struct WritingArgs {
     /// Extra names that need no description, one per line.
     #[arg(long)]
     known_names: Option<PathBuf>,
+    /// The text is a reply to a person: a heading in a short text is an error.
+    #[arg(long)]
+    message: bool,
 }
 
 #[derive(Subcommand)]
@@ -106,7 +109,12 @@ fn lint_writing(args: &WritingArgs) -> ExitCode {
     let mut errors = 0usize;
     let mut warnings = 0usize;
     for (name, text) in &inputs {
-        let findings = lint::lint_writing(text, &known);
+        let kind = if args.message {
+            lint::Kind::Message
+        } else {
+            lint::Kind::Document
+        };
+        let findings = lint::lint_writing(text, &known, kind);
         for f in &findings {
             let level = if args.strict {
                 lint::Level::Error

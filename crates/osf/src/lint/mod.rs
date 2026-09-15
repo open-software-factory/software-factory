@@ -87,10 +87,20 @@ pub fn load_known_names(path: Option<&Path>) -> Result<KnownNames, String> {
     Ok(KnownNames(set))
 }
 
-pub fn lint_writing(text: &str, known: &KnownNames) -> Vec<Finding> {
+/// What the text is. A message is a reply to a person, where a heading in a
+/// short text is noise. A document follows a template that may require them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    Message,
+    Document,
+}
+
+pub fn lint_writing(text: &str, known: &KnownNames, kind: Kind) -> Vec<Finding> {
     let doc = segment::parse(text);
     let mut findings = Vec::new();
-    rules::headings_in_short_text(&doc, &mut findings);
+    if kind == Kind::Message {
+        rules::headings_in_short_text(&doc, &mut findings);
+    }
     rules::per_sentence(&doc, &mut findings);
     rules::undefined_names(&doc, known, &mut findings);
     findings.sort_by_key(|f| (f.line, f.rule));
@@ -102,7 +112,17 @@ mod tests {
     use super::*;
 
     fn lint(text: &str) -> Vec<Finding> {
-        lint_writing(text, &load_known_names(None).expect("built-in names load"))
+        lint_writing(
+            text,
+            &load_known_names(None).expect("built-in names load"),
+            Kind::Message,
+        )
+    }
+
+    #[test]
+    fn a_document_may_have_headings() {
+        let known = load_known_names(None).expect("built-in names load");
+        assert!(lint_writing("## Result\n\nIt passed.\n", &known, Kind::Document).is_empty());
     }
 
     fn rules_of(text: &str) -> Vec<&'static str> {
