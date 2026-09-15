@@ -13,3 +13,4 @@ workspace = true
 regex = "1.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+serde-sarif = "0.8.0"

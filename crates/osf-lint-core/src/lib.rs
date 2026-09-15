@@ -6,9 +6,12 @@ mod engine;
 mod finding;
 mod names;
 mod rule;
+mod sarif;
 pub mod segment;
 
 pub use engine::{run_analysers, run_rules, sort_findings};
 pub use finding::{Evidence, Finding, Level};
 pub use names::{load_known_names, KnownNames};
 pub use rule::{Analyser, FnRule, Rule, Scope, Tier};
+pub use sarif::{to_sarif, ToolInfo};
+pub use serde_sarif::sarif::Sarif;
