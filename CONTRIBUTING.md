@@ -64,9 +64,12 @@ with a short label saying what it is. A bare number leaves the reader guessing.
 
 You must sign a contributor licence agreement before we can accept your change.
 A contributor licence agreement is a short document that grants this project the
-right to use what you wrote. Ours follows the template published by the Apache
-Software Foundation, which is the non-profit body behind many widely used
-open-source projects.
+right to use what you wrote.
+
+The text of the agreement is in [`CLA.md`](CLA.md). It follows the template
+published by the Apache Software Foundation, the non-profit body behind many
+widely used open-source projects. `CLA.md` states exactly what was changed
+from that template, and why.
 
 The reason is plain, and we would rather state it than hide it. Signing gives
 this project the rights to your contribution. That keeps the whole codebase
@@ -79,6 +82,10 @@ away.
 
 If this is a problem for you, open an issue and say so before you write code.
 We would rather talk about it early than turn down work you have already done.
+
+This project has not yet chosen how a contributor signs and submits the
+agreement. Open an issue and say you want to contribute before you write code.
+We will tell you the current process in that issue.
 
 ## Licence
 
