@@ -273,6 +273,51 @@ mod tests {
         assert_eq!(rules_of("We should leverage the cache."), vec!["filler"]);
     }
 
+    /// An empty `filler` list must turn the rule off, not make it match a
+    /// zero-width span at nearly every word boundary.
+    #[test]
+    fn an_empty_filler_list_never_matches() {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let cfg = WritingConfig {
+            filler: Vec::new(),
+            ..WritingConfig::default()
+        };
+        let findings = lint_writing(
+            "This is a perfectly clean sentence with no issues at all.",
+            &known,
+            &cfg,
+            Context::Transcript,
+            false,
+            false,
+        );
+        assert!(findings.iter().all(|f| f.rule != "filler"), "{findings:?}");
+    }
+
+    /// The same guard for `chat_local_phrases` and `chat_local_labels`
+    /// together: emptying both must turn `chat-local-reference` off for
+    /// the word-list half of the rule, not flood every word boundary.
+    #[test]
+    fn empty_chat_local_lists_never_match_on_the_word_list_half() {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let cfg = WritingConfig {
+            chat_local_phrases: Vec::new(),
+            chat_local_labels: Vec::new(),
+            ..WritingConfig::default()
+        };
+        let findings = lint_writing(
+            "This is a perfectly clean sentence with no issues at all.",
+            &known,
+            &cfg,
+            Context::Transcript,
+            false,
+            false,
+        );
+        assert!(
+            findings.iter().all(|f| f.rule != "chat-local-reference"),
+            "{findings:?}"
+        );
+    }
+
     #[test]
     fn numbers_in_prose() {
         assert_eq!(

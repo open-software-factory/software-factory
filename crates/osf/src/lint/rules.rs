@@ -180,11 +180,27 @@ fn reference_without_label(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         .collect()
 }
 
+/// Builds `(?i)\b(?:a1|a2|...)\b` from a non-empty list of ready-made regex
+/// alternatives, or nothing at all for an empty one. An empty alternation,
+/// `(?:)`, matches a zero-width span at nearly every word boundary; that is
+/// not the same thing as "nothing configured, so this never matches."
+/// A caller escapes its own words first; a literal alternative is not safe
+/// to pass here unescaped.
+fn word_boundary_alternation(alternatives: &[String]) -> Option<Regex> {
+    if alternatives.is_empty() {
+        return None;
+    }
+    let pattern = format!(r"(?i)\b(?:{})\b", alternatives.join("|"));
+    Some(Regex::new(&pattern).expect("word-boundary alternation pattern compiles"))
+}
+
 /// Words that only mean something inside one conversation. Built from the
 /// resolved config's phrase and label lists, so it cannot be a static
 /// [`FnRule`]; it is a small [`Rule`] impl instead, constructed once per lint.
 struct ChatLocalRule {
-    phrases: Regex,
+    /// `None` when both configured lists are empty: the rule fires only
+    /// from `step`, below, in that case.
+    phrases: Option<Regex>,
     step: Regex,
 }
 
@@ -194,12 +210,9 @@ impl ChatLocalRule {
         let labelled = labels
             .iter()
             .map(|l| format!(r"{}\s+\d+", regex::escape(l)));
-        let pattern = format!(
-            r"(?i)\b(?:{})\b",
-            fixed.chain(labelled).collect::<Vec<_>>().join("|")
-        );
+        let alternatives: Vec<String> = fixed.chain(labelled).collect();
         ChatLocalRule {
-            phrases: Regex::new(&pattern).expect("chat-local phrase pattern compiles"),
+            phrases: word_boundary_alternation(&alternatives),
             step: Regex::new(r"(?i)\b(step \d+)\b[,:]?\s*(\S?)").expect("step pattern compiles"),
         }
     }
@@ -225,7 +238,12 @@ impl Rule<WritingConfig> for ChatLocalRule {
                     .is_some_and(|ch| ch.is_alphabetic() || ch == '(')
             })
             .filter_map(|c| c.get(1).map(|g| g.as_str().to_string()));
-        matches(s, &self.phrases)
+        let phrase_matches = self
+            .phrases
+            .as_ref()
+            .map(|re| matches(s, re))
+            .unwrap_or_default();
+        phrase_matches
             .into_iter()
             .chain(bare_steps)
             .map(|m| {
@@ -321,21 +339,15 @@ fn semicolon(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
 /// resolved config's list, so it is a small [`Rule`] impl, not a static
 /// [`FnRule`], constructed once per lint.
 struct FillerRule {
-    re: Regex,
+    /// `None` when the configured list is empty: the rule never matches.
+    re: Option<Regex>,
 }
 
 impl FillerRule {
     fn new(words: &[String]) -> Self {
-        let pattern = format!(
-            r"(?i)\b(?:{})\b",
-            words
-                .iter()
-                .map(|w| regex::escape(w))
-                .collect::<Vec<_>>()
-                .join("|")
-        );
+        let escaped: Vec<String> = words.iter().map(|w| regex::escape(w)).collect();
         FillerRule {
-            re: Regex::new(&pattern).expect("filler pattern compiles"),
+            re: word_boundary_alternation(&escaped),
         }
     }
 }
@@ -350,7 +362,10 @@ impl Rule<WritingConfig> for FillerRule {
     }
 
     fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-        matches(s, &self.re)
+        let Some(re) = &self.re else {
+            return vec![];
+        };
+        matches(s, re)
             .iter()
             .map(|m| {
                 finding(
