@@ -228,6 +228,68 @@ fn a_missing_skill_file_is_an_error() {
     std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
 }
 
+/// The bug: an opened `---` that is never closed used to make the whole
+/// file invisible to every rule that reads frontmatter or body, so an
+/// obvious first-person description produced no finding at all. Now the
+/// unclosed block is itself a finding, so a malformed file is never read
+/// as a clean one.
+#[test]
+fn an_unclosed_frontmatter_is_reported_not_skipped() {
+    let findings = lint(&fixture("unclosed-frontmatter"));
+    assert_eq!(rule_ids(&findings), vec!["skill-frontmatter-unclosed"]);
+    assert_all_errors(&findings);
+}
+
+/// A `scripts` path that is not a readable folder, such as a plain file
+/// left where a folder was meant, used to be treated exactly like a skill
+/// with no scripts at all: silently nothing to check.
+#[test]
+fn a_scripts_path_that_is_a_file_is_reported() {
+    let dir = std::env::temp_dir()
+        .join("osf-skill-lint-test")
+        .join("scripts-is-a-file");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir creates");
+    std::fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: scripts-is-a-file\ndescription: Use this skill when the user wants a check.\n---\n\nRun the check.\n",
+    )
+    .expect("fixture writes");
+    std::fs::write(dir.join("scripts"), "not a folder").expect("scripts file writes");
+
+    let findings = lint(&dir);
+    assert_eq!(rule_ids(&findings), vec!["skill-script-unreadable"]);
+    let finding = findings.first().expect("one finding reported");
+    assert_eq!(finding.file, "scripts");
+
+    std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+}
+
+/// A script file that is not valid UTF-8 used to be silently skipped, so
+/// any unpinned install inside it went unchecked with no finding at all.
+#[test]
+fn an_unreadable_script_file_is_reported() {
+    let dir = std::env::temp_dir()
+        .join("osf-skill-lint-test")
+        .join("unreadable-script");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("scripts")).expect("temp dir creates");
+    std::fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: unreadable-script\ndescription: Use this skill when the user wants a check.\n---\n\nRun the check.\n",
+    )
+    .expect("fixture writes");
+    std::fs::write(dir.join("scripts").join("install.sh"), [0xFF, 0xFE, 0x00])
+        .expect("binary script writes");
+
+    let findings = lint(&dir);
+    assert_eq!(rule_ids(&findings), vec!["skill-script-unreadable"]);
+    let finding = findings.first().expect("one finding reported");
+    assert_eq!(finding.file, "scripts/install.sh");
+
+    std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+}
+
 /// `osf lint skill` must never let a clean result read as a full
 /// validation: it names what it does not check and points at `agnix`.
 #[test]

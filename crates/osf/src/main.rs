@@ -101,7 +101,7 @@ enum Command {
 enum LintKind {
     /// Check prose for references, names, sentence length, and filler.
     Writing(WritingArgs),
-    /// Check a skill folder's SKILL.md against nine structural and safety rules.
+    /// Check a skill folder's SKILL.md against eleven structural and safety rules.
     Skill(SkillLintArgs),
 }
 

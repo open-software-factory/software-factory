@@ -64,6 +64,8 @@ struct FmEntry {
 struct Frontmatter {
     entries: Vec<FmEntry>,
     body_start: usize,
+    /// The block opened with `---` but never closed with a second one.
+    unclosed: bool,
 }
 
 /// Reads `<dir>/SKILL.md` and runs every kept skill rule over it, the
@@ -86,6 +88,14 @@ pub fn lint_skill(
 
     let fm = parse_frontmatter(&lines);
     let mut findings = duplicate_findings(&fm.entries);
+    if fm.unclosed {
+        findings.push(finding_at(
+            1,
+            "skill-frontmatter-unclosed",
+            "the frontmatter opens with --- but is never closed with a second --- line".to_string(),
+            "---",
+        ));
+    }
     let (desc, desc_line) = description(&fm.entries);
     findings.extend(trigger_findings(&desc, desc_line, cfg));
     findings.extend(first_person_findings(&desc, desc_line));
@@ -168,6 +178,7 @@ fn parse_frontmatter(lines: &[&str]) -> Frontmatter {
         return Frontmatter {
             entries: Vec::new(),
             body_start: 0,
+            unclosed: false,
         };
     }
     let close = lines
@@ -176,10 +187,16 @@ fn parse_frontmatter(lines: &[&str]) -> Frontmatter {
         .skip(1)
         .find(|(_, l)| l.trim() == "---")
         .map(|(i, _)| i);
+    // No closing `---`: this is not a parsed frontmatter block, so every
+    // rule that reads frontmatter entries gets none, the same as when the
+    // file never opened one. The rest of the file still reads as body, and
+    // `unclosed` makes the failure itself a finding, so the file is never
+    // silently skipped.
     let Some(close) = close else {
         return Frontmatter {
             entries: Vec::new(),
-            body_start: lines.len(),
+            body_start: 1,
+            unclosed: true,
         };
     };
     // An indented line continues the entry above it: a `>` or `|` block scalar.
@@ -217,6 +234,7 @@ fn parse_frontmatter(lines: &[&str]) -> Frontmatter {
     Frontmatter {
         entries,
         body_start: close + 1,
+        unclosed: false,
     }
 }
 
@@ -482,8 +500,24 @@ fn script_findings(dir: &Path) -> Vec<SkillFinding> {
     let npm_re = re(&NPM, r"npm install -g (?:@[^\s/]+/)?[^\s@]+(@\S+)?");
     let pip_re = re(&PIP, r"pip install [^\s=]+(==\S+)?");
     let scripts_dir = dir.join("scripts");
-    let Ok(read_dir) = std::fs::read_dir(&scripts_dir) else {
-        return vec![];
+    let read_dir = match std::fs::read_dir(&scripts_dir) {
+        Ok(rd) => rd,
+        // No scripts folder at all is normal: most skills carry none.
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return vec![],
+        // Anything else, such as `scripts` being a plain file, means a
+        // real scripts folder may exist and go unchecked; report it rather
+        // than silently treating the skill as having no scripts.
+        Err(e) => {
+            return vec![SkillFinding {
+                file: "scripts".to_string(),
+                finding: finding_at(
+                    1,
+                    "skill-script-unreadable",
+                    format!("cannot read the scripts folder: {e}"),
+                    "scripts",
+                ),
+            }]
+        }
     };
     let mut out = Vec::new();
     for entry in read_dir.flatten() {
@@ -491,14 +525,26 @@ fn script_findings(dir: &Path) -> Vec<SkillFinding> {
         if !path.is_file() {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(&path) else {
-            continue;
-        };
         let rel = path
             .strip_prefix(dir)
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
+        let text = match std::fs::read_to_string(&path) {
+            Ok(t) => t,
+            Err(e) => {
+                out.push(SkillFinding {
+                    file: rel,
+                    finding: finding_at(
+                        1,
+                        "skill-script-unreadable",
+                        format!("cannot read this script: {e}"),
+                        "unreadable script",
+                    ),
+                });
+                continue;
+            }
+        };
         for (i, line) in text.lines().enumerate() {
             out.extend(
                 unpinned_findings(line, i + 1, latest_re, npm_re, pip_re).map(|finding| {
@@ -719,6 +765,53 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         exception: None,
     },
     RuleMeta {
+        id: "skill-frontmatter-unclosed",
+        class: Class::Correctness,
+        group: Group::Comprehension,
+        citation: "house",
+        doc: "### What it does\n\
+              Flags a SKILL.md whose frontmatter opens with a `---` line but never \
+              closes with a second `---` line.\n\
+              ### Why it is bad\n\
+              With no closing line, the parser cannot tell where the frontmatter ends. \
+              Every rule that reads the description or the body sees nothing there to \
+              check, and the file passes with no findings at all, indistinguishable \
+              from a clean file.\n\
+              ### Class\n\
+              correctness: the file is objectively broken; no opinion is involved in \
+              checking for it.\n\
+              ### Citation\n\
+              house\n\
+              ### Example\n\
+              Bad: a SKILL.md that opens with `---` and never closes it.\n\
+              Good: `---` on the first line, the frontmatter fields, then a second \
+              `---` line before the body starts.",
+        exception: None,
+    },
+    RuleMeta {
+        id: "skill-script-unreadable",
+        class: Class::Correctness,
+        group: Group::Comprehension,
+        citation: "house",
+        doc: "### What it does\n\
+              Flags a `scripts` entry osf could not read: the `scripts` path exists but \
+              is not a readable folder, or a file under it is not valid UTF-8 text.\n\
+              ### Why it is bad\n\
+              A script osf cannot read is a script it cannot check for an unpinned \
+              install. Passing that skill with no finding would look the same as a \
+              skill whose scripts were actually checked and found clean.\n\
+              ### Class\n\
+              correctness: an unreadable path is objectively broken; no opinion is \
+              involved in checking for it.\n\
+              ### Citation\n\
+              house\n\
+              ### Example\n\
+              Bad: `scripts` is a plain file instead of a folder, so nothing under it \
+              is ever checked.\n\
+              Good: `scripts` is a folder holding readable, UTF-8 script files.",
+        exception: None,
+    },
+    RuleMeta {
         id: "skill-script-unpinned",
         class: Class::Security,
         group: Group::Comprehension,
@@ -785,6 +878,8 @@ mod tests {
         "skill-no-done-condition",
         "skill-first-person",
         "skill-frontmatter-duplicate",
+        "skill-frontmatter-unclosed",
+        "skill-script-unreadable",
         "skill-script-unpinned",
         "skill-context-injection",
     ];
