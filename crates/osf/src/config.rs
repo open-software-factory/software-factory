@@ -25,6 +25,7 @@ pub struct Config {
     /// writing it into the file, so there is nothing left to hide there.
     pub exclude: Vec<String>,
     pub skill: SkillConfig,
+    pub scan: ScanConfig,
 }
 
 /// Only the build output directory: untracked, so excluding it costs
@@ -40,6 +41,7 @@ impl Default for Config {
             writing: WritingConfig::default(),
             exclude: strings(DEFAULT_EXCLUDE),
             skill: SkillConfig::default(),
+            scan: ScanConfig::default(),
         }
     }
 }
@@ -190,6 +192,19 @@ impl Default for SkillConfig {
     }
 }
 
+/// The `[scan]` configuration: what `osf scan` must never let reach a
+/// public repository, on top of the shapes it always checks.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ScanConfig {
+    /// The org or user whose own `owner/repo#N` references are not foreign. Empty means the rule never fires.
+    pub project_owner: String,
+    /// Patterns that must never appear in a public repository. Never printed in a finding.
+    pub denylist: Vec<String>,
+    /// Per-rule level overrides, keyed by rule id.
+    pub levels: BTreeMap<String, LevelSetting>,
+}
+
 /// One field the environment can set, and how to parse it into a TOML value.
 struct EnvField {
     var: &'static str,
@@ -202,6 +217,12 @@ fn parse_uint(raw: &str) -> Result<toml::Value, String> {
         .parse::<i64>()
         .map(toml::Value::Integer)
         .map_err(|e| format!("'{raw}' is not a whole number: {e}"))
+}
+
+/// Matches `parse_uint`'s signature so both fit one `EnvField::parse` slot.
+#[allow(clippy::unnecessary_wraps)]
+fn parse_string(raw: &str) -> Result<toml::Value, String> {
+    Ok(toml::Value::String(raw.trim().to_string()))
 }
 
 /// Matches `parse_uint`'s signature so both fit one `EnvField::parse` slot.
@@ -289,6 +310,18 @@ const ENV_FIELDS: &[EnvField] = &[
         var: "OSF_SKILL_MANUAL_MIN_STEPS",
         path: &["skill", "manual_min_steps"],
         parse: parse_uint,
+    },
+    EnvField {
+        var: "OSF_SCAN_PROJECT_OWNER",
+        path: &["scan", "project_owner"],
+        parse: parse_string,
+    },
+    // Named plainly, not `OSF_SCAN_DENYLIST`: this list is the reason the
+    // tool exists, not one field among many.
+    EnvField {
+        var: "OSF_DENYLIST",
+        path: &["scan", "denylist"],
+        parse: parse_list,
     },
 ];
 

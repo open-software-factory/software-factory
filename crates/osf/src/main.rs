@@ -1,10 +1,10 @@
-use osf::{config, hook, lint};
+use osf::{config, hook, lint, scan};
 mod exclude;
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
 use std::io::{IsTerminal, Read};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const INFORMATION_URI: &str = "https://github.com/open-software-factory/software-factory";
@@ -95,6 +95,20 @@ enum Command {
         /// A rule id, such as `long-sentence`.
         rule_id: String,
     },
+    /// Find text that must never reach a public repository.
+    Scan(ScanArgs),
+}
+
+#[derive(Args)]
+struct ScanArgs {
+    /// Paths to scan. With none, every file git tracks in the current repository.
+    paths: Vec<PathBuf>,
+    /// How to print findings: human, sarif, or json.
+    #[arg(long, value_enum)]
+    format: Option<Format>,
+    /// Scan commit messages in this git revision range instead of files.
+    #[arg(long)]
+    commits: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -254,11 +268,12 @@ fn main() -> ExitCode {
             action: ConfigAction::Show,
         } => config_show(cli.config.as_deref()),
         Command::Explain { rule_id } => explain(rule_id),
+        Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
     }
 }
 
 fn explain(rule_id: &str) -> ExitCode {
-    let Some(meta) = lint::rule_meta(rule_id) else {
+    let Some(meta) = lint::rule_meta(rule_id).or_else(|| scan::rule_meta(rule_id)) else {
         eprintln!("osf: no such rule: {rule_id}");
         return ExitCode::from(2);
     };
@@ -718,6 +733,81 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
             tally.errors, tally.warnings, tally.suppressed
         );
         println!("{}", lint::skill::UNCHECKED_NOTE);
+    }
+    if tally.errors > 0 {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
+    let loaded = match config::load(config_flag, &[], &[], false) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let rules = match scan::Rules::build(loaded.config.scan.clone()) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let dir = Path::new(".");
+    let scanned = if let Some(range) = &args.commits {
+        scan::scan_commits(dir, range, &rules)
+    } else {
+        scan::scan_paths(dir, &args.paths, &rules)
+    };
+    let results = match scanned {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+
+    let format = resolve_format(args.format, false);
+    let mut tally = Tally::default();
+    let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
+    for (name, raw_findings) in results {
+        let findings =
+            osf_lint_core::apply_level_overrides(raw_findings, &loaded.config.scan.levels);
+        tally.count(&findings);
+        let visible: Vec<lint::Finding> = findings
+            .iter()
+            .filter(|f| f.suppressed.is_none())
+            .cloned()
+            .collect();
+        match format {
+            Format::Human => {
+                for f in &visible {
+                    println!("{}", f.render(&name, f.level));
+                }
+            }
+            Format::Sarif => {}
+            Format::Json => {
+                for f in &visible {
+                    println!("{}", f.to_json(&name, f.level));
+                }
+            }
+        }
+        if format == Format::Sarif {
+            sarif_files.push((name, findings));
+        }
+    }
+    if format == Format::Sarif {
+        if let Err(code) = print_sarif(&sarif_files) {
+            return code;
+        }
+    } else if format == Format::Human {
+        println!(
+            "osf scan: {} error(s), {} warning(s), {} suppressed",
+            tally.errors, tally.warnings, tally.suppressed
+        );
     }
     if tally.errors > 0 {
         ExitCode::from(1)
