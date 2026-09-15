@@ -230,6 +230,34 @@ mod tests {
     }
 
     #[test]
+    fn a_multi_word_name_in_a_list_item_is_not_torn_apart() {
+        // Real example from the false-positive analysis,
+        // docs/research/build-runners-and-compute.md:11: "Alibaba Cloud" was
+        // fragmented into a lone, meaningless "Alibaba" because "cloud" is an
+        // ordinary word used lowercase on the same line.
+        let t = "- cloud providers such as Alibaba Cloud;\n";
+        assert_eq!(errors_of(t), vec!["undefined-name"], "{:?}", lint(t));
+        let found = lint(t);
+        let excerpt = found.first().map(|f| f.excerpt.as_str());
+        assert_eq!(excerpt, Some("Alibaba Cloud"), "{found:?}");
+    }
+
+    #[test]
+    fn a_multi_word_name_ending_in_an_acronym_plural_is_not_torn_apart() {
+        // Real example from the false-positive analysis,
+        // docs/research/ahp-acp-architecture-direction.md:296: "JetBrains
+        // IDEs" was fragmented into a lone "JetBrains" because "IDEs" alone
+        // is an acronym's plural.
+        let t = "- JetBrains IDEs include a built-in client.\n";
+        let found = lint(t);
+        let excerpt = found
+            .iter()
+            .find(|f| f.level == Level::Error)
+            .map(|f| f.excerpt.as_str());
+        assert_eq!(excerpt, Some("JetBrains IDEs"), "{found:?}");
+    }
+
+    #[test]
     fn a_hyphen_compound_headed_by_an_ordinary_word_is_not_a_name() {
         // Real example from the false-positive analysis,
         // docs/architecture/decisions/0001-go-for-the-factory-engine.md:13.

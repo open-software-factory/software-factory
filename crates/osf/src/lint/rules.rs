@@ -413,24 +413,11 @@ fn candidate_names(s: &TextUnit, lowercase: &HashSet<String>) -> Vec<Candidate> 
     let tokens = words.iter().enumerate().map(|(idx, raw)| {
         let w = normalize_word(raw);
         let closes_run = !raw.ends_with(|c: char| c.is_alphanumeric());
+        let word = is_name_word(w).then(|| w.to_string());
         let opens = idx == first_word && !has_inner_capital(w);
         let at_start = opens && !plain_starter(w);
-        // The first word of a heading is never a candidate. A later word in
-        // a heading, or any word in a list item, is dropped only when it is
-        // ordinary English: a heading title or a real name in a list still
-        // needs its description.
-        let ordinary = lowercase.contains(&w.to_lowercase());
-        let skip = if opens {
-            plain_starter(w) || s.is_heading
-        } else {
-            (s.is_heading || s.in_list_item) && ordinary
-        };
-        let is_candidate = is_name_word(w)
-            && !skip
-            && !is_ordinary_compound(w, lowercase)
-            && !is_acronym_plural(w);
-        let word = is_candidate.then(|| w.to_string());
-        (word, at_start, closes_run)
+        let skip = opens && (plain_starter(w) || s.is_heading);
+        (if skip { None } else { word }, at_start, closes_run)
     });
     let (mut names, run) = tokens.fold(
         (Vec::<Candidate>::new(), Vec::<(String, bool)>::new()),
@@ -447,6 +434,19 @@ fn candidate_names(s: &TextUnit, lowercase: &HashSet<String>) -> Vec<Candidate> 
     );
     let mut run = run;
     flush_run(&mut names, &mut run);
+    // A one-word candidate is dropped when it is ordinary in a heading or a
+    // list item, an ordinary-headed compound, or an acronym's plural. A
+    // multi-word candidate is never touched here: testing one of its words
+    // in isolation would tear a real name such as "Alibaba Cloud" or
+    // "JetBrains IDEs" in half instead of judging the whole name.
+    names.retain(|c| {
+        if c.name.contains(' ') {
+            return true;
+        }
+        let ordinary_here =
+            (s.is_heading || s.in_list_item) && lowercase.contains(&c.name.to_lowercase());
+        !ordinary_here && !is_ordinary_compound(&c.name, lowercase) && !is_acronym_plural(&c.name)
+    });
     names
 }
 
