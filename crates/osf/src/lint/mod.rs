@@ -43,6 +43,15 @@ pub fn is_fixture_path(name: &str) -> bool {
         .any(|pair| pair == ["tests", "fixtures"])
 }
 
+/// Whether `id` names a scan rule: a leaked name, a session link, a local
+/// path. Hard-coded, not a configured setting: no `osf-expect` marker may
+/// declare one of these expected, so nothing inside the repository can
+/// silence a scan finding by naming it in a fixture.
+#[must_use]
+pub fn is_scan_rule(id: &str) -> bool {
+    id.starts_with("scan-")
+}
+
 /// Lints a text written for the given [`Context`]. With `fast_only`, only
 /// the deterministic fast tier runs; the stop hook uses this, since it
 /// must stay fast on every turn end. The command line runs every tier.
@@ -589,5 +598,17 @@ mod tests {
         assert!(!is_fixture_path("docs/real.md"));
         assert!(!is_fixture_path("greatest-fixtures-ever/tests/file.md"));
         assert!(!is_fixture_path("tests/README.md"));
+    }
+
+    #[test]
+    fn a_scan_prefixed_id_is_a_scan_rule() {
+        assert!(is_scan_rule("scan-denied-name"));
+        assert!(is_scan_rule("scan-session-link"));
+    }
+
+    #[test]
+    fn an_ordinary_id_is_not_a_scan_rule() {
+        assert!(!is_scan_rule("arrow"));
+        assert!(!is_scan_rule("bare-reference"));
     }
 }

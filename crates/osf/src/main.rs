@@ -399,6 +399,23 @@ fn outside_fixtures_warning() -> lint::Finding {
     )
 }
 
+/// One error per declared id that names a scan rule: a scan finding must
+/// never be silenced by anything inside the repository, a fixture's own
+/// declaration included.
+fn forbidden_scan_rule_findings(ids: &[&String]) -> Vec<lint::Finding> {
+    ids.iter()
+        .map(|id| {
+            lint::Finding::new(
+                "expectation-forbidden-scan-rule",
+                lint::Level::Error,
+                1,
+                format!("a scan finding cannot be declared expected: '{id}'"),
+                (*id).clone(),
+            )
+        })
+        .collect()
+}
+
 /// Runs a declared fixture's assertion: `raw` must fire exactly the rule
 /// ids `expected` names. Prints a one-line note on a match; on a mismatch,
 /// returns the missing and unexpected findings for the normal pipeline.
@@ -477,7 +494,15 @@ fn lint_one(
     if let Some(expected) = lint::parse_expectation(text) {
         if lint::is_fixture_path(name) {
             tally.declared += 1;
-            let findings = check_declaration(name, &expected, &raw, format);
+            let forbidden: Vec<&String> = expected
+                .iter()
+                .filter(|id| lint::is_scan_rule(id))
+                .collect();
+            let findings = if forbidden.is_empty() {
+                check_declaration(name, &expected, &raw, format)
+            } else {
+                forbidden_scan_rule_findings(&forbidden)
+            };
             return finish_lint_one(name, text, findings, args, format, tally);
         }
         let mut findings = osf_lint_core::apply_level_overrides(raw, &cfg.levels);
@@ -618,6 +643,27 @@ mod tests {
         assert_eq!(tally.declared, 1);
         assert_eq!(tally.errors, 0);
         assert_eq!(tally.warnings, 0);
+    }
+
+    #[test]
+    fn a_declaration_naming_a_scan_rule_is_refused() {
+        let text =
+            format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\nsemicolon\nscan-denied-name\n-->\n");
+        let (findings, tally) = lint_it(FIXTURE_PATH, &text);
+        assert_eq!(tally.declared, 1);
+        assert_eq!(tally.errors, 1);
+        let finding = findings.first().expect("one finding reported");
+        assert_eq!(finding.rule, "expectation-forbidden-scan-rule");
+        assert_eq!(finding.excerpt, "scan-denied-name");
+        assert!(finding.message.contains("cannot be declared expected"));
+    }
+
+    #[test]
+    fn a_declaration_naming_only_ordinary_rules_still_works() {
+        let text = format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\nsemicolon\n-->\n");
+        let (findings, tally) = lint_it(FIXTURE_PATH, &text);
+        assert!(findings.is_empty(), "{findings:?}");
+        assert_eq!(tally.declared, 1);
     }
 
     #[test]

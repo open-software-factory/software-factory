@@ -17,19 +17,21 @@ const HOME_FILE: &str = ".osf/config.toml";
 pub struct Config {
     pub writing: WritingConfig,
     /// Path patterns that `lint writing`, and any check added later, all
-    /// skip. A build output directory by default, so the checks can pass
-    /// on a project's own repository. A `tests/fixtures` path is not
-    /// excluded: a declared fixture there is checked against its
-    /// declaration instead, so it stays linted rather than invisible.
+    /// skip. Only build output by default, so the checks can pass on a
+    /// project's own repository. Neither `tests/fixtures` nor a Rust test
+    /// file is excluded: `is_fixture_path` and an `osf-expect` declaration
+    /// cover a fixture's prose, and a test that needs a literal a scan
+    /// rule would match builds that literal at run time instead of
+    /// writing it into the file, so there is nothing left to hide there.
     pub exclude: Vec<String>,
 }
 
-/// A build output directory, and a Rust integration test file: places
-/// with no prose for `lint writing` to check. Deliberately does not
-/// exclude `tests/fixtures`: `is_fixture_path` and an `osf-expect`
-/// declaration cover that case now, and excluding the path here would
-/// make a fixture invisible instead of checked.
-pub const DEFAULT_EXCLUDE: &[&str] = &["target/**", "**/tests/*.rs"];
+/// Only the build output directory: untracked, so excluding it costs
+/// nothing. Nothing else is excluded by default. A `tests/fixtures` path
+/// is checked against its `osf-expect` declaration instead of skipped,
+/// and a Rust test file holds no literal a scan rule would match, so
+/// excluding it would only hide real content for no reason.
+pub const DEFAULT_EXCLUDE: &[&str] = &["target/**"];
 
 impl Default for Config {
     fn default() -> Self {
