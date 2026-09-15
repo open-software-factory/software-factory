@@ -6,13 +6,13 @@ The project is moving from vision and research toward its first architecture and
 
 ## Current direction
 
-- The Factory Engine starts in Go: small, native, strongly typed and cross-platform.
+- The Factory Engine starts in Rust: small, native, strongly typed and cross-platform.
 - Coding agents, work trackers, forges, runners and other providers remain replaceable integrations.
 - Existing skills and deterministic ecosystem tooling should be composed rather than cloned.
 - The operator experience is an active control surface, not a read-only dashboard or a chat wrapper.
 - Intent, work, implementation, verification, delivery and production evidence should remain traceable.
 
-These are implementation constraints, not a claim that the wider ecosystem must use Go.
+These are implementation constraints, not a claim that the wider ecosystem must use Rust.
 
 ## Document map
 

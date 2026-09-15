@@ -138,7 +138,7 @@ The canonical documents make the factory broader than an agent-session host:
 
 The current UX direction expresses that domain through several projections over shared truth: the Factory Floor, work graphs, Flight Recorder, attention, runway and factory intelligence. AHP describes only part of the live operational state needed by those projections.
 
-The repository currently contains vision, research and bootstrap planning rather than an implemented engine or client. The decided core language remains Go, with integrations expected to be language-neutral and preferably out of process. Protocol seams should be validated before production packages make them expensive to change.
+The repository currently contains vision, research and bootstrap planning rather than an implemented engine or client. The decided core language is Rust, with integrations expected to be language-neutral and preferably out of process. Protocol seams should be validated before production packages make them expensive to change.
 
 ## Evidence labels used here
 
@@ -242,13 +242,13 @@ The protocol has concrete engineering behind it:
 
 The available engineering evidence is concentrated rather than broadly independent. As of this review, the [implementation list](https://microsoft.github.io/agent-host-protocol/guide/implementations.html) identifies VS Code as the reference server. SDK availability must not be counted as multiple independent host implementations.
 
-### Implications for the current Go direction
+### Implications for the current Rust direction
 
-Microsoft publishes an official AHP Go client library, but its implementation list does not identify a reusable Go host/server implementation. A Go-based Factory AHP Gateway may therefore need to implement the server side from the specification/generated wire types, contribute reusable host support upstream, or supervise a temporary sidecar.
+Microsoft publishes an official AHP Rust client library, but its implementation list does not identify a reusable Rust host/server implementation. A Rust-based Factory AHP Gateway may therefore need to implement the server side from the specification/generated wire types, contribute reusable host support upstream, or supervise a temporary sidecar.
 
-ACP's protocol organization currently lists official SDKs for Kotlin, Java, Python, Rust and TypeScript, not Go. The community-maintained [`coder/acp-go-sdk`](https://github.com/coder/acp-go-sdk) provides typed Go client and agent support and is a credible implementation candidate, but it should not be represented as an official ACP SDK.
+ACP's protocol organization already lists Rust among its official SDKs, alongside Kotlin, Java, Python and TypeScript. There is no comparable gap on the ACP side for the factory's chosen language.
 
-These library gaps do not justify changing the core-language decision. They reinforce the existing posture: keep protocol types isolated, prefer process boundaries, validate libraries with conformance fixtures, and avoid allowing SDK convenience to determine the factory domain.
+These findings do not justify changing the core-language decision. They reinforce the existing posture: keep protocol types isolated, prefer process boundaries, validate libraries with conformance fixtures, and avoid allowing SDK convenience to determine the factory domain.
 
 ## How AHP and ACP compose
 
@@ -433,7 +433,7 @@ An external-host connector has the inverse protocol role: it is an AHP client th
 
 ## Proposed internal seams, not frozen interfaces
 
-Architecture work should validate behavioral seams before naming permanent Go interfaces.
+Architecture work should validate behavioral seams before naming permanent Rust interfaces.
 
 ### Harness-control seam
 
@@ -532,7 +532,7 @@ Mitigation: require evidence that a concept is genuinely client-session synchron
 
 ## Questions for future architecture work
 
-- Is the logically separate Factory AHP Gateway packaged in the same Go process as the engine initially, run as a supervised sidecar, or deployed as a separate service?
+- Is the logically separate Factory AHP Gateway packaged in the same Rust process as the engine initially, run as a supervised sidecar, or deployed as a separate service?
 - What is the minimum internal contract between the protocol-independent engine and the Factory AHP Gateway?
 - When connecting to an external AHP host, which sessions are imported, mirrored or merely linked?
 - How are ownership, authorization and audit identity preserved when the factory is an AHP client of another host?
