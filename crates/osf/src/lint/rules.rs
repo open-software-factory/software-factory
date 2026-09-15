@@ -350,27 +350,33 @@ fn numbers_in_prose(s: &TextUnit, cfg: &WritingConfig) -> Vec<Finding> {
     )]
 }
 
-/// A whole sentence in bold, more than six words.
+/// A whole sentence in bold, more than six words. Not a long bold span
+/// inside an otherwise plain sentence; only a sentence bolded start to end.
 fn bold_sentence(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = re(&RE, r"\*\*([^*]{2,})\*\*");
-    re.captures_iter(&s.text)
-        .filter_map(|c| c.get(1).map(|g| g.as_str()))
-        .filter(|inner| inner.split_whitespace().count() > 6)
-        .map(|inner| {
-            finding(
-                s,
-                "bold-sentence",
-                Level::Warning,
-                "bold the first few words only".to_string(),
-                &inner
-                    .split_whitespace()
-                    .take(6)
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            )
-        })
-        .collect()
+    let trimmed = s.text.trim();
+    let trimmed = trimmed
+        .strip_suffix(|c: char| matches!(c, '.' | '!' | '?'))
+        .unwrap_or(trimmed);
+    let Some(inner) = trimmed
+        .strip_prefix("**")
+        .and_then(|t| t.strip_suffix("**"))
+    else {
+        return vec![];
+    };
+    if inner.is_empty() || inner.contains("**") || inner.split_whitespace().count() <= 6 {
+        return vec![];
+    }
+    vec![finding(
+        s,
+        "bold-sentence",
+        Level::Warning,
+        "bold the first few words only".to_string(),
+        &inner
+            .split_whitespace()
+            .take(6)
+            .collect::<Vec<_>>()
+            .join(" "),
+    )]
 }
 
 fn parenthetical(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {

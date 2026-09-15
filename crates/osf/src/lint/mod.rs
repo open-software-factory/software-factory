@@ -212,6 +212,21 @@ mod tests {
         );
     }
 
+    /// Change 4: only a whole sentence in bold fires, not a long bold span
+    /// inside an otherwise plain sentence.
+    #[test]
+    fn bold_sentence_only_fires_on_a_whole_bolded_sentence() {
+        assert_eq!(
+            rules_of("**Run the full suite before every release, without exception.**"),
+            vec!["bold-sentence"]
+        );
+        assert!(rules_of("**Run the tests.**").is_empty());
+        assert!(rules_of(
+            "Run the tests before every release, but only **the smoke suite** needs a rerun."
+        )
+        .is_empty());
+    }
+
     #[test]
     fn headings_in_short_text() {
         assert_eq!(
