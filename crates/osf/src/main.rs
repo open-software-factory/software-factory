@@ -114,7 +114,7 @@ fn lint_writing(args: &WritingArgs) -> ExitCode {
         } else {
             lint::Kind::Document
         };
-        let findings = lint::lint_writing(text, &known, kind);
+        let findings = lint::lint_writing(text, &known, kind, false);
         for f in &findings {
             let level = if args.strict {
                 lint::Level::Error

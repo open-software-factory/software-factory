@@ -142,6 +142,16 @@ name = "osf"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "osf-lint-core",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "osf-lint-core"
+version = "0.1.0"
+dependencies = [
  "regex",
  "serde",
  "serde_json",

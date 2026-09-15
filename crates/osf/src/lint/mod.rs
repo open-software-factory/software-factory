@@ -6,85 +6,15 @@
 
 mod names;
 mod rules;
-mod segment;
 
-use serde::Serialize;
-use std::collections::HashSet;
+pub use osf_lint_core::{Finding, KnownNames, Level};
+
 use std::path::Path;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Level {
-    Error,
-    Warning,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct Finding {
-    pub rule: &'static str,
-    pub level: Level,
-    pub line: usize,
-    pub message: String,
-    pub excerpt: String,
-}
-
-impl Finding {
-    pub fn render(&self, name: &str, level: Level) -> String {
-        let level = match level {
-            Level::Error => "error",
-            Level::Warning => "warning",
-        };
-        format!(
-            "{}:{}: {} [{}] {}: \"{}\"",
-            name, self.line, level, self.rule, self.message, self.excerpt
-        )
-    }
-
-    pub fn to_json(&self, name: &str, level: Level) -> String {
-        #[derive(Serialize)]
-        struct Row<'a> {
-            file: &'a str,
-            line: usize,
-            level: Level,
-            rule: &'a str,
-            message: &'a str,
-            excerpt: &'a str,
-        }
-        serde_json::to_string(&Row {
-            file: name,
-            line: self.line,
-            level,
-            rule: self.rule,
-            message: &self.message,
-            excerpt: &self.excerpt,
-        })
-        .expect("a finding serialises")
-    }
-}
-
-/// Names that need no description on first use: everyday tools and words.
-/// Project names come from a file outside the repo, see `--known-names`.
-pub struct KnownNames(HashSet<String>);
-
-impl KnownNames {
-    pub fn contains(&self, name: &str) -> bool {
-        self.0.contains(name)
-    }
-}
-
+/// # Errors
+/// Returns an error if `path` is given and cannot be read.
 pub fn load_known_names(path: Option<&Path>) -> Result<KnownNames, String> {
-    let mut set: HashSet<String> = names::BUILT_IN.iter().map(ToString::to_string).collect();
-    if let Some(p) = path {
-        let text = std::fs::read_to_string(p)
-            .map_err(|e| format!("cannot read known names {}: {e}", p.display()))?;
-        for line in text.lines() {
-            let t = line.trim();
-            if !t.is_empty() && !t.starts_with('#') {
-                set.insert(t.to_string());
-            }
-        }
-    }
-    Ok(KnownNames(set))
+    osf_lint_core::load_known_names(names::BUILT_IN, path)
 }
 
 /// What the text is. A message is a reply to a person, where a heading in a
@@ -95,15 +25,19 @@ pub enum Kind {
     Document,
 }
 
-pub fn lint_writing(text: &str, known: &KnownNames, kind: Kind) -> Vec<Finding> {
-    let doc = segment::parse(text);
+/// Lints a document or a message. With `fast_only`, only the deterministic
+/// fast tier runs; the stop hook uses this, since it must stay fast on
+/// every turn end. The command line runs every tier.
+#[must_use]
+pub fn lint_writing(text: &str, known: &KnownNames, kind: Kind, fast_only: bool) -> Vec<Finding> {
+    let doc = osf_lint_core::segment::parse(text);
     let mut findings = Vec::new();
     if kind == Kind::Message {
         rules::headings_in_short_text(&doc, &mut findings);
     }
-    rules::per_sentence(&doc, &mut findings);
+    rules::per_sentence(&doc, fast_only, &mut findings);
     rules::undefined_names(&doc, known, &mut findings);
-    findings.sort_by_key(|f| (f.line, f.rule));
+    osf_lint_core::sort_findings(&mut findings);
     findings
 }
 
@@ -116,13 +50,16 @@ mod tests {
             text,
             &load_known_names(None).expect("built-in names load"),
             Kind::Message,
+            false,
         )
     }
 
     #[test]
     fn a_document_may_have_headings() {
         let known = load_known_names(None).expect("built-in names load");
-        assert!(lint_writing("## Result\n\nIt passed.\n", &known, Kind::Document).is_empty());
+        assert!(
+            lint_writing("## Result\n\nIt passed.\n", &known, Kind::Document, false).is_empty()
+        );
     }
 
     fn rules_of(text: &str) -> Vec<&'static str> {

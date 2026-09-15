@@ -1,21 +1,40 @@
-//! Split Markdown-ish text into prose sentences with line numbers.
+//! Split Markdown-ish text into sentences, paragraphs and a whole-document
+//! unit, each with a line number and a byte span. A rule or an analyser
+//! reads whichever grain its scope asks for; the shape is the same for all.
 
 use regex::Regex;
+use std::ops::Range;
 use std::sync::OnceLock;
 
-pub struct Sentence {
-    pub line: usize,
+/// One grain of text: a sentence, a paragraph, or a whole document.
+/// Any rule or analyser, regular expression or model, takes this as input
+/// and reports a location the same way.
+#[derive(Clone, Debug)]
+pub struct TextUnit {
     pub text: String,
-    /// Words after inline code and links are reduced, for counting and names.
-    pub words: Vec<String>,
+    pub span: Range<usize>,
+    pub line: usize,
     /// A table cell: names and phrases are checked, length is not.
     pub in_table: bool,
     /// A heading: its first word is never a name candidate.
     pub is_heading: bool,
 }
 
+impl TextUnit {
+    /// Words after inline code and links are reduced, for counting and names.
+    #[must_use]
+    pub fn words(&self) -> Vec<String> {
+        reduce_inline(&self.text)
+            .split_whitespace()
+            .map(str::to_string)
+            .collect()
+    }
+}
+
 pub struct Doc {
-    pub sentences: Vec<Sentence>,
+    pub sentences: Vec<TextUnit>,
+    pub paragraphs: Vec<TextUnit>,
+    pub whole: TextUnit,
     pub headings: Vec<usize>,
     pub word_count: usize,
 }
@@ -192,6 +211,9 @@ impl State {
     }
 }
 
+/// # Panics
+/// Panics only if a built-in regex pattern fails to compile, which never happens.
+#[must_use]
 pub fn parse(text: &str) -> Doc {
     let state = text
         .lines()
@@ -199,30 +221,44 @@ pub fn parse(text: &str) -> Doc {
         .fold(State::default(), |s, (i, raw)| s.step(i + 1, raw))
         .flush();
 
-    let sentences: Vec<Sentence> = state
+    let paragraphs: Vec<TextUnit> = state
+        .paras
+        .iter()
+        .map(|p| TextUnit {
+            span: 0..p.text.len(),
+            text: p.text.clone(),
+            line: p.line,
+            in_table: p.in_table,
+            is_heading: p.is_heading,
+        })
+        .collect();
+    let sentences: Vec<TextUnit> = state
         .paras
         .iter()
         .flat_map(|p| {
             split_sentences(&p.text)
                 .into_iter()
-                .map(move |(offset, text)| {
-                    let words = reduce_inline(&text)
-                        .split_whitespace()
-                        .map(str::to_string)
-                        .collect();
-                    Sentence {
-                        line: p.line_at(offset),
-                        text,
-                        words,
-                        in_table: p.in_table,
-                        is_heading: p.is_heading,
-                    }
+                .map(move |(offset, text)| TextUnit {
+                    line: p.line_at(offset),
+                    span: offset..offset + text.len(),
+                    text,
+                    in_table: p.in_table,
+                    is_heading: p.is_heading,
                 })
         })
         .collect();
-    let word_count = sentences.iter().map(|s| s.words.len()).sum();
+    let word_count = sentences.iter().map(|s| s.words().len()).sum();
+    let whole = TextUnit {
+        text: text.to_string(),
+        span: 0..text.len(),
+        line: 1,
+        in_table: false,
+        is_heading: false,
+    };
     Doc {
         sentences,
+        paragraphs,
+        whole,
         headings: state.headings,
         word_count,
     }
@@ -304,6 +340,10 @@ fn split_sentences(text: &str) -> Vec<(usize, String)> {
 }
 
 /// Replace inline code with the word `code`, links with their text, and drop emphasis markers.
+///
+/// # Panics
+/// Panics only if a built-in regex pattern fails to compile, which never happens.
+#[must_use]
 pub fn reduce_inline(s: &str) -> String {
     static CODE: OnceLock<Regex> = OnceLock::new();
     static LINK: OnceLock<Regex> = OnceLock::new();
