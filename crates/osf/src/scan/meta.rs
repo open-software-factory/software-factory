@@ -76,9 +76,9 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a cross-repository reference, `owner/repo#123`, whose owner is not the \
-              configured project owner. Off by default: with no owner configured, the tool \
-              cannot tell a foreign reference from the project's own, so it never fires.\n\
+              Flags a cross-repository reference, `owner/repo#<number>`, whose owner is not \
+              the configured project owner. Off by default: with no owner configured, the \
+              tool cannot tell a foreign reference from the project's own, so it never fires.\n\
               ### Why it is bad\n\
               A reference to another owner's issue tracker, left in by habit or by a copied \
               example, can point a public reader at a private repository they cannot open.\n\
@@ -88,8 +88,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               ### Citation\n\
               house\n\
               ### Example\n\
-              Bad, with project owner `acme`: see other-org/internal-tools#42 for the fix.\n\
-              Good: see acme/public-repo#42 for the fix.",
+              Bad, with project owner `acme`: see other-org/internal-tools#<number> for the fix.\n\
+              Good: see acme/public-repo#<number> for the fix.",
         exception: None,
     },
     RuleMeta {

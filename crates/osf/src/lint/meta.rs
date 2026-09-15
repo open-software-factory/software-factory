@@ -70,7 +70,7 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: Fixed in #125 today.\n\
-         Good: Fixed in owner/repo#125 (the login crash) today."
+         Good: Fixed in open-software-factory/software-factory#125 (the login crash) today."
     ),
     rule_meta!(
         "reference-without-label",
@@ -78,7 +78,7 @@ pub const RULE_META: &[RuleMeta] = &[
         Comprehension,
         "house",
         "### What it does\n\
-         Flags `owner/repo#123` (or `repo#123`) with no bracketed description \
+         Flags `open-software-factory/software-factory#123` (or `repo#123`) with no bracketed description \
          straight after it.\n\
          ### Why it is bad\n\
          A bare reference number tells the reader nothing about what it is. \
@@ -88,8 +88,8 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: The fix landed in owner/repo#125 today.\n\
-         Good: The fix landed in owner/repo#125 (the login crash) today."
+         Bad: The fix landed in open-software-factory/software-factory#125 today.\n\
+         Good: The fix landed in open-software-factory/software-factory#125 (the login crash) today."
     ),
     rule_meta!(
         "reference-without-link",
@@ -97,7 +97,7 @@ pub const RULE_META: &[RuleMeta] = &[
         Style,
         "house",
         "### What it does\n\
-         Flags a labelled `owner/repo#123 (the thing)` reference that is not \
+         Flags a labelled `open-software-factory/software-factory#123 (the thing)` reference that is not \
          wrapped in a Markdown link. Always a warning, in every context: a \
          labelled reference is already resolvable without the link.\n\
          ### Why it is bad\n\
@@ -108,8 +108,8 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: owner/repo#125 (the login crash) is now fixed.\n\
-         Good: [owner/repo#125 (the login crash)](https://example.com/125) is now fixed.",
+         Bad: open-software-factory/software-factory#125 (the login crash) is now fixed.\n\
+         Good: [open-software-factory/software-factory#125 (the login crash)](https://example.com/125) is now fixed.",
         Exception::FixedLevel(Level::Warning)
     ),
     rule_meta!(
