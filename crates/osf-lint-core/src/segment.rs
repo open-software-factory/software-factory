@@ -20,6 +20,9 @@ pub struct TextUnit {
     pub in_table: bool,
     /// A heading: its first word is never a name candidate.
     pub is_heading: bool,
+    /// A list item: an enumeration inside it often mixes several
+    /// capitalised words on one line.
+    pub in_list_item: bool,
 }
 
 impl TextUnit {
@@ -53,10 +56,17 @@ struct Block {
     breaks: Vec<(usize, usize, usize)>,
     in_table: bool,
     is_heading: bool,
+    in_list_item: bool,
 }
 
 impl Block {
-    fn new(line: usize, start_offset: usize, in_table: bool, is_heading: bool) -> Self {
+    fn new(
+        line: usize,
+        start_offset: usize,
+        in_table: bool,
+        is_heading: bool,
+        in_list_item: bool,
+    ) -> Self {
         Block {
             line,
             start_offset,
@@ -64,6 +74,7 @@ impl Block {
             breaks: Vec::new(),
             in_table,
             is_heading,
+            in_list_item,
         }
     }
 
@@ -112,6 +123,9 @@ struct Walk {
     inline_skip: u32,
     in_heading: bool,
     in_cell: bool,
+    /// Nesting depth inside a list item, so a nested list does not close its
+    /// parent item early.
+    list_item_depth: u32,
 }
 
 impl Walk {
@@ -128,8 +142,15 @@ impl Walk {
     fn open(&mut self, doc_lines: &[usize], offset: usize) -> &mut Block {
         let in_table = self.in_cell;
         let is_heading = self.in_heading;
+        let in_list_item = self.list_item_depth > 0;
         self.current.get_or_insert_with(|| {
-            Block::new(line_at(doc_lines, offset), offset, in_table, is_heading)
+            Block::new(
+                line_at(doc_lines, offset),
+                offset,
+                in_table,
+                is_heading,
+                in_list_item,
+            )
         })
     }
 }
@@ -237,6 +258,16 @@ fn step(
             walk.in_cell = false;
             walk
         }
+        Event::Start(Tag::Item) => {
+            walk = walk.flush();
+            walk.list_item_depth += 1;
+            walk
+        }
+        Event::End(TagEnd::Item) => {
+            walk = walk.flush();
+            walk.list_item_depth = walk.list_item_depth.saturating_sub(1);
+            walk
+        }
         _ => walk.flush(),
     }
 }
@@ -261,6 +292,7 @@ fn paragraph_unit(block: &Block) -> TextUnit {
         line: block.line,
         in_table: block.in_table,
         is_heading: block.is_heading,
+        in_list_item: block.in_list_item,
     }
 }
 
@@ -273,6 +305,7 @@ fn sentence_units(block: &Block) -> Vec<TextUnit> {
             text,
             in_table: block.in_table,
             is_heading: block.is_heading,
+            in_list_item: block.in_list_item,
         })
         .collect()
 }
@@ -299,6 +332,7 @@ pub fn parse(text: &str) -> Doc {
         line: 1,
         in_table: false,
         is_heading: false,
+        in_list_item: false,
     };
     Doc {
         sentences,

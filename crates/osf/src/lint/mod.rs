@@ -199,6 +199,65 @@ mod tests {
     }
 
     #[test]
+    fn a_heading_word_that_is_ordinary_elsewhere_is_not_a_name() {
+        // Real example from the false-positive analysis, docs/architecture/open-questions.md:1.
+        let filler = "It ran. ".repeat(300);
+        let t = format!(
+            "# Open Questions\n\n{filler}This document lists open questions about the design.\n"
+        );
+        assert_eq!(errors_of(&t), Vec::<&str>::new(), "{:?}", lint(&t));
+        assert!(
+            !rules_of(&t).contains(&"undefined-name-at-start"),
+            "{:?}",
+            lint(&t)
+        );
+    }
+
+    #[test]
+    fn a_genuine_title_in_a_heading_is_still_reported() {
+        // Real example from the false-positive analysis, docs/research/ux/ux-references.md:147.
+        let filler = "It ran. ".repeat(300);
+        let t = format!("{filler}\n\n### RimWorld\n");
+        assert_eq!(errors_of(&t), vec!["undefined-name"], "{:?}", lint(&t));
+    }
+
+    #[test]
+    fn a_hyphen_compound_headed_by_an_ordinary_word_is_not_a_name() {
+        // Real example from the false-positive analysis,
+        // docs/architecture/decisions/0001-go-for-the-factory-engine.md:13.
+        let t = "The service links to Go-specific tooling. It also runs a go binary directly.\n";
+        assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
+
+    #[test]
+    fn a_real_name_compound_is_still_reported() {
+        // Real example from the false-positive analysis, docs/product/ux/open-questions.md:28.
+        let t = "The team is choosing between React/TypeScript for the client.\n";
+        assert_eq!(errors_of(t), vec!["undefined-name"]);
+    }
+
+    #[test]
+    fn a_list_item_word_that_is_ordinary_elsewhere_is_not_a_name() {
+        // Real example from the false-positive analysis, docs/architecture/open-questions.md:17.
+        let t = "- What is the durable unit: WorkItem, Run, Execution, Task, Step, Attempt, Session?\n\nA run of the pipeline records each attempt and session in a task queue.\n";
+        let found = lint(t);
+        let names: Vec<&str> = found
+            .iter()
+            .filter(|f| f.rule == "undefined-name")
+            .map(|f| f.excerpt.as_str())
+            .collect();
+        assert_eq!(names, vec!["WorkItem", "Execution"], "{found:?}");
+    }
+
+    #[test]
+    fn an_acronym_plural_is_not_a_name() {
+        // Real example from the false-positive analysis,
+        // docs/architecture/decisions/0004-protocol-independent-core-with-ahp-acp-edges.md:16.
+        let t = "The team should treat factory-owned UIs as AHP clients.";
+        assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
+
+    #[test]
     fn table_cells_check_names_but_not_length() {
         let long = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty one two three four five six";
         let t = format!("| Tool | Note |\n|---|---|\n| prose | Use Vale for {long} |\n");
