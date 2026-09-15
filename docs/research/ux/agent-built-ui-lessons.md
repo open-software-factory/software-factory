@@ -72,4 +72,4 @@ Also known: a 31 GB npm cache filled the disk during the runs. Watch cache size 
 
 ## Sources
 
-Local branch `ux-benchmark-pack`, commits `573f723` to `69dd4f8`, and the uncommitted review files under `docs/research/ux/benchmark/reviews/2026-08-24-v1-prompt-forensics/` in that worktree. Those branches are not pushed and may be deleted.
+This note summarizes a local forensic review and an independent blind review of the four console builds, both run on 24 August 2026. The review files themselves are not included in this repository. The screenshots in [`prototypes/`](prototypes/README.md) and the findings above are what remains of that work.

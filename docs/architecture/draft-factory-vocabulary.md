@@ -10,7 +10,7 @@ The UX benchmark work in August 2026 built a synthetic factory to render an oper
 
 The benchmark is dropped. This document keeps the vocabulary so the first Factory Engine slice can test it, keep what fits and delete the rest. It is a hypothesis. The Engine slice decides the real vocabulary, as `todo.md` requires.
 
-The source was the Zod schema and fixture in the benchmark harness at commit `69dd4f8` on the local `ux-benchmark-pack` branch, plus the uncommitted version 1.1 changes made on 24 August 2026.
+The vocabulary below reflects the schema and fixture used in the dropped August 2026 benchmark work. That work, including its later changes, is not included in this repository.
 
 ## Entity families
 
