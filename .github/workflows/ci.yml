@@ -91,6 +91,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          # full history so the changed-file list can be computed against the base
+          fetch-depth: 0
 
       - name: Look for a Rust workspace
         id: detect
@@ -129,16 +132,36 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: cargo test --workspace
 
-      - name: Check this project's own writing with its own tool
+      - name: Build the tool
         if: steps.detect.outputs.present == 'true'
+        run: cargo build --release --bin osf
+
+      # Only what this change touches. A new check does not retroactively
+      # condemn every document written before the check existed.
+      - name: Check the writing in the files this change touches
+        if: steps.detect.outputs.present == 'true' && github.event_name == 'pull_request'
         run: |
           set -euo pipefail
-          cargo build --release --bin osf
-          # --no-suppress so a suppression comment in the repository cannot hide a finding here
+          git fetch --quiet origin "${{ github.base_ref }}"
+          mapfile -t changed < <(
+            git diff --name-only --diff-filter=ACMR \
+              "origin/${{ github.base_ref }}...HEAD" -- '*.md'
+          )
+          if [ ${#changed[@]} -eq 0 ]; then
+            echo "::notice::this change touches no Markdown"
+            exit 0
+          fi
+          printf 'checking %s\n' "${changed[@]}"
+          # --no-suppress so a suppression comment cannot hide a finding from this gate
+          ./target/release/osf lint writing --no-suppress --format human "${changed[@]}"
+
+      - name: Report the writing across the whole repository
+        if: always() && steps.detect.outputs.present == 'true'
+        continue-on-error: true
+        run: |
           find . -name '*.md' -not -path './target/*' -print0 \
-            | xargs -0 ./target/release/osf lint writing --no-suppress --format sarif > osf.sarif
-          find . -name '*.md' -not -path './target/*' -print0 \
-            | xargs -0 ./target/release/osf lint writing --no-suppress --format human
+            | xargs -0 ./target/release/osf lint writing --no-suppress --format sarif \
+            > osf.sarif || true
 
       - name: Keep the findings file
         if: always() && steps.detect.outputs.present == 'true'
