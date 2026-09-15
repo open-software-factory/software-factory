@@ -183,7 +183,7 @@ mod tests {
     /// Markdown link and once bare, must flag only the bare occurrence.
     #[test]
     fn a_second_bare_occurrence_of_a_linked_reference_is_still_flagged() {
-        let t = "See [owner/repo#125 (the topic)](https://example.com) or owner/repo#125 (the topic) again.";
+        let t = "See [open-software-factory/software-factory#125 (the topic)](https://example.com) or open-software-factory/software-factory#125 (the topic) again.";
         let findings = lint(t);
         assert_eq!(
             findings
