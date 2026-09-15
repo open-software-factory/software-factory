@@ -1,10 +1,35 @@
 mod hook;
 mod lint;
 
-use clap::{Args, Parser, Subcommand};
-use std::io::Read;
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use std::io::{IsTerminal, Read};
 use std::path::PathBuf;
 use std::process::ExitCode;
+
+const INFORMATION_URI: &str = "https://github.com/open-software-factory/software-factory";
+
+/// How to print findings. Human reads well in a terminal; sarif is what
+/// GitHub reads on a pull request; json is one finding per line.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum Format {
+    Human,
+    Sarif,
+    Json,
+}
+
+/// Human in a terminal, sarif otherwise, unless `--format` says differently.
+fn resolve_format(chosen: Option<Format>, json_alias: bool) -> Format {
+    if json_alias {
+        return Format::Json;
+    }
+    chosen.unwrap_or_else(|| {
+        if std::io::stdout().is_terminal() {
+            Format::Human
+        } else {
+            Format::Sarif
+        }
+    })
+}
 
 #[derive(Parser)]
 #[command(name = "osf", version, about = "Open Software Factory checks")]
@@ -37,8 +62,11 @@ enum LintKind {
 struct WritingArgs {
     /// Files to check. With no files, standard input is checked.
     paths: Vec<PathBuf>,
-    /// Report findings as JSON lines.
-    #[arg(long)]
+    /// How to print findings: human, sarif, or json.
+    #[arg(long, value_enum)]
+    format: Option<Format>,
+    /// Report findings as JSON lines. Deprecated: use `--format json`.
+    #[arg(long, hide = true)]
     json: bool,
     /// Treat warnings as errors.
     #[arg(long)]
@@ -106,34 +134,59 @@ fn lint_writing(args: &WritingArgs) -> ExitCode {
             }
         }
     }
+    let format = resolve_format(args.format, args.json);
     let mut errors = 0usize;
     let mut warnings = 0usize;
+    let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
     for (name, text) in &inputs {
         let kind = if args.message {
             lint::Kind::Message
         } else {
             lint::Kind::Document
         };
-        let findings = lint::lint_writing(text, &known, kind, false);
+        let mut findings = lint::lint_writing(text, &known, kind, false);
+        if args.strict {
+            for f in &mut findings {
+                f.level = lint::Level::Error;
+            }
+        }
         for f in &findings {
-            let level = if args.strict {
-                lint::Level::Error
-            } else {
-                f.level
-            };
-            match level {
+            match f.level {
                 lint::Level::Error => errors += 1,
                 lint::Level::Warning => warnings += 1,
             }
-            if args.json {
-                println!("{}", f.to_json(name, level));
-            } else {
-                println!("{}", f.render(name, level));
+        }
+        match format {
+            Format::Human if !findings.is_empty() => {
+                println!("{}", osf_lint_core::render_human(name, text, &findings));
             }
+            Format::Human => {}
+            Format::Json => {
+                for f in &findings {
+                    println!("{}", f.to_json(name, f.level));
+                }
+            }
+            Format::Sarif => sarif_files.push((name.clone(), findings)),
         }
     }
-    if !args.json {
-        println!("osf lint writing: {errors} error(s), {warnings} warning(s)");
+    match format {
+        Format::Sarif => {
+            let tool = osf_lint_core::ToolInfo {
+                name: "osf",
+                version: env!("CARGO_PKG_VERSION"),
+                information_uri: INFORMATION_URI,
+            };
+            let report = osf_lint_core::to_sarif(&sarif_files, &tool);
+            match serde_json::to_string_pretty(&report) {
+                Ok(text) => println!("{text}"),
+                Err(e) => {
+                    eprintln!("osf: cannot render sarif: {e}");
+                    return ExitCode::from(2);
+                }
+            }
+        }
+        Format::Human => println!("osf lint writing: {errors} error(s), {warnings} warning(s)"),
+        Format::Json => {}
     }
     if errors > 0 {
         ExitCode::from(1)
