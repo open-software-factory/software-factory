@@ -119,8 +119,9 @@ struct WritingArgs {
     /// Treat warnings as errors.
     #[arg(long)]
     strict: bool,
-    /// Extra names that need no description, one per line.
-    #[arg(long)]
+    /// Extra names that need no description, one per line. For a person
+    /// running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
     known_names: Option<PathBuf>,
     /// The text is a reply to a person: shorthand for `--context transcript`.
     #[arg(long)]

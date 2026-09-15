@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 pub const ENV_VAR: &str = "OSF_CONFIG";
 const HOME_FILE: &str = ".osf/config.toml";
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub writing: WritingConfig,
@@ -42,7 +42,7 @@ impl Default for Config {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct WritingConfig {
     /// A sentence with more words than this is an error.
@@ -276,13 +276,16 @@ pub struct Loaded {
 /// the other three layers resolved to, never replacing it: a caller's
 /// `--exclude` flag must not be able to wipe the defaults by accident.
 ///
-/// With `gate` set, `exclude` is forced back to the compiled defaults
-/// after every other layer has run, and `extra_exclude` is not applied.
-/// A gate run checks a change nobody has approved yet, so the exclude
-/// list cannot come from that change's own config file or environment:
-/// a setting that loosens this check must not come from the thing being
-/// checked. `--exclude` and `--no-exclude` stay available with `gate`
-/// unset, for a person running the tool by hand.
+/// With `gate` set, `file_flag`, `flags`, and `extra_exclude` are all
+/// ignored, and the file at `OSF_CONFIG` or `~/.osf/config.toml` is not
+/// read either: [`gate_loaded`] returns the compiled defaults, untouched.
+/// A gate run checks a change nobody has approved yet, so no setting that
+/// loosens this check may come from that change's own config file, its
+/// environment, or a flag built from either: a rule's level, a word list,
+/// a numeric limit, the known-name list, and the exclude list all fall
+/// back to the compiled default. `--exclude`, `--no-exclude`, and
+/// `--known-names` stay available with `gate` unset, for a person running
+/// the tool by hand.
 ///
 /// # Errors
 /// Returns an error if an explicit config file cannot be read, if the file
@@ -295,6 +298,9 @@ pub fn load(
     extra_exclude: &[String],
     gate: bool,
 ) -> Result<Loaded, ConfigError> {
+    if gate {
+        return gate_loaded();
+    }
     let defaults = osf_lint_core::to_value(&Config::default())?;
     let mut layered = Layered::new(defaults);
 
@@ -319,11 +325,7 @@ pub fn load(
 
     let (mut config, mut tree, mut sources): (Config, toml::Value, BTreeMap<String, Layer>) =
         layered.finish()?;
-    if gate {
-        config.exclude = strings(DEFAULT_EXCLUDE);
-        set_exclude_tree(&mut tree, &config.exclude);
-        sources.insert("exclude".to_string(), Layer::Default);
-    } else if !extra_exclude.is_empty() {
+    if !extra_exclude.is_empty() {
         config.exclude.extend(extra_exclude.iter().cloned());
         set_exclude_tree(&mut tree, &config.exclude);
         sources.insert("exclude".to_string(), Layer::Flag);
@@ -333,6 +335,38 @@ pub fn load(
         tree,
         sources,
         file,
+    })
+}
+
+/// The config a gate run always gets: the compiled defaults, with nothing
+/// from any file, environment variable, or flag merged in.
+///
+/// This is built from [`Config::default`] rather than by starting from a
+/// resolved config and clearing the fields a change could have reached, so
+/// a field added to [`Config`] or [`WritingConfig`] later is safe here with
+/// no extra code: it was never merged in, so it never needs resetting.
+///
+/// Nothing from outside the compiled defaults is layered in today, because
+/// this crate has no setting that both lives outside the repository being
+/// checked and still needs to reach the gate. If one is ever added, such as
+/// a value read from an environment variable the running organisation
+/// controls rather than the repository (`DENYLIST`, read by the name-leak
+/// scan in `.github/workflows/ci.yml`, is that kind of value, though it is
+/// a separate mechanism from this one), it belongs here, added after the
+/// compiled defaults and never by merging in anything the checked change
+/// could have written.
+///
+/// # Errors
+/// Returns an error only if the compiled defaults themselves fail to
+/// serialise into a TOML tree, which does not happen in practice.
+fn gate_loaded() -> Result<Loaded, ConfigError> {
+    let defaults = osf_lint_core::to_value(&Config::default())?;
+    let (config, tree, sources) = Layered::new(defaults).finish()?;
+    Ok(Loaded {
+        config,
+        tree,
+        sources,
+        file: None,
     })
 }
 
@@ -584,5 +618,131 @@ mod tests {
         })
         .expect("gate load succeeds");
         assert_eq!(loaded.config.exclude, DEFAULT_EXCLUDE);
+    }
+
+    /// The exact case the adversarial review proved: a config file that
+    /// turns `bare-reference` off must not reach a gate run.
+    #[test]
+    fn gate_ignores_a_file_level_override() {
+        let dir = std::env::temp_dir().join("osf-config-test-gate-levels");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[writing.levels]\nbare-reference = \"off\"\n").expect("file writes");
+        let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
+        assert!(
+            loaded.config.writing.levels.is_empty(),
+            "{:?}",
+            loaded.config.writing.levels
+        );
+    }
+
+    /// The known-name list and the word lists must fall back to the
+    /// compiled defaults too, the same as `exclude` already did.
+    #[test]
+    fn gate_ignores_known_names_and_word_lists_from_a_file() {
+        let dir = std::env::temp_dir().join("osf-config-test-gate-lists");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[writing]\nknown_names = [\"Vale\"]\nfiller = []\n")
+            .expect("file writes");
+        let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
+        assert!(loaded.config.writing.known_names.is_empty());
+        assert_eq!(loaded.config.writing.filler.len(), DEFAULT_FILLER.len());
+    }
+
+    /// Recursively changes every leaf value in a TOML tree. A config file
+    /// built from this poisons every field the compiled defaults hold a
+    /// value for, including one added to `Config` or `WritingConfig` after
+    /// this test was written, with nothing here naming that field by hand.
+    fn poison(value: &toml::Value) -> toml::Value {
+        match value {
+            toml::Value::String(s) => toml::Value::String(format!("{s}-poisoned")),
+            toml::Value::Integer(n) => toml::Value::Integer(n + 999),
+            toml::Value::Float(f) => toml::Value::Float(f + 999.0),
+            toml::Value::Boolean(b) => toml::Value::Boolean(!b),
+            toml::Value::Datetime(d) => toml::Value::Datetime(*d),
+            toml::Value::Array(items) => {
+                let mut out: Vec<toml::Value> = items.iter().map(poison).collect();
+                out.push(toml::Value::String("poison-extra".to_string()));
+                toml::Value::Array(out)
+            }
+            toml::Value::Table(table) => {
+                let mut out = toml::value::Table::new();
+                for (k, v) in table {
+                    out.insert(k.clone(), poison(v));
+                }
+                toml::Value::Table(out)
+            }
+        }
+    }
+
+    /// The generic form of the two tests above: a gate run must return
+    /// exactly the compiled defaults no matter what a file, the
+    /// environment, or a flag sets, field by field, with no list of fields
+    /// in this test to fall out of date. A future field the gate forgets
+    /// to reset would fail this test the day it is given a compiled
+    /// default other than its own zero value, without anyone updating
+    /// this test to know about it.
+    #[test]
+    fn gate_config_matches_compiled_defaults_even_from_a_maximally_poisoned_source() {
+        let defaults_tree =
+            osf_lint_core::to_value(&Config::default()).expect("defaults serialise");
+        let mut poisoned = poison(&defaults_tree);
+        // The compiled defaults hold these empty, so poisoning the tree
+        // above touches nothing for them; set them by hand here so this
+        // one file also proves a per-rule level, the known-name list, and
+        // the sentence-starter list cannot reach a gate run either.
+        if let Some(writing) = poisoned
+            .as_table_mut()
+            .and_then(|root| root.get_mut("writing"))
+            .and_then(toml::Value::as_table_mut)
+        {
+            writing.insert(
+                "known_names".to_string(),
+                toml::Value::Array(vec![toml::Value::String("Poisoned".to_string())]),
+            );
+            writing.insert(
+                "sentence_starters".to_string(),
+                toml::Value::Array(vec![toml::Value::String("poisoned".to_string())]),
+            );
+            let mut levels = toml::value::Table::new();
+            levels.insert(
+                "bare-reference".to_string(),
+                toml::Value::String("off".to_string()),
+            );
+            writing.insert("levels".to_string(), toml::Value::Table(levels));
+        }
+        let text = toml::to_string(&poisoned).expect("poisoned tree renders as TOML");
+
+        let dir = std::env::temp_dir().join("osf-config-test-gate-poison");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, &text).expect("poisoned file writes");
+
+        let flags: Vec<(&[&str], toml::Value)> = vec![
+            (&["writing", "max_sentence_words"], toml::Value::Integer(1)),
+            (&["writing", "max_numerals"], toml::Value::Integer(1)),
+            (&["writing", "short_text_words"], toml::Value::Integer(1)),
+        ];
+        let extra_exclude = vec!["also-poisoned/**".to_string()];
+
+        let loaded = serial(
+            &[
+                ("OSF_WRITING_MAX_SENTENCE_WORDS", "1"),
+                ("OSF_WRITING_WARN_SENTENCE_WORDS", "1"),
+                ("OSF_WRITING_MAX_NUMERALS", "1"),
+                ("OSF_WRITING_SHORT_TEXT_WORDS", "1"),
+                ("OSF_WRITING_FILLER", "poisoned"),
+                ("OSF_WRITING_CHAT_LOCAL_PHRASES", "poisoned"),
+                ("OSF_WRITING_CHAT_LOCAL_LABELS", "poisoned"),
+                ("OSF_WRITING_KNOWN_NAMES", "Poisoned"),
+                ("OSF_WRITING_SENTENCE_STARTERS", "poisoned"),
+                ("OSF_EXCLUDE", "also-poisoned/**"),
+            ],
+            || load(Some(&path), &flags, &extra_exclude, true),
+        )
+        .expect("a gate load succeeds even over a poisoned file");
+
+        assert_eq!(loaded.config, Config::default());
     }
 }
