@@ -10,7 +10,10 @@ mod names;
 mod rules;
 
 pub use meta::rule_meta;
-pub use osf_lint_core::{Context, Finding, KnownNames, Level, Remediation};
+pub use osf_lint_core::{
+    check_expectation, parse_expectation, Context, Finding, KnownNames, Level, Mismatch,
+    Remediation,
+};
 
 use crate::config::WritingConfig;
 use std::path::Path;
@@ -24,6 +27,20 @@ pub fn load_known_names(extra: &[String], path: Option<&Path>) -> Result<KnownNa
         .chain(extra.iter().map(String::as_str))
         .collect();
     osf_lint_core::load_known_names(&built_in, path)
+}
+
+/// Whether `name` sits under a `tests/fixtures` directory. Hard-coded, not
+/// a configured setting: an `osf-expect` marker only takes effect here, so
+/// a repository cannot use it to launder a real finding in an ordinary
+/// file. The tool does not honour the marker anywhere else.
+#[must_use]
+pub fn is_fixture_path(name: &str) -> bool {
+    let normalised = name.replace('\\', "/");
+    normalised
+        .split('/')
+        .collect::<Vec<_>>()
+        .windows(2)
+        .any(|pair| pair == ["tests", "fixtures"])
 }
 
 /// Lints a text written for the given [`Context`]. With `fast_only`, only
@@ -555,5 +572,22 @@ mod tests {
             "{}",
             f.message
         );
+    }
+
+    #[test]
+    fn a_tests_fixtures_path_is_recognised_either_separator() {
+        assert!(is_fixture_path(
+            "crates/osf/tests/fixtures/skills/bad/SKILL.md"
+        ));
+        assert!(is_fixture_path(
+            r"crates\osf\tests\fixtures\skills\bad\SKILL.md"
+        ));
+    }
+
+    #[test]
+    fn a_path_that_only_mentions_fixtures_or_tests_is_not_a_fixture_path() {
+        assert!(!is_fixture_path("docs/real.md"));
+        assert!(!is_fixture_path("greatest-fixtures-ever/tests/file.md"));
+        assert!(!is_fixture_path("tests/README.md"));
     }
 }

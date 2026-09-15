@@ -4,6 +4,7 @@
 
 mod config;
 mod engine;
+mod expectation;
 mod finding;
 mod human;
 mod meta;
@@ -18,6 +19,7 @@ pub use config::{
     Layered, LevelSetting,
 };
 pub use engine::{run_analysers, run_rules, sort_findings};
+pub use expectation::{check as check_expectation, parse_expectation, Mismatch};
 pub use finding::{Evidence, Finding, Level, Remediation};
 pub use human::render_human;
 pub use meta::{resolve, Class, Context, Exception, Group};

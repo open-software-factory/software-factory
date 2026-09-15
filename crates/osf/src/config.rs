@@ -17,15 +17,19 @@ const HOME_FILE: &str = ".osf/config.toml";
 pub struct Config {
     pub writing: WritingConfig,
     /// Path patterns that `lint writing`, and any check added later, all
-    /// skip. A build output directory and a test fixtures directory by
-    /// default, so the checks can pass on a project's own repository.
+    /// skip. A build output directory by default, so the checks can pass
+    /// on a project's own repository. A `tests/fixtures` path is not
+    /// excluded: a declared fixture there is checked against its
+    /// declaration instead, so it stays linted rather than invisible.
     pub exclude: Vec<String>,
 }
 
-/// A build output directory, and any path under a test fixtures directory
-/// or a Rust integration test file: places that must hold realistic bad
-/// examples to prove a rule detects them, not real content to check.
-pub const DEFAULT_EXCLUDE: &[&str] = &["target/**", "**/tests/fixtures/**", "**/tests/*.rs"];
+/// A build output directory, and a Rust integration test file: places
+/// with no prose for `lint writing` to check. Deliberately does not
+/// exclude `tests/fixtures`: `is_fixture_path` and an `osf-expect`
+/// declaration cover that case now, and excluding the path here would
+/// make a fixture invisible instead of checked.
+pub const DEFAULT_EXCLUDE: &[&str] = &["target/**", "**/tests/*.rs"];
 
 impl Default for Config {
     fn default() -> Self {
@@ -243,6 +247,17 @@ pub fn resolve_path(flag: Option<&Path>) -> Option<PathBuf> {
     osf_lint_core::resolve_path(flag, ENV_VAR, HOME_FILE)
 }
 
+/// Writes `exclude` into the merged tree, so `osf config show` reports
+/// what is really in force after `load` has the last word on the field.
+fn set_exclude_tree(tree: &mut toml::Value, exclude: &[String]) {
+    if let Some(table) = tree.as_table_mut() {
+        table.insert(
+            "exclude".to_string(),
+            toml::Value::Array(exclude.iter().cloned().map(toml::Value::String).collect()),
+        );
+    }
+}
+
 /// The config resolved from every layer, and where it came from.
 #[derive(Debug)]
 pub struct Loaded {
@@ -259,6 +274,14 @@ pub struct Loaded {
 /// the other three layers resolved to, never replacing it: a caller's
 /// `--exclude` flag must not be able to wipe the defaults by accident.
 ///
+/// With `gate` set, `exclude` is forced back to the compiled defaults
+/// after every other layer has run, and `extra_exclude` is not applied.
+/// A gate run checks a change nobody has approved yet, so the exclude
+/// list cannot come from that change's own config file or environment:
+/// a setting that loosens this check must not come from the thing being
+/// checked. `--exclude` and `--no-exclude` stay available with `gate`
+/// unset, for a person running the tool by hand.
+///
 /// # Errors
 /// Returns an error if an explicit config file cannot be read, if the file
 /// or an environment variable is not valid TOML for its field, or if any
@@ -268,6 +291,7 @@ pub fn load(
     file_flag: Option<&Path>,
     flags: &[(&[&str], toml::Value)],
     extra_exclude: &[String],
+    gate: bool,
 ) -> Result<Loaded, ConfigError> {
     let defaults = osf_lint_core::to_value(&Config::default())?;
     let mut layered = Layered::new(defaults);
@@ -293,21 +317,13 @@ pub fn load(
 
     let (mut config, mut tree, mut sources): (Config, toml::Value, BTreeMap<String, Layer>) =
         layered.finish()?;
-    if !extra_exclude.is_empty() {
+    if gate {
+        config.exclude = strings(DEFAULT_EXCLUDE);
+        set_exclude_tree(&mut tree, &config.exclude);
+        sources.insert("exclude".to_string(), Layer::Default);
+    } else if !extra_exclude.is_empty() {
         config.exclude.extend(extra_exclude.iter().cloned());
-        if let Some(table) = tree.as_table_mut() {
-            table.insert(
-                "exclude".to_string(),
-                toml::Value::Array(
-                    config
-                        .exclude
-                        .iter()
-                        .cloned()
-                        .map(toml::Value::String)
-                        .collect(),
-                ),
-            );
-        }
+        set_exclude_tree(&mut tree, &config.exclude);
         sources.insert("exclude".to_string(), Layer::Flag);
     }
     Ok(Loaded {
@@ -359,7 +375,7 @@ mod tests {
     fn defaults_round_trip() {
         let home = empty_home();
         let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
-            load(None, &[], &[])
+            load(None, &[], &[], false)
         })
         .expect("defaults load with no file");
         assert_eq!(loaded.config.writing.max_sentence_words, 25);
@@ -377,7 +393,8 @@ mod tests {
             "[writing]\nmax_sentence_words = 30\n[writing.levels]\nsemicolon = \"off\"\n",
         )
         .expect("config file writes");
-        let loaded = serial(&[], || load(Some(&path), &[], &[])).expect("partial file loads");
+        let loaded =
+            serial(&[], || load(Some(&path), &[], &[], false)).expect("partial file loads");
         assert_eq!(loaded.config.writing.max_sentence_words, 30);
         assert_eq!(loaded.config.writing.max_numerals, 2);
         assert_eq!(
@@ -400,8 +417,8 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp dir creates");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentance_words = 30\n").expect("file writes");
-        let err =
-            serial(&[], || load(Some(&path), &[], &[])).expect_err("an unknown key is refused");
+        let err = serial(&[], || load(Some(&path), &[], &[], false))
+            .expect_err("an unknown key is refused");
         let message = err.to_string();
         assert!(message.contains("max_sentance_words"), "{message}");
         assert!(message.contains("max_sentence_words"), "{message}");
@@ -414,7 +431,7 @@ mod tests {
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentence_words = 30\n").expect("file writes");
         let loaded = serial(&[("OSF_WRITING_MAX_SENTENCE_WORDS", "40")], || {
-            load(Some(&path), &[], &[])
+            load(Some(&path), &[], &[], false)
         })
         .expect("env override loads");
         assert_eq!(loaded.config.writing.max_sentence_words, 40);
@@ -435,7 +452,7 @@ mod tests {
                 ("USERPROFILE", &home),
                 ("OSF_WRITING_MAX_SENTENCE_WORDS", "40"),
             ],
-            || load(None, &flags, &[]),
+            || load(None, &flags, &[], false),
         )
         .expect("flag override loads");
         assert_eq!(loaded.config.writing.max_sentence_words, 50);
@@ -451,7 +468,8 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp dir creates");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentence_words = 30\n").expect("file writes");
-        let loaded = serial(&[], || load(Some(&path), &[], &[])).expect("no-flag load succeeds");
+        let loaded =
+            serial(&[], || load(Some(&path), &[], &[], false)).expect("no-flag load succeeds");
         assert_eq!(loaded.config.writing.max_sentence_words, 30);
         assert_eq!(
             loaded.sources.get("writing.max_sentence_words"),
@@ -479,7 +497,7 @@ mod tests {
         let path = dir.join("config.toml");
         std::fs::write(&path, text).expect("the file writes");
         let loaded =
-            serial(&[], || load(Some(&path), &[], &[])).expect("every writing key loads");
+            serial(&[], || load(Some(&path), &[], &[], false)).expect("every writing key loads");
         let w = &loaded.config.writing;
         assert_eq!(w.max_sentence_words, 30);
         assert_eq!(w.warn_sentence_words, Some(20));
@@ -494,7 +512,7 @@ mod tests {
     fn the_compiled_default_exclude_list_is_in_force_with_no_file() {
         let home = empty_home();
         let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
-            load(None, &[], &[])
+            load(None, &[], &[], false)
         })
         .expect("defaults load with no file");
         assert_eq!(loaded.config.exclude, DEFAULT_EXCLUDE);
@@ -506,7 +524,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp dir creates");
         let path = dir.join("config.toml");
         std::fs::write(&path, "exclude = [\"vendor/**\"]\n").expect("file writes");
-        let loaded = serial(&[], || load(Some(&path), &[], &[])).expect("file loads");
+        let loaded = serial(&[], || load(Some(&path), &[], &[], false)).expect("file loads");
         assert_eq!(loaded.config.exclude, vec!["vendor/**".to_string()]);
     }
 
@@ -515,7 +533,7 @@ mod tests {
         let home = empty_home();
         let extra = vec!["local-only/**".to_string()];
         let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
-            load(None, &[], &extra)
+            load(None, &[], &extra, false)
         })
         .expect("defaults load with an extra exclude");
         for pattern in DEFAULT_EXCLUDE {
@@ -527,5 +545,42 @@ mod tests {
         }
         assert!(loaded.config.exclude.contains(&"local-only/**".to_string()));
         assert_eq!(loaded.sources.get("exclude"), Some(&Layer::Flag));
+    }
+
+    #[test]
+    fn gate_ignores_a_file_exclude_list() {
+        let dir = std::env::temp_dir().join("osf-config-test-gate-file");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "exclude = [\"vendor/**\"]\n").expect("file writes");
+        let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
+        assert_eq!(loaded.config.exclude, DEFAULT_EXCLUDE);
+        assert_eq!(loaded.sources.get("exclude"), Some(&Layer::Default));
+    }
+
+    #[test]
+    fn gate_ignores_the_environment_variable() {
+        let home = empty_home();
+        let loaded = serial(
+            &[
+                ("HOME", &home),
+                ("USERPROFILE", &home),
+                ("OSF_EXCLUDE", "vendor/**"),
+            ],
+            || load(None, &[], &[], true),
+        )
+        .expect("gate load succeeds");
+        assert_eq!(loaded.config.exclude, DEFAULT_EXCLUDE);
+    }
+
+    #[test]
+    fn gate_ignores_an_extra_exclude_a_caller_still_passes() {
+        let home = empty_home();
+        let extra = vec!["local-only/**".to_string()];
+        let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
+            load(None, &[], &extra, true)
+        })
+        .expect("gate load succeeds");
+        assert_eq!(loaded.config.exclude, DEFAULT_EXCLUDE);
     }
 }

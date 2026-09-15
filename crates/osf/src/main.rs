@@ -146,11 +146,19 @@ struct WritingArgs {
     #[arg(long, default_value_t = 500)]
     short_text_words: usize,
     /// A path pattern to skip, on top of the configured list. Repeatable.
-    #[arg(long = "exclude")]
+    /// For a person running the tool by hand; a gate run does not accept it.
+    #[arg(long = "exclude", conflicts_with = "gate")]
     exclude: Vec<String>,
-    /// Ignore the exclude list entirely and check everything.
-    #[arg(long)]
+    /// Ignore the exclude list entirely and check everything. For a person
+    /// running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
     no_exclude: bool,
+    /// Runs as a gate over a change nobody has approved yet: the exclude
+    /// list is the compiled defaults only, never the config file or the
+    /// environment, so that change cannot loosen this check by editing its
+    /// own configuration.
+    #[arg(long)]
+    gate: bool,
 }
 
 #[derive(Subcommand)]
@@ -200,7 +208,7 @@ fn main() -> ExitCode {
         Command::Hook {
             event: HookEvent::Stop(args),
         } => {
-            let loaded = match config::load(cli.config.as_deref(), &[], &[]) {
+            let loaded = match config::load(cli.config.as_deref(), &[], &[], false) {
                 Ok(l) => l,
                 Err(e) => {
                     eprintln!("osf: {e}");
@@ -272,7 +280,7 @@ fn flags_overlay(
 }
 
 fn config_show(config_flag: Option<&std::path::Path>) -> ExitCode {
-    let loaded = match config::load(config_flag, &[], &[]) {
+    let loaded = match config::load(config_flag, &[], &[], false) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -314,14 +322,16 @@ fn read_inputs(paths: &[PathBuf]) -> Result<Vec<(String, String)>, ExitCode> {
         .collect()
 }
 
-/// How many findings landed at each level, across every input, and how
-/// many candidate inputs the exclude list dropped before they were checked.
+/// How many findings landed at each level, across every input; how many
+/// candidate inputs the exclude list dropped before they were checked; and
+/// how many files were checked against a declared expectation instead.
 #[derive(Default)]
 struct Tally {
     errors: usize,
     warnings: usize,
     suppressed: usize,
     excluded: usize,
+    declared: usize,
 }
 
 impl Tally {
@@ -349,20 +359,80 @@ fn build_excluder(configured: &[String], no_exclude: bool) -> Result<exclude::Ex
     exclude::Excluder::build(configured)
 }
 
-/// Lints one named input, applying level overrides and `--strict`, and
-/// prints it in every format except sarif, which the caller batches.
-fn lint_one(
+/// Turns a declared fixture's mismatch into findings: one error per rule
+/// id it promised but did not produce, one per rule id it produced but did
+/// not promise. Fixed at error, never run through `cfg.levels`: a config
+/// file must not be able to turn off the one check that catches a rule
+/// that silently stopped firing.
+fn expectation_findings(mismatch: &lint::Mismatch) -> Vec<lint::Finding> {
+    let missing = mismatch.missing.iter().map(|id| {
+        lint::Finding::new(
+            "expectation-missing",
+            lint::Level::Error,
+            1,
+            format!("declared rule '{id}' did not fire; it may have stopped working"),
+            id.clone(),
+        )
+    });
+    let unexpected = mismatch.unexpected.iter().map(|id| {
+        lint::Finding::new(
+            "expectation-unexpected",
+            lint::Level::Error,
+            1,
+            format!("rule '{id}' fired but this file did not declare it"),
+            id.clone(),
+        )
+    });
+    missing.chain(unexpected).collect()
+}
+
+/// A warning that an `osf-expect` marker outside a `tests/fixtures` path
+/// has no effect: the file is still linted normally, findings and all.
+fn outside_fixtures_warning() -> lint::Finding {
+    lint::Finding::new(
+        "expectation-outside-fixtures",
+        lint::Level::Warning,
+        1,
+        "an osf-expect marker only applies under a tests/fixtures path; ignoring it here"
+            .to_string(),
+        "osf-expect".to_string(),
+    )
+}
+
+/// Runs a declared fixture's assertion: `raw` must fire exactly the rule
+/// ids `expected` names. Prints a one-line note on a match; on a mismatch,
+/// returns the missing and unexpected findings for the normal pipeline.
+fn check_declaration(
+    name: &str,
+    expected: &std::collections::BTreeSet<String>,
+    raw: &[lint::Finding],
+    format: Format,
+) -> Vec<lint::Finding> {
+    let mismatch = lint::check_expectation(expected, raw);
+    if mismatch.is_empty() {
+        if format == Format::Human {
+            let ids: Vec<&str> = expected.iter().map(String::as_str).collect();
+            println!(
+                "{name}: declaration matched ({} rule(s): {})",
+                ids.len(),
+                ids.join(", ")
+            );
+        }
+        return Vec::new();
+    }
+    expectation_findings(&mismatch)
+}
+
+/// Applies `--strict`, tallies, and prints `findings` for one input, in
+/// every format except sarif, which the caller batches.
+fn finish_lint_one(
     name: &str,
     text: &str,
+    mut findings: Vec<lint::Finding>,
     args: &WritingArgs,
-    known: &lint::KnownNames,
-    cfg: &config::WritingConfig,
     format: Format,
     tally: &mut Tally,
 ) -> Vec<lint::Finding> {
-    let context = resolve_context(args.context, args.message);
-    let findings = lint::lint_writing(text, known, cfg, context, false, args.no_suppress);
-    let mut findings = osf_lint_core::apply_level_overrides(findings, &cfg.levels);
     if args.strict {
         for f in &mut findings {
             if f.suppressed.is_none() {
@@ -390,6 +460,34 @@ fn lint_one(
     findings
 }
 
+/// Lints one named input. A file under `tests/fixtures` that declares an
+/// `osf-expect` marker is checked against that declaration instead of
+/// against the usual level rules; every other file is linted as before.
+fn lint_one(
+    name: &str,
+    text: &str,
+    args: &WritingArgs,
+    known: &lint::KnownNames,
+    cfg: &config::WritingConfig,
+    format: Format,
+    tally: &mut Tally,
+) -> Vec<lint::Finding> {
+    let context = resolve_context(args.context, args.message);
+    let raw = lint::lint_writing(text, known, cfg, context, false, args.no_suppress);
+    if let Some(expected) = lint::parse_expectation(text) {
+        if lint::is_fixture_path(name) {
+            tally.declared += 1;
+            let findings = check_declaration(name, &expected, &raw, format);
+            return finish_lint_one(name, text, findings, args, format, tally);
+        }
+        let mut findings = osf_lint_core::apply_level_overrides(raw, &cfg.levels);
+        findings.push(outside_fixtures_warning());
+        return finish_lint_one(name, text, findings, args, format, tally);
+    }
+    let findings = osf_lint_core::apply_level_overrides(raw, &cfg.levels);
+    finish_lint_one(name, text, findings, args, format, tally)
+}
+
 fn print_sarif(sarif_files: &[(String, Vec<lint::Finding>)]) -> Result<(), ExitCode> {
     let tool = osf_lint_core::ToolInfo {
         name: "osf",
@@ -411,7 +509,7 @@ fn lint_writing(
     config_flag: Option<&std::path::Path>,
 ) -> ExitCode {
     let overlay = flags_overlay(sub, args);
-    let loaded = match config::load(config_flag, &overlay, &args.exclude) {
+    let loaded = match config::load(config_flag, &overlay, &args.exclude, args.gate) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -461,13 +559,108 @@ fn lint_writing(
         }
     } else if format == Format::Human {
         println!(
-            "osf lint writing: {} error(s), {} warning(s), {} suppressed, {} excluded",
-            tally.errors, tally.warnings, tally.suppressed, tally.excluded
+            "osf lint writing: {} error(s), {} warning(s), {} suppressed, {} excluded, {} declared",
+            tally.errors, tally.warnings, tally.suppressed, tally.excluded, tally.declared
         );
     }
     if tally.errors > 0 {
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const FIXTURE_PATH: &str = "crates/osf/tests/fixtures/bad.md";
+    const REAL_PATH: &str = "docs/real.md";
+    const TWO_RULE_TEXT: &str = "A thing — another thing. It ran; it passed.\n";
+
+    fn writing_args() -> WritingArgs {
+        WritingArgs {
+            paths: Vec::new(),
+            format: None,
+            json: false,
+            strict: false,
+            known_names: None,
+            message: false,
+            context: None,
+            no_suppress: false,
+            max_sentence_words: 25,
+            warn_sentence_words: None,
+            max_numerals: 2,
+            short_text_words: 500,
+            exclude: Vec::new(),
+            no_exclude: false,
+            gate: false,
+        }
+    }
+
+    fn known() -> lint::KnownNames {
+        lint::load_known_names(&[], None).expect("built-in names load")
+    }
+
+    fn lint_it(name: &str, text: &str) -> (Vec<lint::Finding>, Tally) {
+        let cfg = config::WritingConfig::default();
+        let args = writing_args();
+        let mut tally = Tally::default();
+        let findings = lint_one(name, text, &args, &known(), &cfg, Format::Sarif, &mut tally);
+        (findings, tally)
+    }
+
+    #[test]
+    fn a_fixture_matching_its_declaration_produces_no_findings() {
+        let text = format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\nsemicolon\n-->\n");
+        let (findings, tally) = lint_it(FIXTURE_PATH, &text);
+        assert!(findings.is_empty(), "{findings:?}");
+        assert_eq!(tally.declared, 1);
+        assert_eq!(tally.errors, 0);
+        assert_eq!(tally.warnings, 0);
+    }
+
+    #[test]
+    fn a_fixture_missing_a_declared_rule_fails() {
+        let text =
+            format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\nsemicolon\nbare-reference\n-->\n");
+        let (findings, tally) = lint_it(FIXTURE_PATH, &text);
+        assert_eq!(tally.declared, 1);
+        assert_eq!(tally.errors, 1);
+        let finding = findings.first().expect("one finding reported");
+        assert_eq!(finding.rule, "expectation-missing");
+        assert_eq!(finding.excerpt, "bare-reference");
+    }
+
+    #[test]
+    fn a_fixture_with_an_undeclared_finding_fails() {
+        let text = format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\n-->\n");
+        let (findings, tally) = lint_it(FIXTURE_PATH, &text);
+        assert_eq!(tally.declared, 1);
+        assert_eq!(tally.errors, 1);
+        let finding = findings.first().expect("one finding reported");
+        assert_eq!(finding.rule, "expectation-unexpected");
+        assert_eq!(finding.excerpt, "semicolon");
+    }
+
+    #[test]
+    fn a_file_with_no_declaration_behaves_as_before() {
+        let (findings, tally) = lint_it(REAL_PATH, TWO_RULE_TEXT);
+        assert_eq!(tally.declared, 0);
+        assert_eq!(findings.len(), 2);
+        assert!(findings.iter().any(|f| f.rule == "em-dash"));
+        assert!(findings.iter().any(|f| f.rule == "semicolon"));
+    }
+
+    #[test]
+    fn a_declaration_outside_a_fixtures_path_is_inert() {
+        let text = format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\n-->\n");
+        let (findings, tally) = lint_it(REAL_PATH, &text);
+        assert_eq!(tally.declared, 0, "not eligible, so not counted as checked");
+        assert!(findings.iter().any(|f| f.rule == "em-dash"));
+        assert!(findings.iter().any(|f| f.rule == "semicolon"));
+        assert!(findings
+            .iter()
+            .any(|f| f.rule == "expectation-outside-fixtures"));
     }
 }
