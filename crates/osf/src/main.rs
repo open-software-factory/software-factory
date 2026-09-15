@@ -1,4 +1,5 @@
 mod config;
+mod exclude;
 mod hook;
 mod lint;
 
@@ -144,6 +145,12 @@ struct WritingArgs {
     /// A text under this many words must not carry a heading. Overrides the config file.
     #[arg(long, default_value_t = 500)]
     short_text_words: usize,
+    /// A path pattern to skip, on top of the configured list. Repeatable.
+    #[arg(long = "exclude")]
+    exclude: Vec<String>,
+    /// Ignore the exclude list entirely and check everything.
+    #[arg(long)]
+    no_exclude: bool,
 }
 
 #[derive(Subcommand)]
@@ -193,7 +200,7 @@ fn main() -> ExitCode {
         Command::Hook {
             event: HookEvent::Stop(args),
         } => {
-            let loaded = match config::load(cli.config.as_deref(), &[]) {
+            let loaded = match config::load(cli.config.as_deref(), &[], &[]) {
                 Ok(l) => l,
                 Err(e) => {
                     eprintln!("osf: {e}");
@@ -265,7 +272,7 @@ fn flags_overlay(
 }
 
 fn config_show(config_flag: Option<&std::path::Path>) -> ExitCode {
-    let loaded = match config::load(config_flag, &[]) {
+    let loaded = match config::load(config_flag, &[], &[]) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -307,12 +314,14 @@ fn read_inputs(paths: &[PathBuf]) -> Result<Vec<(String, String)>, ExitCode> {
         .collect()
 }
 
-/// How many findings landed at each level, across every input.
+/// How many findings landed at each level, across every input, and how
+/// many candidate inputs the exclude list dropped before they were checked.
 #[derive(Default)]
 struct Tally {
     errors: usize,
     warnings: usize,
     suppressed: usize,
+    excluded: usize,
 }
 
 impl Tally {
@@ -328,6 +337,16 @@ impl Tally {
             }
         }
     }
+}
+
+/// Builds the exclude matcher for one run: nothing at all with
+/// `--no-exclude`, otherwise the resolved config list, which already
+/// carries any `--exclude` flags added on top of the compiled defaults.
+fn build_excluder(configured: &[String], no_exclude: bool) -> Result<exclude::Excluder, String> {
+    if no_exclude {
+        return Ok(exclude::Excluder::none());
+    }
+    exclude::Excluder::build(configured)
 }
 
 /// Lints one named input, applying level overrides and `--strict`, and
@@ -392,7 +411,7 @@ fn lint_writing(
     config_flag: Option<&std::path::Path>,
 ) -> ExitCode {
     let overlay = flags_overlay(sub, args);
-    let loaded = match config::load(config_flag, &overlay) {
+    let loaded = match config::load(config_flag, &overlay, &args.exclude) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -407,12 +426,28 @@ fn lint_writing(
             return ExitCode::from(2);
         }
     };
-    let inputs = match read_inputs(&args.paths) {
+    let excluder = match build_excluder(&loaded.config.exclude, args.no_exclude) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut tally = Tally::default();
+    let paths = if args.paths.is_empty() {
+        args.paths.clone()
+    } else {
+        let path_strings: Vec<String> =
+            args.paths.iter().map(|p| p.display().to_string()).collect();
+        let (kept, dropped) = excluder.partition(path_strings);
+        tally.excluded = dropped;
+        kept.into_iter().map(PathBuf::from).collect()
+    };
+    let inputs = match read_inputs(&paths) {
         Ok(i) => i,
         Err(code) => return code,
     };
     let format = resolve_format(args.format, args.json);
-    let mut tally = Tally::default();
     let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
     for (name, text) in &inputs {
         let findings = lint_one(name, text, args, &known, cfg, format, &mut tally);
@@ -426,8 +461,8 @@ fn lint_writing(
         }
     } else if format == Format::Human {
         println!(
-            "osf lint writing: {} error(s), {} warning(s), {} suppressed",
-            tally.errors, tally.warnings, tally.suppressed
+            "osf lint writing: {} error(s), {} warning(s), {} suppressed, {} excluded",
+            tally.errors, tally.warnings, tally.suppressed, tally.excluded
         );
     }
     if tally.errors > 0 {
