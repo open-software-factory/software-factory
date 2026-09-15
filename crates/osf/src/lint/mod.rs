@@ -10,6 +10,7 @@ mod rules;
 
 pub use osf_lint_core::{Finding, KnownNames, Level};
 
+use crate::config::WritingConfig;
 use std::path::Path;
 
 /// # Errors
@@ -42,6 +43,7 @@ pub enum Kind {
 pub fn lint_writing(
     text: &str,
     known: &KnownNames,
+    cfg: &WritingConfig,
     kind: Kind,
     fast_only: bool,
     no_suppress: bool,
@@ -49,10 +51,10 @@ pub fn lint_writing(
     let doc = osf_lint_core::segment::parse(text);
     let mut findings = Vec::new();
     if kind == Kind::Message {
-        rules::headings_in_short_text(&doc, &mut findings);
+        rules::headings_in_short_text(&doc, cfg, &mut findings);
     }
-    rules::per_sentence(&doc, fast_only, &mut findings);
-    rules::undefined_names(&doc, known, &mut findings);
+    rules::per_sentence(&doc, cfg, fast_only, &mut findings);
+    rules::undefined_names(&doc, known, cfg, &mut findings);
     let mut findings = if no_suppress {
         findings
     } else {
@@ -70,6 +72,7 @@ mod tests {
         lint_writing(
             text,
             &load_known_names(&[], None).expect("built-in names load"),
+            &WritingConfig::default(),
             Kind::Message,
             false,
             false,
@@ -82,6 +85,7 @@ mod tests {
         assert!(lint_writing(
             "## Result\n\nIt passed.\n",
             &known,
+            &WritingConfig::default(),
             Kind::Document,
             false,
             false
@@ -159,6 +163,32 @@ mod tests {
     fn long_sentence() {
         let t = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty one two three four five six.";
         assert_eq!(rules_of(t), vec!["long-sentence"]);
+    }
+
+    /// Change 1: a limit set in a config file must change what a rule
+    /// reports, not just what `osf config show` prints.
+    #[test]
+    fn a_configured_sentence_limit_changes_what_long_sentence_reports() {
+        let t = "one two three four five six seven eight nine ten.";
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let default = lint_writing(
+            t,
+            &known,
+            &WritingConfig::default(),
+            Kind::Message,
+            false,
+            false,
+        );
+        assert!(default.is_empty(), "{default:?}");
+        let tight = WritingConfig {
+            max_sentence_words: 5,
+            ..WritingConfig::default()
+        };
+        let found = lint_writing(t, &known, &tight, Kind::Message, false, false);
+        assert_eq!(
+            found.into_iter().map(|f| f.rule).collect::<Vec<_>>(),
+            vec!["long-sentence"]
+        );
     }
 
     #[test]
@@ -381,7 +411,14 @@ mod tests {
     fn no_suppress_ignores_every_marker() {
         let known = load_known_names(&[], None).expect("built-in names load");
         let text = "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n";
-        let f = lint_writing(text, &known, Kind::Message, false, true);
+        let f = lint_writing(
+            text,
+            &known,
+            &WritingConfig::default(),
+            Kind::Message,
+            false,
+            true,
+        );
         let bare = f
             .iter()
             .find(|x| x.rule == "bare-reference")

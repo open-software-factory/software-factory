@@ -1,34 +1,38 @@
 //! Each rule is a pure function from one unit of text to zero or more
 //! findings, registered with the scope it needs. The lint runs every rule
-//! over the units its scope asks for.
+//! over the units its scope asks for. A rule that reads a configurable
+//! limit or word list takes the resolved [`WritingConfig`] as well; a rule
+//! that does not still takes it, unused, so every entry has one shape.
 
+use crate::config::WritingConfig;
 use osf_lint_core::segment::{reduce_inline, Doc, TextUnit};
 use osf_lint_core::{run_rules, Finding, FnRule, KnownNames, Level, Rule};
 use regex::Regex;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 
-const SENTENCE_RULES: &[FnRule] = &[
+const SENTENCE_RULES: &[FnRule<WritingConfig>] = &[
     FnRule::sentence("bare-reference", bare_reference),
     FnRule::sentence("reference-without-label", reference_without_label),
-    FnRule::sentence("chat-local-reference", chat_local_reference),
     FnRule::sentence("long-sentence", long_sentence),
     FnRule::sentence("em-dash", em_dash),
     FnRule::sentence("arrow", arrow),
     FnRule::sentence("semicolon", semicolon),
-    FnRule::sentence("filler", filler),
     FnRule::sentence("numbers-in-prose", numbers_in_prose),
     FnRule::sentence("bold-sentence", bold_sentence),
     FnRule::sentence("parenthetical", parenthetical),
 ];
 
-const MAX_WORDS: usize = 25;
-const MAX_NUMERALS: usize = 2;
-const SHORT_TEXT_WORDS: usize = 500;
-
-pub fn per_sentence(doc: &Doc, fast_only: bool, out: &mut Vec<Finding>) {
-    let rules: Vec<&dyn Rule> = SENTENCE_RULES.iter().map(|r| r as &dyn Rule).collect();
-    out.extend(run_rules(doc, &rules, fast_only));
+pub fn per_sentence(doc: &Doc, cfg: &WritingConfig, fast_only: bool, out: &mut Vec<Finding>) {
+    let filler_rule = FillerRule::new(&cfg.filler);
+    let chat_local_rule = ChatLocalRule::new(&cfg.chat_local_phrases, &cfg.chat_local_labels);
+    let mut rules: Vec<&dyn Rule<WritingConfig>> = SENTENCE_RULES
+        .iter()
+        .map(|r| r as &dyn Rule<WritingConfig>)
+        .collect();
+    rules.push(&filler_rule);
+    rules.push(&chat_local_rule);
+    out.extend(run_rules(doc, &rules, cfg, fast_only));
 }
 
 /// Every rule id this lint can report, for validating a suppression's rule id.
@@ -37,6 +41,8 @@ pub fn rule_ids() -> Vec<&'static str> {
         .iter()
         .map(Rule::id)
         .chain([
+            "filler",
+            "chat-local-reference",
             "heading-in-short-text",
             "undefined-name",
             "undefined-name-at-start",
@@ -44,8 +50,9 @@ pub fn rule_ids() -> Vec<&'static str> {
         .collect()
 }
 
-pub fn headings_in_short_text(doc: &Doc, out: &mut Vec<Finding>) {
-    if doc.word_count >= SHORT_TEXT_WORDS {
+pub fn headings_in_short_text(doc: &Doc, cfg: &WritingConfig, out: &mut Vec<Finding>) {
+    let limit = cfg.short_text_words;
+    if doc.word_count >= limit {
         return;
     }
     out.extend(doc.headings.iter().map(|&line| {
@@ -53,9 +60,7 @@ pub fn headings_in_short_text(doc: &Doc, out: &mut Vec<Finding>) {
             "heading-in-short-text",
             Level::Error,
             line,
-            format!(
-                "a text under {SHORT_TEXT_WORDS} words has a heading; use a sentence or a table instead"
-            ),
+            format!("a text under {limit} words has a heading; use a sentence or a table instead"),
             format!("heading on line {line}"),
         )
     }));
@@ -75,7 +80,7 @@ fn finding(
     Finding::new(rule, level, s.line, message, excerpt.to_string())
 }
 
-fn matches(s: &TextUnit, pattern: &'static Regex) -> Vec<String> {
+fn matches(s: &TextUnit, pattern: &Regex) -> Vec<String> {
     let text = reduce_inline(&s.text);
     pattern
         .find_iter(&text)
@@ -88,7 +93,7 @@ fn first_words(words: &[String], n: usize) -> String {
 }
 
 /// `#123` with no `owner/repo` in front of it.
-fn bare_reference(s: &TextUnit) -> Vec<Finding> {
+fn bare_reference(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(&RE, r"(?:^|[^\w/.-])(#\d+)\b");
     let text = reduce_inline(&s.text);
@@ -107,7 +112,7 @@ fn bare_reference(s: &TextUnit) -> Vec<Finding> {
 }
 
 /// `owner/repo#N` or `repo#N` must carry a bracketed description; a link is expected.
-fn reference_without_label(s: &TextUnit) -> Vec<Finding> {
+fn reference_without_label(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(&RE, r"(?:[\w.-]+/)?[\w.-]+#\d+");
     let text = reduce_inline(&s.text);
@@ -143,56 +148,97 @@ fn reference_without_label(s: &TextUnit) -> Vec<Finding> {
         .collect()
 }
 
-/// Words that only mean something inside one conversation.
-fn chat_local_reference(s: &TextUnit) -> Vec<Finding> {
-    static PHRASES: OnceLock<Regex> = OnceLock::new();
-    static STEP: OnceLock<Regex> = OnceLock::new();
-    let phrases = re(
-        &PHRASES,
-        r"(?i)\b(?:phase \d+|item \d+|option \d+|part \d+|point \d+|as discussed|as mentioned|as noted|as i said|see above|mentioned above|the previous message|earlier today|in my last message)\b",
-    );
-    let step = re(&STEP, r"(?i)\b(step \d+)\b[,:]?\s*(\S?)");
-    let text = reduce_inline(&s.text);
-    let bare_steps = step
-        .captures_iter(&text)
-        .filter(|c| {
-            !c.get(2)
-                .and_then(|g| g.as_str().chars().next())
-                .is_some_and(|ch| ch.is_alphabetic() || ch == '(')
-        })
-        .filter_map(|c| c.get(1).map(|g| g.as_str().to_string()));
-    matches(s, phrases)
-        .into_iter()
-        .chain(bare_steps)
-        .map(|m| {
-            finding(
-                s,
-                "chat-local-reference",
-                Level::Error,
-                "name the thing itself; this reference only works inside one conversation"
-                    .to_string(),
-                &m,
-            )
-        })
-        .collect()
+/// Words that only mean something inside one conversation. Built from the
+/// resolved config's phrase and label lists, so it cannot be a static
+/// [`FnRule`]; it is a small [`Rule`] impl instead, constructed once per lint.
+struct ChatLocalRule {
+    phrases: Regex,
+    step: Regex,
 }
 
-fn long_sentence(s: &TextUnit) -> Vec<Finding> {
+impl ChatLocalRule {
+    fn new(phrases: &[String], labels: &[String]) -> Self {
+        let fixed = phrases.iter().map(|p| regex::escape(p));
+        let labelled = labels
+            .iter()
+            .map(|l| format!(r"{}\s+\d+", regex::escape(l)));
+        let pattern = format!(
+            r"(?i)\b(?:{})\b",
+            fixed.chain(labelled).collect::<Vec<_>>().join("|")
+        );
+        ChatLocalRule {
+            phrases: Regex::new(&pattern).expect("chat-local phrase pattern compiles"),
+            step: Regex::new(r"(?i)\b(step \d+)\b[,:]?\s*(\S?)").expect("step pattern compiles"),
+        }
+    }
+}
+
+impl Rule<WritingConfig> for ChatLocalRule {
+    fn id(&self) -> &'static str {
+        "chat-local-reference"
+    }
+
+    fn scope(&self) -> osf_lint_core::Scope {
+        osf_lint_core::Scope::Sentence
+    }
+
+    fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+        let text = reduce_inline(&s.text);
+        let bare_steps = self
+            .step
+            .captures_iter(&text)
+            .filter(|c| {
+                !c.get(2)
+                    .and_then(|g| g.as_str().chars().next())
+                    .is_some_and(|ch| ch.is_alphabetic() || ch == '(')
+            })
+            .filter_map(|c| c.get(1).map(|g| g.as_str().to_string()));
+        matches(s, &self.phrases)
+            .into_iter()
+            .chain(bare_steps)
+            .map(|m| {
+                finding(
+                    s,
+                    "chat-local-reference",
+                    Level::Error,
+                    "name the thing itself; this reference only works inside one conversation"
+                        .to_string(),
+                    &m,
+                )
+            })
+            .collect()
+    }
+}
+
+fn long_sentence(s: &TextUnit, cfg: &WritingConfig) -> Vec<Finding> {
     let words = s.words();
     let n = words.len();
-    if s.in_table || n <= MAX_WORDS {
+    if s.in_table {
         return vec![];
     }
-    vec![finding(
-        s,
-        "long-sentence",
-        Level::Error,
-        format!("{n} words; split it, {MAX_WORDS} is the limit"),
-        &format!("{}...", first_words(&words, 8)),
-    )]
+    let max = cfg.max_sentence_words;
+    if n > max {
+        return vec![finding(
+            s,
+            "long-sentence",
+            Level::Error,
+            format!("{n} words; split it, {max} is the limit"),
+            &format!("{}...", first_words(&words, 8)),
+        )];
+    }
+    match cfg.warn_sentence_words {
+        Some(warn) if n > warn => vec![finding(
+            s,
+            "long-sentence",
+            Level::Warning,
+            format!("{n} words; split it, {warn} is the warning limit"),
+            &format!("{}...", first_words(&words, 8)),
+        )],
+        _ => vec![],
+    }
 }
 
-fn em_dash(s: &TextUnit) -> Vec<Finding> {
+fn em_dash(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(&RE, r"—|–| -- ");
     matches(s, re)
@@ -209,7 +255,7 @@ fn em_dash(s: &TextUnit) -> Vec<Finding> {
         .collect()
 }
 
-fn arrow(s: &TextUnit) -> Vec<Finding> {
+fn arrow(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(&RE, r"→|←|=>|->");
     matches(s, re)
@@ -226,7 +272,7 @@ fn arrow(s: &TextUnit) -> Vec<Finding> {
         .collect()
 }
 
-fn semicolon(s: &TextUnit) -> Vec<Finding> {
+fn semicolon(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     if s.in_table || !reduce_inline(&s.text).contains("; ") {
         return vec![];
     }
@@ -239,31 +285,60 @@ fn semicolon(s: &TextUnit) -> Vec<Finding> {
     )]
 }
 
-fn filler(s: &TextUnit) -> Vec<Finding> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = re(
-        &RE,
-        r"(?i)\b(?:delve|it'?s worth noting|it is worth noting|in summary|in conclusion|i hope this helps|let me know if|feel free to|great question|leverage|utili[sz]e|seamless(?:ly)?|robust(?:ly)?|navigate the|the landscape of|game-?changer|cutting-edge|unlock|empower|elevate|at the end of the day|going forward|moving forward|please note|as you can see|simply put|needless to say)\b",
-    );
-    matches(s, re)
-        .iter()
-        .map(|m| {
-            finding(
-                s,
-                "filler",
-                Level::Error,
-                "cut it or say the plain thing".to_string(),
-                m,
-            )
-        })
-        .collect()
+/// Words and phrases that add length and no meaning. Built from the
+/// resolved config's list, so it is a small [`Rule`] impl, not a static
+/// [`FnRule`], constructed once per lint.
+struct FillerRule {
+    re: Regex,
 }
 
-fn numbers_in_prose(s: &TextUnit) -> Vec<Finding> {
+impl FillerRule {
+    fn new(words: &[String]) -> Self {
+        let pattern = format!(
+            r"(?i)\b(?:{})\b",
+            words
+                .iter()
+                .map(|w| regex::escape(w))
+                .collect::<Vec<_>>()
+                .join("|")
+        );
+        FillerRule {
+            re: Regex::new(&pattern).expect("filler pattern compiles"),
+        }
+    }
+}
+
+impl Rule<WritingConfig> for FillerRule {
+    fn id(&self) -> &'static str {
+        "filler"
+    }
+
+    fn scope(&self) -> osf_lint_core::Scope {
+        osf_lint_core::Scope::Sentence
+    }
+
+    fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+        matches(s, &self.re)
+            .iter()
+            .map(|m| {
+                finding(
+                    s,
+                    "filler",
+                    Level::Error,
+                    "cut it or say the plain thing".to_string(),
+                    m,
+                )
+            })
+            .collect()
+    }
+}
+
+fn numbers_in_prose(s: &TextUnit, cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(&RE, r"\b\d[\d,.]*%?\b");
     let count = re.find_iter(&reduce_inline(&s.text)).count();
-    if s.in_table || count <= MAX_NUMERALS {
+    let max = cfg.max_numerals;
+    if s.in_table || count <= max {
         return vec![];
     }
     vec![finding(
@@ -276,7 +351,7 @@ fn numbers_in_prose(s: &TextUnit) -> Vec<Finding> {
 }
 
 /// A whole sentence in bold, more than six words.
-fn bold_sentence(s: &TextUnit) -> Vec<Finding> {
+fn bold_sentence(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(&RE, r"\*\*([^*]{2,})\*\*");
     re.captures_iter(&s.text)
@@ -298,7 +373,7 @@ fn bold_sentence(s: &TextUnit) -> Vec<Finding> {
         .collect()
 }
 
-fn parenthetical(s: &TextUnit) -> Vec<Finding> {
+fn parenthetical(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(&RE, r"\(([^()]+)\)");
     let text = reduce_inline(&s.text);
@@ -321,7 +396,7 @@ fn parenthetical(s: &TextUnit) -> Vec<Finding> {
 }
 
 /// A capitalised name on first use, with no description in that sentence or the next.
-pub fn undefined_names(doc: &Doc, known: &KnownNames, out: &mut Vec<Finding>) {
+pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: &mut Vec<Finding>) {
     static DEFINER: OnceLock<Regex> = OnceLock::new();
     let definer = re(
         &DEFINER,
@@ -351,14 +426,14 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, out: &mut Vec<Finding>) {
     let prose_names: HashSet<String> = sentences
         .iter()
         .filter(|s| !s.in_table)
-        .flat_map(|s| candidate_names(s, &lowercase))
+        .flat_map(|s| candidate_names(s, &lowercase, &cfg.sentence_starters))
         .map(|c| c.name)
         .collect();
     let first_uses = sentences
         .iter()
         .enumerate()
         .flat_map(|(i, s)| {
-            candidate_names(s, &lowercase)
+            candidate_names(s, &lowercase, &cfg.sentence_starters)
                 .into_iter()
                 .map(move |c| (i, s.in_table, c.name, c.at_start))
         })
@@ -404,7 +479,11 @@ struct Candidate {
 /// Capitalised words, joined when adjacent, taken from the reduced sentence.
 /// A sentence-initial word is a candidate too, unless it is a common starter
 /// or an inflected form, and it is marked so the caller can soften it.
-fn candidate_names(s: &TextUnit, lowercase: &HashSet<String>) -> Vec<Candidate> {
+fn candidate_names(
+    s: &TextUnit,
+    lowercase: &HashSet<String>,
+    extra_starters: &[String],
+) -> Vec<Candidate> {
     let words = s.words();
     let first_word = words
         .iter()
@@ -415,8 +494,8 @@ fn candidate_names(s: &TextUnit, lowercase: &HashSet<String>) -> Vec<Candidate> 
         let closes_run = !raw.ends_with(|c: char| c.is_alphanumeric());
         let word = is_name_word(w).then(|| w.to_string());
         let opens = idx == first_word && !has_inner_capital(w);
-        let at_start = opens && !plain_starter(w);
-        let skip = opens && (plain_starter(w) || s.is_heading);
+        let at_start = opens && !plain_starter(w, extra_starters);
+        let skip = opens && (plain_starter(w, extra_starters) || s.is_heading);
         (if skip { None } else { word }, at_start, closes_run)
     });
     let (mut names, run) = tokens.fold(
@@ -502,8 +581,9 @@ fn flush_run(names: &mut Vec<Candidate>, run: &mut Vec<(String, bool)>) {
     run.clear();
 }
 
-fn plain_starter(w: &str) -> bool {
+fn plain_starter(w: &str, extra: &[String]) -> bool {
     super::names::SENTENCE_STARTERS.contains(&w)
+        || extra.iter().any(|s| s == w)
         || w.ends_with("ing")
         || w.ends_with("ed")
         || w.ends_with("ly")

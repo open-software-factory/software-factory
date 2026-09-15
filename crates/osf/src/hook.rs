@@ -108,7 +108,7 @@ pub fn stop(
         }
     };
     // A stop check runs on every turn end, so it stays on the fast tier only.
-    let findings = lint::lint_writing(&text, &known, lint::Kind::Message, true, false);
+    let findings = lint::lint_writing(&text, &known, cfg, lint::Kind::Message, true, false);
     let errors: Vec<lint::Finding> = osf_lint_core::apply_level_overrides(findings, &cfg.levels)
         .into_iter()
         .filter(|f| f.level == lint::Level::Error && f.suppressed.is_none())

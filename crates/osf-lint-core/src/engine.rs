@@ -13,15 +13,24 @@ fn units_for(doc: &Doc, scope: Scope) -> &[TextUnit] {
     }
 }
 
-/// Run every rule over the units its scope calls for.
-/// With `fast_only`, only the fast tier runs. The stop hook uses this,
-/// since it runs on every turn end and must stay fast.
+/// Run every rule over the units its scope calls for, passing `config` to
+/// each check. With `fast_only`, only the fast tier runs. The stop hook
+/// uses this, since it runs on every turn end and must stay fast.
 #[must_use]
-pub fn run_rules(doc: &Doc, rules: &[&dyn Rule], fast_only: bool) -> Vec<Finding> {
+pub fn run_rules<C>(
+    doc: &Doc,
+    rules: &[&dyn Rule<C>],
+    config: &C,
+    fast_only: bool,
+) -> Vec<Finding> {
     rules
         .iter()
         .filter(|r| !fast_only || r.tier() == Tier::Fast)
-        .flat_map(|r| units_for(doc, r.scope()).iter().flat_map(|u| r.check(u)))
+        .flat_map(|r| {
+            units_for(doc, r.scope())
+                .iter()
+                .flat_map(|u| r.check(u, config))
+        })
         .collect()
 }
 
@@ -45,7 +54,8 @@ mod tests {
     use crate::segment::parse;
     use crate::{Finding, Level};
 
-    fn one(unit: &TextUnit) -> Vec<Finding> {
+    #[allow(clippy::trivially_copy_pass_by_ref)]
+    fn one(unit: &TextUnit, _config: &()) -> Vec<Finding> {
         vec![Finding::new(
             "probe",
             Level::Warning,
@@ -59,7 +69,7 @@ mod tests {
     fn a_sentence_rule_runs_once_per_sentence() {
         let doc = parse("One. Two.\n");
         let rule = FnRule::sentence("probe", one);
-        let found = run_rules(&doc, &[&rule], false);
+        let found = run_rules(&doc, &[&rule], &(), false);
         assert_eq!(found.len(), 2);
     }
 
@@ -67,7 +77,7 @@ mod tests {
     fn a_document_rule_sees_the_whole_text_once() {
         let doc = parse("One. Two.\n");
         let rule = FnRule::document("probe", one);
-        let found = run_rules(&doc, &[&rule], false);
+        let found = run_rules(&doc, &[&rule], &(), false);
         assert_eq!(found.len(), 1);
         assert_eq!(
             found.first().map(|f| f.message.as_str()),
@@ -79,7 +89,7 @@ mod tests {
     fn a_paragraph_rule_sees_one_unit_per_paragraph() {
         let doc = parse("First paragraph.\n\nSecond paragraph.\n");
         let rule = FnRule::paragraph("probe", one);
-        let found = run_rules(&doc, &[&rule], false);
+        let found = run_rules(&doc, &[&rule], &(), false);
         assert_eq!(found.len(), 2);
     }
 
@@ -95,8 +105,8 @@ mod tests {
         fn tier(&self) -> Tier {
             Tier::Slow
         }
-        fn check(&self, unit: &TextUnit) -> Vec<Finding> {
-            one(unit)
+        fn check(&self, unit: &TextUnit, config: &()) -> Vec<Finding> {
+            one(unit, config)
         }
     }
 
@@ -106,8 +116,8 @@ mod tests {
         let fast = FnRule::sentence("fast-probe", one);
         let slow = SlowProbe;
         let rules: Vec<&dyn Rule> = vec![&fast, &slow];
-        assert_eq!(run_rules(&doc, &rules, true).len(), 2);
-        assert_eq!(run_rules(&doc, &rules, false).len(), 4);
+        assert_eq!(run_rules(&doc, &rules, &(), true).len(), 2);
+        assert_eq!(run_rules(&doc, &rules, &(), false).len(), 4);
     }
 
     struct CountingAnalyser;

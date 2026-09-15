@@ -287,7 +287,7 @@ fn lint_one(
     } else {
         lint::Kind::Document
     };
-    let findings = lint::lint_writing(text, known, kind, false, args.no_suppress);
+    let findings = lint::lint_writing(text, known, cfg, kind, false, args.no_suppress);
     let mut findings = osf_lint_core::apply_level_overrides(findings, &cfg.levels);
     if args.strict {
         for f in &mut findings {
