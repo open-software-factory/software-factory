@@ -15,31 +15,34 @@ Source:
 - URL: <https://www.apache.org/licenses/icla.pdf>
 - Fetched: 2026-09-15
 
-The reproduced text below has one change from the source. Everywhere
-the source says "The Apache Software Foundation" or "the Foundation",
-this copy says "SilverOakApps" or "the Project". SilverOakApps is the
-registered business name that holds the copyright in this project. A
-reader can compare this file against the source PDF. Apart from that
-one substitution, the wording below is unchanged.
+Every change this project made to the source text is listed below, so
+that a reader can compare this file against the source PDF. Nothing
+else in the wording is changed.
 
-Four parts of the reproduced text do not fit this project. This
-project has not edited them, to keep the text faithful to the source.
-
-- The text says to email a signed copy to `secretary@apache.org`. That
-  address belongs to the foundation named above, not to this project.
-  Do not send a signed copy of this file there. `CONTRIBUTING.md` says
-  how to submit a signed copy for this project.
-- The text points to a privacy policy at
-  `https://s.apache.org/cla-privacy-policy`. That policy belongs to
-  the foundation named above. It does not cover this project.
-- The text says the Project will not use a contribution in a way that
-  is "inconsistent with its nonprofit status and bylaws". Australia is
-  the country where SilverOakApps is registered. SilverOakApps is a
-  registered business name there, not a nonprofit body. This sentence
-  is part of the reproduced template. This project has not removed or
-  reworded it.
-- One form field, "preferred Apache id(s)", names an account with the
-  foundation named above. It does not apply here. Leave it blank.
+1. Everywhere the source says "The Apache Software Foundation" or
+   "the Foundation", this copy says "SilverOakApps" or "the Project".
+   SilverOakApps is the registered business name that holds the
+   copyright in this project.
+2. The source says to email a signed copy to an address at the
+   foundation named above. This copy says how to accept the agreement
+   for this project instead. Do not send anything to that address.
+3. The source promises the contributor that the Foundation will not
+   use a contribution in a way that is "inconsistent with its
+   nonprofit status and bylaws". SilverOakApps is a registered
+   business name in Australia, not a nonprofit body, so that promise
+   cannot be kept as written. This copy replaces it with a promise
+   this project can keep: an open-source licence already granted for a
+   release is never taken back. The same paragraph also states plainly
+   that a later release may carry different licence terms. Read that
+   paragraph before you accept.
+4. The source points to a privacy policy held by the foundation named
+   above. This copy says what this project does with your information
+   instead.
+5. Two form fields name an account and a project list that exist only
+   at the foundation named above. This copy asks for a GitHub username
+   in their place.
+6. The source asks for a residence address. This copy asks only for a
+   country. A street address is not needed to accept a contribution.
 
 This agreement has not been reviewed by a lawyer.
 
@@ -58,10 +61,11 @@ for your protection as a Contributor as well as the protection of the
 Project and its users. It does not change your rights to use your own
 Contributions for any other purpose.
 
-Please complete and sign this Agreement, and then email a pdf copy to
-secretary@apache.org only (do not copy any other persons or lists).
-Read this document carefully before signing and keep a copy for your
-records.
+Read this document carefully and keep a copy for your records. To
+accept it, follow the steps in `CONTRIBUTING.md`. You may accept it by
+a statement on your first pull request, or by completing the form
+below, signing it, and sending it to the contact address published on
+the Project's organisation page on GitHub.
 
 Full name: _____________________________________________________
 
@@ -73,28 +77,23 @@ check this box only if you entered names with your family name first
 
 your public name might not include honorific, suffix, or middle name
 
-Residence Address: ________________________________________________
-
-_________________________________________________
-
 Country: _________________________________________________
 
 \* E-Mail: ______________________________________________________
 
-\* (optional) preferred Apache id(s): ______________________________
-
-\* (optional) notify project: ______________________________________
+\* GitHub username: _______________________________________________
 
 \* The starred fields above will become part of your public profile.
 
 You accept and agree to the following terms and conditions for Your
 Contributions (present and future) that you submit to the Project. In
-return, the Project shall not use Your Contributions in a way that is
-contrary to the public benefit or inconsistent with its nonprofit
-status and bylaws in effect at the time of the Contribution. Except
-for the license granted herein to the Project and recipients of
-software distributed by the Project, You reserve all right, title,
-and interest in and to Your Contributions.
+return, the Project will not take back the open-source license under
+which any release containing Your Contribution has already been
+published. The Project may publish a later release under different
+license terms, and may also license the work commercially. Except for
+the license granted herein to the Project and recipients of software
+distributed by the Project, You reserve all right, title, and interest
+in and to Your Contributions.
 
 1. Definitions.
 
@@ -189,6 +188,11 @@ and interest in and to Your Contributions.
 
 Please sign: __________________________________ Date: ________________
 
-This is a legal contract containing Personally Identifiable
-Information. Please refer to https://s.apache.org/cla-privacy-policy
-for the policy governing how this information is used and shared.
+This is a legal contract containing personal information. The Project
+keeps what you enter above as its record that you accepted this
+Agreement. The fields marked with a star become public. The Project
+does not sell that information and does not pass it to anyone else,
+except where the law requires it. To ask a question about your
+information, or for a copy of what the Project holds, write to the
+contact address published on the Project's organisation page on
+GitHub.

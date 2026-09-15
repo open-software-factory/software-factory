@@ -83,9 +83,27 @@ away.
 If this is a problem for you, open an issue and say so before you write code.
 We would rather talk about it early than turn down work you have already done.
 
-This project has not yet chosen how a contributor signs and submits the
-agreement. Open an issue and say you want to contribute before you write code.
-We will tell you the current process in that issue.
+### How to accept it
+
+Do one of these two. The first is enough for most contributors.
+
+1. On your first pull request, post this comment, with nothing changed:
+
+   > I have read CLA.md and I agree to it.
+
+   Your GitHub account name and the time of the comment are the record that
+   you accepted. A maintainer checks for it before merging.
+
+2. If you would rather sign a paper copy, fill in the form in
+   [`CLA.md`](CLA.md), sign it, and send it to the contact address published
+   on this project's organisation page on GitHub. Then say in your pull
+   request that you have sent it.
+
+Accept once. It covers every change you send afterwards.
+
+If you write code as part of a job, your employer may own what you write.
+Check before you accept, because clause 4 of the agreement asks you to state
+that you have the right to grant the licence.
 
 ## Licence
 
