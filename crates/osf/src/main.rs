@@ -33,6 +33,37 @@ fn resolve_format(chosen: Option<Format>, json_alias: bool) -> Format {
     })
 }
 
+/// Where the text lives, for the CLI: mirrors [`lint::Context`], since that
+/// type lives in the config-agnostic core crate and cannot derive `clap`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum ContextArg {
+    Transcript,
+    Commit,
+    Document,
+    Skill,
+}
+
+impl From<ContextArg> for lint::Context {
+    fn from(value: ContextArg) -> Self {
+        match value {
+            ContextArg::Transcript => lint::Context::Transcript,
+            ContextArg::Commit => lint::Context::Commit,
+            ContextArg::Document => lint::Context::Document,
+            ContextArg::Skill => lint::Context::Skill,
+        }
+    }
+}
+
+/// `--context` wins when given. Otherwise `--message` means transcript,
+/// and a file with neither flag is a document.
+fn resolve_context(context: Option<ContextArg>, message: bool) -> lint::Context {
+    match context {
+        Some(c) => c.into(),
+        None if message => lint::Context::Transcript,
+        None => lint::Context::Document,
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "osf", version, about = "Open Software Factory checks")]
 struct Cli {
@@ -90,9 +121,13 @@ struct WritingArgs {
     /// Extra names that need no description, one per line.
     #[arg(long)]
     known_names: Option<PathBuf>,
-    /// The text is a reply to a person: a heading in a short text is an error.
+    /// The text is a reply to a person: shorthand for `--context transcript`.
     #[arg(long)]
     message: bool,
+    /// Where the text lives. Sets the level and remediation for every rule.
+    /// Defaults to transcript with `--message`, else document.
+    #[arg(long, value_enum)]
+    context: Option<ContextArg>,
     /// Ignore every osf-disable marker and report everything. Continuous
     /// integration uses this.
     #[arg(long)]
@@ -115,6 +150,8 @@ struct WritingArgs {
 enum HookEvent {
     /// The agent wants to end its turn: lint the final message, refuse it on errors.
     Stop(StopArgs),
+    /// The user submitted a new prompt: deliver any advice stored from the last turn.
+    Prompt,
 }
 
 #[derive(Args)]
@@ -170,6 +207,9 @@ fn main() -> ExitCode {
                 args.answer,
             )
         }
+        Command::Hook {
+            event: HookEvent::Prompt,
+        } => hook::prompt(),
         Command::Config {
             action: ConfigAction::Show,
         } => config_show(cli.config.as_deref()),
@@ -301,12 +341,8 @@ fn lint_one(
     format: Format,
     tally: &mut Tally,
 ) -> Vec<lint::Finding> {
-    let kind = if args.message {
-        lint::Kind::Message
-    } else {
-        lint::Kind::Document
-    };
-    let findings = lint::lint_writing(text, known, cfg, kind, false, args.no_suppress);
+    let context = resolve_context(args.context, args.message);
+    let findings = lint::lint_writing(text, known, cfg, context, false, args.no_suppress);
     let mut findings = osf_lint_core::apply_level_overrides(findings, &cfg.levels);
     if args.strict {
         for f in &mut findings {

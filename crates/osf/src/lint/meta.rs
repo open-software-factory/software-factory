@@ -8,7 +8,7 @@
 //! says plainly that the limit comes from a secondary summary and is
 //! unverified.
 
-use osf_lint_core::{Class, Group};
+use osf_lint_core::{Class, Context, Exception, Group, Level, Remediation};
 
 pub struct RuleMeta {
     pub id: &'static str,
@@ -16,6 +16,18 @@ pub struct RuleMeta {
     pub group: Group,
     pub citation: &'static str,
     pub doc: &'static str,
+    /// Overrides the level the context matrix would otherwise choose.
+    pub exception: Option<Exception>,
+}
+
+impl RuleMeta {
+    /// The level and remediation for this rule in `context`, from the
+    /// class-and-group matrix, the [`Exception`] above, and nothing else;
+    /// a caller's own config may still override the level afterwards.
+    #[must_use]
+    pub fn resolve(&self, context: Context) -> (Level, Remediation) {
+        osf_lint_core::resolve(self.class, self.group, context, self.exception)
+    }
 }
 
 macro_rules! rule_meta {
@@ -26,6 +38,17 @@ macro_rules! rule_meta {
             group: Group::$group,
             citation: $citation,
             doc: $doc,
+            exception: None,
+        }
+    };
+    ($id:literal, $class:ident, $group:ident, $citation:literal, $doc:literal, $exception:expr) => {
+        RuleMeta {
+            id: $id,
+            class: Class::$class,
+            group: Group::$group,
+            citation: $citation,
+            doc: $doc,
+            exception: Some($exception),
         }
     };
 }
@@ -86,7 +109,8 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: owner/repo#125 (the login crash) is now fixed.\n\
-         Good: [owner/repo#125 (the login crash)](https://example.com/125) is now fixed."
+         Good: [owner/repo#125 (the login crash)](https://example.com/125) is now fixed.",
+        Exception::FixedLevel(Level::Warning)
     ),
     rule_meta!(
         "chat-local-reference",

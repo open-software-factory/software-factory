@@ -19,6 +19,19 @@ pub enum Evidence {
     Statistical,
 }
 
+/// What the author should do about a finding, from cheapest to most costly.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Remediation {
+    /// Fix and produce the whole text again.
+    #[default]
+    Rewrite,
+    /// Add or correct the named part only; keep the rest.
+    Clarify,
+    /// Nothing now. Stored and delivered before the next turn.
+    Advise,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Finding {
     pub rule: &'static str,
@@ -28,6 +41,7 @@ pub struct Finding {
     pub excerpt: String,
     pub source: &'static str,
     pub evidence: Evidence,
+    pub remediation: Remediation,
     /// `Some(reason)` once a suppression marker covers this finding. The
     /// engine keeps a suppressed finding rather than dropping it; the
     /// caller decides whether to show it.
@@ -35,8 +49,9 @@ pub struct Finding {
 }
 
 impl Finding {
-    /// A finding from a fixed rule. `source` defaults to the rule id, and
-    /// `evidence` defaults to deterministic.
+    /// A finding from a fixed rule. `source` defaults to the rule id,
+    /// `evidence` defaults to deterministic, and `remediation` defaults to
+    /// rewrite; a caller with a context-aware policy overrides it.
     #[must_use]
     pub fn new(
         rule: &'static str,
@@ -53,6 +68,7 @@ impl Finding {
             excerpt,
             source: rule,
             evidence: Evidence::Deterministic,
+            remediation: Remediation::default(),
             suppressed: None,
         }
     }

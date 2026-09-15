@@ -18,9 +18,9 @@ pub use config::{
     Layered, LevelSetting,
 };
 pub use engine::{run_analysers, run_rules, sort_findings};
-pub use finding::{Evidence, Finding, Level};
+pub use finding::{Evidence, Finding, Level, Remediation};
 pub use human::render_human;
-pub use meta::{Class, Group};
+pub use meta::{resolve, Class, Context, Exception, Group};
 pub use names::{load_known_names, KnownNames};
 pub use rule::{Analyser, FnRule, Rule, Scope, Tier};
 pub use sarif::{to_sarif, ToolInfo};

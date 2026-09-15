@@ -10,7 +10,7 @@ mod names;
 mod rules;
 
 pub use meta::rule_meta;
-pub use osf_lint_core::{Finding, KnownNames, Level};
+pub use osf_lint_core::{Context, Finding, KnownNames, Level, Remediation};
 
 use crate::config::WritingConfig;
 use std::path::Path;
@@ -26,17 +26,9 @@ pub fn load_known_names(extra: &[String], path: Option<&Path>) -> Result<KnownNa
     osf_lint_core::load_known_names(&built_in, path)
 }
 
-/// What the text is. A message is a reply to a person, where a heading in a
-/// short text is noise. A document follows a template that may require them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Kind {
-    Message,
-    Document,
-}
-
-/// Lints a document or a message. With `fast_only`, only the deterministic
-/// fast tier runs; the stop hook uses this, since it must stay fast on
-/// every turn end. The command line runs every tier.
+/// Lints a text written for the given [`Context`]. With `fast_only`, only
+/// the deterministic fast tier runs; the stop hook uses this, since it
+/// must stay fast on every turn end. The command line runs every tier.
 ///
 /// With `no_suppress`, every `osf-disable`-family marker is ignored, so
 /// every finding it would have silenced is reported. Continuous integration
@@ -46,17 +38,19 @@ pub fn lint_writing(
     text: &str,
     known: &KnownNames,
     cfg: &WritingConfig,
-    kind: Kind,
+    context: Context,
     fast_only: bool,
     no_suppress: bool,
 ) -> Vec<Finding> {
     let doc = osf_lint_core::segment::parse(text);
     let mut findings = Vec::new();
-    if kind == Kind::Message {
+    // heading-in-short-text is off in a document: a document is expected to have headings.
+    if context != Context::Document {
         rules::headings_in_short_text(&doc, cfg, &mut findings);
     }
     rules::per_sentence(&doc, cfg, fast_only, &mut findings);
     rules::undefined_names(&doc, known, cfg, &mut findings);
+    apply_context(&mut findings, context);
     let mut findings = if no_suppress {
         findings
     } else {
@@ -65,6 +59,19 @@ pub fn lint_writing(
     osf_lint_core::sort_findings(&mut findings);
     add_explain_pointers(&mut findings);
     findings
+}
+
+/// Sets each finding's level and remediation from its rule's class and
+/// group, resolved against `context`. A finding with no metadata (a
+/// suppression-engine diagnostic, for instance) is left as its own level.
+fn apply_context(findings: &mut [Finding], context: Context) {
+    for f in findings.iter_mut() {
+        if let Some(meta) = meta::rule_meta(f.rule) {
+            let (level, remediation) = meta.resolve(context);
+            f.level = level;
+            f.remediation = remediation;
+        }
+    }
 }
 
 /// Points every finding at `osf explain <rule-id>`, so the reader can see
@@ -86,7 +93,7 @@ mod tests {
             text,
             &load_known_names(&[], None).expect("built-in names load"),
             &WritingConfig::default(),
-            Kind::Message,
+            Context::Transcript,
             false,
             false,
         )
@@ -99,7 +106,7 @@ mod tests {
             "## Result\n\nIt passed.\n",
             &known,
             &WritingConfig::default(),
-            Kind::Document,
+            Context::Document,
             false,
             false
         )
@@ -188,7 +195,7 @@ mod tests {
             t,
             &known,
             &WritingConfig::default(),
-            Kind::Message,
+            Context::Transcript,
             false,
             false,
         );
@@ -197,7 +204,7 @@ mod tests {
             max_sentence_words: 5,
             ..WritingConfig::default()
         };
-        let found = lint_writing(t, &known, &tight, Kind::Message, false, false);
+        let found = lint_writing(t, &known, &tight, Context::Transcript, false, false);
         assert_eq!(
             found.into_iter().map(|f| f.rule).collect::<Vec<_>>(),
             vec!["long-sentence"]
@@ -207,7 +214,10 @@ mod tests {
     #[test]
     fn dash_arrow_semicolon() {
         assert_eq!(rules_of("A thing — another thing."), vec!["em-dash"]);
-        assert_eq!(errors_of("Input -> output."), vec!["arrow"]);
+        assert_eq!(
+            rules_of("Input -> output."),
+            vec!["arrow", "undefined-name-at-start"]
+        );
         assert_eq!(rules_of("It ran; it passed."), vec!["semicolon"]);
     }
 
@@ -443,7 +453,7 @@ mod tests {
             text,
             &known,
             &WritingConfig::default(),
-            Kind::Message,
+            Context::Transcript,
             false,
             true,
         );
@@ -452,5 +462,98 @@ mod tests {
             .find(|x| x.rule == "bare-reference")
             .expect("finding kept");
         assert!(bare.suppressed.is_none());
+    }
+
+    fn find_in(context: Context, text: &str, rule: &str) -> Finding {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        lint_writing(
+            text,
+            &known,
+            &WritingConfig::default(),
+            context,
+            false,
+            false,
+        )
+        .into_iter()
+        .find(|f| f.rule == rule)
+        .unwrap_or_else(|| panic!("{rule} did not fire on {text:?} in {context:?}"))
+    }
+
+    /// Change 3: a comprehension rule (bare-reference) resolves to the
+    /// matrix's level and remediation in every context.
+    #[test]
+    fn a_comprehension_rule_resolves_per_context() {
+        let text = "Fixed in #125 today.";
+        let cases = [
+            (Context::Transcript, Level::Error, Remediation::Clarify),
+            (Context::Commit, Level::Error, Remediation::Rewrite),
+            (Context::Document, Level::Error, Remediation::Rewrite),
+            (Context::Skill, Level::Error, Remediation::Rewrite),
+        ];
+        for (context, level, remediation) in cases {
+            let f = find_in(context, text, "bare-reference");
+            assert_eq!(f.level, level, "{context:?}");
+            assert_eq!(f.remediation, remediation, "{context:?}");
+        }
+    }
+
+    /// Change 3: a style rule (em-dash) resolves to the matrix's level and
+    /// remediation in every context, only blocking outside a transcript.
+    #[test]
+    fn a_style_rule_resolves_per_context() {
+        let text = "A thing — another thing.";
+        let cases = [
+            (Context::Transcript, Level::Warning, Remediation::Advise),
+            (Context::Commit, Level::Error, Remediation::Rewrite),
+            (Context::Document, Level::Warning, Remediation::Rewrite),
+            (Context::Skill, Level::Error, Remediation::Rewrite),
+        ];
+        for (context, level, remediation) in cases {
+            let f = find_in(context, text, "em-dash");
+            assert_eq!(f.level, level, "{context:?}");
+            assert_eq!(f.remediation, remediation, "{context:?}");
+        }
+    }
+
+    /// Change 3: heading-in-short-text is off in a document.
+    #[test]
+    fn heading_in_short_text_is_off_in_a_document() {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let f = lint_writing(
+            "## Result\n\nIt passed.\n",
+            &known,
+            &WritingConfig::default(),
+            Context::Document,
+            false,
+            false,
+        );
+        assert!(f.iter().all(|x| x.rule != "heading-in-short-text"), "{f:?}");
+    }
+
+    /// Change 3: reference-without-link is pinned to warning even where the
+    /// matrix would otherwise make a style rule an error.
+    #[test]
+    fn reference_without_link_is_always_a_warning() {
+        let f = find_in(
+            Context::Commit,
+            "Fixed in repo#125 (the canvas fixes) today.",
+            "reference-without-link",
+        );
+        assert_eq!(f.level, Level::Warning);
+    }
+
+    /// Change 3: every finding points at `osf explain <rule-id>`.
+    #[test]
+    fn every_finding_points_at_explain() {
+        let f = find_in(
+            Context::Transcript,
+            "Fixed in #125 today.",
+            "bare-reference",
+        );
+        assert!(
+            f.message.contains("osf explain bare-reference"),
+            "{}",
+            f.message
+        );
     }
 }

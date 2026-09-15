@@ -21,7 +21,7 @@
 //! ships its own dsh plugin rather than relying on that bridge.
 
 use crate::config::WritingConfig;
-use crate::lint;
+use crate::lint::{self, Remediation};
 use serde_json::Value;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -107,47 +107,34 @@ pub fn stop(
             return ExitCode::SUCCESS;
         }
     };
-    // A stop check runs on every turn end, so it stays on the fast tier only.
-    let findings = lint::lint_writing(&text, &known, cfg, lint::Kind::Message, true, false);
-    let errors: Vec<lint::Finding> = osf_lint_core::apply_level_overrides(findings, &cfg.levels)
-        .into_iter()
-        .filter(|f| f.level == lint::Level::Error && f.suppressed.is_none())
+    let findings = checked_findings(&text, &known, cfg);
+
+    let advise: Vec<&lint::Finding> = findings
+        .iter()
+        .filter(|f| f.remediation == Remediation::Advise)
         .collect();
+    if !advise.is_empty() {
+        append_advice(&session, &advise);
+    }
 
     let counter = counter_path(&session, &prompt);
-    if errors.is_empty() {
+    let Some((blocking, verb, instruction)) = blocking_set(&findings) else {
         let _ = std::fs::remove_file(&counter);
         return ExitCode::SUCCESS;
-    }
+    };
+
     let bounces = read_counter(&counter);
     if bounces >= max_bounces {
         eprintln!(
-            "osf hook stop: {} error(s) remain after {bounces} rewrite(s); letting the message through",
-            errors.len()
+            "osf hook stop: {} {verb}(s) remain after {bounces} attempt(s); letting the message through",
+            blocking.len()
         );
         let _ = std::fs::remove_file(&counter);
         return ExitCode::SUCCESS;
     }
     write_counter(&counter, bounces + 1);
 
-    let mut lines: Vec<String> = errors
-        .iter()
-        .take(MAX_LINES_IN_REASON)
-        .map(|f| f.render("message", f.level))
-        .collect();
-    if errors.len() > MAX_LINES_IN_REASON {
-        lines.push(format!(
-            "...and {} more",
-            errors.len() - MAX_LINES_IN_REASON
-        ));
-    }
-    let reason = format!(
-        "osf writing-lint refused this message ({} error(s), rewrite {} of {}). Fix every line, then answer again.\n{}",
-        errors.len(),
-        bounces + 1,
-        max_bounces,
-        lines.join("\n")
-    );
+    let reason = build_reason(&blocking, verb, instruction, bounces + 1, max_bounces);
     match answer {
         Answer::ExitCode => {
             eprintln!("{reason}");
@@ -161,6 +148,118 @@ pub fn stop(
             ExitCode::SUCCESS
         }
     }
+}
+
+/// Lints `text` as a transcript, and applies the config's level overrides,
+/// dropping every suppressed finding. The stop check runs on every turn
+/// end, so it stays on the fast tier only.
+fn checked_findings(
+    text: &str,
+    known: &lint::KnownNames,
+    cfg: &WritingConfig,
+) -> Vec<lint::Finding> {
+    let findings = lint::lint_writing(text, known, cfg, lint::Context::Transcript, true, false);
+    osf_lint_core::apply_level_overrides(findings, &cfg.levels)
+        .into_iter()
+        .filter(|f| f.suppressed.is_none())
+        .collect()
+}
+
+/// The findings that block the stop, the word for one of them, and the
+/// instruction to give: a rewrite finding always wins, since redoing the
+/// whole message also fixes any clarify finding alongside it. `None` when
+/// nothing blocks.
+fn blocking_set(
+    findings: &[lint::Finding],
+) -> Option<(Vec<&lint::Finding>, &'static str, &'static str)> {
+    let rewrite: Vec<&lint::Finding> = findings
+        .iter()
+        .filter(|f| f.remediation == Remediation::Rewrite)
+        .collect();
+    if !rewrite.is_empty() {
+        let clarify = findings
+            .iter()
+            .filter(|f| f.remediation == Remediation::Clarify);
+        return Some((
+            rewrite.into_iter().chain(clarify).collect(),
+            "rewrite",
+            "Fix every line, then answer again.",
+        ));
+    }
+    let clarify: Vec<&lint::Finding> = findings
+        .iter()
+        .filter(|f| f.remediation == Remediation::Clarify)
+        .collect();
+    if !clarify.is_empty() {
+        return Some((
+            clarify,
+            "correction",
+            "Fix only the named correction below. Do not rewrite the rest of the message.",
+        ));
+    }
+    None
+}
+
+fn build_reason(
+    blocking: &[&lint::Finding],
+    verb: &str,
+    instruction: &str,
+    attempt: u32,
+    max_bounces: u32,
+) -> String {
+    let mut lines: Vec<String> = blocking
+        .iter()
+        .take(MAX_LINES_IN_REASON)
+        .map(|f| f.render("message", f.level))
+        .collect();
+    if blocking.len() > MAX_LINES_IN_REASON {
+        lines.push(format!(
+            "...and {} more",
+            blocking.len() - MAX_LINES_IN_REASON
+        ));
+    }
+    format!(
+        "osf writing-lint refused this message ({} {verb}(s), attempt {attempt} of {max_bounces}). {instruction}\n{}",
+        blocking.len(),
+        lines.join("\n")
+    )
+}
+
+/// Reads a prompt-submitted hook payload from standard input, prints any
+/// advice stored for that session as context for the new turn, and clears
+/// it. This is how an `advise` finding from the previous turn's stop check
+/// reaches the agent without costing a rewrite.
+pub fn prompt() -> ExitCode {
+    let mut raw = String::new();
+    if let Err(e) = std::io::stdin().read_to_string(&mut raw) {
+        eprintln!("osf hook prompt: cannot read standard input: {e}");
+        return ExitCode::SUCCESS;
+    }
+    let event: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("osf hook prompt: input is not JSON: {e}");
+            return ExitCode::SUCCESS;
+        }
+    };
+    let session =
+        string_at(&event, &["session_id", "sessionId"]).unwrap_or_else(|| "unknown".to_string());
+    if let Some(advice) = take_advice(&session) {
+        println!(
+            "osf writing-lint has style advice from your last turn, worth a look next time:\n{advice}"
+        );
+    }
+    ExitCode::SUCCESS
+}
+
+/// Reads and clears the session's advice file, returning its trimmed
+/// content when it holds anything.
+fn take_advice(session: &str) -> Option<String> {
+    let path = advice_path(session);
+    let advice = std::fs::read_to_string(&path).ok()?;
+    let _ = std::fs::remove_file(&path);
+    let trimmed = advice.trim();
+    (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
 fn string_at(v: &Value, keys: &[&str]) -> Option<String> {
@@ -207,15 +306,17 @@ fn last_assistant_text(body: &str) -> Option<String> {
         })
 }
 
+/// Strips a session or prompt id down to characters safe for a file name.
+fn safe_id(s: &str) -> String {
+    s.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect()
+}
+
 fn counter_path(session: &str, prompt: &str) -> PathBuf {
-    let safe = |s: &str| {
-        s.chars()
-            .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
-            .collect::<String>()
-    };
     let dir = std::env::temp_dir().join("osf-stop");
     let _ = std::fs::create_dir_all(&dir);
-    dir.join(format!("{}-{}", safe(session), safe(prompt)))
+    dir.join(format!("{}-{}", safe_id(session), safe_id(prompt)))
 }
 
 fn read_counter(p: &Path) -> u32 {
@@ -227,6 +328,27 @@ fn read_counter(p: &Path) -> u32 {
 
 fn write_counter(p: &Path, n: u32) {
     let _ = std::fs::write(p, n.to_string());
+}
+
+/// Where an `advise` finding waits for the next turn's prompt hook,
+/// keyed by session id, under the system temporary directory.
+fn advice_path(session: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join("osf-advice");
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join(format!("{}.txt", safe_id(session)))
+}
+
+/// Appends every advise finding's rendered line to the session's advice
+/// file, for `osf hook prompt` to deliver on the next turn.
+fn append_advice(session: &str, findings: &[&lint::Finding]) {
+    use std::fmt::Write as _;
+    let mut lines = String::new();
+    for f in findings {
+        let _ = writeln!(lines, "{}", f.render("message", f.level));
+    }
+    let path = advice_path(session);
+    let existing = std::fs::read_to_string(&path).unwrap_or_default();
+    let _ = std::fs::write(&path, existing + &lines);
 }
 
 #[cfg(test)]
@@ -360,5 +482,61 @@ mod tests {
                 "{key}"
             );
         }
+    }
+
+    fn finding_with(remediation: Remediation) -> lint::Finding {
+        let mut f = lint::Finding::new(
+            "probe-rule",
+            lint::Level::Warning,
+            1,
+            "m".to_string(),
+            "x".to_string(),
+        );
+        f.remediation = remediation;
+        f
+    }
+
+    /// Change 3: an advise finding must not block the stop hook.
+    #[test]
+    fn an_advise_only_batch_does_not_block() {
+        let findings = vec![
+            finding_with(Remediation::Advise),
+            finding_with(Remediation::Advise),
+        ];
+        assert!(blocking_set(&findings).is_none());
+    }
+
+    #[test]
+    fn a_clarify_finding_blocks_asking_for_the_named_correction_only() {
+        let findings = vec![finding_with(Remediation::Clarify)];
+        let (blocking, verb, _) = blocking_set(&findings).expect("clarify blocks");
+        assert_eq!(blocking.len(), 1);
+        assert_eq!(verb, "correction");
+    }
+
+    #[test]
+    fn a_rewrite_finding_pulls_in_any_clarify_finding_too() {
+        let findings = vec![
+            finding_with(Remediation::Rewrite),
+            finding_with(Remediation::Clarify),
+        ];
+        let (blocking, verb, _) = blocking_set(&findings).expect("rewrite blocks");
+        assert_eq!(blocking.len(), 2);
+        assert_eq!(verb, "rewrite");
+    }
+
+    /// Change 3: an advise finding's advice survives to `osf hook prompt`.
+    #[test]
+    fn advice_survives_to_the_next_prompt() {
+        let session = "test-session-advice-survives";
+        let _ = std::fs::remove_file(advice_path(session));
+        let finding = finding_with(Remediation::Advise);
+        append_advice(session, &[&finding]);
+        let advice = take_advice(session).expect("advice was stored");
+        assert!(advice.contains("probe-rule"), "{advice}");
+        assert!(
+            take_advice(session).is_none(),
+            "advice is cleared once read"
+        );
     }
 }
