@@ -1,5 +1,5 @@
 //! Minimal git plumbing: shells out to the `git` binary the same way a
-//! person would, so `osf scan` sees exactly what git sees.
+//! person would, so `osf scan` and `osf verify` see exactly what git sees.
 //! Every function takes the directory to run in, so a test can point it at
 //! a throwaway repository instead of the real one.
 
@@ -76,6 +76,78 @@ pub fn commit_hashes(dir: &Path, range: &str) -> Result<Vec<String>, GitError> {
 /// Returns an error if git cannot run in `dir`, or `hash` does not resolve.
 pub fn commit_message(dir: &Path, hash: &str) -> Result<String, GitError> {
     run_text(dir, &["log", "-1", "--format=%B", hash])
+}
+
+/// Paths staged for commit: added, copied, modified or renamed. A deleted
+/// path is never scanned, since there is no content left to check.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`.
+pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
+    run(
+        dir,
+        &[
+            "diff",
+            "--cached",
+            "--name-only",
+            "-z",
+            "--diff-filter=ACMR",
+        ],
+    )
+    .map(|raw| split_nul(&raw))
+}
+
+/// Paths that differ between `base` and `HEAD`: added, copied, modified or renamed.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
+pub fn changed_files(dir: &Path, base: &str) -> Result<Vec<String>, GitError> {
+    let range = format!("{base}...HEAD");
+    run(
+        dir,
+        &["diff", "--name-only", "-z", "--diff-filter=ACMR", &range],
+    )
+    .map(|raw| split_nul(&raw))
+}
+
+/// The content of `path` as staged in the index right now.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `path` is not staged.
+pub fn staged_content(dir: &Path, path: &str) -> Result<Vec<u8>, GitError> {
+    run(dir, &["show", &format!(":{path}")])
+}
+
+/// The content of `path` as it is at `rev`.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `path` does not exist at `rev`.
+pub fn content_at(dir: &Path, rev: &str, path: &str) -> Result<Vec<u8>, GitError> {
+    run(dir, &["show", &format!("{rev}:{path}")])
+}
+
+/// The branch a fresh clone checks out: the remote's `HEAD` symbol, else
+/// `main`, else `master`.
+///
+/// # Errors
+/// Returns an error if none of the three can be found.
+pub fn default_branch(dir: &Path) -> Result<String, GitError> {
+    if let Ok(text) = run_text(
+        dir,
+        &["symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+    ) {
+        if let Some(name) = text.trim().strip_prefix("origin/") {
+            return Ok(name.to_string());
+        }
+    }
+    for candidate in ["main", "master"] {
+        if run(dir, &["rev-parse", "--verify", "--quiet", candidate]).is_ok() {
+            return Ok(candidate.to_string());
+        }
+    }
+    Err(GitError(
+        "cannot find a default branch: no origin/HEAD, no main, no master".to_string(),
+    ))
 }
 
 /// Turns a git-reported forward-slash path into a real path under `dir`.

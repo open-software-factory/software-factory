@@ -1,4 +1,4 @@
-use osf::{config, hook, lint, scan};
+use osf::{config, hook, lint, scan, verify};
 mod exclude;
 
 use clap::parser::ValueSource;
@@ -97,6 +97,8 @@ enum Command {
     },
     /// Find text that must never reach a public repository.
     Scan(ScanArgs),
+    /// Run every check one gate needs, in one entry point every gate calls.
+    Verify(VerifyArgs),
 }
 
 #[derive(Args)]
@@ -109,6 +111,49 @@ struct ScanArgs {
     /// Scan commit messages in this git revision range instead of files.
     #[arg(long)]
     commits: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum StageArg {
+    PreCommit,
+    PrePush,
+    Ci,
+}
+
+impl From<StageArg> for verify::Stage {
+    fn from(value: StageArg) -> Self {
+        match value {
+            StageArg::PreCommit => verify::Stage::PreCommit,
+            StageArg::PrePush => verify::Stage::PrePush,
+            StageArg::Ci => verify::Stage::Ci,
+        }
+    }
+}
+
+impl StageArg {
+    const fn label(self) -> &'static str {
+        match self {
+            StageArg::PreCommit => "pre-commit",
+            StageArg::PrePush => "pre-push",
+            StageArg::Ci => "ci",
+        }
+    }
+}
+
+#[derive(Args)]
+struct VerifyArgs {
+    /// Which gate is calling: pre-commit, pre-push, or continuous integration.
+    #[arg(long, value_enum)]
+    stage: StageArg,
+    /// What to diff changed files against. Defaults to the repository's default branch.
+    #[arg(long)]
+    base: Option<String>,
+    /// A file holding the commit message, for the pre-commit stage.
+    #[arg(long)]
+    message_file: Option<PathBuf>,
+    /// How to print findings: human, sarif, or json.
+    #[arg(long, value_enum)]
+    format: Option<Format>,
 }
 
 #[derive(Subcommand)]
@@ -269,6 +314,7 @@ fn main() -> ExitCode {
         } => config_show(cli.config.as_deref()),
         Command::Explain { rule_id } => explain(rule_id),
         Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
+        Command::Verify(args) => verify_cmd(args, cli.config.as_deref()),
     }
 }
 
@@ -810,6 +856,62 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
         );
     }
     if tally.errors > 0 {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
+    let loaded = match config::load(config_flag, &[], &[], false) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let opts = verify::Options {
+        dir: Path::new("."),
+        base: args.base.clone(),
+        message_file: args.message_file.as_deref(),
+        config: &loaded.config,
+    };
+    let report = match verify::run(args.stage.into(), &opts) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+
+    let format = resolve_format(args.format, false);
+    match format {
+        Format::Human => {
+            for (check, name, f) in report.findings() {
+                if f.suppressed.is_none() {
+                    println!("{}", f.render(&format!("{check}: {name}"), f.level));
+                }
+            }
+            print!("{}", report.render_summary(args.stage.label()));
+        }
+        Format::Json => {
+            for (check, name, f) in report.findings() {
+                if f.suppressed.is_none() {
+                    println!("{}", f.to_json(&format!("{check}: {name}"), f.level));
+                }
+            }
+        }
+        Format::Sarif => {
+            let sarif_files: Vec<(String, Vec<lint::Finding>)> = report
+                .findings()
+                .map(|(check, name, f)| (format!("{check}: {name}"), vec![f.clone()]))
+                .collect();
+            if let Err(code) = print_sarif(&sarif_files) {
+                return code;
+            }
+        }
+    }
+    if report.total_errors() > 0 {
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS
