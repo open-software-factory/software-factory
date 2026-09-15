@@ -67,12 +67,24 @@ the rule id shown in a finding, for example `osf explain long-sentence`.
 
 `/opt/factory/bin` comes before the real git on the container's path, and
 holds a wrapper called `git`. It refuses `git commit --no-verify`,
-`git commit -n`, and `git push --no-verify`, and prints why.
+`git commit -n`, and `git push --no-verify`, and prints why. Git allows
+its own options before the subcommand, for example `git -c
+user.email=x commit ...`, so the wrapper looks past those options to
+find the real subcommand, rather than only looking at the first word.
 
 `git push -n` is short for `--dry-run`, an unrelated and harmless option,
 so the wrapper leaves it alone.
 
-State this plainly: the wrapper is a speed bump, not a seal. A person can
-still call the real binary at its full path, `/usr/bin/git`, and skip the
-wrapper completely. The wrapper only saves the time between a forgotten
-check and the same problem being caught on the pull request.
+State this plainly: the wrapper is a speed bump, not a seal. Two things
+defeat it, and it cannot stop either one:
+
+- Calling the real binary at its full path, `/usr/bin/git`, skips the
+  wrapper completely.
+- `git -c core.hooksPath=<path> commit ...` (or any other `-c` that
+  changes what a hook does) points the hook at a different, or empty,
+  folder for that one call. The wrapper lets `-c` through unchanged,
+  because blocking it would also block its ordinary, legitimate use:
+  setting a config value for one command.
+
+The wrapper only saves the time between a forgotten check and the same
+problem being caught on the pull request.
