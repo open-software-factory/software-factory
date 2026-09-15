@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn clean_text_has_no_findings() {
-        let t = "The build failed on the test step. The fix is in [owner/repo#12 (the build fix)](https://example.com/12).\n";
+        let t = "The build failed on the test step. The fix is in [open-software-factory/software-factory#12 (the build fix)](https://example.com/12).\n";
         assert!(lint(t).is_empty(), "{:?}", lint(t));
     }
 
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn reference_needs_a_label_and_a_link() {
         assert_eq!(
-            rules_of("Fixed in owner/repo#125 today."),
+            rules_of("Fixed in open-software-factory/software-factory#125 today."),
             vec!["reference-without-label", "reference-without-link"]
         );
         assert_eq!(
