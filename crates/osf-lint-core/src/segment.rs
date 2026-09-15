@@ -1,7 +1,9 @@
-//! Split Markdown-ish text into sentences, paragraphs and a whole-document
-//! unit, each with a line number and a byte span. A rule or an analyser
-//! reads whichever grain its scope asks for; the shape is the same for all.
+//! Split Markdown into sentences, paragraphs and a whole-document unit, each
+//! with a line number and a byte span. `pulldown-cmark` finds the block and
+//! inline structure; a rule or an analyser reads whichever grain its scope
+//! asks for, and the shape is the same for all.
 
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use regex::Regex;
 use std::ops::Range;
 use std::sync::OnceLock;
@@ -39,214 +41,242 @@ pub struct Doc {
     pub word_count: usize,
 }
 
-struct Para {
+/// One block of prose: a paragraph, a heading, or a table cell, built from
+/// the raw source it spans. A sentence taken from partway through it can
+/// still recover its own line number and byte offset.
+struct Block {
     line: usize,
+    start_offset: usize,
     text: String,
-    /// (byte offset in `text`, source line) for every joined line.
-    line_starts: Vec<(usize, usize)>,
+    /// (offset in `text`, source line, source offset) recorded at each line
+    /// break the block joins, so a later offset in `text` can be mapped back.
+    breaks: Vec<(usize, usize, usize)>,
     in_table: bool,
     is_heading: bool,
 }
 
-impl Para {
-    fn new(line: usize, text: &str) -> Self {
-        Para {
+impl Block {
+    fn new(line: usize, start_offset: usize, in_table: bool, is_heading: bool) -> Self {
+        Block {
             line,
-            text: text.to_string(),
-            line_starts: vec![(0, line)],
-            in_table: false,
-            is_heading: false,
+            start_offset,
+            text: String::new(),
+            breaks: Vec::new(),
+            in_table,
+            is_heading,
         }
     }
 
-    fn cell(line: usize, text: &str) -> Self {
-        Para {
-            in_table: true,
-            ..Para::new(line, text)
-        }
+    fn push_raw(&mut self, s: &str) {
+        self.text.push_str(s);
     }
 
-    fn heading(line: usize, text: &str) -> Self {
-        Para {
-            is_heading: true,
-            ..Para::new(line, text)
-        }
-    }
-
-    fn append(&mut self, line: usize, text: &str) {
+    /// A line break joins two source lines with one space, as prose does.
+    fn push_break(&mut self, source_line: usize, source_offset: usize) {
         self.text.push(' ');
-        self.line_starts.push((self.text.len(), line));
-        self.text.push_str(text);
+        self.breaks
+            .push((self.text.len(), source_line, source_offset));
     }
 
-    fn line_at(&self, offset: usize) -> usize {
-        self.line_starts
+    fn before(&self, local_offset: usize) -> (usize, usize, usize) {
+        self.breaks
             .iter()
-            .take_while(|(o, _)| *o <= offset)
+            .take_while(|(o, _, _)| *o <= local_offset)
             .last()
-            .map_or(self.line, |(_, l)| *l)
+            .copied()
+            .unwrap_or((0, self.line, self.start_offset))
+    }
+
+    fn line_at(&self, local_offset: usize) -> usize {
+        self.before(local_offset).1
+    }
+
+    fn absolute_at(&self, local_offset: usize) -> usize {
+        let (base_local, _, base_absolute) = self.before(local_offset);
+        base_absolute + (local_offset - base_local)
     }
 }
 
-/// One line of input, classified. The parser is a fold over these.
-enum Line<'a> {
-    Fence,
-    CommentOpen,
-    CommentClose,
-    Blank,
-    Table(Vec<&'a str>),
-    Heading(&'a str),
-    Item(&'a str),
-    Prose(&'a str),
-}
-
-fn classify(trimmed: &str) -> Line<'_> {
-    if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
-        return Line::Fence;
-    }
-    if trimmed.starts_with("<!--") {
-        return if trimmed.contains("-->") {
-            Line::Blank
-        } else {
-            Line::CommentOpen
-        };
-    }
-    if trimmed.contains("-->") {
-        return Line::CommentClose;
-    }
-    if trimmed.is_empty() || trimmed.starts_with('<') {
-        return Line::Blank;
-    }
-    if trimmed.starts_with('|') {
-        let separator = trimmed.chars().all(|c| matches!(c, '|' | '-' | ':' | ' '));
-        let cells = if separator {
-            vec![]
-        } else {
-            trimmed
-                .trim_matches('|')
-                .split('|')
-                .map(str::trim)
-                .filter(|c| !c.is_empty())
-                .collect()
-        };
-        return Line::Table(cells);
-    }
-    if let Some(rest) = heading_text(trimmed) {
-        return Line::Heading(rest);
-    }
-    match strip_list_marker(trimmed) {
-        (true, body) => Line::Item(body),
-        (false, body) => Line::Prose(body),
-    }
-}
-
+/// The parse fold's state: the block being built, every block finished so
+/// far, and whether we are inside a region that changes how text is read.
 #[derive(Default)]
-struct State {
-    paras: Vec<Para>,
+struct Walk {
+    blocks: Vec<Block>,
     headings: Vec<usize>,
-    current: Option<Para>,
-    in_fence: bool,
-    in_comment: bool,
+    current: Option<Block>,
+    /// Depth inside a fenced or indented code block, or an HTML block: its
+    /// text is never prose.
+    skip: u32,
+    /// Depth inside emphasis, a strong span, a strikethrough, a link or an
+    /// image: already captured whole, so its children are not read again.
+    inline_skip: u32,
+    in_heading: bool,
+    in_cell: bool,
 }
 
-impl State {
+impl Walk {
     fn flush(mut self) -> Self {
-        if let Some(p) = self.current.take() {
-            self.paras.push(p);
+        if let Some(block) = self.current.take() {
+            if block.is_heading {
+                self.headings.push(block.line);
+            }
+            self.blocks.push(block);
         }
         self
     }
 
-    fn step(self, line_no: usize, raw: &str) -> Self {
-        let trimmed = raw.trim();
-        if self.in_comment {
-            let closes = matches!(classify(trimmed), Line::CommentClose);
-            return State {
-                in_comment: !closes,
-                ..self
-            };
-        }
-        if self.in_fence {
-            let toggles = matches!(classify(trimmed), Line::Fence);
-            return State {
-                in_fence: !toggles,
-                ..self
-            };
-        }
-        match classify(trimmed) {
-            Line::Fence => State {
-                in_fence: true,
-                ..self.flush()
-            },
-            Line::CommentOpen => State {
-                in_comment: true,
-                ..self.flush()
-            },
-            Line::CommentClose | Line::Blank => self.flush(),
-            Line::Table(cells) => {
-                let mut s = self.flush();
-                s.paras
-                    .extend(cells.into_iter().map(|c| Para::cell(line_no, c)));
-                s
-            }
-            Line::Heading(text) => {
-                let mut s = self.flush();
-                s.headings.push(line_no);
-                s.paras.push(Para::heading(line_no, text));
-                s
-            }
-            Line::Item(body) => State {
-                current: Some(Para::new(line_no, body)),
-                ..self.flush()
-            },
-            Line::Prose(body) => {
-                let mut s = self;
-                match s.current.as_mut() {
-                    Some(p) => p.append(line_no, body),
-                    None => s.current = Some(Para::new(line_no, body)),
-                }
-                s
-            }
-        }
+    fn open(&mut self, doc_lines: &[usize], offset: usize) -> &mut Block {
+        let in_table = self.in_cell;
+        let is_heading = self.in_heading;
+        self.current.get_or_insert_with(|| {
+            Block::new(line_at(doc_lines, offset), offset, in_table, is_heading)
+        })
     }
+}
+
+/// Emphasis, a strong span, a strikethrough, a link, and an image: `pulldown-cmark`
+/// reports the whole span's byte range on the opening event, so it is read
+/// once there and its children are skipped.
+fn opens_captured_span(tag: &Tag) -> bool {
+    matches!(
+        tag,
+        Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Link { .. } | Tag::Image { .. }
+    )
+}
+
+fn closes_captured_span(tag: TagEnd) -> bool {
+    matches!(
+        tag,
+        TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough | TagEnd::Link | TagEnd::Image
+    )
+}
+
+fn raw<'a>(source: &'a str, range: &Range<usize>) -> &'a str {
+    source.get(range.clone()).unwrap_or_default()
+}
+
+fn step(
+    mut walk: Walk,
+    source: &str,
+    doc_lines: &[usize],
+    event: Event,
+    range: Range<usize>,
+) -> Walk {
+    if walk.skip > 0 {
+        match event {
+            Event::Start(Tag::CodeBlock(_) | Tag::HtmlBlock) => walk.skip += 1,
+            Event::End(TagEnd::CodeBlock | TagEnd::HtmlBlock) => walk.skip -= 1,
+            _ => {}
+        }
+        return walk;
+    }
+    if walk.inline_skip > 0 {
+        match event {
+            Event::Start(tag) if opens_captured_span(&tag) => walk.inline_skip += 1,
+            Event::End(tag) if closes_captured_span(tag) => walk.inline_skip -= 1,
+            _ => {}
+        }
+        return walk;
+    }
+    match event {
+        Event::Start(tag) if opens_captured_span(&tag) => {
+            walk.open(doc_lines, range.start)
+                .push_raw(raw(source, &range));
+            walk.inline_skip += 1;
+            walk
+        }
+        Event::Text(_)
+        | Event::Code(_)
+        | Event::InlineHtml(_)
+        | Event::FootnoteReference(_)
+        | Event::TaskListMarker(_) => {
+            walk.open(doc_lines, range.start)
+                .push_raw(raw(source, &range));
+            walk
+        }
+        Event::SoftBreak | Event::HardBreak => {
+            let source_line = line_at(doc_lines, range.end);
+            walk.open(doc_lines, range.start)
+                .push_break(source_line, range.end);
+            walk
+        }
+        Event::Start(Tag::CodeBlock(_) | Tag::HtmlBlock) => {
+            walk = walk.flush();
+            walk.skip += 1;
+            walk
+        }
+        Event::Start(Tag::Heading { .. }) => {
+            walk = walk.flush();
+            walk.in_heading = true;
+            walk
+        }
+        Event::End(TagEnd::Heading(_)) => {
+            walk = walk.flush();
+            walk.in_heading = false;
+            walk
+        }
+        Event::Start(Tag::TableCell) => {
+            walk = walk.flush();
+            walk.in_cell = true;
+            walk
+        }
+        Event::End(TagEnd::TableCell) => {
+            walk = walk.flush();
+            walk.in_cell = false;
+            walk
+        }
+        _ => walk.flush(),
+    }
+}
+
+fn line_starts(text: &str) -> Vec<usize> {
+    std::iter::once(0)
+        .chain(text.match_indices('\n').map(|(i, _)| i + 1))
+        .collect()
+}
+
+/// 1-based source line containing byte offset `offset`.
+fn line_at(starts: &[usize], offset: usize) -> usize {
+    starts.partition_point(|&s| s <= offset)
+}
+
+fn paragraph_unit(block: &Block) -> TextUnit {
+    TextUnit {
+        span: block.start_offset..block.absolute_at(block.text.len()),
+        text: block.text.clone(),
+        line: block.line,
+        in_table: block.in_table,
+        is_heading: block.is_heading,
+    }
+}
+
+fn sentence_units(block: &Block) -> Vec<TextUnit> {
+    split_sentences(&block.text)
+        .into_iter()
+        .map(|(offset, text)| TextUnit {
+            span: block.absolute_at(offset)..block.absolute_at(offset) + text.len(),
+            line: block.line_at(offset),
+            text,
+            in_table: block.in_table,
+            is_heading: block.is_heading,
+        })
+        .collect()
 }
 
 /// # Panics
 /// Panics only if a built-in regex pattern fails to compile, which never happens.
 #[must_use]
 pub fn parse(text: &str) -> Doc {
-    let state = text
-        .lines()
-        .enumerate()
-        .fold(State::default(), |s, (i, raw)| s.step(i + 1, raw))
+    let doc_lines = line_starts(text);
+    let walk = Parser::new_ext(text, Options::ENABLE_TABLES)
+        .into_offset_iter()
+        .fold(Walk::default(), |w, (event, range)| {
+            step(w, text, &doc_lines, event, range)
+        })
         .flush();
 
-    let paragraphs: Vec<TextUnit> = state
-        .paras
-        .iter()
-        .map(|p| TextUnit {
-            span: 0..p.text.len(),
-            text: p.text.clone(),
-            line: p.line,
-            in_table: p.in_table,
-            is_heading: p.is_heading,
-        })
-        .collect();
-    let sentences: Vec<TextUnit> = state
-        .paras
-        .iter()
-        .flat_map(|p| {
-            split_sentences(&p.text)
-                .into_iter()
-                .map(move |(offset, text)| TextUnit {
-                    line: p.line_at(offset),
-                    span: offset..offset + text.len(),
-                    text,
-                    in_table: p.in_table,
-                    is_heading: p.is_heading,
-                })
-        })
-        .collect();
+    let paragraphs: Vec<TextUnit> = walk.blocks.iter().map(paragraph_unit).collect();
+    let sentences: Vec<TextUnit> = walk.blocks.iter().flat_map(sentence_units).collect();
     let word_count = sentences.iter().map(|s| s.words().len()).sum();
     let whole = TextUnit {
         text: text.to_string(),
@@ -259,28 +289,9 @@ pub fn parse(text: &str) -> Doc {
         sentences,
         paragraphs,
         whole,
-        headings: state.headings,
+        headings: walk.headings,
         word_count,
     }
-}
-
-fn heading_text(line: &str) -> Option<&str> {
-    let hashes = line.bytes().take_while(|b| *b == b'#').count();
-    if hashes == 0 || hashes > 6 {
-        return None;
-    }
-    line.get(hashes..)
-        .filter(|rest| rest.starts_with(' '))
-        .map(str::trim)
-}
-
-fn strip_list_marker(line: &str) -> (bool, &str) {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| {
-        Regex::new(r"^(?:[-*+] (?:\[[ x]\] )?|\d+[.)] |> )").expect("list marker pattern compiles")
-    });
-    re.find(line)
-        .map_or((false, line), |m| (true, line.get(m.end()..).unwrap_or("")))
 }
 
 const ABBREVIATIONS: &[&str] = &["e.g.", "i.e.", "vs.", "etc.", "cf.", "no.", "fig."];
