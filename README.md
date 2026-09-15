@@ -26,6 +26,12 @@ These are implementation constraints, not a claim that the wider ecosystem must 
 
 Repository-specific guidance for coding agents is in [`AGENTS.md`](AGENTS.md).
 
+## Development container
+
+[`docs/development.md`](docs/development.md) covers the development
+container. It states how to open it, what its git hooks check, what they
+cannot do, and how to run the same checks by hand.
+
 ## Licence
 
 Apache-2.0 or MIT, at your option: see [`LICENSE-APACHE`](LICENSE-APACHE) and
