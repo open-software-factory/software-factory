@@ -4,7 +4,7 @@
 use crate::{Finding, Level};
 use serde_sarif::sarif::{
     ArtifactLocation, Location, Message, PhysicalLocation, Region, Result as SarifResult, Run,
-    Sarif, Tool, ToolComponent, Version,
+    Sarif, Suppression, Tool, ToolComponent, Version,
 };
 
 /// Identifies the tool that produced a SARIF report.
@@ -52,11 +52,25 @@ fn to_result(file: &str, finding: &Finding) -> SarifResult {
         .physical_location(physical_location)
         .build();
     let text = format!("{}: \"{}\"", finding.message, finding.excerpt);
-    SarifResult::builder()
+    let mut result = SarifResult::builder()
         .rule_id(finding.rule)
         .level(level)
         .message(Message::builder().text(text).build())
         .locations(vec![location])
+        .build();
+    result.suppressions = finding
+        .suppressed
+        .as_deref()
+        .map(|reason| vec![to_suppression(reason)]);
+    result
+}
+
+/// A suppressed finding still appears in `results`; SARIF's own
+/// `suppressions` property is what marks it as silenced, and why.
+fn to_suppression(reason: &str) -> Suppression {
+    Suppression::builder()
+        .kind("inSource")
+        .justification(reason)
         .build()
 }
 
@@ -100,6 +114,34 @@ mod tests {
         assert_eq!(
             results.first().and_then(|r| r.rule_id.as_deref()),
             Some("bare-reference")
+        );
+    }
+
+    #[test]
+    fn a_suppressed_finding_carries_a_sarif_suppression() {
+        let mut suppressed = Finding::new(
+            "filler",
+            Level::Warning,
+            5,
+            "cut it or say the plain thing".to_string(),
+            "leverage".to_string(),
+        );
+        suppressed.suppressed = Some("tracked in issue".to_string());
+        let tool = ToolInfo {
+            name: "osf",
+            version: "0.1.0",
+            information_uri: "https://github.com/open-software-factory/software-factory",
+        };
+        let sarif = to_sarif(&[("message.txt".to_string(), vec![suppressed])], &tool);
+        let run = sarif.runs.first().expect("one run");
+        let results = run.results.as_ref().expect("results present");
+        let result = results.first().expect("one result");
+        let suppressions = result.suppressions.as_ref().expect("a suppressions list");
+        assert_eq!(
+            suppressions
+                .first()
+                .and_then(|s| s.justification.as_deref()),
+            Some("tracked in issue")
         );
     }
 

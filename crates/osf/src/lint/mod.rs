@@ -28,8 +28,18 @@ pub enum Kind {
 /// Lints a document or a message. With `fast_only`, only the deterministic
 /// fast tier runs; the stop hook uses this, since it must stay fast on
 /// every turn end. The command line runs every tier.
+///
+/// With `no_suppress`, every `osf-disable`-family marker is ignored, so
+/// every finding it would have silenced is reported. Continuous integration
+/// runs with this set.
 #[must_use]
-pub fn lint_writing(text: &str, known: &KnownNames, kind: Kind, fast_only: bool) -> Vec<Finding> {
+pub fn lint_writing(
+    text: &str,
+    known: &KnownNames,
+    kind: Kind,
+    fast_only: bool,
+    no_suppress: bool,
+) -> Vec<Finding> {
     let doc = osf_lint_core::segment::parse(text);
     let mut findings = Vec::new();
     if kind == Kind::Message {
@@ -37,6 +47,11 @@ pub fn lint_writing(text: &str, known: &KnownNames, kind: Kind, fast_only: bool)
     }
     rules::per_sentence(&doc, fast_only, &mut findings);
     rules::undefined_names(&doc, known, &mut findings);
+    let mut findings = if no_suppress {
+        findings
+    } else {
+        osf_lint_core::apply_suppressions(text, findings, &rules::rule_ids())
+    };
     osf_lint_core::sort_findings(&mut findings);
     findings
 }
@@ -51,15 +66,21 @@ mod tests {
             &load_known_names(None).expect("built-in names load"),
             Kind::Message,
             false,
+            false,
         )
     }
 
     #[test]
     fn a_document_may_have_headings() {
         let known = load_known_names(None).expect("built-in names load");
-        assert!(
-            lint_writing("## Result\n\nIt passed.\n", &known, Kind::Document, false).is_empty()
-        );
+        assert!(lint_writing(
+            "## Result\n\nIt passed.\n",
+            &known,
+            Kind::Document,
+            false,
+            false
+        )
+        .is_empty());
     }
 
     fn rules_of(text: &str) -> Vec<&'static str> {
@@ -199,5 +220,29 @@ mod tests {
             .collect();
         assert_eq!(f.len(), 1);
         assert_eq!(f.first().map(|x| x.line), Some(4));
+    }
+
+    #[test]
+    fn a_suppressed_line_is_kept_but_marked() {
+        let f = lint("Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n");
+        // The marker's own `-->` and ` -- ` must not lint as an arrow or an em dash.
+        assert_eq!(f.len(), 1, "{f:?}");
+        let bare = f
+            .iter()
+            .find(|x| x.rule == "bare-reference")
+            .expect("finding kept");
+        assert!(bare.suppressed.is_some());
+    }
+
+    #[test]
+    fn no_suppress_ignores_every_marker() {
+        let known = load_known_names(None).expect("built-in names load");
+        let text = "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n";
+        let f = lint_writing(text, &known, Kind::Message, false, true);
+        let bare = f
+            .iter()
+            .find(|x| x.rule == "bare-reference")
+            .expect("finding kept");
+        assert!(bare.suppressed.is_none());
     }
 }

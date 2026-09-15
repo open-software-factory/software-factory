@@ -59,6 +59,7 @@ enum LintKind {
 }
 
 #[derive(Args)]
+#[allow(clippy::struct_excessive_bools)]
 struct WritingArgs {
     /// Files to check. With no files, standard input is checked.
     paths: Vec<PathBuf>,
@@ -77,6 +78,10 @@ struct WritingArgs {
     /// The text is a reply to a person: a heading in a short text is an error.
     #[arg(long)]
     message: bool,
+    /// Ignore every osf-disable marker and report everything. Continuous
+    /// integration uses this.
+    #[arg(long)]
+    no_suppress: bool,
 }
 
 #[derive(Subcommand)]
@@ -137,6 +142,7 @@ fn lint_writing(args: &WritingArgs) -> ExitCode {
     let format = resolve_format(args.format, args.json);
     let mut errors = 0usize;
     let mut warnings = 0usize;
+    let mut suppressed = 0usize;
     let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
     for (name, text) in &inputs {
         let kind = if args.message {
@@ -144,25 +150,36 @@ fn lint_writing(args: &WritingArgs) -> ExitCode {
         } else {
             lint::Kind::Document
         };
-        let mut findings = lint::lint_writing(text, &known, kind, false);
+        let mut findings = lint::lint_writing(text, &known, kind, false, args.no_suppress);
         if args.strict {
             for f in &mut findings {
-                f.level = lint::Level::Error;
+                if f.suppressed.is_none() {
+                    f.level = lint::Level::Error;
+                }
             }
         }
         for f in &findings {
+            if f.suppressed.is_some() {
+                suppressed += 1;
+                continue;
+            }
             match f.level {
                 lint::Level::Error => errors += 1,
                 lint::Level::Warning => warnings += 1,
             }
         }
+        let visible: Vec<lint::Finding> = findings
+            .iter()
+            .filter(|f| f.suppressed.is_none())
+            .cloned()
+            .collect();
         match format {
-            Format::Human if !findings.is_empty() => {
-                println!("{}", osf_lint_core::render_human(name, text, &findings));
+            Format::Human if !visible.is_empty() => {
+                println!("{}", osf_lint_core::render_human(name, text, &visible));
             }
             Format::Human => {}
             Format::Json => {
-                for f in &findings {
+                for f in &visible {
                     println!("{}", f.to_json(name, f.level));
                 }
             }
@@ -185,7 +202,9 @@ fn lint_writing(args: &WritingArgs) -> ExitCode {
                 }
             }
         }
-        Format::Human => println!("osf lint writing: {errors} error(s), {warnings} warning(s)"),
+        Format::Human => println!(
+            "osf lint writing: {errors} error(s), {warnings} warning(s), {suppressed} suppressed"
+        ),
         Format::Json => {}
     }
     if errors > 0 {

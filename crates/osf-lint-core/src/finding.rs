@@ -28,6 +28,10 @@ pub struct Finding {
     pub excerpt: String,
     pub source: &'static str,
     pub evidence: Evidence,
+    /// `Some(reason)` once a suppression marker covers this finding. The
+    /// engine keeps a suppressed finding rather than dropping it; the
+    /// caller decides whether to show it.
+    pub suppressed: Option<String>,
 }
 
 impl Finding {
@@ -49,6 +53,7 @@ impl Finding {
             excerpt,
             source: rule,
             evidence: Evidence::Deterministic,
+            suppressed: None,
         }
     }
 

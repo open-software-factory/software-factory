@@ -155,6 +155,13 @@ fn raw<'a>(source: &'a str, range: &Range<usize>) -> &'a str {
     source.get(range.clone()).unwrap_or_default()
 }
 
+/// An HTML comment, inline or as its own block: never prose, so a
+/// suppression marker placed after content on the same line does not lint
+/// its own `-->` and ` -- ` as an arrow or an em dash.
+fn is_comment(html: &str) -> bool {
+    html.trim_start().starts_with("<!--")
+}
+
 fn step(
     mut walk: Walk,
     source: &str,
@@ -185,6 +192,7 @@ fn step(
             walk.inline_skip += 1;
             walk
         }
+        Event::InlineHtml(_) if is_comment(raw(source, &range)) => walk,
         Event::Text(_)
         | Event::Code(_)
         | Event::InlineHtml(_)
@@ -229,14 +237,16 @@ fn step(
     }
 }
 
-fn line_starts(text: &str) -> Vec<usize> {
+/// Byte offset of the start of every line in `text`, so a caller elsewhere
+/// in the crate (the suppression scanner) can map an offset to a line too.
+pub(crate) fn line_starts(text: &str) -> Vec<usize> {
     std::iter::once(0)
         .chain(text.match_indices('\n').map(|(i, _)| i + 1))
         .collect()
 }
 
 /// 1-based source line containing byte offset `offset`.
-fn line_at(starts: &[usize], offset: usize) -> usize {
+pub(crate) fn line_at(starts: &[usize], offset: usize) -> usize {
     starts.partition_point(|&s| s <= offset)
 }
 

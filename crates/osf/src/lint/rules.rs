@@ -31,6 +31,19 @@ pub fn per_sentence(doc: &Doc, fast_only: bool, out: &mut Vec<Finding>) {
     out.extend(run_rules(doc, &rules, fast_only));
 }
 
+/// Every rule id this lint can report, for validating a suppression's rule id.
+pub fn rule_ids() -> Vec<&'static str> {
+    SENTENCE_RULES
+        .iter()
+        .map(Rule::id)
+        .chain([
+            "heading-in-short-text",
+            "undefined-name",
+            "undefined-name-at-start",
+        ])
+        .collect()
+}
+
 pub fn headings_in_short_text(doc: &Doc, out: &mut Vec<Finding>) {
     if doc.word_count >= SHORT_TEXT_WORDS {
         return;

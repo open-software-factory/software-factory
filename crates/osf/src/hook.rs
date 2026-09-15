@@ -54,10 +54,11 @@ pub fn stop(known_names: Option<&Path>, max_bounces: u32) -> ExitCode {
         }
     };
     // A stop check runs on every turn end, so it stays on the fast tier only.
-    let errors: Vec<lint::Finding> = lint::lint_writing(&text, &known, lint::Kind::Message, true)
-        .into_iter()
-        .filter(|f| f.level == lint::Level::Error)
-        .collect();
+    let errors: Vec<lint::Finding> =
+        lint::lint_writing(&text, &known, lint::Kind::Message, true, false)
+            .into_iter()
+            .filter(|f| f.level == lint::Level::Error && f.suppressed.is_none())
+            .collect();
 
     let counter = counter_path(&session, &prompt);
     if errors.is_empty() {
