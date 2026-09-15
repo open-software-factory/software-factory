@@ -24,6 +24,7 @@ pub struct Config {
     /// rule would match builds that literal at run time instead of
     /// writing it into the file, so there is nothing left to hide there.
     pub exclude: Vec<String>,
+    pub skill: SkillConfig,
 }
 
 /// Only the build output directory: untracked, so excluding it costs
@@ -38,6 +39,7 @@ impl Default for Config {
         Config {
             writing: WritingConfig::default(),
             exclude: strings(DEFAULT_EXCLUDE),
+            skill: SkillConfig::default(),
         }
     }
 }
@@ -149,6 +151,45 @@ fn strings(list: &[&str]) -> Vec<String> {
     list.iter().map(ToString::to_string).collect()
 }
 
+/// The `[skill]` configuration: the skill lint's size budget, its trigger
+/// phrase list, its manual-shape threshold, and per-rule level overrides.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkillConfig {
+    /// A first section that is not step-shaped may hold up to this many paragraphs.
+    pub overview_max_paragraphs: usize,
+    /// A first section that is not step-shaped may hold up to this many words.
+    pub overview_max_words: usize,
+    /// One of these phrases, case-insensitive, must appear in the description.
+    pub trigger_phrases: Vec<String>,
+    /// A run of numbered steps longer than this needs a stated stopping point.
+    pub manual_min_steps: usize,
+    /// Per-rule level overrides, keyed by rule id.
+    pub levels: BTreeMap<String, LevelSetting>,
+}
+
+pub const DEFAULT_TRIGGER_PHRASES: &[&str] = &[
+    "use when",
+    "use whenever",
+    "when the user",
+    "when you",
+    "if the user",
+    "fires on",
+    "trigger",
+];
+
+impl Default for SkillConfig {
+    fn default() -> Self {
+        SkillConfig {
+            overview_max_paragraphs: 2,
+            overview_max_words: 120,
+            trigger_phrases: strings(DEFAULT_TRIGGER_PHRASES),
+            manual_min_steps: 3,
+            levels: BTreeMap::new(),
+        }
+    }
+}
+
 /// One field the environment can set, and how to parse it into a TOML value.
 struct EnvField {
     var: &'static str,
@@ -228,6 +269,26 @@ const ENV_FIELDS: &[EnvField] = &[
         var: "OSF_EXCLUDE",
         path: &["exclude"],
         parse: parse_list,
+    },
+    EnvField {
+        var: "OSF_SKILL_OVERVIEW_MAX_PARAGRAPHS",
+        path: &["skill", "overview_max_paragraphs"],
+        parse: parse_uint,
+    },
+    EnvField {
+        var: "OSF_SKILL_OVERVIEW_MAX_WORDS",
+        path: &["skill", "overview_max_words"],
+        parse: parse_uint,
+    },
+    EnvField {
+        var: "OSF_SKILL_TRIGGER_PHRASES",
+        path: &["skill", "trigger_phrases"],
+        parse: parse_list,
+    },
+    EnvField {
+        var: "OSF_SKILL_MANUAL_MIN_STEPS",
+        path: &["skill", "manual_min_steps"],
+        parse: parse_uint,
     },
 ];
 
@@ -744,5 +805,39 @@ mod tests {
         .expect("a gate load succeeds even over a poisoned file");
 
         assert_eq!(loaded.config, Config::default());
+    }
+
+    #[test]
+    fn the_skill_section_layers_the_same_way_as_writing() {
+        let dir = std::env::temp_dir().join("osf-config-test-skill-section");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[skill]\noverview_max_paragraphs = 1\n").expect("file writes");
+        let loaded = serial(&[("OSF_SKILL_OVERVIEW_MAX_WORDS", "40")], || {
+            load(Some(&path), &[], &[], false)
+        })
+        .expect("skill section loads");
+        assert_eq!(loaded.config.skill.overview_max_paragraphs, 1);
+        assert_eq!(loaded.config.skill.overview_max_words, 40);
+        assert_eq!(loaded.config.skill.manual_min_steps, 3);
+        assert_eq!(
+            loaded.sources.get("skill.overview_max_paragraphs"),
+            Some(&Layer::File)
+        );
+        assert_eq!(
+            loaded.sources.get("skill.overview_max_words"),
+            Some(&Layer::Env)
+        );
+    }
+
+    #[test]
+    fn an_unknown_skill_key_is_refused() {
+        let dir = std::env::temp_dir().join("osf-config-test-skill-unknown");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[skill]\noverview_max_paragraph = 1\n").expect("file writes");
+        let err = serial(&[], || load(Some(&path), &[], &[], false))
+            .expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("overview_max_paragraph"));
     }
 }

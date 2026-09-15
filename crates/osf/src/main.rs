@@ -1,7 +1,5 @@
-mod config;
+use osf::{config, hook, lint};
 mod exclude;
-mod hook;
-mod lint;
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -103,6 +101,26 @@ enum Command {
 enum LintKind {
     /// Check prose for references, names, sentence length, and filler.
     Writing(WritingArgs),
+    /// Check a skill folder's SKILL.md against nine structural and safety rules.
+    Skill(SkillLintArgs),
+}
+
+#[derive(Args)]
+struct SkillLintArgs {
+    /// Skill folders to check. Each must hold a `SKILL.md` file.
+    paths: Vec<PathBuf>,
+    /// How to print findings: human, sarif, or json.
+    #[arg(long, value_enum)]
+    format: Option<Format>,
+    /// Treat warnings as errors.
+    #[arg(long)]
+    strict: bool,
+    /// A first section that is not step-shaped may hold this many paragraphs. Overrides the config file.
+    #[arg(long)]
+    overview_max_paragraphs: Option<usize>,
+    /// A first section that is not step-shaped may hold this many words. Overrides the config file.
+    #[arg(long)]
+    overview_max_words: Option<usize>,
 }
 
 #[derive(Args)]
@@ -206,6 +224,9 @@ fn main() -> ExitCode {
                 .and_then(|m| m.subcommand_matches("writing"));
             lint_writing(args, sub, cli.config.as_deref())
         }
+        Command::Lint {
+            kind: LintKind::Skill(args),
+        } => lint_skill_cmd(args, cli.config.as_deref()),
         Command::Hook {
             event: HookEvent::Stop(args),
         } => {
@@ -588,6 +609,103 @@ fn lint_writing(
             "osf lint writing: {} error(s), {} warning(s), {} suppressed, {} excluded, {} declared",
             tally.errors, tally.warnings, tally.suppressed, tally.excluded, tally.declared
         );
+    }
+    if tally.errors > 0 {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// Builds the flag layer from the size-budget overrides the user actually
+/// passed, told apart from "not passed" by `Option::is_none`, since neither
+/// flag carries a clap default.
+fn skill_flags_overlay(args: &SkillLintArgs) -> Vec<(&'static [&'static str], toml::Value)> {
+    let as_int = |n: usize| toml::Value::Integer(i64::try_from(n).unwrap_or(i64::MAX));
+    let mut overlay: Vec<(&'static [&'static str], toml::Value)> = Vec::new();
+    if let Some(n) = args.overview_max_paragraphs {
+        overlay.push((&["skill", "overview_max_paragraphs"], as_int(n)));
+    }
+    if let Some(n) = args.overview_max_words {
+        overlay.push((&["skill", "overview_max_words"], as_int(n)));
+    }
+    overlay
+}
+
+fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
+    let overlay = skill_flags_overlay(args);
+    let loaded = match config::load(config_flag, &overlay, &[], false) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let cfg = &loaded.config.skill;
+    if args.paths.is_empty() {
+        eprintln!("osf: lint skill needs at least one skill folder");
+        return ExitCode::from(2);
+    }
+    let format = resolve_format(args.format, false);
+    let mut tally = Tally::default();
+    let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
+    for dir in &args.paths {
+        let skill_findings = match lint::skill::lint_skill(dir, cfg) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        };
+        let mut by_file: std::collections::BTreeMap<String, Vec<lint::Finding>> =
+            std::collections::BTreeMap::new();
+        for sf in skill_findings {
+            by_file.entry(sf.file).or_default().push(sf.finding);
+        }
+        for (file, raw_findings) in by_file {
+            let name = format!("{}/{file}", dir.display());
+            let mut findings = osf_lint_core::apply_level_overrides(raw_findings, &cfg.levels);
+            if args.strict {
+                for f in &mut findings {
+                    if f.suppressed.is_none() {
+                        f.level = lint::Level::Error;
+                    }
+                }
+            }
+            tally.count(&findings);
+            let visible: Vec<lint::Finding> = findings
+                .iter()
+                .filter(|f| f.suppressed.is_none())
+                .cloned()
+                .collect();
+            match format {
+                Format::Human => {
+                    for f in &visible {
+                        println!("{}", f.render(&name, f.level));
+                    }
+                }
+                Format::Sarif => {}
+                Format::Json => {
+                    for f in &visible {
+                        println!("{}", f.to_json(&name, f.level));
+                    }
+                }
+            }
+            if format == Format::Sarif {
+                sarif_files.push((name, findings));
+            }
+        }
+    }
+    if format == Format::Sarif {
+        if let Err(code) = print_sarif(&sarif_files) {
+            return code;
+        }
+    } else if format == Format::Human {
+        println!(
+            "osf lint skill: {} error(s), {} warning(s), {} suppressed",
+            tally.errors, tally.warnings, tally.suppressed
+        );
+        println!("{}", lint::skill::UNCHECKED_NOTE);
     }
     if tally.errors > 0 {
         ExitCode::from(1)

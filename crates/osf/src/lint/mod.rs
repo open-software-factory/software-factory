@@ -8,12 +8,19 @@
 mod meta;
 mod names;
 mod rules;
+pub mod skill;
 
-pub use meta::rule_meta;
+pub use meta::RuleMeta;
 pub use osf_lint_core::{
     check_expectation, parse_expectation, Context, Finding, KnownNames, Level, Mismatch,
     Remediation,
 };
+
+/// A rule's doc text and metadata, whether it is a writing rule or a skill rule.
+#[must_use]
+pub fn rule_meta(id: &str) -> Option<&'static RuleMeta> {
+    meta::rule_meta(id).or_else(|| skill::rule_meta(id))
+}
 
 use crate::config::WritingConfig;
 use std::path::Path;
