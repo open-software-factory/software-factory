@@ -194,7 +194,7 @@ impl Default for SkillConfig {
 
 /// The `[scan]` configuration: what `osf scan` must never let reach a
 /// public repository, on top of the shapes it always checks.
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct ScanConfig {
     /// The org or user whose own `owner/repo#N` references are not foreign. Empty means the rule never fires.
