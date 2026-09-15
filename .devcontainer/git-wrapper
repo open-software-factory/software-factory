@@ -2,15 +2,14 @@
 # Honest git wrapper.
 #
 # This is a speed bump, not a seal. It refuses --no-verify and -n on
-# "git commit", and --no-verify on "git push", then explains why. It does
-# nothing that git's own settings cannot already do without it.
+# "git commit", and --no-verify on "git push", then explains why. It also
+# refuses a "-c" that sets core.hooksPath, core.fsmonitor, or core.editor,
+# because each of those can run an arbitrary command as part of a commit,
+# checked and confirmed in docs/development.md. It does nothing else that
+# git's own settings cannot already do without it.
 #
-# Two things defeat this wrapper, and it cannot stop either one:
-#   - calling the real git binary at its full path, /usr/bin/git.
-#   - "-c core.hooksPath=..." (or any other "-c" that changes what a
-#     hook does), because this wrapper must let "-c" through unchanged
-#     for it to still work for its ordinary job: setting a config value
-#     for one command, for example "git -c user.email=x commit ...".
+# One thing defeats this wrapper, and it cannot stop it: calling the real
+# git binary at its full path, /usr/bin/git.
 #
 # git push also takes a short flag -n, but there it means --dry-run, a
 # different and harmless option, so this wrapper does not block it.
@@ -39,6 +38,29 @@ refuse_option() {
   exit 1
 }
 
+refuse_config() {
+  key="$1"
+  echo "git: refused. '-c $key=...' is not allowed for one call." >&2
+  echo "This wrapper blocks core.hooksPath, core.fsmonitor, and core.editor" >&2
+  echo "here, because each can run an arbitrary command as part of a commit." >&2
+  echo "Other -c values, such as user.email, are not blocked. See docs/development.md." >&2
+  exit 1
+}
+
+# Checks a "-c" value ("name=value" or a bare "name") against the small
+# set of keys this wrapper does not allow to be set for one call. Git
+# treats a config key's section and name as case-insensitive, so this
+# compares in lower case.
+check_config_value() {
+  key="${1%%=*}"
+  key_lc=$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')
+  case "$key_lc" in
+    core.hookspath | core.fsmonitor | core.editor)
+      refuse_config "$key"
+      ;;
+  esac
+}
+
 # Git accepts its own options before the subcommand (commit, push, and so
 # on). This finds the subcommand by skipping those options, some of
 # which take a value and some of which do not. It shifts its own copy of
@@ -47,7 +69,14 @@ refuse_option() {
 find_subcommand() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      -c | -C)
+      -c)
+        if [ "$#" -lt 2 ]; then
+          refuse_option "$1"
+        fi
+        check_config_value "$2"
+        shift 2
+        ;;
+      -C)
         if [ "$#" -lt 2 ]; then
           refuse_option "$1"
         fi

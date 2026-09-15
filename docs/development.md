@@ -68,23 +68,57 @@ the rule id shown in a finding, for example `osf explain long-sentence`.
 `/opt/factory/bin` comes before the real git on the container's path, and
 holds a wrapper called `git`. It refuses `git commit --no-verify`,
 `git commit -n`, and `git push --no-verify`, and prints why. Git allows
-its own options before the subcommand, for example `git -c
-user.email=x commit ...`, so the wrapper looks past those options to
-find the real subcommand, rather than only looking at the first word.
+its own options before the subcommand. One example is `git -c
+user.email=x commit ...`. The wrapper looks past those options to find
+the real subcommand. It does not only look at the first word.
 
 `git push -n` is short for `--dry-run`, an unrelated and harmless option,
 so the wrapper leaves it alone.
 
-State this plainly: the wrapper is a speed bump, not a seal. Two things
-defeat it, and it cannot stop either one:
+The wrapper also refuses a `-c` that sets `core.hooksPath`,
+`core.fsmonitor`, or `core.editor`, on any git call. This block applies
+whatever capitalisation the key is given in. Git treats a config key's
+letters as case-insensitive, and so does this check. Each of these three
+keys was tested by hand in this container. Each one ran an arbitrary
+command as part of an ordinary `git commit`:
 
-- Calling the real binary at its full path, `/usr/bin/git`, skips the
-  wrapper completely.
-- `git -c core.hooksPath=<path> commit ...` (or any other `-c` that
-  changes what a hook does) points the hook at a different, or empty,
-  folder for that one call. The wrapper lets `-c` through unchanged,
-  because blocking it would also block its ordinary, legitimate use:
-  setting a config value for one command.
+- `core.hooksPath` repoints every hook, in one call, to a folder of the
+  caller's choosing.
+- `core.fsmonitor` runs as a command during `git commit`, even a plain
+  one with no other flags.
+- `core.editor` runs as a command when `git commit` opens an editor.
+  That happens whenever `-m` is left off.
+
+Two settings from the same family were also tested. The wrapper leaves
+both alone, because neither one applies here:
+
+- `core.pager` was tried against both `git commit` and `git push`,
+  including with `--paginate` forced on. It is not a route into either
+  command. No output from either command went through it.
+- `sequence.editor` was tried against `git commit`. It did not run.
+  Git only runs it for an interactive rebase. This wrapper does not
+  police that command.
+
+`--git-dir` and `--work-tree` were also checked. Pointing them at a
+different folder still left the container's system-wide hooks path in
+force for that folder. That path comes from `/etc/gitconfig`. It
+applies to every repository, unless something with a stronger claim
+overrides it. The wrapper now stops `-c` from being that override. So
+on their own, `--git-dir` and `--work-tree` do not open a way past the
+hooks. A shell in the container can already do what it likes to a
+folder it owns. It does not need those two options to do that.
+
+Every other `-c` value, such as `user.email`, still works. Setting one
+for a single command is still a normal, allowed thing to do.
+
+State this plainly: the wrapper is a speed bump and seals nothing. One thing
+defeats it, and the wrapper cannot stop it. Calling the real binary at
+its full path, `/usr/bin/git`, skips the wrapper completely.
 
 The wrapper only saves the time between a forgotten check and the same
-problem being caught on the pull request.
+problem being caught on the pull request. That check, not this wrapper,
+is the real boundary. Even that check only reaches as far as the
+credential used to push. An agent that holds a push credential can
+still push straight past every check in this file. Taking that
+credential away from the agent is separate work. This wrapper does not
+do it.
