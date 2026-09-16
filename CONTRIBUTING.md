@@ -60,6 +60,11 @@ plan, or a numbered item that a reader of this repository cannot see.
 Use a reference that a reader can resolve. Write `open-software-factory/software-factory#12`
 with a short label saying what it is. A bare number leaves the reader guessing.
 
+## Code of conduct
+
+This project has a [code of conduct](CODE_OF_CONDUCT.md). It applies to every
+space the project runs, including issues, pull requests, and reviews.
+
 ## The contributor agreement
 
 You must sign a contributor licence agreement before we can accept your change.
