@@ -22,7 +22,7 @@ reproduced text.
 
 Two changes were made to the source text:
 
-1. The "Reporting an Issue" section leaves a blank for the
+1. The section headed `Reporting an Issue` leaves a blank for the
    community's reporting method. This copy fills that blank with:
    report it to the contact address published on this project's
    organisation page on GitHub. `CONTRIBUTING.md` and `CLA.md` use the
