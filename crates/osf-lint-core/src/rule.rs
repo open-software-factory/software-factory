@@ -21,26 +21,32 @@ pub enum Tier {
 }
 
 /// A check over one unit of text: a sentence, a paragraph, or a document.
-pub trait Rule {
+/// `C` is whatever resolved configuration the caller's rules need to read;
+/// a caller with no such need leaves it at the default, `()`.
+pub trait Rule<C = ()> {
     fn id(&self) -> &'static str;
     fn scope(&self) -> Scope;
     fn tier(&self) -> Tier {
         Tier::Fast
     }
-    fn check(&self, unit: &TextUnit) -> Vec<Finding>;
+    fn check(&self, unit: &TextUnit, config: &C) -> Vec<Finding>;
 }
 
 /// A plain function, promoted to a [`Rule`]. Keeps a cheap check a one-liner.
-pub struct FnRule {
+pub struct FnRule<C = ()> {
     id: &'static str,
     scope: Scope,
     tier: Tier,
-    check: fn(&TextUnit) -> Vec<Finding>,
+    check: fn(&TextUnit, &C) -> Vec<Finding>,
 }
 
-impl FnRule {
+impl<C> FnRule<C> {
     #[must_use]
-    pub const fn new(id: &'static str, scope: Scope, check: fn(&TextUnit) -> Vec<Finding>) -> Self {
+    pub const fn new(
+        id: &'static str,
+        scope: Scope,
+        check: fn(&TextUnit, &C) -> Vec<Finding>,
+    ) -> Self {
         FnRule {
             id,
             scope,
@@ -50,22 +56,22 @@ impl FnRule {
     }
 
     #[must_use]
-    pub const fn sentence(id: &'static str, check: fn(&TextUnit) -> Vec<Finding>) -> Self {
+    pub const fn sentence(id: &'static str, check: fn(&TextUnit, &C) -> Vec<Finding>) -> Self {
         Self::new(id, Scope::Sentence, check)
     }
 
     #[must_use]
-    pub const fn paragraph(id: &'static str, check: fn(&TextUnit) -> Vec<Finding>) -> Self {
+    pub const fn paragraph(id: &'static str, check: fn(&TextUnit, &C) -> Vec<Finding>) -> Self {
         Self::new(id, Scope::Paragraph, check)
     }
 
     #[must_use]
-    pub const fn document(id: &'static str, check: fn(&TextUnit) -> Vec<Finding>) -> Self {
+    pub const fn document(id: &'static str, check: fn(&TextUnit, &C) -> Vec<Finding>) -> Self {
         Self::new(id, Scope::Document, check)
     }
 }
 
-impl Rule for FnRule {
+impl<C> Rule<C> for FnRule<C> {
     fn id(&self) -> &'static str {
         self.id
     }
@@ -78,8 +84,8 @@ impl Rule for FnRule {
         self.tier
     }
 
-    fn check(&self, unit: &TextUnit) -> Vec<Finding> {
-        (self.check)(unit)
+    fn check(&self, unit: &TextUnit, config: &C) -> Vec<Finding> {
+        (self.check)(unit, config)
     }
 }
 

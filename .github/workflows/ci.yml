@@ -153,14 +153,15 @@ jobs:
           fi
           printf 'checking %s\n' "${changed[@]}"
           # --no-suppress so a suppression comment cannot hide a finding from this gate
-          ./target/release/osf lint writing --no-suppress --format human "${changed[@]}"
+          # --gate so this change's own config file cannot loosen the exclude list
+          ./target/release/osf lint writing --no-suppress --gate --format human "${changed[@]}"
 
       - name: Report the writing across the whole repository
         if: always() && steps.detect.outputs.present == 'true'
         continue-on-error: true
         run: |
           find . -name '*.md' -not -path './target/*' -print0 \
-            | xargs -0 ./target/release/osf lint writing --no-suppress --format sarif \
+            | xargs -0 ./target/release/osf lint writing --no-suppress --gate --format sarif \
             > osf.sarif || true
 
       - name: Keep the findings file

@@ -59,6 +59,63 @@ A hooks file for Claude Code, Codex and the dsh bridge:
 `--known-names` points at a file, one name per line, of project names that need
 no description on first use. Everyday names such as GitHub or Rust are built in.
 
+## Configuration
+
+The writing lint's limits and word lists come from four layers, a later one
+overriding an earlier one field by field:
+
+1. compiled defaults
+2. one TOML file
+3. named environment variables
+4. command-line flags the user actually passed
+
+`osf config show` prints the values in force, and which layer set each one.
+
+The file: `--config <file>`, else `OSF_CONFIG`, else `~/.osf/config.toml`,
+else the compiled defaults apply. An unknown key is refused; the error
+names the bad key and lists the valid ones.
+
+```toml
+[writing]
+max_sentence_words = 30     # error above this
+warn_sentence_words = 20    # warning above this
+max_numerals = 2
+short_text_words = 500
+known_names = ["Vale", "Tauri"]
+sentence_starters = ["Piece", "State"]
+filler = ["delve", "leverage"]            # replaces the built-in list
+chat_local_phrases = ["as discussed"]     # replaces the built-in list
+chat_local_labels = ["phase", "item"]     # "phase 2" and the like
+
+[writing.levels]            # error, warning, or off, keyed by rule id
+semicolon = "off"
+reference-without-link = "error"
+```
+
+Today, `known_names` and `writing.levels` change what `osf lint writing` and
+`osf hook stop` report. The other fields are resolved and shown by
+`osf config show`; wiring them into each rule's own check is later work.
+Every environment variable maps to one field:
+
+| Variable | Field |
+|---|---|
+| `OSF_WRITING_MAX_SENTENCE_WORDS` | `writing.max_sentence_words` |
+| `OSF_WRITING_WARN_SENTENCE_WORDS` | `writing.warn_sentence_words` |
+| `OSF_WRITING_MAX_NUMERALS` | `writing.max_numerals` |
+| `OSF_WRITING_SHORT_TEXT_WORDS` | `writing.short_text_words` |
+| `OSF_WRITING_FILLER` | `writing.filler` (comma-separated, replaces the list) |
+| `OSF_WRITING_CHAT_LOCAL_PHRASES` | `writing.chat_local_phrases` (comma-separated) |
+| `OSF_WRITING_CHAT_LOCAL_LABELS` | `writing.chat_local_labels` (comma-separated) |
+| `OSF_WRITING_KNOWN_NAMES` | `writing.known_names` (comma-separated) |
+| `OSF_WRITING_SENTENCE_STARTERS` | `writing.sentence_starters` (comma-separated) |
+
+`osf lint writing` also takes `--max-sentence-words`, `--warn-sentence-words`,
+`--max-numerals`, and `--short-text-words`, each overriding the file and the
+environment for that one run.
+
+In the container the file is root-owned next to the hooks file, and the hook
+command names it with `--config`.
+
 ## Building
 
 ```sh

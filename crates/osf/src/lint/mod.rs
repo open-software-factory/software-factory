@@ -5,30 +5,56 @@
 //! checked. Every rule has an id, a level and a one-line message that names
 //! the offending text.
 
+mod meta;
 mod names;
 mod rules;
 
-pub use osf_lint_core::{Finding, KnownNames, Level};
+pub use meta::rule_meta;
+pub use osf_lint_core::{
+    check_expectation, parse_expectation, Context, Finding, KnownNames, Level, Mismatch,
+    Remediation,
+};
 
+use crate::config::WritingConfig;
 use std::path::Path;
 
 /// # Errors
 /// Returns an error if `path` is given and cannot be read.
-pub fn load_known_names(path: Option<&Path>) -> Result<KnownNames, String> {
-    osf_lint_core::load_known_names(names::BUILT_IN, path)
+pub fn load_known_names(extra: &[String], path: Option<&Path>) -> Result<KnownNames, String> {
+    let built_in: Vec<&str> = names::BUILT_IN
+        .iter()
+        .copied()
+        .chain(extra.iter().map(String::as_str))
+        .collect();
+    osf_lint_core::load_known_names(&built_in, path)
 }
 
-/// What the text is. A message is a reply to a person, where a heading in a
-/// short text is noise. A document follows a template that may require them.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Kind {
-    Message,
-    Document,
+/// Whether `name` sits under a `tests/fixtures` directory. Hard-coded, not
+/// a configured setting: an `osf-expect` marker only takes effect here, so
+/// a repository cannot use it to launder a real finding in an ordinary
+/// file. The tool does not honour the marker anywhere else.
+#[must_use]
+pub fn is_fixture_path(name: &str) -> bool {
+    let normalised = name.replace('\\', "/");
+    normalised
+        .split('/')
+        .collect::<Vec<_>>()
+        .windows(2)
+        .any(|pair| pair == ["tests", "fixtures"])
 }
 
-/// Lints a document or a message. With `fast_only`, only the deterministic
-/// fast tier runs; the stop hook uses this, since it must stay fast on
-/// every turn end. The command line runs every tier.
+/// Whether `id` names a scan rule: a leaked name, a session link, a local
+/// path. Hard-coded, not a configured setting: no `osf-expect` marker may
+/// declare one of these expected, so nothing inside the repository can
+/// silence a scan finding by naming it in a fixture.
+#[must_use]
+pub fn is_scan_rule(id: &str) -> bool {
+    id.starts_with("scan-")
+}
+
+/// Lints a text written for the given [`Context`]. With `fast_only`, only
+/// the deterministic fast tier runs; the stop hook uses this, since it
+/// must stay fast on every turn end. The command line runs every tier.
 ///
 /// With `no_suppress`, every `osf-disable`-family marker is ignored, so
 /// every finding it would have silenced is reported. Continuous integration
@@ -37,24 +63,51 @@ pub enum Kind {
 pub fn lint_writing(
     text: &str,
     known: &KnownNames,
-    kind: Kind,
+    cfg: &WritingConfig,
+    context: Context,
     fast_only: bool,
     no_suppress: bool,
 ) -> Vec<Finding> {
     let doc = osf_lint_core::segment::parse(text);
     let mut findings = Vec::new();
-    if kind == Kind::Message {
-        rules::headings_in_short_text(&doc, &mut findings);
+    // heading-in-short-text is off in a document: a document is expected to have headings.
+    if context != Context::Document {
+        rules::headings_in_short_text(&doc, cfg, &mut findings);
     }
-    rules::per_sentence(&doc, fast_only, &mut findings);
-    rules::undefined_names(&doc, known, &mut findings);
+    rules::per_sentence(&doc, cfg, fast_only, &mut findings);
+    rules::undefined_names(&doc, known, cfg, &mut findings);
+    apply_context(&mut findings, context);
     let mut findings = if no_suppress {
         findings
     } else {
         osf_lint_core::apply_suppressions(text, findings, &rules::rule_ids())
     };
     osf_lint_core::sort_findings(&mut findings);
+    add_explain_pointers(&mut findings);
     findings
+}
+
+/// Sets each finding's level and remediation from its rule's class and
+/// group, resolved against `context`. A finding with no metadata (a
+/// suppression-engine diagnostic, for instance) is left as its own level.
+fn apply_context(findings: &mut [Finding], context: Context) {
+    for f in findings.iter_mut() {
+        if let Some(meta) = meta::rule_meta(f.rule) {
+            let (level, remediation) = meta.resolve(context);
+            f.level = level;
+            f.remediation = remediation;
+        }
+    }
+}
+
+/// Points every finding at `osf explain <rule-id>`, so the reader can see
+/// the full doc text: what the rule does, why it is bad, and its class.
+fn add_explain_pointers(findings: &mut [Finding]) {
+    for f in findings.iter_mut() {
+        if meta::rule_meta(f.rule).is_some() {
+            f.message = format!("{} (see `osf explain {}`)", f.message, f.rule);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -64,8 +117,9 @@ mod tests {
     fn lint(text: &str) -> Vec<Finding> {
         lint_writing(
             text,
-            &load_known_names(None).expect("built-in names load"),
-            Kind::Message,
+            &load_known_names(&[], None).expect("built-in names load"),
+            &WritingConfig::default(),
+            Context::Transcript,
             false,
             false,
         )
@@ -73,11 +127,12 @@ mod tests {
 
     #[test]
     fn a_document_may_have_headings() {
-        let known = load_known_names(None).expect("built-in names load");
+        let known = load_known_names(&[], None).expect("built-in names load");
         assert!(lint_writing(
             "## Result\n\nIt passed.\n",
             &known,
-            Kind::Document,
+            &WritingConfig::default(),
+            Context::Document,
             false,
             false
         )
@@ -124,6 +179,26 @@ mod tests {
         );
     }
 
+    /// A reference matched twice in one sentence, once inside a real
+    /// Markdown link and once bare, must flag only the bare occurrence.
+    #[test]
+    fn a_second_bare_occurrence_of_a_linked_reference_is_still_flagged() {
+        let t = "See [open-software-factory/software-factory#125 (the topic)](https://example.com) or open-software-factory/software-factory#125 (the topic) again.";
+        let findings = lint(t);
+        assert_eq!(
+            findings
+                .iter()
+                .filter(|f| f.rule == "reference-without-link")
+                .count(),
+            1,
+            "{findings:?}"
+        );
+        assert!(
+            findings.iter().all(|f| f.rule != "reference-without-label"),
+            "{findings:?}"
+        );
+    }
+
     #[test]
     fn chat_local_phrases() {
         assert_eq!(rules_of("Do Phase 2 next."), vec!["chat-local-reference"]);
@@ -156,10 +231,39 @@ mod tests {
         assert_eq!(rules_of(t), vec!["long-sentence"]);
     }
 
+    /// Change 1: a limit set in a config file must change what a rule
+    /// reports, not just what `osf config show` prints.
+    #[test]
+    fn a_configured_sentence_limit_changes_what_long_sentence_reports() {
+        let t = "one two three four five six seven eight nine ten.";
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let default = lint_writing(
+            t,
+            &known,
+            &WritingConfig::default(),
+            Context::Transcript,
+            false,
+            false,
+        );
+        assert!(default.is_empty(), "{default:?}");
+        let tight = WritingConfig {
+            max_sentence_words: 5,
+            ..WritingConfig::default()
+        };
+        let found = lint_writing(t, &known, &tight, Context::Transcript, false, false);
+        assert_eq!(
+            found.into_iter().map(|f| f.rule).collect::<Vec<_>>(),
+            vec!["long-sentence"]
+        );
+    }
+
     #[test]
     fn dash_arrow_semicolon() {
         assert_eq!(rules_of("A thing — another thing."), vec!["em-dash"]);
-        assert_eq!(errors_of("Input -> output."), vec!["arrow"]);
+        assert_eq!(
+            rules_of("Input -> output."),
+            vec!["arrow", "undefined-name-at-start"]
+        );
         assert_eq!(rules_of("It ran; it passed."), vec!["semicolon"]);
     }
 
@@ -169,12 +273,72 @@ mod tests {
         assert_eq!(rules_of("We should leverage the cache."), vec!["filler"]);
     }
 
+    /// An empty `filler` list must turn the rule off, not make it match a
+    /// zero-width span at nearly every word boundary.
+    #[test]
+    fn an_empty_filler_list_never_matches() {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let cfg = WritingConfig {
+            filler: Vec::new(),
+            ..WritingConfig::default()
+        };
+        let findings = lint_writing(
+            "This is a perfectly clean sentence with no issues at all.",
+            &known,
+            &cfg,
+            Context::Transcript,
+            false,
+            false,
+        );
+        assert!(findings.iter().all(|f| f.rule != "filler"), "{findings:?}");
+    }
+
+    /// The same guard for `chat_local_phrases` and `chat_local_labels`
+    /// together: emptying both must turn `chat-local-reference` off for
+    /// the word-list half of the rule, not flood every word boundary.
+    #[test]
+    fn empty_chat_local_lists_never_match_on_the_word_list_half() {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let cfg = WritingConfig {
+            chat_local_phrases: Vec::new(),
+            chat_local_labels: Vec::new(),
+            ..WritingConfig::default()
+        };
+        let findings = lint_writing(
+            "This is a perfectly clean sentence with no issues at all.",
+            &known,
+            &cfg,
+            Context::Transcript,
+            false,
+            false,
+        );
+        assert!(
+            findings.iter().all(|f| f.rule != "chat-local-reference"),
+            "{findings:?}"
+        );
+    }
+
     #[test]
     fn numbers_in_prose() {
         assert_eq!(
             rules_of("It ran 12 axes over 3 rounds in 41 minutes."),
             vec!["numbers-in-prose"]
         );
+    }
+
+    /// Change 4: only a whole sentence in bold fires, not a long bold span
+    /// inside an otherwise plain sentence.
+    #[test]
+    fn bold_sentence_only_fires_on_a_whole_bolded_sentence() {
+        assert_eq!(
+            rules_of("**Run the full suite before every release, without exception.**"),
+            vec!["bold-sentence"]
+        );
+        assert!(rules_of("**Run the tests.**").is_empty());
+        assert!(rules_of(
+            "Run the tests before every release, but only **the smoke suite** needs a rerun."
+        )
+        .is_empty());
     }
 
     #[test]
@@ -374,13 +538,142 @@ mod tests {
 
     #[test]
     fn no_suppress_ignores_every_marker() {
-        let known = load_known_names(None).expect("built-in names load");
+        let known = load_known_names(&[], None).expect("built-in names load");
         let text = "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n";
-        let f = lint_writing(text, &known, Kind::Message, false, true);
+        let f = lint_writing(
+            text,
+            &known,
+            &WritingConfig::default(),
+            Context::Transcript,
+            false,
+            true,
+        );
         let bare = f
             .iter()
             .find(|x| x.rule == "bare-reference")
             .expect("finding kept");
         assert!(bare.suppressed.is_none());
+    }
+
+    fn find_in(context: Context, text: &str, rule: &str) -> Finding {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        lint_writing(
+            text,
+            &known,
+            &WritingConfig::default(),
+            context,
+            false,
+            false,
+        )
+        .into_iter()
+        .find(|f| f.rule == rule)
+        .unwrap_or_else(|| panic!("{rule} did not fire on {text:?} in {context:?}"))
+    }
+
+    /// Change 3: a comprehension rule (bare-reference) resolves to the
+    /// matrix's level and remediation in every context.
+    #[test]
+    fn a_comprehension_rule_resolves_per_context() {
+        let text = "Fixed in #125 today.";
+        let cases = [
+            (Context::Transcript, Level::Error, Remediation::Clarify),
+            (Context::Commit, Level::Error, Remediation::Rewrite),
+            (Context::Document, Level::Error, Remediation::Rewrite),
+            (Context::Skill, Level::Error, Remediation::Rewrite),
+        ];
+        for (context, level, remediation) in cases {
+            let f = find_in(context, text, "bare-reference");
+            assert_eq!(f.level, level, "{context:?}");
+            assert_eq!(f.remediation, remediation, "{context:?}");
+        }
+    }
+
+    /// Change 3: a style rule (em-dash) resolves to the matrix's level and
+    /// remediation in every context, only blocking outside a transcript.
+    #[test]
+    fn a_style_rule_resolves_per_context() {
+        let text = "A thing — another thing.";
+        let cases = [
+            (Context::Transcript, Level::Warning, Remediation::Advise),
+            (Context::Commit, Level::Error, Remediation::Rewrite),
+            (Context::Document, Level::Warning, Remediation::Rewrite),
+            (Context::Skill, Level::Error, Remediation::Rewrite),
+        ];
+        for (context, level, remediation) in cases {
+            let f = find_in(context, text, "em-dash");
+            assert_eq!(f.level, level, "{context:?}");
+            assert_eq!(f.remediation, remediation, "{context:?}");
+        }
+    }
+
+    /// Change 3: heading-in-short-text is off in a document.
+    #[test]
+    fn heading_in_short_text_is_off_in_a_document() {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let f = lint_writing(
+            "## Result\n\nIt passed.\n",
+            &known,
+            &WritingConfig::default(),
+            Context::Document,
+            false,
+            false,
+        );
+        assert!(f.iter().all(|x| x.rule != "heading-in-short-text"), "{f:?}");
+    }
+
+    /// Change 3: reference-without-link is pinned to warning even where the
+    /// matrix would otherwise make a style rule an error.
+    #[test]
+    fn reference_without_link_is_always_a_warning() {
+        let f = find_in(
+            Context::Commit,
+            "Fixed in repo#125 (the canvas fixes) today.",
+            "reference-without-link",
+        );
+        assert_eq!(f.level, Level::Warning);
+    }
+
+    /// Change 3: every finding points at `osf explain <rule-id>`.
+    #[test]
+    fn every_finding_points_at_explain() {
+        let f = find_in(
+            Context::Transcript,
+            "Fixed in #125 today.",
+            "bare-reference",
+        );
+        assert!(
+            f.message.contains("osf explain bare-reference"),
+            "{}",
+            f.message
+        );
+    }
+
+    #[test]
+    fn a_tests_fixtures_path_is_recognised_either_separator() {
+        assert!(is_fixture_path(
+            "crates/osf/tests/fixtures/skills/bad/SKILL.md"
+        ));
+        assert!(is_fixture_path(
+            r"crates\osf\tests\fixtures\skills\bad\SKILL.md"
+        ));
+    }
+
+    #[test]
+    fn a_path_that_only_mentions_fixtures_or_tests_is_not_a_fixture_path() {
+        assert!(!is_fixture_path("docs/real.md"));
+        assert!(!is_fixture_path("greatest-fixtures-ever/tests/file.md"));
+        assert!(!is_fixture_path("tests/README.md"));
+    }
+
+    #[test]
+    fn a_scan_prefixed_id_is_a_scan_rule() {
+        assert!(is_scan_rule("scan-denied-name"));
+        assert!(is_scan_rule("scan-session-link"));
+    }
+
+    #[test]
+    fn an_ordinary_id_is_not_a_scan_rule() {
+        assert!(!is_scan_rule("arrow"));
+        assert!(!is_scan_rule("bare-reference"));
     }
 }
