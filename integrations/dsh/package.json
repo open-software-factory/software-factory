@@ -1,0 +1,28 @@
+{
+  "name": "@open-software-factory/osf-dsh-plugin",
+  "version": "0.1.0",
+  "description": "Runs the osf writing check at the end of every turn inside dsh, reading the assistant message from the session",
+  "license": "Apache-2.0 OR MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/index.js",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": ">=0.1.5-rc.1",
+    "@deepseek-ai/schemastery": ">=3.18.2"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

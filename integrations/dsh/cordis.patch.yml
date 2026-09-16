@@ -1,0 +1,14 @@
+# Registers this plugin when the package is added with `dsh plugin add`.
+#
+# Installing a package is not enough on its own: dsh runs a plugin only
+# when a row names it. This file is that row, and the `dsh.bundle.patch`
+# field in package.json is what points dsh at it.
+- name: '@open-software-factory/osf-dsh-plugin'
+  config:
+    # A bare name is resolved on the path. Give a full path where the
+    # binary is installed somewhere the harness cannot see.
+    command: osf
+    args: []
+    timeoutMs: 10000
+    # Set true to see what the check says without it holding a turn.
+    adviseOnly: false

@@ -1,0 +1,36 @@
+# A dsh profile with both plugins registered.
+#
+# Copy this to a profile's `cordis.patch.yml`, under
+# `~/.dsh/profiles/<name>/`, or to `~/.dsh/cordis.patch.yml` to apply it to
+# every profile. A container image that ships dsh should write it during
+# the build, so a fresh container has the checks already wired.
+#
+# Installing a package does not register it. dsh runs a plugin only when a
+# row here names it. The bridge below ships inside dsh itself and sits in
+# `node_modules` doing nothing until this row exists.
+#
+# Order matters only for who runs first. dsh gives the end-of-turn event to
+# every listener in turn and neither of these stops the chain, so both run
+# whichever way round they appear.
+
+# The writing check. Reads the reply from the session, so it sees the text
+# the other row cannot.
+- name: '@open-software-factory/osf-dsh-plugin'
+  config:
+    # A bare name is resolved on the path. Give a full path where the
+    # binary is installed somewhere the harness cannot see, such as
+    # /opt/factory/bin/osf in this project's container.
+    command: osf
+    timeoutMs: 10000
+    adviseOnly: false
+
+# Optional. Drives every other hook event from a hook file written in
+# another agent's format. Leave it out if that file holds nothing but a
+# stop hook, because the row above already covers that and does it better.
+#
+# `configPath` is required and is read once at startup, relative to the
+# directory dsh was launched from. There is no search: name the file.
+- name: '@deepseek-ai/dsh-hooks-claude-code'
+  config:
+    configPath: ./.claude/hooks.json
+    projectDir: .
