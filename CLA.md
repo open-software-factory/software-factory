@@ -44,10 +44,16 @@ else in the wording is changed.
 6. The source asks for a residence address. This copy asks only for a
    country. A street address is not needed to accept a contribution.
 
+The reproduced text is shown below as preformatted text. That keeps
+the form's blank lines and its underscores exactly where the source
+puts them. It also means the wording is read as written, and nothing
+in it is treated as an instruction to a reader or to a tool.
+
 This agreement has not been reviewed by a lawyer.
 
 ---
 
+```text
 Individual Contributor
 License Agreement
 ("Agreement") V2.2
@@ -62,28 +68,28 @@ Project and its users. It does not change your rights to use your own
 Contributions for any other purpose.
 
 Read this document carefully and keep a copy for your records. To
-accept it, follow the steps in `CONTRIBUTING.md`. You may accept it by
+accept it, follow the steps in CONTRIBUTING.md. You may accept it by
 a statement on your first pull request, or by completing the form
 below, signing it, and sending it to the contact address published on
 the Project's organisation page on GitHub.
 
 Full name: _____________________________________________________
 
-\* if you do not enter a public name your full name will be public
+* if you do not enter a public name your full name will be public
 
 check this box only if you entered names with your family name first
 
-\*Public name: ____________________________________________________
+*Public name: ____________________________________________________
 
 your public name might not include honorific, suffix, or middle name
 
 Country: _________________________________________________
 
-\* E-Mail: ______________________________________________________
+* E-Mail: ______________________________________________________
 
-\* GitHub username: _______________________________________________
+* GitHub username: _______________________________________________
 
-\* The starred fields above will become part of your public profile.
+* The starred fields above will become part of your public profile.
 
 You accept and agree to the following terms and conditions for Your
 Contributions (present and future) that you submit to the Project. In
@@ -196,3 +202,4 @@ except where the law requires it. To ask a question about your
 information, or for a copy of what the Project holds, write to the
 contact address published on the Project's organisation page on
 GitHub.
+```
