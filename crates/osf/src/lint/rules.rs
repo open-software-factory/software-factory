@@ -8,7 +8,7 @@ use crate::config::WritingConfig;
 use osf_lint_core::segment::{reduce_inline, Doc, TextUnit};
 use osf_lint_core::{run_rules, Finding, FnRule, KnownNames, Level, Rule};
 use regex::Regex;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::OnceLock;
 
@@ -448,7 +448,27 @@ fn parenthetical(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         .collect()
 }
 
-/// A capitalised name on first use, with no description in that sentence or the next.
+/// A capitalised name whose first use is on the repository's must-explain
+/// list, or merely looks like a name, with no description in that sentence
+/// or the next.
+///
+/// This starts from positive evidence rather than a list of exceptions
+/// subtracted from every capital letter in the text. A candidate earns a
+/// report one of two ways:
+///
+/// - it is on `cfg.must_explain_names`, the repository's own curated list
+///   of names worth explaining: a missing explanation is then certain, so
+///   this is an error, [`osf_lint_core::Evidence::Deterministic`] (the
+///   default a plain [`Finding`] already carries).
+/// - it merely looks like a name: an internal capital such as `GitHub` or
+///   `DuckDB`, a digit in one of its words, a domain-like suffix such as
+///   `.dev`, or a multi-word capitalised run repeated more than once in
+///   the document. None of these prove a name, only suggest one, so this
+///   is a warning, and it carries [`osf_lint_core::Evidence::Statistical`].
+///
+/// A capitalised word with neither kind of evidence, such as an ordinary
+/// word that only opens a sentence or a heading, is never reported: a bare
+/// capital letter proves nothing on its own, in any position.
 pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: &mut Vec<Finding>) {
     static DEFINER: OnceLock<Regex> = OnceLock::new();
     let definer = re(
@@ -457,14 +477,12 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: 
     );
     let sentences = &doc.sentences;
     let reduced: Vec<String> = sentences.iter().map(|s| reduce_inline(&s.text)).collect();
-    let lowercase = lowercase_words(sentences);
-    let mid_capitalized = mid_capitalized_words(sentences);
     // A run that opens with a known name, such as "GitHub Apps" opening with
     // the built-in "GitHub", is a specific case of the known thing; the rest
     // of the run does not need its own entry in the known-names list. A
     // generic word such as "The" does not qualify: it opens plenty of
-    // ordinary runs by sentence position alone, so `is_name_head` excludes
-    // it even though it is itself known.
+    // ordinary runs by grammar alone, so `is_name_head` excludes it even
+    // though it is itself known.
     let is_known = |name: &str| {
         known.contains(name)
             || name.split(' ').all(|w| known.contains(w))
@@ -473,20 +491,24 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: 
                 .next()
                 .is_some_and(|first| known.contains(first) && super::names::is_name_head(first))
     };
-    // A real product name is almost never also spelled in lowercase in the
-    // same document. A word that opens a sentence and is spelled lowercase
-    // elsewhere is ordinary English, not a name that needs a description.
-    // A table's header row is a column label rather than a sentence, so a
-    // header cell such as "Runs" in a "Runs now" column head gets the same
-    // treatment even when it is never spelled lowercase; a body row's cell,
-    // such as a "Tool" column naming a real product, keeps the ordinary
-    // rule, since it is prose about a specific row, not a column label.
-    let ordinary_at_start = |name: &str, at_start: bool, in_table_header: bool| {
-        at_start
-            && !name.contains(' ')
-            && (lowercase.contains(&name.to_lowercase())
-                || (in_table_header && !mid_capitalized.contains(name)))
-    };
+    let all_candidates: Vec<(usize, bool, String)> = sentences
+        .iter()
+        .enumerate()
+        .flat_map(|(i, s)| {
+            candidate_names(s)
+                .into_iter()
+                .map(move |n| (i, s.in_table, n))
+        })
+        .collect();
+    // A multi-word run the document uses more than once is unlikely to be a
+    // one-off descriptive phrase; that repetition is itself evidence of a
+    // name, alongside an internal capital, a digit, or a domain suffix.
+    let mut run_counts: HashMap<String, usize> = HashMap::new();
+    for (_, _, name) in &all_candidates {
+        if name.contains(' ') {
+            *run_counts.entry(name.clone()).or_insert(0) += 1;
+        }
+    }
     // The described-in-the-next-sentence check only counts when that
     // sentence actually mentions the name again; otherwise an unrelated
     // colon or parenthesis two sentences away from the real subject would
@@ -509,98 +531,104 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: 
             .and_then(|next| next.split_once(anchor).map(|(_, rest)| rest));
         definer.is_match(after_name) || next_after_name.is_some_and(|rest| definer.is_match(rest))
     };
-    // A name used in a table and nowhere else gets no defining sentence from
-    // its position, so it is judged there. A name that also appears in the
-    // document's prose is already judged there, so its table appearance is
-    // dropped rather than reported a second time.
-    let prose_names: HashSet<String> = sentences
+    // A name used in a table and also in prose is judged from the prose:
+    // its table appearance carries no defining sentence around it, so
+    // dropping it here avoids reporting the same name from both places.
+    let prose_names: HashSet<String> = all_candidates
         .iter()
-        .filter(|s| !s.in_table)
-        .flat_map(|s| candidate_names(s, &lowercase, &cfg.sentence_starters))
-        .map(|c| c.name)
+        .filter(|(_, in_table, _)| !in_table)
+        .map(|(_, _, name)| name.clone())
         .collect();
-    let first_uses = sentences
-        .iter()
-        .enumerate()
-        .flat_map(|(i, s)| {
-            candidate_names(s, &lowercase, &cfg.sentence_starters)
-                .into_iter()
-                .map(move |c| (i, s.in_table, s.in_table_header, c.name, c.at_start))
+    let first_uses = all_candidates
+        .into_iter()
+        .filter(|(_, in_table, name)| !(*in_table && prose_names.contains(name)))
+        .scan(HashSet::new(), |seen, (i, _in_table, name)| {
+            Some(seen.insert(name.clone()).then_some((i, name)))
         })
-        .filter(|(_, in_table, _, name, _)| !(*in_table && prose_names.contains(name)))
-        .scan(
-            HashSet::new(),
-            |seen, (i, _in_table, in_table_header, name, at_start)| {
-                Some(
-                    seen.insert(name.clone())
-                        .then_some((i, in_table_header, name, at_start)),
-                )
-            },
-        )
         .flatten();
-    out.extend(
-        first_uses
-            .filter(|(i, in_table_header, name, at_start)| {
-                !is_known(name)
-                    && !described(*i, name)
-                    && !ordinary_at_start(name, *at_start, *in_table_header)
-            })
-            .filter_map(|(i, _, name, at_start)| {
-                let s = sentences.get(i)?;
-                Some(if at_start {
-                    finding(
-                        s,
-                        "undefined-name-at-start",
-                        Level::Warning,
-                        "if this is a name, add one plain sentence saying what it is".to_string(),
-                        &name,
-                    )
-                } else {
-                    finding(
-                        s,
-                        "undefined-name",
-                        Level::Error,
-                        "first use of a name; add one plain sentence saying what it is".to_string(),
-                        &name,
-                    )
-                })
-            }),
-    );
+    out.extend(first_uses.filter_map(|(i, name)| {
+        if is_known(&name) || described(i, &name) {
+            return None;
+        }
+        let s = sentences.get(i)?;
+        if cfg.must_explain_names.contains(&name) {
+            return Some(finding(
+                s,
+                "undefined-name",
+                Level::Error,
+                "this name is on the project's must-explain list; add one plain sentence \
+                 saying what it is"
+                    .to_string(),
+                &name,
+            ));
+        }
+        looks_like_a_name(&name, &run_counts).then(|| {
+            finding(
+                s,
+                "undefined-name-at-start",
+                Level::Warning,
+                "if this is a name, add one plain sentence saying what it is".to_string(),
+                &name,
+            )
+            .with_evidence(osf_lint_core::Evidence::Statistical)
+        })
+    }));
 }
 
-struct Candidate {
-    name: String,
-    /// The name opens the sentence, where a plain word looks the same.
-    at_start: bool,
+/// Whether `name` carries any of the three kinds of weak, statistical
+/// evidence that it names something specific, rather than being an
+/// ordinary capitalised word: an internal capital such as `GitHub`'s or
+/// `DuckDB`'s, a digit in one of its words, a domain-like suffix such as
+/// `.dev`, or, only for a multi-word run, more than one occurrence of that
+/// exact run elsewhere in the document.
+fn looks_like_a_name(name: &str, run_counts: &HashMap<String, usize>) -> bool {
+    let words: Vec<&str> = name.split(' ').collect();
+    words.iter().any(|w| has_inner_capital(w))
+        || words.iter().any(|w| w.chars().any(|c| c.is_ascii_digit()))
+        || words.iter().any(|w| has_domain_suffix(w))
+        || (words.len() > 1 && run_counts.get(name).copied().unwrap_or(0) > 1)
 }
 
-/// Capitalised words, joined when adjacent, taken from the reduced sentence.
-/// A sentence-initial word is a candidate too, unless it is a common starter
-/// or an inflected form, and it is marked so the caller can soften it.
-fn candidate_names(
-    s: &TextUnit,
-    lowercase: &HashSet<String>,
-    extra_starters: &[String],
-) -> Vec<Candidate> {
+/// A dot followed by two or more letters, the shape of a domain's suffix,
+/// such as ".dev" or ".io".
+fn has_domain_suffix(w: &str) -> bool {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    re(&RE, r"(?i)\.[a-z]{2,}").is_match(w)
+}
+
+/// Capitalised words, joined when adjacent, taken from the reduced
+/// sentence. Whether a run is reported never depends on position, unlike
+/// the older design: a word that only looks like a name because it opens a
+/// sentence is still returned as its own candidate, left for
+/// [`looks_like_a_name`] and the must-explain list to judge on their own
+/// evidence, which a mere capital letter never supplies by itself.
+///
+/// One position rule survives, for a narrower reason than reporting: an
+/// ordinary sentence's own first word never joins the word after it into
+/// one run. "Open Sublime Merge now." must not merge into "Open Sublime
+/// Merge": "Open" is capitalised only because it opens the sentence, and
+/// that tells a reader nothing about the word after it. A heading or a
+/// list item is exempt, since both are normally a title or a labelled
+/// term in full, such as `Prison Architect` or `JetBrains IDEs`, where the
+/// first word is as much the name as the rest.
+fn candidate_names(s: &TextUnit) -> Vec<String> {
     let words = s.words();
     let first_word = words
         .iter()
         .position(|w| w.chars().any(char::is_alphabetic))
         .unwrap_or(0);
+    let titled = s.is_heading || s.in_list_item;
     let tokens = words.iter().enumerate().map(|(idx, raw)| {
         let w = normalize_word(raw);
-        let closes_run = !raw.ends_with(|c: char| c.is_alphanumeric());
-        let word = is_name_word(w).then(|| w.to_string());
-        let opens = idx == first_word && !has_inner_capital(w);
-        let at_start = opens && !plain_starter(w, extra_starters);
-        let skip = opens && (plain_starter(w, extra_starters) || s.is_heading);
-        (if skip { None } else { word }, at_start, closes_run)
+        let closes_run =
+            !raw.ends_with(|c: char| c.is_alphanumeric()) || (idx == first_word && !titled);
+        (is_name_word(w).then(|| w.to_string()), closes_run)
     });
     let (mut names, run) = tokens.fold(
-        (Vec::<Candidate>::new(), Vec::<(String, bool)>::new()),
-        |(mut names, mut run), (word, at_start, closes_run)| {
+        (Vec::<String>::new(), Vec::<String>::new()),
+        |(mut names, mut run), (word, closes_run)| {
             match word {
-                Some(w) => run.push((w, at_start)),
+                Some(w) => run.push(w),
                 None => flush_run(&mut names, &mut run),
             }
             if closes_run {
@@ -611,51 +639,13 @@ fn candidate_names(
     );
     let mut run = run;
     flush_run(&mut names, &mut run);
-    // A heading's first word is always dropped above, whether or not it
-    // was itself position-forced, so the run that survives it opens the
-    // heading in every sense but the literal one. The same reason a
-    // sentence-initial name is only a warning, that its capital may come
-    // from its position, still applies: only a word already name-shaped on
-    // its own, with an internal capital, is exempt from it.
-    if s.is_heading {
-        if let Some(first) = names.first_mut() {
-            if !has_inner_capital(first.name.split(' ').next().unwrap_or(&first.name)) {
-                first.at_start = true;
-            }
-        }
-    }
-    // The document's own title describes the document; it does not
-    // introduce a name that needs explaining, so a run found there is kept
-    // only when at least one of its words is unambiguously name-shaped, an
-    // internal capital such as "RimWorld"'s. A capital seen elsewhere in
-    // running prose is not used as evidence here: a document's own title
-    // is often echoed in its own introduction, so that signal is no
-    // signal at all for the words making up the title itself. Judging the
-    // run as a whole, rather than dropping each word before it can join
-    // one, keeps a real compound such as "Factory Runway" together. An
-    // ordinary heading elsewhere in the document keeps the narrower, older
-    // rule below, since it is as likely to be naming something real, such
-    // as "Prison Architect", as it is to be a plain descriptive label.
-    names.retain(|c| {
-        if s.is_document_title {
-            let has_evidence = c.name.split(' ').any(has_inner_capital);
-            if !has_evidence {
-                return false;
-            }
-        }
-        // A one-word candidate is dropped when it is ordinary in a heading
-        // or a list item, an ordinary-headed compound, or an acronym's
-        // plural. A multi-word candidate is never touched here: testing one
-        // of its words in isolation would tear a real name such as
-        // "Alibaba Cloud" or "JetBrains IDEs" in half instead of judging
-        // the whole name.
-        if c.name.contains(' ') {
-            return true;
-        }
-        let ordinary_here =
-            (s.is_heading || s.in_list_item) && lowercase.contains(&c.name.to_lowercase());
-        !ordinary_here && !is_ordinary_compound(&c.name, lowercase) && !is_acronym_plural(&c.name)
-    });
+    // A single word ending in a lowercase "s" after an all-caps stem, such
+    // as "APIs" or "PRs", is a plural of a known abbreviation. Its internal
+    // capital comes from that grammar alone, not from naming something
+    // specific, so it never reaches the evidence check. A multi-word
+    // candidate is never touched here: testing one of its words in
+    // isolation would tear a real name such as "JetBrains IDEs" in half.
+    names.retain(|name| name.contains(' ') || !is_acronym_plural(name));
     names
 }
 
@@ -666,60 +656,6 @@ fn normalize_word(raw: &str) -> &str {
     w.strip_suffix("'s").unwrap_or(w)
 }
 
-/// Every word already spelled in lowercase somewhere in the document. A
-/// capitalised word that also occurs lowercase is ordinary English; a real
-/// product name is almost never written both ways in the same text.
-fn lowercase_words(sentences: &[TextUnit]) -> HashSet<String> {
-    sentences
-        .iter()
-        .flat_map(TextUnit::words)
-        .filter_map(|raw| {
-            let w = normalize_word(&raw);
-            let starts_lower = w.chars().next().is_some_and(char::is_lowercase);
-            starts_lower.then(|| w.to_string())
-        })
-        .collect()
-}
-
-/// Every name-shaped word ever seen away from the start of an ordinary
-/// sentence or table cell. A word capitalised only because it opens its own
-/// unit carries no evidence of being a name by itself; one also capitalised
-/// in the middle of some unit does. A heading is excluded as a source: it
-/// is title case throughout, so its own later words are exactly the
-/// position-forced capitals this evidence is meant to rule out, not proof
-/// of anything.
-fn mid_capitalized_words(sentences: &[TextUnit]) -> HashSet<String> {
-    sentences
-        .iter()
-        .filter(|s| !s.is_heading)
-        .flat_map(|s| {
-            let words = s.words();
-            let first_word = words
-                .iter()
-                .position(|w| w.chars().any(char::is_alphabetic))
-                .unwrap_or(0);
-            words
-                .into_iter()
-                .enumerate()
-                .filter(move |(idx, _)| *idx != first_word)
-                .filter_map(|(_, raw)| {
-                    let w = normalize_word(&raw).to_string();
-                    is_name_word(&w).then_some(w)
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect()
-}
-
-/// A hyphen or slash compound headed by an ordinary word, such as
-/// `Repository-native` or `Test/gate`, is a descriptive adjective, not a
-/// name. `React/TypeScript` is kept, because `react` is never spelled
-/// lowercase in running text.
-fn is_ordinary_compound(w: &str, lowercase: &HashSet<String>) -> bool {
-    w.split_once(['-', '/'])
-        .is_some_and(|(head, _)| lowercase.contains(&head.to_lowercase()))
-}
-
 /// An acronym's plural, such as `APIs` or `PRs`, is a grammatical form of a
 /// known abbreviation, not a name that needs its own description.
 fn is_acronym_plural(w: &str) -> bool {
@@ -727,26 +663,12 @@ fn is_acronym_plural(w: &str) -> bool {
         .is_some_and(|stem| stem.len() >= 2 && stem.chars().all(char::is_uppercase))
 }
 
-fn flush_run(names: &mut Vec<Candidate>, run: &mut Vec<(String, bool)>) {
+fn flush_run(names: &mut Vec<String>, run: &mut Vec<String>) {
     if run.is_empty() {
         return;
     }
-    let at_start = run.first().is_some_and(|(_, s)| *s);
-    let name = run
-        .iter()
-        .map(|(w, _)| w.as_str())
-        .collect::<Vec<_>>()
-        .join(" ");
-    names.push(Candidate { name, at_start });
+    names.push(run.join(" "));
     run.clear();
-}
-
-fn plain_starter(w: &str, extra: &[String]) -> bool {
-    super::names::SENTENCE_STARTERS.contains(&w)
-        || extra.iter().any(|s| s == w)
-        || w.ends_with("ing")
-        || w.ends_with("ed")
-        || w.ends_with("ly")
 }
 
 fn has_inner_capital(w: &str) -> bool {

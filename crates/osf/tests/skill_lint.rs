@@ -78,10 +78,10 @@ fn inert_injection_flags_the_escaped_syntax() {
     assert_all_errors(&findings);
 }
 
-/// Two of its descriptive sentences open with a name the body never explains,
-/// on top of the three skill rules the manual shape itself fires. The other
-/// two openings are not reported, and both are right: `Checker` is defined by
-/// the same sentence that uses it, and `Tool` is an ordinary word.
+/// The three skill rules the manual shape itself fires; none of "Checker",
+/// "Design", "Tool", or "Layout" carries any of the writing lint's own
+/// positive evidence for a name (an internal capital, a digit, a domain
+/// suffix, or a repeated multi-word run), so none of them is reported.
 #[test]
 fn manual_shaped_fixture_reads_as_a_manual() {
     let findings = lint(&fixture("manual-shaped"));
@@ -91,8 +91,6 @@ fn manual_shaped_fixture_reads_as_a_manual() {
             "skill-descriptive-over-imperative",
             "skill-first-section-is-overview",
             "skill-reads-as-manual",
-            "undefined-name-at-start",
-            "undefined-name-at-start",
         ]
     );
     assert_all_errors(&findings);

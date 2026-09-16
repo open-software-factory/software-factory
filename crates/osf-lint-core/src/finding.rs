@@ -87,6 +87,14 @@ impl Finding {
         self
     }
 
+    /// Sets this finding's evidence without touching `source`, for a rule
+    /// that mixes deterministic and statistical findings under one id.
+    #[must_use]
+    pub fn with_evidence(mut self, evidence: Evidence) -> Self {
+        self.evidence = evidence;
+        self
+    }
+
     #[must_use]
     pub fn render(&self, name: &str, level: Level) -> String {
         let level = match level {

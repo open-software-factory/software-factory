@@ -13,8 +13,8 @@ pub mod skill;
 
 pub use meta::RuleMeta;
 pub use osf_lint_core::{
-    check_expectation, check_skill, parse_expectation, parse_skill_expectation, Context, Finding,
-    KnownNames, Level, Mismatch, Remediation,
+    check_expectation, check_skill, parse_expectation, parse_skill_expectation, Context, Evidence,
+    Finding, KnownNames, Level, Mismatch, Remediation,
 };
 
 /// A rule's doc text and metadata, whether it is a writing rule or a skill rule.
@@ -219,20 +219,105 @@ mod tests {
         assert!(rules_of("Round 2 found nothing.").is_empty());
     }
 
-    #[test]
-    fn undefined_name_needs_a_description() {
-        assert_eq!(rules_of("Use Vale for this."), vec!["undefined-name"]);
-        assert!(rules_of("Use Vale, a prose checker, for this.").is_empty());
-        assert!(rules_of("Use Vale for this. Vale is a prose checker.").is_empty());
-        assert!(rules_of("Use GitHub for this.").is_empty());
-        assert!(rules_of("Run `Vale` for this.").is_empty());
+    /// `must_explain_names` is the repository's curated tier-1 list: a name
+    /// on it is an error unless the text explains it, whether or not the
+    /// name itself looks like a name by any other evidence.
+    fn lint_with(cfg: &WritingConfig, text: &str) -> Vec<Finding> {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        lint_writing(text, &known, cfg, Context::Transcript, false, false)
     }
 
     #[test]
+    fn a_curated_must_explain_name_needs_a_description() {
+        let cfg = WritingConfig {
+            must_explain_names: vec!["Vale".to_string()],
+            ..WritingConfig::default()
+        };
+        assert_eq!(
+            lint_with(&cfg, "Use Vale for this.")
+                .into_iter()
+                .map(|f| f.rule)
+                .collect::<Vec<_>>(),
+            vec!["undefined-name"]
+        );
+        assert!(lint_with(&cfg, "Use Vale, a prose checker, for this.").is_empty());
+        assert!(lint_with(&cfg, "Use Vale for this. Vale is a prose checker.").is_empty());
+        assert!(lint_with(&cfg, "Use GitHub for this.").is_empty());
+        assert!(lint_with(&cfg, "Run `Vale` for this.").is_empty());
+    }
+
+    /// A plain word with no evidence at all, and not on the must-explain
+    /// list, is never reported: a bare capital letter proves nothing.
+    #[test]
+    fn an_ordinary_capitalised_word_with_no_evidence_is_never_reported() {
+        assert!(rules_of("Setup is about fifteen minutes and it happens once.").is_empty());
+    }
+
+    /// A multi-word run stays one candidate, not two, and a run repeated
+    /// more than once in the document is itself evidence of a name.
+    #[test]
     fn multi_word_name_is_one_name() {
-        let f = lint("Open Sublime Merge now.");
-        assert_eq!(f.len(), 1);
+        let f = lint("Open Sublime Merge now. Then open Sublime Merge again.");
+        assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f.first().map(|x| x.excerpt.as_str()), Some("Sublime Merge"));
+        assert_eq!(f.first().map(|x| x.evidence), Some(Evidence::Statistical));
+    }
+
+    #[test]
+    fn tier_2_evidence_internal_capital() {
+        assert_eq!(
+            rules_of("Deploy with DuckDB today."),
+            vec!["undefined-name-at-start"]
+        );
+    }
+
+    #[test]
+    fn tier_2_evidence_digit_in_token() {
+        assert_eq!(
+            rules_of("The build uses Log4j for output."),
+            vec!["undefined-name-at-start"]
+        );
+    }
+
+    #[test]
+    fn tier_2_evidence_domain_suffix() {
+        assert_eq!(
+            rules_of("Check Contentful.io for the docs."),
+            vec!["undefined-name-at-start"]
+        );
+    }
+
+    /// A single word repeating is not evidence the way a multi-word run
+    /// repeating is: "Setup" and "Developer" repeat in ordinary transcripts
+    /// too, so only a multi-word run's repetition counts.
+    #[test]
+    fn a_repeated_single_word_capital_is_still_not_evidence_of_a_name() {
+        assert!(rules_of("Vale runs fast. Vale never appears lowercase.").is_empty());
+    }
+
+    /// Every tier-1 finding (the must-explain list) is deterministic, and
+    /// every tier-2 finding (evidence alone) is statistical: a policy that
+    /// refuses to gate on statistical evidence must be able to rely on
+    /// this, rule id alone is not enough to tell the two apart.
+    #[test]
+    fn tier_1_findings_are_deterministic_and_tier_2_findings_are_statistical() {
+        let cfg = WritingConfig {
+            must_explain_names: vec!["Fastfix".to_string()],
+            ..WritingConfig::default()
+        };
+        let f = lint_with(&cfg, "Use Fastfix for this. Then run DuckDB once.");
+        let tier1 = f
+            .iter()
+            .find(|x| x.excerpt == "Fastfix")
+            .expect("the curated name is reported");
+        assert_eq!(tier1.level, Level::Error);
+        assert_eq!(tier1.evidence, Evidence::Deterministic);
+        let tier2 = f
+            .iter()
+            .find(|x| x.excerpt == "DuckDB")
+            .expect("the evidenced name is reported");
+        assert_eq!(tier2.level, Level::Warning);
+        assert_eq!(tier2.evidence, Evidence::Statistical);
     }
 
     /// A contraction such as "I'll" or "Don't" is never a name, even though
@@ -303,10 +388,7 @@ mod tests {
     #[test]
     fn dash_arrow_semicolon() {
         assert_eq!(rules_of("A thing — another thing."), vec!["em-dash"]);
-        assert_eq!(
-            rules_of("Input -> output."),
-            vec!["arrow", "undefined-name-at-start"]
-        );
+        assert_eq!(rules_of("Input -> output."), vec!["arrow"]);
         assert_eq!(rules_of("It ran; it passed."), vec!["semicolon"]);
     }
 
@@ -431,19 +513,29 @@ mod tests {
     #[test]
     fn a_genuine_title_in_a_heading_is_still_reported() {
         // Real example from the false-positive analysis, docs/research/ux/ux-references.md:147.
+        // "RimWorld" carries its own evidence, an internal capital, so it
+        // is reported regardless of the heading it sits in; the internal
+        // capital only earns it a warning, not the error the older design
+        // gave every unrecognised capitalised heading word.
         let filler = "It ran. ".repeat(300);
         let t = format!("{filler}\n\n### RimWorld\n");
-        assert_eq!(errors_of(&t), vec!["undefined-name"], "{:?}", lint(&t));
+        let f = lint(&t);
+        assert_eq!(f.len(), 1, "{f:?}");
+        let hit = f.first().expect("one finding checked above");
+        assert_eq!(hit.excerpt, "RimWorld");
+        assert_eq!(hit.level, Level::Warning);
+        assert_eq!(hit.evidence, Evidence::Statistical);
     }
 
     #[test]
     fn a_multi_word_name_in_a_list_item_is_not_torn_apart() {
         // Real example from the false-positive analysis,
         // docs/research/build-runners-and-compute.md:11: "Alibaba Cloud" was
-        // fragmented into a lone, meaningless "Alibaba" because "cloud" is an
-        // ordinary word used lowercase on the same line.
-        let t = "- cloud providers such as Alibaba Cloud;\n";
-        assert_eq!(errors_of(t), vec!["undefined-name"], "{:?}", lint(t));
+        // once fragmented into a lone, meaningless "Alibaba". The run is
+        // still joined whole here; a second mention supplies the repeated-
+        // run evidence a single mention of two ordinary-cased words no
+        // longer earns on its own.
+        let t = "- cloud providers such as Alibaba Cloud, not just Alibaba Cloud alone;\n";
         let found = lint(t);
         let excerpt = found.first().map(|f| f.excerpt.as_str());
         assert_eq!(excerpt, Some("Alibaba Cloud"), "{found:?}");
@@ -453,14 +545,13 @@ mod tests {
     fn a_multi_word_name_ending_in_an_acronym_plural_is_not_torn_apart() {
         // Real example from the false-positive analysis,
         // docs/research/ahp-acp-architecture-direction.md:296: "JetBrains
-        // IDEs" was fragmented into a lone "JetBrains" because "IDEs" alone
-        // is an acronym's plural.
+        // IDEs" was once fragmented into a lone "JetBrains" because "IDEs"
+        // alone is an acronym's plural. "JetBrains" carries its own
+        // internal-capital evidence, so the whole run is still reported,
+        // as a warning rather than the older design's error.
         let t = "- JetBrains IDEs include a built-in client.\n";
         let found = lint(t);
-        let excerpt = found
-            .iter()
-            .find(|f| f.level == Level::Error)
-            .map(|f| f.excerpt.as_str());
+        let excerpt = found.first().map(|f| f.excerpt.as_str());
         assert_eq!(excerpt, Some("JetBrains IDEs"), "{found:?}");
     }
 
@@ -475,21 +566,27 @@ mod tests {
     #[test]
     fn a_real_name_compound_is_still_reported() {
         // Real example from the false-positive analysis, docs/product/ux/open-questions.md:28.
+        // TypeScript's internal capital carries the whole compound, so it
+        // is still reported, as a warning from that evidence alone.
         let t = "The team is choosing between React/TypeScript for the client.\n";
-        assert_eq!(errors_of(t), vec!["undefined-name"]);
+        let f = lint(t);
+        assert_eq!(f.len(), 1, "{f:?}");
+        let hit = f.first().expect("one finding checked above");
+        assert_eq!(hit.excerpt, "React/TypeScript");
+        assert_eq!(hit.level, Level::Warning);
     }
 
     #[test]
     fn a_list_item_word_that_is_ordinary_elsewhere_is_not_a_name() {
         // Real example from the false-positive analysis, docs/architecture/open-questions.md:17.
+        // Only "WorkItem" carries evidence, an internal capital; "Run",
+        // "Execution", "Task", "Attempt" and "Session" are ordinary
+        // capitalised words with none, so they are not reported at all,
+        // whether or not they also happen to appear lowercase elsewhere.
         let t = "- What is the durable unit: WorkItem, Run, Execution, Task, Step, Attempt, Session?\n\nA run of the pipeline records each attempt and session in a task queue.\n";
         let found = lint(t);
-        let names: Vec<&str> = found
-            .iter()
-            .filter(|f| f.rule == "undefined-name")
-            .map(|f| f.excerpt.as_str())
-            .collect();
-        assert_eq!(names, vec!["WorkItem", "Execution"], "{found:?}");
+        let names: Vec<&str> = found.iter().map(|f| f.excerpt.as_str()).collect();
+        assert_eq!(names, vec!["WorkItem"], "{found:?}");
     }
 
     #[test]
@@ -503,37 +600,56 @@ mod tests {
     #[test]
     fn table_cells_check_names_but_not_length() {
         let long = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty one two three four five six";
-        let t = format!("| Tool | Note |\n|---|---|\n| prose | Use Vale for {long} |\n");
-        assert_eq!(errors_of(&t), vec!["undefined-name"]);
+        let t = format!("| Tool | Note |\n|---|---|\n| prose | Use DuckDB for {long} |\n");
+        let f = lint(&t);
+        assert_eq!(
+            f.iter().map(|x| x.rule).collect::<Vec<_>>(),
+            vec!["undefined-name-at-start"],
+            "{f:?}"
+        );
     }
 
     #[test]
     fn table_only_name_is_reported_the_factory_engine_example() {
         // Real example from the false-positive analysis, docs/architecture/decisions/README.md:9.
-        let t = "| A | B |\n|---|---|\n| x | The Factory Engine starts in Go. |\n";
+        // "The Factory Engine" carries no evidence on its own; a second row
+        // repeating the same run supplies the repeated-run evidence, and
+        // it is reported from its first appearance since no prose copy of
+        // the run exists elsewhere in this document.
+        let t = "| A | B |\n|---|---|\n| x | The Factory Engine starts in Go. |\n| y | The Factory Engine also builds. |\n";
+        let f = lint(t);
         assert_eq!(rules_of(t), vec!["undefined-name-at-start"]);
+        assert_eq!(
+            f.first().map(|x| x.excerpt.as_str()),
+            Some("Factory Engine")
+        );
     }
 
     #[test]
     fn a_name_also_in_prose_is_not_reported_from_the_table() {
+        // A table cell's own first word never joins the run after it (see
+        // `candidate_names`), so the run here is "Factory Engine", not
+        // "The Factory Engine".
         let t = "| A | B |\n|---|---|\n| x | The Factory Engine starts in Go. |\n\nThe Factory Engine has no upstream dependency.\n";
         let f = lint(t);
-        let hits: Vec<_> = f
-            .iter()
-            .filter(|x| x.excerpt == "The Factory Engine")
-            .collect();
+        let hits: Vec<_> = f.iter().filter(|x| x.excerpt == "Factory Engine").collect();
         assert_eq!(hits.len(), 1, "{f:?}");
         let hit = hits.first().expect("one hit checked above");
         assert_eq!(hit.line, 5, "reported from prose, not the table");
     }
 
     #[test]
-    fn a_name_that_starts_a_sentence_is_a_warning() {
-        // "Vale runs fast." and "Build runs fast." parse the same, so this only warns.
-        assert_eq!(rules_of("Vale runs fast."), vec!["undefined-name-at-start"]);
+    fn a_name_that_starts_a_sentence_is_still_judged_on_evidence() {
+        // "DuckDB runs fast." and "Build runs fast." are told apart by
+        // DuckDB's internal capital now, not by which word opens the
+        // sentence: position decides nothing in the new design.
+        assert_eq!(
+            rules_of("DuckDB runs fast."),
+            vec!["undefined-name-at-start"]
+        );
         assert!(rules_of("Build runs fast.").is_empty());
         assert!(rules_of("Fixing runs fast.").is_empty());
-        assert!(errors_of("🤖 Generated with care.").is_empty());
+        assert!(rules_of("🤖 Generated with care.").is_empty());
     }
 
     #[test]
@@ -541,14 +657,6 @@ mod tests {
         // Real example from the false-positive analysis, AGENTS.md:9.
         let t = "Deterministic checks are authoritative gates. LLM judgments may augment them but should not replace deterministic verification when deterministic tooling exists.";
         assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
-    }
-
-    #[test]
-    fn a_name_never_spelled_lowercase_still_warns_at_start() {
-        assert_eq!(
-            rules_of("Vale runs fast. Vale never appears lowercase."),
-            vec!["undefined-name-at-start"]
-        );
     }
 
     #[test]
@@ -750,24 +858,22 @@ mod tests {
     }
 
     #[test]
-    fn a_non_title_heading_can_still_report_a_real_name() {
-        // Only the document's own top-level title is exempt from needing
-        // evidence for a run found there; an ordinary heading elsewhere,
-        // such as a case-study section title, can still name something
-        // real, so it keeps the older, narrower rule. Its first word is
-        // still dropped as position-forced, so the surviving run, having
-        // lost the word that opened the heading, is treated as opening it
-        // in turn and stays a warning rather than an error.
+    fn a_heading_with_evidence_is_still_reported() {
+        // A heading is judged on the same evidence as running prose, since
+        // position decides nothing now: a second mention of "Prison
+        // Architect" supplies the repeated-run evidence a single mention
+        // would not.
         let filler = "It ran. ".repeat(300);
-        let t =
-            format!("# Notes\n\n{filler}\n\n### Prison Architect\n\nStudy the spatial systems.\n");
+        let t = format!(
+            "# Notes\n\n{filler}\n\n### Prison Architect\n\nStudy Prison Architect's spatial systems.\n"
+        );
         let found = lint(&t);
-        let architect = found
+        let hit = found
             .iter()
-            .find(|f| f.excerpt == "Architect")
-            .unwrap_or_else(|| panic!("Architect not reported: {found:?}"));
-        assert_eq!(architect.rule, "undefined-name-at-start");
-        assert_eq!(architect.level, Level::Warning);
+            .find(|f| f.excerpt == "Prison Architect")
+            .unwrap_or_else(|| panic!("Prison Architect not reported: {found:?}"));
+        assert_eq!(hit.rule, "undefined-name-at-start");
+        assert_eq!(hit.level, Level::Warning);
     }
 
     #[test]
@@ -779,33 +885,32 @@ mod tests {
     }
 
     #[test]
-    fn a_table_data_row_naming_a_real_tool_is_still_reported() {
+    fn a_table_data_row_naming_a_curated_tool_is_still_reported() {
         // Only the header row is a column label; a body row is prose about
-        // one specific entry, so a short cell there naming a real,
+        // one specific entry, so a short cell there naming a curated,
         // unexplained tool still needs its own explanation, the same as a
-        // short table header must not, and a long sentence in a cell still
-        // does.
+        // short table header must not.
+        let cfg = WritingConfig {
+            must_explain_names: vec!["Canny".to_string()],
+            ..WritingConfig::default()
+        };
         let t = "| Tool | Category |\n|---|---|\n| Canny | feedback tool |\n";
+        let f = lint_with(&cfg, t);
         assert_eq!(
-            rules_of(t),
-            vec!["undefined-name-at-start"],
-            "{:?}",
-            lint(t)
+            f.iter().map(|x| x.rule).collect::<Vec<_>>(),
+            vec!["undefined-name"],
+            "{f:?}"
         );
     }
 
     #[test]
-    fn a_full_sentence_in_a_table_cell_still_reports_its_capital() {
-        // A table cell can hold real prose, not just a short label; a
-        // longer sentence inside one keeps the ordinary at-start rule.
+    fn a_full_sentence_in_a_table_cell_with_no_evidence_is_not_reported() {
+        // A table cell can hold real prose, not just a short label; the
+        // bare capital that opens a sentence there is not evidence of a
+        // name any more than it is in running prose.
         let t =
             "| Command | Notes |\n|---|---|\n| x | Reads standard input when no file is given. |\n";
-        assert_eq!(
-            rules_of(t),
-            vec!["undefined-name-at-start"],
-            "{:?}",
-            lint(t)
-        );
+        assert!(rules_of(t).is_empty(), "{:?}", lint(t));
     }
 
     #[test]
@@ -857,19 +962,34 @@ mod tests {
         assert!(names.is_empty(), "{:?}", lint(t));
     }
 
+    /// A curated name is the one case still worth testing this against:
+    /// the known bug was that any colon in the following sentence used to
+    /// count as an explanation, even one with nothing to do with the name.
     #[test]
     fn described_in_the_next_sentence_must_actually_mention_the_name() {
-        // The known bug: any colon in the following sentence used to count
-        // as an explanation, even one with nothing to do with the name.
+        let cfg = WritingConfig {
+            must_explain_names: vec!["Fastfix".to_string()],
+            ..WritingConfig::default()
+        };
         let t = "Use Fastfix for this. Run it: `fastfix build`.";
-        assert_eq!(rules_of(t), vec!["undefined-name"], "{:?}", lint(t));
+        assert_eq!(
+            lint_with(&cfg, t)
+                .into_iter()
+                .map(|f| f.rule)
+                .collect::<Vec<_>>(),
+            vec!["undefined-name"]
+        );
     }
 
     #[test]
     fn described_in_the_next_sentence_still_works_when_it_names_the_word() {
         // The fix must not stop the legitimate case: a colon that follows
         // the name itself, right there in the next sentence, still counts.
+        let cfg = WritingConfig {
+            must_explain_names: vec!["Fastfix".to_string()],
+            ..WritingConfig::default()
+        };
         let t = "Use Fastfix for this. Fastfix: a build helper for fixtures.";
-        assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+        assert!(lint_with(&cfg, t).is_empty());
     }
 }

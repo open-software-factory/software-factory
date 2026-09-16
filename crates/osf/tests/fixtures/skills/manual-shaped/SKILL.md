@@ -17,5 +17,4 @@ Layout describes every required file for a project.
 skill-descriptive-over-imperative
 skill-first-section-is-overview
 skill-reads-as-manual
-undefined-name-at-start
 -->

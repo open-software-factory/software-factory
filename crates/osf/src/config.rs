@@ -65,8 +65,9 @@ pub struct WritingConfig {
     pub chat_local_labels: Vec<String>,
     /// Names that need no description on first use, on top of the built-in ones.
     pub known_names: Vec<String>,
-    /// Plain words that may open a sentence with a capital, on top of the built-in ones.
-    pub sentence_starters: Vec<String>,
+    /// Names this repository has decided are worth explaining on first use,
+    /// read even under `--gate`; see [`gate_loaded`] for why that is safe.
+    pub must_explain_names: Vec<String>,
     /// Per-rule level overrides, keyed by rule id.
     pub levels: BTreeMap<String, LevelSetting>,
 }
@@ -143,7 +144,7 @@ impl Default for WritingConfig {
             chat_local_phrases: strings(DEFAULT_CHAT_LOCAL_PHRASES),
             chat_local_labels: strings(DEFAULT_CHAT_LOCAL_LABELS),
             known_names: Vec::new(),
-            sentence_starters: Vec::new(),
+            must_explain_names: Vec::new(),
             levels: BTreeMap::new(),
         }
     }
@@ -286,8 +287,8 @@ const ENV_FIELDS: &[EnvField] = &[
         parse: parse_list,
     },
     EnvField {
-        var: "OSF_WRITING_SENTENCE_STARTERS",
-        path: &["writing", "sentence_starters"],
+        var: "OSF_WRITING_MUST_EXPLAIN_NAMES",
+        path: &["writing", "must_explain_names"],
         parse: parse_list,
     },
     EnvField {
@@ -384,14 +385,13 @@ pub struct Loaded {
 ///
 /// With `gate` set, `file_flag`, `flags`, and `extra_exclude` are all
 /// ignored, and the file at `OSF_CONFIG` or `~/.osf/config.toml` is not
-/// read either: [`gate_loaded`] returns the compiled defaults, untouched.
-/// A gate run checks a change nobody has approved yet, so no setting that
-/// loosens this check may come from that change's own config file, its
-/// environment, or a flag built from either: a rule's level, a word list,
-/// a numeric limit, the known-name list, and the exclude list all fall
-/// back to the compiled default. `--exclude`, `--no-exclude`, and
-/// `--known-names` stay available with `gate` unset, for a person running
-/// the tool by hand.
+/// read either, with one exception: see [`gate_loaded`]. A gate run checks
+/// a change nobody has approved yet, so no setting that loosens this check
+/// may come from that change's own config file, its environment, or a flag
+/// built from either: a rule's level, a word list, a numeric limit, the
+/// known-name list, and the exclude list all fall back to the compiled
+/// default. `--exclude`, `--no-exclude`, and `--known-names` stay available
+/// with `gate` unset, for a person running the tool by hand.
 ///
 /// # Errors
 /// Returns an error if an explicit config file cannot be read, if the file
@@ -445,35 +445,72 @@ pub fn load(
 }
 
 /// The config a gate run always gets: the compiled defaults, with nothing
-/// from any file, environment variable, or flag merged in.
+/// from any file, environment variable, or flag merged in, except
+/// `writing.must_explain_names`, read from the file at `OSF_CONFIG` or
+/// `~/.osf/config.toml` (never from `--config`, and never from the
+/// environment or a flag).
 ///
 /// This is built from [`Config::default`] rather than by starting from a
 /// resolved config and clearing the fields a change could have reached, so
 /// a field added to [`Config`] or [`WritingConfig`] later is safe here with
 /// no extra code: it was never merged in, so it never needs resetting.
 ///
-/// Nothing from outside the compiled defaults is layered in today, because
-/// this crate has no setting that both lives outside the repository being
-/// checked and still needs to reach the gate. If one is ever added, such as
-/// a value read from an environment variable the running organisation
-/// controls rather than the repository (`DENYLIST`, read by the name-leak
-/// scan in `.github/workflows/ci.yml`, is that kind of value, though it is
-/// a separate mechanism from this one), it belongs here, added after the
-/// compiled defaults and never by merging in anything the checked change
-/// could have written.
+/// `must_explain_names` is the one field exempt from that. Every other
+/// field can only loosen the gate: turning a rule off, widening the
+/// exclude list, or growing the known-name list all shrink what the gate
+/// reports. `must_explain_names` cannot: its compiled default is empty, so
+/// it starts at the least strict setting already, and every name the
+/// repository's own file adds to it can only turn on one more
+/// `undefined-name` error, never turn one off. Reading it here from a file
+/// this change could itself have edited is therefore safe: a change that
+/// deletes an entry only pulls that name back down to the same empty floor
+/// every other repository already gates on, and a change that adds one can
+/// only make its own gate run stricter than that floor, never looser. Do
+/// not read any other field this way; every other field in this struct can
+/// remove a finding, which this reasoning does not cover.
 ///
 /// # Errors
-/// Returns an error only if the compiled defaults themselves fail to
-/// serialise into a TOML tree, which does not happen in practice.
+/// Returns an error if the compiled defaults themselves fail to serialise
+/// into a TOML tree, which does not happen in practice, or if the file this
+/// exemption reads is not valid TOML.
 fn gate_loaded() -> Result<Loaded, ConfigError> {
     let defaults = osf_lint_core::to_value(&Config::default())?;
-    let (config, tree, sources) = Layered::new(defaults).finish()?;
+    let (mut config, tree, sources): (Config, toml::Value, BTreeMap<String, Layer>) =
+        Layered::new(defaults).finish()?;
+    config.writing.must_explain_names = gate_must_explain_names()?;
     Ok(Loaded {
         config,
         tree,
         sources,
         file: None,
     })
+}
+
+/// Reads `writing.must_explain_names` from the file at `OSF_CONFIG` or
+/// `~/.osf/config.toml`, or returns an empty list when no such file exists.
+/// See [`gate_loaded`] for why this one field is read under `--gate` when
+/// nothing else in the file is.
+fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
+    let Some(path) = resolve_path(None) else {
+        return Ok(Vec::new());
+    };
+    let Some(text) = osf_lint_core::read_config_file(&path, false)? else {
+        return Ok(Vec::new());
+    };
+    let value: toml::Value = toml::from_str(&text)
+        .map_err(|e| ConfigError::new(format!("config {} is not valid: {e}", path.display())))?;
+    let names = value
+        .get("writing")
+        .and_then(|w| w.get("must_explain_names"))
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(names)
 }
 
 #[cfg(test)]
@@ -726,6 +763,54 @@ mod tests {
         assert_eq!(loaded.config.exclude, DEFAULT_EXCLUDE);
     }
 
+    /// Unlike every other field, `must_explain_names` is read from the
+    /// file at `OSF_CONFIG` even under `--gate`: see `gate_loaded` for why
+    /// growing this one list can only add errors, never remove one.
+    #[test]
+    fn gate_reads_must_explain_names_from_the_configured_file() {
+        let dir = std::env::temp_dir().join("osf-config-test-gate-must-explain");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[writing]\nmust_explain_names = [\"Widgetly\"]\n")
+            .expect("file writes");
+        let path_str = path.to_string_lossy().into_owned();
+        let loaded = serial(&[("OSF_CONFIG", &path_str)], || load(None, &[], &[], true))
+            .expect("gate load succeeds");
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            vec!["Widgetly".to_string()]
+        );
+    }
+
+    /// `--config` itself stays ignored under gate, same as every other
+    /// field: only `OSF_CONFIG` or the home file reaches this exemption.
+    #[test]
+    fn gate_ignores_the_config_flag_for_must_explain_names() {
+        let dir = std::env::temp_dir().join("osf-config-test-gate-must-explain-flag");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[writing]\nmust_explain_names = [\"Widgetly\"]\n")
+            .expect("file writes");
+        let home = empty_home();
+        let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
+            load(Some(&path), &[], &[], true)
+        })
+        .expect("gate load succeeds");
+        assert!(loaded.config.writing.must_explain_names.is_empty());
+    }
+
+    /// No `OSF_CONFIG` and no home file: the exemption reads nothing
+    /// rather than erroring.
+    #[test]
+    fn gate_must_explain_names_is_empty_with_no_file() {
+        let home = empty_home();
+        let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
+            load(None, &[], &[], true)
+        })
+        .expect("gate load succeeds");
+        assert!(loaded.config.writing.must_explain_names.is_empty());
+    }
+
     /// The exact case the adversarial review proved: a config file that
     /// turns `bare-reference` off must not reach a gate run.
     #[test]
@@ -789,6 +874,11 @@ mod tests {
     /// to reset would fail this test the day it is given a compiled
     /// default other than its own zero value, without anyone updating
     /// this test to know about it.
+    ///
+    /// `must_explain_names` is carved out of the final comparison on
+    /// purpose: it is the one field [`gate_loaded`] deliberately still
+    /// reads from the file, so this test also proves that carve-out reads
+    /// exactly the file's value and nothing the environment or a flag set.
     #[test]
     fn gate_config_matches_compiled_defaults_even_from_a_maximally_poisoned_source() {
         let defaults_tree =
@@ -796,8 +886,8 @@ mod tests {
         let mut poisoned = poison(&defaults_tree);
         // The compiled defaults hold these empty, so poisoning the tree
         // above touches nothing for them; set them by hand here so this
-        // one file also proves a per-rule level, the known-name list, and
-        // the sentence-starter list cannot reach a gate run either.
+        // one file also proves a per-rule level and the known-name list
+        // cannot reach a gate run either.
         if let Some(writing) = poisoned
             .as_table_mut()
             .and_then(|root| root.get_mut("writing"))
@@ -808,8 +898,8 @@ mod tests {
                 toml::Value::Array(vec![toml::Value::String("Poisoned".to_string())]),
             );
             writing.insert(
-                "sentence_starters".to_string(),
-                toml::Value::Array(vec![toml::Value::String("poisoned".to_string())]),
+                "must_explain_names".to_string(),
+                toml::Value::Array(vec![toml::Value::String("FileNamed".to_string())]),
             );
             let mut levels = toml::value::Table::new();
             levels.insert(
@@ -824,6 +914,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp dir creates");
         let path = dir.join("config.toml");
         std::fs::write(&path, &text).expect("poisoned file writes");
+        let path_str = path.to_string_lossy().into_owned();
 
         let flags: Vec<(&[&str], toml::Value)> = vec![
             (&["writing", "max_sentence_words"], toml::Value::Integer(1)),
@@ -834,6 +925,7 @@ mod tests {
 
         let loaded = serial(
             &[
+                ("OSF_CONFIG", &path_str),
                 ("OSF_WRITING_MAX_SENTENCE_WORDS", "1"),
                 ("OSF_WRITING_WARN_SENTENCE_WORDS", "1"),
                 ("OSF_WRITING_MAX_NUMERALS", "1"),
@@ -842,14 +934,23 @@ mod tests {
                 ("OSF_WRITING_CHAT_LOCAL_PHRASES", "poisoned"),
                 ("OSF_WRITING_CHAT_LOCAL_LABELS", "poisoned"),
                 ("OSF_WRITING_KNOWN_NAMES", "Poisoned"),
-                ("OSF_WRITING_SENTENCE_STARTERS", "poisoned"),
+                // Proves the exemption reads the file, not the environment:
+                // if this leaked through, the assertion below would see it.
+                ("OSF_WRITING_MUST_EXPLAIN_NAMES", "EnvNamed"),
                 ("OSF_EXCLUDE", "also-poisoned/**"),
             ],
             || load(Some(&path), &flags, &extra_exclude, true),
         )
         .expect("a gate load succeeds even over a poisoned file");
 
-        assert_eq!(loaded.config, Config::default());
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            vec!["FileNamed".to_string()],
+            "must_explain_names should read only the file's value"
+        );
+        let mut without_the_exemption = loaded.config;
+        without_the_exemption.writing.must_explain_names = Vec::new();
+        assert_eq!(without_the_exemption, Config::default());
     }
 
     #[test]
