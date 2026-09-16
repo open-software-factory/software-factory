@@ -104,8 +104,14 @@ jobs:
 
       # Only what this change touches. A new check does not retroactively
       # condemn every document written before the check existed.
+      #
+      # This step is not gated on the Rust workspace being present. A change
+      # that touches Markdown must always be checked. The only allowed skip
+      # is that the change touches no Markdown at all.
       - name: Check the writing in the files this change touches
-        if: steps.detect.outputs.present == 'true' && github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
+        env:
+          WORKSPACE_PRESENT: ${{ steps.detect.outputs.present }}
         run: |
           set -euo pipefail
           git fetch --quiet origin "${{ github.base_ref }}"
@@ -117,6 +123,12 @@ jobs:
             echo "::notice::this change touches no Markdown"
             exit 0
           fi
+          if [ "$WORKSPACE_PRESENT" != 'true' ]; then
+            echo "::error::this change touches Markdown, but the writing gate could not run."
+            echo "::error::there is no Cargo.toml at the repository root, so the osf tool could not be built."
+            echo "::error::rebase this branch onto a commit that has the crate, then push again."
+            exit 1
+          fi
           printf 'checking %s\n' "${changed[@]}"
           # --no-suppress so a suppression comment cannot hide a finding from this gate
           # --gate so this change's own config file cannot loosen the exclude list
@@ -126,9 +138,10 @@ jobs:
         if: always() && steps.detect.outputs.present == 'true'
         continue-on-error: true
         run: |
+          set -euo pipefail
           find . -name '*.md' -not -path './target/*' -print0 \
             | xargs -0 ./target/release/osf lint writing --no-suppress --gate --format sarif \
-            > osf.sarif || true
+            > osf.sarif
 
       - name: Keep the findings file
         if: always() && steps.detect.outputs.present == 'true'
