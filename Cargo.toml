@@ -1,0 +1,17 @@
+[workspace]
+members = ["crates/osf", "crates/osf-lint-core"]
+resolver = "2"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+indexing_slicing = "warn"
+must_use_candidate = "allow"
+module_name_repetitions = "allow"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
