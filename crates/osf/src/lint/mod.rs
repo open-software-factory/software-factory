@@ -235,6 +235,39 @@ mod tests {
         assert_eq!(f.first().map(|x| x.excerpt.as_str()), Some("Sublime Merge"));
     }
 
+    /// A contraction such as "I'll" or "Don't" is never a name, even though
+    /// it starts uppercase and has a lowercase tail.
+    #[test]
+    fn contraction_is_not_a_name() {
+        assert!(
+            rules_of("If you want the clean version anyway, say so and I'll do it.").is_empty()
+        );
+        assert!(rules_of("We'll ship it today.").is_empty());
+        assert!(rules_of("Don't skip the test.").is_empty());
+    }
+
+    /// A run that opens with a known name, such as the built-in "GitHub",
+    /// stays known even when the word after it is not itself in the list.
+    #[test]
+    fn known_name_heads_an_unknown_run() {
+        let excerpts: Vec<String> = lint("Open the settings, then GitHub Apps.")
+            .into_iter()
+            .map(|f| f.excerpt)
+            .collect();
+        assert!(
+            !excerpts.contains(&"GitHub Apps".to_string()),
+            "{excerpts:?}"
+        );
+        let excerpts: Vec<String> = lint("A GitHub App shows as a bot.")
+            .into_iter()
+            .map(|f| f.excerpt)
+            .collect();
+        assert!(
+            !excerpts.contains(&"GitHub App".to_string()),
+            "{excerpts:?}"
+        );
+    }
+
     #[test]
     fn long_sentence() {
         let t = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty one two three four five six.";

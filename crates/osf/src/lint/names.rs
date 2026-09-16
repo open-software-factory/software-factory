@@ -167,6 +167,80 @@ pub const SENTENCE_STARTERS: &[&str] = &[
     "Your",
 ];
 
+/// Ordinary words that stand alone in prose or open a sentence by grammar
+/// alone, never a name even when capitalised. `BUILT_IN` lists these so a
+/// lone use of one, such as sentence-initial "The", is not itself reported;
+/// but one of these heading an otherwise-unknown run proves nothing about
+/// the run, unlike a real name such as "GitHub" heading "GitHub Apps".
+const GENERIC_WORDS: &[&str] = &[
+    "I",
+    "The",
+    "A",
+    "An",
+    "This",
+    "That",
+    "These",
+    "Those",
+    "It",
+    "We",
+    "You",
+    "They",
+    "He",
+    "She",
+    "No",
+    "Yes",
+    "Not",
+    "None",
+    "Nothing",
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Ten",
+    "Phase",
+    "Step",
+    "Item",
+    "Option",
+    "Part",
+    "Point",
+    "Round",
+    "Section",
+    "Table",
+    "Figure",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+    "English",
+    "Simplified",
+    "Technical",
+];
+
+/// Whether `word` is a real known name rather than one of `GENERIC_WORDS`,
+/// so it can carry an otherwise-unknown run that starts with it: "GitHub"
+/// heading "GitHub Apps" keeps the whole run known, but "The" heading
+/// "The Widget" does not, since "The" proves nothing about "Widget".
+#[must_use]
+pub fn is_name_head(word: &str) -> bool {
+    BUILT_IN.contains(&word) && !GENERIC_WORDS.contains(&word)
+}
+
 pub const BUILT_IN: &[&str] = &[
     // words that start sentences or stand alone in prose
     "I",

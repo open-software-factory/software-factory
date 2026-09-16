@@ -459,7 +459,20 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: 
     let reduced: Vec<String> = sentences.iter().map(|s| reduce_inline(&s.text)).collect();
     let lowercase = lowercase_words(sentences);
     let mid_capitalized = mid_capitalized_words(sentences);
-    let is_known = |name: &str| known.contains(name) || name.split(' ').all(|w| known.contains(w));
+    // A run that opens with a known name, such as "GitHub Apps" opening with
+    // the built-in "GitHub", is a specific case of the known thing; the rest
+    // of the run does not need its own entry in the known-names list. A
+    // generic word such as "The" does not qualify: it opens plenty of
+    // ordinary runs by sentence position alone, so `is_name_head` excludes
+    // it even though it is itself known.
+    let is_known = |name: &str| {
+        known.contains(name)
+            || name.split(' ').all(|w| known.contains(w))
+            || name
+                .split(' ')
+                .next()
+                .is_some_and(|first| known.contains(first) && super::names::is_name_head(first))
+    };
     // A real product name is almost never also spelled in lowercase in the
     // same document. A word that opens a sentence and is spelled lowercase
     // elsewhere is ordinary English, not a name that needs a description.
@@ -747,5 +760,14 @@ fn is_name_word(w: &str) -> bool {
     };
     let rest: Vec<char> = chars.collect();
     let has_lower = rest.iter().any(|c| c.is_lowercase());
-    first.is_uppercase() && !rest.is_empty() && has_lower
+    first.is_uppercase() && !rest.is_empty() && has_lower && !is_contraction(w)
+}
+
+/// A short lowercase tail after an apostrophe, such as "'ll" in "We'll" or
+/// "'t" in "Don't", marks a contraction. A name is never spelled this way,
+/// so a contraction is not a name candidate even when it starts uppercase.
+fn is_contraction(w: &str) -> bool {
+    const TAILS: &[&str] = &["ll", "d", "s", "re", "ve", "m", "t"];
+    w.rsplit_once('\'')
+        .is_some_and(|(_, tail)| TAILS.contains(&tail))
 }
