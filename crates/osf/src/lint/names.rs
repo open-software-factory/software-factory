@@ -82,6 +82,7 @@ pub const SENTENCE_STARTERS: &[&str] = &[
     "Much",
     "Name",
     "Need",
+    "Neither",
     "Never",
     "New",
     "Next",

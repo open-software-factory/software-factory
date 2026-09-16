@@ -702,4 +702,84 @@ mod tests {
         assert!(!is_scan_rule("arrow"));
         assert!(!is_scan_rule("bare-reference"));
     }
+
+    #[test]
+    fn a_document_title_heading_is_not_a_name_introduction() {
+        // False positive 1: a document's own top-level heading, a generic
+        // descriptive title, was reported as introducing an undefined name.
+        let filler = "It ran. ".repeat(300);
+        let t = format!("# Individual Contributor License Agreement\n\n{filler}\n");
+        let names: Vec<&str> = rules_of(&t)
+            .into_iter()
+            .filter(|r| r.starts_with("undefined-name"))
+            .collect();
+        assert!(names.is_empty(), "{:?}", lint(&t));
+    }
+
+    #[test]
+    fn a_non_title_heading_can_still_report_a_real_name() {
+        // Only the document's own top-level title is exempt from needing
+        // evidence for a run found there; an ordinary heading elsewhere,
+        // such as a case-study section title, can still name something
+        // real, so it keeps the older, narrower rule.
+        let filler = "It ran. ".repeat(300);
+        let t =
+            format!("# Notes\n\n{filler}\n\n### Prison Architect\n\nStudy the spatial systems.\n");
+        assert_eq!(errors_of(&t), vec!["undefined-name"], "{:?}", lint(&t));
+    }
+
+    #[test]
+    fn a_short_table_cell_label_is_not_a_sentence_start() {
+        // False positive 2: a table header row's short column labels, "Ran
+        // before" and "Runs now", were flagged as if a sentence began there.
+        let t = "| Check | Ran before | Runs now |\n|---|---|---|\n| Build | Yes | Yes |\n";
+        assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
+
+    #[test]
+    fn a_full_sentence_in_a_table_cell_still_reports_its_capital() {
+        // A table cell can hold real prose, not just a short label; a
+        // longer sentence inside one keeps the ordinary at-start rule.
+        let t =
+            "| Command | Notes |\n|---|---|\n| x | Reads standard input when no file is given. |\n";
+        assert_eq!(
+            rules_of(t),
+            vec!["undefined-name-at-start"],
+            "{:?}",
+            lint(t)
+        );
+    }
+
+    #[test]
+    fn neither_is_a_common_sentence_starter() {
+        // False positive 3: an ordinary English word capitalised only
+        // because it opens a sentence.
+        let t =
+            "The two options were a flag and a switch. Neither can be wired up to get less code.";
+        assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
+
+    #[test]
+    fn a_legal_term_glossed_by_a_parenthetical_in_the_same_sentence_is_not_flagged() {
+        // False positive 4: a capitalised defined term inside a legal
+        // document, glossed in place by the parenthetical straight after it.
+        let t = "This is a contributor agreement.\n\nContributions (present and future) that you submit to the project are licensed under the terms below.\n";
+        assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
+
+    #[test]
+    fn described_in_the_next_sentence_must_actually_mention_the_name() {
+        // The known bug: any colon in the following sentence used to count
+        // as an explanation, even one with nothing to do with the name.
+        let t = "Use Fastfix for this. Run it: `fastfix build`.";
+        assert_eq!(rules_of(t), vec!["undefined-name"], "{:?}", lint(t));
+    }
+
+    #[test]
+    fn described_in_the_next_sentence_still_works_when_it_names_the_word() {
+        // The fix must not stop the legitimate case: a colon that follows
+        // the name itself, right there in the next sentence, still counts.
+        let t = "Use Fastfix for this. Fastfix: a build helper for fixtures.";
+        assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
 }

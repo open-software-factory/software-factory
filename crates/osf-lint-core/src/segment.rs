@@ -3,7 +3,7 @@
 //! inline structure; a rule or an analyser reads whichever grain its scope
 //! asks for, and the shape is the same for all.
 
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use regex::Regex;
 use std::ops::Range;
 use std::sync::OnceLock;
@@ -12,6 +12,7 @@ use std::sync::OnceLock;
 /// Any rule or analyser, regular expression or model, takes this as input
 /// and reports a location the same way.
 #[derive(Clone, Debug)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct TextUnit {
     pub text: String,
     pub span: Range<usize>,
@@ -20,6 +21,11 @@ pub struct TextUnit {
     pub in_table: bool,
     /// A heading: its first word is never a name candidate.
     pub is_heading: bool,
+    /// The document's own top-level title, its first `#` heading: a title
+    /// describes the document, it does not introduce a name that needs a
+    /// description, so a rule may hold every word in it to a stricter test
+    /// than an ordinary heading.
+    pub is_document_title: bool,
     /// A list item: an enumeration inside it often mixes several
     /// capitalised words on one line.
     pub in_list_item: bool,
@@ -47,6 +53,7 @@ pub struct Doc {
 /// One block of prose: a paragraph, a heading, or a table cell, built from
 /// the raw source it spans. A sentence taken from partway through it can
 /// still recover its own line number and byte offset.
+#[allow(clippy::struct_excessive_bools)]
 struct Block {
     line: usize,
     start_offset: usize,
@@ -56,15 +63,18 @@ struct Block {
     breaks: Vec<(usize, usize, usize)>,
     in_table: bool,
     is_heading: bool,
+    is_document_title: bool,
     in_list_item: bool,
 }
 
 impl Block {
+    #[allow(clippy::fn_params_excessive_bools)]
     fn new(
         line: usize,
         start_offset: usize,
         in_table: bool,
         is_heading: bool,
+        is_document_title: bool,
         in_list_item: bool,
     ) -> Self {
         Block {
@@ -74,6 +84,7 @@ impl Block {
             breaks: Vec::new(),
             in_table,
             is_heading,
+            is_document_title,
             in_list_item,
         }
     }
@@ -111,6 +122,7 @@ impl Block {
 /// The parse fold's state: the block being built, every block finished so
 /// far, and whether we are inside a region that changes how text is read.
 #[derive(Default)]
+#[allow(clippy::struct_excessive_bools)]
 struct Walk {
     blocks: Vec<Block>,
     headings: Vec<usize>,
@@ -122,6 +134,12 @@ struct Walk {
     /// image: already captured whole, so its children are not read again.
     inline_skip: u32,
     in_heading: bool,
+    /// Whether the heading currently open is the document's first `#`
+    /// heading, its title.
+    in_document_title: bool,
+    /// Whether a level-1 heading has been seen yet, so only the first one
+    /// is ever the document's title.
+    seen_h1: bool,
     in_cell: bool,
     /// Nesting depth inside a list item, so a nested list does not close its
     /// parent item early.
@@ -142,6 +160,7 @@ impl Walk {
     fn open(&mut self, doc_lines: &[usize], offset: usize) -> &mut Block {
         let in_table = self.in_cell;
         let is_heading = self.in_heading;
+        let is_document_title = self.in_document_title;
         let in_list_item = self.list_item_depth > 0;
         self.current.get_or_insert_with(|| {
             Block::new(
@@ -149,6 +168,7 @@ impl Walk {
                 offset,
                 in_table,
                 is_heading,
+                is_document_title,
                 in_list_item,
             )
         })
@@ -238,14 +258,17 @@ fn step(
             walk.skip += 1;
             walk
         }
-        Event::Start(Tag::Heading { .. }) => {
+        Event::Start(Tag::Heading { level, .. }) => {
             walk = walk.flush();
             walk.in_heading = true;
+            walk.in_document_title = !walk.seen_h1 && level == HeadingLevel::H1;
+            walk.seen_h1 |= level == HeadingLevel::H1;
             walk
         }
         Event::End(TagEnd::Heading(_)) => {
             walk = walk.flush();
             walk.in_heading = false;
+            walk.in_document_title = false;
             walk
         }
         Event::Start(Tag::TableCell) => {
@@ -292,6 +315,7 @@ fn paragraph_unit(block: &Block) -> TextUnit {
         line: block.line,
         in_table: block.in_table,
         is_heading: block.is_heading,
+        is_document_title: block.is_document_title,
         in_list_item: block.in_list_item,
     }
 }
@@ -305,6 +329,7 @@ fn sentence_units(block: &Block) -> Vec<TextUnit> {
             text,
             in_table: block.in_table,
             is_heading: block.is_heading,
+            is_document_title: block.is_document_title,
             in_list_item: block.in_list_item,
         })
         .collect()
@@ -332,6 +357,7 @@ pub fn parse(text: &str) -> Doc {
         line: 1,
         in_table: false,
         is_heading: false,
+        is_document_title: false,
         in_list_item: false,
     };
     Doc {
