@@ -137,7 +137,7 @@ struct StatusRenderArgs {
     /// Gate results, comma-separated: "name: passed" or "name: failed: reason".
     #[arg(long)]
     gates: String,
-    /// The issue line, such as "Closes owner/repo#1, the thing".
+    /// The issue line, such as "Closes open-software-factory/software-factory#1, the thing".
     #[arg(long)]
     issue: String,
     /// One sentence describing the problem.

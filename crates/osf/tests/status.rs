@@ -30,7 +30,7 @@ fn base_input<'a>(gates: &'a str, review_json: &'a str) -> RenderInput<'a> {
     RenderInput {
         tier_json: TIER_JSON,
         gates,
-        issue: "Closes owner/repo#1, the thing",
+        issue: "Closes open-software-factory/software-factory#1, the thing",
         problem: "The problem.",
         approach: "The approach.",
         review_json,
@@ -65,7 +65,7 @@ fn ready_is_yes_when_every_gate_passed_and_the_verdict_is_approve() {
     );
     assert_eq!(
         row(&block, "Issue"),
-        "| **Issue** | Closes owner/repo#1, the thing |"
+        "| **Issue** | Closes open-software-factory/software-factory#1, the thing |"
     );
     assert!(block.contains("**Problem**: The problem."));
     assert!(block.contains("**Approach**: The approach."));
@@ -210,7 +210,7 @@ fn render_gives_byte_identical_output_on_the_same_inputs() {
     assert_eq!(first.as_bytes(), second.as_bytes());
 }
 
-const BODY_WITH_BLOCK: &str = "<!-- factory:status:begin -->\n| | |\n|---|---|\n| **Ready** | blocked by review: pending |\n| **Risk** | low \u{2014} old reasons |\n<!-- factory:status:end -->\n\n## What changed and why\n\nBody text that must not change.\n\n## Issue\n\nCloses owner/repo#1, the thing.\n";
+const BODY_WITH_BLOCK: &str = "<!-- factory:status:begin -->\n| | |\n|---|---|\n| **Ready** | blocked by review: pending |\n| **Risk** | low \u{2014} old reasons |\n<!-- factory:status:end -->\n\n## What changed and why\n\nBody text that must not change.\n\n## Issue\n\nCloses open-software-factory/software-factory#1, the thing.\n";
 
 const BODY_WITHOUT_BLOCK: &str =
     "## What changed and why\n\nA body written before the status block existed.\n";
@@ -421,7 +421,7 @@ impl GhClient for FakeGh {
         self.calls.borrow_mut().push(format!("view {repo}#{pr}"));
         if self.view_fails {
             return Err(StatusError::new(
-                "gh pr view failed for o/r#1; nothing was changed",
+                "gh pr view failed for open-software-factory/software-factory#1; nothing was changed",
             ));
         }
         Ok(self.body.clone())
@@ -441,7 +441,12 @@ impl GhClient for FakeGh {
 #[test]
 fn a_failed_gh_pr_view_stops_apply_before_gh_pr_edit() {
     let client = FakeGh::failing_view();
-    let result = status::apply_via_gh(&client, "o/r", "1", &new_block());
+    let result = status::apply_via_gh(
+        &client,
+        "open-software-factory/software-factory",
+        "1",
+        &new_block(),
+    );
     assert!(result.is_err());
     let calls = client.calls.borrow();
     assert!(calls.iter().any(|c| c.starts_with("view")));
@@ -451,9 +456,21 @@ fn a_failed_gh_pr_view_stops_apply_before_gh_pr_edit() {
 #[test]
 fn a_working_gh_pr_view_leads_to_one_gh_pr_edit_with_the_block_on_top() {
     let client = FakeGh::new(BODY_WITHOUT_BLOCK);
-    let new_body = status::apply_via_gh(&client, "o/r", "1", &new_block()).expect("apply succeeds");
+    let new_body = status::apply_via_gh(
+        &client,
+        "open-software-factory/software-factory",
+        "1",
+        &new_block(),
+    )
+    .expect("apply succeeds");
     let calls = client.calls.borrow();
-    assert_eq!(calls.as_slice(), ["view o/r#1", "edit o/r#1"]);
+    assert_eq!(
+        calls.as_slice(),
+        [
+            "view open-software-factory/software-factory#1",
+            "edit open-software-factory/software-factory#1"
+        ]
+    );
     assert_eq!(
         new_body.lines().next(),
         Some("<!-- factory:status:begin -->")
