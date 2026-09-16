@@ -13,8 +13,8 @@ pub mod skill;
 
 pub use meta::RuleMeta;
 pub use osf_lint_core::{
-    check_expectation, parse_expectation, Context, Finding, KnownNames, Level, Mismatch,
-    Remediation,
+    check_expectation, check_skill, parse_expectation, parse_skill_expectation, Context, Finding,
+    KnownNames, Level, Mismatch, Remediation,
 };
 
 /// A rule's doc text and metadata, whether it is a writing rule or a skill rule.

@@ -340,3 +340,194 @@ fn the_cli_names_the_engine_that_ran_the_deferred_checks() {
     assert!(stdout.contains("agnix"), "{stdout}");
     assert!(stdout.contains("name format"), "{stdout}");
 }
+
+/// Tests for the `osf-expect` fixture contract as applied to a skill
+/// folder: an exact match, never an exclude list. A folder is checked
+/// under a label that names a `tests/fixtures` path, whether or not its
+/// files actually live under one, so the contract can be tested without
+/// committing more fixtures.
+mod checked {
+    use super::{known, SkillConfig, WritingConfig};
+    use osf::lint::skill::lint_skill_checked;
+    use std::path::{Path, PathBuf};
+
+    const LABEL: &str = "crates/osf/tests/fixtures/skills/synthetic";
+
+    fn temp_dir(name: &str) -> PathBuf {
+        std::env::temp_dir()
+            .join("osf-skill-lint-checked-test")
+            .join(name)
+    }
+
+    fn write_skill(dir: &Path, skill_md: &str) {
+        let _ = std::fs::remove_dir_all(dir);
+        std::fs::create_dir_all(dir).expect("temp dir creates");
+        std::fs::write(dir.join("SKILL.md"), skill_md).expect("SKILL.md writes");
+    }
+
+    fn checked(dir: &Path, label: &str) -> Vec<osf::lint::skill::SkillFinding> {
+        lint_skill_checked(
+            dir,
+            label,
+            &SkillConfig::default(),
+            &known(),
+            &WritingConfig::default(),
+        )
+        .expect("SKILL.md reads")
+    }
+
+    /// A `name:` field matching its own directory, a body already proven
+    /// clean by other fixtures, and a first-person description: the one
+    /// rule under test here is `skill-first-person`.
+    fn first_person_skill(name: &str) -> String {
+        format!(
+            "---\nname: {name}\ndescription: I can check a folder for common problems when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n"
+        )
+    }
+
+    /// The same body as [`first_person_skill`], with a third-person
+    /// description instead: no skill rule fires at all.
+    fn third_person_skill(name: &str) -> String {
+        format!(
+            "---\nname: {name}\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n"
+        )
+    }
+
+    #[test]
+    fn a_matching_declaration_produces_no_findings() {
+        let dir = temp_dir("matching");
+        let text = format!(
+            "{}\n<!-- osf-expect\nskill-first-person\n-->\n",
+            first_person_skill("matching")
+        );
+        write_skill(&dir, &text);
+        let findings = checked(&dir, LABEL);
+        assert!(findings.is_empty(), "{:?}", rule_ids(&findings));
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+    }
+
+    /// An exact match is not an exclude list: a real finding the marker
+    /// never named must still fail, not pass because a marker exists at all.
+    #[test]
+    fn an_undeclared_finding_fails() {
+        let dir = temp_dir("undeclared");
+        let text = format!(
+            "{}\n<!-- osf-expect\n-->\n",
+            first_person_skill("undeclared")
+        );
+        write_skill(&dir, &text);
+        let findings = checked(&dir, LABEL);
+        assert_eq!(findings.len(), 1, "{:?}", rule_ids(&findings));
+        let finding = findings.first().expect("one finding reported");
+        assert_eq!(finding.finding.rule, "expectation-unexpected");
+        assert_eq!(finding.finding.excerpt, "SKILL.md: skill-first-person");
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+    }
+
+    /// A fixture that stops producing a rule it declared must fail the
+    /// build: the check is proof the rule still fires, not a one-time note.
+    #[test]
+    fn a_declared_finding_that_stops_appearing_fails() {
+        let dir = temp_dir("stopped-firing");
+        let text = format!(
+            "{}\n<!-- osf-expect\nskill-first-person\n-->\n",
+            third_person_skill("stopped-firing")
+        );
+        write_skill(&dir, &text);
+        let findings = checked(&dir, LABEL);
+        assert_eq!(findings.len(), 1, "{:?}", rule_ids(&findings));
+        let finding = findings.first().expect("one finding reported");
+        assert_eq!(finding.finding.rule, "expectation-missing");
+        assert_eq!(finding.finding.excerpt, "SKILL.md: skill-first-person");
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+    }
+
+    /// Nothing inside a repository, a fixture's own declaration included,
+    /// may mark a scan finding expected; the comparison never even runs.
+    #[test]
+    fn a_scan_rule_still_cannot_be_declared() {
+        let dir = temp_dir("scan-rule-declared");
+        let text = format!(
+            "{}\n<!-- osf-expect\nskill-first-person\nscan-denied-name\n-->\n",
+            first_person_skill("scan-rule-declared")
+        );
+        write_skill(&dir, &text);
+        let findings = checked(&dir, LABEL);
+        assert_eq!(findings.len(), 1, "{:?}", rule_ids(&findings));
+        let finding = findings.first().expect("one finding reported");
+        assert_eq!(finding.finding.rule, "expectation-forbidden-scan-rule");
+        assert_eq!(finding.finding.excerpt, "scan-denied-name");
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+    }
+
+    /// A declaration naming a file other than `SKILL.md` matches a finding
+    /// from that file, such as a script's unpinned install.
+    #[test]
+    fn a_declaration_can_name_a_script_file() {
+        let dir = temp_dir("script-declared");
+        let text = format!(
+            "{}\n<!-- osf-expect\nscripts/install.sh skill-script-unpinned\n-->\n",
+            third_person_skill("script-declared")
+        );
+        write_skill(&dir, &text);
+        std::fs::create_dir_all(dir.join("scripts")).expect("scripts dir creates");
+        std::fs::write(
+            dir.join("scripts").join("install.sh"),
+            "#!/usr/bin/env bash\nnpm install -g plain-tool\n",
+        )
+        .expect("script writes");
+        let findings = checked(&dir, LABEL);
+        assert!(findings.is_empty(), "{:?}", rule_ids(&findings));
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+    }
+
+    /// A marker outside `tests/fixtures` never silences a real finding: the
+    /// folder still lints as normal, plus a warning that the marker itself
+    /// had no effect.
+    #[test]
+    fn a_marker_outside_fixtures_is_inert() {
+        let dir = temp_dir("outside-fixtures");
+        let text = format!(
+            "{}\n<!-- osf-expect\n-->\n",
+            first_person_skill("outside-fixtures")
+        );
+        write_skill(&dir, &text);
+        let findings = checked(&dir, "crates/osf/src/lint/skill");
+        let rules = rule_ids(&findings);
+        assert!(rules.contains(&"skill-first-person"), "{rules:?}");
+        assert!(rules.contains(&"expectation-outside-fixtures"), "{rules:?}");
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+    }
+
+    fn rule_ids(findings: &[osf::lint::skill::SkillFinding]) -> Vec<&'static str> {
+        findings.iter().map(|f| f.finding.rule).collect()
+    }
+
+    /// Every committed fixture must be declared exactly: a fixture with no
+    /// marker never reaches this check, since [`lint_skill_checked`] passes
+    /// it straight through, and every fixture under `tests/fixtures/skills`
+    /// now carries one.
+    #[test]
+    fn every_committed_skill_fixture_matches_its_own_declaration() {
+        let names = [
+            "good-skill",
+            "at-budget",
+            "folded-description",
+            "bad-frontmatter",
+            "first-person",
+            "inert-injection",
+            "long-sentence-in-body",
+            "manual-shaped",
+            "no-done",
+            "no-trigger",
+            "unclosed-frontmatter",
+            "unpinned-script",
+        ];
+        for name in names {
+            let dir = super::fixture(name);
+            let label = format!("crates/osf/tests/fixtures/skills/{name}");
+            let findings = checked(&dir, &label);
+            assert!(findings.is_empty(), "{name}: {:?}", rule_ids(&findings));
+        }
+    }
+}

@@ -752,13 +752,15 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
     let mut tally = Tally::default();
     let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
     for dir in &args.paths {
-        let skill_findings = match lint::skill::lint_skill(dir, cfg, &known, writing_cfg) {
-            Ok(f) => f,
-            Err(e) => {
-                eprintln!("osf: {e}");
-                return ExitCode::from(2);
-            }
-        };
+        let label = dir.to_string_lossy().replace('\\', "/");
+        let skill_findings =
+            match lint::skill::lint_skill_checked(dir, &label, cfg, &known, writing_cfg) {
+                Ok(f) => f,
+                Err(e) => {
+                    eprintln!("osf: {e}");
+                    return ExitCode::from(2);
+                }
+            };
         let mut by_file: std::collections::BTreeMap<String, Vec<lint::Finding>> =
             std::collections::BTreeMap::new();
         for sf in skill_findings {
