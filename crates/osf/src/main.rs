@@ -237,9 +237,12 @@ struct ReviewPostArgs {
     repo: String,
     /// The pull request number.
     pr: u64,
-    /// A JSON array of findings to post.
+    /// Path to a file holding a JSON array of findings. Each needs `id`,
+    /// `path`, `severity`, `action` and `body`, and may carry a `line`. A
+    /// finding with no line goes in the summary instead of against a line
+    /// of the diff.
     findings: PathBuf,
-    /// The review's summary body, in Markdown.
+    /// Path to a file holding the review's summary body, in Markdown.
     summary: PathBuf,
     /// Build the review and print it, but post nothing.
     #[arg(long)]
@@ -1571,7 +1574,12 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
         }
     };
     let summary = match std::fs::read_to_string(&args.summary) {
-        Ok(s) => s,
+        // A summary written on Windows arrives with carriage returns.
+        // They would travel into the posted body and show up as stray
+        // characters, so the text is normalised on the way in. The
+        // trailing newline goes too: the body is joined to other text,
+        // and a blank line there is an accident, not a choice.
+        Ok(s) => s.replace("\r\n", "\n").trim_end().to_string(),
         Err(e) => {
             eprintln!("osf: cannot read {}: {e}", args.summary.display());
             return ExitCode::from(2);
