@@ -325,7 +325,12 @@ mod tests {
     /// answer. Keying this off `sessionId` alone was the earlier bug.
     #[test]
     fn any_camel_case_key_picks_the_json_answer() {
-        for key in ["sessionId", "transcriptPath", "lastAssistantMessage", "hookEventName"] {
+        for key in [
+            "sessionId",
+            "transcriptPath",
+            "lastAssistantMessage",
+            "hookEventName",
+        ] {
             let event = serde_json::json!({ key: "x" });
             assert_eq!(answer_for(&event), Answer::DecisionJson, "{key}");
         }
@@ -343,7 +348,11 @@ mod tests {
     fn every_spelling_of_the_turn_key_is_read() {
         for key in PROMPT_KEYS {
             let event = serde_json::json!({ *key: "t-1" });
-            assert_eq!(string_at(&event, PROMPT_KEYS).as_deref(), Some("t-1"), "{key}");
+            assert_eq!(
+                string_at(&event, PROMPT_KEYS).as_deref(),
+                Some("t-1"),
+                "{key}"
+            );
         }
     }
 }
