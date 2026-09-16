@@ -71,9 +71,12 @@ overriding an earlier one field by field:
 
 `osf config show` prints the values in force, and which layer set each one.
 
-The file: `--config <file>`, else `OSF_CONFIG`, else `~/.osf/config.toml`,
-else the compiled defaults apply. An unknown key is refused; the error
-names the bad key and lists the valid ones.
+The file: `--config <file>`, else `OSF_CONFIG`, else `osf.toml` at the
+current git repository's top level (found with `git rev-parse
+--show-toplevel`; skipped, not an error, outside a repository or without
+`git`), else `~/.osf/config.toml`, else the compiled defaults apply. An
+unknown key is refused; the error names the bad key and lists the valid
+ones.
 
 ```toml
 [writing]

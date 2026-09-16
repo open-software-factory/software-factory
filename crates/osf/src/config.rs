@@ -11,6 +11,11 @@ use std::path::{Path, PathBuf};
 /// The environment variable naming the config file, when `--config` is not given.
 pub const ENV_VAR: &str = "OSF_CONFIG";
 const HOME_FILE: &str = ".osf/config.toml";
+/// The file name this crate looks for at a git repository's own top level,
+/// between `OSF_CONFIG` and the home-directory file. Not configurable: a
+/// repository's own config lives at a fixed, predictable name, the same
+/// name this project's own `osf.toml` already uses.
+const REPO_CONFIG_FILE: &str = "osf.toml";
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
@@ -350,10 +355,43 @@ fn apply_env(layered: &mut Layered) -> Result<(), ConfigError> {
     Ok(())
 }
 
-/// The file to read: `--config`, else `OSF_CONFIG`, else `~/.osf/config.toml`.
+/// The file to read: `--config`, else `OSF_CONFIG`, else `osf.toml` at the
+/// current git repository's top level, else `~/.osf/config.toml`.
+///
+/// The repository-root layer is a guess, not something a caller asked
+/// for, so it only counts when the file is actually there: an empty
+/// repository must still fall through to the home file, the way a caller
+/// who names a file at `--config` or `OSF_CONFIG` does not, since asking
+/// for a specific file that turns out to be missing is a different
+/// situation, handled by [`read_config_file`](osf_lint_core::read_config_file)'s
+/// `explicit` flag instead.
 #[must_use]
 pub fn resolve_path(flag: Option<&Path>) -> Option<PathBuf> {
-    osf_lint_core::resolve_path(flag, ENV_VAR, HOME_FILE)
+    flag.map(Path::to_path_buf)
+        .or_else(|| std::env::var_os(ENV_VAR).map(PathBuf::from))
+        .or_else(|| repo_config_path().filter(|p| p.is_file()))
+        .or_else(|| osf_lint_core::resolve_path(None, ENV_VAR, HOME_FILE))
+}
+
+/// `osf.toml` at the top level of the git repository the current
+/// directory sits in, or `None` when there is no such repository, `git`
+/// is not on the path, or the command otherwise fails. None of those is
+/// an error: running outside a repository, or without `git` installed,
+/// must fall through to the next layer rather than fail.
+fn repo_config_path() -> Option<PathBuf> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let top_level = String::from_utf8(output.stdout).ok()?;
+    let top_level = top_level.trim();
+    if top_level.is_empty() {
+        return None;
+    }
+    Some(PathBuf::from(top_level).join(REPO_CONFIG_FILE))
 }
 
 /// Writes `exclude` into the merged tree, so `osf config show` reports
@@ -446,7 +484,8 @@ pub fn load(
 
 /// The config a gate run always gets: the compiled defaults, with nothing
 /// from any file, environment variable, or flag merged in, except
-/// `writing.must_explain_names`, read from the file at `OSF_CONFIG` or
+/// `writing.must_explain_names`, read from the file at `OSF_CONFIG`, else
+/// `osf.toml` at the current git repository's top level, else
 /// `~/.osf/config.toml` (never from `--config`, and never from the
 /// environment or a flag).
 ///
@@ -486,10 +525,10 @@ fn gate_loaded() -> Result<Loaded, ConfigError> {
     })
 }
 
-/// Reads `writing.must_explain_names` from the file at `OSF_CONFIG` or
-/// `~/.osf/config.toml`, or returns an empty list when no such file exists.
-/// See [`gate_loaded`] for why this one field is read under `--gate` when
-/// nothing else in the file is.
+/// Reads `writing.must_explain_names` from `resolve_path`'s file (never
+/// from `--config`, since `flag` is always `None` here), or returns an
+/// empty list when no such file exists. See [`gate_loaded`] for why this
+/// one field is read under `--gate` when nothing else in the file is.
 fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
     let Some(path) = resolve_path(None) else {
         return Ok(Vec::new());
@@ -550,10 +589,60 @@ mod tests {
         dir.to_string_lossy().into_owned()
     }
 
+    /// Like `serial`, but also changes the process's current directory to
+    /// `dir` for the closure's duration, restoring it afterwards. This is
+    /// still race-free: `resolve_path` is the only thing in this crate
+    /// that reads the current directory, every test that calls it already
+    /// goes through `serial` or this function, and both share one mutex,
+    /// so no two of them ever run at the same time.
+    fn serial_in_dir<T>(dir: &Path, vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
+        let guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let original = std::env::current_dir().expect("the current directory reads");
+        std::env::set_current_dir(dir).expect("chdir into the test directory");
+        for (k, v) in vars {
+            // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
+            unsafe { std::env::set_var(k, v) };
+        }
+        let result = f();
+        for (k, _) in vars {
+            // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
+            unsafe { std::env::remove_var(k) };
+        }
+        std::env::set_current_dir(original).expect("chdir back to the original directory");
+        drop(guard);
+        result
+    }
+
+    /// A fresh, empty directory that is not inside any git repository, so
+    /// a test for "no repository" is not fooled by this worktree's own
+    /// `osf.toml`, or by the machine happening to run the test suite
+    /// somewhere under a repository of its own.
+    fn outside_any_repo(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        dir
+    }
+
+    /// Runs `git init --quiet` in `dir`, so `git rev-parse --show-toplevel`
+    /// resolves to `dir` from anywhere under it.
+    fn init_repo(dir: &Path) {
+        let status = std::process::Command::new("git")
+            .arg("init")
+            .arg("--quiet")
+            .arg(dir)
+            .status()
+            .expect("git init runs");
+        assert!(status.success(), "git init failed for {}", dir.display());
+    }
+
     #[test]
     fn defaults_round_trip() {
+        let dir = outside_any_repo("osf-config-test-defaults");
         let home = empty_home();
-        let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
+        let loaded = serial_in_dir(&dir, &[("HOME", &home), ("USERPROFILE", &home)], || {
             load(None, &[], &[], false)
         })
         .expect("defaults load with no file");
@@ -783,32 +872,152 @@ mod tests {
     }
 
     /// `--config` itself stays ignored under gate, same as every other
-    /// field: only `OSF_CONFIG` or the home file reaches this exemption.
+    /// field: only `OSF_CONFIG`, the repository's own `osf.toml`, or the
+    /// home file reaches this exemption. Run from outside any repository,
+    /// so this worktree's own `osf.toml` cannot answer in the flag's place.
     #[test]
     fn gate_ignores_the_config_flag_for_must_explain_names() {
+        let outside = outside_any_repo("osf-config-test-gate-must-explain-flag-outside");
         let dir = std::env::temp_dir().join("osf-config-test-gate-must-explain-flag");
         std::fs::create_dir_all(&dir).expect("temp dir creates");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmust_explain_names = [\"Widgetly\"]\n")
             .expect("file writes");
         let home = empty_home();
-        let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
+        let loaded = serial_in_dir(&outside, &[("HOME", &home), ("USERPROFILE", &home)], || {
             load(Some(&path), &[], &[], true)
         })
         .expect("gate load succeeds");
         assert!(loaded.config.writing.must_explain_names.is_empty());
     }
 
-    /// No `OSF_CONFIG` and no home file: the exemption reads nothing
-    /// rather than erroring.
+    /// No `OSF_CONFIG`, no repository, and no home file: the exemption
+    /// reads nothing rather than erroring.
     #[test]
     fn gate_must_explain_names_is_empty_with_no_file() {
+        let outside = outside_any_repo("osf-config-test-gate-must-explain-empty-outside");
         let home = empty_home();
-        let loaded = serial(&[("HOME", &home), ("USERPROFILE", &home)], || {
+        let loaded = serial_in_dir(&outside, &[("HOME", &home), ("USERPROFILE", &home)], || {
             load(None, &[], &[], true)
         })
         .expect("gate load succeeds");
         assert!(loaded.config.writing.must_explain_names.is_empty());
+    }
+
+    /// `resolve_path` finds a git repository's own `osf.toml` from any
+    /// subdirectory, with no `OSF_CONFIG` set, the gap the earlier fix
+    /// left: a repository's config only ever loaded when something
+    /// pointed `OSF_CONFIG` at it by hand.
+    #[test]
+    fn the_repository_root_file_is_found_from_a_subdirectory() {
+        let dir = outside_any_repo("osf-config-test-repo-root-subdir");
+        init_repo(&dir);
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[writing]\nmust_explain_names = [\"Repotool\"]\n",
+        )
+        .expect("repo config writes");
+        let sub = dir.join("nested").join("deeper");
+        std::fs::create_dir_all(&sub).expect("nested dir creates");
+        let home = empty_home();
+
+        let loaded = serial_in_dir(&sub, &[("HOME", &home), ("USERPROFILE", &home)], || {
+            load(None, &[], &[], false)
+        })
+        .expect("load succeeds from a subdirectory");
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            vec!["Repotool".to_string()]
+        );
+    }
+
+    /// Running outside any git repository must not be an error: the
+    /// repository-root layer is simply skipped, falling through to the
+    /// home file, here also absent.
+    #[test]
+    fn outside_a_repository_the_layer_is_skipped_without_error() {
+        let dir = outside_any_repo("osf-config-test-repo-root-outside");
+        let home = empty_home();
+
+        let loaded = serial_in_dir(&dir, &[("HOME", &home), ("USERPROFILE", &home)], || {
+            load(None, &[], &[], false)
+        })
+        .expect("load still succeeds outside a repository");
+        assert!(loaded.config.writing.must_explain_names.is_empty());
+        assert!(loaded.file.is_none());
+    }
+
+    /// `OSF_CONFIG` still wins over a repository's own `osf.toml`.
+    #[test]
+    fn the_environment_variable_still_wins_over_the_repository_root_file() {
+        let dir = outside_any_repo("osf-config-test-repo-root-env-wins");
+        init_repo(&dir);
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[writing]\nmust_explain_names = [\"FromRepo\"]\n",
+        )
+        .expect("repo config writes");
+        let explicit = dir.join("explicit.toml");
+        std::fs::write(&explicit, "[writing]\nmust_explain_names = [\"FromEnv\"]\n")
+            .expect("explicit config writes");
+        let explicit_str = explicit.to_string_lossy().into_owned();
+
+        let loaded = serial_in_dir(&dir, &[("OSF_CONFIG", &explicit_str)], || {
+            load(None, &[], &[], false)
+        })
+        .expect("load succeeds");
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            vec!["FromEnv".to_string()]
+        );
+    }
+
+    /// `--config` still wins over a repository's own `osf.toml`, outside a
+    /// gate run.
+    #[test]
+    fn the_flag_still_wins_over_the_repository_root_file() {
+        let dir = outside_any_repo("osf-config-test-repo-root-flag-wins");
+        init_repo(&dir);
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[writing]\nmust_explain_names = [\"FromRepo\"]\n",
+        )
+        .expect("repo config writes");
+        let explicit = dir.join("explicit.toml");
+        std::fs::write(
+            &explicit,
+            "[writing]\nmust_explain_names = [\"FromFlag\"]\n",
+        )
+        .expect("explicit config writes");
+
+        let loaded = serial_in_dir(&dir, &[], || load(Some(&explicit), &[], &[], false))
+            .expect("load succeeds");
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            vec!["FromFlag".to_string()]
+        );
+    }
+
+    /// The gate still gets the repository's own `osf.toml`, same as it
+    /// gets one named by `OSF_CONFIG`, and every other field still falls
+    /// back to the compiled default.
+    #[test]
+    fn the_gate_still_gets_the_repository_root_file() {
+        let dir = outside_any_repo("osf-config-test-repo-root-gate");
+        init_repo(&dir);
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[writing]\nmust_explain_names = [\"Repotool\"]\nfiller = []\n",
+        )
+        .expect("repo config writes");
+
+        let loaded =
+            serial_in_dir(&dir, &[], || load(None, &[], &[], true)).expect("gate load succeeds");
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            vec!["Repotool".to_string()]
+        );
+        assert_eq!(loaded.config.writing.filler.len(), DEFAULT_FILLER.len());
     }
 
     /// The exact case the adversarial review proved: a config file that
