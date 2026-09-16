@@ -165,44 +165,37 @@ fn checked_findings(
         .collect()
 }
 
-/// The findings that block the stop, the word for one of them, and the
-/// instruction to give: a rewrite finding always wins, since redoing the
-/// whole message also fixes any clarify finding alongside it. `None` when
-/// nothing blocks.
+/// The findings that block the stop, the opening line, and the
+/// instruction to give. `None` when nothing blocks.
+///
+/// A message checked here has already been sent, so a rewrite corrects
+/// nothing: it puts a second copy under the first. [`resolve`] therefore
+/// never produces a rewrite for a transcript, and this asks for an
+/// addition instead. A rewrite finding is still handled, because this
+/// function takes findings from anywhere, but it says the same thing: add
+/// to what you sent, do not send it again.
+///
+/// [`resolve`]: osf_lint_core::resolve
 fn blocking_set(
     findings: &[lint::Finding],
 ) -> Option<(Vec<&lint::Finding>, &'static str, &'static str)> {
-    let rewrite: Vec<&lint::Finding> = findings
+    const OPENING: &str = "your message has been sent and cannot be changed";
+    const INSTRUCTION: &str = "Do not send that message again. Reply with a short follow-up \
+        that answers only the point(s) below, one sentence each, and nothing else.";
+
+    let blocking: Vec<&lint::Finding> = findings
         .iter()
-        .filter(|f| f.remediation == Remediation::Rewrite)
+        .filter(|f| matches!(f.remediation, Remediation::Rewrite | Remediation::Clarify))
         .collect();
-    if !rewrite.is_empty() {
-        let clarify = findings
-            .iter()
-            .filter(|f| f.remediation == Remediation::Clarify);
-        return Some((
-            rewrite.into_iter().chain(clarify).collect(),
-            "rewrite",
-            "Fix every line, then answer again.",
-        ));
+    if blocking.is_empty() {
+        return None;
     }
-    let clarify: Vec<&lint::Finding> = findings
-        .iter()
-        .filter(|f| f.remediation == Remediation::Clarify)
-        .collect();
-    if !clarify.is_empty() {
-        return Some((
-            clarify,
-            "correction",
-            "Fix only the named correction below. Do not rewrite the rest of the message.",
-        ));
-    }
-    None
+    Some((blocking, OPENING, INSTRUCTION))
 }
 
 fn build_reason(
     blocking: &[&lint::Finding],
-    verb: &str,
+    opening: &str,
     instruction: &str,
     attempt: u32,
     max_bounces: u32,
@@ -219,7 +212,7 @@ fn build_reason(
         ));
     }
     format!(
-        "osf writing-lint refused this message ({} {verb}(s), attempt {attempt} of {max_bounces}). {instruction}\n{}",
+        "osf writing-lint: {opening}. {} point(s) need a follow-up (attempt {attempt} of {max_bounces}). {instruction}\n{}",
         blocking.len(),
         lines.join("\n")
     )
@@ -506,23 +499,39 @@ mod tests {
         assert!(blocking_set(&findings).is_none());
     }
 
+    /// The message is already sent, so the only correction it can take is
+    /// an addition. Nothing here may ask for it to be sent again.
     #[test]
-    fn a_clarify_finding_blocks_asking_for_the_named_correction_only() {
+    fn a_clarify_finding_asks_for_a_follow_up_not_another_copy() {
         let findings = vec![finding_with(Remediation::Clarify)];
-        let (blocking, verb, _) = blocking_set(&findings).expect("clarify blocks");
+        let (blocking, opening, instruction) = blocking_set(&findings).expect("clarify blocks");
         assert_eq!(blocking.len(), 1);
-        assert_eq!(verb, "correction");
+        assert!(opening.contains("cannot be changed"), "{opening}");
+        assert!(
+            instruction.contains("Do not send that message again"),
+            "{instruction}"
+        );
+        assert!(
+            !instruction.to_lowercase().contains("rewrite"),
+            "a sent message cannot be rewritten: {instruction}"
+        );
     }
 
+    /// A rewrite finding cannot reach this from a transcript, since
+    /// `resolve` never produces one there. If it arrives from elsewhere it
+    /// gets the same answer: add to what was sent.
     #[test]
-    fn a_rewrite_finding_pulls_in_any_clarify_finding_too() {
+    fn a_rewrite_finding_is_answered_the_same_way_as_a_clarify() {
         let findings = vec![
             finding_with(Remediation::Rewrite),
             finding_with(Remediation::Clarify),
         ];
-        let (blocking, verb, _) = blocking_set(&findings).expect("rewrite blocks");
+        let (blocking, _, instruction) = blocking_set(&findings).expect("rewrite blocks");
         assert_eq!(blocking.len(), 2);
-        assert_eq!(verb, "rewrite");
+        assert!(
+            instruction.contains("Do not send that message again"),
+            "{instruction}"
+        );
     }
 
     /// Change 3: an advise finding's advice survives to `osf hook prompt`.
