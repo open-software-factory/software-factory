@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn every_rule_id_has_metadata() {
-        for id in crate::lint::rules::rule_ids() {
+        for id in crate::lints::writing::rules::rule_ids() {
             assert!(rule_meta(id).is_some(), "no metadata for {id}");
         }
     }

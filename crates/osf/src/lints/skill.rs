@@ -9,8 +9,9 @@
 //! the command and the gate both get the whole check and neither can be
 //! wired up to get less.
 
-use super::meta::RuleMeta;
-use super::{lint_writing, KnownNames};
+use super::writing::lint_writing;
+use super::KnownNames;
+use super::RuleMeta;
 use crate::config::{SkillConfig, WritingConfig};
 use osf_lint_core::{resolve, Class, Context, Finding, Group, Level, Mismatch};
 use regex::Regex;
