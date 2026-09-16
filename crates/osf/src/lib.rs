@@ -10,6 +10,7 @@ mod git;
 pub mod hook;
 pub mod lint;
 pub mod repository;
+pub mod review;
 pub mod risk;
 pub mod scan;
 pub mod status;

@@ -1,5 +1,5 @@
 use osf::status::GhClient;
-use osf::{config, exclude, hook, lint, risk, scan, status, verify};
+use osf::{config, exclude, hook, lint, review, risk, scan, status, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -105,6 +105,11 @@ enum Command {
     Status {
         #[command(subcommand)]
         action: StatusAction,
+    },
+    /// Publish a code review on a pull request.
+    Review {
+        #[command(subcommand)]
+        action: ReviewAction,
     },
 }
 
@@ -216,6 +221,32 @@ struct StatusRefreshArgs {
     /// editing the pull request.
     #[arg(long)]
     dry_run: bool,
+}
+
+#[derive(Subcommand)]
+enum ReviewAction {
+    /// Post review findings on a pull request as one native review, or as
+    /// a fallback comment when the reviewer and the author share one
+    /// GitHub identity.
+    Post(ReviewPostArgs),
+}
+
+#[derive(Args)]
+struct ReviewPostArgs {
+    /// The repository the pull request lives in, as `owner/repo`.
+    repo: String,
+    /// The pull request number.
+    pr: u64,
+    /// A JSON array of findings to post.
+    findings: PathBuf,
+    /// The review's summary body, in Markdown.
+    summary: PathBuf,
+    /// Build the review and print it, but post nothing.
+    #[arg(long)]
+    dry_run: bool,
+    /// Comma-separated actions that earn `REQUEST_CHANGES`. Else `REVIEW_BLOCK_ON`, else `must-fix,should-fix`.
+    #[arg(long)]
+    block_on: Option<String>,
 }
 
 #[derive(Args)]
@@ -470,6 +501,9 @@ fn main() -> ExitCode {
         Command::Status {
             action: StatusAction::Refresh(args),
         } => status_refresh_cmd(args),
+        Command::Review {
+            action: ReviewAction::Post(args),
+        } => review_post_cmd(args),
     }
 }
 
@@ -1174,6 +1208,72 @@ fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
     }
 }
 
+/// The block list `osf review post` uses: `--block-on`, else
+/// `REVIEW_BLOCK_ON`, else the compiled default.
+fn resolve_block_on(flag: Option<&str>) -> Vec<String> {
+    if let Some(raw) = flag {
+        return review::parse_block_on(raw);
+    }
+    if let Ok(raw) = std::env::var("REVIEW_BLOCK_ON") {
+        return review::parse_block_on(&raw);
+    }
+    review::parse_block_on("must-fix,should-fix")
+}
+
+/// Posts `plan` to `repo`#`pr`, retrying once as an advisory comment when
+/// GitHub refuses the formal review. Thin: the decision at each step lives
+/// in [`review::after_first_attempt`] and [`review::after_fallback_attempt`].
+fn post_plan(repo: &str, pr: u64, plan: &review::Plan, head_sha: &str) -> review::Outcome {
+    let payload = review::payload(
+        head_sha,
+        &plan.body,
+        plan.verdict.as_event(),
+        &plan.comments,
+    );
+    let attempt = review::post_via_gh(repo, pr, &payload);
+    match review::after_first_attempt(attempt, plan, head_sha) {
+        review::NextStep::Done(outcome) => outcome,
+        review::NextStep::RetryAsComment(advisory_payload) => {
+            eprintln!(
+                "osf review post: GitHub refuses {} from the pull request's own author; posting \
+                 as COMMENT with the verdict marked advisory. reviewDecision stays empty until \
+                 the reviewer has its own identity.",
+                plan.verdict.as_event()
+            );
+            let second_attempt = review::post_via_gh(repo, pr, &advisory_payload);
+            review::after_fallback_attempt(second_attempt, plan)
+        }
+    }
+}
+
+/// Prints the dry-run preview of `plan`: the verdict it would send and the
+/// payload GitHub would receive. Never touches the network.
+fn print_dry_run(args: &ReviewPostArgs, plan: &review::Plan, head_sha: &str) -> ExitCode {
+    println!(
+        "osf review post: dry run — {} with {} inline comment(s) on {}#{} at {head_sha}",
+        plan.verdict.as_event(),
+        plan.comments.len(),
+        args.repo,
+        args.pr
+    );
+    let payload = review::payload(
+        head_sha,
+        &plan.body,
+        plan.verdict.as_event(),
+        &plan.comments,
+    );
+    match serde_json::to_string_pretty(&payload) {
+        Ok(text) => {
+            println!("{text}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: cannot render the review as JSON: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
 fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
     let block_text = match read_to_string_or_exit(&args.block) {
         Ok(t) => t,
@@ -1412,6 +1512,92 @@ fn status_refresh_run(
         .map_err(to_exit)?;
     println!("osf status refresh: updated");
     Ok(ExitCode::SUCCESS)
+}
+
+/// Reports one of [`review::Outcome`]'s four cases: a formal review
+/// landed, it landed as a fallback comment, or nothing landed and why.
+fn report_outcome(outcome: review::Outcome, args: &ReviewPostArgs, head_sha: &str) -> ExitCode {
+    match outcome {
+        review::Outcome::Reviewed {
+            verdict,
+            n_inline,
+            id,
+            state,
+            url,
+        } => {
+            println!("posted review {id}: {state}, {url}");
+            println!(
+                "osf review post: {} with {n_inline} inline comment(s) on {}#{} at {head_sha}",
+                verdict.as_event(),
+                args.repo,
+                args.pr
+            );
+            ExitCode::SUCCESS
+        }
+        review::Outcome::FallbackComment {
+            verdict,
+            n_inline,
+            id,
+            state,
+            url,
+        } => {
+            println!("posted comment {id}: {state}, {url}");
+            println!(
+                "osf review post: COMMENT (advisory {}) with {n_inline} inline comment(s) on \
+                 {}#{} at {head_sha}",
+                verdict.as_event(),
+                args.repo,
+                args.pr
+            );
+            ExitCode::SUCCESS
+        }
+        review::Outcome::Rejected(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+        review::Outcome::PostFailed(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
+    let findings = match review::load_findings(&args.findings) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let summary = match std::fs::read_to_string(&args.summary) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("osf: cannot read {}: {e}", args.summary.display());
+            return ExitCode::from(2);
+        }
+    };
+    let block_on = resolve_block_on(args.block_on.as_deref());
+    let plan = match review::plan_review(&findings, &summary, &block_on) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let head_sha = match review::fetch_head_sha(&args.repo, args.pr) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+
+    if args.dry_run {
+        return print_dry_run(args, &plan, &head_sha);
+    }
+    let outcome = post_plan(&args.repo, args.pr, &plan, &head_sha);
+    report_outcome(outcome, args, &head_sha)
 }
 
 #[cfg(test)]
