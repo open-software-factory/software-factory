@@ -1,4 +1,5 @@
-use osf::{config, exclude, hook, lint, risk, scan, verify};
+use osf::status::GhClient;
+use osf::{config, exclude, hook, lint, risk, scan, status, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -100,6 +101,11 @@ enum Command {
     Verify(VerifyArgs),
     /// Report the blast radius of a change: low, normal, or high, with the reasons.
     Risk(RiskArgs),
+    /// Render or apply the status block at the top of a pull request description.
+    Status {
+        #[command(subcommand)]
+        action: StatusAction,
+    },
 }
 
 #[derive(Args)]
@@ -112,6 +118,66 @@ struct RiskArgs {
     /// for a single blast-radius answer, so it is refused.
     #[arg(long, value_enum)]
     format: Option<Format>,
+}
+
+#[derive(Subcommand)]
+enum StatusAction {
+    /// Print the status block for the given inputs.
+    Render(StatusRenderArgs),
+    /// Put the status block into a pull request description.
+    Apply(StatusApplyArgs),
+}
+
+#[derive(Args)]
+struct StatusRenderArgs {
+    /// A file holding a JSON object with a string "tier" field and a
+    /// "reasons" array of strings.
+    #[arg(long)]
+    tier_json: PathBuf,
+    /// Gate results, comma-separated: "name: passed" or "name: failed: reason".
+    #[arg(long)]
+    gates: String,
+    /// The issue line, such as "Closes owner/repo#1, the thing".
+    #[arg(long)]
+    issue: String,
+    /// One sentence describing the problem.
+    #[arg(long)]
+    problem: String,
+    /// One sentence describing the approach.
+    #[arg(long)]
+    approach: String,
+    /// The repository, as `owner/name`. Needed with `--pr` when `--review-json` is absent.
+    #[arg(long)]
+    repo: Option<String>,
+    /// The pull request number.
+    #[arg(long)]
+    pr: Option<String>,
+    /// A file holding `gh pr view --json reviewDecision,reviews,comments`
+    /// output, instead of fetching it.
+    #[arg(long)]
+    review_json: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct StatusApplyArgs {
+    /// The rendered block to put into the description.
+    #[arg(long)]
+    block: PathBuf,
+    /// The repository, as `owner/name`. Needed with `--pr` when `--body-file` is absent.
+    #[arg(long)]
+    repo: Option<String>,
+    /// The pull request number.
+    #[arg(long)]
+    pr: Option<String>,
+    /// Print the result instead of updating the pull request.
+    #[arg(long)]
+    dry_run: bool,
+    /// Read the description from this file instead of `gh pr view`.
+    #[arg(long)]
+    body_file: Option<PathBuf>,
+    /// Write the result to this file instead of `gh pr edit`.
+    #[arg(long)]
+    out: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -357,6 +423,12 @@ fn main() -> ExitCode {
         Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
         Command::Verify(args) => verify_cmd(args, cli.config.as_deref()),
         Command::Risk(args) => risk_cmd(args),
+        Command::Status {
+            action: StatusAction::Render(args),
+        } => status_render_cmd(args),
+        Command::Status {
+            action: StatusAction::Apply(args),
+        } => status_apply_cmd(args),
     }
 }
 
@@ -1010,6 +1082,130 @@ fn risk_cmd(args: &RiskArgs) -> ExitCode {
         Format::Sarif => unreachable!("rejected above"),
     }
     ExitCode::SUCCESS
+}
+
+fn read_to_string_or_exit(path: &Path) -> Result<String, ExitCode> {
+    std::fs::read_to_string(path).map_err(|e| {
+        eprintln!("osf: cannot read {}: {e}", path.display());
+        ExitCode::from(2)
+    })
+}
+
+fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
+    let tier_text = match read_to_string_or_exit(&args.tier_json) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
+    let review_text = if let Some(path) = &args.review_json {
+        match read_to_string_or_exit(path) {
+            Ok(t) => t,
+            Err(code) => return code,
+        }
+    } else {
+        let (Some(repo), Some(pr)) = (&args.repo, &args.pr) else {
+            eprintln!("osf status render: needs --repo and --pr, or --review-json");
+            return ExitCode::from(2);
+        };
+        match status::RealGh.view_review(repo, pr) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    };
+    let input = status::RenderInput {
+        tier_json: &tier_text,
+        gates: &args.gates,
+        issue: &args.issue,
+        problem: &args.problem,
+        approach: &args.approach,
+        review_json: &review_text,
+    };
+    match status::render(&input) {
+        Ok(block) => {
+            print!("{block}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
+    let block_text = match read_to_string_or_exit(&args.block) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
+
+    if args.body_file.is_some() || args.out.is_some() {
+        let (Some(body_path), Some(out_path)) = (&args.body_file, &args.out) else {
+            eprintln!("osf status apply: --body-file needs --out");
+            return ExitCode::from(2);
+        };
+        let body = match std::fs::read_to_string(body_path) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!(
+                    "osf: cannot read {}: {e}; nothing was changed",
+                    body_path.display()
+                );
+                return ExitCode::from(2);
+            }
+        };
+        return match status::apply(&body, &block_text) {
+            Ok(new_body) => match std::fs::write(out_path, &new_body) {
+                Ok(()) => {
+                    println!("osf status apply: wrote {}", out_path.display());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("osf: cannot write {}: {e}", out_path.display());
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("osf: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    let (Some(repo), Some(pr)) = (&args.repo, &args.pr) else {
+        eprintln!("osf status apply: needs --repo and --pr, or --body-file and --out");
+        return ExitCode::from(2);
+    };
+    let client = status::RealGh;
+    let body = match client.view_body(repo, pr) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let new_body = match status::apply(&body, &block_text) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    if args.dry_run {
+        print!("{new_body}");
+        return ExitCode::SUCCESS;
+    }
+    match client.edit_body(repo, pr, &new_body) {
+        Ok(()) => {
+            println!("osf status apply: applied to {repo}#{pr}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
 }
 
 #[cfg(test)]
