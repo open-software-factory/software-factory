@@ -1089,4 +1089,29 @@ mod tests {
             .iter()
             .any(|f| f.rule == "expectation-outside-fixtures"));
     }
+
+    /// A skill fixture's `SKILL.md` carries an `osf-expect-skill` marker,
+    /// never a plain `osf-expect` one. The writing lint, run over that same
+    /// file directly the way `osf lint writing` does over every changed
+    /// Markdown file, must not read that marker as its own: a skill rule
+    /// id such as `skill-description-no-trigger` never fires as a writing
+    /// rule, so treating it as a writing declaration would always report it
+    /// missing. The two checkers must stay blind to each other's marker.
+    #[test]
+    fn a_skill_declaration_is_invisible_to_the_writing_lint() {
+        let skill_text = "---\nname: no-trigger\ndescription: Checks a folder for common problems before a release.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing and note any file over ten megabytes.\n2. Check that a license file exists.\n3. Check that a readme file exists.\n4. Write one line per problem found, with the file path.\n\nStop when every check has run once, whether or not it found a problem.\n\n<!-- osf-expect-skill\nskill-description-no-trigger\n-->\n";
+        assert!(lint::parse_expectation(skill_text).is_none());
+        let (findings, tally) = lint_it(
+            "crates/osf/tests/fixtures/skills/no-trigger/SKILL.md",
+            skill_text,
+        );
+        assert_eq!(
+            tally.declared, 0,
+            "an osf-expect-skill marker is not a writing declaration"
+        );
+        assert!(
+            findings.iter().all(|f| !f.rule.starts_with("expectation-")),
+            "{findings:?}"
+        );
+    }
 }

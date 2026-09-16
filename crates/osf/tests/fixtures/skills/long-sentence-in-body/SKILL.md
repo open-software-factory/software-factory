@@ -16,6 +16,6 @@ This one very long sentence intentionally uses far more than twenty five words i
 
 Stop when the check has run once.
 
-<!-- osf-expect
+<!-- osf-expect-skill
 long-sentence
 -->

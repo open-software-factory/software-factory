@@ -16,5 +16,5 @@ Stop when every check has run once, whether or not it found a problem.
 
 See [the notes file](references/notes.md) for the full list of checks.
 
-<!-- osf-expect
+<!-- osf-expect-skill
 -->

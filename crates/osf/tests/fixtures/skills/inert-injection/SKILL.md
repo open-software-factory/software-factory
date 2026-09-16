@@ -7,6 +7,6 @@ Read the example below before using this skill.
 
 Never write `!`cmd` in a skill body.
 
-<!-- osf-expect
+<!-- osf-expect-skill
 skill-context-injection
 -->

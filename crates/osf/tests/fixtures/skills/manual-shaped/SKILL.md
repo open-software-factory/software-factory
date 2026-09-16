@@ -13,7 +13,7 @@ Tool works by scanning file sizes once per run.
 
 Layout describes every required file for a project.
 
-<!-- osf-expect
+<!-- osf-expect-skill
 skill-descriptive-over-imperative
 skill-first-section-is-overview
 skill-reads-as-manual

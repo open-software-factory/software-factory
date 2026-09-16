@@ -10,6 +10,6 @@ Run the migration in order.
 3. Update the config file.
 4. Start the service again.
 
-<!-- osf-expect
+<!-- osf-expect-skill
 skill-no-done-condition
 -->

@@ -119,12 +119,14 @@ pub fn lint_skill(
 
 /// Runs [`lint_skill`], then applies the same declared-fixture contract the
 /// writing lint already honours: a folder under `tests/fixtures` may carry
-/// an `osf-expect` marker in its `SKILL.md` naming the exact rule ids the
-/// whole folder must produce, file by file (a bare rule id names
+/// an `osf-expect-skill` marker in its `SKILL.md` naming the exact rule ids
+/// the whole folder must produce, file by file (a bare rule id names
 /// `SKILL.md`; a `<file> <rule>` line names another file, such as a script
-/// under `scripts/`). `label` is the folder's path as the caller names it,
-/// used only to decide whether that contract applies; it need not be where
-/// `dir` actually lives on disk.
+/// under `scripts/`). This marker has its own name, distinct from the
+/// writing lint's own `osf-expect`, so a run of `osf lint writing` over the
+/// same `SKILL.md` never reads it as a writing declaration. `label` is the
+/// folder's path as the caller names it, used only to decide whether that
+/// contract applies; it need not be where `dir` actually lives on disk.
 ///
 /// A match returns no findings at all. A mismatch reports one
 /// `expectation-missing` or `expectation-unexpected` finding per rule id
@@ -180,16 +182,17 @@ pub fn lint_skill_checked(
     Ok(expectation_findings(&mismatch))
 }
 
-/// A warning that an `osf-expect` marker outside a `tests/fixtures` path has
-/// no effect: the folder is still linted normally, findings and all.
+/// A warning that an `osf-expect-skill` marker outside a `tests/fixtures`
+/// path has no effect: the folder is still linted normally, findings and
+/// all.
 fn outside_fixtures_warning() -> Finding {
     Finding::new(
         "expectation-outside-fixtures",
         Level::Warning,
         1,
-        "an osf-expect marker only applies under a tests/fixtures path; ignoring it here"
+        "an osf-expect-skill marker only applies under a tests/fixtures path; ignoring it here"
             .to_string(),
-        "osf-expect".to_string(),
+        "osf-expect-skill".to_string(),
     )
 }
 

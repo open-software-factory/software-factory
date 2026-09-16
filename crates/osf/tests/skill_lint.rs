@@ -341,11 +341,11 @@ fn the_cli_names_the_engine_that_ran_the_deferred_checks() {
     assert!(stdout.contains("name format"), "{stdout}");
 }
 
-/// Tests for the `osf-expect` fixture contract as applied to a skill
-/// folder: an exact match, never an exclude list. A folder is checked
-/// under a label that names a `tests/fixtures` path, whether or not its
-/// files actually live under one, so the contract can be tested without
-/// committing more fixtures.
+/// Tests for the `osf-expect-skill` fixture contract as applied to a
+/// skill folder: an exact match, never an exclude list. A folder is
+/// checked under a label that names a `tests/fixtures` path, whether or
+/// not its files actually live under one, so the contract can be tested
+/// without committing more fixtures.
 mod checked {
     use super::{known, SkillConfig, WritingConfig};
     use osf::lint::skill::lint_skill_checked;
@@ -397,7 +397,7 @@ mod checked {
     fn a_matching_declaration_produces_no_findings() {
         let dir = temp_dir("matching");
         let text = format!(
-            "{}\n<!-- osf-expect\nskill-first-person\n-->\n",
+            "{}\n<!-- osf-expect-skill\nskill-first-person\n-->\n",
             first_person_skill("matching")
         );
         write_skill(&dir, &text);
@@ -412,7 +412,7 @@ mod checked {
     fn an_undeclared_finding_fails() {
         let dir = temp_dir("undeclared");
         let text = format!(
-            "{}\n<!-- osf-expect\n-->\n",
+            "{}\n<!-- osf-expect-skill\n-->\n",
             first_person_skill("undeclared")
         );
         write_skill(&dir, &text);
@@ -430,7 +430,7 @@ mod checked {
     fn a_declared_finding_that_stops_appearing_fails() {
         let dir = temp_dir("stopped-firing");
         let text = format!(
-            "{}\n<!-- osf-expect\nskill-first-person\n-->\n",
+            "{}\n<!-- osf-expect-skill\nskill-first-person\n-->\n",
             third_person_skill("stopped-firing")
         );
         write_skill(&dir, &text);
@@ -448,7 +448,7 @@ mod checked {
     fn a_scan_rule_still_cannot_be_declared() {
         let dir = temp_dir("scan-rule-declared");
         let text = format!(
-            "{}\n<!-- osf-expect\nskill-first-person\nscan-denied-name\n-->\n",
+            "{}\n<!-- osf-expect-skill\nskill-first-person\nscan-denied-name\n-->\n",
             first_person_skill("scan-rule-declared")
         );
         write_skill(&dir, &text);
@@ -466,7 +466,7 @@ mod checked {
     fn a_declaration_can_name_a_script_file() {
         let dir = temp_dir("script-declared");
         let text = format!(
-            "{}\n<!-- osf-expect\nscripts/install.sh skill-script-unpinned\n-->\n",
+            "{}\n<!-- osf-expect-skill\nscripts/install.sh skill-script-unpinned\n-->\n",
             third_person_skill("script-declared")
         );
         write_skill(&dir, &text);
@@ -488,7 +488,7 @@ mod checked {
     fn a_marker_outside_fixtures_is_inert() {
         let dir = temp_dir("outside-fixtures");
         let text = format!(
-            "{}\n<!-- osf-expect\n-->\n",
+            "{}\n<!-- osf-expect-skill\n-->\n",
             first_person_skill("outside-fixtures")
         );
         write_skill(&dir, &text);

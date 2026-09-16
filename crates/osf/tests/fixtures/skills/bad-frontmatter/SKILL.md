@@ -13,6 +13,6 @@ Run this skill to check a folder for basic problems before it ships.
 
 Stop when every check has run once, whether or not it found a problem.
 
-<!-- osf-expect
+<!-- osf-expect-skill
 agnix:AS-016
 -->
