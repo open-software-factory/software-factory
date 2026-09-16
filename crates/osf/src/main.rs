@@ -98,6 +98,11 @@ struct StopArgs {
     /// Refuse the stop at most this many times per turn, then let it through.
     #[arg(long, default_value_t = 2)]
     max_bounces: u32,
+    /// How to report a refusal: `exit-code` or `decision-json`. Guessed from
+    /// the event's key spelling when not given. An adapter that builds the
+    /// event itself should always pass this.
+    #[arg(long, value_enum)]
+    answer: Option<hook::Answer>,
 }
 
 fn main() -> ExitCode {
@@ -108,7 +113,7 @@ fn main() -> ExitCode {
         } => lint_writing(&args),
         Command::Hook {
             event: HookEvent::Stop(args),
-        } => hook::stop(args.known_names.as_deref(), args.max_bounces),
+        } => hook::stop(args.known_names.as_deref(), args.max_bounces, args.answer),
     }
 }
 
