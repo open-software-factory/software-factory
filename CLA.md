@@ -29,8 +29,8 @@ else in the wording is changed.
 3. The source promises the contributor that the Foundation will not
    use a contribution in a way that is "inconsistent with its
    nonprofit status and bylaws". SilverOakApps is a registered
-   business name in Australia, not a nonprofit body, so that promise
-   cannot be kept as written. This copy replaces it with a promise
+   business name, not a nonprofit body, so that promise cannot be
+   kept as written. This copy replaces it with a promise
    this project can keep: an open-source licence already granted for a
    release is never taken back. The same paragraph also states plainly
    that a later release may carry different licence terms. Read that
