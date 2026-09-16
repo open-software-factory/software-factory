@@ -721,19 +721,44 @@ mod tests {
         // Only the document's own top-level title is exempt from needing
         // evidence for a run found there; an ordinary heading elsewhere,
         // such as a case-study section title, can still name something
-        // real, so it keeps the older, narrower rule.
+        // real, so it keeps the older, narrower rule. Its first word is
+        // still dropped as position-forced, so the surviving run, having
+        // lost the word that opened the heading, is treated as opening it
+        // in turn and stays a warning rather than an error.
         let filler = "It ran. ".repeat(300);
         let t =
             format!("# Notes\n\n{filler}\n\n### Prison Architect\n\nStudy the spatial systems.\n");
-        assert_eq!(errors_of(&t), vec!["undefined-name"], "{:?}", lint(&t));
+        let found = lint(&t);
+        let architect = found
+            .iter()
+            .find(|f| f.excerpt == "Architect")
+            .unwrap_or_else(|| panic!("Architect not reported: {found:?}"));
+        assert_eq!(architect.rule, "undefined-name-at-start");
+        assert_eq!(architect.level, Level::Warning);
     }
 
     #[test]
-    fn a_short_table_cell_label_is_not_a_sentence_start() {
+    fn a_table_header_row_label_is_not_a_sentence_start() {
         // False positive 2: a table header row's short column labels, "Ran
         // before" and "Runs now", were flagged as if a sentence began there.
         let t = "| Check | Ran before | Runs now |\n|---|---|---|\n| Build | Yes | Yes |\n";
         assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
+
+    #[test]
+    fn a_table_data_row_naming_a_real_tool_is_still_reported() {
+        // Only the header row is a column label; a body row is prose about
+        // one specific entry, so a short cell there naming a real,
+        // unexplained tool still needs its own explanation, the same as a
+        // short table header must not, and a long sentence in a cell still
+        // does.
+        let t = "| Tool | Category |\n|---|---|\n| Canny | feedback tool |\n";
+        assert_eq!(
+            rules_of(t),
+            vec!["undefined-name-at-start"],
+            "{:?}",
+            lint(t)
+        );
     }
 
     #[test]
@@ -765,6 +790,38 @@ mod tests {
         // document, glossed in place by the parenthetical straight after it.
         let t = "This is a contributor agreement.\n\nContributions (present and future) that you submit to the project are licensed under the terms below.\n";
         assert!(rules_of(t).is_empty(), "{:?}", rules_of(t));
+    }
+
+    #[test]
+    fn a_document_title_stays_clean_even_when_its_own_words_recur_in_the_introduction() {
+        // A real legal document restates its own title, in full, in its own
+        // opening paragraph. That recurrence must not count as evidence
+        // that the title's ordinary words are a name: it only proves the
+        // title is echoed, which almost any document's introduction does.
+        let filler = "It ran. ".repeat(300);
+        let t = format!(
+            "# Individual Contributor License Agreement\n\n{filler}\n\nThis file reproduces the Foundation's Individual Contributor License Agreement, version 2 (\"the ICLA\").\n"
+        );
+        let names: Vec<&str> = rules_of(&t)
+            .into_iter()
+            .filter(|r| r.starts_with("undefined-name"))
+            .collect();
+        assert!(names.is_empty(), "{:?}", lint(&t));
+    }
+
+    #[test]
+    fn a_merged_run_is_still_described_despite_a_possessive_breaking_it() {
+        // A run's joined name is its words with a single space between
+        // them; it never reappears character for character once a
+        // possessive breaks it in the source, as it does here between
+        // "Foundation" and "Individual". Anchoring on the run's first word
+        // still finds the parenthetical explaining it.
+        let t = "This reproduces the Apache Software Foundation's Individual Contributor project agreement, version 2 (\"the ICA\").";
+        let names: Vec<&str> = rules_of(t)
+            .into_iter()
+            .filter(|r| r.starts_with("undefined-name"))
+            .collect();
+        assert!(names.is_empty(), "{:?}", lint(t));
     }
 
     #[test]

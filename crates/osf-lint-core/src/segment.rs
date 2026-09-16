@@ -19,6 +19,10 @@ pub struct TextUnit {
     pub line: usize,
     /// A table cell: names and phrases are checked, length is not.
     pub in_table: bool,
+    /// A cell in a table's header row, a column label rather than a
+    /// sentence: its first word is never a name candidate, the same as a
+    /// heading's.
+    pub in_table_header: bool,
     /// A heading: its first word is never a name candidate.
     pub is_heading: bool,
     /// The document's own top-level title, its first `#` heading: a title
@@ -62,6 +66,7 @@ struct Block {
     /// break the block joins, so a later offset in `text` can be mapped back.
     breaks: Vec<(usize, usize, usize)>,
     in_table: bool,
+    in_table_header: bool,
     is_heading: bool,
     is_document_title: bool,
     in_list_item: bool,
@@ -73,6 +78,7 @@ impl Block {
         line: usize,
         start_offset: usize,
         in_table: bool,
+        in_table_header: bool,
         is_heading: bool,
         is_document_title: bool,
         in_list_item: bool,
@@ -83,6 +89,7 @@ impl Block {
             text: String::new(),
             breaks: Vec::new(),
             in_table,
+            in_table_header,
             is_heading,
             is_document_title,
             in_list_item,
@@ -141,6 +148,10 @@ struct Walk {
     /// is ever the document's title.
     seen_h1: bool,
     in_cell: bool,
+    /// Whether the table row now open is the header row: pulldown-cmark
+    /// closes it with its own `TableHead` tag, distinct from a body row's
+    /// `TableRow`.
+    in_table_head: bool,
     /// Nesting depth inside a list item, so a nested list does not close its
     /// parent item early.
     list_item_depth: u32,
@@ -159,6 +170,7 @@ impl Walk {
 
     fn open(&mut self, doc_lines: &[usize], offset: usize) -> &mut Block {
         let in_table = self.in_cell;
+        let in_table_header = self.in_cell && self.in_table_head;
         let is_heading = self.in_heading;
         let is_document_title = self.in_document_title;
         let in_list_item = self.list_item_depth > 0;
@@ -167,6 +179,7 @@ impl Walk {
                 line_at(doc_lines, offset),
                 offset,
                 in_table,
+                in_table_header,
                 is_heading,
                 is_document_title,
                 in_list_item,
@@ -271,6 +284,16 @@ fn step(
             walk.in_document_title = false;
             walk
         }
+        Event::Start(Tag::TableHead) => {
+            walk = walk.flush();
+            walk.in_table_head = true;
+            walk
+        }
+        Event::End(TagEnd::TableHead) => {
+            walk = walk.flush();
+            walk.in_table_head = false;
+            walk
+        }
         Event::Start(Tag::TableCell) => {
             walk = walk.flush();
             walk.in_cell = true;
@@ -314,6 +337,7 @@ fn paragraph_unit(block: &Block) -> TextUnit {
         text: block.text.clone(),
         line: block.line,
         in_table: block.in_table,
+        in_table_header: block.in_table_header,
         is_heading: block.is_heading,
         is_document_title: block.is_document_title,
         in_list_item: block.in_list_item,
@@ -328,6 +352,7 @@ fn sentence_units(block: &Block) -> Vec<TextUnit> {
             line: block.line_at(offset),
             text,
             in_table: block.in_table,
+            in_table_header: block.in_table_header,
             is_heading: block.is_heading,
             is_document_title: block.is_document_title,
             in_list_item: block.in_list_item,
@@ -356,6 +381,7 @@ pub fn parse(text: &str) -> Doc {
         span: 0..text.len(),
         line: 1,
         in_table: false,
+        in_table_header: false,
         is_heading: false,
         is_document_title: false,
         in_list_item: false,

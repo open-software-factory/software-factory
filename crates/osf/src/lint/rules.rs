@@ -450,9 +450,6 @@ fn parenthetical(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
 
 /// A capitalised name on first use, with no description in that sentence or the next.
 pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: &mut Vec<Finding>) {
-    /// A table cell at or under this many words is treated as a label; a
-    /// longer cell holds a real sentence and keeps the ordinary rule.
-    const SHORT_CELL_WORDS: usize = 4;
     static DEFINER: OnceLock<Regex> = OnceLock::new();
     let definer = re(
         &DEFINER,
@@ -466,29 +463,37 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: 
     // A real product name is almost never also spelled in lowercase in the
     // same document. A word that opens a sentence and is spelled lowercase
     // elsewhere is ordinary English, not a name that needs a description.
-    // A short table cell is often a label rather than a sentence, so a
-    // one-word cell header (never capitalised anywhere else) gets the same
-    // treatment even when it is never spelled lowercase, such as "Runs" in
-    // a "Runs now" column head; a cell holding a real sentence, such as a
-    // table row's own description, keeps the ordinary rule.
-    let ordinary_at_start = |name: &str, at_start: bool, in_table: bool, cell_words: usize| {
+    // A table's header row is a column label rather than a sentence, so a
+    // header cell such as "Runs" in a "Runs now" column head gets the same
+    // treatment even when it is never spelled lowercase; a body row's cell,
+    // such as a "Tool" column naming a real product, keeps the ordinary
+    // rule, since it is prose about a specific row, not a column label.
+    let ordinary_at_start = |name: &str, at_start: bool, in_table_header: bool| {
         at_start
             && !name.contains(' ')
             && (lowercase.contains(&name.to_lowercase())
-                || (in_table && cell_words <= SHORT_CELL_WORDS && !mid_capitalized.contains(name)))
+                || (in_table_header && !mid_capitalized.contains(name)))
     };
     // The described-in-the-next-sentence check only counts when that
     // sentence actually mentions the name again; otherwise an unrelated
     // colon or parenthesis two sentences away from the real subject would
-    // wrongly clear a genuine finding.
+    // wrongly clear a genuine finding. The search anchors on the run's
+    // first word rather than the whole joined name: a run's name is its
+    // words with a single space between them, which never reappears
+    // character for character once a possessive or other suffix breaks it
+    // in the source, as "the Foundation's Work" does against a run of
+    // "Foundation Work". The first word alone still finds a real
+    // explanation next to it without demanding the whole run repeat
+    // itself verbatim.
     let described = |i: usize, name: &str| {
+        let anchor = name.split(' ').next().unwrap_or(name);
         let after_name = reduced
             .get(i)
-            .and_then(|here| here.split_once(name).map(|(_, rest)| rest))
+            .and_then(|here| here.split_once(anchor).map(|(_, rest)| rest))
             .unwrap_or("");
         let next_after_name = reduced
             .get(i + 1)
-            .and_then(|next| next.split_once(name).map(|(_, rest)| rest));
+            .and_then(|next| next.split_once(anchor).map(|(_, rest)| rest));
         definer.is_match(after_name) || next_after_name.is_some_and(|rest| definer.is_match(rest))
     };
     // A name used in a table and nowhere else gets no defining sentence from
@@ -498,37 +503,36 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: 
     let prose_names: HashSet<String> = sentences
         .iter()
         .filter(|s| !s.in_table)
-        .flat_map(|s| candidate_names(s, &lowercase, &mid_capitalized, &cfg.sentence_starters))
+        .flat_map(|s| candidate_names(s, &lowercase, &cfg.sentence_starters))
         .map(|c| c.name)
         .collect();
     let first_uses = sentences
         .iter()
         .enumerate()
         .flat_map(|(i, s)| {
-            let cell_words = s.words().len();
-            candidate_names(s, &lowercase, &mid_capitalized, &cfg.sentence_starters)
+            candidate_names(s, &lowercase, &cfg.sentence_starters)
                 .into_iter()
-                .map(move |c| (i, s.in_table, cell_words, c.name, c.at_start))
+                .map(move |c| (i, s.in_table, s.in_table_header, c.name, c.at_start))
         })
         .filter(|(_, in_table, _, name, _)| !(*in_table && prose_names.contains(name)))
         .scan(
             HashSet::new(),
-            |seen, (i, in_table, cell_words, name, at_start)| {
+            |seen, (i, _in_table, in_table_header, name, at_start)| {
                 Some(
                     seen.insert(name.clone())
-                        .then_some((i, in_table, cell_words, name, at_start)),
+                        .then_some((i, in_table_header, name, at_start)),
                 )
             },
         )
         .flatten();
     out.extend(
         first_uses
-            .filter(|(i, in_table, cell_words, name, at_start)| {
+            .filter(|(i, in_table_header, name, at_start)| {
                 !is_known(name)
                     && !described(*i, name)
-                    && !ordinary_at_start(name, *at_start, *in_table, *cell_words)
+                    && !ordinary_at_start(name, *at_start, *in_table_header)
             })
-            .filter_map(|(i, _, _, name, at_start)| {
+            .filter_map(|(i, _, name, at_start)| {
                 let s = sentences.get(i)?;
                 Some(if at_start {
                     finding(
@@ -563,7 +567,6 @@ struct Candidate {
 fn candidate_names(
     s: &TextUnit,
     lowercase: &HashSet<String>,
-    mid_capitalized: &HashSet<String>,
     extra_starters: &[String],
 ) -> Vec<Candidate> {
     let words = s.words();
@@ -595,23 +598,34 @@ fn candidate_names(
     );
     let mut run = run;
     flush_run(&mut names, &mut run);
+    // A heading's first word is always dropped above, whether or not it
+    // was itself position-forced, so the run that survives it opens the
+    // heading in every sense but the literal one. The same reason a
+    // sentence-initial name is only a warning, that its capital may come
+    // from its position, still applies: only a word already name-shaped on
+    // its own, with an internal capital, is exempt from it.
+    if s.is_heading {
+        if let Some(first) = names.first_mut() {
+            if !has_inner_capital(first.name.split(' ').next().unwrap_or(&first.name)) {
+                first.at_start = true;
+            }
+        }
+    }
     // The document's own title describes the document; it does not
     // introduce a name that needs explaining, so a run found there is kept
-    // only when at least one of its words has its own evidence of being a
-    // name, an internal capital or a capital already seen away from the
-    // start of some other unit. Judging the run as a whole, rather than
-    // dropping each unevidenced word before it can join one, keeps a real
-    // compound such as "Factory Runway" together instead of losing it
-    // because only one of its two words carries the evidence. An ordinary
-    // heading elsewhere in the document keeps the narrower, older rule
-    // below, since it is as likely to be naming something real, such as
-    // "Prison Architect", as it is to be a plain descriptive label.
+    // only when at least one of its words is unambiguously name-shaped, an
+    // internal capital such as "RimWorld"'s. A capital seen elsewhere in
+    // running prose is not used as evidence here: a document's own title
+    // is often echoed in its own introduction, so that signal is no
+    // signal at all for the words making up the title itself. Judging the
+    // run as a whole, rather than dropping each word before it can join
+    // one, keeps a real compound such as "Factory Runway" together. An
+    // ordinary heading elsewhere in the document keeps the narrower, older
+    // rule below, since it is as likely to be naming something real, such
+    // as "Prison Architect", as it is to be a plain descriptive label.
     names.retain(|c| {
         if s.is_document_title {
-            let has_evidence = c
-                .name
-                .split(' ')
-                .any(|w| has_inner_capital(w) || mid_capitalized.contains(w));
+            let has_evidence = c.name.split(' ').any(has_inner_capital);
             if !has_evidence {
                 return false;
             }
