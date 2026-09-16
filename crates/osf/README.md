@@ -16,13 +16,33 @@ the rules, because the rules are compiled in.
 The same command works for every agent that has a stop hook. Put the binary on
 the path, then:
 
-| Agent | Where the hook goes |
-|---|---|
-| Claude Code | `hooks.Stop` in `~/.claude/settings.json` or `.claude/settings.json` |
-| Codex | `~/.codex/hooks.json`, same shape as Claude Code's `hooks` object. Hooks need trust before they run. |
-| GitHub Copilot CLI | `~/.copilot/hooks/*.json` with an `agentStop` entry |
-| dsh | the `@deepseek-ai/dsh-hooks-claude-code` bridge, pointed at the same hooks file. Its Stop event carries no message text yet, so the check cannot refuse there. |
-| omp | a hook under `.omp/hooks/post/` that calls `osf lint writing` on the last message. omp cannot refuse a turn from a hook, so this only reports. |
+Agents are listed in the order this project supports them. Each is a coding
+agent with a command line of its own.
+
+| Agent | Where the hook goes | Can it be refused? |
+|---|---|---|
+| dsh | the `@deepseek-ai/dsh-hooks-claude-code` bridge, pointed at the same hooks file | no: the bridge's stop event carries a session id and an empty transcript path, and no message text at all |
+| pi | an extension on `agent_end`, which receives the turn's messages, answering with `pi.sendUserMessage` | yes, by sending the findings as the next message |
+| omp | an extension under `.omp/hooks/pre/` on `session_stop` | yes: that hook returns `{"decision":"block","reason":...}`, so pass `--answer decision-json` |
+| opencode2 | a plugin added with `opencode2 plugin add`, on the `event` hook | no: that hook returns nothing, so the plugin reports the findings only |
+| Codex | `~/.codex/hooks.json`, same shape as Claude Code's `hooks` object. Hooks need trust before they run. | yes, by exit code |
+| Claude Code | `hooks.Stop` in `~/.claude/settings.json` or `.claude/settings.json` | yes, by exit code |
+| GitHub Copilot CLI | `~/.copilot/hooks/*.json` with an `agentStop` entry | yes, by a JSON decision on standard output |
+
+### The agents do not agree on key names
+
+There is no shared schema for a stop event, and an event names neither its
+agent nor its format. Claude Code, Codex and the dsh bridge write
+`session_id`. Copilot CLI writes `sessionId`. The plugin interface of
+opencode2 writes `sessionID`. The command reads every spelling, so no wiring
+needs to translate.
+
+Two refusals are also on offer and they are not interchangeable. An agent
+reading the exit code ignores standard output, and an agent reading standard
+output treats exit code 2 as the check crashing. The command guesses from the
+key spelling, which is right for every agent above. An adapter that builds the
+event itself should not rely on the guess: pass `--answer exit-code` or
+`--answer decision-json` and the guess is skipped.
 
 A hooks file for Claude Code, Codex and the dsh bridge:
 
