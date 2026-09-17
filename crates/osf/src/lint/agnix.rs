@@ -84,13 +84,15 @@ fn did_not_run(message: String) -> Finding {
         .from_analyser(SOURCE, Evidence::Deterministic)
 }
 
-/// `osf` has two levels and the other engine has three. An informational
-/// diagnostic is reported as a warning rather than dropped: a gate that
-/// silently discards a level is a gate with a gap in it.
+/// The other engine's three levels map one to one. An informational
+/// diagnostic stays informational: reported, never dropped, and never
+/// promoted, so a note from the engine cannot block a push under
+/// `--strict` the way a warning does.
 fn to_finding(diagnostic: &agnix_core::Diagnostic) -> Finding {
     let level = match diagnostic.level {
         DiagnosticLevel::Error => Level::Error,
-        DiagnosticLevel::Warning | DiagnosticLevel::Info => Level::Warning,
+        DiagnosticLevel::Warning => Level::Warning,
+        DiagnosticLevel::Info => Level::Info,
     };
     let message = match &diagnostic.suggestion {
         Some(suggestion) => format!("{}; {suggestion}", diagnostic.message),
@@ -113,8 +115,23 @@ fn to_finding(diagnostic: &agnix_core::Diagnostic) -> Finding {
 
 #[cfg(test)]
 mod tests {
-    use super::{lint_file, AGNIX_VERSION};
-    use std::path::Path;
+    use super::{lint_file, to_finding, AGNIX_VERSION};
+    use osf_lint_core::Level;
+    use std::path::{Path, PathBuf};
+
+    /// The engine's three levels arrive as three levels. An informational
+    /// note must not come out as a warning, because a warning turns into
+    /// an error under `--strict` and would block a push over a remark.
+    #[test]
+    fn each_engine_level_maps_to_its_own_level() {
+        let file = PathBuf::from("SKILL.md");
+        let info = agnix_core::Diagnostic::info(file.clone(), 3, 1, "AS-001", "a note");
+        let warning = agnix_core::Diagnostic::warning(file.clone(), 3, 1, "AS-001", "a caution");
+        let error = agnix_core::Diagnostic::error(file, 3, 1, "AS-001", "a fault");
+        assert_eq!(to_finding(&info).level, Level::Info);
+        assert_eq!(to_finding(&warning).level, Level::Warning);
+        assert_eq!(to_finding(&error).level, Level::Error);
+    }
 
     /// The version in the note must be the version that runs. A stale note
     /// would tell a reader to check a rule against the wrong rule set.

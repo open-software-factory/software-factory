@@ -52,21 +52,23 @@ impl fmt::Display for ConfigError {
 
 impl std::error::Error for ConfigError {}
 
-/// A rule's level as set in a config file: `error`, `warning`, or `off`.
-/// A later change may let one rule's entry be a level or a table of levels
-/// keyed by context, read as an untagged enum wrapped around this type; a
-/// file with only plain levels, like every file today, still parses then.
+/// A rule's level as set in a config file: `error`, `warning`, `info`, or
+/// `off`. A later change may let one rule's entry be a level or a table of
+/// levels keyed by context, read as an untagged enum wrapped around this
+/// type; a file with only plain levels, like every file today, still
+/// parses then.
 #[derive(Clone, Copy, Debug, serde::Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LevelSetting {
     Error,
     Warning,
+    Info,
     Off,
 }
 
 /// Applies each rule's level override to a batch of findings, by rule id.
-/// `off` drops the finding; `error` or `warning` sets its level. A rule
-/// with no entry keeps the level its own check chose.
+/// `off` drops the finding; `error`, `warning`, or `info` sets its level.
+/// A rule with no entry keeps the level its own check chose.
 #[must_use]
 pub fn apply_level_overrides(
     findings: Vec<crate::Finding>,
@@ -83,6 +85,10 @@ pub fn apply_level_overrides(
             }),
             Some(LevelSetting::Warning) => Some(crate::Finding {
                 level: crate::Level::Warning,
+                ..f
+            }),
+            Some(LevelSetting::Info) => Some(crate::Finding {
+                level: crate::Level::Info,
                 ..f
             }),
         })

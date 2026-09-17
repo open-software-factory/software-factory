@@ -35,6 +35,7 @@ fn to_group(name: &str, source: &str, finding: &Finding) -> Group<'static> {
     let level = match finding.level {
         Level::Error => SnippetLevel::ERROR,
         Level::Warning => SnippetLevel::WARNING,
+        Level::Info => SnippetLevel::INFO,
     };
     let text = line_text(source, finding.line);
     let span = excerpt_span(&text, &finding.excerpt);

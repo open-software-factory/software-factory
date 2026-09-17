@@ -442,6 +442,7 @@ fn read_inputs(paths: &[PathBuf]) -> Result<Vec<(String, String)>, ExitCode> {
 struct Tally {
     errors: usize,
     warnings: usize,
+    infos: usize,
     suppressed: usize,
     excluded: usize,
     declared: usize,
@@ -456,6 +457,7 @@ impl Tally {
                 match f.level {
                     lint::Level::Error => self.errors += 1,
                     lint::Level::Warning => self.warnings += 1,
+                    lint::Level::Info => self.infos += 1,
                 }
             }
         }
@@ -565,7 +567,7 @@ fn finish_lint_one(
 ) -> Vec<lint::Finding> {
     if args.strict {
         for f in &mut findings {
-            if f.suppressed.is_none() {
+            if f.suppressed.is_none() && f.level == lint::Level::Warning {
                 f.level = lint::Level::Error;
             }
         }
@@ -697,8 +699,8 @@ fn lint_writing(
         }
     } else if format == Format::Human {
         println!(
-            "osf lint writing: {} error(s), {} warning(s), {} suppressed, {} excluded, {} declared",
-            tally.errors, tally.warnings, tally.suppressed, tally.excluded, tally.declared
+            "osf lint writing: {} error(s), {} warning(s), {} info, {} suppressed, {} excluded, {} declared",
+            tally.errors, tally.warnings, tally.infos, tally.suppressed, tally.excluded, tally.declared
         );
     }
     if tally.errors > 0 {
@@ -767,7 +769,7 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
             let mut findings = osf_lint_core::apply_level_overrides(raw_findings, &cfg.levels);
             if args.strict {
                 for f in &mut findings {
-                    if f.suppressed.is_none() {
+                    if f.suppressed.is_none() && f.level == lint::Level::Warning {
                         f.level = lint::Level::Error;
                     }
                 }
@@ -802,8 +804,8 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
         }
     } else if format == Format::Human {
         println!(
-            "osf lint skill: {} error(s), {} warning(s), {} suppressed",
-            tally.errors, tally.warnings, tally.suppressed
+            "osf lint skill: {} error(s), {} warning(s), {} info, {} suppressed",
+            tally.errors, tally.warnings, tally.infos, tally.suppressed
         );
         println!("{}", lint::agnix::checked_note());
     }
@@ -896,8 +898,8 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
         }
     } else if format == Format::Human {
         println!(
-            "osf scan: {} error(s), {} warning(s), {} suppressed, {} excluded",
-            tally.errors, tally.warnings, tally.suppressed, tally.excluded
+            "osf scan: {} error(s), {} warning(s), {} info, {} suppressed, {} excluded",
+            tally.errors, tally.warnings, tally.infos, tally.suppressed, tally.excluded
         );
     }
     if tally.errors > 0 {
