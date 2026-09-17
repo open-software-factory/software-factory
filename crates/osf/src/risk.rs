@@ -108,8 +108,17 @@ const SMALL_CHANGE_FILES: usize = 2;
 const SMALL_CHANGE_LINES: usize = 80;
 
 /// A directory whose content counts as code for the docs-only rule, even
-/// when a file inside it is itself Markdown.
-const CODE_DIRS: &str = r"^(\.agents|\.claude|\.codex|\.opencode)/";
+/// when a file inside it is itself Markdown: the shared `.agents` folder,
+/// and every supported coding agent's own directory, read from the one
+/// list in `crate::agents` so no agent is named here on its own.
+fn code_dirs_pattern() -> String {
+    let dirs = std::iter::once(".agents")
+        .chain(crate::agents::state_dirs())
+        .map(regex::escape)
+        .collect::<Vec<_>>()
+        .join("|");
+    format!("^({dirs})/")
+}
 const DOC_FILES: &str = r"\.(md|txt|rst|adoc)$|^docs/";
 const TEST_FILES: &str = r"(^|/)(tests?|spec|specs|__tests__|test_data|fixtures)/|[._-](test|tests|spec)\.[a-z]+$|_test\.go$|Tests?\.cs$|Test\.java$|Tests?\.kt$|_test\.dart$";
 const UI_PATTERN: &str = r"\.(dart|tsx|jsx|vue|svelte|xaml|razor|html|css|scss)$|(^|/)(screens?|widgets?|pages?|views?|components?)/";
@@ -284,7 +293,7 @@ fn tier_for(
     }
 
     if !matches!(tier, Tier::High) {
-        let code_dirs = built_in(CODE_DIRS);
+        let code_dirs = built_in(&code_dirs_pattern());
         let doc_files = built_in(DOC_FILES);
         let test_files = built_in(TEST_FILES);
         let docs_only = files.iter().all(|f| !is_non_doc(&code_dirs, &doc_files, f));
