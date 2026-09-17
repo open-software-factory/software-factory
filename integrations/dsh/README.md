@@ -29,6 +29,19 @@ bridge's own listener never stops the chain. Register both and both run.
 Register this alone to check the writing. Register the bridge as well to
 drive the other hook events from a hook file.
 
+## Building it
+
+The source is TypeScript under `src/`, compiled to `dist/` before use. `dist/`
+is not committed; the consumer builds it.
+
+```
+npm ci
+npm run build
+```
+
+`main`, `exports`, and the patch this package ships all point at `dist/`, so
+a checkout with no build has nothing to load.
+
 ## Installing it
 
 Two steps. Installing the package is not one of them on its own: dsh runs a
@@ -89,13 +102,40 @@ to check, and no warning.
 ## Checking it
 
 ```
-node --test
+npm run check
+npm run test
 ```
 
-No path argument. Node finds every `*.test.js` on its own, and a `test/`
-argument is read as a module name on Windows and fails to load.
+`check` type-checks the source without emitting, lints it, and checks its
+formatting. `test` builds, then runs the compiled tests in `dist/test/`.
 
-The two decisions this plugin makes are plain functions in `src/check.js`,
+Both scripts run with `dist` as the working directory for the actual test
+invocation, `node --test` with no path argument. Node finds every
+`*.test.js` under the current directory on its own; a directory path handed
+to `node --test` (`dist/test`, or even the bare word `test`) is read as a
+module name on Windows and fails to load, so no path argument is passed.
+
+The two decisions this plugin makes are plain functions in `src/check.ts`,
 which imports nothing from the harness. The tests run anywhere, including
 where dsh is not installed. What talks to the harness is wiring and carries
 no decision of its own.
+
+## The toolchain
+
+Type-checking and emit use `tsgo`, the native-code preview of the TypeScript
+compiler (package `@typescript/native-preview`), pinned to an exact version.
+A `typescript`-based fallback script is kept for the day `tsgo` cannot emit
+something this package needs; as of this writing `tsgo` builds and
+type-checks this package without the fallback.
+
+Linting uses `oxlint` with the `correctness`, `suspicious`, and `pedantic`
+rule categories plus its TypeScript plugin, all as errors. Formatting uses
+`oxfmt`, run with `--check` so a formatting drift fails the same way a lint
+finding does. Both are pinned to exact versions in `package.json`.
+
+`tsconfig.json` turns on the strict compiler settings this project expects:
+`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
+`noImplicitOverride`, `noPropertyAccessFromIndexSignature`,
+`noFallthroughCasesInSwitch`, `useUnknownInCatchVariables`,
+`verbatimModuleSyntax`, and `isolatedModules`, targeting `ES2022` with
+`NodeNext` modules and resolution.

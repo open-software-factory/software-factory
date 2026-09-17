@@ -13,6 +13,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dsh-plugin:
+    name: dsh-plugin
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/dsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: integrations/dsh/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check, lint, and check formatting
+        run: npm run check
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test
+
   hygiene:
     name: hygiene
     runs-on: ubuntu-latest

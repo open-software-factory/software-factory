@@ -7,6 +7,18 @@
  * carries no decision of its own.
  */
 
+/** One content block of a message, as much of its shape as this module reads. */
+export interface SessionMessageBlock {
+  readonly type: string;
+  readonly text?: string;
+}
+
+/** One message in the session log, as much of its shape as this module reads. */
+export interface SessionMessage {
+  readonly role: string;
+  readonly content?: readonly SessionMessageBlock[];
+}
+
 /**
  * The text of the last assistant message, or `""` when there is none.
  *
@@ -18,12 +30,15 @@
  * an empty reply, so a turn that ended in a tool call still gets its last
  * real reply checked.
  */
-export function lastAssistantText(messages) {
+export function lastAssistantText(messages: readonly SessionMessage[]): string {
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
     if (message?.role !== "assistant") continue;
     const text = (message.content ?? [])
-      .filter((block) => block?.type === "text" && typeof block.text === "string")
+      .filter(
+        (block): block is SessionMessageBlock & { text: string } =>
+          block.type === "text" && typeof block.text === "string",
+      )
       .map((block) => block.text)
       .join("\n")
       .trim();
@@ -31,6 +46,19 @@ export function lastAssistantText(messages) {
   }
   return "";
 }
+
+/** What the check reported when it ran, or the shape of a run that never started. */
+export interface CheckOutcome {
+  readonly code?: number;
+  readonly stderr?: string;
+  readonly error?: string;
+}
+
+/** What the check's exit meant, once read. */
+export type CheckResult =
+  | { readonly kind: "did-not-run"; readonly detail: string }
+  | { readonly kind: "refused"; readonly reason: string }
+  | { readonly kind: "passed" };
 
 /**
  * What the check's exit meant.
@@ -43,7 +71,7 @@ export function lastAssistantText(messages) {
  * looks exactly like a check that ran and found nothing, and reading the
  * first as the second is how a gate goes quiet without anyone noticing.
  */
-export function readResult({ code, stderr, error }) {
+export function readResult({ code, stderr, error }: CheckOutcome): CheckResult {
   if (error) return { kind: "did-not-run", detail: error };
   const reason = (stderr ?? "").trim();
   if (code === 2 && reason !== "") return { kind: "refused", reason };
