@@ -11,6 +11,5 @@ Run the install script, then use the tool.
 Stop once the version prints without an error.
 
 <!-- osf-expect-skill
-undefined-name-at-start
 scripts/install.sh skill-script-unpinned
 -->

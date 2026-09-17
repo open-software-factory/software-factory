@@ -10,3 +10,20 @@ project_owner = "open-software-factory"
 # Stated here so the scan never asks the host on every commit. It changes no
 # rule: every rule applies whether a repository is public or private.
 repository_visibility = "public"
+
+[writing]
+# Real tools this repository names in its own docs, plainly spelled, with
+# no internal capital, digit, or domain suffix to give the writing lint's
+# undefined-name rule anything to go on by itself. Read even under --gate;
+# see gate_loaded in crates/osf/src/config.rs for why that is safe.
+#
+#   - Linear: an issue tracker, docs/architecture/open-questions.md:54 and
+#     docs/research/ux/ux-references.md:123.
+#   - Canny: a feedback-management tool, docs/vision/product-lifecycle.md:423.
+#   - Figma: a design tool, named repeatedly across
+#     docs/research/ux/design-workflow-landscape.md and
+#     docs/vision/product-lifecycle.md.
+#   - Jira: an issue tracker, docs/architecture/open-questions.md:54.
+#   - Intercom: a support and feedback tool, docs/vision/product-lifecycle.md:426.
+#   - Zendesk: a support and feedback tool, docs/vision/product-lifecycle.md:426.
+must_explain_names = ["Linear", "Canny", "Figma", "Jira", "Intercom", "Zendesk"]

@@ -138,11 +138,14 @@ pub const RULE_META: &[RuleMeta] = &[
         Comprehension,
         "house",
         "### What it does\n\
-         Flags a capitalised name on its first use, when neither that \
-         sentence nor the next one explains what it is.\n\
+         Flags a capitalised name on the repository's own curated \
+         must-explain list (`writing.must_explain_names` in its config \
+         file), on its first use, when neither that sentence nor the next \
+         one explains what it is.\n\
          ### Why it is bad\n\
          A reader who does not already know the name cannot follow the rest \
-         of the text.\n\
+         of the text. The must-explain list names, one by one, the terms \
+         this repository has decided are worth that certainty.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
@@ -157,20 +160,26 @@ pub const RULE_META: &[RuleMeta] = &[
         Style,
         "house",
         "### What it does\n\
-         The softer twin of undefined-name. Fires when the undefined name \
-         opens the sentence, because \"Vale runs fast\" and \"Build runs \
-         fast\" parse the same way, and the code cannot tell a name from an \
-         ordinary verb in that position.\n\
+         The weaker twin of undefined-name, for a name not on the \
+         must-explain list. Fires when a capitalised word or run merely \
+         looks like a name: an internal capital such as \"GitHub\" or \
+         \"DuckDB\", a digit in one of its words, a domain-like suffix such \
+         as \".dev\", or a multi-word run repeated more than once in the \
+         document. None of these prove a name; a bare capital letter with \
+         none of them, such as a word that only opens a sentence, is never \
+         reported at all.\n\
          ### Why it is bad\n\
-         Same as undefined-name, but the code is less sure it found a real \
-         name, so it warns instead of erring.\n\
+         Same reason as undefined-name, but the evidence only suggests a \
+         name rather than confirming one, so it warns instead of erring, \
+         and the finding carries statistical evidence rather than \
+         deterministic.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: Vale runs fast.\n\
-         Good: Vale, our prose checker, runs fast."
+         Bad: DuckDB runs fast.\n\
+         Good: DuckDB, our embedded database, runs fast."
     ),
     rule_meta!(
         "long-sentence",

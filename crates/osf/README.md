@@ -71,9 +71,12 @@ overriding an earlier one field by field:
 
 `osf config show` prints the values in force, and which layer set each one.
 
-The file: `--config <file>`, else `OSF_CONFIG`, else `~/.osf/config.toml`,
-else the compiled defaults apply. An unknown key is refused; the error
-names the bad key and lists the valid ones.
+The file: `--config <file>`, else `OSF_CONFIG`, else `osf.toml` at the
+current git repository's top level (found with `git rev-parse
+--show-toplevel`; skipped, not an error, outside a repository or without
+`git`), else `~/.osf/config.toml`, else the compiled defaults apply. An
+unknown key is refused; the error names the bad key and lists the valid
+ones.
 
 ```toml
 [writing]
@@ -82,7 +85,7 @@ warn_sentence_words = 20    # warning above this
 max_numerals = 2
 short_text_words = 500
 known_names = ["Vale", "Tauri"]
-sentence_starters = ["Piece", "State"]
+must_explain_names = ["Linear", "Canny"]  # errors, even under --gate; see below
 filler = ["delve", "leverage"]            # replaces the built-in list
 chat_local_phrases = ["as discussed"]     # replaces the built-in list
 chat_local_labels = ["phase", "item"]     # "phase 2" and the like
@@ -95,6 +98,11 @@ reference-without-link = "error"
 Today, `known_names` and `writing.levels` change what `osf lint writing` and
 `osf hook stop` report. The other fields are resolved and shown by
 `osf config show`; wiring them into each rule's own check is later work.
+
+`must_explain_names` is read from the file even under `--gate`, unlike
+every other setting here: it can only add `undefined-name` errors, never
+remove one, so a change cannot use it to loosen its own gate.
+
 Every environment variable maps to one field:
 
 | Variable | Field |
@@ -107,7 +115,7 @@ Every environment variable maps to one field:
 | `OSF_WRITING_CHAT_LOCAL_PHRASES` | `writing.chat_local_phrases` (comma-separated) |
 | `OSF_WRITING_CHAT_LOCAL_LABELS` | `writing.chat_local_labels` (comma-separated) |
 | `OSF_WRITING_KNOWN_NAMES` | `writing.known_names` (comma-separated) |
-| `OSF_WRITING_SENTENCE_STARTERS` | `writing.sentence_starters` (comma-separated) |
+| `OSF_WRITING_MUST_EXPLAIN_NAMES` | `writing.must_explain_names` (comma-separated) |
 
 `osf lint writing` also takes `--max-sentence-words`, `--warn-sentence-words`,
 `--max-numerals`, and `--short-text-words`, each overriding the file and the
