@@ -3,7 +3,7 @@ name = "osf-lint-core"
 version = "0.1.0"
 edition = "2021"
 description = "Reusable engine for Open Software Factory linters: findings, known names, text segmentation, and output rendering"
-license = "MIT"
+license = "Apache-2.0 OR MIT"
 rust-version = "1.85"
 
 [lints]
