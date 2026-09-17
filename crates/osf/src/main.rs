@@ -137,9 +137,6 @@ struct StatusRenderArgs {
     /// Gate results, comma-separated: "name: passed" or "name: failed: reason".
     #[arg(long)]
     gates: String,
-    /// The issue line, such as "Closes open-software-factory/software-factory#1, the thing".
-    #[arg(long)]
-    issue: String,
     /// One sentence describing the problem.
     #[arg(long)]
     problem: String,
@@ -1117,7 +1114,6 @@ fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
     let input = status::RenderInput {
         tier_json: &tier_text,
         gates: &args.gates,
-        issue: &args.issue,
         problem: &args.problem,
         approach: &args.approach,
         review_json: &review_text,

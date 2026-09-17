@@ -30,7 +30,6 @@ fn base_input<'a>(gates: &'a str, review_json: &'a str) -> RenderInput<'a> {
     RenderInput {
         tier_json: TIER_JSON,
         gates,
-        issue: "Closes open-software-factory/software-factory#1, the thing",
         problem: "The problem.",
         approach: "The approach.",
         review_json,
@@ -54,18 +53,11 @@ fn ready_is_yes_when_every_gate_passed_and_the_verdict_is_approve() {
     let review = advisory_two_rounds_review();
     let block = render_ok("build: passed, tests (412): passed", &review);
     assert_eq!(row(&block, "Ready"), "| **Ready** | yes |");
-    assert_eq!(
-        row(&block, "Verified"),
-        "| **Verified** | 2 of 2 passed: build, tests (412) |"
-    );
-    assert!(row(&block, "Risk").contains("normal \u{2014} 3 files, 120 lines"));
+    assert_eq!(row(&block, "Verified"), "| **Verified** | all 2 passed |");
+    assert!(row(&block, "Risk").contains("normal: 3 files, 120 lines"));
     assert_eq!(
         row(&block, "Review"),
-        "| **Review** | APPROVE (advisory) \u{2014} 1 round, 6 findings, 5 fixed, 1 justified, 0 deferred |"
-    );
-    assert_eq!(
-        row(&block, "Issue"),
-        "| **Issue** | Closes open-software-factory/software-factory#1, the thing |"
+        "| **Review** | APPROVE (advisory): 1 round, 6 findings, 5 fixed, 1 justified, 0 deferred |"
     );
     assert!(block.contains("**Problem**: The problem."));
     assert!(block.contains("**Approach**: The approach."));
@@ -83,7 +75,7 @@ fn a_failed_gate_blocks_and_keeps_its_reason_while_trimming_names() {
     );
     assert_eq!(
         row(&block, "Verified"),
-        "| **Verified** | 1 of 2 passed: build (api); failed: lint: 3 warnings |"
+        "| **Verified** | 1 of 2 passed, failed: lint (3 warnings) |"
     );
 }
 
@@ -97,7 +89,7 @@ fn a_native_changes_requested_decision_blocks_with_no_advisory_mark() {
     );
     assert_eq!(
         row(&block, "Review"),
-        "| **Review** | REQUEST_CHANGES \u{2014} no round yet |"
+        "| **Review** | REQUEST_CHANGES: no round yet |"
     );
 }
 
@@ -108,7 +100,7 @@ fn a_native_approved_decision_is_used_as_is() {
     assert_eq!(row(&block, "Ready"), "| **Ready** | yes |");
     assert_eq!(
         row(&block, "Review"),
-        "| **Review** | APPROVE \u{2014} no round yet |"
+        "| **Review** | APPROVE: no round yet |"
     );
 }
 
@@ -126,7 +118,7 @@ fn review_required_blocks_even_with_an_advisory_approve() {
     );
     assert_eq!(
         row(&block, "Review"),
-        "| **Review** | APPROVE (advisory) \u{2014} no round yet; human approval required |"
+        "| **Review** | APPROVE (advisory): no round yet; human approval required |"
     );
 }
 
@@ -157,7 +149,6 @@ fn review_json_that_is_not_json_at_all_is_refused() {
     let input = RenderInput {
         tier_json: TIER_JSON,
         gates: "build: passed",
-        issue: "i",
         problem: "p",
         approach: "a",
         review_json: "",
@@ -170,7 +161,6 @@ fn review_json_with_a_non_object_review_is_refused() {
     let input = RenderInput {
         tier_json: TIER_JSON,
         gates: "build: passed",
-        issue: "i",
         problem: "p",
         approach: "a",
         review_json: r#"{"reviews":[1]}"#,

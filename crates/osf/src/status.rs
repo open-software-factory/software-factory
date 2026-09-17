@@ -36,12 +36,11 @@ impl fmt::Display for StatusError {
 impl std::error::Error for StatusError {}
 
 /// Everything [`render`] needs, as text: a file's worth of tier JSON, the
-/// gate results, the three free-text fields, and the review JSON. Reading
+/// gate results, the two free-text fields, and the review JSON. Reading
 /// files or calling `gh` is the caller's job, so this stays a pure function.
 pub struct RenderInput<'a> {
     pub tier_json: &'a str,
     pub gates: &'a str,
-    pub issue: &'a str,
     pub problem: &'a str,
     pub approach: &'a str,
     pub review_json: &'a str,
@@ -52,13 +51,12 @@ pub struct RenderInput<'a> {
 /// review; otherwise it names the one blocking reason.
 ///
 /// # Errors
-/// Returns an error when a required field is empty, the tier JSON does not
-/// have a string `tier` and a `reasons` array of strings, a gate entry is
-/// not `name: passed` or `name: failed: <reason>`, or the review JSON does
-/// not have the shape of `gh pr view --json reviewDecision,reviews,comments`.
+/// Returns an error when `problem` or `approach` is empty, the tier JSON
+/// does not have a string `tier` and a `reasons` array of strings, a gate
+/// entry is not `name: passed` or `name: failed: <reason>`, or the review
+/// JSON does not have the shape of `gh pr view --json
+/// reviewDecision,reviews,comments`.
 pub fn render(input: &RenderInput) -> Result<String, StatusError> {
-    require_non_empty("gates", input.gates)?;
-    require_non_empty("issue", input.issue)?;
     require_non_empty("problem", input.problem)?;
     require_non_empty("approach", input.approach)?;
 
@@ -73,15 +71,13 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
          | | |\n\
          |---|---|\n\
          | **Ready** | {ready} |\n\
-         | **Risk** | {tier} \u{2014} {reasons} |\n\
+         | **Risk** | {tier}: {reasons} |\n\
          | **Verified** | {verified} |\n\
          | **Review** | {review_line} |\n\
-         | **Issue** | {issue} |\n\
          \n\
          **Problem**: {problem}\n\
          **Approach**: {approach}\n\
          {END}\n",
-        issue = input.issue,
         problem = input.problem,
         approach = input.approach,
     ))
@@ -247,21 +243,25 @@ fn round_line(comments: &[Value]) -> Option<String> {
 #[derive(Default)]
 struct GateSummary {
     total: usize,
-    passed: Vec<String>,
+    passed: usize,
     failed_names: Vec<String>,
     failed_desc: Vec<String>,
 }
 
 impl GateSummary {
+    /// The checks tab already lists every check by name, so this names only
+    /// the failing ones: `all N passed`, `no checks reported yet`, or `P of
+    /// N passed, failed: name (reason), ...`.
     fn verified_text(&self) -> String {
-        let mut text = format!("{} of {} passed", self.passed.len(), self.total);
-        if !self.passed.is_empty() {
-            write!(text, ": {}", self.passed.join(", ")).expect("writing to a string never fails");
+        if self.total == 0 {
+            return "no checks reported yet".to_string();
         }
-        if !self.failed_desc.is_empty() {
-            write!(text, "; failed: {}", self.failed_desc.join(", "))
-                .expect("writing to a string never fails");
+        if self.failed_desc.is_empty() {
+            return format!("all {} passed", self.total);
         }
+        let mut text = format!("{} of {} passed", self.passed, self.total);
+        write!(text, ", failed: {}", self.failed_desc.join(", "))
+            .expect("writing to a string never fails");
         text
     }
 }
@@ -288,7 +288,7 @@ fn parse_gates(spec: &str) -> Result<GateSummary, StatusError> {
         let result = item[colon + 1..].trim();
         summary.total += 1;
         if result.strip_prefix("passed").is_some() {
-            summary.passed.push(name);
+            summary.passed += 1;
         } else if let Some(rest) = result.strip_prefix("failed") {
             let reason = rest
                 .trim()
@@ -299,7 +299,7 @@ fn parse_gates(spec: &str) -> Result<GateSummary, StatusError> {
             if reason.is_empty() {
                 summary.failed_desc.push(name);
             } else {
-                summary.failed_desc.push(format!("{name}: {reason}"));
+                summary.failed_desc.push(format!("{name} ({reason})"));
             }
         } else {
             return Err(StatusError(format!(
@@ -355,9 +355,9 @@ fn review_and_ready(gates: &GateSummary, review: &ReviewFields) -> (String, Stri
     let mut review_line = match &review.round_line {
         Some(line) => {
             let (k, word, counts) = round_parts(line);
-            format!("{verdict_display}{advisory_suffix} \u{2014} {k} {word}, {counts}")
+            format!("{verdict_display}{advisory_suffix}: {k} {word}, {counts}")
         }
-        None => format!("{verdict_display}{advisory_suffix} \u{2014} no round yet"),
+        None => format!("{verdict_display}{advisory_suffix}: no round yet"),
     };
     if human_required {
         review_line.push_str("; human approval required");
