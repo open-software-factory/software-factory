@@ -10,7 +10,7 @@
 
 use osf::config::WritingConfig;
 use osf::lints::writing::lint_writing;
-use osf::lints::{load_known_names, Context, KnownNames, Level, RULE_META};
+use osf::lints::{load_known_names, Context, KnownNames, Level, RULE_META, SKILL_RULE_META};
 
 fn known() -> KnownNames {
     load_known_names(&[], None).expect("built-in names load")
@@ -40,6 +40,20 @@ fn every_writing_rule_doc_passes_its_own_lint() {
     let known = known();
     let cfg = WritingConfig::default();
     let failures: Vec<String> = RULE_META
+        .iter()
+        .filter_map(|meta| {
+            let findings = blocking_findings(meta.doc, &known, &cfg);
+            (!findings.is_empty()).then(|| format!("{}: {findings:?}", meta.id))
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[test]
+fn every_skill_rule_doc_passes_the_writing_lint() {
+    let known = known();
+    let cfg = WritingConfig::default();
+    let failures: Vec<String> = SKILL_RULE_META
         .iter()
         .filter_map(|meta| {
             let findings = blocking_findings(meta.doc, &known, &cfg);

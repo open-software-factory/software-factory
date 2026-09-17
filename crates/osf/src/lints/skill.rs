@@ -698,7 +698,7 @@ fn unpinned_findings<'a>(
     latest.into_iter().chain(npm).chain(pip)
 }
 
-const SKILL_RULE_META: &[RuleMeta] = &[
+pub const SKILL_RULE_META: &[RuleMeta] = &[
     RuleMeta {
         id: "skill-description-no-trigger",
         class: Class::Evidence,
@@ -714,17 +714,16 @@ const SKILL_RULE_META: &[RuleMeta] = &[
               description with no stated condition is never matched to the situation it \
               was written for.\n\
               ### Class\n\
-              evidence: Anthropic's own Agent Skills documentation describes the \
-              selection mechanism this rule protects; no controlled measurement number \
-              is cited alongside it.\n\
+              evidence: that mechanism is described in Anthropic's own documentation for \
+              the feature. No controlled measurement number is cited alongside it.\n\
               ### Citation\n\
-              Anthropic's Agent Skills documentation: a model chooses which skill to load \
-              by reading its name and description alone, before any of the skill's own \
-              body loads.\n\
+              Anthropic's Agent Skills documentation explains that a model chooses which \
+              skill to load by reading its name and description alone. That choice \
+              happens before any of the skill's own body loads.\n\
               ### Example\n\
               Bad: description: Checks a folder for common problems.\n\
-              Good: description: Use this skill when the user wants a quick health check \
-              of a project folder.",
+              Good: Use this skill when the user wants a quick health check of a project \
+              folder.",
         exception: None,
     },
     RuleMeta {
@@ -733,14 +732,14 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         group: Group::Style,
         citation: "house",
         doc: "### What it does\n\
-              Flags a skill body where at least two of three signals fire together: the \
-              opening reads as background rather than a step, more lines describe the \
-              skill than tell an agent what to do, and a run of numbered steps never says \
-              when to stop.\n\
+              Flags a skill body where at least two of three signals fire together. One \
+              signal is an opening that reads as background rather than a step. Another \
+              is more lines describing the skill than telling an agent what to do. Or it \
+              is a run of numbered steps that never says when to stop.\n\
               ### Why it is bad\n\
-              A skill file is read by an agent mid-task, not studied like a manual. \
-              Background explanation and passive description cost turns an agent should \
-              spend acting.\n\
+              A skill file is read by an agent mid-task, rather than studied like a \
+              manual. Background explanation and passive description cost turns an agent \
+              should spend acting.\n\
               ### Class\n\
               house: our own taste. It is a composite of three heuristics, each of which \
               can misfire on its own, so watch its false-positive rate.\n\
@@ -749,7 +748,7 @@ const SKILL_RULE_META: &[RuleMeta] = &[
               ### Example\n\
               Bad: a skill that opens with three paragraphs of background, describes the \
               tool in passive sentences, and lists steps with no stopping point.\n\
-              Good: a skill that opens with the first step and states when the run is \
+              Good: A skill that opens with the first step and states when the run is \
               done.",
         exception: None,
     },
@@ -759,22 +758,22 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         group: Group::Style,
         citation: "house",
         doc: "### What it does\n\
-              Flags the first section of a skill body when it is not step-shaped (no \
-              numbered list, no code fence, no line opening with an imperative verb) and \
-              it runs past a paragraph count or a word count. Both limits live in the \
-              `[skill]` config section; the compiled defaults are 2 paragraphs and 120 \
-              words.\n\
+              Flags the first section of a skill body when it is not step-shaped and it \
+              runs past a paragraph count or a word count. Step-shaped means it has no \
+              numbered list, no code fence, and no line opening with an imperative verb. \
+              Both limits live in the `[skill]` config section. The compiled defaults are \
+              2 paragraphs and 120 words.\n\
               ### Why it is bad\n\
               A short problem statement before the first step is fine. Past the budget, \
-              the opening reads as background an agent must study before it can act, \
-              which is what a manual does and a skill should not.\n\
+              the opening reads as background an agent must study before it can act. \
+              That is what a manual does, and a skill should not read that way.\n\
               ### Class\n\
-              house: our own taste; no external standard sets these limits.\n\
+              house: our own taste. No external standard sets these limits.\n\
               ### Citation\n\
               house\n\
               ### Example\n\
               Bad: four paragraphs of background before the first numbered step.\n\
-              Good: one short paragraph of context, then the first step.",
+              Good: One short paragraph of context, then the first step.",
         exception: None,
     },
     RuleMeta {
@@ -784,8 +783,9 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         citation: "house",
         doc: "### What it does\n\
               Flags a skill body where more lines describe the skill in the third person \
-              (\"Checker is a folder health tool\") than tell an agent what to do, as a \
-              numbered step or a line opening with an imperative verb.\n\
+              than tell an agent what to do. Telling an agent what to do looks like a \
+              numbered step, or a line opening with an imperative verb. A description in \
+              the third person reads like `Checker is a folder health tool`.\n\
               ### Why it is bad\n\
               A skill is instructions for an agent to follow, not a description of a tool \
               for a person to read about.\n\
@@ -804,13 +804,14 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         group: Group::Style,
         citation: "house",
         doc: "### What it does\n\
-              Flags a run of numbered steps, longer than the configured minimum (3 by \
-              default), that never says when to stop: none of \"done when\", \"stop \
-              when\", \"finish when\", \"complete when\", \"until\", \"only proceed\", \
-              \"hand off when\", or \"exit when\" appears anywhere in the body.\n\
+              Flags a run of numbered steps, longer than the configured minimum, 3 by \
+              default, that never says when to stop. None of `done when`, `stop when`, \
+              `finish when`, `complete when`, `until`, `only proceed`, `hand off when`, \
+              or `exit when` appears anywhere in the body.\n\
               ### Why it is bad\n\
-              An agent running a long list of steps with no stopping condition either \
-              stops too early or keeps going past the point the task was done.\n\
+              An agent running a long list of steps with no stopping condition can stop \
+              too early. Or it can keep going past the point the task was already \
+              done.\n\
               ### Class\n\
               house: our own taste, no external standard requires this shape.\n\
               ### Citation\n\
@@ -838,8 +839,8 @@ const SKILL_RULE_META: &[RuleMeta] = &[
               house\n\
               ### Example\n\
               Bad: description: I can check a folder for common problems.\n\
-              Good: description: Use this skill when the user wants a quick health check \
-              of a project folder.",
+              Good: Use this skill when the user wants a quick health check of a project \
+              folder.",
         exception: None,
     },
     RuleMeta {
@@ -848,14 +849,15 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a `scripts` entry osf could not read: the `scripts` path exists but \
-              is not a readable folder, or a file under it is not valid UTF-8 text.\n\
+              Flags a `scripts` entry osf could not read. The `scripts` path might exist \
+              but not be a readable folder, or a file under it might not be valid UTF-8 \
+              text.\n\
               ### Why it is bad\n\
               A script osf cannot read is a script it cannot check for an unpinned \
               install. Passing that skill with no finding would look the same as a \
               skill whose scripts were actually checked and found clean.\n\
               ### Class\n\
-              correctness: an unreadable path is objectively broken; no opinion is \
+              correctness: an unreadable path is objectively broken. No opinion is \
               involved in checking for it.\n\
               ### Citation\n\
               house\n\
@@ -872,21 +874,21 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         citation: "house",
         doc: "### What it does\n\
               Flags a line under `scripts/` that installs a dependency with no pinned \
-              version: `:latest`, `npm install -g` with no `@version` on the package \
-              (a scoped package, such as `@scope/name`, included), or `pip install` with \
-              no `==version`.\n\
+              version: `:latest`, `npm install -g` with no `@version`, or `pip install` \
+              with no `==version`. A scoped package, such as `@scope/name`, is included \
+              in that check.\n\
               ### Why it is bad\n\
               An unpinned install can resolve to a different, unreviewed version between \
               the run that read this skill and the run that executes it. A skill's \
               scripts run with the same trust as the skill itself.\n\
               ### Class\n\
-              security: a real risk in a file an agent executes; an unpinned dependency \
+              security: a real risk in a file an agent executes. An unpinned dependency \
               can change what code runs with no change to the skill file.\n\
               ### Citation\n\
               house\n\
               ### Example\n\
               Bad: npm install -g @scope/tool\n\
-              Good: npm install -g @scope/tool@1.4.2",
+              Good: Pin the version, as in `npm install -g @scope/tool@1.4.2`.",
         exception: None,
     },
     RuleMeta {
@@ -895,12 +897,13 @@ const SKILL_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags the context-injection execution marker written inline, even escaped \
-              (a literal `` `!` `` sequence), and a `` !`command` `` block whose command \
-              chains more than one instruction with `&&`, `|`, or `$(`.\n\
+              Flags the context-injection execution marker written inline, even when \
+              escaped as a literal `` `!` `` sequence. It also flags a `` !`command` `` \
+              block whose command chains more than one instruction with `&&`, `|`, or \
+              `$(`.\n\
               ### Why it is bad\n\
               A tool that renders this file for an agent may still execute an escaped \
-              marker, and a chained command runs more than the one plain command a \
+              marker. A chained command also runs more than the one plain command a \
               reader can audit at a glance. `agnix` checks a different part of the same \
               surface, so this rule complements it rather than repeating it.\n\
               ### Class\n\
