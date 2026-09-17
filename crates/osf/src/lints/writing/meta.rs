@@ -70,7 +70,8 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: Fixed in #125 today.\n\
-         Good: Fixed in open-software-factory/software-factory#125 (the login crash) today."
+         Good: Fixed in [open-software-factory/software-factory#125 (the login \
+         crash)](https://example.com/125) today."
     ),
     rule_meta!(
         "reference-without-label",
@@ -89,7 +90,8 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: The fix landed in open-software-factory/software-factory#125 today.\n\
-         Good: The fix landed in open-software-factory/software-factory#125 (the login crash) today."
+         Good: The fix landed in [open-software-factory/software-factory#125 \
+         (the login crash)](https://example.com/125) today."
     ),
     rule_meta!(
         "reference-without-link",
@@ -119,7 +121,7 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags phrases and labels that only make sense inside one \
-         conversation: \"as discussed\", \"Phase 2\", \"Step 3.\" with nothing \
+         conversation: `as discussed`, `Phase 2`, `Step 3` with nothing \
          after it.\n\
          ### Why it is bad\n\
          A reader who was not in that conversation cannot resolve the \
@@ -139,9 +141,9 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags a capitalised name on the repository's own curated \
-         must-explain list (`writing.must_explain_names` in its config \
-         file), on its first use, when neither that sentence nor the next \
-         one explains what it is.\n\
+         must-explain list, on its first use. It fires when neither that \
+         sentence nor the next one explains what it is. The list lives in \
+         `writing.must_explain_names`, in the config file.\n\
          ### Why it is bad\n\
          A reader who does not already know the name cannot follow the rest \
          of the text. The must-explain list names, one by one, the terms \
@@ -162,24 +164,25 @@ pub const RULE_META: &[RuleMeta] = &[
         "### What it does\n\
          The weaker twin of undefined-name, for a name not on the \
          must-explain list. Fires when a capitalised word or run merely \
-         looks like a name: an internal capital such as \"GitHub\" or \
-         \"DuckDB\", a digit in one of its words, a domain-like suffix such \
-         as \".dev\", or a multi-word run repeated more than once in the \
-         document. None of these prove a name; a bare capital letter with \
-         none of them, such as a word that only opens a sentence, is never \
+         looks like a name. That evidence is an internal capital such as \
+         `GitHub` or `DuckDB`, or a digit in one of its words. It also \
+         fires from a domain-like suffix such as `.dev`, or from a \
+         multi-word run repeated more than once in the document. None of \
+         these prove a name on its own. A bare capital letter with none of \
+         them, such as a word that only opens a sentence, is never \
          reported at all.\n\
          ### Why it is bad\n\
          Same reason as undefined-name, but the evidence only suggests a \
-         name rather than confirming one, so it warns instead of erring, \
-         and the finding carries statistical evidence rather than \
-         deterministic.\n\
+         name rather than confirming one. It warns instead of erring, and \
+         the finding carries statistical evidence rather than \
+         deterministic evidence.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
          house\n\
          ### Example\n\
          Bad: DuckDB runs fast.\n\
-         Good: DuckDB, our embedded database, runs fast."
+         Good: DuckDB, an embedded database, runs fast."
     ),
     rule_meta!(
         "long-sentence",
@@ -187,17 +190,17 @@ pub const RULE_META: &[RuleMeta] = &[
         Style,
         "house",
         "### What it does\n\
-         Flags a sentence over the configured error limit (25 words by \
-         default), and over the configured warning limit, when one is set.\n\
+         Flags a sentence over the configured error limit, 25 words by \
+         default, and over the configured warning limit, when one is set.\n\
          ### Why it is bad\n\
          A long sentence usually carries more than one idea. The reader has \
          to hold every clause in mind before the sentence resolves.\n\
          ### Class\n\
-         house. A secondary summary of the ASD-STE100 standard (not the \
-         primary text, which could not be obtained) states a similar idea: \
-         no more than 20 words in a procedure, 25 in description. This rule \
-         copies the general idea, not a verified clause, so it is house, \
-         not spec, and the exact numbers are unverified.\n\
+         house. A secondary summary of the ASD-STE100 standard states a \
+         similar idea: no more than 20 words in a procedure, 25 in \
+         description. The primary text could not be obtained, so this rule \
+         copies the general idea instead of citing a verified clause. It is \
+         house, not spec, and the exact numbers are unverified.\n\
          ### Citation\n\
          house\n\
          ### Example\n\
@@ -270,8 +273,8 @@ pub const RULE_META: &[RuleMeta] = &[
         Style,
         "house",
         "### What it does\n\
-         Flags a configured list of words and phrases, such as \"leverage\", \
-         \"robust\", and \"let me know if\".\n\
+         Flags a configured list of words and phrases, such as `leverage`, \
+         `robust`, and `let me know if`.\n\
          ### Why it is bad\n\
          These words add length without adding meaning. Most can be cut, or \
          replaced with the plain thing they stand in for.\n\
@@ -347,8 +350,8 @@ pub const RULE_META: &[RuleMeta] = &[
         Style,
         "house",
         "### What it does\n\
-         Flags a Markdown heading inside a short text (under the configured \
-         word count, 500 by default). Off for the `document` and `skill` \
+         Flags a Markdown heading inside a short text, under the configured \
+         word count, 500 by default. Off for the `document` and `skill` \
          contexts: both are structured text that is expected to have \
          headings.\n\
          ### Why it is bad\n\
@@ -368,12 +371,13 @@ pub const RULE_META: &[RuleMeta] = &[
         Style,
         "house",
         "### What it does\n\
-         Flags a sentence or a heading that ends in `, not X` or `, never X`, \
-         where X is a short noun phrase of one to six words with no verb of \
+         Flags a sentence or a heading that ends in `, not X` or `, never X`. \
+         Here X is a short noun phrase of one to six words with no verb of \
          its own.\n\
          ### Why it is bad\n\
          Denying an alternative at the end of a sentence is a rhetorical \
-         flourish, not new information. It reads as machine-written.\n\
+         flourish. It adds no new information, and it reads as \
+         machine-written.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
@@ -419,14 +423,14 @@ pub const RULE_META: &[RuleMeta] = &[
          the same paragraph, by one starting `It is Y.`\n\
          ### Why it is bad\n\
          Denying a claim only to restate it a moment later reads as a \
-         staged pause, not an explanation.\n\
+         staged pause. It explains nothing that was not already implied.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
          house\n\
          ### Example\n\
          Bad: It is not a workaround. It is the fix.\n\
-         Good: This is the fix, not a workaround.\n\
+         Good: This fix replaces the workaround entirely.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only.",
@@ -488,7 +492,8 @@ pub const RULE_META: &[RuleMeta] = &[
          uncomfortable truth`.\n\
          ### Why it is bad\n\
          These phrases announce that a point is coming instead of making \
-         it. Cutting them loses nothing.\n\
+         it. Removing them costs the reader nothing, since the point still \
+         follows.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
@@ -602,9 +607,9 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags a short label of one to five words, a colon, then a \
-         lowercase clause of four or more words, outside a list item, a \
-         table cell, and a heading. Never fires when a code span, a \
-         number, a quote, or a URL follows the colon.\n\
+         lowercase clause of four or more words. This never fires inside a \
+         list item, a table cell, or a heading. It also never fires when a \
+         code span, a number, a quote, or a URL follows the colon.\n\
          ### Why it is bad\n\
          A short label held back before its own explanation reads as a \
          staged pause rather than a plain sentence.\n\
