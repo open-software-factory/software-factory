@@ -25,3 +25,8 @@ These are implementation constraints, not a claim that the wider ecosystem must 
 - [`todo.md`](todo.md): disposable bootstrap work, not the eventual factory backlog model.
 
 Repository-specific guidance for coding agents is in [`AGENTS.md`](AGENTS.md).
+
+## Licence
+
+Apache-2.0 or MIT, at your option: see [`LICENSE-APACHE`](LICENSE-APACHE) and
+[`LICENSE-MIT`](LICENSE-MIT). To contribute, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
