@@ -13,6 +13,6 @@ The files in this directory are working research notes. They are not canonical r
 - `ux/design-workflow-landscape.md`: candidate AI-assisted design workflows and a proposed benchmark with non-designer usability as a hard gate.
 - `ux/benchmark/benchmark-design.md`: approved controlled benchmark for comparing UX workflows and promoting a direction into a design-system foundation.
 - `ux/ux-references.md`: interface references and the specific qualities worth studying in each.
-- `change-risk-classification.md`: what research, industry systems, deterministic tooling, models and regulated domains say about classifying a change set's risk, and what that changes in the classifier design.
+- `2026-09-17-change-risk-classification.md`: what research, industry systems, deterministic tooling, models and regulated domains say about classifying a change set's risk, and what that changes in the classifier design.
 
 These notes capture questions, conclusions and leads from earlier research. Refresh them from current primary sources when a topic becomes implementation-critical.

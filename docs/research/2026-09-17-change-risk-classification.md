@@ -1,3 +1,10 @@
+---
+title: Classifying the risk of a change set
+date: 2026-09-17
+kind: research
+status: reviewed
+informs: open-software-factory/software-factory#31
+---
 # Classifying the risk of a change set
 
 Research notes, compiled 2026-09-17 from six source surveys. They inform the design tracked in open-software-factory/software-factory#31 (risk classification). They are evidence for that design. They are not the design.
@@ -8,17 +15,20 @@ A change set is any difference between two states of a codebase: two commits, a 
 
 The classifier's answer will decide three things. Whether a pull request may merge on its own. How many review axes run and how deep each one reads. Whether a person must sign off. A wrong low answer lets a dangerous change through. A wrong high answer spends review on a comment fix.
 
-## 2. Three questions inside one word
+## 2. Four questions inside one word
 
-Every source below separates the word risk into three questions that need different evidence.
+Every source below separates the word risk into questions that need different evidence. Four of them matter here.
 
 | Question | Name used here | Evidence |
 | --- | --- | --- |
 | How far can this change reach? | reach, also called blast radius | files, symbols, modules, dependents, consumers, read from the diff and the dependency graph |
 | What kind of thing does it touch? | hazard | categories such as identity, money, stored data, public contracts, user interface |
 | How likely is it to be wrong? | likelihood | history of the touched code, size, author familiarity, tests present |
+| How bad is it if it is wrong? | severity | the hazard category's weight, the share of traffic on the path, whether the change can be undone, and how long a fault would go unseen |
 
-Reach and hazard are mostly facts a program can read. Likelihood is a prediction. Keeping the three apart keeps the report explainable.
+Reach and hazard are mostly facts a program can read. Likelihood and severity are estimates. Keeping the four apart keeps the report explainable.
+
+Severity is the hardest of the four and the one that sets the mitigation. A likely fault in a log line and a rare fault in a payment path call for different tests, different canary sizes and different sign-off. No source gives a formula for it. The regulated domains rank it by hazard category: safety, money and personal data sit at the top. The operations sources add two more inputs, whether the change can be rolled back and how much traffic the path carries. A migration that drops a column cannot be undone. A shared library reaches every caller. The estimate is therefore a product of the hazard weight, the reach, the traffic share where telemetry exists, and a reversibility flag, reported with its evidence grade and never as a bare number.
 
 ## 3. What the research literature found
 
@@ -147,6 +157,7 @@ The design in open-software-factory/software-factory#31 (risk classification) ha
 
 - **Report reach as its own numbers.** Files, symbols, modules, dependents from the build graph, and consumers from the contract detectors. Reach is a fact and belongs in every report, whatever the tier.
 - **Report hazard as categories.** Take them from the table above. Each category is a small reader per ecosystem, and each carries the sign-off flag from the standards.
+- **Estimate severity separately.** From the hazard weight, the reach, the traffic share where telemetry exists, and whether the change can be undone. Report it with its evidence grade. It sets the mitigation: which tests run, how small the first rollout is, and who signs.
 - **Add the validated likelihood features.** Lines added, churn relative to file size, files and subsystems touched, prior fixes to the same lines, author familiarity, ownership share, tests present. Start with lines added as the baseline the model must beat.
 - **Give the model context.** Treat it as a second opinion. A call-graph slice around the change, the repository map, and the reach and hazard facts. The model returns a tier, a confidence, a rationale, and the axes it thinks are needed. The floor cannot be lowered.
 - **Record what produced the answer.** Signal versions, model weight hash, hardware class, runtime version. Without those, two reports cannot be compared.
@@ -160,42 +171,82 @@ The design in open-software-factory/software-factory#31 (risk classification) ha
 - What the auto-merge precision bar should be. No published number exists; it is a policy the owner sets.
 - Whether a query-plan diff and a string-change detector are worth building, since no offline tool provides either.
 - How to label this repository's own history when it has no incident tracker yet.
+- How to calibrate a severity estimate before any incident has been recorded for the repository.
 
-## 10. Sources
+## 10. References
 
-Papers, by the label used above.
+Every source the sections above draw on, with a link the reader can open. Preprints are on arXiv, the open preprint server. A source the survey reported but this author did not open is marked as such.
 
-- Mockus and Weiss 2000, "Predicting risk of software changes", Bell Labs Technical Journal 5(2).
-- Nagappan and Ball 2005, "Use of relative code churn measures to predict system defect density", ICSE.
-- Nagappan, Murphy and Basili 2008, "The influence of organizational structure on software quality", ICSE.
-- Bird et al. 2011, "Don't touch my code! Examining the effects of ownership on software quality", FSE.
-- Kamei et al. 2013, "A large-scale empirical study of just-in-time quality assurance", IEEE Transactions on Software Engineering 39(6).
-- McIntosh and Kamei 2018, "Are fix-inducing changes a moving target?", IEEE Transactions on Software Engineering 44(5).
-- Hoang et al. 2019, "DeepJIT", MSR; Hoang et al. 2020, "CC2Vec", ICSE.
-- Zeng et al. 2021, "Deep just-in-time defect prediction: how far are we?", ISSTA.
-- Pornprasit and Tantithamthavorn 2021, "JITLine", MSR.
-- Rosa et al. 2021, "Evaluating SZZ implementations through a developer-informed oracle", ICSE; Lyu et al. 2023, arXiv 2308.05060.
-- Machalica et al. 2019, "Predictive test selection", ICSE SEIP.
-- Li et al. 2020, "Gandalf: an intelligent, end-to-end analytics service for safe deployment in large-scale cloud infrastructure", NSDI.
-- Grubic et al. 2023, "Conveyor: one-tool-fits-all continuous software deployment at Meta", OSDI.
-- Keshavarz and Nagappan 2022, "ApacheJIT", arXiv 2203.00101; Mahbub et al. 2023, "Defectors", arXiv 2303.04738.
-- arXiv 2210.02435, 2308.02828, 2308.11148, 2411.05230, 2505.17928, 2604.22411, 2604.27006, 2605.01596, 2607.02782: identifiers as reported by the survey; the 2026 entries were not opened by this author.
+### Research literature, section 3
 
-Books and guides.
+- Mockus and Weiss 2000, "Predicting risk of software changes", Bell Labs Technical Journal 5(2). [PDF](http://mockus.us/papers/bltj13.pdf), [DOI](https://doi.org/10.1002/bltj.2229)
+- Nagappan and Ball 2005, "Use of relative code churn measures to predict system defect density", ICSE. [Publisher page](https://www.microsoft.com/en-us/research/publication/use-of-relative-code-churn-measures-to-predict-system-defect-density/)
+- Nagappan, Murphy and Basili 2008, "The influence of organizational structure on software quality", ICSE. [DOI](https://doi.org/10.1145/1368088.1368160)
+- Bird, Nagappan, Murphy, Gall and Devanbu 2011, "Don't touch my code! Examining the effects of ownership on software quality", FSE. [Publisher page](https://www.microsoft.com/en-us/research/publication/dont-touch-my-code-examining-the-effects-of-ownership-on-software-quality/)
+- Kamei, Shihab, Adams, Hassan, Mockus, Sinha and Ubayashi 2013, "A large-scale empirical study of just-in-time quality assurance", IEEE Transactions on Software Engineering 39(6). [DOI](https://doi.org/10.1109/TSE.2012.70), [author PDF](https://posl.ait.kyushu-u.ac.jp/~kamei/publications/Kamei_TSE2013.pdf)
+- McIntosh and Kamei 2018, "Are fix-inducing changes a moving target? A longitudinal case study of just-in-time defect prediction", IEEE Transactions on Software Engineering 44(5). [DOI](https://doi.org/10.1109/TSE.2017.2693980)
+- Hoang, Dam, Kamei, Lo and Ubayashi 2019, "DeepJIT: an end-to-end deep learning framework for just-in-time defect prediction", MSR. [DOI](https://doi.org/10.1109/MSR.2019.00016)
+- Hoang, Kang, Lo and Lawall 2020, "CC2Vec: distributed representations of code changes", ICSE. [arXiv 2003.05620](https://arxiv.org/abs/2003.05620)
+- Zeng, Zhang, Zhang and Zhang 2021, "Deep just-in-time defect prediction: how far are we?", ISSTA. [DOI](https://doi.org/10.1145/3460319.3464819)
+- Pornprasit and Tantithamthavorn 2021, "JITLine: a simpler, better, faster, finer-grained just-in-time defect prediction", MSR. [arXiv 2103.07068](https://arxiv.org/abs/2103.07068)
+- Guo et al. 2023, "A study on the impact of pre-trained model on just-in-time defect prediction". [arXiv 2309.02317](https://arxiv.org/abs/2309.02317)
+- Rosa et al. 2021, "Evaluating SZZ implementations through a developer-informed oracle", ICSE. [arXiv 2102.03300](https://arxiv.org/abs/2102.03300)
+- Lyu et al. 2023, "Evaluating SZZ implementations: an empirical study on the Linux kernel". [arXiv 2308.05060](https://arxiv.org/abs/2308.05060)
+- Keshavarz and Nagappan 2022, "ApacheJIT: a large dataset for just-in-time defect prediction". [arXiv 2203.00101](https://arxiv.org/abs/2203.00101)
+- Mahbub, Shuvo and Rahman 2023, "Defectors: a large, diverse Python dataset for defect prediction". [arXiv 2303.04738](https://arxiv.org/abs/2303.04738)
+- Shahbaz 2022, on dynamic test impact analysis in Java projects. [arXiv 2211.07782](https://arxiv.org/abs/2211.07782)
+- Cerny et al. 2025 and Lercher et al. 2023, on change impact across microservices. [arXiv 2501.11778](https://arxiv.org/abs/2501.11778), [arXiv 2311.08175](https://arxiv.org/abs/2311.08175)
+- 2025 industrial study on slice-based review context, reported by the survey. [arXiv 2505.17928](https://arxiv.org/abs/2505.17928)
 
-- "Software Engineering at Google", the code review chapter; "Site Reliability Engineering" and its workbook, the release engineering, canarying and introduction chapters.
-- The Amazon Builders' Library, "Automating safe, hands-off deployments" and "Ensuring rollback safety during deployments".
-- Slack Engineering, "Deploy safety: reducing customer impact from change", 2025.
-- The Spinnaker canary judge documentation, for the Kayenta method.
-- The DORA 2024 Accelerate State of DevOps report, for change failure rate and rework rate.
-- The AWS Well-Architected Framework reliability pillar, for staggered deployment guidance.
+### Organisations and operations, section 4
 
-Standards and rules.
+- Winters, Manshreck and Wright, "Software Engineering at Google", the code review chapter. [Online text](https://abseil.io/resources/swe-book/html/ch09.html)
+- Beyer et al., "Site Reliability Engineering", the introduction and the release engineering chapter. [Introduction](https://sre.google/sre-book/introduction/), [Release engineering](https://sre.google/sre-book/release-engineering/)
+- Beyer et al., "The Site Reliability Workbook", the canarying releases chapter. [Online text](https://sre.google/workbook/canarying-releases/)
+- Sadowski, Söderberg, Church, Sipko and Bacchelli 2018, "Modern code review: a case study at Google", ICSE SEIP. [Publisher page](https://research.google/pubs/modern-code-review-a-case-study-at-google/)
+- Machalica, Samylkin, Porth and Chandra 2019, "Predictive test selection", ICSE SEIP. [arXiv 1810.05286](https://arxiv.org/abs/1810.05286)
+- Grubic et al. 2023, "Conveyor: one-tool-fits-all continuous software deployment at Meta", OSDI. [Conference page](https://www.usenix.org/conference/osdi23/presentation/grubic)
+- Meta Engineering 2021, "More details about the October 4 outage". [Post](https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/)
+- Li et al. 2020, "Gandalf: an intelligent, end-to-end analytics service for safe deployment in large-scale cloud infrastructure", NSDI. [Conference page](https://www.usenix.org/conference/nsdi20/presentation/li)
+- Microsoft Learn, "Test impact analysis" for Azure Pipelines. [Documentation](https://learn.microsoft.com/en-us/azure/devops/pipelines/test/test-impact-analysis)
+- Amazon Builders' Library, "Automating safe, hands-off deployments". [Article](https://aws.amazon.com/builders-library/automating-safe-hands-off-deployments/)
+- Amazon Builders' Library, "Ensuring rollback safety during deployments". [Article](https://aws.amazon.com/builders-library/ensuring-rollback-safety-during-deployments/)
+- Slack Engineering 2025, "Deploy safety: reducing customer impact from change". [Post](https://slack.engineering/deploy-safety/)
+- Spinnaker documentation, the canary judge, which describes the Kayenta method. [Documentation](https://spinnaker.io/docs/guides/user/canary/judge/)
+- DORA, the four key metrics guide and the 2024 Accelerate State of DevOps report. [Guide](https://dora.dev/guides/dora-metrics-four-keys/), [Reports](https://dora.dev/research/)
+- AWS Well-Architected Framework, the reliability pillar. [Documentation](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/welcome.html)
 
-- Safety: ISO 26262, DO-178C, IEC 62304, and the FDA guidance on software changes to a marketed device.
-- Finance and payment: SOX section 404 with COBIT, and PCI DSS requirement 6.
-- Privacy and health: GDPR article 35, and the HIPAA security rule.
-- Security: NIST SP 800-53 control CM-3, the NIST Secure Software Development Framework, SLSA v1.0, OWASP Top 10 2025 and the authentication cheat sheet.
-- Interfaces: WCAG 2 level AA, semantic versioning 2.0, and the public API versioning policies of three platform providers.
+### Deterministic tools, section 5
 
-Tools are linked from their names in the tool inventories of the underlying surveys; each name above is enough to find the project.
+- Structure and reach: [GumTree](https://github.com/GumTreeDiff/gumtree), [difftastic](https://github.com/Wilfred/difftastic), [tree-sitter](https://github.com/tree-sitter/tree-sitter), [Bazel](https://bazel.build/), [Nx](https://github.com/nrwl/nx), [moon](https://github.com/moonrepo/moon), [Turborepo](https://github.com/vercel/turborepo), [Pants](https://github.com/pantsbuild/pants)
+- Public contracts: [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks), [japicmp](https://github.com/siom79/japicmp), [revapi](https://github.com/revapi/revapi), [.NET package validation](https://learn.microsoft.com/en-us/dotnet/fundamentals/apicompat/package-validation/overview), [API Extractor](https://github.com/microsoft/rushstack), [apidiff](https://pkg.go.dev/golang.org/x/exp/cmd/apidiff), [griffe](https://github.com/mkdocstrings/griffe), [dart_apitool](https://github.com/bmw-tech/dart_apitool), [binary-compatibility-validator](https://github.com/Kotlin/binary-compatibility-validator), [buf](https://github.com/bufbuild/buf), [oasdiff](https://github.com/oasdiff/oasdiff), [GraphQL Inspector](https://github.com/graphql-hive/graphql-inspector), [Pact](https://docs.pact.io/)
+- Stored data: [squawk](https://github.com/sbdchd/squawk), [atlas](https://github.com/ariga/atlas)
+- Infrastructure: [OpenTofu](https://github.com/opentofu/opentofu), [Pulumi](https://github.com/pulumi/pulumi), [Open Policy Agent](https://github.com/open-policy-agent/opa), [Checkov](https://github.com/bridgecrewio/checkov), [Helm diff](https://github.com/databus23/helm-diff)
+- What people see: [Playwright](https://github.com/microsoft/playwright), [BackstopJS](https://github.com/garris/BackstopJS), [axe-core](https://github.com/dequelabs/axe-core)
+- Performance: [Bencher](https://github.com/bencherdev/bencher), [criterion](https://github.com/bheisler/criterion.rs), [k6](https://github.com/grafana/k6)
+- Sensitive content: [gitleaks](https://github.com/gitleaks/gitleaks), [trufflehog](https://github.com/trufflesecurity/trufflehog), [Presidio](https://github.com/microsoft/presidio), [osv-scanner](https://github.com/google/osv-scanner), [cargo-deny](https://github.com/EmbarkStudios/cargo-deny)
+- Churn: [code-maat](https://github.com/adamtornhill/code-maat)
+
+### Models, section 6
+
+- Products checked: [CodeRabbit](https://www.coderabbit.ai/blog/coderabbit-triage), [PR-Agent](https://github.com/qodo-ai/pr-agent), [Greptile](https://www.greptile.com), [Bito](https://bito.ai/ai-code-review-agent/), [Ellipsis](https://www.ellipsis.dev/), [Sourcery](https://sourcery.ai/), [GitHub Copilot code review](https://docs.github.com/en/copilot/using-github-copilot/code-review/using-copilot-code-review), [GitLab Duo](https://docs.gitlab.com/user/duo_agent_platform/), [Atlassian Rovo](https://www.atlassian.com/software/rovo), [Cursor Bugbot](https://cursor.com/bugbot), [Graphite](https://graphite.com/features/reviewer)
+- Diff risk score from attention, 2026, reported by the survey and not opened by this author. [arXiv 2607.02782](https://arxiv.org/abs/2607.02782)
+- LLaMA-Reviewer 2023. [arXiv 2308.11148](https://arxiv.org/abs/2308.11148)
+- SetFit few-shot classification. [Hugging Face blog](https://huggingface.co/blog/setfit)
+- Fine-tuned code encoders on change classification, 2026, reported by the survey. [arXiv 2605.01596](https://arxiv.org/abs/2605.01596), [arXiv 2603.25005](https://arxiv.org/abs/2603.25005)
+- IRJIT, retrieval-based just-in-time prediction. [arXiv 2210.02435](https://arxiv.org/abs/2210.02435)
+- Retrieval-augmented context for bug detection, 2025. [arXiv 2504.01866](https://arxiv.org/abs/2504.01866)
+- Non-determinism at temperature zero. [arXiv 2308.02828](https://arxiv.org/abs/2308.02828), and 2026 follow-ups reported by the survey: [arXiv 2604.27006](https://arxiv.org/abs/2604.27006), [arXiv 2604.22411](https://arxiv.org/abs/2604.22411), [arXiv 2511.17826](https://arxiv.org/abs/2511.17826)
+- Confidence calibration on code tasks, 2026, reported by the survey. [arXiv 2609.06723](https://arxiv.org/abs/2609.06723), [arXiv 2606.31159](https://arxiv.org/abs/2606.31159), [arXiv 2603.29559](https://arxiv.org/abs/2603.29559)
+- Own-history labelling study, reported by the survey. [arXiv 2411.05230](https://arxiv.org/abs/2411.05230)
+- Local inference runtimes: [llama.cpp](https://github.com/ggml-org/llama.cpp), [Ollama](https://ollama.com/library/llama3.2), [candle](https://github.com/huggingface/candle)
+
+### Standards and rules, section 7
+
+- Safety: [ISO 26262](https://en.wikipedia.org/wiki/ISO_26262), [DO-178C](https://en.wikipedia.org/wiki/DO-178C), [IEC 62304](https://en.wikipedia.org/wiki/IEC_62304), [FDA guidance on software changes to a marketed device](https://www.fda.gov/media/99785/download)
+- Finance and payment: [SEC release 33-8238 on SOX section 404](https://www.sec.gov/rule-release/33-8238), [COBIT](https://www.isaca.org/resources/cobit), [PCI DSS document library](https://www.pcisecuritystandards.org/document_library/)
+- Privacy and health: [GDPR article 35 explainer](https://gdpr.eu/data-protection-impact-assessment-template/), [HIPAA security rule summary](https://www.hipaajournal.com/hipaa-security-rule/)
+- Operations: [ITIL change management summary](https://www.invensislearning.com/blog/itil-change-management/)
+- Security: [NIST SP 800-53 control CM-3](https://csf.tools/reference/nist-sp-800-53/r5/cm/cm-3/), [NIST Secure Software Development Framework](https://csrc.nist.gov/Projects/ssdf), [SLSA v1.0 levels](https://slsa.dev/spec/v1.0/levels), [OWASP Top 10 2025](https://top10.owasp.org/2025), [OWASP authentication cheat sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html), [OWASP threat modelling](https://community.owasp.org/Threat_Modeling)
+- Interfaces: [WCAG 2 level AA conformance](https://www.w3.org/WAI/WCAG2AA-Conformance), [semantic versioning](https://semver.org/), [GitHub REST API versioning](https://docs.github.com/en/rest/overview/api-versions), [Google API improvement proposal 180](https://google.aip.dev/180), [Stripe API upgrades](https://docs.stripe.com/upgrades)
+- Non-functional: [performance budgets](https://web.dev/articles/performance-budgets-101), [FinOps framework phases](https://www.finops.org/framework/phases/)
