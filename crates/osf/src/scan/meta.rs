@@ -1,7 +1,8 @@
 //! Metadata for every scan rule: why we believe it, and its doc text for
 //! `osf explain`. Every rule here uses [`Group::Comprehension`], which
-//! [`osf_lint_core::resolve`] always turns into an error, in every context:
-//! text that must never reach a public repository is never advisory.
+//! [`osf_lint_core::resolve`] always turns into an error, in every context.
+//! In a repository known to be private, the provenance rules are lowered to
+//! warnings after that, because what they find is advice there.
 //!
 //! Every doc text ends with a Coverage section that names what the rule
 //! checks and what it does not. A test keeps those sections in step with
@@ -18,14 +19,16 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a link to a hosted coding-agent session, for every supported agent \
-              that has hosted sessions, plus any prefix added under `[scan] session_links`.\n\
+              Flags a link to a hosted coding-agent session. Anything that looks like a web \
+              address is read by a URL parser, with or without its scheme, and its host and \
+              path are compared with every supported agent's session pages, plus any prefix \
+              added under `[scan] session_links`.\n\
               ### Why it is bad\n\
-              A session link points at one private conversation. A public reader cannot \
+              A session link points at one private conversation. A reader outside cannot \
               open it, and its presence tells them work here runs through a coding agent \
               session that was never meant to be shared.\n\
               ### Class\n\
-              correctness: the link is dead weight for a public reader in every case; no \
+              correctness: the link is dead weight for an outside reader in every case; no \
               opinion is involved in flagging it.\n\
               ### Citation\n\
               house\n\
@@ -36,7 +39,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Hosted session links for: claude code, codex, opencode. Agents whose \
               sessions live only on disk leave a path rather than a link: dsh, pi, omp, \
               copilot. Those are covered by `scan-agent-state-path`. A host this list \
-              does not name is not checked unless it is added in the configuration.",
+              does not name is not checked unless it is added in the configuration. In a \
+              repository known to be private this is a warning, not an error.",
         exception: None,
     },
     RuleMeta {
@@ -45,10 +49,11 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a path into a coding agent's own state directory, where it keeps \
-              sessions, transcripts, history, or logs, for every supported agent.\n\
+              Flags a path into a coding agent's own state directory, at one of the places \
+              that agent keeps sessions, transcripts, history, or logs. Each agent's places \
+              were read from a real installation and are listed with the agent.\n\
               ### Why it is bad\n\
-              Such a path names a private conversation on one machine. A public reader \
+              Such a path names a private conversation on one machine. A reader outside \
               cannot open it, and it discloses which agent produced the work and where \
               that agent keeps its records.\n\
               ### Class\n\
@@ -62,10 +67,9 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: an agent's committed configuration file, such as its hooks file, which \
               is repository content and is not flagged.\n\
               ### Coverage\n\
-              The state directories of: dsh, pi, omp, opencode, codex, claude code, copilot. \
-              Only the conversation segments under them are flagged: sessions, projects, \
-              transcripts, history, logs. A configuration file under the same directory is \
-              not.",
+              The state directories and session places of: dsh, pi, omp, opencode, codex, \
+              claude code, copilot. A configuration file under the same directory is not \
+              flagged. In a repository known to be private this is a warning, not an error.",
         exception: None,
     },
     RuleMeta {
@@ -77,7 +81,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Flags a line that begins `Co-Authored-By:`.\n\
               ### Why it is bad\n\
               A co-author trailer from a coding agent names a tool and a session in a \
-              commit that becomes part of the project's public history forever.\n\
+              commit that becomes part of the project's history forever.\n\
               ### Class\n\
               house: a policy choice about attribution, not an externally required rule.\n\
               ### Citation\n\
@@ -87,7 +91,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: no such trailer in the commit.\n\
               ### Coverage\n\
               The trailer line itself, whichever agent wrote it. The project's own \
-              `Code-Generator:` trailer is the accepted form and is not flagged.",
+              `Code-Generator:` trailer is the accepted form and is not flagged. In a \
+              repository known to be private this is a warning, not an error.",
         exception: None,
     },
     RuleMeta {
@@ -96,13 +101,14 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a path that names a real machine or a real account on any platform \
-              this project runs on: a drive letter and a user folder on Windows, with \
-              either slash; a Windows network share; a home directory on Linux or macOS, \
-              or the root account's; and a Windows user folder seen through the Windows \
-              Subsystem for Linux.\n\
+              Flags a path that names a real machine or a real account. Anything holding a \
+              slash is read by a path parser, first as a Windows path and then as a Unix \
+              path, and a `file:` address is read by the URL parser and then as the path \
+              it names. A drive letter with a user folder, a network share, a home \
+              directory on Linux or macOS, the root account's home, and a Windows user \
+              folder seen through the Windows Subsystem for Linux all count.\n\
               ### Why it is bad\n\
-              A local path names a real machine and a real account. A public reader gains \
+              A local path names a real machine and a real account. A reader outside gains \
               nothing from it, and it can name the very person who wrote the text.\n\
               ### Class\n\
               correctness: the path is meaningless outside the machine that produced it; no \
@@ -116,8 +122,11 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: The file lives at notes.md, relative to the repository root.\n\
               ### Coverage\n\
               Windows, a Windows network share, Windows Subsystem for Linux, Linux, the \
-              Linux root account, macOS. A path written through the home shorthand or an \
-              environment variable names no machine and no account, so it is not flagged.",
+              Linux root account, macOS, each also inside a `file:` address. A path written \
+              through the home shorthand or an environment variable names no machine and \
+              no account, so it is not flagged, and neither is a system folder such as the \
+              program files folder. In a repository known to be private this is a warning, \
+              not an error.",
         exception: None,
     },
     RuleMeta {
@@ -128,11 +137,11 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         doc: "### What it does\n\
               Flags a cross-repository reference, `owner/repo#<number>`, whose owner is not \
               this project's. The owner is `[scan] project_owner` when set, else the owner \
-              segment of the `origin` remote. With neither, the rule does not run and the \
-              scan says so.\n\
+              segment of the `origin` remote. No configuration is needed in a repository \
+              with a remote. With neither, the rule does not run and the scan says so.\n\
               ### Why it is bad\n\
               A reference to another owner's issue tracker, left in by habit or by a copied \
-              example, can point a public reader at a private repository they cannot open.\n\
+              example, can point a reader at a repository they cannot open.\n\
               ### Class\n\
               correctness: once an owner is known, a reference to a different owner is \
               objectively foreign; no opinion is involved in flagging it.\n\
@@ -143,9 +152,10 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: see acme/public-repo#<number> for the fix.\n\
               ### Coverage\n\
               The owner only. A reference to another repository under the same owner \
-              passes, whatever that repository's visibility, because visibility is not \
-              checked. A reference to a public repository under another owner is still \
-              flagged, for a person to confirm.",
+              passes, whatever that repository's visibility, because visibility of the \
+              referenced repository is not checked. A reference to a public repository \
+              under another owner is still flagged, for a person to confirm. In a \
+              repository known to be private this is a warning, not an error.",
         exception: None,
     },
     RuleMeta {
@@ -158,7 +168,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               matched text are never printed: only the file and the line number are, since \
               printing either would leak the very thing this rule protects.\n\
               ### Why it is bad\n\
-              A denied name is something that must never reach a public repository at all, \
+              A denied name is something that must never reach the repository at all, \
               such as a real person's name or a former employer's name kept out of the \
               project by policy.\n\
               ### Class\n\
@@ -172,7 +182,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: no configured pattern matches anywhere in the text.\n\
               ### Coverage\n\
               Exactly the configured patterns, case-insensitively. With an empty list the \
-              rule does not run.",
+              rule does not run. This rule is an error whoever can read the repository.",
         exception: None,
     },
 ];

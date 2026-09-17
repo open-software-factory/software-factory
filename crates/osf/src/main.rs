@@ -823,7 +823,7 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
         }
     };
     let dir = Path::new(".");
-    let rules = match scan::Rules::build_for(dir, &loaded.config.scan) {
+    let rules = match scan::Rules::build(dir, &loaded.config.scan) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("osf: {e}");

@@ -1,14 +1,17 @@
-//! `osf scan`: text that must never reach a public repository. Each check
-//! is its own rule, with a class, a group and doc text, resolved and
-//! explained the same way as every writing and skill rule.
+//! `osf scan`: text that must never reach a repository the public can
+//! read. Each check is its own rule, with a class, a group and doc text,
+//! resolved and explained the same way as every writing and skill rule.
 //!
 //! A scan rule reads raw text, not prose: it never parses Markdown, and it
 //! runs the same way over a source file, a plan, or a commit message.
 //!
-//! No rule here names one coding agent or one operating system on its own.
-//! Agents come from [`crate::agents::AGENTS`], and path shapes from a table
-//! that covers every platform this project runs on. A rule that cannot run
-//! says so through [`Rules::notes`] rather than staying quiet.
+//! Three things every rule here shares. No rule names one coding agent or
+//! one operating system on its own: agents come from
+//! [`crate::agents::AGENTS`]. No rule assumes the repository is public:
+//! [`crate::repository::resolve`] establishes that first, and a private
+//! repository turns these findings into advice. And a link is parsed as a
+//! URL and a path as a path, by a library, before anything is compared; a
+//! regular expression only finds candidates in free text.
 
 mod meta;
 
@@ -17,10 +20,15 @@ pub use meta::rule_meta;
 use crate::agents::AGENTS;
 use crate::config::ScanConfig;
 use crate::exclude::Excluder;
+use crate::repository::{self, Repository, Visibility};
 use osf_lint_core::{resolve, Context, Finding, Level};
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use typed_path::{
+    Utf8UnixComponent, Utf8UnixPath, Utf8WindowsComponent, Utf8WindowsPath, Utf8WindowsPrefix,
+};
+use url::Url;
 
 /// Every file `scan` looked at: the findings for each one kept, and how
 /// many the exclude list dropped before they were even read.
@@ -42,65 +50,103 @@ fn finding(rule: &'static str, line: usize, message: String, excerpt: &str) -> F
     Finding::new(rule, Level::Error, line, message, excerpt.to_string())
 }
 
-/// The characters a link or an id may run on to, once its prefix matched.
-const LINK_TAIL: &str = r#"[^\s)>\]"'`]*"#;
+/// Characters that end a link or a path pasted into prose.
+const TOKEN_END: &str = r#"[^\s<>"'`()\[\]]"#;
+
+/// Trailing punctuation that belongs to the sentence, not the token.
+fn trim_token(token: &str) -> &str {
+    token.trim_end_matches(['.', ',', ';', ':', '!', '?'])
+}
+
+// --- session links --------------------------------------------------------
 
 /// One hosted-session link shape and whose it is.
 struct SessionLink {
     agent: String,
-    pattern: Regex,
-}
-
-fn session_link_pattern(prefix: &str) -> Result<Regex, String> {
-    Regex::new(&format!(
-        r"(?:https?://)?{}{LINK_TAIL}",
-        regex::escape(prefix)
-    ))
-    .map_err(|_| format!("session link prefix '{prefix}' does not compile"))
+    host: String,
+    path: String,
 }
 
 fn session_links(cfg: &ScanConfig) -> Result<Vec<SessionLink>, String> {
     let mut out = Vec::new();
     for agent in AGENTS {
-        if let Some(prefix) = agent.session_link_prefix() {
+        if let Some((host, path)) = agent.hosted() {
             out.push(SessionLink {
                 agent: agent.name.to_string(),
-                pattern: session_link_pattern(&prefix)?,
+                host: host.to_ascii_lowercase(),
+                path: path.to_string(),
             });
         }
     }
     for prefix in &cfg.session_links {
+        let (host, path) = prefix.split_once('/').ok_or_else(|| {
+            format!("session link prefix '{prefix}' needs a host, a slash, and a path")
+        })?;
+        if host.is_empty() || path.is_empty() {
+            return Err(format!(
+                "session link prefix '{prefix}' needs a host, a slash, and a path"
+            ));
+        }
         out.push(SessionLink {
             agent: format!("a configured agent ({prefix})"),
-            pattern: session_link_pattern(prefix)?,
+            host: host.to_ascii_lowercase(),
+            path: format!("/{path}"),
         });
     }
     Ok(out)
 }
 
-fn session_link_findings(links: &[SessionLink], text: &str, out: &mut Vec<Finding>) {
+/// Anything in free text that looks like a web address, with or without
+/// its scheme. Parsing decides what it really is.
+fn url_candidates(content: &str) -> impl Iterator<Item = &str> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let pattern = re(
+        &RE,
+        &format!(
+            r"(?:[A-Za-z][A-Za-z0-9+.-]*://)?[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+(?::\d+)?(?:/{TOKEN_END}*)?"
+        ),
+    );
+    pattern.find_iter(content).map(|m| trim_token(m.as_str()))
+}
+
+/// The host and path of `token`, read by a URL parser. A token with no
+/// scheme is read as if it had one, since that is how people paste them.
+fn parse_web_url(token: &str) -> Option<Url> {
+    let with_scheme = if token.contains("://") {
+        token.to_string()
+    } else {
+        format!("https://{token}")
+    };
+    let url = Url::parse(&with_scheme).ok()?;
+    url.host_str()?;
+    Some(url)
+}
+
+fn session_link_findings(links: &[SessionLink], clause: &str, text: &str, out: &mut Vec<Finding>) {
     for (line, content) in lines(text) {
-        for link in links {
-            for m in link.pattern.find_iter(content) {
-                out.push(finding(
-                    "scan-session-link",
-                    line,
-                    format!(
-                        "a session link for {} must never reach a public repository",
-                        link.agent
-                    ),
-                    m.as_str(),
-                ));
+        for token in url_candidates(content) {
+            let Some(url) = parse_web_url(token) else {
+                continue;
+            };
+            let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
+            for link in links {
+                if host == link.host && url.path().starts_with(&link.path) {
+                    out.push(finding(
+                        "scan-session-link",
+                        line,
+                        format!("a session link for {} {clause}", link.agent),
+                        token,
+                    ));
+                }
             }
         }
     }
 }
 
-/// Segments under an agent's state directory that hold conversations.
-const STATE_SEGMENTS: &[&str] = &["sessions", "projects", "transcripts", "history", "logs"];
+// --- agent state paths ----------------------------------------------------
 
 /// One agent's state-path shape: any of its state directories followed by
-/// a conversation segment.
+/// one of its session paths.
 struct StatePath {
     agent: &'static str,
     pattern: Regex,
@@ -112,14 +158,16 @@ fn state_paths() -> &'static [StatePath] {
         AGENTS
             .iter()
             .map(|agent| {
-                let dirs = agent
-                    .state_dirs
-                    .iter()
-                    .map(|d| regex::escape(d).replace('/', r"[\\/]"))
-                    .collect::<Vec<_>>()
-                    .join("|");
-                let segments = STATE_SEGMENTS.join("|");
-                let pattern = format!(r"(?:^|[\\/~\s])(?:{dirs})[\\/](?:{segments})[\\/]\S*");
+                let alt = |items: &[&str]| {
+                    items
+                        .iter()
+                        .map(|d| regex::escape(d).replace('/', r"[\\/]"))
+                        .collect::<Vec<_>>()
+                        .join("|")
+                };
+                let dirs = alt(agent.state_dirs);
+                let paths = alt(agent.session_paths);
+                let pattern = format!(r"(?:^|[\\/])(?:{dirs})[\\/](?:{paths})(?:[\\/]|$)");
                 StatePath {
                     agent: agent.name,
                     pattern: Regex::new(&pattern).expect("state path pattern compiles"),
@@ -129,102 +177,189 @@ fn state_paths() -> &'static [StatePath] {
     })
 }
 
-fn agent_state_path_findings(text: &str, out: &mut Vec<Finding>) {
+fn agent_state_path_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
     for (line, content) in lines(text) {
-        for shape in state_paths() {
-            for m in shape.pattern.find_iter(content) {
-                out.push(finding(
-                    "scan-agent-state-path",
-                    line,
-                    format!(
-                        "a path into {}'s own state must never reach a public repository",
-                        shape.agent
-                    ),
-                    m.as_str().trim(),
-                ));
+        for token in path_candidates(content) {
+            for shape in state_paths() {
+                if shape.pattern.is_match(token) {
+                    out.push(finding(
+                        "scan-agent-state-path",
+                        line,
+                        format!("a path into {}'s own state {clause}", shape.agent),
+                        token,
+                    ));
+                }
             }
         }
     }
 }
 
-fn coauthor_trailer_findings(text: &str, out: &mut Vec<Finding>) {
+// --- the trailer ----------------------------------------------------------
+
+fn coauthor_trailer_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
     for (line, content) in lines(text) {
         if content.trim_start().starts_with("Co-Authored-By:") {
             out.push(finding(
                 "scan-coauthor-trailer",
                 line,
-                "a co-author trailer must never reach a public repository".to_string(),
+                format!("a co-author trailer {clause}"),
                 content.trim(),
             ));
         }
     }
 }
 
-/// The platforms whose user-path shapes the local-path rule knows, in the
-/// order the combined pattern tries them. Earlier entries win where two
-/// overlap, so a drive path is reported once, as Windows, not again as the
-/// home-directory shape it also contains.
-const LOCAL_PATH_PLATFORMS: &[&str] = &[
-    "Windows",
-    "a Windows network share",
-    "Windows Subsystem for Linux",
-    "Linux",
-    "Linux, as the root account",
-    "macOS",
-];
+// --- local paths ----------------------------------------------------------
 
-/// Built at run time from parts. This project scans its own source, and a
-/// shape written out in full here would match itself.
-fn local_path_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        let acct = r"[^/\\\s]+";
-        let sep = r"[\\/]";
-        let users = "Users";
-        // A share needs a server, a share name, and a path under them. Two
-        // bare segments would also match an escape sequence in source code.
-        let name = r"[A-Za-z0-9._$-]+";
-        let shapes = [
-            format!(r"[A-Za-z]:{sep}{users}{sep}{acct}{sep}"),
-            format!(r"\\\\{name}\\{name}\\"),
-            format!("/mnt/[A-Za-z]/{users}/{acct}/"),
-            format!("/{}/{acct}/", "home"),
-            format!("/{}/", "root"),
-            format!("/{users}/{acct}/"),
-        ];
-        let alternation = shapes
-            .iter()
-            .enumerate()
-            .map(|(i, s)| format!("(?P<p{i}>{s})"))
-            .collect::<Vec<_>>()
-            .join("|");
-        Regex::new(&alternation).expect("local path pattern compiles")
-    })
+/// A path that names a real machine or account, and on which platform.
+#[derive(Debug, PartialEq, Eq)]
+enum UserPath {
+    Windows,
+    NetworkShare,
+    WindowsSubsystemForLinux,
+    Linux,
+    LinuxRoot,
+    MacOs,
 }
 
-fn local_path_findings(text: &str, out: &mut Vec<Finding>) {
-    let pattern = local_path_regex();
-    for (line, content) in lines(text) {
-        for cap in pattern.captures_iter(content) {
-            let Some(whole) = cap.get(0) else { continue };
-            let platform = LOCAL_PATH_PLATFORMS
-                .iter()
-                .enumerate()
-                .find(|(i, _)| cap.name(&format!("p{i}")).is_some())
-                .map_or("an unknown platform", |(_, name)| name);
-            out.push(finding(
-                "scan-local-path",
-                line,
-                format!(
-                    "a user path from {platform} names a machine or an account and must never reach a public repository"
-                ),
-                whole.as_str(),
-            ));
+impl UserPath {
+    fn platform(&self) -> &'static str {
+        match self {
+            UserPath::Windows => "Windows",
+            UserPath::NetworkShare => "a Windows network share",
+            UserPath::WindowsSubsystemForLinux => "Windows Subsystem for Linux",
+            UserPath::Linux => "Linux",
+            UserPath::LinuxRoot => "Linux, as the root account",
+            UserPath::MacOs => "macOS",
         }
     }
 }
 
-fn foreign_reference_findings(owner: &str, text: &str, out: &mut Vec<Finding>) {
+/// Reads `token` as a Windows path, then as a Unix path, and says whether
+/// either names a user's home or a network share. The folder names that
+/// mark a home are kept apart from any slash, so this source never holds
+/// the shape it looks for.
+fn classify_path(token: &str) -> Option<UserPath> {
+    let users = "Users";
+    let home = "home";
+    let root = "root";
+    let mount = "mnt";
+
+    let win = Utf8WindowsPath::new(token);
+    if win.is_absolute()
+        || win
+            .components()
+            .next()
+            .is_some_and(|c| matches!(c, Utf8WindowsComponent::Prefix(_)))
+    {
+        let mut parts = win.components();
+        let prefix = match parts.next() {
+            Some(Utf8WindowsComponent::Prefix(p)) => p.kind(),
+            _ => return None,
+        };
+        let normals: Vec<&str> = parts
+            .filter_map(|c| match c {
+                Utf8WindowsComponent::Normal(s) => Some(s),
+                _ => None,
+            })
+            .collect();
+        // A share names a server, a share, and something under them. Two
+        // backslashes and one word is an escape sequence, not a share.
+        if let Utf8WindowsPrefix::UNC(server, share)
+        | Utf8WindowsPrefix::VerbatimUNC(server, share) = prefix
+        {
+            let named = !server.is_empty() && !share.is_empty() && !normals.is_empty();
+            return named.then_some(UserPath::NetworkShare);
+        }
+        let under_users = normals
+            .first()
+            .is_some_and(|first| first.eq_ignore_ascii_case(users));
+        if under_users && normals.len() >= 2 {
+            return Some(UserPath::Windows);
+        }
+        return None;
+    }
+
+    let unix = Utf8UnixPath::new(token);
+    if !unix.is_absolute() {
+        return None;
+    }
+    let normals: Vec<&str> = unix
+        .components()
+        .filter_map(|c| match c {
+            Utf8UnixComponent::Normal(s) => Some(s),
+            _ => None,
+        })
+        .collect();
+    match normals.as_slice() {
+        [first, _, ..] if *first == home => Some(UserPath::Linux),
+        [first, _, ..] if *first == users => Some(UserPath::MacOs),
+        [first, ..] if *first == root => Some(UserPath::LinuxRoot),
+        [first, drive, second, _, ..]
+            if *first == mount && drive.len() == 1 && *second == users =>
+        {
+            Some(UserPath::WindowsSubsystemForLinux)
+        }
+        _ => None,
+    }
+}
+
+/// Anything in free text that could be a path: a run of non-space
+/// characters holding a slash or a backslash.
+fn path_candidates(content: &str) -> impl Iterator<Item = &str> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let pattern = re(&RE, &format!(r"{TOKEN_END}*[\\/]{TOKEN_END}*"));
+    pattern.find_iter(content).map(|m| trim_token(m.as_str()))
+}
+
+/// A `file:` URL, read by the URL parser, as the path it names. A host in
+/// the URL is a network share.
+fn file_url_path(token: &str) -> Option<String> {
+    let url = Url::parse(token).ok()?;
+    if url.scheme() != "file" {
+        return None;
+    }
+    let path = url.path();
+    match url.host_str() {
+        Some(host) if !host.is_empty() => Some(format!(r"\\{host}{}", path.replace('/', r"\"))),
+        _ => {
+            // `/C:/Users/...` is how a drive path appears inside a file URL.
+            let stripped = path.strip_prefix('/').unwrap_or(path);
+            if stripped.as_bytes().get(1) == Some(&b':') {
+                Some(stripped.to_string())
+            } else {
+                Some(path.to_string())
+            }
+        }
+    }
+}
+
+fn local_path_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
+    for (line, content) in lines(text) {
+        for token in path_candidates(content) {
+            let classified = if token.starts_with("file:") {
+                file_url_path(token).and_then(|p| classify_path(&p))
+            } else {
+                classify_path(token)
+            };
+            if let Some(kind) = classified {
+                out.push(finding(
+                    "scan-local-path",
+                    line,
+                    format!(
+                        "a user path from {} names a machine or an account and {clause}",
+                        kind.platform()
+                    ),
+                    token,
+                ));
+            }
+        }
+    }
+}
+
+// --- foreign references ---------------------------------------------------
+
+fn foreign_reference_findings(owner: &str, clause: &str, text: &str, out: &mut Vec<Finding>) {
     static RE: OnceLock<Regex> = OnceLock::new();
     let pattern = re(&RE, r"\b([A-Za-z0-9][\w.-]*)/[A-Za-z0-9][\w.-]*#\d+\b");
     for (line, content) in lines(text) {
@@ -239,7 +374,7 @@ fn foreign_reference_findings(owner: &str, text: &str, out: &mut Vec<Finding>) {
                 "scan-foreign-reference",
                 line,
                 format!(
-                    "'{}' is not this project's owner '{owner}'; check the reference is meant",
+                    "'{}' is not this project's owner '{owner}', and a reference to it {clause}",
                     found.as_str()
                 ),
                 whole.as_str(),
@@ -248,9 +383,11 @@ fn foreign_reference_findings(owner: &str, text: &str, out: &mut Vec<Finding>) {
     }
 }
 
-/// A compiled denylist: patterns that must never appear in a public
-/// repository, and never appear in a finding either. `None` when the
-/// configured list is empty, so the rule never fires.
+// --- the denylist ---------------------------------------------------------
+
+/// A compiled denylist: patterns that must never appear in the repository,
+/// and never appear in a finding either. `None` when the configured list
+/// is empty, so the rule never fires.
 struct Denylist(Option<Regex>);
 
 impl Denylist {
@@ -279,7 +416,7 @@ impl Denylist {
                 out.push(finding(
                     "scan-denied-name",
                     line,
-                    "a denylisted name must never reach a public repository".to_string(),
+                    "a denylisted name must never reach this repository".to_string(),
                     "",
                 ));
             }
@@ -287,90 +424,101 @@ impl Denylist {
     }
 }
 
-/// Every scan rule, built once from the resolved configuration.
+// --- the rules as a set ---------------------------------------------------
+
+/// The rules whose findings are about provenance reaching the public. In a
+/// private repository they are advice; the denylist is not among them,
+/// since a denied name is denied whoever can read the repository.
+const PUBLIC_ONLY_RULES: &[&str] = &[
+    "scan-session-link",
+    "scan-agent-state-path",
+    "scan-coauthor-trailer",
+    "scan-local-path",
+    "scan-foreign-reference",
+];
+
+/// Every scan rule, built once for one repository.
 pub struct Rules {
-    owner: Option<String>,
+    repository: Repository,
     links: Vec<SessionLink>,
     denylist: Denylist,
     notes: Vec<String>,
 }
 
 impl Rules {
-    /// Rules with the project owner taken from `cfg` alone. With no owner
-    /// configured, the foreign-reference rule does not run, and a note
-    /// says so. Prefer [`Rules::build_for`] where a repository is at hand.
+    /// Rules for the repository at `dir`. The owner and the visibility
+    /// come from `cfg` where it states them, else from the git remote and
+    /// the host. Nothing in `cfg` is required. A fact that could not be
+    /// read is reported through [`Rules::notes`].
     ///
     /// # Errors
     /// Returns an error if a configured denylist pattern or session link prefix is not valid.
-    pub fn build(cfg: &ScanConfig) -> Result<Self, String> {
-        let mut rules = Self::assemble(cfg)?;
-        if cfg.project_owner.is_empty() {
-            rules.notes.push(
-                "scan-foreign-reference did not run: no project owner is configured and no repository was given to read one from".to_string(),
-            );
-        } else {
-            rules.owner = Some(cfg.project_owner.clone());
-        }
-        Ok(rules)
-    }
-
-    /// Rules with the project owner taken from `cfg`, or, when that is
-    /// empty, from the `origin` remote of the repository at `dir`. When
-    /// neither yields an owner, the foreign-reference rule does not run and
-    /// a note says why.
-    ///
-    /// # Errors
-    /// Returns an error if a configured denylist pattern or session link prefix is not valid.
-    pub fn build_for(dir: &Path, cfg: &ScanConfig) -> Result<Self, String> {
-        let mut rules = Self::assemble(cfg)?;
-        if !cfg.project_owner.is_empty() {
-            rules.owner = Some(cfg.project_owner.clone());
-            return Ok(rules);
-        }
-        match crate::git::remote_owner(dir) {
-            Ok(owner) => rules.owner = Some(owner),
-            Err(e) => rules.notes.push(format!(
-                "scan-foreign-reference did not run: no project owner is configured and the git remote gave none ({e})"
-            )),
-        }
-        Ok(rules)
-    }
-
-    fn assemble(cfg: &ScanConfig) -> Result<Self, String> {
+    pub fn build(dir: &Path, cfg: &ScanConfig) -> Result<Self, String> {
+        let resolved = repository::resolve(dir, cfg);
         Ok(Rules {
-            owner: None,
+            repository: resolved.repository,
             links: session_links(cfg)?,
             denylist: Denylist::compile(&cfg.denylist)?,
-            notes: Vec::new(),
+            notes: resolved.notes,
         })
+    }
+
+    /// The repository these rules were built for.
+    #[must_use]
+    pub fn repository(&self) -> &Repository {
+        &self.repository
     }
 
     /// The owner every `owner/repo#N` reference is compared against, when
     /// one was found.
     #[must_use]
     pub fn owner(&self) -> Option<&str> {
-        self.owner.as_deref()
+        self.repository.owner.as_deref()
     }
 
-    /// What did not run, and why. Empty when every rule ran.
+    /// What could not be established, and what that means for the run.
+    /// Empty when everything was known.
     #[must_use]
     pub fn notes(&self) -> &[String] {
         &self.notes
     }
 
+    /// The clause every provenance message ends with, worded for what is
+    /// known about the repository.
+    fn clause(&self) -> &'static str {
+        match self.repository.visibility {
+            Visibility::Public => "must never reach a public repository",
+            Visibility::Private => {
+                "would be exposed if this private repository were ever made public"
+            }
+            Visibility::Unknown => {
+                "must never reach a public repository, and this repository's visibility could not be read"
+            }
+        }
+    }
+
     /// Every finding in `text`, resolved and explained under `context`.
     #[must_use]
     pub fn scan_text(&self, text: &str, context: Context) -> Vec<Finding> {
+        let clause = self.clause();
         let mut out = Vec::new();
-        session_link_findings(&self.links, text, &mut out);
-        agent_state_path_findings(text, &mut out);
-        coauthor_trailer_findings(text, &mut out);
-        local_path_findings(text, &mut out);
-        if let Some(owner) = &self.owner {
-            foreign_reference_findings(owner, text, &mut out);
+        session_link_findings(&self.links, clause, text, &mut out);
+        agent_state_path_findings(clause, text, &mut out);
+        coauthor_trailer_findings(clause, text, &mut out);
+        local_path_findings(clause, text, &mut out);
+        if let Some(owner) = &self.repository.owner {
+            foreign_reference_findings(owner, clause, text, &mut out);
         }
         self.denylist.find(text, &mut out);
         resolve_and_explain(&mut out, context);
+        if !self.repository.visibility.treated_as_public() {
+            for f in out
+                .iter_mut()
+                .filter(|f| PUBLIC_ONLY_RULES.contains(&f.rule))
+            {
+                f.level = Level::Warning;
+            }
+        }
         osf_lint_core::sort_findings(&mut out);
         out
     }
@@ -495,4 +643,53 @@ pub fn scan_commits(
         out.push((hash, findings));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_drive_path_is_read_as_windows_with_either_slash() {
+        let back = format!("{}{}{}{}", "C:", r"\", "Users", r"\pat\x");
+        let fwd = format!("{}{}{}{}", "C:", "/", "Users", "/pat/x");
+        assert_eq!(classify_path(&back), Some(UserPath::Windows));
+        assert_eq!(classify_path(&fwd), Some(UserPath::Windows));
+    }
+
+    #[test]
+    fn a_program_folder_is_not_a_user_path() {
+        let token = format!("{}{}{}", "C:", r"\", r"Program Files\x");
+        assert_eq!(classify_path(&token), None);
+    }
+
+    #[test]
+    fn relative_and_portable_forms_are_not_user_paths() {
+        for token in [
+            "crates/osf/src",
+            "~/.osf/config.toml",
+            "$HOME/.osf",
+            "%USERPROFILE%\\x",
+            "https://example.com/Users/guide/",
+        ] {
+            assert_eq!(classify_path(token), None, "{token}");
+        }
+    }
+
+    #[test]
+    fn a_file_url_yields_the_path_inside_it() {
+        let win = format!("{}{}", "file:///", "C:/x/y");
+        assert_eq!(file_url_path(&win).as_deref(), Some("C:/x/y"));
+        let unix = format!("{}{}", "file://", "/x/y");
+        assert_eq!(file_url_path(&unix).as_deref(), Some("/x/y"));
+        let share = format!("{}{}", "file://", "server/share/y");
+        assert!(file_url_path(&share).is_some_and(|p| p.starts_with(r"\\server")));
+    }
+
+    #[test]
+    fn a_url_without_a_scheme_still_parses_to_its_host() {
+        let url = parse_web_url("example.com/a/b").expect("parses");
+        assert_eq!(url.host_str(), Some("example.com"));
+        assert_eq!(url.path(), "/a/b");
+    }
 }

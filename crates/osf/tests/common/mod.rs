@@ -104,22 +104,51 @@ pub fn session_link_for(host: &str, path: &str, id: &str) -> String {
 /// A session link for the first agent in the list that has hosted
 /// sessions, for tests that need any one link.
 pub fn session_link(id: &str) -> String {
-    let agent = osf::agents::AGENTS
+    let (host, path) = osf::agents::AGENTS
         .iter()
-        .find(|a| a.session_host.is_some())
+        .find_map(osf::agents::Agent::hosted)
         .expect("at least one agent has hosted sessions");
-    session_link_for(
-        agent.session_host.expect("host"),
-        agent.session_path.expect("path"),
-        id,
-    )
+    session_link_for(host, path, id)
 }
 
-/// A path into one agent's state directory, of the shape a transcript
-/// path takes.
-pub fn agent_state_path(state_dir: &str) -> String {
+/// A path into one agent's state directory, at one of the places that
+/// agent keeps its sessions.
+pub fn agent_state_path(state_dir: &str, session_path: &str) -> String {
     let home = "~";
-    format!("{home}/{state_dir}/sessions/2026-09-17-abc.jsonl")
+    format!("{home}/{state_dir}/{session_path}/2026-09-17-abc.jsonl")
+}
+
+/// A scan configuration that states the repository is public, so a test
+/// never depends on a network lookup of the real visibility.
+pub fn public_config() -> osf::config::ScanConfig {
+    osf::config::ScanConfig {
+        repository_visibility: "public".to_string(),
+        ..osf::config::ScanConfig::default()
+    }
+}
+
+/// A throwaway repository with an `origin` remote under `owner`, and the
+/// configuration that calls it public.
+pub fn public_repo(name: &str, owner: &str) -> (TempRepo, osf::config::ScanConfig) {
+    let repo = TempRepo::new(name);
+    repo.git(&[
+        "remote",
+        "add",
+        "origin",
+        &format!("https://github.com/{owner}/tools.git"),
+    ]);
+    (repo, public_config())
+}
+
+/// A `file:` address for a path, built at run time for the same reason as
+/// [`session_link_for`].
+pub fn file_url(path: &str) -> String {
+    let scheme = "file://";
+    if path.as_bytes().get(1) == Some(&b':') {
+        format!("{scheme}/{}", path.replace('\\', "/"))
+    } else {
+        format!("{scheme}{path}")
+    }
 }
 
 /// Builds a Windows user-path-shaped string at run time, for the same

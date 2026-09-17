@@ -157,7 +157,7 @@ pub fn run(stage: Stage, opts: &Options) -> Result<Report, String> {
 /// The scan rules for this repository. A rule that could not run is
 /// reported on standard error before any check runs, never left silent.
 fn scan_rules(opts: &Options) -> Result<crate::scan::Rules, String> {
-    let rules = crate::scan::Rules::build_for(opts.dir, &opts.config.scan)?;
+    let rules = crate::scan::Rules::build(opts.dir, &opts.config.scan)?;
     for note in rules.notes() {
         eprintln!("osf verify: {note}");
     }

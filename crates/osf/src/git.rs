@@ -150,39 +150,89 @@ pub fn default_branch(dir: &Path) -> Result<String, GitError> {
     ))
 }
 
-/// The owner segment of the `origin` remote: `acme` for
-/// `https://host/acme/repo.git`, `ssh://git@host/acme/repo`, or
-/// `git@host:acme/repo.git`.
+/// The `origin` remote, split into the host it lives on, the owner, and
+/// the repository name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Remote {
+    pub host: String,
+    pub owner: String,
+    pub name: String,
+}
+
+/// The `origin` remote: `github.com`, `acme`, `repo` for any of
+/// `https://github.com/acme/repo.git`, `ssh://git@github.com/acme/repo`,
+/// or `git@github.com:acme/repo.git`.
 ///
 /// # Errors
 /// Returns an error if git cannot run in `dir`, there is no `origin`, or
 /// its URL has no owner and repository segments.
-pub fn remote_owner(dir: &Path) -> Result<String, GitError> {
+pub fn remote(dir: &Path) -> Result<Remote, GitError> {
     let url = run_text(dir, &["remote", "get-url", "origin"])?;
-    parse_remote_owner(url.trim()).ok_or_else(|| {
+    parse_remote(url.trim()).ok_or_else(|| {
         GitError(format!(
-            "cannot read an owner from the origin URL '{}'",
+            "cannot read a host, an owner and a name from the origin URL '{}'",
             url.trim()
         ))
     })
 }
 
-/// The owner in a remote URL of any of the three common shapes, or `None`
-/// when the URL has fewer than two path segments.
-fn parse_remote_owner(url: &str) -> Option<String> {
-    let path = match url.find("://") {
-        Some(i) => url.get(i + 3..)?.split_once('/')?.1,
-        None => url.split_once(':').map_or(url, |(_, p)| p),
+/// A remote URL of any of the three common shapes, or `None` when it has
+/// no host or fewer than two path segments.
+fn parse_remote(url: &str) -> Option<Remote> {
+    let (authority, path) = match url.find("://") {
+        Some(i) => url.get(i + 3..)?.split_once('/')?,
+        None => url.split_once(':')?,
     };
+    let host = authority.rsplit('@').next()?.split(':').next()?;
     let path = path.trim_end_matches('/').trim_end_matches(".git");
     let mut segments = path.rsplit('/');
-    let _repo = segments.next().filter(|s| !s.is_empty())?;
+    let name = segments.next().filter(|s| !s.is_empty())?;
     let owner = segments.next().filter(|s| !s.is_empty())?;
-    Some(owner.to_string())
+    if host.is_empty() {
+        return None;
+    }
+    Some(Remote {
+        host: host.to_string(),
+        owner: owner.to_string(),
+        name: name.to_string(),
+    })
 }
 
 /// Turns a git-reported forward-slash path into a real path under `dir`.
 #[must_use]
 pub fn to_local_path(dir: &Path, git_path: &str) -> PathBuf {
     dir.join(git_path.replace('/', std::path::MAIN_SEPARATOR_STR))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_three_common_remote_shapes_parse_the_same_way() {
+        for url in [
+            "https://github.com/acme/tools.git",
+            "https://github.com/acme/tools",
+            "ssh://git@github.com/acme/tools",
+            "git@github.com:acme/tools.git",
+        ] {
+            let r = parse_remote(url).unwrap_or_else(|| panic!("{url}"));
+            assert_eq!(r.host, "github.com", "{url}");
+            assert_eq!(r.owner, "acme", "{url}");
+            assert_eq!(r.name, "tools", "{url}");
+        }
+    }
+
+    #[test]
+    fn a_remote_on_another_host_keeps_its_host() {
+        let r = parse_remote("git@gitlab.example.com:group/project.git").expect("parses");
+        assert_eq!(r.host, "gitlab.example.com");
+        assert_eq!(r.owner, "group");
+    }
+
+    #[test]
+    fn a_url_with_too_few_segments_is_none() {
+        assert!(parse_remote("https://github.com/tools").is_none());
+        assert!(parse_remote("nonsense").is_none());
+    }
 }

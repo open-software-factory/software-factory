@@ -4,24 +4,34 @@
 //! file from its own `osf scan` run, so every sample here is built at run
 //! time instead of sitting in this file's source text as a literal match.
 //!
-//! The corpus below has one case per supported agent and one per platform.
-//! The tests that walk `osf::agents::AGENTS` are the ones that matter: a
-//! rule cannot pass them while knowing one agent and not the others.
+//! The corpus below has one case per supported agent, per session place,
+//! and per platform. The tests that walk `osf::agents::AGENTS` are the
+//! ones that matter: a rule cannot pass them while knowing one agent and
+//! not the others. No test here reaches the network: every repository
+//! states its own visibility in its configuration.
 
 mod common;
 
 use common::{
-    agent_state_path, coauthor_trailer, foreign_reference, home_path, mac_home_path,
-    network_share_path, root_home_path, session_link, session_link_for, windows_forward_path,
-    windows_user_path, wsl_user_path, TempRepo,
+    agent_state_path, coauthor_trailer, file_url, foreign_reference, home_path, mac_home_path,
+    network_share_path, public_config, public_repo, root_home_path, session_link, session_link_for,
+    windows_forward_path, windows_user_path, wsl_user_path, TempRepo,
 };
 use osf::agents::{self, AGENTS};
 use osf::config::ScanConfig;
+use osf::repository::Visibility;
 use osf::scan::{rule_meta, Rules};
 use osf_lint_core::{Context, Finding, Level};
 
-fn rules() -> Rules {
-    Rules::build(&ScanConfig::default()).expect("empty config builds")
+/// Rules for a public repository with a remote, the common case. Each
+/// call gets its own repository, since tests run in parallel and a shared
+/// directory would be removed by one test while another still used it.
+fn rules() -> (TempRepo, Rules) {
+    static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let (repo, cfg) = public_repo(&format!("scan-rules-{n}"), "acme");
+    let rules = Rules::build(&repo.dir, &cfg).expect("builds");
+    (repo, rules)
 }
 
 fn rule_ids(findings: &[Finding]) -> Vec<&'static str> {
@@ -32,14 +42,14 @@ fn rule_ids(findings: &[Finding]) -> Vec<&'static str> {
 
 #[test]
 fn a_session_link_fires_for_every_agent_with_hosted_sessions() {
-    for agent in AGENTS.iter().filter(|a| a.session_host.is_some()) {
-        let link = session_link_for(
-            agent.session_host.expect("host"),
-            agent.session_path.expect("path"),
-            "01AbCdEf",
-        );
+    let (_repo, rules) = rules();
+    for agent in AGENTS {
+        let Some((host, path)) = agent.hosted() else {
+            continue;
+        };
+        let link = session_link_for(host, path, "01AbCdEf");
         let text = format!("See {link} for the discussion.\n");
-        let found = rules().scan_text(&text, Context::Document);
+        let found = rules.scan_text(&text, Context::Document);
         assert_eq!(
             rule_ids(&found),
             vec!["scan-session-link"],
@@ -59,21 +69,35 @@ fn a_session_link_fires_for_every_agent_with_hosted_sessions() {
 }
 
 #[test]
-fn a_session_link_is_caught_without_its_scheme_and_inside_punctuation() {
+fn a_session_link_is_caught_without_its_scheme_inside_punctuation_and_with_a_query() {
+    let (_repo, rules) = rules();
     let bare = session_link("01AbCdEf").replace("https://", "");
-    let text = format!("(see {bare}) and [{bare}].\n");
-    let found = rules().scan_text(&text, Context::Document);
-    assert_eq!(found.len(), 2, "{found:?}");
-    assert!(found.iter().all(|f| f.excerpt == bare), "{found:?}");
+    let with_query = format!("{}?tab=files#top", session_link("01AbCdEf"));
+    let text = format!("(see {bare}) and [{bare}] and {with_query}.\n");
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(found.len(), 3, "{found:?}");
+    assert!(found.iter().all(|f| f.rule == "scan-session-link"));
+}
+
+/// The same path on another host is not a session link. Comparing hosts
+/// is what parsing the URL buys over matching a substring.
+#[test]
+fn the_same_path_on_another_host_is_not_a_session_link() {
+    let (_repo, rules) = rules();
+    let (_, path) = AGENTS
+        .iter()
+        .find_map(osf::agents::Agent::hosted)
+        .expect("an agent has hosted sessions");
+    let text = format!("See https://example.com{path}01AbCdEf and example.org{path}2.\n");
+    let found = rules.scan_text(&text, Context::Document);
+    assert!(rule_ids(&found).is_empty(), "{found:?}");
 }
 
 #[test]
 fn a_configured_session_link_prefix_is_added_never_substituted() {
-    let cfg = ScanConfig {
-        session_links: vec!["agents.example.test/run/".to_string()],
-        ..ScanConfig::default()
-    };
-    let rules = Rules::build(&cfg).expect("config builds");
+    let (repo, mut cfg) = public_repo("scan-links-configured", "acme");
+    cfg.session_links = vec!["agents.example.test/run/".to_string()];
+    let rules = Rules::build(&repo.dir, &cfg).expect("config builds");
     let configured = "https://agents.example.test/run/9f";
     let built_in = session_link("01");
     let text = format!("{configured} and {built_in}\n");
@@ -83,59 +107,59 @@ fn a_configured_session_link_prefix_is_added_never_substituted() {
 }
 
 #[test]
-fn a_bad_configured_session_link_prefix_is_an_error_not_a_silent_skip() {
-    let cfg = ScanConfig {
-        session_links: vec![String::new()],
-        ..ScanConfig::default()
-    };
-    // An empty prefix would match everything; the regex is valid, so this
-    // proves the list is read rather than that it is validated.
-    let rules = Rules::build(&cfg).expect("an empty prefix still compiles");
-    let found = rules.scan_text("plain\n", Context::Document);
-    assert!(
-        !found.is_empty(),
-        "an empty prefix matches, and that is visible"
-    );
+fn a_configured_prefix_without_a_path_is_refused_not_ignored() {
+    let (repo, mut cfg) = public_repo("scan-links-bad", "acme");
+    cfg.session_links = vec!["agents.example.test".to_string()];
+    let err = Rules::build(&repo.dir, &cfg)
+        .err()
+        .expect("a prefix with no path is an error");
+    assert!(err.contains("agents.example.test"), "{err}");
 }
 
 #[test]
 fn plain_text_has_no_session_link_finding() {
-    let found = rules().scan_text("A plain sentence with no link at all.\n", Context::Document);
+    let (_repo, rules) = rules();
+    let found = rules.scan_text("A plain sentence with no link at all.\n", Context::Document);
     assert!(rule_ids(&found).is_empty());
 }
 
-// --- agent state paths: one case per agent ------------------------------
+// --- agent state paths: one case per agent, per session place -----------
 
 #[test]
-fn a_state_path_fires_for_every_agent() {
+fn a_state_path_fires_for_every_agent_at_every_session_place() {
+    let (_repo, rules) = rules();
     for agent in AGENTS {
         for dir in agent.state_dirs {
-            let path = agent_state_path(dir);
-            let text = format!("The transcript is at {path}.\n");
-            let found = rules().scan_text(&text, Context::Document);
-            assert_eq!(
-                rule_ids(&found),
-                vec!["scan-agent-state-path"],
-                "{}: {dir}",
-                agent.name
-            );
-            let f = found.first().expect("one finding");
-            assert!(
-                f.message.contains(agent.name),
-                "{}: {}",
-                agent.name,
-                f.message
-            );
+            for place in agent.session_paths {
+                let path = agent_state_path(dir, place);
+                let text = format!("The transcript is at {path}.\n");
+                let found = rules.scan_text(&text, Context::Document);
+                assert_eq!(
+                    rule_ids(&found),
+                    vec!["scan-agent-state-path"],
+                    "{}: {dir}/{place}",
+                    agent.name
+                );
+                let f = found.first().expect("one finding");
+                assert!(
+                    f.message.contains(agent.name),
+                    "{}: {}",
+                    agent.name,
+                    f.message
+                );
+                assert_eq!(f.excerpt, path, "{}: {dir}/{place}", agent.name);
+            }
         }
     }
 }
 
 #[test]
 fn an_agents_committed_configuration_file_is_not_a_state_path() {
+    let (_repo, rules) = rules();
     for agent in AGENTS {
         for dir in agent.state_dirs {
             let text = format!("Edit {dir}/settings.json and {dir}/hooks.json.\n");
-            let found = rules().scan_text(&text, Context::Document);
+            let found = rules.scan_text(&text, Context::Document);
             assert!(
                 rule_ids(&found).is_empty(),
                 "{}: {dir} -> {found:?}",
@@ -145,11 +169,10 @@ fn an_agents_committed_configuration_file_is_not_a_state_path() {
     }
 }
 
-// --- local paths: one case per platform --------------------------------
+// --- local paths: one case per platform, plain and as a file address ----
 
-#[test]
-fn a_user_path_fires_on_every_platform() {
-    let cases: Vec<(&str, String)> = vec![
+fn platform_cases() -> Vec<(&'static str, String)> {
+    vec![
         ("Windows", windows_user_path("pat")),
         ("Windows", windows_forward_path("pat")),
         ("network share", network_share_path("fileserver", "home")),
@@ -157,10 +180,15 @@ fn a_user_path_fires_on_every_platform() {
         ("Linux", home_path("pat")),
         ("root", root_home_path()),
         ("macOS", mac_home_path("pat")),
-    ];
-    for (platform, path) in cases {
+    ]
+}
+
+#[test]
+fn a_user_path_fires_on_every_platform() {
+    let (_repo, rules) = rules();
+    for (platform, path) in platform_cases() {
         let text = format!("See {path} for the file.\n");
-        let found = rules().scan_text(&text, Context::Document);
+        let found = rules.scan_text(&text, Context::Document);
         assert_eq!(
             rule_ids(&found),
             vec!["scan-local-path"],
@@ -168,76 +196,84 @@ fn a_user_path_fires_on_every_platform() {
         );
         let f = found.first().expect("one finding");
         assert!(f.message.contains(platform), "{platform}: {}", f.message);
+        assert_eq!(f.excerpt, path, "{platform}");
     }
+}
+
+#[test]
+fn a_user_path_inside_a_file_address_fires_on_every_platform() {
+    let (_repo, rules) = rules();
+    for (platform, path) in platform_cases() {
+        if platform == "network share" {
+            continue;
+        }
+        let address = file_url(&path);
+        let text = format!("Open {address} in a browser.\n");
+        let found = rules.scan_text(&text, Context::Document);
+        assert_eq!(
+            rule_ids(&found),
+            vec!["scan-local-path"],
+            "{platform}: {address}"
+        );
+        assert!(
+            found.first().is_some_and(|f| f.message.contains(platform)),
+            "{platform}: {found:?}"
+        );
+    }
+    let share = format!("{}{}", "file://", "fileserver/home/pat/notes.md");
+    let found = rules.scan_text(&format!("Open {share}.\n"), Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-local-path"], "{found:?}");
+    assert!(
+        found
+            .first()
+            .is_some_and(|f| f.message.contains("network share")),
+        "{found:?}"
+    );
 }
 
 /// A drive path also contains the home-directory shape. It must be
 /// reported once, as Windows, not twice.
 #[test]
 fn a_windows_path_is_reported_once_not_also_as_a_home_directory() {
+    let (_repo, rules) = rules();
     let text = format!("See {}.\n", windows_forward_path("pat"));
-    let found = rules().scan_text(&text, Context::Document);
+    let found = rules.scan_text(&text, Context::Document);
     assert_eq!(found.len(), 1, "{found:?}");
     let first = found.first().expect("one finding");
     assert!(first.message.contains("Windows"), "{}", first.message);
 }
 
 #[test]
-fn portable_forms_of_a_home_path_are_not_flagged() {
+fn portable_forms_a_system_folder_and_a_web_path_are_not_flagged() {
+    let (_repo, rules) = rules();
     let tilde = "~";
     let var = "$HOME";
     let win_var = "%USERPROFILE%";
-    let text = format!("Config at {tilde}/.osf/config.toml, {var}/.osf/config.toml, {win_var}\\.osf\\config.toml\n");
-    let found = rules().scan_text(&text, Context::Document);
+    let programs = format!("{}{}{}", "C:", r"\", r"Program Files\tool\tool.exe");
+    let web = format!("https://example.com/{}/guide/", "Users");
+    let text = format!(
+        "Config at {tilde}/.osf/config.toml, {var}/.osf/config.toml, {win_var}\\.osf\\config.toml, {programs}, {web}\n"
+    );
+    let found = rules.scan_text(&text, Context::Document);
     assert!(rule_ids(&found).is_empty(), "{found:?}");
 }
 
 #[test]
 fn a_repository_relative_path_has_no_local_path_finding() {
-    let found = rules().scan_text(
+    let (_repo, rules) = rules();
+    let found = rules.scan_text(
         "The file lives at crates/osf/src/scan/mod.rs.\n",
         Context::Document,
     );
     assert!(rule_ids(&found).is_empty());
 }
 
-// --- foreign references -------------------------------------------------
+// --- the repository: owner and visibility, with no configuration --------
 
-#[test]
-fn a_foreign_reference_fires_when_an_owner_is_configured() {
-    let cfg = ScanConfig {
-        project_owner: "acme".to_string(),
-        ..ScanConfig::default()
-    };
-    let rules = Rules::build(&cfg).expect("config builds");
-    let text = format!(
-        "See {} for the fix.\n",
-        foreign_reference("other-org", "tools", 42)
-    );
-    let found = rules.scan_text(&text, Context::Document);
-    assert_eq!(rule_ids(&found), vec!["scan-foreign-reference"]);
-    assert!(rules.notes().is_empty(), "{:?}", rules.notes());
-}
-
-#[test]
-fn a_reference_to_the_configured_owner_does_not_fire() {
-    let cfg = ScanConfig {
-        project_owner: "acme".to_string(),
-        ..ScanConfig::default()
-    };
-    let rules = Rules::build(&cfg).expect("config builds");
-    let text = format!(
-        "See {} for the fix.\n",
-        foreign_reference("acme", "tools", 42)
-    );
-    let found = rules.scan_text(&text, Context::Document);
-    assert!(rule_ids(&found).is_empty());
-}
-
-/// With no owner configured, the owner comes from the git remote, in any
+/// With nothing configured, the owner comes from the git remote, in any
 /// of the three common URL shapes.
 #[test]
-fn the_owner_is_read_from_the_git_remote_when_not_configured() {
+fn the_owner_is_read_from_the_git_remote_with_no_configuration() {
     for (shape, url) in [
         ("https", "https://github.com/acme/tools.git"),
         ("ssh", "ssh://git@github.com/acme/tools"),
@@ -245,8 +281,13 @@ fn the_owner_is_read_from_the_git_remote_when_not_configured() {
     ] {
         let repo = TempRepo::new(&format!("scan-owner-{shape}"));
         repo.git(&["remote", "add", "origin", url]);
-        let rules = Rules::build_for(&repo.dir, &ScanConfig::default()).expect("builds");
+        let rules = Rules::build(&repo.dir, &public_config()).expect("builds");
         assert_eq!(rules.owner(), Some("acme"), "{shape}");
+        assert_eq!(
+            rules.repository().host.as_deref(),
+            Some("github.com"),
+            "{shape}"
+        );
         assert!(rules.notes().is_empty(), "{shape}: {:?}", rules.notes());
         let text = format!(
             "See {} and {}.\n",
@@ -264,21 +305,11 @@ fn the_owner_is_read_from_the_git_remote_when_not_configured() {
     }
 }
 
-/// A configured owner wins over the remote.
 #[test]
-fn a_configured_owner_is_not_overridden_by_the_remote() {
-    let repo = TempRepo::new("scan-owner-configured");
-    repo.git(&[
-        "remote",
-        "add",
-        "origin",
-        "https://github.com/acme/tools.git",
-    ]);
-    let cfg = ScanConfig {
-        project_owner: "other-org".to_string(),
-        ..ScanConfig::default()
-    };
-    let rules = Rules::build_for(&repo.dir, &cfg).expect("builds");
+fn a_configured_owner_wins_over_the_remote() {
+    let (repo, mut cfg) = public_repo("scan-owner-configured", "acme");
+    cfg.project_owner = "other-org".to_string();
+    let rules = Rules::build(&repo.dir, &cfg).expect("builds");
     assert_eq!(rules.owner(), Some("other-org"));
 }
 
@@ -287,29 +318,93 @@ fn a_configured_owner_is_not_overridden_by_the_remote() {
 #[test]
 fn with_no_owner_from_anywhere_the_rule_does_not_run_and_says_so() {
     let repo = TempRepo::new("scan-owner-none");
-    let built = Rules::build_for(&repo.dir, &ScanConfig::default()).expect("builds");
+    let built = Rules::build(&repo.dir, &public_config()).expect("builds");
     assert_eq!(built.owner(), None);
-    assert_eq!(built.notes().len(), 1, "{:?}", built.notes());
-    assert!(built
-        .notes()
-        .first()
-        .is_some_and(|n| n.contains("scan-foreign-reference did not run")));
+    assert!(
+        built
+            .notes()
+            .iter()
+            .any(|n| n.contains("scan-foreign-reference did not run")),
+        "{:?}",
+        built.notes()
+    );
     let text = format!("See {}.\n", foreign_reference("other-org", "tools", 42));
     assert!(rule_ids(&built.scan_text(&text, Context::Document)).is_empty());
+}
 
-    let plain = rules();
-    assert_eq!(plain.notes().len(), 1, "{:?}", plain.notes());
+/// In a private repository the provenance findings are advice, and the
+/// message says why. The denylist stays an error.
+#[test]
+fn a_private_repository_lowers_provenance_findings_to_warnings_but_not_the_denylist() {
+    let (repo, mut cfg) = public_repo("scan-private", "acme");
+    cfg.repository_visibility = "private".to_string();
+    cfg.denylist = vec!["Secret".to_string()];
+    let rules = Rules::build(&repo.dir, &cfg).expect("builds");
+    assert_eq!(rules.repository().visibility, Visibility::Private);
+    let text = format!(
+        "See {} and {} and Secret.\n",
+        session_link("1"),
+        windows_user_path("pat")
+    );
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(found.len(), 3, "{found:?}");
+    for f in &found {
+        if f.rule == "scan-denied-name" {
+            assert_eq!(f.level, Level::Error, "{}", f.rule);
+        } else {
+            assert_eq!(f.level, Level::Warning, "{}", f.rule);
+            assert!(f.message.contains("private"), "{}", f.message);
+        }
+    }
+}
+
+/// With the visibility unknown, every finding is an error, the message
+/// says the visibility could not be read, and a note says how to state it.
+#[test]
+fn an_unknown_visibility_is_treated_as_public_and_reported() {
+    let repo = TempRepo::new("scan-visibility-unknown");
+    let rules = Rules::build(&repo.dir, &ScanConfig::default()).expect("builds");
+    assert_eq!(rules.repository().visibility, Visibility::Unknown);
+    assert!(
+        rules
+            .notes()
+            .iter()
+            .any(|n| n.contains("visibility is unknown")),
+        "{:?}",
+        rules.notes()
+    );
+    let text = format!("See {}.\n", session_link("1"));
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(found.len(), 1, "{found:?}");
+    let first = found.first().expect("one finding");
+    assert_eq!(first.level, Level::Error);
+    assert!(
+        first.message.contains("could not be read"),
+        "{}",
+        first.message
+    );
+}
+
+#[test]
+fn a_visibility_word_the_tool_does_not_know_is_reported_not_accepted() {
+    let (repo, mut cfg) = public_repo("scan-visibility-bad", "acme");
+    cfg.repository_visibility = "secret".to_string();
+    let rules = Rules::build(&repo.dir, &cfg).expect("builds");
+    assert_eq!(rules.repository().visibility, Visibility::Unknown);
+    assert!(
+        rules.notes().iter().any(|n| n.contains("secret")),
+        "{:?}",
+        rules.notes()
+    );
 }
 
 // --- denylist -----------------------------------------------------------
 
 #[test]
 fn a_denylisted_name_fires_with_no_excerpt() {
-    let cfg = ScanConfig {
-        denylist: vec!["SecretCode".to_string()],
-        ..ScanConfig::default()
-    };
-    let rules = Rules::build(&cfg).expect("config builds");
+    let (repo, mut cfg) = public_repo("scan-deny", "acme");
+    cfg.denylist = vec!["SecretCode".to_string()];
+    let rules = Rules::build(&repo.dir, &cfg).expect("config builds");
     let found = rules.scan_text("The plan mentions SecretCode by name.\n", Context::Document);
     assert_eq!(rule_ids(&found), vec!["scan-denied-name"]);
     let f = found.first().expect("one finding");
@@ -318,11 +413,9 @@ fn a_denylisted_name_fires_with_no_excerpt() {
 
 #[test]
 fn text_with_no_denylisted_name_has_no_finding() {
-    let cfg = ScanConfig {
-        denylist: vec!["SecretCode".to_string()],
-        ..ScanConfig::default()
-    };
-    let rules = Rules::build(&cfg).expect("config builds");
+    let (repo, mut cfg) = public_repo("scan-deny-clean", "acme");
+    cfg.denylist = vec!["SecretCode".to_string()];
+    let rules = Rules::build(&repo.dir, &cfg).expect("config builds");
     let found = rules.scan_text("Nothing sensitive here.\n", Context::Document);
     assert!(rule_ids(&found).is_empty());
 }
@@ -333,11 +426,9 @@ fn text_with_no_denylisted_name_has_no_finding() {
 #[test]
 fn the_denylisted_text_never_appears_in_any_output_format() {
     let secret = "TotallyASecretOrgName";
-    let cfg = ScanConfig {
-        denylist: vec![secret.to_string()],
-        ..ScanConfig::default()
-    };
-    let rules = Rules::build(&cfg).expect("config builds");
+    let (repo, mut cfg) = public_repo("scan-deny-output", "acme");
+    cfg.denylist = vec![secret.to_string()];
+    let rules = Rules::build(&repo.dir, &cfg).expect("config builds");
     let text = format!("Some notes mention {secret} in passing.\n");
     let found = rules.scan_text(&text, Context::Document);
     assert_eq!(rule_ids(&found), vec!["scan-denied-name"]);
@@ -366,11 +457,12 @@ fn the_denylisted_text_never_appears_in_any_output_format() {
 
 #[test]
 fn a_coauthor_trailer_fires() {
+    let (_repo, rules) = rules();
     let text = format!(
         "Fix the bug.\n\n{}\n",
         coauthor_trailer("Someone", "someone@example.com")
     );
-    let found = rules().scan_text(&text, Context::Commit);
+    let found = rules.scan_text(&text, Context::Commit);
     assert_eq!(rule_ids(&found), vec!["scan-coauthor-trailer"]);
     let f = found.first().expect("one finding");
     assert_eq!(f.line, 3);
@@ -378,7 +470,8 @@ fn a_coauthor_trailer_fires() {
 
 #[test]
 fn a_normal_commit_message_has_no_coauthor_finding() {
-    let found = rules().scan_text("Fix the bug.\n", Context::Commit);
+    let (_repo, rules) = rules();
+    let found = rules.scan_text("Fix the bug.\n", Context::Commit);
     assert!(rule_ids(&found).is_empty());
 }
 
@@ -434,24 +527,20 @@ fn the_rule_docs_name_every_supported_agent() {
 
 #[test]
 fn every_finding_is_an_error_and_points_at_explain() {
-    let cfg = ScanConfig {
-        project_owner: "acme".to_string(),
-        denylist: vec!["Secret".to_string()],
-        ..ScanConfig::default()
-    };
-    let rules = Rules::build(&cfg).expect("config builds");
+    let (repo, mut cfg) = public_repo("scan-all-rules", "acme");
+    cfg.denylist = vec!["Secret".to_string()];
+    let rules = Rules::build(&repo.dir, &cfg).expect("config builds");
+    let first = AGENTS.first().expect("an agent");
+    let (first_dir, first_place) = (
+        first.state_dirs.first().expect("a state dir"),
+        first.session_paths.first().expect("a session place"),
+    );
     let text = format!(
         "See {} and {} and Secret and {} and {} and\n{}\n",
         session_link("1"),
         foreign_reference("other", "repo", 1),
         windows_user_path("pat"),
-        agent_state_path(
-            AGENTS
-                .first()
-                .and_then(|a| a.state_dirs.first())
-                .copied()
-                .expect("an agent with a state directory")
-        ),
+        agent_state_path(first_dir, first_place),
         coauthor_trailer("X", "x@example.com")
     );
     let found = rules.scan_text(&text, Context::Commit);

@@ -199,6 +199,8 @@ impl Default for SkillConfig {
 pub struct ScanConfig {
     /// The org or user whose own `owner/repo#N` references are not foreign. Empty means it is read from the git remote.
     pub project_owner: String,
+    /// `public` or `private`. Empty means it is read from the host, or treated as public when that fails.
+    pub repository_visibility: String,
     /// Patterns that must never appear in a public repository. Never printed in a finding.
     pub denylist: Vec<String>,
     /// Extra hosted-session link prefixes, as `host/path-prefix`, added to the built-in agent list. Adds only; nothing here removes a built-in.
@@ -327,6 +329,11 @@ const ENV_FIELDS: &[EnvField] = &[
         var: "OSF_SCAN_SESSION_LINKS",
         path: &["scan", "session_links"],
         parse: parse_list,
+    },
+    EnvField {
+        var: "OSF_SCAN_REPOSITORY_VISIBILITY",
+        path: &["scan", "repository_visibility"],
+        parse: parse_string,
     },
 ];
 

@@ -9,5 +9,6 @@ pub mod exclude;
 mod git;
 pub mod hook;
 pub mod lint;
+pub mod repository;
 pub mod scan;
 pub mod verify;

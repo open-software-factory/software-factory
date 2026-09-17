@@ -9,8 +9,10 @@ use osf::config::ScanConfig;
 use osf::exclude::Excluder;
 use osf::scan::{scan_commits, scan_paths, Rules};
 
-fn rules() -> Rules {
-    Rules::build(&ScanConfig::default()).expect("empty config builds")
+/// Rules for a throwaway repository with no remote and no configuration:
+/// the visibility is unknown, so every finding is an error, as before.
+fn rules(repo: &TempRepo) -> Rules {
+    Rules::build(&repo.dir, &ScanConfig::default()).expect("empty config builds")
 }
 
 fn no_exclude() -> Excluder {
@@ -27,7 +29,7 @@ fn scanning_with_no_paths_covers_every_tracked_file() {
     repo.write("clean.md", "Nothing to see here.\n");
     repo.commit("add fixtures");
 
-    let found = scan_paths(&repo.dir, &[], &rules(), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
     let with_findings: Vec<&(String, Vec<osf_lint_core::Finding>)> =
         found.files.iter().filter(|(_, f)| !f.is_empty()).collect();
     assert_eq!(with_findings.len(), 1, "{:?}", found.files);
@@ -42,7 +44,7 @@ fn a_binary_tracked_file_is_skipped_not_scanned() {
     std::fs::write(repo.dir.join("blob.bin"), [0u8, 1, 2, 3, b'C', b'o']).expect("binary writes");
     repo.commit("add a binary file");
 
-    let found = scan_paths(&repo.dir, &[], &rules(), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
     assert!(
         found.files.iter().all(|(_, f)| f.is_empty()),
         "a binary file must never be scanned as text: {:?}",
@@ -62,7 +64,7 @@ fn an_explicit_path_is_scanned_even_when_not_tracked() {
     let found = scan_paths(
         &repo.dir,
         std::slice::from_ref(&target),
-        &rules(),
+        &rules(&repo),
         &no_exclude(),
     )
     .expect("scan runs");
@@ -84,7 +86,7 @@ fn a_commit_range_scan_reports_the_hash_and_the_line() {
     ));
 
     let range = format!("{base}..{bad}");
-    let found = scan_commits(&repo.dir, &range, &rules()).expect("commit scan runs");
+    let found = scan_commits(&repo.dir, &range, &rules(&repo)).expect("commit scan runs");
     let flagged: Vec<&(String, Vec<osf_lint_core::Finding>)> =
         found.iter().filter(|(_, f)| !f.is_empty()).collect();
     assert_eq!(flagged.len(), 1, "{found:?}");
