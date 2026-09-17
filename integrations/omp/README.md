@@ -6,24 +6,44 @@ replies. This hook runs `osf` over the reply at the end of every turn.
 It asks for a short follow-up when the reply has a problem a reader
 would trip on.
 
+The hook is written in strict TypeScript. `npm run check` type-checks
+it, lints it, and checks its formatting; `npm test` builds it and runs
+its tests against the compiled output.
+
 ## Why a global hook
 
-omp loads a TypeScript file in its global hooks directory as an
-extension. That extension can subscribe to `session_stop`. This is an
-event fired once per turn, right before the session settles. A handler
-for that event can ask omp for one continuation turn. It does this by
-returning a block decision. omp caps that at 8 continuations per turn.
+omp loads a compiled JavaScript file in its global hooks directory as
+an extension. That extension can subscribe to `session_stop`. This is
+an event fired once per turn, right before the session settles. A
+handler for that event can ask omp for one continuation turn. It does
+this by returning a block decision. omp caps that at 8 continuations
+per turn.
 
 The event carries the last assistant message directly, so the reply is
 already in hand. No file to find, no transcript to parse.
 
-## Installing it
-
-Copy the hook file into the global hooks directory:
+## Building it
 
 ```
-mkdir -p ~/.omp/agent/hooks
-cp osf-stop.ts ~/.omp/agent/hooks/
+npm ci
+npm run build
+```
+
+This compiles `src/*.ts` and `test/*.ts` into `dist/`. `dist/` is not
+checked in.
+
+## Installing it
+
+Build the package, then copy the compiled hook into its own directory
+under the global hooks directory, as `index.js` alongside the decision
+module it imports. omp resolves a hooks-directory entry that is itself
+a directory through its `index.js`, and does not also treat that
+directory's other files as separate top-level hooks:
+
+```
+mkdir -p ~/.omp/agent/hooks/osf-stop
+cp dist/src/osf-stop.js ~/.omp/agent/hooks/osf-stop/index.js
+cp dist/src/check.js ~/.omp/agent/hooks/osf-stop/check.js
 ```
 
 Put the `osf` binary on the path. The hook reads `OSF_COMMAND` from the
@@ -56,10 +76,38 @@ checked.
 ## Checking it
 
 ```
-node --test
+npm run check
 ```
 
-The two decisions this hook makes are plain functions in `src/check.js`,
+This type-checks the source with `tsgo` (the native-preview TypeScript
+compiler), lints it with `oxlint`, and checks its formatting with
+`oxfmt`.
+
+## Testing it
+
+```
+npm test
+```
+
+This builds the package, then runs `node --test` against the compiled
+tests in `dist/test/`.
+
+## Smoke test
+
+After building, this runs the compiled check module directly against a
+sample assistant reply, a clean check result, and a blocked check
+result:
+
+```
+node -e "import('./dist/src/check.js').then(({ lastAssistantText, readResult }) => { \
+  const text = lastAssistantText({ role: 'assistant', content: [{ type: 'text', text: 'Sample assistant reply, not a bare reference.' }] }, []); \
+  console.log('extracted:', JSON.stringify(text)); \
+  console.log('clean check:', JSON.stringify(readResult({ code: 0, stdout: '' }))); \
+  console.log('blocked check:', JSON.stringify(readResult({ code: 0, stdout: JSON.stringify({ decision: 'block', reason: 'message:1: error [bare-reference]' }) }))); \
+});"
+```
+
+The two decisions this hook makes are plain functions in `src/check.ts`,
 which imports nothing from omp. The tests run anywhere, including where
-omp is not installed. `osf-stop.ts` is wiring and carries no decision of
-its own.
+omp is not installed. `src/osf-stop.ts` is wiring and carries no
+decision of its own.

@@ -4,12 +4,24 @@
   "description": "Runs the osf writing check at the end of every omp turn, reading the assistant message from the session_stop event",
   "license": "Apache-2.0 OR MIT",
   "type": "module",
-  "main": "osf-stop.ts",
-  "files": [
-    "osf-stop.ts",
-    "src/check.js"
-  ],
+  "main": "dist/src/osf-stop.js",
+  "files": ["dist/"],
   "scripts": {
-    "test": "node --test"
+    "build": "tsgo -p tsconfig.json",
+    "typecheck": "tsgo -p tsconfig.json --noEmit",
+    "lint": "oxlint .",
+    "format": "oxfmt --write src test",
+    "format:check": "oxfmt --check src test",
+    "check": "npm run typecheck && npm run lint && npm run format:check",
+    "pretest": "npm run build",
+    "test": "node --test dist/test/**/*.test.js"
+  },
+  "devDependencies": {
+    "@oh-my-pi/pi-coding-agent": "18.2.4",
+    "@types/node": "22.20.3",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "oxfmt": "0.68.0",
+    "oxlint": "1.83.0",
+    "typescript": "7.0.2"
   }
 }

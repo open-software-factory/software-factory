@@ -3,40 +3,41 @@
  * settle.
  *
  * omp is a coding agent, a fork of the pi coding agent project. A file
- * placed in its global hooks directory is loaded as a TypeScript module
- * and can subscribe to the `session_stop` event, which fires once per
- * turn before the session settles and can ask omp for one continuation
- * turn by returning a block decision.
+ * placed in its global hooks directory is loaded as an extension and can
+ * subscribe to the `session_stop` event, which fires once per turn before
+ * the session settles and can ask omp for one continuation turn by
+ * returning a block decision.
  *
- * Every decision lives in `./src/check.js`, which imports nothing from
- * omp. What is left here is the wiring: read the reply out of the event,
- * hand it to `osf hook stop`, and turn the answer into the shape omp
- * expects back.
+ * Every decision lives in `./check.js`, which imports nothing from omp.
+ * What is left here is the wiring: read the reply out of the event, hand
+ * it to `osf hook stop`, and turn the answer into the shape omp expects
+ * back.
  */
 import { spawn } from "node:child_process";
-import type { HookAPI } from "@oh-my-pi/pi-coding-agent/hooks";
-import { lastAssistantText, readResult } from "./src/check.js";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent/extensibility/extensions";
+import { lastAssistantText, readResult, type RunOutcome } from "./check.js";
 
-const OSF_COMMAND = process.env.OSF_COMMAND ?? "osf";
+const OSF_COMMAND = process.env["OSF_COMMAND"] ?? "osf";
 const DEFAULT_TIMEOUT_MS = 10_000;
 const HOOK_NAME = "osf-writing-check";
 
 /** Sends `payload` to `osf hook stop --answer decision-json` and reports how it exited. */
-function runCheck(payload: Record<string, unknown>) {
-  return new Promise<{ code?: number; stdout?: string; error?: string }>((resolve) => {
+function runCheck(payload: Record<string, unknown>): Promise<RunOutcome> {
+  return new Promise((resolve) => {
     let child;
     try {
       child = spawn(OSF_COMMAND, ["hook", "stop", "--answer", "decision-json"], {
         stdio: ["pipe", "pipe", "ignore"],
       });
     } catch (e) {
-      resolve({ error: `cannot start ${OSF_COMMAND}: ${(e as Error).message}` });
+      const message = e instanceof Error ? e.message : String(e);
+      resolve({ error: `cannot start ${OSF_COMMAND}: ${message}` });
       return;
     }
 
     let stdout = "";
     let settled = false;
-    const finish = (result: { code?: number; stdout?: string; error?: string }) => {
+    const finish = (result: RunOutcome): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -48,11 +49,11 @@ function runCheck(payload: Record<string, unknown>) {
       finish({ error: `no answer within ${DEFAULT_TIMEOUT_MS}ms` });
     }, DEFAULT_TIMEOUT_MS);
 
-    child.stdout?.on("data", (chunk) => {
+    child.stdout?.on("data", (chunk: Buffer | string) => {
       stdout += chunk;
     });
     child.on("error", (e) => finish({ error: `cannot run ${OSF_COMMAND}: ${e.message}` }));
-    child.on("close", (code) => finish({ code: code ?? undefined, stdout }));
+    child.on("close", (code) => finish(code === null ? { stdout } : { code, stdout }));
 
     // Writing to a process that has already gone gives EPIPE. That is a
     // failure to run, not a reason to take omp down with it.
@@ -61,7 +62,7 @@ function runCheck(payload: Record<string, unknown>) {
   });
 }
 
-export default function (pi: HookAPI) {
+export default function (pi: ExtensionAPI): void {
   pi.on("session_stop", async (event) => {
     // omp caps session_stop continuations at 8 and marks the replay with
     // `stop_hook_active`. Running again on a replay it caused itself
@@ -88,7 +89,9 @@ export default function (pi: HookAPI) {
     if (result.kind === "did-not-run") {
       // Loud, because a check that did not run looks exactly like a check
       // that found nothing, and the difference is the whole point.
-      pi.logger?.warn?.(`${HOOK_NAME}: the check did not run, so nothing was checked: ${result.detail}`);
+      pi.logger.warn(
+        `${HOOK_NAME}: the check did not run, so nothing was checked: ${result.detail}`,
+      );
       return;
     }
     if (result.kind === "passed") return;
