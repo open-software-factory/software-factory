@@ -8,8 +8,8 @@
 //! without replacing the alarm.
 
 use osf::config::{SkillConfig, WritingConfig};
-use osf::lint::skill::{lint_skill, SkillFinding};
-use osf::lint::{load_known_names, KnownNames, Level};
+use osf::lints::skill::{lint_skill, SkillFinding};
+use osf::lints::{load_known_names, KnownNames, Level};
 use std::path::{Path, PathBuf};
 
 fn fixture(name: &str) -> PathBuf {
@@ -346,7 +346,7 @@ fn the_cli_names_the_engine_that_ran_the_deferred_checks() {
 /// without committing more fixtures.
 mod checked {
     use super::{known, SkillConfig, WritingConfig};
-    use osf::lint::skill::lint_skill_checked;
+    use osf::lints::skill::lint_skill_checked;
     use std::path::{Path, PathBuf};
 
     const LABEL: &str = "crates/osf/tests/fixtures/skills/synthetic";
@@ -363,7 +363,7 @@ mod checked {
         std::fs::write(dir.join("SKILL.md"), skill_md).expect("SKILL.md writes");
     }
 
-    fn checked(dir: &Path, label: &str) -> Vec<osf::lint::skill::SkillFinding> {
+    fn checked(dir: &Path, label: &str) -> Vec<osf::lints::skill::SkillFinding> {
         lint_skill_checked(
             dir,
             label,
@@ -497,7 +497,7 @@ mod checked {
         std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
     }
 
-    fn rule_ids(findings: &[osf::lint::skill::SkillFinding]) -> Vec<&'static str> {
+    fn rule_ids(findings: &[osf::lints::skill::SkillFinding]) -> Vec<&'static str> {
         findings.iter().map(|f| f.finding.rule).collect()
     }
 

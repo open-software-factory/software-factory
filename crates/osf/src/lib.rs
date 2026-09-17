@@ -8,7 +8,7 @@ pub mod config;
 pub mod exclude;
 mod git;
 pub mod hook;
-pub mod lint;
+pub mod lints;
 pub mod repository;
 pub mod review;
 pub mod risk;

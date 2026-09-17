@@ -1,5 +1,5 @@
 use osf::status::GhClient;
-use osf::{config, exclude, hook, lint, review, risk, scan, status, verify};
+use osf::{config, exclude, hook, lints, review, risk, scan, status, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -32,7 +32,7 @@ fn resolve_format(chosen: Option<Format>, json_alias: bool) -> Format {
     })
 }
 
-/// Where the text lives, for the CLI: mirrors [`lint::Context`], since that
+/// Where the text lives, for the CLI: mirrors [`lints::Context`], since that
 /// type lives in the config-agnostic core crate and cannot derive `clap`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum ContextArg {
@@ -42,24 +42,24 @@ enum ContextArg {
     Skill,
 }
 
-impl From<ContextArg> for lint::Context {
+impl From<ContextArg> for lints::Context {
     fn from(value: ContextArg) -> Self {
         match value {
-            ContextArg::Transcript => lint::Context::Transcript,
-            ContextArg::Commit => lint::Context::Commit,
-            ContextArg::Document => lint::Context::Document,
-            ContextArg::Skill => lint::Context::Skill,
+            ContextArg::Transcript => lints::Context::Transcript,
+            ContextArg::Commit => lints::Context::Commit,
+            ContextArg::Document => lints::Context::Document,
+            ContextArg::Skill => lints::Context::Skill,
         }
     }
 }
 
 /// `--context` wins when given. Otherwise `--message` means transcript,
 /// and a file with neither flag is a document.
-fn resolve_context(context: Option<ContextArg>, message: bool) -> lint::Context {
+fn resolve_context(context: Option<ContextArg>, message: bool) -> lints::Context {
     match context {
         Some(c) => c.into(),
-        None if message => lint::Context::Transcript,
-        None => lint::Context::Document,
+        None if message => lints::Context::Transcript,
+        None => lints::Context::Document,
     }
 }
 
@@ -511,7 +511,7 @@ fn main() -> ExitCode {
 }
 
 fn explain(rule_id: &str) -> ExitCode {
-    let Some(meta) = lint::rule_meta(rule_id).or_else(|| scan::rule_meta(rule_id)) else {
+    let Some(meta) = lints::rule_meta(rule_id).or_else(|| scan::rule_meta(rule_id)) else {
         eprintln!("osf: no such rule: {rule_id}");
         return ExitCode::from(2);
     };
@@ -614,15 +614,15 @@ struct Tally {
 }
 
 impl Tally {
-    fn count(&mut self, findings: &[lint::Finding]) {
+    fn count(&mut self, findings: &[lints::Finding]) {
         for f in findings {
             if f.suppressed.is_some() {
                 self.suppressed += 1;
             } else {
                 match f.level {
-                    lint::Level::Error => self.errors += 1,
-                    lint::Level::Warning => self.warnings += 1,
-                    lint::Level::Info => self.infos += 1,
+                    lints::Level::Error => self.errors += 1,
+                    lints::Level::Warning => self.warnings += 1,
+                    lints::Level::Info => self.infos += 1,
                 }
             }
         }
@@ -644,20 +644,20 @@ fn build_excluder(configured: &[String], no_exclude: bool) -> Result<exclude::Ex
 /// not promise. Fixed at error, never run through `cfg.levels`: a config
 /// file must not be able to turn off the one check that catches a rule
 /// that silently stopped firing.
-fn expectation_findings(mismatch: &lint::Mismatch) -> Vec<lint::Finding> {
+fn expectation_findings(mismatch: &lints::Mismatch) -> Vec<lints::Finding> {
     let missing = mismatch.missing.iter().map(|id| {
-        lint::Finding::new(
+        lints::Finding::new(
             "expectation-missing",
-            lint::Level::Error,
+            lints::Level::Error,
             1,
             format!("declared rule '{id}' did not fire; it may have stopped working"),
             id.clone(),
         )
     });
     let unexpected = mismatch.unexpected.iter().map(|id| {
-        lint::Finding::new(
+        lints::Finding::new(
             "expectation-unexpected",
-            lint::Level::Error,
+            lints::Level::Error,
             1,
             format!("rule '{id}' fired but this file did not declare it"),
             id.clone(),
@@ -668,10 +668,10 @@ fn expectation_findings(mismatch: &lint::Mismatch) -> Vec<lint::Finding> {
 
 /// A warning that an `osf-expect` marker outside a `tests/fixtures` path
 /// has no effect: the file is still linted normally, findings and all.
-fn outside_fixtures_warning() -> lint::Finding {
-    lint::Finding::new(
+fn outside_fixtures_warning() -> lints::Finding {
+    lints::Finding::new(
         "expectation-outside-fixtures",
-        lint::Level::Warning,
+        lints::Level::Warning,
         1,
         "an osf-expect marker only applies under a tests/fixtures path; ignoring it here"
             .to_string(),
@@ -682,12 +682,12 @@ fn outside_fixtures_warning() -> lint::Finding {
 /// One error per declared id that names a scan rule: a scan finding must
 /// never be silenced by anything inside the repository, a fixture's own
 /// declaration included.
-fn forbidden_scan_rule_findings(ids: &[&String]) -> Vec<lint::Finding> {
+fn forbidden_scan_rule_findings(ids: &[&String]) -> Vec<lints::Finding> {
     ids.iter()
         .map(|id| {
-            lint::Finding::new(
+            lints::Finding::new(
                 "expectation-forbidden-scan-rule",
-                lint::Level::Error,
+                lints::Level::Error,
                 1,
                 format!("a scan finding cannot be declared expected: '{id}'"),
                 (*id).clone(),
@@ -702,10 +702,10 @@ fn forbidden_scan_rule_findings(ids: &[&String]) -> Vec<lint::Finding> {
 fn check_declaration(
     name: &str,
     expected: &std::collections::BTreeSet<String>,
-    raw: &[lint::Finding],
+    raw: &[lints::Finding],
     format: Format,
-) -> Vec<lint::Finding> {
-    let mismatch = lint::check_expectation(expected, raw);
+) -> Vec<lints::Finding> {
+    let mismatch = lints::check_expectation(expected, raw);
     if mismatch.is_empty() {
         if format == Format::Human {
             let ids: Vec<&str> = expected.iter().map(String::as_str).collect();
@@ -725,20 +725,20 @@ fn check_declaration(
 fn finish_lint_one(
     name: &str,
     text: &str,
-    mut findings: Vec<lint::Finding>,
+    mut findings: Vec<lints::Finding>,
     args: &WritingArgs,
     format: Format,
     tally: &mut Tally,
-) -> Vec<lint::Finding> {
+) -> Vec<lints::Finding> {
     if args.strict {
         for f in &mut findings {
-            if f.suppressed.is_none() && f.level == lint::Level::Warning {
-                f.level = lint::Level::Error;
+            if f.suppressed.is_none() && f.level == lints::Level::Warning {
+                f.level = lints::Level::Error;
             }
         }
     }
     tally.count(&findings);
-    let visible: Vec<lint::Finding> = findings
+    let visible: Vec<lints::Finding> = findings
         .iter()
         .filter(|f| f.suppressed.is_none())
         .cloned()
@@ -764,19 +764,19 @@ fn lint_one(
     name: &str,
     text: &str,
     args: &WritingArgs,
-    known: &lint::KnownNames,
+    known: &lints::KnownNames,
     cfg: &config::WritingConfig,
     format: Format,
     tally: &mut Tally,
-) -> Vec<lint::Finding> {
+) -> Vec<lints::Finding> {
     let context = resolve_context(args.context, args.message);
-    let raw = lint::lint_writing(text, known, cfg, context, false, args.no_suppress);
-    if let Some(expected) = lint::parse_expectation(text) {
-        if lint::is_fixture_path(name) {
+    let raw = lints::writing::lint_writing(text, known, cfg, context, false, args.no_suppress);
+    if let Some(expected) = lints::parse_expectation(text) {
+        if lints::is_fixture_path(name) {
             tally.declared += 1;
             let forbidden: Vec<&String> = expected
                 .iter()
-                .filter(|id| lint::is_scan_rule(id))
+                .filter(|id| lints::is_scan_rule(id))
                 .collect();
             let findings = if forbidden.is_empty() {
                 check_declaration(name, &expected, &raw, format)
@@ -793,7 +793,7 @@ fn lint_one(
     finish_lint_one(name, text, findings, args, format, tally)
 }
 
-fn print_sarif(sarif_files: &[(String, Vec<lint::Finding>)]) -> Result<(), ExitCode> {
+fn print_sarif(sarif_files: &[(String, Vec<lints::Finding>)]) -> Result<(), ExitCode> {
     let tool = osf_lint_core::ToolInfo {
         name: "osf",
         version: env!("CARGO_PKG_VERSION"),
@@ -822,7 +822,7 @@ fn lint_writing(
         }
     };
     let cfg = &loaded.config.writing;
-    let known = match lint::load_known_names(&cfg.known_names, args.known_names.as_deref()) {
+    let known = match lints::load_known_names(&cfg.known_names, args.known_names.as_deref()) {
         Ok(k) => k,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -851,7 +851,7 @@ fn lint_writing(
         Err(code) => return code,
     };
     let format = resolve_format(args.format, args.json);
-    let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
+    let mut sarif_files: Vec<(String, Vec<lints::Finding>)> = Vec::new();
     for (name, text) in &inputs {
         let findings = lint_one(name, text, args, &known, cfg, format, &mut tally);
         if format == Format::Sarif {
@@ -901,7 +901,7 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
     };
     let cfg = &loaded.config.skill;
     let writing_cfg = &loaded.config.writing;
-    let known = match lint::load_known_names(&writing_cfg.known_names, args.known_names.as_deref())
+    let known = match lints::load_known_names(&writing_cfg.known_names, args.known_names.as_deref())
     {
         Ok(k) => k,
         Err(e) => {
@@ -915,18 +915,18 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
     }
     let format = resolve_format(args.format, false);
     let mut tally = Tally::default();
-    let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
+    let mut sarif_files: Vec<(String, Vec<lints::Finding>)> = Vec::new();
     for dir in &args.paths {
         let label = dir.to_string_lossy().replace('\\', "/");
         let skill_findings =
-            match lint::skill::lint_skill_checked(dir, &label, cfg, &known, writing_cfg) {
+            match lints::skill::lint_skill_checked(dir, &label, cfg, &known, writing_cfg) {
                 Ok(f) => f,
                 Err(e) => {
                     eprintln!("osf: {e}");
                     return ExitCode::from(2);
                 }
             };
-        let mut by_file: std::collections::BTreeMap<String, Vec<lint::Finding>> =
+        let mut by_file: std::collections::BTreeMap<String, Vec<lints::Finding>> =
             std::collections::BTreeMap::new();
         for sf in skill_findings {
             by_file.entry(sf.file).or_default().push(sf.finding);
@@ -936,13 +936,13 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
             let mut findings = osf_lint_core::apply_level_overrides(raw_findings, &cfg.levels);
             if args.strict {
                 for f in &mut findings {
-                    if f.suppressed.is_none() && f.level == lint::Level::Warning {
-                        f.level = lint::Level::Error;
+                    if f.suppressed.is_none() && f.level == lints::Level::Warning {
+                        f.level = lints::Level::Error;
                     }
                 }
             }
             tally.count(&findings);
-            let visible: Vec<lint::Finding> = findings
+            let visible: Vec<lints::Finding> = findings
                 .iter()
                 .filter(|f| f.suppressed.is_none())
                 .cloned()
@@ -974,7 +974,7 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
             "osf lint skill: {} error(s), {} warning(s), {} info, {} suppressed",
             tally.errors, tally.warnings, tally.infos, tally.suppressed
         );
-        println!("{}", lint::agnix::checked_note());
+        println!("{}", lints::agnix::checked_note());
     }
     if tally.errors > 0 {
         ExitCode::from(1)
@@ -1032,12 +1032,12 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
     };
 
     let format = resolve_format(args.format, false);
-    let mut sarif_files: Vec<(String, Vec<lint::Finding>)> = Vec::new();
+    let mut sarif_files: Vec<(String, Vec<lints::Finding>)> = Vec::new();
     for (name, raw_findings) in results {
         let findings =
             osf_lint_core::apply_level_overrides(raw_findings, &loaded.config.scan.levels);
         tally.count(&findings);
-        let visible: Vec<lint::Finding> = findings
+        let visible: Vec<lints::Finding> = findings
             .iter()
             .filter(|f| f.suppressed.is_none())
             .cloned()
@@ -1124,7 +1124,7 @@ fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitC
             }
         }
         Format::Sarif => {
-            let sarif_files: Vec<(String, Vec<lint::Finding>)> = report
+            let sarif_files: Vec<(String, Vec<lints::Finding>)> = report
                 .findings()
                 .map(|(check, name, f)| (format!("{check}: {name}"), vec![f.clone()]))
                 .collect();
@@ -1646,11 +1646,11 @@ mod tests {
         }
     }
 
-    fn known() -> lint::KnownNames {
-        lint::load_known_names(&[], None).expect("built-in names load")
+    fn known() -> lints::KnownNames {
+        lints::load_known_names(&[], None).expect("built-in names load")
     }
 
-    fn lint_it(name: &str, text: &str) -> (Vec<lint::Finding>, Tally) {
+    fn lint_it(name: &str, text: &str) -> (Vec<lints::Finding>, Tally) {
         let cfg = config::WritingConfig::default();
         let args = writing_args();
         let mut tally = Tally::default();
@@ -1743,7 +1743,7 @@ mod tests {
     #[test]
     fn a_skill_declaration_is_invisible_to_the_writing_lint() {
         let skill_text = "---\nname: no-trigger\ndescription: Checks a folder for common problems before a release.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing and note any file over ten megabytes.\n2. Check that a license file exists.\n3. Check that a readme file exists.\n4. Write one line per problem found, with the file path.\n\nStop when every check has run once, whether or not it found a problem.\n\n<!-- osf-expect-skill\nskill-description-no-trigger\n-->\n";
-        assert!(lint::parse_expectation(skill_text).is_none());
+        assert!(lints::parse_expectation(skill_text).is_none());
         let (findings, tally) = lint_it(
             "crates/osf/tests/fixtures/skills/no-trigger/SKILL.md",
             skill_text,

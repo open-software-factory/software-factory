@@ -8,7 +8,7 @@
 //! [`crate::agents::AGENTS`], so a rule cannot claim an agent it does not
 //! know, or drop one without the doc changing.
 
-use crate::lint::RuleMeta;
+use crate::lints::RuleMeta;
 use osf_lint_core::{Class, Group};
 
 pub const SCAN_RULE_META: &[RuleMeta] = &[

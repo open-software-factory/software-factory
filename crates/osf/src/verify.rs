@@ -3,7 +3,7 @@
 
 use crate::config::Config;
 use crate::exclude::Excluder;
-use crate::lint::{self, Context};
+use crate::lints::{self, Context};
 use osf_lint_core::{Finding, Level};
 use std::path::Path;
 
@@ -209,8 +209,8 @@ fn pre_commit(opts: &Options) -> Result<Report, String> {
         Some(path) => {
             let text = std::fs::read_to_string(path)
                 .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-            let known = lint::load_known_names(&opts.config.writing.known_names, None)?;
-            let findings = lint::lint_writing(
+            let known = lints::load_known_names(&opts.config.writing.known_names, None)?;
+            let findings = lints::writing::lint_writing(
                 &text,
                 &known,
                 &opts.config.writing,
@@ -297,13 +297,13 @@ fn lint_changed_markdown(
         return Ok(CheckOutcome::skipped("lint writing"));
     }
     let (markdown, excluded) = opts.excluder.partition(candidates);
-    let known = lint::load_known_names(&opts.config.writing.known_names, None)?;
+    let known = lints::load_known_names(&opts.config.writing.known_names, None)?;
     let mut findings = Vec::new();
     for path in &markdown {
         let bytes = crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?;
         let text = String::from_utf8_lossy(&bytes);
         findings.extend(
-            lint::lint_writing(
+            lints::writing::lint_writing(
                 &text,
                 &known,
                 &opts.config.writing,
@@ -328,11 +328,11 @@ fn lint_changed_skill_folders(opts: &Options, changed: &[String]) -> Result<Chec
         .map(|p| p.to_string_lossy().replace('\\', "/"))
         .collect();
     let (skill_dirs, excluded) = opts.excluder.partition(candidate_strings);
-    let known = lint::load_known_names(&opts.config.writing.known_names, None)?;
+    let known = lints::load_known_names(&opts.config.writing.known_names, None)?;
     let mut findings = Vec::new();
     for label in &skill_dirs {
         let full = opts.dir.join(label);
-        let skill_findings = lint::skill::lint_skill_checked(
+        let skill_findings = lints::skill::lint_skill_checked(
             &full,
             label,
             &opts.config.skill,

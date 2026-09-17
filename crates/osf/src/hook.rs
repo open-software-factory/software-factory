@@ -21,7 +21,7 @@
 //! ships its own dsh plugin rather than relying on that bridge.
 
 use crate::config::WritingConfig;
-use crate::lint::{self, Remediation};
+use crate::lints::{self, Remediation};
 use serde_json::Value;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -100,7 +100,7 @@ pub fn stop(
         eprintln!("osf hook stop: no assistant message in the event, nothing checked");
         return ExitCode::SUCCESS;
     };
-    let known = match lint::load_known_names(&cfg.known_names, known_names) {
+    let known = match lints::load_known_names(&cfg.known_names, known_names) {
         Ok(k) => k,
         Err(e) => {
             eprintln!("osf hook stop: {e}; message not checked");
@@ -109,7 +109,7 @@ pub fn stop(
     };
     let findings = checked_findings(&text, &known, cfg);
 
-    let advise: Vec<&lint::Finding> = findings
+    let advise: Vec<&lints::Finding> = findings
         .iter()
         .filter(|f| f.remediation == Remediation::Advise)
         .collect();
@@ -155,10 +155,11 @@ pub fn stop(
 /// end, so it stays on the fast tier only.
 fn checked_findings(
     text: &str,
-    known: &lint::KnownNames,
+    known: &lints::KnownNames,
     cfg: &WritingConfig,
-) -> Vec<lint::Finding> {
-    let findings = lint::lint_writing(text, known, cfg, lint::Context::Transcript, true, false);
+) -> Vec<lints::Finding> {
+    let findings =
+        lints::writing::lint_writing(text, known, cfg, lints::Context::Transcript, true, false);
     osf_lint_core::apply_level_overrides(findings, &cfg.levels)
         .into_iter()
         .filter(|f| f.suppressed.is_none())
@@ -177,13 +178,13 @@ fn checked_findings(
 ///
 /// [`resolve`]: osf_lint_core::resolve
 fn blocking_set(
-    findings: &[lint::Finding],
-) -> Option<(Vec<&lint::Finding>, &'static str, &'static str)> {
+    findings: &[lints::Finding],
+) -> Option<(Vec<&lints::Finding>, &'static str, &'static str)> {
     const OPENING: &str = "your message has been sent and cannot be changed";
     const INSTRUCTION: &str = "Do not send that message again. Reply with a short follow-up \
         that answers only the point(s) below, one sentence each, and nothing else.";
 
-    let blocking: Vec<&lint::Finding> = findings
+    let blocking: Vec<&lints::Finding> = findings
         .iter()
         .filter(|f| matches!(f.remediation, Remediation::Rewrite | Remediation::Clarify))
         .collect();
@@ -194,7 +195,7 @@ fn blocking_set(
 }
 
 fn build_reason(
-    blocking: &[&lint::Finding],
+    blocking: &[&lints::Finding],
     opening: &str,
     instruction: &str,
     attempt: u32,
@@ -333,7 +334,7 @@ fn advice_path(session: &str) -> PathBuf {
 
 /// Appends every advise finding's rendered line to the session's advice
 /// file, for `osf hook prompt` to deliver on the next turn.
-fn append_advice(session: &str, findings: &[&lint::Finding]) {
+fn append_advice(session: &str, findings: &[&lints::Finding]) {
     use std::fmt::Write as _;
     let mut lines = String::new();
     for f in findings {
@@ -477,10 +478,10 @@ mod tests {
         }
     }
 
-    fn finding_with(remediation: Remediation) -> lint::Finding {
-        let mut f = lint::Finding::new(
+    fn finding_with(remediation: Remediation) -> lints::Finding {
+        let mut f = lints::Finding::new(
             "probe-rule",
-            lint::Level::Warning,
+            lints::Level::Warning,
             1,
             "m".to_string(),
             "x".to_string(),
