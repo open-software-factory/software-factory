@@ -79,8 +79,8 @@ checked.
 npm run check
 ```
 
-This type-checks the source with `tsgo` (the native-preview TypeScript
-compiler), lints it with `oxlint`, and checks its formatting with
+This type-checks the source with `tsc` from the `typescript` package at
+version 7.0.2, lints it with `oxlint`, and checks its formatting with
 `oxfmt`.
 
 ## Testing it

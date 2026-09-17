@@ -7,8 +7,8 @@
   "main": "dist/src/osf-stop.js",
   "files": ["dist/"],
   "scripts": {
-    "build": "tsgo -p tsconfig.json",
-    "typecheck": "tsgo -p tsconfig.json --noEmit",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint .",
     "format": "oxfmt --write src test",
     "format:check": "oxfmt --check src test",
@@ -19,7 +19,6 @@
   "devDependencies": {
     "@oh-my-pi/pi-coding-agent": "18.2.4",
     "@types/node": "22.20.3",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
     "typescript": "7.0.2"
