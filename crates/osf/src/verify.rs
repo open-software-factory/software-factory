@@ -64,6 +64,13 @@ impl CheckOutcome {
             .filter(|(_, f)| f.level == Level::Warning && f.suppressed.is_none())
             .count()
     }
+
+    fn infos(&self) -> usize {
+        self.findings
+            .iter()
+            .filter(|(_, f)| f.level == Level::Info && f.suppressed.is_none())
+            .count()
+    }
 }
 
 /// Every check `osf verify` ran for one stage, and what each one found.
@@ -80,6 +87,13 @@ impl Report {
     #[must_use]
     pub fn total_warnings(&self) -> usize {
         self.checks.iter().map(CheckOutcome::warnings).sum()
+    }
+
+    /// Informational findings never decide the exit code, but they are
+    /// counted and shown, never dropped.
+    #[must_use]
+    pub fn total_infos(&self) -> usize {
+        self.checks.iter().map(CheckOutcome::infos).sum()
     }
 
     /// How many candidate files or folders the exclude list dropped,
@@ -100,10 +114,11 @@ impl Report {
             if check.ran {
                 writeln!(
                     out,
-                    "{}: {} error(s), {} warning(s), {} excluded",
+                    "{}: {} error(s), {} warning(s), {} info, {} excluded",
                     check.name,
                     check.errors(),
                     check.warnings(),
+                    check.infos(),
                     check.excluded
                 )
                 .expect("writing to a string never fails");
@@ -117,9 +132,10 @@ impl Report {
         } else {
             writeln!(
                 out,
-                "total: {} error(s), {} warning(s), {} excluded",
+                "total: {} error(s), {} warning(s), {} info, {} excluded",
                 self.total_errors(),
                 self.total_warnings(),
+                self.total_infos(),
                 self.total_excluded()
             )
             .expect("writing to a string never fails");

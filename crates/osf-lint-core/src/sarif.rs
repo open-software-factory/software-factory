@@ -40,6 +40,7 @@ fn to_result(file: &str, finding: &Finding) -> SarifResult {
     let level = match finding.level {
         Level::Error => serde_sarif::sarif::ResultLevel::Error,
         Level::Warning => serde_sarif::sarif::ResultLevel::Warning,
+        Level::Info => serde_sarif::sarif::ResultLevel::Note,
     };
     let line = i64::try_from(finding.line).unwrap_or(i64::MAX);
     let region = Region::builder().start_line(line).build();

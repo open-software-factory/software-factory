@@ -1,6 +1,11 @@
 //! Integration tests for the skill lint, run against fixtures under
 //! `tests/fixtures/skills`, plus a CLI-level check that `osf lint skill`
-//! prints the note about the checks it defers to `agnix`.
+//! names the engine that ran the checks this project does not write itself.
+//!
+//! A test that asserts an `agnix:` rule id is doing two jobs: it checks the
+//! finding, and it is the alarm that goes off if an engine upgrade drops
+//! the rule. Do not loosen one of those assertions to a "contains" check
+//! without replacing the alarm.
 
 use osf::config::{SkillConfig, WritingConfig};
 use osf::lint::skill::{lint_skill, SkillFinding};
@@ -55,10 +60,14 @@ fn a_folded_description_is_read_whole() {
     assert!(findings.is_empty(), "expected no findings, got: {rules:?}");
 }
 
+/// No rule here checks for a duplicate frontmatter key; the agnix engine
+/// does. This test is what stops that check going missing: if an upgrade
+/// drops the rule, this file reports nothing and the test fails, rather
+/// than the gate quietly losing a check nobody notices.
 #[test]
-fn bad_frontmatter_flags_only_the_duplicate_key() {
+fn a_duplicate_frontmatter_key_is_caught_by_the_agnix_engine() {
     let findings = lint(&fixture("bad-frontmatter"));
-    assert_eq!(rule_ids(&findings), vec!["skill-frontmatter-duplicate"]);
+    assert_eq!(rule_ids(&findings), vec!["agnix:AS-016"]);
     assert_all_errors(&findings);
 }
 
@@ -231,14 +240,40 @@ fn a_missing_skill_file_is_an_error() {
 
 /// The bug: an opened `---` that is never closed used to make the whole
 /// file invisible to every rule that reads frontmatter or body, so an
-/// obvious first-person description produced no finding at all. Now the
-/// unclosed block is itself a finding, so a malformed file is never read
-/// as a clean one.
+/// obvious first-person description produced no finding at all. The agnix
+/// engine reports the missing block, so a malformed file is never read as a
+/// clean one. As with the duplicate key, this test is also the guard that
+/// an engine upgrade has not dropped the check.
 #[test]
 fn an_unclosed_frontmatter_is_reported_not_skipped() {
     let findings = lint(&fixture("unclosed-frontmatter"));
-    assert_eq!(rule_ids(&findings), vec!["skill-frontmatter-unclosed"]);
+    assert_eq!(rule_ids(&findings), vec!["agnix:AS-001"]);
     assert_all_errors(&findings);
+}
+
+/// A name that does not match the folder it sits in is a rule this project
+/// never wrote, listed in the note as deferred, and now actually enforced.
+#[test]
+fn a_name_that_does_not_match_the_folder_is_caught() {
+    let dir = std::env::temp_dir()
+        .join("osf-skill-lint-test")
+        .join("name-mismatch");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("temp dir creates");
+    std::fs::write(
+        dir.join("SKILL.md"),
+        "---\nname: some-other-name\ndescription: Use this skill when the user wants a check.\n---\n\nRun the check.\n",
+    )
+    .expect("fixture writes");
+
+    let findings = lint(&dir);
+    let rules = rule_ids(&findings);
+    assert!(
+        rules.iter().any(|r| r.starts_with("agnix:")),
+        "the agnix engine reported nothing for a name that does not match its folder: {rules:?}"
+    );
+
+    std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
 }
 
 /// A `scripts` path that is not a readable folder, such as a plain file
@@ -291,10 +326,11 @@ fn an_unreadable_script_file_is_reported() {
     std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
 }
 
-/// `osf lint skill` must never let a clean result read as a full
-/// validation: it names what it does not check and points at `agnix`.
+/// A clean result must say which engine checked what, so a reader can tell
+/// a clean file from a check that never ran, and knows which tool to ask
+/// about a rule.
 #[test]
-fn the_cli_prints_the_unchecked_rules_note() {
+fn the_cli_names_the_engine_that_ran_the_deferred_checks() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_osf"))
         .args(["lint", "skill", "--format", "human"])
         .arg(fixture("good-skill"))
