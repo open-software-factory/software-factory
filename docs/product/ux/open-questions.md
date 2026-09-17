@@ -189,3 +189,18 @@ When implementing early prototypes:
 - test with realistically dense data,
 - do not generalise an abstraction merely because the first screen needs it,
 - do not promote an implementation library into a product concept.
+
+## 11. Operator persona and product vocabulary
+
+The August 2026 console prototypes showed a gap. Agents were given the vision and design principles, but not who the operator is or what words the operator uses. They filled the gap with the doctrine itself, printing phrases such as "persistent spatial backbone" as UI labels. See [`../../research/ux/agent-built-ui-lessons.md`](../../research/ux/agent-built-ui-lessons.md).
+
+Not yet decided:
+
+- who the operator is: expertise, authority, how often they are at the console, whether they read code,
+- which machine identifiers the operator wants visible by default and which stay behind a details view,
+- the canonical in-product names for the six surfaces, for attention, evidence, containment and recovery,
+- the navigation labels,
+- the initial evidence density and the language of progressive disclosure,
+- how builder-facing doctrine is kept out of operator-facing copy.
+
+Until these are decided, any agent building a surface will invent them. Decide the persona and a short vocabulary before the next surface is built.

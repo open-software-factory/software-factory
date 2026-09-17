@@ -5,9 +5,12 @@ This is disposable project-management state, not the factory backlog design.
 ## Now
 
 - [x] Review the reorganised documents and make the first repository commit.
-- [ ] Prepare the frozen UX benchmark brief, realistic fixture, interaction script, capture format and scorecard.
-- [ ] Run the baseline and first Claude Design lineage calibration.
+- [x] Prepare the frozen UX benchmark brief, realistic fixture, interaction script, capture format and scorecard.
+- [x] Run the baseline and first Claude Design lineage calibration.
 - [ ] Agree the smallest useful boundary for the first Factory Engine slice.
+- [x] Build and run the UX workflow benchmark. Dropped on 2026-09-04 after four runs; lessons kept in `docs/research/ux/agent-built-ui-lessons.md`.
+- [ ] Decide the operator persona and a short product vocabulary before the next surface is built.
+- [ ] Test the first Factory Engine slice boundary against `docs/architecture/draft-factory-vocabulary.md`.
 
 ## Next
 
