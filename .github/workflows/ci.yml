@@ -52,43 +52,35 @@ jobs:
             --commits "origin/${{ github.base_ref }}..HEAD" \
             --format human
 
-  node:
-    name: node
+  integrations:
+    name: integrations (${{ matrix.folder }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry per TypeScript package under integrations/. Adding a
+        # package is one line here.
+        folder: [opencode]
+    defaults:
+      run:
+        working-directory: integrations/${{ matrix.folder }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Look for the OpenCode plugin
-        id: detect
-        run: |
-          if [ -f integrations/opencode/package.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::no integrations/opencode/package.json, nothing to build yet"
-          fi
-
       - name: Set up Node
-        if: steps.detect.outputs.present == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version-file: integrations/opencode/.nvmrc
+          node-version-file: integrations/${{ matrix.folder }}/.nvmrc
           cache: npm
-          cache-dependency-path: integrations/opencode/package-lock.json
+          cache-dependency-path: integrations/${{ matrix.folder }}/package-lock.json
 
       - name: Install dependencies
-        if: steps.detect.outputs.present == 'true'
-        working-directory: integrations/opencode
         run: npm ci
 
       - name: Type-check, lint, and check formatting
-        if: steps.detect.outputs.present == 'true'
-        working-directory: integrations/opencode
         run: npm run check
 
       - name: Build and test
-        if: steps.detect.outputs.present == 'true'
-        working-directory: integrations/opencode
         run: npm test
 
   rust:
