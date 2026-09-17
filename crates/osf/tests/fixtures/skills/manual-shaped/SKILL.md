@@ -12,3 +12,10 @@ Design consists of one pass over the folder tree.
 Tool works by scanning file sizes once per run.
 
 Layout describes every required file for a project.
+
+<!-- osf-expect-skill
+skill-descriptive-over-imperative
+skill-first-section-is-overview
+skill-reads-as-manual
+undefined-name-at-start
+-->

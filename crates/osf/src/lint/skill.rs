@@ -12,8 +12,9 @@
 use super::meta::RuleMeta;
 use super::{lint_writing, KnownNames};
 use crate::config::{SkillConfig, WritingConfig};
-use osf_lint_core::{resolve, Class, Context, Finding, Group, Level};
+use osf_lint_core::{resolve, Class, Context, Finding, Group, Level, Mismatch};
 use regex::Regex;
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::OnceLock;
 
@@ -114,6 +115,127 @@ pub fn lint_skill(
         ))
     });
     Ok(out)
+}
+
+/// Runs [`lint_skill`], then applies the same declared-fixture contract the
+/// writing lint already honours: a folder under `tests/fixtures` may carry
+/// an `osf-expect-skill` marker in its `SKILL.md` naming the exact rule ids
+/// the whole folder must produce, file by file (a bare rule id names
+/// `SKILL.md`; a `<file> <rule>` line names another file, such as a script
+/// under `scripts/`). This marker has its own name, distinct from the
+/// writing lint's own `osf-expect`, so a run of `osf lint writing` over the
+/// same `SKILL.md` never reads it as a writing declaration. `label` is the
+/// folder's path as the caller names it, used only to decide whether that
+/// contract applies; it need not be where `dir` actually lives on disk.
+///
+/// A match returns no findings at all. A mismatch reports one
+/// `expectation-missing` or `expectation-unexpected` finding per rule id
+/// that promised a finding and did not get one, or the other way round,
+/// fixed at error and never run through `cfg.levels`: a config file must
+/// not be able to turn off the one check that catches a declared rule that
+/// silently stopped firing. A declaration naming a `scan-` rule is refused
+/// outright, so nothing inside a repository can mark a scan finding
+/// expected. A marker outside `tests/fixtures` has no effect beyond a
+/// warning: the folder is still linted as normal.
+///
+/// # Errors
+/// Returns `Err` under the same conditions as [`lint_skill`].
+pub fn lint_skill_checked(
+    dir: &Path,
+    label: &str,
+    cfg: &SkillConfig,
+    known: &KnownNames,
+    writing: &WritingConfig,
+) -> Result<Vec<SkillFinding>, String> {
+    let findings = lint_skill(dir, cfg, known, writing)?;
+    let marker_path = dir.join("SKILL.md");
+    let text = std::fs::read_to_string(&marker_path)
+        .map_err(|e| format!("cannot read {}: {e}", marker_path.display()))?;
+    let Some(expected) = osf_lint_core::parse_skill_expectation(&text) else {
+        return Ok(findings);
+    };
+    if !super::is_fixture_path(label) {
+        let mut findings = findings;
+        findings.push(SkillFinding {
+            file: "SKILL.md".to_string(),
+            finding: outside_fixtures_warning(),
+        });
+        return Ok(findings);
+    }
+    let forbidden: BTreeSet<String> = expected
+        .values()
+        .flatten()
+        .filter(|id| super::is_scan_rule(id))
+        .cloned()
+        .collect();
+    if !forbidden.is_empty() {
+        return Ok(forbidden_scan_rule_findings(forbidden));
+    }
+    let actual: Vec<(&str, &str)> = findings
+        .iter()
+        .map(|sf| (sf.file.as_str(), sf.finding.rule))
+        .collect();
+    let mismatch = osf_lint_core::check_skill(&expected, actual);
+    if mismatch.is_empty() {
+        return Ok(Vec::new());
+    }
+    Ok(expectation_findings(&mismatch))
+}
+
+/// A warning that an `osf-expect-skill` marker outside a `tests/fixtures`
+/// path has no effect: the folder is still linted normally, findings and
+/// all.
+fn outside_fixtures_warning() -> Finding {
+    Finding::new(
+        "expectation-outside-fixtures",
+        Level::Warning,
+        1,
+        "an osf-expect-skill marker only applies under a tests/fixtures path; ignoring it here"
+            .to_string(),
+        "osf-expect-skill".to_string(),
+    )
+}
+
+/// One error per declared id that names a scan rule: a scan finding must
+/// never be silenced by anything inside the repository, a fixture's own
+/// declaration included.
+fn forbidden_scan_rule_findings(ids: BTreeSet<String>) -> Vec<SkillFinding> {
+    ids.into_iter()
+        .map(|id| SkillFinding {
+            file: "SKILL.md".to_string(),
+            finding: finding_at(
+                1,
+                "expectation-forbidden-scan-rule",
+                format!("a scan finding cannot be declared expected: '{id}'"),
+                &id,
+            ),
+        })
+        .collect()
+}
+
+/// Turns a declared folder's mismatch into findings: one error per rule id
+/// it promised but did not produce, one per rule id it produced but did not
+/// promise. Each entry already names its own file, from `check_skill`.
+fn expectation_findings(mismatch: &Mismatch) -> Vec<SkillFinding> {
+    let missing = mismatch.missing.iter().map(|id| SkillFinding {
+        file: "SKILL.md".to_string(),
+        finding: finding_at(
+            1,
+            "expectation-missing",
+            format!("declared rule '{id}' did not fire; it may have stopped working"),
+            id,
+        ),
+    });
+    let unexpected = mismatch.unexpected.iter().map(|id| SkillFinding {
+        file: "SKILL.md".to_string(),
+        finding: finding_at(
+            1,
+            "expectation-unexpected",
+            format!("rule '{id}' fired but this folder did not declare it"),
+            id,
+        ),
+    });
+    missing.chain(unexpected).collect()
 }
 
 /// Sets each finding's level and remediation from its rule's class and

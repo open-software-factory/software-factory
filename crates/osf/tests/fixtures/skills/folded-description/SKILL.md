@@ -11,3 +11,6 @@ description: >
 2. Rename the file.
 3. Edit every link the search found.
 4. Run the search again. Done when it finds no link to the old path.
+
+<!-- osf-expect-skill
+-->

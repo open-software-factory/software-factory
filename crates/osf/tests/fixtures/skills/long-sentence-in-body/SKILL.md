@@ -15,3 +15,7 @@ This one very long sentence intentionally uses far more than twenty five words i
 2. Report the result.
 
 Stop when the check has run once.
+
+<!-- osf-expect-skill
+long-sentence
+-->

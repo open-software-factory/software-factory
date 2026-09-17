@@ -332,8 +332,13 @@ fn lint_changed_skill_folders(opts: &Options, changed: &[String]) -> Result<Chec
     let mut findings = Vec::new();
     for label in &skill_dirs {
         let full = opts.dir.join(label);
-        let skill_findings =
-            lint::skill::lint_skill(&full, &opts.config.skill, &known, &opts.config.writing)?;
+        let skill_findings = lint::skill::lint_skill_checked(
+            &full,
+            label,
+            &opts.config.skill,
+            &known,
+            &opts.config.writing,
+        )?;
         findings.extend(
             skill_findings
                 .into_iter()

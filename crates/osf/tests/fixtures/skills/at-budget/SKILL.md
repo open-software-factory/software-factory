@@ -15,3 +15,6 @@ It validates the schema against the spec.
 2. Report the result.
 
 Stop when the check has run once.
+
+<!-- osf-expect-skill
+-->

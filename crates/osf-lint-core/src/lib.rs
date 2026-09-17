@@ -20,7 +20,9 @@ pub use config::{
     Layered, LevelSetting,
 };
 pub use engine::{run_analysers, run_rules, sort_findings};
-pub use expectation::{check as check_expectation, parse_expectation, Mismatch};
+pub use expectation::{
+    check as check_expectation, check_skill, parse_expectation, parse_skill_expectation, Mismatch,
+};
 pub use finding::{Evidence, Finding, Level, Remediation};
 pub use human::render_human;
 pub use intern::intern;

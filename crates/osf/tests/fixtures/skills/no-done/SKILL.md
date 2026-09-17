@@ -9,3 +9,7 @@ Run the migration in order.
 2. Copy the data directory.
 3. Update the config file.
 4. Start the service again.
+
+<!-- osf-expect-skill
+skill-no-done-condition
+-->
