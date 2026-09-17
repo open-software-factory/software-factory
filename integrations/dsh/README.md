@@ -122,11 +122,8 @@ no decision of its own.
 
 ## The toolchain
 
-Type-checking and emit use `tsgo`, the native-code preview of the TypeScript
-compiler (package `@typescript/native-preview`), pinned to an exact version.
-A `typescript`-based fallback script is kept for the day `tsgo` cannot emit
-something this package needs; as of this writing `tsgo` builds and
-type-checks this package without the fallback.
+Type-checking and emit use `tsc`, the compiler from the `typescript`
+package, pinned to exactly version `7.0.2`.
 
 Linting uses `oxlint` with the `correctness`, `suspicious`, and `pedantic`
 rule categories plus its TypeScript plugin, all as errors. Formatting uses
