@@ -45,10 +45,19 @@ To write the row by hand instead, put this in the profile's
 `cordis.patch.yml`:
 
 ```yaml
-- name: '@open-software-factory/osf-dsh-plugin'
-  config:
-    command: osf
+- insert:
+    - id: osf-writing-check
+      name: '@open-software-factory/osf-dsh-plugin'
+      config:
+        command: osf
 ```
+
+The shape matters. A patch file is a list of entries, and a plugin is added
+with an `insert` entry carrying an `id`, the package `name`, and its
+`config`. A bare `- name:` row is not read, and dsh does not say so.
+
+To see what loaded, run `dsh --profile <name> --dump-config` and look for
+the plugin's name in the composed tree. If it is absent, the row is wrong.
 
 ## Settings
 
@@ -80,8 +89,11 @@ to check, and no warning.
 ## Checking it
 
 ```
-node --test test/
+node --test
 ```
+
+No path argument. Node finds every `*.test.js` on its own, and a `test/`
+argument is read as a module name on Windows and fails to load.
 
 The two decisions this plugin makes are plain functions in `src/check.js`,
 which imports nothing from the harness. The tests run anywhere, including

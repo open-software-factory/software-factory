@@ -9,7 +9,25 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { lastAssistantText, readResult } from "../src/check.js";
+
+/// dsh reads a plugin only from an `insert` entry that carries an `id` and
+/// the package `name`. A bare `- name:` row is accepted by the installer
+/// and then silently never loaded, which is how the first version of this
+/// file shipped. This pins the shape without needing a YAML parser.
+test("the bundle patch registers the plugin with an insert entry", () => {
+  for (const file of ["../cordis.patch.yml", "../profile-patch.example.yml"]) {
+    const text = readFileSync(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+    const lines = text.split("\n").filter((l) => !l.trim().startsWith("#"));
+    const body = lines.join("\n");
+    assert.match(body, /^- insert:\s*$/m, `${file}: no insert entry`);
+    assert.match(body, /^\s+- id: \S+/m, `${file}: insert entry has no id`);
+    assert.match(body, /^\s+name: '@open-software-factory\/osf-dsh-plugin'/m, `${file}: plugin not named`);
+    assert.doesNotMatch(body, /^- name:/m, `${file}: a bare name row is not read by dsh`);
+  }
+});
 
 const assistant = (...blocks) => ({ role: "assistant", content: blocks });
 const user = (text) => ({ role: "user", content: [{ type: "text", text }] });

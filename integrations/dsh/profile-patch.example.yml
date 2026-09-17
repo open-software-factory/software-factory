@@ -12,25 +12,34 @@
 # Order matters only for who runs first. dsh gives the end-of-turn event to
 # every listener in turn and neither of these stops the chain, so both run
 # whichever way round they appear.
-
-# The writing check. Reads the reply from the session, so it sees the text
-# the other row cannot.
-- name: '@open-software-factory/osf-dsh-plugin'
-  config:
-    # A bare name is resolved on the path. Give a full path where the
-    # binary is installed somewhere the harness cannot see, such as
-    # /opt/factory/bin/osf in this project's container.
-    command: osf
-    timeoutMs: 10000
-    adviseOnly: false
-
-# Optional. Drives every other hook event from a hook file written in
-# another agent's format. Leave it out if that file holds nothing but a
-# stop hook, because the row above already covers that and does it better.
 #
-# `configPath` is required and is read once at startup, relative to the
-# directory dsh was launched from. There is no search: name the file.
-- name: '@deepseek-ai/dsh-hooks-claude-code'
-  config:
-    configPath: ./.claude/hooks.json
-    projectDir: .
+# The shape is fixed: a patch file is a list of entries, and a plugin is
+# added with an `insert` entry that carries an `id`, the package `name`,
+# and its `config`. A bare list of names is not read, and dsh says nothing.
+
+- insert:
+    # The writing check. Reads the reply from the session, so it sees the
+    # text the other entry cannot.
+    - id: osf-writing-check
+      name: '@open-software-factory/osf-dsh-plugin'
+      config:
+        # A bare name is resolved on the path. Give a full path where the
+        # binary is installed somewhere the harness cannot see, such as
+        # /opt/factory/bin/osf in this project's container.
+        command: osf
+        timeoutMs: 10000
+        adviseOnly: false
+
+    # Optional. Drives every other hook event from a hook file written in
+    # another agent's format. Leave it out if that file holds nothing but
+    # a stop hook, because the entry above already covers that and does it
+    # better.
+    #
+    # `configPath` is required and is read once at startup, relative to
+    # the directory dsh was launched from. There is no search: name the
+    # file.
+    - id: dsh-hooks-claude-code
+      name: '@deepseek-ai/dsh-hooks-claude-code'
+      config:
+        configPath: ./.claude/hooks.json
+        projectDir: .

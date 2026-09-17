@@ -11,6 +11,7 @@
   },
   "files": [
     "src/index.js",
+    "src/check.js",
     "cordis.patch.yml"
   ],
   "dsh": {
@@ -23,6 +24,6 @@
     "@deepseek-ai/schemastery": ">=3.18.2"
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test"
   }
 }
