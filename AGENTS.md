@@ -1,4 +1,14 @@
-# Software Factory: Codex working context
+# Software Factory: working context for every coding agent
+
+## Cross-everything, without exception
+
+Everything in this repository is cross-platform, cross-operating-system, cross-shell, cross-language-ecosystem, cross-coding-agent, and cross-model. No agent is primary. No platform is the default.
+
+- Never name one coding agent, one operating system, one shell, one package ecosystem, or one model vendor on its own in code, a rule, a test, or a document. If one is named, every supported one is, read from a single shared list.
+- Every check, rule, and verifier states what it covers and what it does not. A clean result must never be read as "nothing found" when it means "nothing looked at".
+- Prefer structured detection to a hand-written pattern. Parse the URL, parse the path, ask the platform. A regex is the last resort, and where one remains, its tests carry one case per platform and per agent.
+- Examples in documentation rotate across agents and platforms, or use a made-up one. No example favours a vendor.
+- A change that violates this is wrong even when it works on the author's machine. Review your own diff for it before opening a pull request.
 
 ## Working posture
 
@@ -15,9 +25,9 @@
 
 - Backlog: deliberately undecided. Use a simple local `todo.md` while bootstrapping; do not make GitHub Issues/Projects part of the core model yet.
 - Source control: Git/GitHub is an expected adapter, not the architectural center.
-- Coding agents: multiple agents/harnesses must be supportable (Codex, Pi, OpenCode, Claude Code, etc.).
+- Coding agents: every supported agent is supported equally, and none is primary. The list of supported agents lives in one place in the code, and every rule that names an agent reads it.
 - Workflow skills: prefer composition/reuse over re-implementation.
-- Compute: local and remote runners, multiple OSes/architectures, and eventually caching are expected concerns but are not reasons to bloat the first kernel.
+- Compute: local and remote runners, several operating systems and processor architectures, and eventually caching are expected concerns but are not reasons to bloat the first kernel.
 
 ## Before coding
 
