@@ -56,7 +56,7 @@ checked.
 ## Checking it
 
 ```
-node --test test/
+node --test
 ```
 
 The two decisions this hook makes are plain functions in `src/check.js`,
