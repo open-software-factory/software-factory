@@ -1,64 +1,16 @@
 # Individual Contributor License Agreement
 
-## Note from this project
-
-This section is written by this project. It is not part of the source
-document. The reproduced text starts after the horizontal rule below.
-
-This file reproduces the Apache Software Foundation's Individual
-Contributor License Agreement, version 2.2 ("the ICLA"). The Apache
-Software Foundation is a non-profit body. It manages many open-source
-projects.
-
-Source:
-
-- URL: <https://www.apache.org/licenses/icla.pdf>
-- Fetched: 2026-09-15
-
-Every change this project made to the source text is listed below, so
-that a reader can compare this file against the source PDF. Nothing
-else in the wording is changed.
-
-1. Everywhere the source says "The Apache Software Foundation" or
-   "the Foundation", this copy says "SilverOakApps" or "the Project".
-   SilverOakApps is the registered business name that holds the
-   copyright in this project.
-2. The source says to email a signed copy to an address at the
-   foundation named above. This copy says how to accept the agreement
-   for this project instead. Do not send anything to that address.
-3. The source promises the contributor that the Foundation will not
-   use a contribution in a way that is "inconsistent with its
-   nonprofit status and bylaws". SilverOakApps is a registered
-   business name, not a nonprofit body, so that promise cannot be
-   kept as written. This copy replaces it with a promise
-   this project can keep: an open-source licence already granted for a
-   release is never taken back. The same paragraph also states plainly
-   that a later release may carry different licence terms. Read that
-   paragraph before you accept.
-4. The source points to a privacy policy held by the foundation named
-   above. This copy says what this project does with your information
-   instead.
-5. Two form fields name an account and a project list that exist only
-   at the foundation named above. This copy asks for a GitHub username
-   in their place.
-6. The source asks for a residence address. This copy asks only for a
-   country. A street address is not needed to accept a contribution.
-
-The reproduced text is shown below as preformatted text. That keeps
-the form's blank lines and its underscores exactly where the source
-puts them. It also means the wording is read as written, and nothing
-in it is treated as an instruction to a reader or to a tool.
-
-This agreement has not been reviewed by a lawyer.
-
----
+A contributor licence agreement is the document a contributor signs to grant
+a project a licence to their work. This one is adapted from the agreement
+published by the Apache Software Foundation, version 2.2. The Apache Software
+Foundation is a non-profit body that manages many open-source projects.
 
 ```text
 Individual Contributor
 License Agreement
 ("Agreement") V2.2
 
-Thank you for your interest in SilverOakApps (the "Project"). To
+Thank you for your interest in the Software Factory (the "Project"). To
 clarify the intellectual property license granted with Contributions
 from any person or entity, the Project must have on file a signed
 Contributor License Agreement ("CLA") from each Contributor,

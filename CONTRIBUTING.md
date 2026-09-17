@@ -66,22 +66,15 @@ You must sign a contributor licence agreement before we can accept your change.
 A contributor licence agreement is a short document that grants this project the
 right to use what you wrote.
 
-The text of the agreement is in [`CLA.md`](CLA.md). It follows the template
-published by the Apache Software Foundation, the non-profit body behind many
-widely used open-source projects. `CLA.md` states exactly what was changed
-from that template, and why.
+The text of the agreement is in [`CLA.md`](CLA.md). It is adapted from the
+template published by the Apache Software Foundation, the non-profit body
+behind many widely used open-source projects.
 
-The reason is plain, and we would rather state it than hide it. Signing gives
-this project the rights to your contribution. That keeps the whole codebase
-under one owner, which means the licence can be changed later if the project
-ever needs to. Without it, every past contribution would have to be removed or
-rewritten first.
-
-You keep your own copyright. You are granting a licence, not giving your work
-away.
+Signing grants this project a licence to your contribution. That keeps the
+whole codebase under one owner, so the licence can change later if the project
+needs it to. You keep your own copyright.
 
 If this is a problem for you, open an issue and say so before you write code.
-We would rather talk about it early than turn down work you have already done.
 
 ### How to accept it
 

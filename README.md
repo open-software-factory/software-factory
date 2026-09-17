@@ -28,14 +28,5 @@ Repository-specific guidance for coding agents is in [`AGENTS.md`](AGENTS.md).
 
 ## Licence
 
-Copyright (c) 2026 SilverOakApps, the registered business that holds the
-copyright in this project.
-
-This project is offered under two licences, and you may use either one. The
-Apache License 2.0 is a permissive open-source licence that also grants patent
-rights. The MIT licence is a shorter permissive licence with no patent terms.
-See `LICENSE-APACHE` and `LICENSE-MIT`.
-
-A contribution you send is offered under the same two licences. A signed
-contributor agreement is required before a contribution can be accepted. See
-`CONTRIBUTING.md`.
+Apache-2.0 or MIT, at your option: see [`LICENSE-APACHE`](LICENSE-APACHE) and
+[`LICENSE-MIT`](LICENSE-MIT). To contribute, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
