@@ -80,6 +80,37 @@ jobs:
             --commits "origin/${{ github.base_ref }}..HEAD" \
             --format human
 
+  integrations:
+    name: integrations (${{ matrix.folder }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # One entry per TypeScript package under integrations/. Adding a
+        # package is one line here.
+        folder: [opencode]
+    defaults:
+      run:
+        working-directory: integrations/${{ matrix.folder }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version-file: integrations/${{ matrix.folder }}/.nvmrc
+          cache: npm
+          cache-dependency-path: integrations/${{ matrix.folder }}/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check, lint, and check formatting
+        run: npm run check
+
+      - name: Build and test
+        run: npm test
+
   rust:
     name: rust
     runs-on: ubuntu-latest

@@ -1,0 +1,32 @@
+{
+  "name": "@open-software-factory/osf-opencode-plugin",
+  "version": "0.1.0",
+  "description": "Reports the osf writing check after every OpenCode turn, by reading the session's last assistant message",
+  "license": "Apache-2.0 OR MIT",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "npm run check:types && npm run check:lint && npm run check:format",
+    "check:types": "tsc --noEmit -p tsconfig.json",
+    "check:lint": "oxlint -D correctness -D suspicious -D pedantic --deny-warnings src test",
+    "check:format": "oxfmt --check src test",
+    "format": "oxfmt src test",
+    "pretest": "npm run build",
+    "test": "node --test dist/test/*.test.js"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "1.18.31",
+    "@types/node": "22.20.3",
+    "oxfmt": "0.68.0",
+    "oxlint": "1.83.0",
+    "typescript": "7.0.2"
+  }
+}
