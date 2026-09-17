@@ -339,8 +339,9 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags a Markdown heading inside a short text (under the configured \
-         word count, 500 by default). Off for the `document` context: a \
-         document is expected to have headings.\n\
+         word count, 500 by default). Off for the `document` and `skill` \
+         contexts: both are structured text that is expected to have \
+         headings.\n\
          ### Why it is bad\n\
          A heading in a short reply adds structure the reply does not need. \
          A sentence, or a short table, usually says the same thing.\n\

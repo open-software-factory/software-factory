@@ -8,12 +8,19 @@
 mod meta;
 mod names;
 mod rules;
+pub mod skill;
 
-pub use meta::rule_meta;
+pub use meta::RuleMeta;
 pub use osf_lint_core::{
     check_expectation, parse_expectation, Context, Finding, KnownNames, Level, Mismatch,
     Remediation,
 };
+
+/// A rule's doc text and metadata, whether it is a writing rule or a skill rule.
+#[must_use]
+pub fn rule_meta(id: &str) -> Option<&'static RuleMeta> {
+    meta::rule_meta(id).or_else(|| skill::rule_meta(id))
+}
 
 use crate::config::WritingConfig;
 use std::path::Path;
@@ -70,8 +77,10 @@ pub fn lint_writing(
 ) -> Vec<Finding> {
     let doc = osf_lint_core::segment::parse(text);
     let mut findings = Vec::new();
-    // heading-in-short-text is off in a document: a document is expected to have headings.
-    if context != Context::Document {
+    // heading-in-short-text guards a short reply to a person: a chat
+    // transcript or a commit message. A document and a skill file are
+    // structured text that should have headings, so the rule is off there.
+    if matches!(context, Context::Transcript | Context::Commit) {
         rules::headings_in_short_text(&doc, cfg, &mut findings);
     }
     rules::per_sentence(&doc, cfg, fast_only, &mut findings);
@@ -615,6 +624,22 @@ mod tests {
             &known,
             &WritingConfig::default(),
             Context::Document,
+            false,
+            false,
+        );
+        assert!(f.iter().all(|x| x.rule != "heading-in-short-text"), "{f:?}");
+    }
+
+    /// A skill file is structured text, expected to have headings, same as
+    /// a document; the rule must not fire there either.
+    #[test]
+    fn heading_in_short_text_is_off_in_a_skill_file() {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        let f = lint_writing(
+            "## Result\n\nIt passed.\n",
+            &known,
+            &WritingConfig::default(),
+            Context::Skill,
             false,
             false,
         );
