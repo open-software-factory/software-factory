@@ -1,0 +1,19 @@
+{
+  "name": "@open-software-factory/osf-opencode-plugin",
+  "version": "0.1.0",
+  "description": "Reports the osf writing check after every OpenCode turn, by reading the session's last assistant message",
+  "license": "Apache-2.0 OR MIT",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/index.js",
+    "src/check.js"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
