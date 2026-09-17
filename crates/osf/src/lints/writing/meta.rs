@@ -362,6 +362,332 @@ pub const RULE_META: &[RuleMeta] = &[
          Bad: ## Result\\n\\nIt passed.\n\
          Good: It passed."
     ),
+    rule_meta!(
+        "contrast-tail",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a sentence or a heading that ends in `, not X` or `, never X`, \
+         where X is a short noun phrase of one to six words with no verb of \
+         its own.\n\
+         ### Why it is bad\n\
+         Denying an alternative at the end of a sentence is a rhetorical \
+         flourish, not new information. It reads as machine-written.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: The check passed, not by luck.\n\
+         Good: The check passed on its own merits.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "contrast-not-just",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags `not just X but Y`, `not only X but Y`, and `not about X, it \
+         is about Y`.\n\
+         ### Why it is bad\n\
+         Denying a smaller claim before making the real one pads a sentence \
+         with no new information.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: This is not only faster, but easier to read.\n\
+         Good: This is easier to read, and faster.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "contrast-pair",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a sentence starting `It is not X.` immediately followed, in \
+         the same paragraph, by one starting `It is Y.`\n\
+         ### Why it is bad\n\
+         Denying a claim only to restate it a moment later reads as a \
+         staged pause, not an explanation.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: It is not a workaround. It is the fix.\n\
+         Good: This is the fix, not a workaround.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "negative-listing",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags two or more sentences in a row, inside one paragraph, that \
+         each start with `Not`.\n\
+         ### Why it is bad\n\
+         A run of sentences that only say what is not true delays the point \
+         instead of stating it.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: Not a full rewrite. Not a quick patch either.\n\
+         Good: This is a small, targeted fix.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "aphorism",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a slogan-shaped claim: `X beats Y`, and the mirror `a W1 W2 \
+         is a W1 W3`.\n\
+         ### Why it is bad\n\
+         A slogan states a conclusion without the reason behind it. The \
+         reader is asked to accept it on rhythm alone.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: A short plan beats a long one.\n\
+         Good: A short plan is easier to check before it runs.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "throat-clearing",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags `Here is the thing`, `Let me be clear`, and `The \
+         uncomfortable truth`.\n\
+         ### Why it is bad\n\
+         These phrases announce that a point is coming instead of making \
+         it. Cutting them loses nothing.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: Here is the thing: the test was flaky.\n\
+         Good: The test was flaky.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "faux-insight",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags `what most people get wrong`, `what nobody tells you`, and \
+         `the part everyone misses`.\n\
+         ### Why it is bad\n\
+         These phrases claim a rare insight instead of stating one. The \
+         claim itself is never checkable.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: Here is what most people get wrong about caching.\n\
+         Good: A cache without an eviction policy grows without bound.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "puffery",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags `testament to`, `pivotal moment`, `vital role`, and \
+         `underscores the`.\n\
+         ### Why it is bad\n\
+         These phrases inflate an ordinary event into a significant one \
+         without adding a fact.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: This is a testament to the value of a second reviewer.\n\
+         Good: A second reviewer caught the bug the first one missed.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "weasel-attribution",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags `experts agree`, `studies show`, and `widely regarded`, with \
+         nobody named.\n\
+         ### Why it is bad\n\
+         An unnamed source cannot be checked. The reader has no way to \
+         judge the claim behind it.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: Studies show that small pull requests review faster.\n\
+         Good: The team's own review-time data shows small pull requests \
+         review faster.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "rhetorical-setup",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags `What if I told you`, `Think about it`, `Plot twist`, and a \
+         question ending in `?` followed, in the same paragraph, by a \
+         sentence of six words or fewer.\n\
+         ### Why it is bad\n\
+         Staging a question and answering it in the next breath is a \
+         performance. The answer could open the paragraph instead.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: Why did the build fail? A stale cache.\n\
+         Good: A stale cache made the build fail.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "colon-reveal",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a short label of one to five words, a colon, then a \
+         lowercase clause of four or more words, outside a list item, a \
+         table cell, and a heading. Never fires when a code span, a \
+         number, a quote, or a URL follows the colon.\n\
+         ### Why it is bad\n\
+         A short label held back before its own explanation reads as a \
+         staged pause rather than a plain sentence.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: The result: it passed on the first try.\n\
+         Good: It passed on the first try.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only."
+    ),
+    rule_meta!(
+        "short-kicker",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a paragraph of two or more sentences that ends on a sentence \
+         of four words or fewer. Never fires on a list item, a table row, a \
+         heading, or a final sentence that ends in a colon.\n\
+         ### Why it is bad\n\
+         A very short closing sentence reads as a staged punchline, an \
+         effect the paragraph reaches for instead of a plain statement.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: The fix was small. The risk was low. It shipped today.\n\
+         Good: The fix was small, the risk was low, and it shipped today.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only."
+    ),
+    rule_meta!(
+        "ing-tail",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a trailing clause that opens with `highlighting`, \
+         `underscoring`, `reflecting`, or `showcasing`.\n\
+         ### Why it is bad\n\
+         This clause usually restates the sentence's own point instead of \
+         adding one.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: The fix shipped today, highlighting the value of a second \
+         reviewer.\n\
+         Good: The fix shipped today. A second reviewer caught the bug.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only."
+    ),
+    rule_meta!(
+        "recap-ending",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a document's own final paragraph when it opens with `In \
+         conclusion`, `Ultimately`, or `Overall`. Never fires when that \
+         paragraph is a list item, a table cell, or a heading.\n\
+         ### Why it is bad\n\
+         A document's own ending does not need to announce that it is \
+         ending. The paragraph can simply say its point.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: Ultimately, the fix was small and low-risk.\n\
+         Good: The fix was small and low-risk.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only."
+    ),
 ];
 
 #[must_use]
