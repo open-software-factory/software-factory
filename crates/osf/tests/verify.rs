@@ -325,3 +325,67 @@ fn gate_ignores_a_config_files_exclude_list() {
     );
     assert_eq!(with_gate.status.code(), Some(1), "{with_gate:?}");
 }
+
+/// A deliberately bad writing fixture under `tests/fixtures` is checked
+/// against its own `osf-expect` declaration here, the same way the
+/// `osf lint writing` command line already treats one and the same way a
+/// skill fixture already is. Without this, adding a fixture for a new
+/// writing rule would fail every later `ci` run on this repository.
+#[test]
+fn a_matching_writing_fixture_declaration_produces_no_findings() {
+    let repo = TempRepo::new("writing-fixture-declared");
+    repo.write("base.md", "Clean.\n");
+    let base = repo.commit("base commit");
+    repo.write(
+        "crates/osf/tests/fixtures/writing/demo.md",
+        "A thing — another thing.\n\n<!-- osf-expect\nem-dash\n-->\n",
+    );
+    repo.commit("add a declared writing fixture");
+
+    let config = Config::default();
+    let excluder = Excluder::none();
+    let options = Options {
+        dir: &repo.dir,
+        base: Some(base),
+        message_file: None,
+        config: &config,
+        excluder: &excluder,
+    };
+    let report = run(Stage::PrePush, &options).expect("pre-push runs");
+    assert_eq!(
+        report.total_errors(),
+        0,
+        "{}",
+        report.render_summary("pre-push")
+    );
+}
+
+/// The mirror case: a writing fixture that no longer produces a rule it
+/// declares is a failure here too, the alarm for a rule that silently
+/// stopped firing.
+#[test]
+fn a_writing_fixture_missing_a_declared_rule_fails() {
+    let repo = TempRepo::new("writing-fixture-missing");
+    repo.write("base.md", "Clean.\n");
+    let base = repo.commit("base commit");
+    repo.write(
+        "crates/osf/tests/fixtures/writing/demo.md",
+        "Nothing wrong here.\n\n<!-- osf-expect\nem-dash\n-->\n",
+    );
+    repo.commit("add a fixture missing its declared rule");
+
+    let config = Config::default();
+    let excluder = Excluder::none();
+    let options = Options {
+        dir: &repo.dir,
+        base: Some(base),
+        message_file: None,
+        config: &config,
+        excluder: &excluder,
+    };
+    let report = run(Stage::PrePush, &options).expect("pre-push runs");
+    let summary = report.render_summary("pre-push");
+    assert_eq!(report.total_errors(), 1, "{summary}");
+    let rules: Vec<&str> = report.findings().map(|(_, _, f)| f.rule).collect();
+    assert!(rules.contains(&"expectation-missing"), "{rules:?}");
+}

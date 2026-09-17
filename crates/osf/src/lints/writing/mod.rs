@@ -37,6 +37,7 @@ pub fn lint_writing(
     }
     rules::per_sentence(&doc, cfg, fast_only, &mut findings);
     rules::undefined_names(&doc, known, cfg, &mut findings);
+    rules::recap_ending(&doc, cfg, &mut findings);
     apply_context(&mut findings, context);
     let mut findings = if no_suppress {
         findings
@@ -489,7 +490,8 @@ mod tests {
         // still joined whole here; a second mention supplies the repeated-
         // run evidence a single mention of two ordinary-cased words no
         // longer earns on its own.
-        let t = "- cloud providers such as Alibaba Cloud, not just Alibaba Cloud alone;\n";
+        let t =
+            "- cloud providers such as Alibaba Cloud, including Alibaba Cloud in every region;\n";
         let found = lint(t);
         let excerpt = found.first().map(|f| f.excerpt.as_str());
         assert_eq!(excerpt, Some("Alibaba Cloud"), "{found:?}");
@@ -943,7 +945,7 @@ mod tests {
             must_explain_names: vec!["Fastfix".to_string()],
             ..WritingConfig::default()
         };
-        let t = "Use Fastfix for this. Fastfix: a build helper for fixtures.";
+        let t = "Use Fastfix for this. Fastfix means a build helper for fixtures.";
         assert!(lint_with(&cfg, t).is_empty());
     }
 }

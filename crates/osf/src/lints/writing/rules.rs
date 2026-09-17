@@ -22,6 +22,25 @@ const SENTENCE_RULES: &[FnRule<WritingConfig>] = &[
     FnRule::sentence("numbers-in-prose", numbers_in_prose),
     FnRule::sentence("bold-sentence", bold_sentence),
     FnRule::sentence("parenthetical", parenthetical),
+    FnRule::sentence("contrast-tail", contrast_tail),
+    FnRule::sentence("contrast-not-just", contrast_not_just),
+    FnRule::sentence("aphorism", aphorism),
+    FnRule::sentence("throat-clearing", throat_clearing),
+    FnRule::sentence("faux-insight", faux_insight),
+    FnRule::sentence("puffery", puffery),
+    FnRule::sentence("weasel-attribution", weasel_attribution),
+    FnRule::sentence("colon-reveal", colon_reveal),
+    FnRule::sentence("ing-tail", ing_tail),
+];
+
+/// Rules that need to see more than one sentence at once, to judge a shape
+/// that spans a pair of them or the whole paragraph: a question and its own
+/// short answer, two "Not" sentences in a row, and the like.
+const PARAGRAPH_RULES: &[FnRule<WritingConfig>] = &[
+    FnRule::paragraph("contrast-pair", contrast_pair),
+    FnRule::paragraph("negative-listing", negative_listing),
+    FnRule::paragraph("short-kicker", short_kicker),
+    FnRule::paragraph("rhetorical-setup", rhetorical_setup),
 ];
 
 pub fn per_sentence(doc: &Doc, cfg: &WritingConfig, fast_only: bool, out: &mut Vec<Finding>) {
@@ -29,6 +48,7 @@ pub fn per_sentence(doc: &Doc, cfg: &WritingConfig, fast_only: bool, out: &mut V
     let chat_local_rule = ChatLocalRule::new(&cfg.chat_local_phrases, &cfg.chat_local_labels);
     let mut rules: Vec<&dyn Rule<WritingConfig>> = SENTENCE_RULES
         .iter()
+        .chain(PARAGRAPH_RULES)
         .map(|r| r as &dyn Rule<WritingConfig>)
         .collect();
     rules.push(&filler_rule);
@@ -40,6 +60,7 @@ pub fn per_sentence(doc: &Doc, cfg: &WritingConfig, fast_only: bool, out: &mut V
 pub fn rule_ids() -> Vec<&'static str> {
     SENTENCE_RULES
         .iter()
+        .chain(PARAGRAPH_RULES)
         .map(Rule::id)
         .chain([
             "filler",
@@ -47,6 +68,7 @@ pub fn rule_ids() -> Vec<&'static str> {
             "heading-in-short-text",
             "undefined-name",
             "undefined-name-at-start",
+            "recap-ending",
         ])
         .collect()
 }
@@ -692,4 +714,499 @@ fn is_contraction(w: &str) -> bool {
     const TAILS: &[&str] = &["ll", "d", "s", "re", "ve", "m", "t"];
     w.rsplit_once('\'')
         .is_some_and(|(_, tail)| TAILS.contains(&tail))
+}
+
+/// A comma-introduced tail such as ", not X" or ", never X" reads as a
+/// plain noun phrase, rather than a full clause with its own verb, when
+/// none of its words is one of these markers.
+const CONTRAST_VERB_MARKERS: &[&str] = &["is", "was", "does", "did", "has", "can", "will"];
+
+/// Whether `tail`, the words after "not" or "never", is one to six words
+/// long with no verb marker of its own.
+fn contrast_tail_words_ok(tail: &str) -> bool {
+    let words: Vec<&str> = tail.split_whitespace().collect();
+    if words.is_empty() || words.len() > 6 {
+        return false;
+    }
+    !words.iter().any(|w| {
+        let bare = w.trim_matches(|c: char| !c.is_alphanumeric());
+        CONTRAST_VERB_MARKERS.contains(&bare)
+    })
+}
+
+/// A sentence or heading that ends in `, not X` or `, never X`, where `X`
+/// is a short noun phrase with no verb of its own. Quotes the whole tail,
+/// from the comma onward.
+fn contrast_tail(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    let text = reduce_inline(&s.text);
+    let trimmed = text.trim().trim_end_matches(['.', '!', '?']);
+    let Some(idx) = trimmed.rfind(',') else {
+        return vec![];
+    };
+    let tail = trimmed.get(idx + 1..).unwrap_or("").trim();
+    let lower = tail.to_lowercase();
+    let rest = lower
+        .strip_prefix("not ")
+        .or_else(|| lower.strip_prefix("never "));
+    let Some(rest) = rest else {
+        return vec![];
+    };
+    if !contrast_tail_words_ok(rest) {
+        return vec![];
+    }
+    vec![finding(
+        s,
+        "contrast-tail",
+        Level::Error,
+        "say the point directly, instead of trailing off with a `not` or `never` clause"
+            .to_string(),
+        &format!(", {tail}"),
+    )]
+}
+
+/// `not just X but Y`, `not only X but Y`, and `not about X, it is about Y`.
+fn contrast_not_just(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = re(
+        &RE,
+        r"(?i)\bnot (?:just|only) [^.!?]+? but [^.!?]+|\bnot about [^.!?]+?,\s*it(?:'s| is) about [^.!?]+",
+    );
+    matches(s, re)
+        .iter()
+        .map(|m| {
+            finding(
+                s,
+                "contrast-not-just",
+                Level::Error,
+                "deny nothing first. State the point once".to_string(),
+                m,
+            )
+        })
+        .collect()
+}
+
+const APHORISM_MESSAGE: &str = "a slogan is not a reason. Say why the claim holds";
+
+/// `X beats Y`, and the mirror shape `a W1 W2 is a W1 W3`. The mirror
+/// needs its first word to repeat, which the `regex` crate cannot check by
+/// itself (it has no backreferences), so the repeat is checked here instead.
+fn aphorism(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    static BEATS: OnceLock<Regex> = OnceLock::new();
+    static MIRROR: OnceLock<Regex> = OnceLock::new();
+    // Anchored to the end of the sentence (one trailing mark allowed) so a
+    // sentence that merely mentions "beats" partway through, with more
+    // words after it, does not count: an aphorism is the sentence's own
+    // punchline, not an aside inside a longer claim.
+    let beats = re(
+        &BEATS,
+        r"(?i)\b[a-z]+ beats [a-z]+(?:\s+[a-z]+){0,3}[,.!?]?$",
+    );
+    let mirror = re(
+        &MIRROR,
+        r"(?i)\ba ([a-z]+) ([a-z]+) is a ([a-z]+) ([a-z]+)\b",
+    );
+    let mut out: Vec<Finding> = matches(s, beats)
+        .iter()
+        .map(|m| finding(s, "aphorism", Level::Error, APHORISM_MESSAGE.to_string(), m))
+        .collect();
+    let text = reduce_inline(&s.text);
+    out.extend(mirror.captures_iter(&text).filter_map(|c| {
+        let first = c.get(1)?.as_str();
+        let third = c.get(3)?.as_str();
+        if !first.eq_ignore_ascii_case(third) {
+            return None;
+        }
+        Some(finding(
+            s,
+            "aphorism",
+            Level::Error,
+            APHORISM_MESSAGE.to_string(),
+            c.get(0)?.as_str(),
+        ))
+    }));
+    out
+}
+
+/// `Here is the thing`, `Let me be clear`, `The uncomfortable truth`.
+fn throat_clearing(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = re(
+        &RE,
+        r"(?i)\bhere(?:'s| is) the thing\b|\blet me be clear\b|\bthe uncomfortable truth\b",
+    );
+    matches(s, re)
+        .iter()
+        .map(|m| {
+            finding(
+                s,
+                "throat-clearing",
+                Level::Error,
+                "cut the announcement and say the point".to_string(),
+                m,
+            )
+        })
+        .collect()
+}
+
+/// `What most people get wrong`, `What nobody tells you`, `The part
+/// everyone misses`.
+fn faux_insight(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = re(
+        &RE,
+        r"(?i)\bwhat most people get wrong\b|\bwhat nobody tells you\b|\bthe part everyone misses\b",
+    );
+    matches(s, re)
+        .iter()
+        .map(|m| {
+            finding(
+                s,
+                "faux-insight",
+                Level::Error,
+                "name the actual point, instead of announcing that one is coming".to_string(),
+                m,
+            )
+        })
+        .collect()
+}
+
+/// `testament to`, `pivotal moment`, `vital role`, `underscores the`.
+fn puffery(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = re(
+        &RE,
+        r"(?i)\btestament to\b|\bpivotal moment\b|\bvital role\b|\bunderscores the\b",
+    );
+    matches(s, re)
+        .iter()
+        .map(|m| {
+            finding(
+                s,
+                "puffery",
+                Level::Error,
+                "cut the inflated phrase and say the plain fact".to_string(),
+                m,
+            )
+        })
+        .collect()
+}
+
+/// `experts agree`, `studies show`, `widely regarded`, with nobody named.
+fn weasel_attribution(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = re(
+        &RE,
+        r"(?i)\bexperts agree\b|\bstudies show\b|\bwidely regarded\b",
+    );
+    matches(s, re)
+        .iter()
+        .map(|m| {
+            finding(
+                s,
+                "weasel-attribution",
+                Level::Error,
+                "name who says this, or cut the claim".to_string(),
+                m,
+            )
+        })
+        .collect()
+}
+
+/// A short label, a colon, then a lowercase reveal, outside a list item, a
+/// table cell and a heading. Never fires when what follows the colon is a
+/// code span, a number, a quote, or a URL.
+fn colon_reveal(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    if s.in_table || s.in_list_item || s.is_heading {
+        return vec![];
+    }
+    let raw = &s.text;
+    let Some(idx) = raw.find(':') else {
+        return vec![];
+    };
+    let before_raw = raw.get(..idx).unwrap_or("").trim();
+    let after_raw = raw.get(idx + 1..).unwrap_or("").trim();
+    if after_raw.is_empty() {
+        return vec![];
+    }
+    let excluded = after_raw.starts_with('`')
+        || after_raw.starts_with('"')
+        || after_raw.starts_with('\'')
+        || after_raw.starts_with("http://")
+        || after_raw.starts_with("https://")
+        || after_raw.chars().next().is_some_and(|c| c.is_ascii_digit());
+    if excluded {
+        return vec![];
+    }
+    let before_words: Vec<&str> = before_raw.split_whitespace().collect();
+    if before_words.is_empty() || before_words.len() > 5 {
+        return vec![];
+    }
+    let starts_upper = before_words
+        .first()
+        .and_then(|w| w.chars().next())
+        .is_some_and(char::is_uppercase);
+    if !starts_upper {
+        return vec![];
+    }
+    let after_words: Vec<&str> = after_raw.split_whitespace().collect();
+    if after_words.len() < 4 {
+        return vec![];
+    }
+    let starts_lower = after_words
+        .first()
+        .and_then(|w| w.chars().next())
+        .is_some_and(char::is_lowercase);
+    if !starts_lower {
+        return vec![];
+    }
+    vec![finding(
+        s,
+        "colon-reveal",
+        Level::Warning,
+        "write the label and the reveal as one plain sentence".to_string(),
+        &format!("{before_raw}: {after_raw}"),
+    )]
+}
+
+/// A trailing clause that opens with `highlighting`, `underscoring`,
+/// `reflecting`, or `showcasing`, restating the point the sentence already made.
+fn ing_tail(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = re(
+        &RE,
+        r"(?i),\s*(?:highlighting|underscoring|reflecting|showcasing)\b[^.!?]*",
+    );
+    matches(s, re)
+        .iter()
+        .map(|m| {
+            finding(
+                s,
+                "ing-tail",
+                Level::Warning,
+                "a trailing -ing clause restates the point. Make it its own sentence".to_string(),
+                m.trim(),
+            )
+        })
+        .collect()
+}
+
+/// A light sentence split over one paragraph already in hand, for a rule
+/// that needs to see a pair of sentences without re-running the document
+/// parser. Keeps the closing mark on each piece. Unlike
+/// [`osf_lint_core::segment::parse`], it does not know about abbreviations
+/// such as "e.g.", so it is only used here, on text short enough that the
+/// odd extra split costs nothing.
+fn split_local_sentences(text: &str) -> Vec<String> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    // The punctuation run must be followed by whitespace to end a sentence,
+    // the same requirement the document parser places on it; without this,
+    // the period inside "Contentful.io" or a version such as "0.1.5" would
+    // split a single sentence in two.
+    let re = re(&RE, r"[.!?]+\s+");
+    let reduced = reduce_inline(text);
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    for m in re.find_iter(&reduced) {
+        let punct_end = reduced
+            .get(m.start()..m.end())
+            .and_then(|run| run.find(char::is_whitespace))
+            .map_or(m.end(), |offset| m.start() + offset);
+        let chunk = reduced.get(start..punct_end).unwrap_or("").trim();
+        if !chunk.is_empty() {
+            out.push(chunk.to_string());
+        }
+        start = m.end();
+    }
+    let tail = reduced.get(start..).unwrap_or("").trim();
+    if !tail.is_empty() {
+        out.push(tail.to_string());
+    }
+    out
+}
+
+fn strip_terminal(s: &str) -> &str {
+    s.trim_end_matches(['.', '!', '?'])
+}
+
+fn word_count(s: &str) -> usize {
+    s.split_whitespace().count()
+}
+
+fn is_it_is_not(s: &str) -> bool {
+    let lower = s.to_lowercase();
+    lower.starts_with("it is not ") || lower.starts_with("it's not ")
+}
+
+fn is_it_is(s: &str) -> bool {
+    let lower = s.to_lowercase();
+    (lower.starts_with("it is ") && !lower.starts_with("it is not "))
+        || (lower.starts_with("it's ") && !lower.starts_with("it's not "))
+}
+
+/// `It is not X.` followed by `It is Y.`: denying a claim only to restate
+/// it a moment later, inside one paragraph.
+fn contrast_pair(p: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    let sentences = split_local_sentences(&p.text);
+    let mut out = Vec::new();
+    for pair in sentences.windows(2) {
+        let (Some(first), Some(second)) = (pair.first(), pair.get(1)) else {
+            continue;
+        };
+        if is_it_is_not(first) && is_it_is(second) {
+            out.push(finding(
+                p,
+                "contrast-pair",
+                Level::Error,
+                "denying the claim and then restating it reads as staged. Say the claim once"
+                    .to_string(),
+                &format!("{first} {second}"),
+            ));
+        }
+    }
+    out
+}
+
+fn starts_with_not(s: &str) -> bool {
+    s.split_whitespace()
+        .next()
+        .is_some_and(|w| w.eq_ignore_ascii_case("not"))
+}
+
+/// Two or more sentences in a row that start with `Not`, inside one paragraph.
+fn negative_listing(p: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    let sentences = split_local_sentences(&p.text);
+    let mut out = Vec::new();
+    for pair in sentences.windows(2) {
+        let (Some(first), Some(second)) = (pair.first(), pair.get(1)) else {
+            continue;
+        };
+        if starts_with_not(first) && starts_with_not(second) {
+            out.push(finding(
+                p,
+                "negative-listing",
+                Level::Error,
+                "two negative sentences in a row. Say what is true instead".to_string(),
+                &format!("{first} {second}"),
+            ));
+        }
+    }
+    out
+}
+
+/// A paragraph of two or more sentences that ends on a sentence of four
+/// words or fewer. Never fires on a list item, a table cell, a heading, or
+/// a final sentence that ends in a colon.
+fn short_kicker(p: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    if p.in_table || p.in_list_item || p.is_heading {
+        return vec![];
+    }
+    let sentences = split_local_sentences(&p.text);
+    if sentences.len() < 2 {
+        return vec![];
+    }
+    let Some((last, earlier)) = sentences.split_last() else {
+        return vec![];
+    };
+    if last.trim_end().ends_with(':') {
+        return vec![];
+    }
+    let wc = word_count(strip_terminal(last));
+    if wc == 0 || wc > 4 {
+        return vec![];
+    }
+    // A paragraph built entirely of short sentences has no punchline to
+    // land on: every line already reads the same way. The shape this rule
+    // catches is a paragraph that runs on for a while and then cuts short,
+    // so at least one earlier sentence must be longer than the ending.
+    if !earlier.iter().any(|s| word_count(strip_terminal(s)) > 4) {
+        return vec![];
+    }
+    vec![finding(
+        p,
+        "short-kicker",
+        Level::Warning,
+        "a very short final sentence reads as a staged punchline. Make it part of the paragraph"
+            .to_string(),
+        last,
+    )]
+}
+
+const RHETORICAL_OPENERS: &[&str] = &["what if i told you", "think about it", "plot twist"];
+
+/// One of the listed openers, or a question followed in the same paragraph
+/// by a sentence of six words or fewer, the writer's own short answer.
+fn rhetorical_setup(p: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    let sentences = split_local_sentences(&p.text);
+    let mut out = Vec::new();
+    for sentence in &sentences {
+        let lower = sentence.to_lowercase();
+        if RHETORICAL_OPENERS.iter().any(|o| lower.starts_with(o)) {
+            out.push(finding(
+                p,
+                "rhetorical-setup",
+                Level::Error,
+                "a staged opener asks the reader to wait for a reveal. Say the point now"
+                    .to_string(),
+                sentence,
+            ));
+        }
+    }
+    for pair in sentences.windows(2) {
+        let (Some(first), Some(second)) = (pair.first(), pair.get(1)) else {
+            continue;
+        };
+        if !first.trim_end().ends_with('?') {
+            continue;
+        }
+        let wc = word_count(strip_terminal(second));
+        if (1..=6).contains(&wc) {
+            out.push(finding(
+                p,
+                "rhetorical-setup",
+                Level::Error,
+                "a question answered by the writer's own short reply reads as staged; \
+                 answer plainly"
+                    .to_string(),
+                &format!("{first} {second}"),
+            ));
+        }
+    }
+    out
+}
+
+const RECAP_OPENERS: &[&str] = &["in conclusion", "ultimately", "overall"];
+
+/// The document's own last paragraph, opening with a stock summary phrase.
+/// Needs the whole document, not one paragraph in isolation: "final" only
+/// means something read against every paragraph before it.
+pub fn recap_ending(doc: &Doc, _cfg: &WritingConfig, out: &mut Vec<Finding>) {
+    let Some(last) = doc
+        .paragraphs
+        .iter()
+        .rev()
+        .find(|p| !p.text.trim().is_empty())
+    else {
+        return;
+    };
+    if last.in_table || last.in_list_item || last.is_heading {
+        return;
+    }
+    let reduced = reduce_inline(&last.text);
+    let trimmed = reduced.trim();
+    let lower = trimmed.to_lowercase();
+    if !RECAP_OPENERS.iter().any(|o| lower.starts_with(o)) {
+        return;
+    }
+    let excerpt = trimmed
+        .split_whitespace()
+        .take(6)
+        .collect::<Vec<_>>()
+        .join(" ");
+    out.push(finding(
+        last,
+        "recap-ending",
+        Level::Warning,
+        "a document's own ending does not need to announce itself".to_string(),
+        &excerpt,
+    ));
 }

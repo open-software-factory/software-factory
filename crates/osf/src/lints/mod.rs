@@ -11,11 +11,12 @@ pub mod agnix;
 pub mod skill;
 pub mod writing;
 
-pub use meta::RuleMeta;
+pub use meta::{RuleMeta, RULE_META};
 pub use osf_lint_core::{
     check_expectation, check_skill, parse_expectation, parse_skill_expectation, Context, Evidence,
     Finding, KnownNames, Level, Mismatch, Remediation,
 };
+pub use skill::SKILL_RULE_META;
 use writing::{meta, names};
 
 /// A rule's doc text and metadata, whether it is a writing rule or a skill rule.

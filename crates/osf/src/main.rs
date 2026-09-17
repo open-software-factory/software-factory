@@ -1614,7 +1614,8 @@ mod tests {
 
     const FIXTURE_PATH: &str = "crates/osf/tests/fixtures/bad.md";
     const REAL_PATH: &str = "docs/real.md";
-    const TWO_RULE_TEXT: &str = "A thing — another thing. It ran; it passed.\n";
+    const TWO_RULE_TEXT: &str =
+        "A thing — another thing. It ran fine; it passed the whole suite.\n";
 
     #[test]
     fn a_refresh_with_no_block_and_no_flags_has_nothing_to_do() {
