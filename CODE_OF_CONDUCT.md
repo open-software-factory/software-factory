@@ -1,49 +1,10 @@
 # Code of Conduct
 
-## Note from this project
-
-This section is written by this project. It is not part of the source
-document. The reproduced text starts after the horizontal rule below.
-
-This file reproduces the Contributor Covenant, version 3.0. The
-Contributor Covenant is the most widely used code of conduct in open
-source. The Organization for Ethical Source, the non-profit group
-that maintains it, stewards the Contributor Covenant.
-
-Source:
-
-- URL: <https://www.contributor-covenant.org/version/3/0/code_of_conduct/>
-- Fetched: 16 September 2026
-
-The Contributor Covenant's text is licensed under CC BY-SA 4.0. A
-copy of that licence is linked below, in the Attribution section, the
-credit that licence requires. That section is itself part of the
-reproduced text.
-
-Two changes were made to the source text:
-
-1. The section headed `Reporting an Issue` leaves a blank for the
-   community's reporting method. This copy fills that blank with:
-   report it to the contact address published on this project's
-   organisation page on GitHub. `CONTRIBUTING.md` and `CLA.md` use the
-   same route.
-2. The section that lists the enforcement ladder carries a note for
-   adopters. The note tells adopters to edit the ladder when their
-   community already has its own process. That note is guidance for
-   the adopter. It is not part of the code of conduct itself, so it
-   is removed here. This project keeps the enforcement ladder below
-   unchanged.
-
-Nothing else in the wording is changed.
-
-The reproduced text is shown below as preformatted text, with the
-source's own heading marks left as they are. There are two reasons.
-The wording of a code of conduct matters, so showing it exactly as it
-was published says plainly that nobody here has touched it. It also
-keeps every check this project runs on its own writing away from a
-document this project must never reword.
-
----
+This project follows the Contributor Covenant, version 3.0, a code of conduct
+used across open source. Its text is licensed under CC BY-SA 4.0, a licence
+that allows reuse with credit, and the credit it requires is in the
+attribution section at the end. The reporting method is this project's
+contact address, published on its organisation page on GitHub.
 
 ```text
 # Contributor Covenant 3.0 Code of Conduct
