@@ -1,4 +1,5 @@
-use osf::{config, exclude, hook, lint, risk, scan, verify};
+use osf::status::GhClient;
+use osf::{config, exclude, hook, lint, risk, scan, status, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -100,6 +101,11 @@ enum Command {
     Verify(VerifyArgs),
     /// Report the blast radius of a change: low, normal, or high, with the reasons.
     Risk(RiskArgs),
+    /// Render or apply the status block at the top of a pull request description.
+    Status {
+        #[command(subcommand)]
+        action: StatusAction,
+    },
 }
 
 #[derive(Args)]
@@ -112,6 +118,104 @@ struct RiskArgs {
     /// for a single blast-radius answer, so it is refused.
     #[arg(long, value_enum)]
     format: Option<Format>,
+}
+
+#[derive(Subcommand)]
+enum StatusAction {
+    /// Print the status block for the given inputs.
+    Render(StatusRenderArgs),
+    /// Put the status block into a pull request description.
+    Apply(StatusApplyArgs),
+    /// Recompute the status block from the pull request's current state and
+    /// write it back only when it changed.
+    Refresh(StatusRefreshArgs),
+}
+
+#[derive(Args)]
+struct StatusRenderArgs {
+    /// A file holding a JSON object with a string "tier" field and a
+    /// "reasons" array of strings.
+    #[arg(long)]
+    tier_json: PathBuf,
+    /// Gate results, comma-separated: "name: passed" or "name: failed: reason".
+    #[arg(long)]
+    gates: String,
+    /// One sentence describing the problem.
+    #[arg(long)]
+    problem: String,
+    /// One sentence describing the approach.
+    #[arg(long)]
+    approach: String,
+    /// The repository, as `owner/name`. Needed with `--pr` when `--review-json` is absent.
+    #[arg(long)]
+    repo: Option<String>,
+    /// The pull request number.
+    #[arg(long)]
+    pr: Option<String>,
+    /// A file holding `gh pr view --json reviewDecision,reviews,comments`
+    /// output, instead of fetching it.
+    #[arg(long)]
+    review_json: Option<PathBuf>,
+}
+
+#[derive(Args)]
+struct StatusApplyArgs {
+    /// The rendered block to put into the description.
+    #[arg(long)]
+    block: PathBuf,
+    /// The repository, as `owner/name`. Needed with `--pr` when `--body-file` is absent.
+    #[arg(long)]
+    repo: Option<String>,
+    /// The pull request number.
+    #[arg(long)]
+    pr: Option<String>,
+    /// Print the result instead of updating the pull request.
+    #[arg(long)]
+    dry_run: bool,
+    /// Read the description from this file instead of `gh pr view`.
+    #[arg(long)]
+    body_file: Option<PathBuf>,
+    /// Write the result to this file instead of `gh pr edit`.
+    #[arg(long)]
+    out: Option<PathBuf>,
+}
+
+/// The name of the check this whole workflow reports as, so a refresh never
+/// treats its own still-running check as a gate to report on.
+const STATUS_CHECK_NAME: &str = "status block";
+
+#[derive(Args)]
+struct StatusRefreshArgs {
+    /// The repository, as `owner/name`.
+    #[arg(long)]
+    repo: String,
+    /// The pull request number.
+    #[arg(long)]
+    pr: String,
+    /// What to diff the change against, for the risk tier. Defaults to
+    /// `origin/<the pull request's base branch>`, fetched first.
+    #[arg(long)]
+    base: Option<String>,
+    /// One sentence describing the problem. Required only when the
+    /// description carries no status block yet.
+    #[arg(long)]
+    problem: Option<String>,
+    /// One sentence describing the approach. Required only when the
+    /// description carries no status block yet.
+    #[arg(long)]
+    approach: Option<String>,
+    /// A file holding `gh pr checks --json name,state,bucket` output,
+    /// instead of fetching it.
+    #[arg(long)]
+    checks_json: Option<PathBuf>,
+    /// A file holding `gh pr view --json reviewDecision,reviews,comments`
+    /// output, instead of fetching it.
+    #[arg(long)]
+    review_json: Option<PathBuf>,
+    /// Print the rendered block and whether it would update, without
+    /// editing the pull request.
+    #[arg(long)]
+    dry_run: bool,
 }
 
 #[derive(Args)]
@@ -357,6 +461,15 @@ fn main() -> ExitCode {
         Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
         Command::Verify(args) => verify_cmd(args, cli.config.as_deref()),
         Command::Risk(args) => risk_cmd(args),
+        Command::Status {
+            action: StatusAction::Render(args),
+        } => status_render_cmd(args),
+        Command::Status {
+            action: StatusAction::Apply(args),
+        } => status_apply_cmd(args),
+        Command::Status {
+            action: StatusAction::Refresh(args),
+        } => status_refresh_cmd(args),
     }
 }
 
@@ -1012,6 +1125,295 @@ fn risk_cmd(args: &RiskArgs) -> ExitCode {
     ExitCode::SUCCESS
 }
 
+fn read_to_string_or_exit(path: &Path) -> Result<String, ExitCode> {
+    std::fs::read_to_string(path).map_err(|e| {
+        eprintln!("osf: cannot read {}: {e}", path.display());
+        ExitCode::from(2)
+    })
+}
+
+fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
+    let tier_text = match read_to_string_or_exit(&args.tier_json) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
+    let review_text = if let Some(path) = &args.review_json {
+        match read_to_string_or_exit(path) {
+            Ok(t) => t,
+            Err(code) => return code,
+        }
+    } else {
+        let (Some(repo), Some(pr)) = (&args.repo, &args.pr) else {
+            eprintln!("osf status render: needs --repo and --pr, or --review-json");
+            return ExitCode::from(2);
+        };
+        match status::RealGh.view_review(repo, pr) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    };
+    let input = status::RenderInput {
+        tier_json: &tier_text,
+        gates: &args.gates,
+        problem: &args.problem,
+        approach: &args.approach,
+        review_json: &review_text,
+    };
+    match status::render(&input) {
+        Ok(block) => {
+            print!("{block}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
+    let block_text = match read_to_string_or_exit(&args.block) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
+
+    if args.body_file.is_some() || args.out.is_some() {
+        let (Some(body_path), Some(out_path)) = (&args.body_file, &args.out) else {
+            eprintln!("osf status apply: --body-file needs --out");
+            return ExitCode::from(2);
+        };
+        let body = match std::fs::read_to_string(body_path) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!(
+                    "osf: cannot read {}: {e}; nothing was changed",
+                    body_path.display()
+                );
+                return ExitCode::from(2);
+            }
+        };
+        return match status::apply(&body, &block_text) {
+            Ok(new_body) => match std::fs::write(out_path, &new_body) {
+                Ok(()) => {
+                    println!("osf status apply: wrote {}", out_path.display());
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("osf: cannot write {}: {e}", out_path.display());
+                    ExitCode::from(2)
+                }
+            },
+            Err(e) => {
+                eprintln!("osf: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
+
+    let (Some(repo), Some(pr)) = (&args.repo, &args.pr) else {
+        eprintln!("osf status apply: needs --repo and --pr, or --body-file and --out");
+        return ExitCode::from(2);
+    };
+    let client = status::RealGh;
+    let body = match client.view_body(repo, pr) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let new_body = match status::apply(&body, &block_text) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    if args.dry_run {
+        print!("{new_body}");
+        return ExitCode::SUCCESS;
+    }
+    match client.edit_body(repo, pr, &new_body) {
+        Ok(()) => {
+            println!("osf status apply: applied to {repo}#{pr}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// Fetches one ref from `remote` so a fresh, shallow-on-history checkout
+/// has it to diff against.
+///
+/// # Errors
+/// Returns an error when git cannot run or exits non-zero.
+fn git_fetch(remote: &str, ref_name: &str) -> Result<(), String> {
+    let output = std::process::Command::new("git")
+        .args(["fetch", remote, ref_name])
+        .output()
+        .map_err(|e| format!("cannot run git: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "git fetch {remote} {ref_name} failed: {}",
+            stderr.trim()
+        ));
+    }
+    Ok(())
+}
+
+/// `Problem` and `Approach` for a refresh: read back from the description's
+/// own block when it has one, else from `--problem`/`--approach`. With
+/// neither, there is nothing to refresh, and that is `None`, never an
+/// error: a pull request opts into the block by applying it once.
+fn status_refresh_problem_approach(
+    body: &str,
+    problem: Option<&String>,
+    approach: Option<&String>,
+) -> Result<Option<(String, String)>, ExitCode> {
+    match status::extract_problem_approach(body) {
+        Ok(Some((p, a))) => Ok(Some((p, a))),
+        Ok(None) => match (problem, approach) {
+            (Some(p), Some(a)) => Ok(Some((p.clone(), a.clone()))),
+            _ => Ok(None),
+        },
+        Err(e) => {
+            eprintln!("osf: {e}");
+            Err(ExitCode::from(2))
+        }
+    }
+}
+
+/// The ref to assess risk against: `base` verbatim when given, else
+/// `origin/<base_ref>` after fetching it so a fresh checkout has it.
+fn status_refresh_base(base: Option<&String>, base_ref: &str) -> Result<String, ExitCode> {
+    if let Some(b) = base {
+        return Ok(b.clone());
+    }
+    git_fetch("origin", base_ref).map_err(|e| {
+        eprintln!("osf: {e}");
+        ExitCode::from(2)
+    })?;
+    Ok(format!("origin/{base_ref}"))
+}
+
+/// The gate spec for `render`: from `checks_json` when given, else from
+/// `gh pr checks`, with the check running this refresh left out.
+fn status_refresh_gates(
+    client: &dyn status::GhClient,
+    repo: &str,
+    pr: &str,
+    checks_json: Option<&PathBuf>,
+) -> Result<String, ExitCode> {
+    let checks_text = if let Some(path) = checks_json {
+        read_to_string_or_exit(path)?
+    } else {
+        client.view_checks(repo, pr).map_err(|e| {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        })?
+    };
+    status::gates_from_checks_json(&checks_text, STATUS_CHECK_NAME).map_err(|e| {
+        eprintln!("osf: {e}");
+        ExitCode::from(2)
+    })
+}
+
+/// The review JSON for `render`: from `review_json` when given, else from `gh pr view`.
+fn status_refresh_review(
+    client: &dyn status::GhClient,
+    repo: &str,
+    pr: &str,
+    review_json: Option<&PathBuf>,
+) -> Result<String, ExitCode> {
+    if let Some(path) = review_json {
+        read_to_string_or_exit(path)
+    } else {
+        client.view_review(repo, pr).map_err(|e| {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        })
+    }
+}
+
+fn status_refresh_cmd(args: &StatusRefreshArgs) -> ExitCode {
+    status_refresh_run(&status::RealGh, args).unwrap_or_else(|code| code)
+}
+
+fn status_refresh_run(
+    client: &dyn status::GhClient,
+    args: &StatusRefreshArgs,
+) -> Result<ExitCode, ExitCode> {
+    let to_exit = |e: status::StatusError| {
+        eprintln!("osf: {e}");
+        ExitCode::from(2)
+    };
+
+    let pr_info_text = client.view_pr_info(&args.repo, &args.pr).map_err(to_exit)?;
+    let pr_info = status::parse_pr_info(&pr_info_text).map_err(to_exit)?;
+
+    let Some((problem, approach)) = status_refresh_problem_approach(
+        &pr_info.body,
+        args.problem.as_ref(),
+        args.approach.as_ref(),
+    )?
+    else {
+        println!(
+            "osf status refresh: no status block in the description, so nothing to refresh; run `osf status apply` once to start one"
+        );
+        return Ok(ExitCode::SUCCESS);
+    };
+    let base = status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
+    let report = risk::assess(Path::new("."), &base).map_err(|e| {
+        eprintln!("osf risk: {e}");
+        ExitCode::from(2)
+    })?;
+    let tier_text = report.to_json().to_string();
+    let gates = status_refresh_gates(client, &args.repo, &args.pr, args.checks_json.as_ref())?;
+    let review_text =
+        status_refresh_review(client, &args.repo, &args.pr, args.review_json.as_ref())?;
+
+    let input = status::RenderInput {
+        tier_json: &tier_text,
+        gates: &gates,
+        problem: &problem,
+        approach: &approach,
+        review_json: &review_text,
+    };
+    let block = status::render(&input).map_err(to_exit)?;
+    let unchanged = status::is_unchanged(&pr_info.body, &block).map_err(to_exit)?;
+
+    if args.dry_run {
+        print!("{block}");
+        println!(
+            "osf status refresh: {}",
+            if unchanged {
+                "unchanged"
+            } else {
+                "would update"
+            }
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    if unchanged {
+        println!("osf status refresh: unchanged");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let new_body = status::apply(&pr_info.body, &block).map_err(to_exit)?;
+    client
+        .edit_body(&args.repo, &args.pr, &new_body)
+        .map_err(to_exit)?;
+    println!("osf status refresh: updated");
+    Ok(ExitCode::SUCCESS)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1019,6 +1421,16 @@ mod tests {
     const FIXTURE_PATH: &str = "crates/osf/tests/fixtures/bad.md";
     const REAL_PATH: &str = "docs/real.md";
     const TWO_RULE_TEXT: &str = "A thing — another thing. It ran; it passed.\n";
+
+    #[test]
+    fn a_refresh_with_no_block_and_no_flags_has_nothing_to_do() {
+        let none = status_refresh_problem_approach("just a description\n", None, None);
+        assert!(matches!(none, Ok(None)));
+        let p = "the problem".to_string();
+        let a = "the approach".to_string();
+        let some = status_refresh_problem_approach("just a description\n", Some(&p), Some(&a));
+        assert_eq!(some.ok().flatten(), Some((p, a)));
+    }
 
     fn writing_args() -> WritingArgs {
         WritingArgs {
