@@ -7,9 +7,9 @@
 //!
 //! Three things every rule here shares. No rule names one coding agent or
 //! one operating system on its own: agents come from
-//! [`crate::agents::AGENTS`]. No rule assumes the repository is public:
-//! [`crate::repository::resolve`] establishes that first, and a private
-//! repository turns these findings into advice. And a link is parsed as a
+//! [`crate::agents::AGENTS`]. No rule assumes anything about the repository:
+//! [`crate::repository::resolve`] establishes who owns it first, and every
+//! rule applies whether it is public or private. And a link is parsed as a
 //! URL and a path as a path, by a library, before anything is compared; a
 //! regular expression only finds candidates in free text.
 
@@ -20,7 +20,7 @@ pub use meta::rule_meta;
 use crate::agents::AGENTS;
 use crate::config::ScanConfig;
 use crate::exclude::Excluder;
-use crate::repository::{self, Repository, Visibility};
+use crate::repository::{self, Repository};
 use osf_lint_core::{resolve, Context, Finding, Level};
 use regex::Regex;
 use std::path::{Path, PathBuf};
@@ -416,7 +416,8 @@ impl Denylist {
                 out.push(finding(
                     "scan-denied-name",
                     line,
-                    "a denylisted name must never reach this repository".to_string(),
+                    "a denylisted name must never reach a repository, private or public"
+                        .to_string(),
                     "",
                 ));
             }
@@ -426,16 +427,9 @@ impl Denylist {
 
 // --- the rules as a set ---------------------------------------------------
 
-/// The rules whose findings are about provenance reaching the public. In a
-/// private repository they are advice; the denylist is not among them,
-/// since a denied name is denied whoever can read the repository.
-const PUBLIC_ONLY_RULES: &[&str] = &[
-    "scan-session-link",
-    "scan-agent-state-path",
-    "scan-coauthor-trailer",
-    "scan-local-path",
-    "scan-foreign-reference",
-];
+/// The clause every provenance message ends with. It does not say public:
+/// none of this belongs in a private repository either.
+const CLAUSE: &str = "must never reach a repository, private or public";
 
 /// Every scan rule, built once for one repository.
 pub struct Rules {
@@ -446,9 +440,8 @@ pub struct Rules {
 }
 
 impl Rules {
-    /// Rules for the repository at `dir`. The owner and the visibility
-    /// come from `cfg` where it states them, else from the git remote and
-    /// the host. Nothing in `cfg` is required. A fact that could not be
+    /// Rules for the repository at `dir`. The owner comes from `cfg` where
+    /// it states one, else from the git remote. Nothing in `cfg` is required. A fact that could not be
     /// read is reported through [`Rules::notes`].
     ///
     /// # Errors
@@ -483,24 +476,10 @@ impl Rules {
         &self.notes
     }
 
-    /// The clause every provenance message ends with, worded for what is
-    /// known about the repository.
-    fn clause(&self) -> &'static str {
-        match self.repository.visibility {
-            Visibility::Public => "must never reach a public repository",
-            Visibility::Private => {
-                "would be exposed if this private repository were ever made public"
-            }
-            Visibility::Unknown => {
-                "must never reach a public repository, and this repository's visibility could not be read"
-            }
-        }
-    }
-
     /// Every finding in `text`, resolved and explained under `context`.
     #[must_use]
     pub fn scan_text(&self, text: &str, context: Context) -> Vec<Finding> {
-        let clause = self.clause();
+        let clause = CLAUSE;
         let mut out = Vec::new();
         session_link_findings(&self.links, clause, text, &mut out);
         agent_state_path_findings(clause, text, &mut out);
@@ -511,14 +490,6 @@ impl Rules {
         }
         self.denylist.find(text, &mut out);
         resolve_and_explain(&mut out, context);
-        if !self.repository.visibility.treated_as_public() {
-            for f in out
-                .iter_mut()
-                .filter(|f| PUBLIC_ONLY_RULES.contains(&f.rule))
-            {
-                f.level = Level::Warning;
-            }
-        }
         osf_lint_core::sort_findings(&mut out);
         out
     }

@@ -199,7 +199,7 @@ impl Default for SkillConfig {
 pub struct ScanConfig {
     /// The org or user whose own `owner/repo#N` references are not foreign. Empty means it is read from the git remote.
     pub project_owner: String,
-    /// `public` or `private`. Empty means it is read from the host, or treated as public when that fails.
+    /// `public` or `private`. Empty means it is read from the host where a client is installed, and is unknown otherwise.
     pub repository_visibility: String,
     /// Patterns that must never appear in a public repository. Never printed in a finding.
     pub denylist: Vec<String>,

@@ -7,6 +7,6 @@
 [scan]
 # A reference such as other-owner/other-repo#<number> means nothing to a reader here.
 project_owner = "open-software-factory"
-# This repository is being prepared for publication. Treat it as public now,
-# so a leak is an error today rather than a warning until the day it flips.
+# Stated here so the scan never asks the host on every commit. It changes no
+# rule: every rule applies whether a repository is public or private.
 repository_visibility = "public"

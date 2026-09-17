@@ -7,8 +7,7 @@
 //! The corpus below has one case per supported agent, per session place,
 //! and per platform. The tests that walk `osf::agents::AGENTS` are the
 //! ones that matter: a rule cannot pass them while knowing one agent and
-//! not the others. No test here reaches the network: every repository
-//! states its own visibility in its configuration.
+//! not the others. No test here reaches the network: every repository\n//! states its own visibility in its configuration, and the visibility\n//! changes no finding.
 
 mod common;
 
@@ -332,10 +331,11 @@ fn with_no_owner_from_anywhere_the_rule_does_not_run_and_says_so() {
     assert!(rule_ids(&built.scan_text(&text, Context::Document)).is_empty());
 }
 
-/// In a private repository the provenance findings are advice, and the
-/// message says why. The denylist stays an error.
+/// A private repository changes nothing. None of this belongs in a private
+/// repository either, and a private one becomes public more often than
+/// anyone plans, so every finding keeps its full weight.
 #[test]
-fn a_private_repository_lowers_provenance_findings_to_warnings_but_not_the_denylist() {
+fn a_private_repository_lowers_no_finding() {
     let (repo, mut cfg) = public_repo("scan-private", "acme");
     cfg.repository_visibility = "private".to_string();
     cfg.denylist = vec!["Secret".to_string()];
@@ -349,19 +349,14 @@ fn a_private_repository_lowers_provenance_findings_to_warnings_but_not_the_denyl
     let found = rules.scan_text(&text, Context::Document);
     assert_eq!(found.len(), 3, "{found:?}");
     for f in &found {
-        if f.rule == "scan-denied-name" {
-            assert_eq!(f.level, Level::Error, "{}", f.rule);
-        } else {
-            assert_eq!(f.level, Level::Warning, "{}", f.rule);
-            assert!(f.message.contains("private"), "{}", f.message);
-        }
+        assert_eq!(f.level, Level::Error, "{}", f.rule);
+        assert!(!f.message.contains("public repository"), "{}", f.message);
     }
 }
-
-/// With the visibility unknown, every finding is an error, the message
-/// says the visibility could not be read, and a note says how to state it.
+/// An unknown visibility is reported in a note and changes nothing: the
+/// findings are the same errors they would be anywhere.
 #[test]
-fn an_unknown_visibility_is_treated_as_public_and_reported() {
+fn an_unknown_visibility_is_reported_and_changes_nothing() {
     let repo = TempRepo::new("scan-visibility-unknown");
     let rules = Rules::build(&repo.dir, &ScanConfig::default()).expect("builds");
     assert_eq!(rules.repository().visibility, Visibility::Unknown);
@@ -376,15 +371,8 @@ fn an_unknown_visibility_is_treated_as_public_and_reported() {
     let text = format!("See {}.\n", session_link("1"));
     let found = rules.scan_text(&text, Context::Document);
     assert_eq!(found.len(), 1, "{found:?}");
-    let first = found.first().expect("one finding");
-    assert_eq!(first.level, Level::Error);
-    assert!(
-        first.message.contains("could not be read"),
-        "{}",
-        first.message
-    );
+    assert_eq!(found.first().map(|f| f.level), Some(Level::Error));
 }
-
 #[test]
 fn a_visibility_word_the_tool_does_not_know_is_reported_not_accepted() {
     let (repo, mut cfg) = public_repo("scan-visibility-bad", "acme");

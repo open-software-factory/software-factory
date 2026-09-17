@@ -1,13 +1,19 @@
 //! What the scan knows about the repository it runs in: where it is
-//! hosted, who owns it, and whether the public can see it.
+//! hosted, who owns it, what it is called, and whether the public can see
+//! it.
 //!
 //! Resolved once, before any rule runs. The configuration may state each
 //! fact; otherwise the git remote gives the host, the owner, and the name,
 //! and the host's own command line gives the visibility where one is
-//! installed. No rule assumes a public repository. When the visibility
-//! cannot be read, the scan treats the repository as public and says so,
-//! because a leak into a repository that turns out to be public is the
-//! failure this whole tool exists to prevent.
+//! installed. No rule reads the remote itself, and no rule assumes the
+//! repository is public.
+//!
+//! The visibility changes no rule's weight. A session link, a local path,
+//! a co-author trailer, or a reference into another owner's tracker does
+//! not belong in a private repository either, and a private one becomes
+//! public more often than anyone plans. The visibility is known so that
+//! the tool can say what it is checking, and so a later rule that needs it
+//! does not have to guess.
 
 use crate::config::ScanConfig;
 use std::path::Path;
@@ -18,8 +24,8 @@ use std::process::Command;
 pub enum Visibility {
     Public,
     Private,
-    /// Could not be read from the configuration or the host. Treated as
-    /// public by every rule, and reported as a note.
+    /// Could not be read from the configuration or the host, and reported
+    /// as a note.
     #[default]
     Unknown,
 }
@@ -42,12 +48,6 @@ impl Visibility {
             "private" | "internal" => Some(Visibility::Private),
             _ => None,
         }
-    }
-
-    /// True unless the repository is known to be private.
-    #[must_use]
-    pub fn treated_as_public(self) -> bool {
-        !matches!(self, Visibility::Private)
     }
 }
 
@@ -96,7 +96,7 @@ pub fn resolve(dir: &Path, cfg: &ScanConfig) -> Resolved {
 
     if repo.visibility == Visibility::Unknown {
         notes.push(
-            "repository visibility is unknown, so every finding is treated as if the repository were public; set `[scan] repository_visibility` to state it"
+            "repository visibility is unknown; every rule applies regardless, and `[scan] repository_visibility` states it without a lookup"
                 .to_string(),
         );
     }
@@ -190,12 +190,5 @@ mod tests {
         assert_eq!(Visibility::parse("internal"), Some(Visibility::Private));
         assert_eq!(Visibility::parse("secret"), None);
         assert_eq!(Visibility::parse(""), None);
-    }
-
-    #[test]
-    fn only_private_escapes_public_treatment() {
-        assert!(Visibility::Public.treated_as_public());
-        assert!(Visibility::Unknown.treated_as_public());
-        assert!(!Visibility::Private.treated_as_public());
     }
 }

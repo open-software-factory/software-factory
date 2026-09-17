@@ -1,8 +1,7 @@
 //! Metadata for every scan rule: why we believe it, and its doc text for
 //! `osf explain`. Every rule here uses [`Group::Comprehension`], which
 //! [`osf_lint_core::resolve`] always turns into an error, in every context.
-//! In a repository known to be private, the provenance rules are lowered to
-//! warnings after that, because what they find is advice there.
+//! Every rule applies whether the repository is public or private.
 //!
 //! Every doc text ends with a Coverage section that names what the rule
 //! checks and what it does not. A test keeps those sections in step with
@@ -39,8 +38,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Hosted session links for: claude code, codex, opencode. Agents whose \
               sessions live only on disk leave a path rather than a link: dsh, pi, omp, \
               copilot. Those are covered by `scan-agent-state-path`. A host this list \
-              does not name is not checked unless it is added in the configuration. In a \
-              repository known to be private this is a warning, not an error.",
+              does not name is not checked unless it is added in the configuration.",
         exception: None,
     },
     RuleMeta {
@@ -69,7 +67,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               ### Coverage\n\
               The state directories and session places of: dsh, pi, omp, opencode, codex, \
               claude code, copilot. A configuration file under the same directory is not \
-              flagged. In a repository known to be private this is a warning, not an error.",
+              flagged.",
         exception: None,
     },
     RuleMeta {
@@ -91,8 +89,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: no such trailer in the commit.\n\
               ### Coverage\n\
               The trailer line itself, whichever agent wrote it. The project's own \
-              `Code-Generator:` trailer is the accepted form and is not flagged. In a \
-              repository known to be private this is a warning, not an error.",
+              `Code-Generator:` trailer is the accepted form and is not flagged.",
         exception: None,
     },
     RuleMeta {
@@ -125,8 +122,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Linux root account, macOS, each also inside a `file:` address. A path written \
               through the home shorthand or an environment variable names no machine and \
               no account, so it is not flagged, and neither is a system folder such as the \
-              program files folder. In a repository known to be private this is a warning, \
-              not an error.",
+              program files folder.",
         exception: None,
     },
     RuleMeta {
@@ -154,8 +150,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               The owner only. A reference to another repository under the same owner \
               passes, whatever that repository's visibility, because visibility of the \
               referenced repository is not checked. A reference to a public repository \
-              under another owner is still flagged, for a person to confirm. In a \
-              repository known to be private this is a warning, not an error.",
+              under another owner is still flagged, for a person to confirm.",
         exception: None,
     },
     RuleMeta {
@@ -182,7 +177,7 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: no configured pattern matches anywhere in the text.\n\
               ### Coverage\n\
               Exactly the configured patterns, case-insensitively. With an empty list the \
-              rule does not run. This rule is an error whoever can read the repository.",
+              rule does not run. This rule, like every rule here, is an error whoever can read the repository.",
         exception: None,
     },
 ];
