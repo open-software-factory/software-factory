@@ -1,0 +1,12 @@
+# Settings for this repository.
+#
+# Every gate and every contributor runs against these numbers, so they live
+# here rather than in one person's home directory. A check that passes on your
+# machine and fails on a pull request is worse than no check.
+
+[scan]
+# A reference such as other-owner/other-repo#<number> means nothing to a reader here.
+project_owner = "open-software-factory"
+# Stated here so the scan never asks the host on every commit. It changes no
+# rule: every rule applies whether a repository is public or private.
+repository_visibility = "public"
