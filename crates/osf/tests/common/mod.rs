@@ -57,6 +57,24 @@ impl TempRepo {
     pub fn stage(&self, path: &str) {
         self.git(&["add", path]);
     }
+
+    /// Points a remote-tracking `origin/main` at the current `HEAD`, the
+    /// way a fresh clone of a real remote would already have one, without
+    /// this repository needing an actual remote to fetch from.
+    pub fn track_origin_main(&self) {
+        self.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    }
+
+    /// Writes `count` numbered lines to `path`, each newline-terminated,
+    /// creating any parent directory it needs.
+    pub fn write_lines(&self, path: &str, count: usize) {
+        use std::fmt::Write as _;
+        let mut content = String::new();
+        for n in 1..=count {
+            writeln!(content, "line {n}").expect("writing to a string never fails");
+        }
+        self.write(path, &content);
+    }
 }
 
 impl Drop for TempRepo {

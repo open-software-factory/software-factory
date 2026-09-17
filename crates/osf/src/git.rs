@@ -204,6 +204,67 @@ pub fn to_local_path(dir: &Path, git_path: &str) -> PathBuf {
     dir.join(git_path.replace('/', std::path::MAIN_SEPARATOR_STR))
 }
 
+/// The repository's working-tree root.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`.
+pub fn repo_root(dir: &Path) -> Result<PathBuf, GitError> {
+    let text = run_text(dir, &["rev-parse", "--show-toplevel"])?;
+    Ok(PathBuf::from(text.trim()))
+}
+
+/// `HEAD`'s short commit hash.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`.
+pub fn head_short_sha(dir: &Path) -> Result<String, GitError> {
+    run_text(dir, &["rev-parse", "--short", "HEAD"]).map(|t| t.trim().to_string())
+}
+
+/// True when `rev` resolves to a commit in `dir`; false, never an error,
+/// when it does not.
+#[must_use]
+pub fn commit_exists(dir: &Path, rev: &str) -> bool {
+    run(
+        dir,
+        &[
+            "rev-parse",
+            "--verify",
+            "--quiet",
+            &format!("{rev}^{{commit}}"),
+        ],
+    )
+    .is_ok()
+}
+
+/// Every path that differs between `rev` and the working tree plus index,
+/// added, modified, deleted or renamed alike. Unlike [`changed_files`],
+/// nothing is filtered out: a deleted path still names a changed path.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `rev` does not resolve.
+pub fn diff_name_only(dir: &Path, rev: &str) -> Result<Vec<String>, GitError> {
+    run_text(dir, &["diff", "--name-only", rev]).map(|t| t.lines().map(str::to_string).collect())
+}
+
+/// One raw `git diff --numstat` line per changed path: added lines, then
+/// deleted lines, then the path, tab-separated. A binary file reports `-`
+/// for both counts.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `rev` does not resolve.
+pub fn diff_numstat(dir: &Path, rev: &str) -> Result<Vec<String>, GitError> {
+    run_text(dir, &["diff", "--numstat", rev]).map(|t| t.lines().map(str::to_string).collect())
+}
+
+/// Every path git neither tracks nor ignores.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`.
+pub fn untracked_files(dir: &Path) -> Result<Vec<String>, GitError> {
+    run(dir, &["ls-files", "--others", "--exclude-standard", "-z"]).map(|raw| split_nul(&raw))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,4 +1,4 @@
-use osf::{config, exclude, hook, lint, scan, verify};
+use osf::{config, exclude, hook, lint, risk, scan, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -98,6 +98,20 @@ enum Command {
     Scan(ScanArgs),
     /// Run every check one gate needs, in one entry point every gate calls.
     Verify(VerifyArgs),
+    /// Report the blast radius of a change: low, normal, or high, with the reasons.
+    Risk(RiskArgs),
+}
+
+#[derive(Args)]
+struct RiskArgs {
+    /// What to diff the change against. A remote-tracking ref, so a local
+    /// commit ahead of it still counts as changed.
+    #[arg(long, default_value = "origin/main")]
+    base: String,
+    /// How to print the report: human or json. Sarif has no natural shape
+    /// for a single blast-radius answer, so it is refused.
+    #[arg(long, value_enum)]
+    format: Option<Format>,
 }
 
 #[derive(Args)]
@@ -342,6 +356,7 @@ fn main() -> ExitCode {
         Command::Explain { rule_id } => explain(rule_id),
         Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
         Command::Verify(args) => verify_cmd(args, cli.config.as_deref()),
+        Command::Risk(args) => risk_cmd(args),
     }
 }
 
@@ -973,6 +988,28 @@ fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitC
     } else {
         ExitCode::SUCCESS
     }
+}
+
+fn risk_cmd(args: &RiskArgs) -> ExitCode {
+    let format = args.format.unwrap_or(Format::Human);
+    if format == Format::Sarif {
+        eprintln!("osf risk: format 'sarif' is not supported; use human or json");
+        return ExitCode::from(2);
+    }
+    let dir = Path::new(".");
+    let report = match risk::assess(dir, &args.base) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("osf risk: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    match format {
+        Format::Human => println!("{}", report.render_human()),
+        Format::Json => println!("{}", report.to_json()),
+        Format::Sarif => unreachable!("rejected above"),
+    }
+    ExitCode::SUCCESS
 }
 
 #[cfg(test)]
