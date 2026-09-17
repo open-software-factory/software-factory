@@ -1,0 +1,20 @@
+# Registers this plugin when the package is added with `dsh plugin add`.
+#
+# Installing a package is not enough on its own: dsh runs a plugin only
+# when an entry names it. This file is that entry, and the `dsh.bundle.patch`
+# field in package.json is what points dsh at it.
+#
+# The shape is fixed. A patch file is a list of entries, and a plugin is
+# added with an `insert` entry carrying an `id`, the package `name`, and
+# its `config`. A bare `- name:` row is not read, and dsh does not say so.
+- insert:
+    - id: osf-writing-check
+      name: '@open-software-factory/osf-dsh-plugin'
+      config:
+        # A bare name is resolved on the path. Give a full path where the
+        # binary is installed somewhere the harness cannot see.
+        command: osf
+        args: []
+        timeoutMs: 10000
+        # Set true to see what the check says without it holding a turn.
+        adviseOnly: false

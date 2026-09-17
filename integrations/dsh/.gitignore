@@ -1,0 +1,5 @@
+# Build output. The consumer builds it with `npm run build`.
+dist/
+
+# Installed dependencies.
+node_modules/

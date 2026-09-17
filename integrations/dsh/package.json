@@ -1,0 +1,39 @@
+{
+  "name": "@open-software-factory/osf-dsh-plugin",
+  "version": "0.1.0",
+  "description": "Runs the osf writing check at the end of every turn inside dsh, reading the assistant message from the session",
+  "license": "Apache-2.0 OR MIT",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/src",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": ">=0.1.5-rc.1",
+    "@deepseek-ai/schemastery": ">=3.18.2"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
+    "@deepseek-ai/schemastery": "3.18.2",
+    "@types/node": "22.20.3",
+    "oxfmt": "0.68.0",
+    "oxlint": "1.83.0",
+    "typescript": "7.0.2"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit && oxlint -c .oxlintrc.json --deny-warnings src test && oxfmt --check src test",
+    "test": "npm run build && cd dist && node --test"
+  }
+}
