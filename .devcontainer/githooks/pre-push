@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /opt/factory/bin/osf verify --stage pre-push --format human

@@ -1,0 +1,9 @@
+{
+  "name": "Open Software Factory",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "dev",
+  "postCreateCommand": "osf --version && git config --show-origin core.hooksPath"
+}

@@ -1,0 +1,136 @@
+#!/bin/sh
+# Honest git wrapper.
+#
+# This is a speed bump, not a seal. It refuses --no-verify and -n on
+# "git commit", and --no-verify on "git push", then explains why. It also
+# refuses a "-c" that sets core.hooksPath, core.fsmonitor, or core.editor,
+# because each of those can run an arbitrary command as part of a commit,
+# checked and confirmed in docs/development.md. It does nothing else that
+# git's own settings cannot already do without it.
+#
+# One thing defeats this wrapper, and it cannot stop it: calling the real
+# git binary at its full path, /usr/bin/git.
+#
+# git push also takes a short flag -n, but there it means --dry-run, a
+# different and harmless option, so this wrapper does not block it.
+#
+# The real authority is the check that runs on a pull request, which a
+# contributor does not control. This wrapper only saves the two minutes
+# between a forgotten check and that pull-request check catching it.
+# See docs/development.md.
+
+REAL_GIT="/usr/bin/git"
+
+refuse() {
+  flag="$1"
+  echo "git: refused. This wrapper blocks '$flag' on 'git $SUB'." >&2
+  echo "Run the check by hand instead of skipping it. See docs/development.md." >&2
+  echo "This wrapper is a speed bump, not a seal: $REAL_GIT $SUB still bypasses it." >&2
+  exit 1
+}
+
+refuse_option() {
+  opt="$1"
+  echo "git: refused. '$opt' is a git option this wrapper does not know before the subcommand." >&2
+  echo "This wrapper only recognizes a fixed list of git's own options in that spot." >&2
+  echo "Run the real binary directly if you need it: $REAL_GIT $opt ..." >&2
+  echo "See docs/development.md." >&2
+  exit 1
+}
+
+refuse_config() {
+  key="$1"
+  echo "git: refused. '-c $key=...' is not allowed for one call." >&2
+  echo "This wrapper blocks core.hooksPath, core.fsmonitor, and core.editor" >&2
+  echo "here, because each can run an arbitrary command as part of a commit." >&2
+  echo "Other -c values, such as user.email, are not blocked. See docs/development.md." >&2
+  exit 1
+}
+
+# Checks a "-c" value ("name=value" or a bare "name") against the small
+# set of keys this wrapper does not allow to be set for one call. Git
+# treats a config key's section and name as case-insensitive, so this
+# compares in lower case.
+check_config_value() {
+  key="${1%%=*}"
+  key_lc=$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')
+  case "$key_lc" in
+    core.hookspath | core.fsmonitor | core.editor)
+      refuse_config "$key"
+      ;;
+  esac
+}
+
+# Git accepts its own options before the subcommand (commit, push, and so
+# on). This finds the subcommand by skipping those options, some of
+# which take a value and some of which do not. It shifts its own copy of
+# the arguments, a function's positional parameters in sh, so the
+# caller's "$@" used later to run the real command is untouched.
+find_subcommand() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -c)
+        if [ "$#" -lt 2 ]; then
+          refuse_option "$1"
+        fi
+        check_config_value "$2"
+        shift 2
+        ;;
+      -C)
+        if [ "$#" -lt 2 ]; then
+          refuse_option "$1"
+        fi
+        shift 2
+        ;;
+      --git-dir | --work-tree | --namespace)
+        if [ "$#" -lt 2 ]; then
+          refuse_option "$1"
+        fi
+        shift 2
+        ;;
+      --git-dir=* | --work-tree=* | --namespace=* | --exec-path=*)
+        shift
+        ;;
+      --exec-path | --no-pager | --paginate | -p | -P | --bare | --literal-pathspecs)
+        shift
+        ;;
+      --)
+        SUB=""
+        return
+        ;;
+      -*)
+        # An option this wrapper does not recognize. It may or may not
+        # take a value, and guessing wrong would either misread the
+        # subcommand or eat a real argument. Refuse instead of guessing.
+        refuse_option "$1"
+        ;;
+      *)
+        SUB="$1"
+        return
+        ;;
+    esac
+  done
+  SUB=""
+}
+
+SUB=""
+find_subcommand "$@"
+
+case "$SUB" in
+  commit)
+    for arg in "$@"; do
+      case "$arg" in
+        --no-verify | -n) refuse "$arg" ;;
+      esac
+    done
+    ;;
+  push)
+    for arg in "$@"; do
+      case "$arg" in
+        --no-verify) refuse "$arg" ;;
+      esac
+    done
+    ;;
+esac
+
+exec "$REAL_GIT" "$@"
