@@ -1,0 +1,15 @@
+{
+  "name": "@open-software-factory/osf-omp-hook",
+  "version": "0.1.0",
+  "description": "Runs the osf writing check at the end of every omp turn, reading the assistant message from the session_stop event",
+  "license": "Apache-2.0 OR MIT",
+  "type": "module",
+  "main": "osf-stop.ts",
+  "files": [
+    "osf-stop.ts",
+    "src/check.js"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  }
+}
