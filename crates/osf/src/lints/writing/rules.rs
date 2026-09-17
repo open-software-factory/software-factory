@@ -216,26 +216,59 @@ fn word_boundary_alternation(alternatives: &[String]) -> Option<Regex> {
     Some(Regex::new(&pattern).expect("word-boundary alternation pattern compiles"))
 }
 
+/// Whether a name follows a numbered label in `rest`, the text right after
+/// it. A colon, a comma, or an opening parenthesis, each followed by a
+/// word, counts; so does the word `the` on its own, followed by a word. A
+/// bare label with nothing but a full stop, or a word that is not `the`,
+/// does not.
+fn name_follows(rest: &str) -> bool {
+    let trimmed = rest.trim_start();
+    let Some(first) = trimmed.chars().next() else {
+        return false;
+    };
+    if first == ':' || first == ',' {
+        return trimmed[first.len_utf8()..]
+            .trim_start()
+            .starts_with(|c: char| c.is_alphabetic());
+    }
+    if first == '(' {
+        return trimmed[first.len_utf8()..].starts_with(|c: char| c.is_alphabetic());
+    }
+    let lower = trimmed.to_lowercase();
+    let Some(after_the) = lower.strip_prefix("the") else {
+        return false;
+    };
+    let word_boundary = after_the
+        .chars()
+        .next()
+        .is_none_or(|c| !c.is_alphanumeric());
+    word_boundary
+        && after_the
+            .trim_start()
+            .starts_with(|c: char| c.is_alphabetic())
+}
+
 /// Words that only mean something inside one conversation. Built from the
 /// resolved config's phrase and label lists, so it cannot be a static
 /// [`FnRule`]; it is a small [`Rule`] impl instead, constructed once per lint.
 struct ChatLocalRule {
-    /// `None` when both configured lists are empty: the rule fires only
-    /// from `step`, below, in that case.
+    /// `None` when the configured phrase list is empty: fixed phrases such
+    /// as "as discussed" carry no exception, unlike a numbered label.
     phrases: Option<Regex>,
-    step: Regex,
+    /// Matches any configured label, or the built-in `step`, followed by a
+    /// number. Never `None`: `step` is always in the alternation.
+    labelled: Regex,
 }
 
 impl ChatLocalRule {
     fn new(phrases: &[String], labels: &[String]) -> Self {
-        let fixed = phrases.iter().map(|p| regex::escape(p));
-        let labelled = labels
-            .iter()
-            .map(|l| format!(r"{}\s+\d+", regex::escape(l)));
-        let alternatives: Vec<String> = fixed.chain(labelled).collect();
+        let fixed: Vec<String> = phrases.iter().map(|p| regex::escape(p)).collect();
+        let mut label_words: Vec<String> = labels.iter().map(|l| regex::escape(l)).collect();
+        label_words.push("step".to_string());
+        let labelled_pattern = format!(r"(?i)\b((?:{})\s+\d+)\b", label_words.join("|"));
         ChatLocalRule {
-            phrases: word_boundary_alternation(&alternatives),
-            step: Regex::new(r"(?i)\b(step \d+)\b[,:]?\s*(\S?)").expect("step pattern compiles"),
+            phrases: word_boundary_alternation(&fixed),
+            labelled: Regex::new(&labelled_pattern).expect("labelled pattern compiles"),
         }
     }
 }
@@ -251,23 +284,23 @@ impl Rule<WritingConfig> for ChatLocalRule {
 
     fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         let text = reduce_inline(&s.text);
-        let bare_steps = self
-            .step
-            .captures_iter(&text)
-            .filter(|c| {
-                !c.get(2)
-                    .and_then(|g| g.as_str().chars().next())
-                    .is_some_and(|ch| ch.is_alphabetic() || ch == '(')
-            })
-            .filter_map(|c| c.get(1).map(|g| g.as_str().to_string()));
-        let phrase_matches = self
+        let bare_labels = self.labelled.captures_iter(&text).filter_map(|c| {
+            let m = c.get(1)?;
+            let rest = text.get(m.end()..).unwrap_or("");
+            (!name_follows(rest)).then(|| m.as_str().to_string())
+        });
+        let phrase_matches: Vec<String> = self
             .phrases
             .as_ref()
-            .map(|re| matches(s, re))
+            .map(|re| {
+                re.find_iter(&text)
+                    .map(|m| m.as_str().to_string())
+                    .collect()
+            })
             .unwrap_or_default();
         phrase_matches
             .into_iter()
-            .chain(bare_steps)
+            .chain(bare_labels)
             .map(|m| {
                 finding(
                     s,

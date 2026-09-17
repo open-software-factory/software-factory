@@ -169,7 +169,8 @@ fn every_fixture_matches_its_declaration() {
         checked += 1;
     }
     assert_eq!(
-        checked, 28,
-        "expected 28 fixture files (14 rules x positive/negative)"
+        checked, 30,
+        "expected 30 fixture files (14 rules x positive/negative, \
+         plus the chat-local-named-label pair)"
     );
 }

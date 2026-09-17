@@ -120,9 +120,10 @@ pub const RULE_META: &[RuleMeta] = &[
         Comprehension,
         "house",
         "### What it does\n\
-         Flags phrases and labels that only make sense inside one \
-         conversation: `as discussed`, `Phase 2`, `Step 3` with nothing \
-         after it.\n\
+         Flags a phrase or a numbered label that only makes sense inside \
+         one conversation, such as `as discussed` or a bare `Phase 2`. \
+         A label passes when a name follows it in the same sentence, after \
+         a colon, a comma, an opening parenthesis, or the word `the`.\n\
          ### Why it is bad\n\
          A reader who was not in that conversation cannot resolve the \
          reference. The document must stand on its own.\n\
@@ -131,8 +132,11 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: Do Phase 2 next.\n\
-         Good: Run the database migration next."
+         Bad: Ship Phase 2 next.\n\
+         Good: Ship Phase 2, the design work, next.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only."
     ),
     rule_meta!(
         "undefined-name",

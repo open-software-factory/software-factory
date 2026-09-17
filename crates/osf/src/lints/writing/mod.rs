@@ -174,6 +174,94 @@ mod tests {
         assert!(rules_of("Round 2 found nothing.").is_empty());
     }
 
+    /// A document context, not the `lint` helper's transcript context: a
+    /// heading in a short fixture must not also trip `heading-in-short-text`.
+    fn rules_of_document(text: &str) -> Vec<&'static str> {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        lint_writing(
+            text,
+            &known,
+            &WritingConfig::default(),
+            Context::Document,
+            false,
+            false,
+        )
+        .into_iter()
+        .map(|f| f.rule)
+        .collect()
+    }
+
+    /// A colon, then a word, right after a numbered label counts as a name.
+    #[test]
+    fn chat_local_label_followed_by_a_colon_and_a_name_is_not_flagged() {
+        let found = rules_of_document("Do Phase 2: design next.\n");
+        assert!(
+            found.iter().all(|r| *r != "chat-local-reference"),
+            "{found:?}"
+        );
+    }
+
+    /// An opening parenthesis right after a numbered label counts as a name.
+    #[test]
+    fn chat_local_label_followed_by_a_parenthesis_is_not_flagged() {
+        let found = rules_of_document("Do Phase 2 (design) next.\n");
+        assert!(
+            found.iter().all(|r| *r != "chat-local-reference"),
+            "{found:?}"
+        );
+    }
+
+    /// A comma, then the word `the`, then a name, counts.
+    #[test]
+    fn chat_local_label_followed_by_a_comma_and_the_is_not_flagged() {
+        let found = rules_of_document("Do Phase 2, the design phase, next.\n");
+        assert!(
+            found.iter().all(|r| *r != "chat-local-reference"),
+            "{found:?}"
+        );
+    }
+
+    /// A numbered label with an ordinary word after it, and no colon,
+    /// comma, parenthesis, or `the`, is still bare and is flagged.
+    #[test]
+    fn chat_local_bare_label_is_flagged() {
+        let found = rules_of_document("In Phase 2 we ship it.\n");
+        assert_eq!(found, vec!["chat-local-reference"]);
+    }
+
+    /// A heading itself passes, because the name follows the label on the
+    /// same line, the same rule that applies to any other sentence.
+    #[test]
+    fn chat_local_heading_with_a_name_is_not_flagged() {
+        let found = rules_of_document("## Phase 2: design\n\nSomething unrelated today.\n");
+        assert!(
+            found.iter().all(|r| *r != "chat-local-reference"),
+            "{found:?}"
+        );
+    }
+
+    /// `Step N` is just another label: bare, it is flagged; with a name
+    /// after it, it is not.
+    #[test]
+    fn chat_local_step_bare_fails_and_with_a_name_passes() {
+        let found = rules_of_document("Do Step 4.\n");
+        assert_eq!(found, vec!["chat-local-reference"]);
+        let found = rules_of_document("Do Step 4: build.\n");
+        assert!(
+            found.iter().all(|r| *r != "chat-local-reference"),
+            "{found:?}"
+        );
+    }
+
+    /// A heading that defines a label no longer excuses a bare reference to
+    /// it in the prose below: the heading exception is gone.
+    #[test]
+    fn chat_local_heading_no_longer_excuses_a_bare_label_below_it() {
+        let found =
+            rules_of_document("## Phase 2: Design and architecture\n\nShip Phase 2 next.\n");
+        assert!(found.contains(&"chat-local-reference"), "{found:?}");
+    }
+
     /// `must_explain_names` is the repository's curated tier-1 list: a name
     /// on it is an error unless the text explains it, whether or not the
     /// name itself looks like a name by any other evidence.
