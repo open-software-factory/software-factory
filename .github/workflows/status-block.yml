@@ -16,6 +16,9 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  # The refresh reads the pull request's check runs and commit statuses.
+  checks: read
+  statuses: read
 
 concurrency:
   group: status-block-${{ github.event.pull_request.number || github.event.check_run.pull_requests[0].number }}
