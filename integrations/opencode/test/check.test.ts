@@ -9,13 +9,26 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lastAssistantText, readResult } from "../src/check.js";
+import {
+  lastAssistantText,
+  readResult,
+  type CheckOutcome,
+  type ConversationEntry,
+  type ConversationPart,
+} from "../src/check.js";
 
-const entry = (role, ...parts) => ({ info: { role }, parts });
-const text = (t) => ({ type: "text", text: t });
+const entry = (role: string, ...parts: ConversationPart[]): ConversationEntry => ({
+  info: { role },
+  parts,
+});
+const text = (t: string): ConversationPart => ({ type: "text", text: t });
 
 test("the last assistant message is the one checked", () => {
-  const entries = [entry("assistant", text("first")), entry("user", text("a question")), entry("assistant", text("second"))];
+  const entries = [
+    entry("assistant", text("first")),
+    entry("user", text("a question")),
+    entry("assistant", text("second")),
+  ];
   assert.equal(lastAssistantText(entries), "second");
 });
 
@@ -28,18 +41,26 @@ test("several text parts in one message are joined", () => {
 });
 
 test("only the text parts are checked", () => {
-  const message = entry("assistant", { type: "tool", name: "read" }, { type: "step-start" }, text("the reply"));
+  const message = entry(
+    "assistant",
+    { type: "tool", name: "read" },
+    { type: "step-start" },
+    text("the reply"),
+  );
   assert.equal(lastAssistantText([message]), "the reply");
 });
 
 test("a message with no text at all gives nothing to check", () => {
   assert.equal(lastAssistantText([entry("assistant", { type: "tool", name: "read" })]), "");
   assert.equal(lastAssistantText([]), "");
-  assert.equal(lastAssistantText(undefined), "");
+  assert.equal(lastAssistantText(), "");
 });
 
 test("a tool-only reply falls back to an earlier real reply", () => {
-  const entries = [entry("assistant", text("the reply")), entry("assistant", { type: "tool", name: "read" })];
+  const entries = [
+    entry("assistant", text("the reply")),
+    entry("assistant", { type: "tool", name: "read" }),
+  ];
   assert.equal(lastAssistantText(entries), "the reply");
 });
 
@@ -59,19 +80,24 @@ test("a clean check passes", () => {
 /// The one that matters most here: this plugin cannot block a turn, so a
 /// silent "did not run" would leave a bad reply looking clean.
 test("a check that could not run is never read as a pass", () => {
-  for (const input of [
+  const inputs: CheckOutcome[] = [
     { error: "cannot start osf: not found" },
     { code: 127, stdout: "" },
     { code: 1, stdout: "" },
     { code: 0, stdout: "not json" },
     { code: 0, stdout: '{"decision":"block"}' },
     { code: 0, stdout: '{"decision":"allow","reason":"fine"}' },
-  ]) {
+  ];
+  for (const input of inputs) {
     assert.equal(readResult(input).kind, "did-not-run", JSON.stringify(input));
   }
 });
 
 test("a failure to run says what went wrong", () => {
-  assert.match(readResult({ code: 127, stdout: "" }).detail, /127/);
-  assert.match(readResult({ error: "no answer within 10000ms" }).detail, /10000ms/);
+  const byCode = readResult({ code: 127, stdout: "" });
+  const byTimeout = readResult({ error: "no answer within 10000ms" });
+  assert.equal(byCode.kind, "did-not-run");
+  assert.equal(byTimeout.kind, "did-not-run");
+  if (byCode.kind === "did-not-run") assert.match(byCode.detail, /127/u);
+  if (byTimeout.kind === "did-not-run") assert.match(byTimeout.detail, /10000ms/u);
 });
