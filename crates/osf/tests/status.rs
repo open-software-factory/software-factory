@@ -421,6 +421,14 @@ impl GhClient for FakeGh {
         unreachable!("apply never asks for review data")
     }
 
+    fn view_pr_info(&self, _repo: &str, _pr: &str) -> Result<String, StatusError> {
+        unreachable!("apply never asks for the pull request's metadata")
+    }
+
+    fn view_checks(&self, _repo: &str, _pr: &str) -> Result<String, StatusError> {
+        unreachable!("apply never asks for checks")
+    }
+
     fn edit_body(&self, repo: &str, pr: &str, body: &str) -> Result<(), StatusError> {
         self.calls.borrow_mut().push(format!("edit {repo}#{pr}"));
         *self.edited.borrow_mut() = Some(body.to_string());
@@ -466,4 +474,74 @@ fn a_working_gh_pr_view_leads_to_one_gh_pr_edit_with_the_block_on_top() {
         Some("<!-- factory:status:begin -->")
     );
     assert_eq!(client.edited.borrow().as_deref(), Some(new_body.as_str()));
+}
+
+const CHECKS_JSON: &str = r#"[
+    {"name":"hygiene","state":"SUCCESS","bucket":"pass"},
+    {"name":"rust","state":"FAILURE","bucket":"fail"},
+    {"name":"slow-check","state":"PENDING","bucket":"pending"},
+    {"name":"status block","state":"IN_PROGRESS","bucket":"pending"}
+]"#;
+
+#[test]
+fn gates_from_checks_json_maps_buckets_and_skips_the_self_check() {
+    let gates =
+        status::gates_from_checks_json(CHECKS_JSON, "status block").expect("valid checks JSON");
+    assert_eq!(gates, "hygiene: passed, rust: failed: FAILURE");
+}
+
+#[test]
+fn gates_from_checks_json_of_an_empty_array_reads_as_no_checks_reported_yet() {
+    let gates = status::gates_from_checks_json("[]", "status block").expect("valid checks JSON");
+    assert_eq!(gates, "");
+    let review = review_json("APPROVED", "", "");
+    let input = RenderInput {
+        tier_json: TIER_JSON,
+        gates: &gates,
+        problem: "p",
+        approach: "a",
+        review_json: &review,
+    };
+    let block = status::render(&input).expect("render succeeds");
+    assert_eq!(
+        row(&block, "Verified"),
+        "| **Verified** | no checks reported yet |"
+    );
+}
+
+#[test]
+fn extract_problem_approach_reads_them_from_an_existing_block() {
+    let block = new_block();
+    let body = status::apply(BODY_WITHOUT_BLOCK, &block).expect("apply succeeds");
+    let (problem, approach) = status::extract_problem_approach(&body)
+        .expect("extraction succeeds")
+        .expect("a block is there");
+    assert_eq!(problem, "The problem.");
+    assert_eq!(approach, "The approach.");
+}
+
+#[test]
+fn extract_problem_approach_is_none_when_the_body_has_no_block_yet() {
+    assert!(status::extract_problem_approach(BODY_WITHOUT_BLOCK)
+        .expect("extraction succeeds")
+        .is_none());
+}
+
+#[test]
+fn is_unchanged_is_true_when_the_body_already_carries_this_exact_block() {
+    let block = new_block();
+    let body = status::apply(BODY_WITHOUT_BLOCK, &block).expect("apply succeeds");
+    assert!(status::is_unchanged(&body, &block).expect("no marker error"));
+}
+
+#[test]
+fn is_unchanged_is_false_when_the_bodys_block_differs() {
+    let block = new_block();
+    assert!(!status::is_unchanged(BODY_WITH_BLOCK, &block).expect("no marker error"));
+}
+
+#[test]
+fn is_unchanged_is_false_when_the_body_has_no_block_yet() {
+    let block = new_block();
+    assert!(!status::is_unchanged(BODY_WITHOUT_BLOCK, &block).expect("no marker error"));
 }

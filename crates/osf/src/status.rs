@@ -446,9 +446,168 @@ fn validate_block(block: &str) -> Result<(), StatusError> {
     Ok(())
 }
 
-/// What [`apply`] needs from GitHub: reading a pull request description and
-/// writing one back. A trait so a test can supply a fake instead of
-/// shelling out to `gh`.
+/// The block currently between the markers in `body`, rebuilt with `\n`
+/// line endings the way [`render`] produces one, or `None` when `body`
+/// carries no block at all.
+///
+/// # Errors
+/// Returns an error when `body` carries the markers in a shape this cannot
+/// resolve: one without the other, a repeat, or reversed.
+pub fn current_block(body: &str) -> Result<Option<String>, StatusError> {
+    let lines = logical_lines(body);
+    let begins = positions(&lines, BEGIN);
+    let ends = positions(&lines, END);
+    match (begins.as_slice(), ends.as_slice()) {
+        ([], []) => Ok(None),
+        (&[begin], &[end]) => {
+            if begin >= end {
+                return Err(StatusError(
+                    "the body's end marker comes before its begin marker".to_string(),
+                ));
+            }
+            let slice = lines.get(begin..=end).unwrap_or_default();
+            Ok(Some(format!("{}\n", slice.join("\n"))))
+        }
+        (nb, ne) => {
+            let (nb, ne) = (nb.len(), ne.len());
+            Err(StatusError(format!(
+                "the body has {nb} begin marker(s) and {ne} end marker(s); it needs one of each, or neither."
+            )))
+        }
+    }
+}
+
+/// Whether `rendered` already matches, byte for byte, the block sitting in
+/// `body`. `false` both when the block in `body` differs, and when `body`
+/// carries no block at all, since either way `body` needs `rendered` put
+/// into it.
+///
+/// # Errors
+/// Propagates a marker-shape error from [`current_block`].
+pub fn is_unchanged(body: &str, rendered: &str) -> Result<bool, StatusError> {
+    Ok(current_block(body)?.as_deref() == Some(rendered))
+}
+
+/// `Problem` and `Approach`, read back out of the block already in `body`.
+/// `None` when `body` carries no block yet.
+///
+/// # Errors
+/// Returns an error when `body` carries the markers in a shape
+/// [`current_block`] cannot resolve, or when a block is there but is
+/// missing a `**Problem**:` or `**Approach**:` line.
+pub fn extract_problem_approach(body: &str) -> Result<Option<(String, String)>, StatusError> {
+    let Some(block) = current_block(body)? else {
+        return Ok(None);
+    };
+    let problem = block
+        .lines()
+        .find_map(|line| line.strip_prefix("**Problem**: "));
+    let approach = block
+        .lines()
+        .find_map(|line| line.strip_prefix("**Approach**: "));
+    match (problem, approach) {
+        (Some(p), Some(a)) => Ok(Some((p.to_string(), a.to_string()))),
+        _ => Err(StatusError(
+            "the existing status block has no **Problem**: or **Approach**: line to reuse"
+                .to_string(),
+        )),
+    }
+}
+
+/// Turns `gh pr checks --json name,state,bucket` output into the
+/// comma-separated gate spec [`render`] understands: `name: passed` when
+/// the bucket is `pass`, `name: failed: <state>` when it is `fail`, and
+/// left out of the list entirely for any other bucket (pending, skipping,
+/// or cancel). `skip_name` is left out too, so the check running this very
+/// refresh never reports on itself.
+///
+/// # Errors
+/// Returns an error when the JSON is not an array of objects each with a
+/// string `name`, `state`, and `bucket`.
+pub fn gates_from_checks_json(text: &str, skip_name: &str) -> Result<String, StatusError> {
+    let value: Value = serde_json::from_str(text)
+        .map_err(|e| StatusError(format!("the checks data is not valid JSON: {e}")))?;
+    let Some(items) = value.as_array() else {
+        return Err(checks_shape_error());
+    };
+    let mut parts = Vec::new();
+    for item in items {
+        let obj = item.as_object().ok_or_else(checks_shape_error)?;
+        let name = obj
+            .get("name")
+            .and_then(Value::as_str)
+            .ok_or_else(checks_shape_error)?;
+        let state = obj
+            .get("state")
+            .and_then(Value::as_str)
+            .ok_or_else(checks_shape_error)?;
+        let bucket = obj
+            .get("bucket")
+            .and_then(Value::as_str)
+            .ok_or_else(checks_shape_error)?;
+        if name == skip_name {
+            continue;
+        }
+        match bucket {
+            "pass" => parts.push(format!("{name}: passed")),
+            "fail" => parts.push(format!("{name}: failed: {state}")),
+            _ => {}
+        }
+    }
+    Ok(parts.join(", "))
+}
+
+fn checks_shape_error() -> StatusError {
+    StatusError(
+        "the checks data must have the shape of `gh pr checks --json name,state,bucket`"
+            .to_string(),
+    )
+}
+
+/// A pull request's description and the two branches it runs between, from
+/// `gh pr view --json body,baseRefName,headRefName`.
+pub struct PrInfo {
+    pub body: String,
+    pub base_ref: String,
+    pub head_ref: String,
+}
+
+/// Parses [`PrInfo`] out of `gh pr view --json body,baseRefName,headRefName` output.
+///
+/// # Errors
+/// Returns an error when the JSON does not have that shape.
+pub fn parse_pr_info(text: &str) -> Result<PrInfo, StatusError> {
+    let value: Value = serde_json::from_str(text)
+        .map_err(|e| StatusError(format!("the pull request data is not valid JSON: {e}")))?;
+    let shape_error = || {
+        StatusError(
+            "the pull request data must have the shape of `gh pr view --json body,baseRefName,headRefName`"
+                .to_string(),
+        )
+    };
+    let body = value
+        .get("body")
+        .and_then(Value::as_str)
+        .ok_or_else(shape_error)?;
+    let base_ref = value
+        .get("baseRefName")
+        .and_then(Value::as_str)
+        .ok_or_else(shape_error)?;
+    let head_ref = value
+        .get("headRefName")
+        .and_then(Value::as_str)
+        .ok_or_else(shape_error)?;
+    Ok(PrInfo {
+        body: body.to_string(),
+        base_ref: base_ref.to_string(),
+        head_ref: head_ref.to_string(),
+    })
+}
+
+/// What [`apply`] and `osf status refresh` need from GitHub: reading a
+/// pull request's description and metadata, its checks, its review state,
+/// and writing a new description back. A trait so a test can supply a fake
+/// instead of shelling out to `gh`.
 pub trait GhClient {
     /// # Errors
     /// Returns an error when `gh` cannot run or exits non-zero.
@@ -456,6 +615,12 @@ pub trait GhClient {
     /// # Errors
     /// Returns an error when `gh` cannot run or exits non-zero.
     fn view_review(&self, repo: &str, pr: &str) -> Result<String, StatusError>;
+    /// # Errors
+    /// Returns an error when `gh` cannot run or exits non-zero.
+    fn view_pr_info(&self, repo: &str, pr: &str) -> Result<String, StatusError>;
+    /// # Errors
+    /// Returns an error when `gh` cannot run or exits non-zero.
+    fn view_checks(&self, repo: &str, pr: &str) -> Result<String, StatusError>;
     /// # Errors
     /// Returns an error when `gh` cannot run or exits non-zero.
     fn edit_body(&self, repo: &str, pr: &str, body: &str) -> Result<(), StatusError>;
@@ -516,6 +681,55 @@ impl GhClient for RealGh {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(StatusError(format!(
                 "gh pr view failed for {repo}#{pr}: {}",
+                stderr.trim()
+            )));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
+
+    fn view_pr_info(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
+        let output = Command::new("gh")
+            .args([
+                "pr",
+                "view",
+                pr,
+                "--repo",
+                repo,
+                "--json",
+                "body,baseRefName,headRefName",
+            ])
+            .output()
+            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(StatusError(format!(
+                "gh pr view failed for {repo}#{pr}: {}",
+                stderr.trim()
+            )));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
+
+    fn view_checks(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
+        let output = Command::new("gh")
+            .args([
+                "pr",
+                "checks",
+                pr,
+                "--repo",
+                repo,
+                "--json",
+                "name,state,bucket",
+            ])
+            .output()
+            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.to_lowercase().contains("no checks reported") {
+                return Ok("[]".to_string());
+            }
+            return Err(StatusError(format!(
+                "gh pr checks failed for {repo}#{pr}: {}",
                 stderr.trim()
             )));
         }

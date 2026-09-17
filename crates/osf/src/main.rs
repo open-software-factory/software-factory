@@ -126,6 +126,9 @@ enum StatusAction {
     Render(StatusRenderArgs),
     /// Put the status block into a pull request description.
     Apply(StatusApplyArgs),
+    /// Recompute the status block from the pull request's current state and
+    /// write it back only when it changed.
+    Refresh(StatusRefreshArgs),
 }
 
 #[derive(Args)]
@@ -175,6 +178,44 @@ struct StatusApplyArgs {
     /// Write the result to this file instead of `gh pr edit`.
     #[arg(long)]
     out: Option<PathBuf>,
+}
+
+/// The name of the check this whole workflow reports as, so a refresh never
+/// treats its own still-running check as a gate to report on.
+const STATUS_CHECK_NAME: &str = "status block";
+
+#[derive(Args)]
+struct StatusRefreshArgs {
+    /// The repository, as `owner/name`.
+    #[arg(long)]
+    repo: String,
+    /// The pull request number.
+    #[arg(long)]
+    pr: String,
+    /// What to diff the change against, for the risk tier. Defaults to
+    /// `origin/<the pull request's base branch>`, fetched first.
+    #[arg(long)]
+    base: Option<String>,
+    /// One sentence describing the problem. Required only when the
+    /// description carries no status block yet.
+    #[arg(long)]
+    problem: Option<String>,
+    /// One sentence describing the approach. Required only when the
+    /// description carries no status block yet.
+    #[arg(long)]
+    approach: Option<String>,
+    /// A file holding `gh pr checks --json name,state,bucket` output,
+    /// instead of fetching it.
+    #[arg(long)]
+    checks_json: Option<PathBuf>,
+    /// A file holding `gh pr view --json reviewDecision,reviews,comments`
+    /// output, instead of fetching it.
+    #[arg(long)]
+    review_json: Option<PathBuf>,
+    /// Print the rendered block and whether it would update, without
+    /// editing the pull request.
+    #[arg(long)]
+    dry_run: bool,
 }
 
 #[derive(Args)]
@@ -426,6 +467,9 @@ fn main() -> ExitCode {
         Command::Status {
             action: StatusAction::Apply(args),
         } => status_apply_cmd(args),
+        Command::Status {
+            action: StatusAction::Refresh(args),
+        } => status_refresh_cmd(args),
     }
 }
 
@@ -1202,6 +1246,170 @@ fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+/// Fetches one ref from `remote` so a fresh, shallow-on-history checkout
+/// has it to diff against.
+///
+/// # Errors
+/// Returns an error when git cannot run or exits non-zero.
+fn git_fetch(remote: &str, ref_name: &str) -> Result<(), String> {
+    let output = std::process::Command::new("git")
+        .args(["fetch", remote, ref_name])
+        .output()
+        .map_err(|e| format!("cannot run git: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "git fetch {remote} {ref_name} failed: {}",
+            stderr.trim()
+        ));
+    }
+    Ok(())
+}
+
+/// `Problem` and `Approach` for a refresh: read back from the description's
+/// own block when it has one, else from `--problem`/`--approach`, which
+/// are then required.
+fn status_refresh_problem_approach(
+    body: &str,
+    problem: Option<&String>,
+    approach: Option<&String>,
+) -> Result<(String, String), ExitCode> {
+    match status::extract_problem_approach(body) {
+        Ok(Some((p, a))) => Ok((p, a)),
+        Ok(None) => {
+            let (Some(p), Some(a)) = (problem, approach) else {
+                eprintln!(
+                    "osf status refresh: the description has no status block yet; --problem and --approach are required"
+                );
+                return Err(ExitCode::from(2));
+            };
+            Ok((p.clone(), a.clone()))
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            Err(ExitCode::from(2))
+        }
+    }
+}
+
+/// The ref to assess risk against: `base` verbatim when given, else
+/// `origin/<base_ref>` after fetching it so a fresh checkout has it.
+fn status_refresh_base(base: Option<&String>, base_ref: &str) -> Result<String, ExitCode> {
+    if let Some(b) = base {
+        return Ok(b.clone());
+    }
+    git_fetch("origin", base_ref).map_err(|e| {
+        eprintln!("osf: {e}");
+        ExitCode::from(2)
+    })?;
+    Ok(format!("origin/{base_ref}"))
+}
+
+/// The gate spec for `render`: from `checks_json` when given, else from
+/// `gh pr checks`, with the check running this refresh left out.
+fn status_refresh_gates(
+    client: &dyn status::GhClient,
+    repo: &str,
+    pr: &str,
+    checks_json: Option<&PathBuf>,
+) -> Result<String, ExitCode> {
+    let checks_text = if let Some(path) = checks_json {
+        read_to_string_or_exit(path)?
+    } else {
+        client.view_checks(repo, pr).map_err(|e| {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        })?
+    };
+    status::gates_from_checks_json(&checks_text, STATUS_CHECK_NAME).map_err(|e| {
+        eprintln!("osf: {e}");
+        ExitCode::from(2)
+    })
+}
+
+/// The review JSON for `render`: from `review_json` when given, else from `gh pr view`.
+fn status_refresh_review(
+    client: &dyn status::GhClient,
+    repo: &str,
+    pr: &str,
+    review_json: Option<&PathBuf>,
+) -> Result<String, ExitCode> {
+    if let Some(path) = review_json {
+        read_to_string_or_exit(path)
+    } else {
+        client.view_review(repo, pr).map_err(|e| {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        })
+    }
+}
+
+fn status_refresh_cmd(args: &StatusRefreshArgs) -> ExitCode {
+    status_refresh_run(&status::RealGh, args).unwrap_or_else(|code| code)
+}
+
+fn status_refresh_run(
+    client: &dyn status::GhClient,
+    args: &StatusRefreshArgs,
+) -> Result<ExitCode, ExitCode> {
+    let to_exit = |e: status::StatusError| {
+        eprintln!("osf: {e}");
+        ExitCode::from(2)
+    };
+
+    let pr_info_text = client.view_pr_info(&args.repo, &args.pr).map_err(to_exit)?;
+    let pr_info = status::parse_pr_info(&pr_info_text).map_err(to_exit)?;
+
+    let (problem, approach) = status_refresh_problem_approach(
+        &pr_info.body,
+        args.problem.as_ref(),
+        args.approach.as_ref(),
+    )?;
+    let base = status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
+    let report = risk::assess(Path::new("."), &base).map_err(|e| {
+        eprintln!("osf risk: {e}");
+        ExitCode::from(2)
+    })?;
+    let tier_text = report.to_json().to_string();
+    let gates = status_refresh_gates(client, &args.repo, &args.pr, args.checks_json.as_ref())?;
+    let review_text =
+        status_refresh_review(client, &args.repo, &args.pr, args.review_json.as_ref())?;
+
+    let input = status::RenderInput {
+        tier_json: &tier_text,
+        gates: &gates,
+        problem: &problem,
+        approach: &approach,
+        review_json: &review_text,
+    };
+    let block = status::render(&input).map_err(to_exit)?;
+    let unchanged = status::is_unchanged(&pr_info.body, &block).map_err(to_exit)?;
+
+    if args.dry_run {
+        print!("{block}");
+        println!(
+            "osf status refresh: {}",
+            if unchanged {
+                "unchanged"
+            } else {
+                "would update"
+            }
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    if unchanged {
+        println!("osf status refresh: unchanged");
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let new_body = status::apply(&pr_info.body, &block).map_err(to_exit)?;
+    client
+        .edit_body(&args.repo, &args.pr, &new_body)
+        .map_err(to_exit)?;
+    println!("osf status refresh: updated");
+    Ok(ExitCode::SUCCESS)
 }
 
 #[cfg(test)]
