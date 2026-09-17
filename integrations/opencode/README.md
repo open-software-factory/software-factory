@@ -82,10 +82,9 @@ npm run check
 npm test
 ```
 
-`npm run check` type-checks with `tsgo` (falling back to `tsc` if `tsgo`
-cannot emit yet), lints with `oxlint`, and checks formatting with
-`oxfmt`. `npm test` builds, then runs the compiled tests with
-`node --test`.
+`npm run check` type-checks with `tsc` from the `typescript` package at
+version 7.0.2, lints with `oxlint`, and checks formatting with `oxfmt`.
+`npm test` builds, then runs the compiled tests with `node --test`.
 
 The two decisions this plugin makes are plain functions in `src/check.ts`,
 which imports nothing from OpenCode. The tests run anywhere, including
