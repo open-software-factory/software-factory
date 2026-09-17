@@ -302,20 +302,78 @@ fn lint_changed_markdown(
     for path in &markdown {
         let bytes = crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?;
         let text = String::from_utf8_lossy(&bytes);
-        findings.extend(
-            lints::writing::lint_writing(
-                &text,
-                &known,
-                &opts.config.writing,
-                Context::Document,
-                false,
-                ignore_suppress,
-            )
-            .into_iter()
-            .map(|f| (path.clone(), f)),
+        let raw = lints::writing::lint_writing(
+            &text,
+            &known,
+            &opts.config.writing,
+            Context::Document,
+            false,
+            ignore_suppress,
         );
+        let path_findings = match lints::parse_expectation(&text) {
+            Some(expected) if lints::is_fixture_path(path) => {
+                declared_fixture_findings(&expected, &raw)
+            }
+            _ => raw,
+        };
+        findings.extend(path_findings.into_iter().map(|f| (path.clone(), f)));
     }
     Ok(CheckOutcome::ran("lint writing", excluded, findings))
+}
+
+/// A writing fixture's own `osf-expect` declaration replaces its raw
+/// findings here, the same way the `osf lint writing` command line already
+/// treats one: an exact match reports nothing, a mismatch reports one
+/// error per rule id promised but missing or produced but undeclared, and
+/// a declared scan rule is refused outright. Without this, a deliberately
+/// bad fixture added under `tests/fixtures` would fail this gate the
+/// moment it was committed, the same gap `lint_skill_checked` already
+/// closed for a skill fixture.
+fn declared_fixture_findings(
+    expected: &std::collections::BTreeSet<String>,
+    raw: &[Finding],
+) -> Vec<Finding> {
+    let forbidden: Vec<&String> = expected
+        .iter()
+        .filter(|id| lints::is_scan_rule(id))
+        .collect();
+    if !forbidden.is_empty() {
+        return forbidden
+            .into_iter()
+            .map(|id| {
+                Finding::new(
+                    "expectation-forbidden-scan-rule",
+                    Level::Error,
+                    1,
+                    format!("a scan finding cannot be declared expected: '{id}'"),
+                    id.clone(),
+                )
+            })
+            .collect();
+    }
+    let mismatch = lints::check_expectation(expected, raw);
+    if mismatch.is_empty() {
+        return Vec::new();
+    }
+    let missing = mismatch.missing.into_iter().map(|id| {
+        Finding::new(
+            "expectation-missing",
+            Level::Error,
+            1,
+            format!("declared rule '{id}' did not fire; it may have stopped working"),
+            id,
+        )
+    });
+    let unexpected = mismatch.unexpected.into_iter().map(|id| {
+        Finding::new(
+            "expectation-unexpected",
+            Level::Error,
+            1,
+            format!("rule '{id}' fired but this file did not declare it"),
+            id,
+        )
+    });
+    missing.chain(unexpected).collect()
 }
 
 fn lint_changed_skill_folders(opts: &Options, changed: &[String]) -> Result<CheckOutcome, String> {
