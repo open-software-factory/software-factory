@@ -73,9 +73,12 @@ pub enum Exception {
 /// Resolves a finding's level and remediation from its rule's class and
 /// group, the context the text lives in, and any per-rule exception.
 ///
-/// A rule of class [`Class::Security`] or [`Class::Correctness`] is always
-/// an error asking for a rewrite, in every context: a real risk or a
-/// broken artifact is not advisory anywhere. Otherwise the group and the
+/// A transcript is already sent by the time anything reads it, so no
+/// finding there ever asks for a rewrite. See below.
+///
+/// Everywhere else, a rule of class [`Class::Security`] or
+/// [`Class::Correctness`] is always an error asking for a rewrite: a real
+/// risk or a broken artifact is not advisory. Otherwise the group and the
 /// context set the level and the remediation, and `exception` may still
 /// override the level.
 #[must_use]
@@ -86,17 +89,42 @@ pub fn resolve(
     exception: Option<Exception>,
 ) -> (crate::Level, crate::Remediation) {
     use crate::{Level, Remediation};
+
+    // A transcript cannot be changed. Whatever checks it runs after the
+    // text has been sent, so asking for the text again does not replace
+    // it: it adds a second copy underneath the first, and the reader now
+    // has the problem twice. The only correction a sent message can take
+    // is an addition.
+    //
+    // So nothing here resolves to a rewrite. A finding that stops a
+    // reader understanding the text asks for one short follow-up. Every
+    // other finding waits, and reaches the next turn as advice, where it
+    // costs nothing and improves the text that has not been written yet.
+    if matches!(context, Context::Transcript) {
+        if matches!(class, Class::Security | Class::Correctness) {
+            return (Level::Error, Remediation::Clarify);
+        }
+        let (level, remediation) = match group {
+            Group::Comprehension => (Level::Error, Remediation::Clarify),
+            Group::Style => (Level::Warning, Remediation::Advise),
+        };
+        return match exception {
+            Some(Exception::FixedLevel(l)) => (l, remediation),
+            None => (level, remediation),
+        };
+    }
+
     if matches!(class, Class::Security | Class::Correctness) {
         return (Level::Error, Remediation::Rewrite);
     }
-    let (level, remediation) = match (group, context) {
-        (Group::Comprehension, Context::Transcript) => (Level::Error, Remediation::Clarify),
-        (Group::Comprehension, Context::Commit | Context::Document | Context::Skill) => {
-            (Level::Error, Remediation::Rewrite)
-        }
-        (Group::Style, Context::Transcript) => (Level::Warning, Remediation::Advise),
-        (Group::Style, Context::Document) => (Level::Warning, Remediation::Rewrite),
-        (Group::Style, Context::Commit | Context::Skill) => (Level::Error, Remediation::Rewrite),
+    // Outside a transcript the text has not been delivered yet, so every
+    // finding asks for a rewrite and only the level differs. A style
+    // point in a document is a warning; everything else is an error.
+    let remediation = Remediation::Rewrite;
+    let level = if matches!((group, context), (Group::Style, Context::Document)) {
+        Level::Warning
+    } else {
+        Level::Error
     };
     match exception {
         Some(Exception::FixedLevel(l)) => (l, remediation),
@@ -108,6 +136,68 @@ pub fn resolve(
 mod tests {
     use super::*;
     use crate::{Level, Remediation};
+
+    /// The one that matters. A transcript is already sent, so asking for
+    /// it again adds a second copy and corrects nothing. No combination
+    /// of class, group and exception may produce a rewrite there.
+    #[test]
+    fn nothing_in_a_transcript_ever_asks_for_a_rewrite() {
+        let classes = [
+            Class::Spec,
+            Class::Evidence,
+            Class::Correctness,
+            Class::Security,
+            Class::House,
+        ];
+        let groups = [Group::Comprehension, Group::Style];
+        let exceptions = [
+            None,
+            Some(Exception::FixedLevel(Level::Error)),
+            Some(Exception::FixedLevel(Level::Warning)),
+        ];
+        for class in classes {
+            for group in groups {
+                for exception in exceptions {
+                    let (_, remediation) = resolve(class, group, Context::Transcript, exception);
+                    assert_ne!(
+                        remediation,
+                        Remediation::Rewrite,
+                        "{class:?} {group:?} {exception:?} asked a sent message to be rewritten"
+                    );
+                }
+            }
+        }
+    }
+
+    /// A rule that stops a reader understanding the text still pushes
+    /// back in a transcript. It asks for one addition, not a rewrite.
+    #[test]
+    fn a_broken_reference_in_a_transcript_still_asks_for_a_correction() {
+        assert_eq!(
+            resolve(
+                Class::Correctness,
+                Group::Comprehension,
+                Context::Transcript,
+                None
+            ),
+            (Level::Error, Remediation::Clarify)
+        );
+    }
+
+    /// The same rule in a commit message is different, because nothing is
+    /// committed yet and the text can still be replaced.
+    #[test]
+    fn the_same_rule_in_a_commit_message_still_asks_for_a_rewrite() {
+        assert_eq!(
+            resolve(
+                Class::Correctness,
+                Group::Comprehension,
+                Context::Commit,
+                None
+            ),
+            (Level::Error, Remediation::Rewrite)
+        );
+    }
 
     #[test]
     fn a_comprehension_rule_in_a_transcript_blocks_for_a_named_correction_only() {
@@ -158,20 +248,22 @@ mod tests {
         }
     }
 
+    /// A real risk or a broken artifact is an error everywhere. What it
+    /// asks for depends on whether the text can still change: a rewrite
+    /// where it can, an addition where it cannot.
     #[test]
-    fn a_security_or_correctness_rule_is_always_an_error_asking_for_a_rewrite() {
+    fn a_security_or_correctness_rule_is_an_error_in_every_context() {
         for class in [Class::Security, Class::Correctness] {
-            for context in [
-                Context::Transcript,
-                Context::Commit,
-                Context::Document,
-                Context::Skill,
-            ] {
+            for context in [Context::Commit, Context::Document, Context::Skill] {
                 assert_eq!(
                     resolve(class, Group::Style, context, None),
                     (Level::Error, Remediation::Rewrite)
                 );
             }
+            assert_eq!(
+                resolve(class, Group::Style, Context::Transcript, None),
+                (Level::Error, Remediation::Clarify)
+            );
         }
     }
 
