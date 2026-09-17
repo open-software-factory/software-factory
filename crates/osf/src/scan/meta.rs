@@ -2,6 +2,11 @@
 //! `osf explain`. Every rule here uses [`Group::Comprehension`], which
 //! [`osf_lint_core::resolve`] always turns into an error, in every context:
 //! text that must never reach a public repository is never advisory.
+//!
+//! Every doc text ends with a Coverage section that names what the rule
+//! checks and what it does not. A test keeps those sections in step with
+//! [`crate::agents::AGENTS`], so a rule cannot claim an agent it does not
+//! know, or drop one without the doc changing.
 
 use crate::lint::RuleMeta;
 use osf_lint_core::{Class, Group};
@@ -13,7 +18,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a URL whose host is `claude.ai` and whose path starts `code/session_`.\n\
+              Flags a link to a hosted coding-agent session, for every supported agent \
+              that has hosted sessions, plus any prefix added under `[scan] session_links`.\n\
               ### Why it is bad\n\
               A session link points at one private conversation. A public reader cannot \
               open it, and its presence tells them work here runs through a coding agent \
@@ -24,9 +30,42 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               ### Citation\n\
               house\n\
               ### Example\n\
-              Bad: a link such as the host `claude.ai` followed by a path starting \
-              `code/session_` and an id, pasted into a discussion.\n\
-              Good: no session link in the text at all.",
+              Bad: a link to an agent's session page, pasted into a discussion.\n\
+              Good: no session link in the text at all.\n\
+              ### Coverage\n\
+              Hosted session links for: claude code, codex, opencode. Agents whose \
+              sessions live only on disk leave a path rather than a link: dsh, pi, omp, \
+              copilot. Those are covered by `scan-agent-state-path`. A host this list \
+              does not name is not checked unless it is added in the configuration.",
+        exception: None,
+    },
+    RuleMeta {
+        id: "scan-agent-state-path",
+        class: Class::Correctness,
+        group: Group::Comprehension,
+        citation: "house",
+        doc: "### What it does\n\
+              Flags a path into a coding agent's own state directory, where it keeps \
+              sessions, transcripts, history, or logs, for every supported agent.\n\
+              ### Why it is bad\n\
+              Such a path names a private conversation on one machine. A public reader \
+              cannot open it, and it discloses which agent produced the work and where \
+              that agent keeps its records.\n\
+              ### Class\n\
+              correctness: the path is meaningless outside the machine that produced it; no \
+              opinion is involved in flagging it.\n\
+              ### Citation\n\
+              house\n\
+              ### Example\n\
+              Bad: a path that runs from an agent's dot directory into its sessions folder \
+              and on to a transcript file.\n\
+              Good: an agent's committed configuration file, such as its hooks file, which \
+              is repository content and is not flagged.\n\
+              ### Coverage\n\
+              The state directories of: dsh, pi, omp, opencode, codex, claude code, copilot. \
+              Only the conversation segments under them are flagged: sessions, projects, \
+              transcripts, history, logs. A configuration file under the same directory is \
+              not.",
         exception: None,
     },
     RuleMeta {
@@ -37,15 +76,18 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         doc: "### What it does\n\
               Flags a line that begins `Co-Authored-By:`.\n\
               ### Why it is bad\n\
-              A co-author trailer from a coding agent names an internal tool and a session \
-              in a commit that becomes part of the project's public history forever.\n\
+              A co-author trailer from a coding agent names a tool and a session in a \
+              commit that becomes part of the project's public history forever.\n\
               ### Class\n\
               house: a policy choice about attribution, not an externally required rule.\n\
               ### Citation\n\
               house\n\
               ### Example\n\
-              Bad: Co-Authored-By: Claude <noreply@example.com>\n\
-              Good: no such trailer in the commit.",
+              Bad: Co-Authored-By: An Agent <noreply@example.com>\n\
+              Good: no such trailer in the commit.\n\
+              ### Coverage\n\
+              The trailer line itself, whichever agent wrote it. The project's own \
+              `Code-Generator:` trailer is the accepted form and is not flagged.",
         exception: None,
     },
     RuleMeta {
@@ -54,9 +96,11 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a Windows user path, a drive letter followed by `:\\Users\\`, or a home \
-              path that starts `/home/` or `/Users/`, then an account name, then another \
-              slash.\n\
+              Flags a path that names a real machine or a real account on any platform \
+              this project runs on: a drive letter and a user folder on Windows, with \
+              either slash; a Windows network share; a home directory on Linux or macOS, \
+              or the root account's; and a Windows user folder seen through the Windows \
+              Subsystem for Linux.\n\
               ### Why it is bad\n\
               A local path names a real machine and a real account. A public reader gains \
               nothing from it, and it can name the very person who wrote the text.\n\
@@ -66,8 +110,14 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               ### Citation\n\
               house\n\
               ### Example\n\
-              Bad: The file lives at C:\\Users\\pat\\work\\notes.md.\n\
-              Good: The file lives at notes.md, relative to the repository root.",
+              Bad: a drive letter, the user folder, an account name, and then the file. \
+              The shape is not written out here, because this project scans its own \
+              source and the rule would flag it.\n\
+              Good: The file lives at notes.md, relative to the repository root.\n\
+              ### Coverage\n\
+              Windows, a Windows network share, Windows Subsystem for Linux, Linux, the \
+              Linux root account, macOS. A path written through the home shorthand or an \
+              environment variable names no machine and no account, so it is not flagged.",
         exception: None,
     },
     RuleMeta {
@@ -77,19 +127,25 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         citation: "house",
         doc: "### What it does\n\
               Flags a cross-repository reference, `owner/repo#<number>`, whose owner is not \
-              the configured project owner. Off by default: with no owner configured, the \
-              tool cannot tell a foreign reference from the project's own, so it never fires.\n\
+              this project's. The owner is `[scan] project_owner` when set, else the owner \
+              segment of the `origin` remote. With neither, the rule does not run and the \
+              scan says so.\n\
               ### Why it is bad\n\
               A reference to another owner's issue tracker, left in by habit or by a copied \
               example, can point a public reader at a private repository they cannot open.\n\
               ### Class\n\
-              correctness: once an owner is configured, a reference to a different owner is \
+              correctness: once an owner is known, a reference to a different owner is \
               objectively foreign; no opinion is involved in flagging it.\n\
               ### Citation\n\
               house\n\
               ### Example\n\
-              Bad, with project owner `acme`: see other-org/internal-tools#<number> for the fix.\n\
-              Good: see acme/public-repo#<number> for the fix.",
+              Bad, with owner `acme`: see other-org/internal-tools#<number> for the fix.\n\
+              Good: see acme/public-repo#<number> for the fix.\n\
+              ### Coverage\n\
+              The owner only. A reference to another repository under the same owner \
+              passes, whatever that repository's visibility, because visibility is not \
+              checked. A reference to a public repository under another owner is still \
+              flagged, for a person to confirm.",
         exception: None,
     },
     RuleMeta {
@@ -113,7 +169,10 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               ### Example\n\
               Bad: a line matching a configured pattern (not shown here, for the same reason \
               a finding never shows it).\n\
-              Good: no configured pattern matches anywhere in the text.",
+              Good: no configured pattern matches anywhere in the text.\n\
+              ### Coverage\n\
+              Exactly the configured patterns, case-insensitively. With an empty list the \
+              rule does not run.",
         exception: None,
     },
 ];

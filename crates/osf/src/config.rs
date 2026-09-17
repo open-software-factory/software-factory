@@ -197,10 +197,12 @@ impl Default for SkillConfig {
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct ScanConfig {
-    /// The org or user whose own `owner/repo#N` references are not foreign. Empty means the rule never fires.
+    /// The org or user whose own `owner/repo#N` references are not foreign. Empty means it is read from the git remote.
     pub project_owner: String,
     /// Patterns that must never appear in a public repository. Never printed in a finding.
     pub denylist: Vec<String>,
+    /// Extra hosted-session link prefixes, as `host/path-prefix`, added to the built-in agent list. Adds only; nothing here removes a built-in.
+    pub session_links: Vec<String>,
     /// Per-rule level overrides, keyed by rule id.
     pub levels: BTreeMap<String, LevelSetting>,
 }
@@ -316,11 +318,14 @@ const ENV_FIELDS: &[EnvField] = &[
         path: &["scan", "project_owner"],
         parse: parse_string,
     },
-    // Named plainly, not `OSF_SCAN_DENYLIST`: this list is the reason the
-    // tool exists, not one field among many.
     EnvField {
         var: "OSF_DENYLIST",
         path: &["scan", "denylist"],
+        parse: parse_list,
+    },
+    EnvField {
+        var: "OSF_SCAN_SESSION_LINKS",
+        path: &["scan", "session_links"],
         parse: parse_list,
     },
 ];

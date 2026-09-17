@@ -4,11 +4,17 @@
 //!
 //! A scan rule reads raw text, not prose: it never parses Markdown, and it
 //! runs the same way over a source file, a plan, or a commit message.
+//!
+//! No rule here names one coding agent or one operating system on its own.
+//! Agents come from [`crate::agents::AGENTS`], and path shapes from a table
+//! that covers every platform this project runs on. A rule that cannot run
+//! says so through [`Rules::notes`] rather than staying quiet.
 
 mod meta;
 
 pub use meta::rule_meta;
 
+use crate::agents::AGENTS;
 use crate::config::ScanConfig;
 use crate::exclude::Excluder;
 use osf_lint_core::{resolve, Context, Finding, Level};
@@ -36,17 +42,107 @@ fn finding(rule: &'static str, line: usize, message: String, excerpt: &str) -> F
     Finding::new(rule, Level::Error, line, message, excerpt.to_string())
 }
 
-fn session_link_findings(text: &str, out: &mut Vec<Finding>) {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let pattern = re(&RE, r"\S*claude\.ai/code/session_[A-Za-z0-9_-]*");
+/// The characters a link or an id may run on to, once its prefix matched.
+const LINK_TAIL: &str = r#"[^\s)>\]"'`]*"#;
+
+/// One hosted-session link shape and whose it is.
+struct SessionLink {
+    agent: String,
+    pattern: Regex,
+}
+
+fn session_link_pattern(prefix: &str) -> Result<Regex, String> {
+    Regex::new(&format!(
+        r"(?:https?://)?{}{LINK_TAIL}",
+        regex::escape(prefix)
+    ))
+    .map_err(|_| format!("session link prefix '{prefix}' does not compile"))
+}
+
+fn session_links(cfg: &ScanConfig) -> Result<Vec<SessionLink>, String> {
+    let mut out = Vec::new();
+    for agent in AGENTS {
+        if let Some(prefix) = agent.session_link_prefix() {
+            out.push(SessionLink {
+                agent: agent.name.to_string(),
+                pattern: session_link_pattern(&prefix)?,
+            });
+        }
+    }
+    for prefix in &cfg.session_links {
+        out.push(SessionLink {
+            agent: format!("a configured agent ({prefix})"),
+            pattern: session_link_pattern(prefix)?,
+        });
+    }
+    Ok(out)
+}
+
+fn session_link_findings(links: &[SessionLink], text: &str, out: &mut Vec<Finding>) {
     for (line, content) in lines(text) {
-        for m in pattern.find_iter(content) {
-            out.push(finding(
-                "scan-session-link",
-                line,
-                "a session link must never reach a public repository".to_string(),
-                m.as_str(),
-            ));
+        for link in links {
+            for m in link.pattern.find_iter(content) {
+                out.push(finding(
+                    "scan-session-link",
+                    line,
+                    format!(
+                        "a session link for {} must never reach a public repository",
+                        link.agent
+                    ),
+                    m.as_str(),
+                ));
+            }
+        }
+    }
+}
+
+/// Segments under an agent's state directory that hold conversations.
+const STATE_SEGMENTS: &[&str] = &["sessions", "projects", "transcripts", "history", "logs"];
+
+/// One agent's state-path shape: any of its state directories followed by
+/// a conversation segment.
+struct StatePath {
+    agent: &'static str,
+    pattern: Regex,
+}
+
+fn state_paths() -> &'static [StatePath] {
+    static CELL: OnceLock<Vec<StatePath>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        AGENTS
+            .iter()
+            .map(|agent| {
+                let dirs = agent
+                    .state_dirs
+                    .iter()
+                    .map(|d| regex::escape(d).replace('/', r"[\\/]"))
+                    .collect::<Vec<_>>()
+                    .join("|");
+                let segments = STATE_SEGMENTS.join("|");
+                let pattern = format!(r"(?:^|[\\/~\s])(?:{dirs})[\\/](?:{segments})[\\/]\S*");
+                StatePath {
+                    agent: agent.name,
+                    pattern: Regex::new(&pattern).expect("state path pattern compiles"),
+                }
+            })
+            .collect()
+    })
+}
+
+fn agent_state_path_findings(text: &str, out: &mut Vec<Finding>) {
+    for (line, content) in lines(text) {
+        for shape in state_paths() {
+            for m in shape.pattern.find_iter(content) {
+                out.push(finding(
+                    "scan-agent-state-path",
+                    line,
+                    format!(
+                        "a path into {}'s own state must never reach a public repository",
+                        shape.agent
+                    ),
+                    m.as_str().trim(),
+                ));
+            }
         }
     }
 }
@@ -64,41 +160,87 @@ fn coauthor_trailer_findings(text: &str, out: &mut Vec<Finding>) {
     }
 }
 
-fn local_path_findings(text: &str, out: &mut Vec<Finding>) {
+/// The platforms whose user-path shapes the local-path rule knows, in the
+/// order the combined pattern tries them. Earlier entries win where two
+/// overlap, so a drive path is reported once, as Windows, not again as the
+/// home-directory shape it also contains.
+const LOCAL_PATH_PLATFORMS: &[&str] = &[
+    "Windows",
+    "a Windows network share",
+    "Windows Subsystem for Linux",
+    "Linux",
+    "Linux, as the root account",
+    "macOS",
+];
+
+/// Built at run time from parts. This project scans its own source, and a
+/// shape written out in full here would match itself.
+fn local_path_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    let pattern = re(&RE, r"[A-Za-z]:\\Users\\[^\s]*|/(?:home|Users)/[^/\s]+/");
+    RE.get_or_init(|| {
+        let acct = r"[^/\\\s]+";
+        let sep = r"[\\/]";
+        let users = "Users";
+        // A share needs a server, a share name, and a path under them. Two
+        // bare segments would also match an escape sequence in source code.
+        let name = r"[A-Za-z0-9._$-]+";
+        let shapes = [
+            format!(r"[A-Za-z]:{sep}{users}{sep}{acct}{sep}"),
+            format!(r"\\\\{name}\\{name}\\"),
+            format!("/mnt/[A-Za-z]/{users}/{acct}/"),
+            format!("/{}/{acct}/", "home"),
+            format!("/{}/", "root"),
+            format!("/{users}/{acct}/"),
+        ];
+        let alternation = shapes
+            .iter()
+            .enumerate()
+            .map(|(i, s)| format!("(?P<p{i}>{s})"))
+            .collect::<Vec<_>>()
+            .join("|");
+        Regex::new(&alternation).expect("local path pattern compiles")
+    })
+}
+
+fn local_path_findings(text: &str, out: &mut Vec<Finding>) {
+    let pattern = local_path_regex();
     for (line, content) in lines(text) {
-        for m in pattern.find_iter(content) {
+        for cap in pattern.captures_iter(content) {
+            let Some(whole) = cap.get(0) else { continue };
+            let platform = LOCAL_PATH_PLATFORMS
+                .iter()
+                .enumerate()
+                .find(|(i, _)| cap.name(&format!("p{i}")).is_some())
+                .map_or("an unknown platform", |(_, name)| name);
             out.push(finding(
                 "scan-local-path",
                 line,
-                "a local user path must never reach a public repository".to_string(),
-                m.as_str(),
+                format!(
+                    "a user path from {platform} names a machine or an account and must never reach a public repository"
+                ),
+                whole.as_str(),
             ));
         }
     }
 }
 
-fn foreign_reference_findings(text: &str, cfg: &ScanConfig, out: &mut Vec<Finding>) {
+fn foreign_reference_findings(owner: &str, text: &str, out: &mut Vec<Finding>) {
     static RE: OnceLock<Regex> = OnceLock::new();
-    if cfg.project_owner.is_empty() {
-        return;
-    }
     let pattern = re(&RE, r"\b([A-Za-z0-9][\w.-]*)/[A-Za-z0-9][\w.-]*#\d+\b");
     for (line, content) in lines(text) {
         for cap in pattern.captures_iter(content) {
-            let (Some(owner), Some(whole)) = (cap.get(1), cap.get(0)) else {
+            let (Some(found), Some(whole)) = (cap.get(1), cap.get(0)) else {
                 continue;
             };
-            if owner.as_str().eq_ignore_ascii_case(&cfg.project_owner) {
+            if found.as_str().eq_ignore_ascii_case(owner) {
                 continue;
             }
             out.push(finding(
                 "scan-foreign-reference",
                 line,
                 format!(
-                    "'{}' is not this project's owner; check the reference is meant",
-                    owner.as_str()
+                    "'{}' is not this project's owner '{owner}'; check the reference is meant",
+                    found.as_str()
                 ),
                 whole.as_str(),
             ));
@@ -147,26 +289,86 @@ impl Denylist {
 
 /// Every scan rule, built once from the resolved configuration.
 pub struct Rules {
-    cfg: ScanConfig,
+    owner: Option<String>,
+    links: Vec<SessionLink>,
     denylist: Denylist,
+    notes: Vec<String>,
 }
 
 impl Rules {
+    /// Rules with the project owner taken from `cfg` alone. With no owner
+    /// configured, the foreign-reference rule does not run, and a note
+    /// says so. Prefer [`Rules::build_for`] where a repository is at hand.
+    ///
     /// # Errors
-    /// Returns an error if a configured denylist pattern is not valid regex.
-    pub fn build(cfg: ScanConfig) -> Result<Self, String> {
-        let denylist = Denylist::compile(&cfg.denylist)?;
-        Ok(Rules { cfg, denylist })
+    /// Returns an error if a configured denylist pattern or session link prefix is not valid.
+    pub fn build(cfg: &ScanConfig) -> Result<Self, String> {
+        let mut rules = Self::assemble(cfg)?;
+        if cfg.project_owner.is_empty() {
+            rules.notes.push(
+                "scan-foreign-reference did not run: no project owner is configured and no repository was given to read one from".to_string(),
+            );
+        } else {
+            rules.owner = Some(cfg.project_owner.clone());
+        }
+        Ok(rules)
+    }
+
+    /// Rules with the project owner taken from `cfg`, or, when that is
+    /// empty, from the `origin` remote of the repository at `dir`. When
+    /// neither yields an owner, the foreign-reference rule does not run and
+    /// a note says why.
+    ///
+    /// # Errors
+    /// Returns an error if a configured denylist pattern or session link prefix is not valid.
+    pub fn build_for(dir: &Path, cfg: &ScanConfig) -> Result<Self, String> {
+        let mut rules = Self::assemble(cfg)?;
+        if !cfg.project_owner.is_empty() {
+            rules.owner = Some(cfg.project_owner.clone());
+            return Ok(rules);
+        }
+        match crate::git::remote_owner(dir) {
+            Ok(owner) => rules.owner = Some(owner),
+            Err(e) => rules.notes.push(format!(
+                "scan-foreign-reference did not run: no project owner is configured and the git remote gave none ({e})"
+            )),
+        }
+        Ok(rules)
+    }
+
+    fn assemble(cfg: &ScanConfig) -> Result<Self, String> {
+        Ok(Rules {
+            owner: None,
+            links: session_links(cfg)?,
+            denylist: Denylist::compile(&cfg.denylist)?,
+            notes: Vec::new(),
+        })
+    }
+
+    /// The owner every `owner/repo#N` reference is compared against, when
+    /// one was found.
+    #[must_use]
+    pub fn owner(&self) -> Option<&str> {
+        self.owner.as_deref()
+    }
+
+    /// What did not run, and why. Empty when every rule ran.
+    #[must_use]
+    pub fn notes(&self) -> &[String] {
+        &self.notes
     }
 
     /// Every finding in `text`, resolved and explained under `context`.
     #[must_use]
     pub fn scan_text(&self, text: &str, context: Context) -> Vec<Finding> {
         let mut out = Vec::new();
-        session_link_findings(text, &mut out);
+        session_link_findings(&self.links, text, &mut out);
+        agent_state_path_findings(text, &mut out);
         coauthor_trailer_findings(text, &mut out);
         local_path_findings(text, &mut out);
-        foreign_reference_findings(text, &self.cfg, &mut out);
+        if let Some(owner) = &self.owner {
+            foreign_reference_findings(owner, text, &mut out);
+        }
         self.denylist.find(text, &mut out);
         resolve_and_explain(&mut out, context);
         osf_lint_core::sort_findings(&mut out);

@@ -10,7 +10,7 @@ use osf::exclude::Excluder;
 use osf::scan::{scan_commits, scan_paths, Rules};
 
 fn rules() -> Rules {
-    Rules::build(ScanConfig::default()).expect("empty config builds")
+    Rules::build(&ScanConfig::default()).expect("empty config builds")
 }
 
 fn no_exclude() -> Excluder {

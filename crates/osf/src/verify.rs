@@ -154,13 +154,23 @@ pub fn run(stage: Stage, opts: &Options) -> Result<Report, String> {
     }
 }
 
+/// The scan rules for this repository. A rule that could not run is
+/// reported on standard error before any check runs, never left silent.
+fn scan_rules(opts: &Options) -> Result<crate::scan::Rules, String> {
+    let rules = crate::scan::Rules::build_for(opts.dir, &opts.config.scan)?;
+    for note in rules.notes() {
+        eprintln!("osf verify: {note}");
+    }
+    Ok(rules)
+}
+
 fn pre_commit(opts: &Options) -> Result<Report, String> {
     let staged = crate::git::staged_files(opts.dir).map_err(|e| e.to_string())?;
     let scan_outcome = if staged.is_empty() {
         CheckOutcome::skipped("scan")
     } else {
         let (kept, excluded) = opts.excluder.partition(staged);
-        let rules = crate::scan::Rules::build(opts.config.scan.clone())?;
+        let rules = scan_rules(opts)?;
         let mut findings = Vec::new();
         for path in &kept {
             let bytes = crate::git::staged_content(opts.dir, path).map_err(|e| e.to_string())?;
@@ -239,7 +249,7 @@ fn scan_changed_files(opts: &Options, changed: &[String]) -> Result<CheckOutcome
         return Ok(CheckOutcome::skipped("scan"));
     }
     let (targets, excluded) = opts.excluder.partition(changed.to_vec());
-    let rules = crate::scan::Rules::build(opts.config.scan.clone())?;
+    let rules = scan_rules(opts)?;
     let mut findings = Vec::new();
     for path in &targets {
         let bytes = crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?;
@@ -323,7 +333,7 @@ fn scan_pushed_commits(opts: &Options, base: &str) -> Result<CheckOutcome, Strin
     if hashes.is_empty() {
         return Ok(CheckOutcome::skipped("scan (commits)"));
     }
-    let rules = crate::scan::Rules::build(opts.config.scan.clone())?;
+    let rules = scan_rules(opts)?;
     let mut findings = Vec::new();
     for hash in &hashes {
         let message = crate::git::commit_message(opts.dir, hash).map_err(|e| e.to_string())?;

@@ -822,13 +822,17 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
             return ExitCode::from(2);
         }
     };
-    let rules = match scan::Rules::build(loaded.config.scan.clone()) {
+    let dir = Path::new(".");
+    let rules = match scan::Rules::build_for(dir, &loaded.config.scan) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("osf: {e}");
             return ExitCode::from(2);
         }
     };
+    for note in rules.notes() {
+        eprintln!("osf scan: {note}");
+    }
     let excluder = match build_excluder(&loaded.config.exclude, args.no_exclude) {
         Ok(e) => e,
         Err(e) => {
@@ -836,7 +840,6 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
             return ExitCode::from(2);
         }
     };
-    let dir = Path::new(".");
     let mut tally = Tally::default();
     let results = if let Some(range) = &args.commits {
         match scan::scan_commits(dir, range, &rules) {

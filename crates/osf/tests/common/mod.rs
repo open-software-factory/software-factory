@@ -92,29 +92,81 @@ pub fn run_osf(
         .expect("osf runs")
 }
 
-/// Builds a session-link-shaped string at run time. A scan rule fixture
-/// needs the real shape to prove the rule fires, but this repository's own
-/// `osf scan` run has no exclusion for a test file any more, so the shape
-/// must never sit in this file's source text as one contiguous literal.
+/// Builds a session-link-shaped string at run time for one agent, from the
+/// host and path the agent list holds apart. A scan rule fixture needs the
+/// real shape to prove the rule fires, but this repository's own `osf scan`
+/// run has no exclusion for a test file, so the shape must never sit in
+/// any source text as one contiguous literal.
+pub fn session_link_for(host: &str, path: &str, id: &str) -> String {
+    format!("https://{host}{path}{id}")
+}
+
+/// A session link for the first agent in the list that has hosted
+/// sessions, for tests that need any one link.
 pub fn session_link(id: &str) -> String {
-    let host = "claude.ai";
-    let path_prefix = "code/session_";
-    format!("https://{host}/{path_prefix}{id}")
+    let agent = osf::agents::AGENTS
+        .iter()
+        .find(|a| a.session_host.is_some())
+        .expect("at least one agent has hosted sessions");
+    session_link_for(
+        agent.session_host.expect("host"),
+        agent.session_path.expect("path"),
+        id,
+    )
+}
+
+/// A path into one agent's state directory, of the shape a transcript
+/// path takes.
+pub fn agent_state_path(state_dir: &str) -> String {
+    let home = "~";
+    format!("{home}/{state_dir}/sessions/2026-09-17-abc.jsonl")
 }
 
 /// Builds a Windows user-path-shaped string at run time, for the same
-/// reason as [`session_link`].
+/// reason as [`session_link_for`].
 pub fn windows_user_path(user: &str) -> String {
     let drive = "D:";
     let marker = r"\Users\";
     format!(r"{drive}{marker}{user}\work\notes.md")
 }
 
-/// Builds a home-directory-path-shaped string at run time, for the same
-/// reason as [`session_link`].
+/// The same Windows path written with forward slashes, as a shell or a
+/// hook file often spells it.
+pub fn windows_forward_path(user: &str) -> String {
+    let drive = "C:";
+    let marker = "/Users";
+    format!("{drive}{marker}/{user}/work/notes.md")
+}
+
+/// A Windows network share path.
+pub fn network_share_path(server: &str, share: &str) -> String {
+    let sep = "\\";
+    format!("{sep}{sep}{server}{sep}{share}{sep}notes.md")
+}
+
+/// Builds a Linux home-directory-path-shaped string at run time, for the
+/// same reason as [`session_link_for`].
 pub fn home_path(user: &str) -> String {
     let prefix = "/home";
     format!("{prefix}/{user}/work/notes.md")
+}
+
+/// A macOS home-directory path.
+pub fn mac_home_path(user: &str) -> String {
+    let prefix = "/Users";
+    format!("{prefix}/{user}/work/notes.md")
+}
+
+/// The root account's home on Linux.
+pub fn root_home_path() -> String {
+    format!("/{}/work/notes.md", "root")
+}
+
+/// A Windows user folder seen through the Windows Subsystem for Linux.
+pub fn wsl_user_path(user: &str) -> String {
+    let mount = "/mnt/c";
+    let users = "Users";
+    format!("{mount}/{users}/{user}/work/notes.md")
 }
 
 /// Builds a co-author trailer line at run time, for the same reason as

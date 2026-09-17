@@ -31,8 +31,6 @@ jobs:
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: cargo-${{ runner.os }}-
 
-      # The checks live in the binary, not here. Two implementations drift,
-      # and the one nobody watches is the one that rots.
       - name: Build the tool
         run: cargo build --release --bin osf
 
