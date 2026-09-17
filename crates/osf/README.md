@@ -35,8 +35,9 @@ markers if they are there, or at the top if they are not.
 block from the pull request's live state. It reads the pull request's own
 checks, its review state, and a fresh risk assessment against its base
 branch. It reads `Problem` and `Approach` back out of the block already
-in the description. `--problem` and `--approach` are needed only before a
-block exists. Refresh compares the new block against the one already
+in the description. A description with no block is left alone, and the
+command says so and exits 0. To start a block on such a pull request, pass
+`--problem` and `--approach` once, or run `osf status apply`. Refresh compares the new block against the one already
 there, byte for byte. It writes nothing when they match, and prints `osf
 status refresh: unchanged`. When they differ, it writes the new block and
 prints `osf status refresh: updated`.

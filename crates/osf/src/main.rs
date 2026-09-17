@@ -1269,24 +1269,20 @@ fn git_fetch(remote: &str, ref_name: &str) -> Result<(), String> {
 }
 
 /// `Problem` and `Approach` for a refresh: read back from the description's
-/// own block when it has one, else from `--problem`/`--approach`, which
-/// are then required.
+/// own block when it has one, else from `--problem`/`--approach`. With
+/// neither, there is nothing to refresh, and that is `None`, never an
+/// error: a pull request opts into the block by applying it once.
 fn status_refresh_problem_approach(
     body: &str,
     problem: Option<&String>,
     approach: Option<&String>,
-) -> Result<(String, String), ExitCode> {
+) -> Result<Option<(String, String)>, ExitCode> {
     match status::extract_problem_approach(body) {
-        Ok(Some((p, a))) => Ok((p, a)),
-        Ok(None) => {
-            let (Some(p), Some(a)) = (problem, approach) else {
-                eprintln!(
-                    "osf status refresh: the description has no status block yet; --problem and --approach are required"
-                );
-                return Err(ExitCode::from(2));
-            };
-            Ok((p.clone(), a.clone()))
-        }
+        Ok(Some((p, a))) => Ok(Some((p, a))),
+        Ok(None) => match (problem, approach) {
+            (Some(p), Some(a)) => Ok(Some((p.clone(), a.clone()))),
+            _ => Ok(None),
+        },
         Err(e) => {
             eprintln!("osf: {e}");
             Err(ExitCode::from(2))
@@ -1362,11 +1358,17 @@ fn status_refresh_run(
     let pr_info_text = client.view_pr_info(&args.repo, &args.pr).map_err(to_exit)?;
     let pr_info = status::parse_pr_info(&pr_info_text).map_err(to_exit)?;
 
-    let (problem, approach) = status_refresh_problem_approach(
+    let Some((problem, approach)) = status_refresh_problem_approach(
         &pr_info.body,
         args.problem.as_ref(),
         args.approach.as_ref(),
-    )?;
+    )?
+    else {
+        println!(
+            "osf status refresh: no status block in the description, so nothing to refresh; run `osf status apply` once to start one"
+        );
+        return Ok(ExitCode::SUCCESS);
+    };
     let base = status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
     let report = risk::assess(Path::new("."), &base).map_err(|e| {
         eprintln!("osf risk: {e}");
@@ -1419,6 +1421,16 @@ mod tests {
     const FIXTURE_PATH: &str = "crates/osf/tests/fixtures/bad.md";
     const REAL_PATH: &str = "docs/real.md";
     const TWO_RULE_TEXT: &str = "A thing — another thing. It ran; it passed.\n";
+
+    #[test]
+    fn a_refresh_with_no_block_and_no_flags_has_nothing_to_do() {
+        let none = status_refresh_problem_approach("just a description\n", None, None);
+        assert!(matches!(none, Ok(None)));
+        let p = "the problem".to_string();
+        let a = "the approach".to_string();
+        let some = status_refresh_problem_approach("just a description\n", Some(&p), Some(&a));
+        assert_eq!(some.ok().flatten(), Some((p, a)));
+    }
 
     fn writing_args() -> WritingArgs {
         WritingArgs {
