@@ -57,7 +57,7 @@ said, so there is nothing to check, and no report either.
 ## Checking it
 
 ```
-node --test test/
+node --test
 ```
 
 The two decisions this plugin makes are plain functions in `src/check.js`,
