@@ -15,6 +15,8 @@ The files in this directory are working research notes. They are not canonical r
 - `ux/agent-built-ui-lessons.md`: what went wrong when coding agents built operator consoles from the UX doctrine, what transfers to the factory, and the toolchain that worked.
 - `ux/prototypes/README.md`: screenshots of the four agent-built operator console prototypes, with the caveats needed to read them.
 - `ux/ux-references.md`: interface references and the specific qualities worth studying in each.
+- `2026-09-15-skill-lint-validation-and-evaluation.md`: what validation, testing and evaluation of agent skills looks like in the wild, and why a lint alone is not enough.
+- `2026-09-18-moon-as-osf-execution-substrate.md`: why moon is adopted as the execution engine for deterministic tasks, and what stays outside it.
 - `2026-09-17-change-risk-classification.md`: what research, industry systems, deterministic tooling, models and regulated domains say about classifying a change set's risk, and what that changes in the classifier design.
 
 These notes capture questions, conclusions and leads from earlier research. Refresh them from current primary sources when a topic becomes implementation-critical.

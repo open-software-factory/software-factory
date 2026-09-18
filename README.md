@@ -8,7 +8,7 @@ The project is moving from vision and research toward its first architecture and
 
 - The Factory Engine starts in Go: small, native, strongly typed and cross-platform.
 - Coding agents, work trackers, forges, runners and other providers remain replaceable integrations.
-- Existing skills and deterministic ecosystem tooling should be composed, not cloned.
+- Existing skills and deterministic ecosystem tooling should be composed rather than cloned.
 - The operator experience is an active control surface, not a read-only dashboard or a chat wrapper.
 - Intent, work, implementation, verification, delivery and production evidence should remain traceable.
 
@@ -22,7 +22,7 @@ These are implementation constraints, not a claim that the wider ecosystem must 
 - [`docs/architecture/decisions/`](docs/architecture/decisions/): accepted and provisional technical decisions.
 - [`docs/architecture/open-questions.md`](docs/architecture/open-questions.md): questions to resolve through research and implementation.
 - [`docs/research/`](docs/research/): supporting investigations and changing ecosystem evidence; these are not requirements.
-- [`todo.md`](todo.md): disposable bootstrap work, not the eventual factory backlog model.
+- The work itself lives in the organisation's GitHub project, as issues with native types, parents and fields.
 
 Repository-specific guidance for coding agents is in [`AGENTS.md`](AGENTS.md).
 
