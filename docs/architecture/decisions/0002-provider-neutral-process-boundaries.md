@@ -20,7 +20,7 @@ Define interfaces only when a real implementation requires replacement or transl
 
 ## Consequences
 
-- The core owns software-factory semantics, not replicas of provider APIs.
+- The core owns software-factory semantics, and it holds no replica of a provider's own interface.
 - Integrations can evolve or fail independently of the engine.
 - Adapters must report capability and fidelity differences honestly.
 - The first slice may use one concrete provider without treating its data model as universal.
