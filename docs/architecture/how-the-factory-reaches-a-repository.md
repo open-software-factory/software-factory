@@ -6,7 +6,7 @@ What the factory installs, where each part lives, and how the parts combine when
 
 ## Two layers
 
-**Core.** The commands and their guardrails, installed root-owned and read-only into whatever sandbox the adopter runs. The sandbox is a provider ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)), and the factory ships a container as the default one. The core never ships into a product repository. It is Rust ([decision 0001](decisions/0001-rust-for-the-factory-engine.md)). What is published, under which names and versions, is [decision 0006](decisions/0006-distribution-and-packaging.md).
+**Core.** The commands and their guardrails, installed root-owned and read-only into whatever sandbox the adopter runs, on whatever platform that sandbox runs on. Both are providers ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)), and the factory ships a container on the local platform as the default pair. The core never ships into a product repository. It is Rust ([decision 0001](decisions/0001-rust-for-the-factory-engine.md)). What is published, under which names and versions, is [decision 0006](decisions/0006-distribution-and-packaging.md).
 
 The core is a front command named `osf` and a set of part binaries in known locations, the shape git and the dotnet command line use. `osf <command>` finds the part that serves that command and runs it. A new capability adds a binary instead of growing one file, and an uncalled part costs nothing at run time, but every part ships and versions together, at one version per release ([decision 0006](decisions/0006-distribution-and-packaging.md)). The front command owns the command list, the configuration, and the exit codes, so a caller sees one tool.
 

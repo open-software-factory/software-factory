@@ -9,7 +9,7 @@ A record is normally immutable once accepted, and a later record supersedes it. 
 | Record | Status | Summary |
 |---|---|---|
 | [`0001-rust-for-the-factory-engine.md`](0001-rust-for-the-factory-engine.md) | Accepted | The Factory Engine, CLI and verifier runner are written in Rust. |
-| [`0002-provider-neutral-process-boundaries.md`](0002-provider-neutral-process-boundaries.md) | Accepted | Providers remain replaceable and preferably out of process; the execution sandbox is one of them, and a container is its default. |
+| [`0002-provider-neutral-process-boundaries.md`](0002-provider-neutral-process-boundaries.md) | Accepted | Providers remain replaceable and preferably out of process; the sandbox and the platform it runs on are two separate providers. |
 | [`0003-deterministic-verification-is-authoritative.md`](0003-deterministic-verification-is-authoritative.md) | Accepted | Deterministic checks are authoritative; verifier, reporter, policy and gate are distinct words; a read separates "could not read" from "nothing there"; green is earned. |
 | [`0004-protocol-independent-core-with-ahp-acp-edges.md`](0004-protocol-independent-core-with-ahp-acp-edges.md) | Provisional | AHP and ACP are first-class edge protocols at the edge of the factory domain model. |
 | [`0005-the-factory-domain-model.md`](0005-the-factory-domain-model.md) | Accepted | One model: work items, runs, verifier and review runs, findings with evidence grades; events are a core part of the model; located findings are SARIF; runs are hash-chained and replayable. |
