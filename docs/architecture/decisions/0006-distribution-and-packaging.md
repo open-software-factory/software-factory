@@ -6,7 +6,7 @@ Date: 2026-09-15
 
 ## Context
 
-The factory reaches a workspace as a core in a container image and a surface vendored per repository; `docs/architecture/how-the-factory-reaches-a-repository.md` describes that composition. This record decides what is published, under which names, how it is versioned, and how the core is protected once installed.
+The factory reaches a workspace as a core and a surface, which `docs/architecture/how-the-factory-reaches-a-repository.md` describes. This record decides what is published, under which names, how it is versioned, and how the core is protected once installed.
 
 "Software factory" is a generic industry term in continuous use since 1968 and stays the project's description. The bare word `factory` is taken on the npm, PyPI and crates.io registries, and a commercial coding-agent company publishes a command-line tool under it. The project name and the organisation name stay as they are; only the published artifacts need distinct names.
 
@@ -23,7 +23,7 @@ Each release publishes:
 | The engine binary | One static binary per platform, attached to the release |
 | The skills bundle | An archive of the default agent skills and rules |
 | The templates bundle | An archive of the per-ecosystem verifier configurations and workflow templates |
-| The container image | Built from the same commit, carrying the binary |
+| The sandbox image | The default container sandbox, built from the same commit, carrying the binary |
 
 ### Names
 
@@ -35,7 +35,15 @@ One version string per release covers every artifact. Tags follow the moving-tag
 
 ### Where the core runs, and how it is protected
 
-The binary installs into the container image read-only and owned by root, under a checksum wrapper that verifies the installed files and the git hooks path before every hook runs. The same binary runs in continuous integration under the workflow's own token, which no agent holds, and branch protection requires that run. Local execution raises the bar against an agent that reads and works around a check; the continuous-integration run is the authority.
+The core runs inside whatever sandbox the adopter uses, which decision 0002 treats as a provider. The factory ships a container image as the default sandbox, because it is the cheapest one to hand an adopter. A worktree on the host, a virtual machine and a remote runner are other implementations, and the rules below hold in each.
+
+The binary installs read-only and owned by root, under a checksum wrapper that verifies the installed files and the git hooks path before every hook runs. The same binary runs in continuous integration under the workflow's own token, which no agent holds, and branch protection requires that run. Local execution raises the bar against an agent that reads and works around a check. The continuous-integration run is the authority.
+
+### Where the factory itself lives
+
+The adopter chooses. The factory may be its own repository in the adopting organisation, serving every other repository there. It may instead be vendored into a single repository that wants it alone. Both are supported, and neither is a stage on the way to the other.
+
+How an organisation or a team starts from nothing is undecided and is tracked as an open question.
 
 ### What an adopting repository receives
 
@@ -45,4 +53,4 @@ A repository needs no file at all: the binary detects the ecosystem from its mar
 
 - A release is one commit and one version across every artifact; nothing is versioned separately.
 - The question of whether each folder becomes its own repository is closed until a concrete adopter or cadence conflict reopens it.
-- The container image is the only place the core is installed writable; every other copy is read-only.
+- The core is installed writable only where the sandbox image is built; every other copy is read-only.

@@ -8,10 +8,10 @@ A record is normally immutable once accepted, and a later record supersedes it. 
 
 | Record | Status | Summary |
 |---|---|---|
-| [`0001-rust-for-the-factory-engine.md`](0001-rust-for-the-factory-engine.md) | Accepted | The Factory Engine, CLI and verifier runner are one static Rust binary. |
-| [`0002-provider-neutral-process-boundaries.md`](0002-provider-neutral-process-boundaries.md) | Accepted | Providers remain replaceable and preferably out of process. |
+| [`0001-rust-for-the-factory-engine.md`](0001-rust-for-the-factory-engine.md) | Accepted | The Factory Engine, CLI and verifier runner are written in Rust. |
+| [`0002-provider-neutral-process-boundaries.md`](0002-provider-neutral-process-boundaries.md) | Accepted | Providers remain replaceable and preferably out of process; the execution sandbox is one of them, and a container is its default. |
 | [`0003-deterministic-verification-is-authoritative.md`](0003-deterministic-verification-is-authoritative.md) | Accepted | Deterministic checks are authoritative; verifier, reporter, policy and gate are distinct words; a read separates "could not read" from "nothing there"; green is earned. |
 | [`0004-protocol-independent-core-with-ahp-acp-edges.md`](0004-protocol-independent-core-with-ahp-acp-edges.md) | Provisional | AHP and ACP are first-class edge protocols at the edge of the factory domain model. |
-| [`0005-the-factory-domain-model.md`](0005-the-factory-domain-model.md) | Accepted | One model: work items, runs, verifier and review runs, findings with evidence grades; events are the model; located findings are SARIF; runs are hash-chained and replayable. |
-| [`0006-distribution-and-packaging.md`](0006-distribution-and-packaging.md) | Accepted | One repository, four release artifacts under one version; scoped package names and a short binary name; the core installs read-only and is authoritative only in continuous integration; zero-config adoption. |
-| [`0007-console-stack.md`](0007-console-stack.md) | Accepted | React and TypeScript on Vite, scaffolded as Tauri from the start; one codebase for web and desktop; the prototype packages move unchanged; the console reads the engine and probes nothing itself. |
+| [`0005-the-factory-domain-model.md`](0005-the-factory-domain-model.md) | Accepted | One model: work items, runs, verifier and review runs, findings with evidence grades; events are a core part of the model; located findings are SARIF; runs are hash-chained and replayable. |
+| [`0006-distribution-and-packaging.md`](0006-distribution-and-packaging.md) | Accepted | One repository and one version across every artifact; scoped package names and a short binary name; the core installs read-only and is authoritative only in continuous integration; the adopter chooses whether the factory is its own repository or vendored into one. |
+| [`0007-console-stack.md`](0007-console-stack.md) | Accepted | React and TypeScript on Vite, scaffolded as Tauri from the start; one codebase for web and desktop; the console reads the engine and probes nothing itself. |
