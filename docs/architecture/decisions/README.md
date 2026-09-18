@@ -1,10 +1,10 @@
 # Architecture decision records
 
-This directory records technical decisions that constrain implementation. It does not replace architecture design: records capture decisions, while detailed designs should be written only for agreed implementation slices.
+This directory records technical decisions that constrain implementation. It does not replace architecture design. A record captures a decision, and a detailed design is written once the work it covers is agreed. What is being built, and when, lives in the work tracker.
 
 Each record uses a numbered, lowercase kebab-case filename and states its status, date, context, decision and consequences. A provisional record is an architectural hypothesis to validate before its interfaces are frozen.
 
-A record is normally immutable once accepted, and a later record supersedes it. Records 0001, 0003 and 0005 were revised in place on 2026-09-15, before any code existed that depended on them; each says so in its own date line. That exception ends with the first implementation slice.
+A record may be amended in place when the decision itself holds and the wording no longer serves it. The date line says when it was amended and what changed. A decision that reverses another gets its own record, which supersedes it.
 
 | Record | Status | Summary |
 |---|---|---|

@@ -6,6 +6,8 @@ Date: 2026-08-16, amended 2026-09-18 to name the execution sandbox and the execu
 
 ## Context
 
+The vision documents describe how software gets built, without naming any implementation. The factory is one implementation of that vision, and these records decide its parts.
+
 The factory must work with multiple coding-agent harnesses, work trackers, source forges, execution sandboxes, execution platforms and delivery systems. Making any one provider intrinsic to the kernel would narrow adoption and confuse an integration with the factory domain.
 
 ## Decision
