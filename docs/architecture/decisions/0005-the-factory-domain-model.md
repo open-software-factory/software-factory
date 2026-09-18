@@ -56,7 +56,7 @@ A reporter validates every event against the schema and rejects an invalid one l
 
 ### Findings with a location use SARIF
 
-A finding that names a file and a line is written in SARIF, the static-analysis results interchange format that language tools already emit, because the language tools the factory wraps already emit it. A finding's identity is a hash of rule, path, line and column, never of its message, so rewording does not create a new finding. Test results are not findings and take their own path; no test framework emits SARIF.
+A finding that names a file and a line is written in SARIF, the static-analysis results interchange format that the language tools the factory wraps already emit. A finding's identity is a hash of rule, path, line and column, never of its message, so rewording does not create a new finding. Test results are not findings and take their own path; no test framework emits SARIF.
 
 ### Runs are replayable
 
