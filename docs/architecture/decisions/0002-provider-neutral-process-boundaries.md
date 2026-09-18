@@ -31,5 +31,5 @@ Define interfaces only when a real implementation requires replacement or transl
 - The core owns software-factory semantics, and it holds no replica of a provider's own interface.
 - Integrations can evolve or fail independently of the engine.
 - Adapters must report capability and fidelity differences honestly.
-- The first slice may use one concrete provider without treating its data model as universal.
+- An early implementation may use one concrete provider without treating that provider's data model as universal.
 - The container and the local platform the factory ships are defaults, so an adopter may replace either without the engine noticing.

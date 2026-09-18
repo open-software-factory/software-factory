@@ -19,5 +19,4 @@ Build the Factory Engine, its command-line interface and the verifier runner in 
 - The engine and CLI ship as native, cross-compiled binaries with no runtime dependency.
 - The providers at the factory's edges, such as the forge, the work tracker, the runner and the coding-agent harness, may be written in any language. They normally communicate out of process, per decision 0002.
 - The console may share domain types, event codecs and evidence schemas with the engine as crates, without a serialisation boundary between two languages.
-- The first slice is kept deliberately small so it stays cheap to delete.
 - A compiled binary is not a security boundary on its own; authority comes from running it in continuous integration under a token the agent never holds, behind branch protection. Decision 0006 covers where the binary is installed and how it is protected.
