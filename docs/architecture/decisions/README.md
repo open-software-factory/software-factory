@@ -4,7 +4,7 @@ This directory records technical decisions that constrain implementation. It doe
 
 Each record uses a numbered, lowercase kebab-case filename and states its status, date, context, decision and consequences. A provisional record is an architectural hypothesis to validate before its interfaces are frozen.
 
-A record is normally immutable once accepted and is superseded, not edited. Records 0001, 0003 and 0005 were revised in place on 2026-09-15, before any code existed that depended on them; each says so in its own date line. That exception ends with the first implementation slice.
+A record is normally immutable once accepted, and a later record supersedes it. Records 0001, 0003 and 0005 were revised in place on 2026-09-15, before any code existed that depended on them; each says so in its own date line. That exception ends with the first implementation slice.
 
 | Record | Status | Summary |
 |---|---|---|

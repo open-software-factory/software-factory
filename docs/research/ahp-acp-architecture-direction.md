@@ -1,6 +1,6 @@
 # AHP and ACP architecture direction
 
-Status: Approved research direction, not a protocol lock-in or detailed architecture
+Status: Approved research direction. It locks in no protocol and settles no detailed architecture.
 
 Reviewed: 15 August 2026
 
@@ -48,7 +48,7 @@ This is an architectural direction to validate during architecture work. AHP in 
 
 ## AHP roles in the factory
 
-The word `host` describes an AHP protocol role, not the whole Software Factory product.
+The word `host` describes an AHP protocol role rather than the whole product.
 
 In VS Code's architecture, the Agents/editor UI is an AHP client and the separate Agent Host process is the AHP server. VS Code ships both roles as parts of one product. We should preserve the same logical distinction even if early factory deployments package several components together.
 
@@ -106,7 +106,7 @@ The connector should import and correlate external session observations rather t
 Factory UI ◄──AHP──► VS Code Agent Host
 ```
 
-This is simple for viewing an isolated external session, but it bypasses factory correlation, policy, persistence and the unified operator model. It may be useful as a diagnostic or deep-link capability, not as the primary factory topology.
+This is simple for viewing an isolated external session, but it bypasses factory correlation, policy, persistence and the unified operator model. It may be useful as a diagnostic or deep-link capability. The primary factory topology stays elsewhere.
 
 #### Option 2: factory-owned gateway (recommended initial topology)
 
@@ -317,7 +317,7 @@ Factory conclusion: AHP/ACP events are inputs into the Factory Floor projection.
 
 ### Temporal-style work-item inspection and Flight Recorder
 
-AHP's snapshots, ordered actions and paged turn history are useful evidence. Its monotonic `serverSeq` orders mutations within a host stream, not across the whole factory. Its stateless telemetry channels are not replayed.
+AHP's snapshots, ordered actions and paged turn history are useful evidence. Its monotonic `serverSeq` orders mutations within one host stream only. Its stateless telemetry channels are not replayed.
 
 The Flight Recorder needs a durable, cross-system history that can correlate:
 
@@ -431,7 +431,7 @@ The AHP edge should not become the owner of work items, workflow state or delive
 
 An external-host connector has the inverse protocol role: it is an AHP client that subscribes to an external host and translates selected session state/actions into internal observations. Keep it separate from the factory-owned AHP server even if they share protocol libraries.
 
-## Proposed internal seams, not frozen interfaces
+## Proposed internal seams, still open to change
 
 Architecture work should validate behavioral seams before naming permanent Rust interfaces.
 
@@ -471,7 +471,7 @@ The relationships will often be one-to-many or many-to-one. No protocol identifi
 
 ### Persistence seam
 
-Factory state, audit history and evidence must survive engine restarts independently of AHP replay buffers and harness session persistence. Protocol snapshots are projections or integration state, not the factory database schema.
+Factory state, audit history and evidence must survive engine restarts independently of AHP replay buffers and harness session persistence. Protocol snapshots are projections or integration state, and the factory database schema is its own thing.
 
 ## Risks
 
@@ -503,7 +503,7 @@ Mitigation: establish a small required baseline plus negotiated optional capabil
 
 ACP and AHP both carry permissions and authentication concepts, but the factory also has policies over workspaces, repositories, deployments and irreversible actions.
 
-Mitigation: the Factory Engine remains the policy authority for factory-controlled resources. Protocol permission prompts are inputs to policy, not proof of authorization by themselves.
+Mitigation: the Factory Engine remains the policy authority for factory-controlled resources. Protocol permission prompts are inputs to policy, and none of them proves authorization on its own.
 
 ### Duplicate and conflicting event streams
 

@@ -38,11 +38,11 @@ Every finding and every summary carries one grade:
 | Reported | An agent or a person said so, unmeasured. |
 | Unverified | No deterministic confirmation yet. |
 
-Only observed evidence may carry a "verified by" attribution. A finding at a lower grade that claims one is rejected as malformed, not accepted with a warning. A policy may refuse to act on reported evidence.
+Only observed evidence may carry a "verified by" attribution. A finding at a lower grade that claims one is rejected as malformed. A warning is never enough to accept it. A policy may refuse to act on reported evidence.
 
 ### Events are the model
 
-A state change is an event. The entity tables above are projections of the event stream, not a second store. One envelope, versioned, one event per line:
+A state change is an event. The entity tables above are projections of the event stream rather than a second store. One envelope, versioned, one event per line:
 
 | Field | Holds |
 |---|---|
