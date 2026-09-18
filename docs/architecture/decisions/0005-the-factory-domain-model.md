@@ -2,13 +2,11 @@
 
 Status: accepted
 
-Date: 2026-09-15. This record replaces the proposed record of 2026-09-07 that held the engine-language question open; that question is settled in the revised decision 0001.
+Date: 2026-09-15.
 
 ## Context
 
-Decision 0002 says the core owns the factory's semantics and providers are edges. Nothing yet said what those semantics are. The operator console's design work stalled on exactly this: its state vocabulary is marked provisional, to be re-derived from the domain model when it lands. Every verifier, reporter, policy and console view needs one shared model, or each invents its own.
-
-Three open-source control planes were read before this record was written. Each solved one piece well: one separates "could not read" from "read nothing" and refuses vacuous green; one keeps a hash-chained run journal so identical runs are provably identical; one grades evidence so that only the top grade may carry human attribution and a lower grade cannot fake it. This model takes those pieces.
+The operator console's design work stalled on exactly this: its state vocabulary is marked provisional, to be re-derived from the domain model when it lands. Every verifier, reporter, policy and console view needs one shared model.
 
 ## Decision
 
@@ -40,7 +38,7 @@ Every finding and every summary carries one grade:
 
 Only observed evidence may carry a "verified by" attribution. A finding at a lower grade that claims one is rejected as malformed. A warning is never enough to accept it. A policy may refuse to act on reported evidence.
 
-### Events are the model
+### Events are a core part of the model
 
 A state change is an event. The entity tables above are projections of the event stream rather than a second store. One envelope, versioned, one event per line:
 
@@ -58,7 +56,7 @@ A reporter validates every event against the schema and rejects an invalid one l
 
 ### Findings with a location use SARIF
 
-A finding that names a file and a line is written in SARIF 2.1.0, because the language tools the factory wraps already emit it. A finding's identity is a hash of rule, path, line and column, never of its message, so rewording does not create a new finding. Test results are not findings and take their own path; no test framework emits SARIF.
+A finding that names a file and a line is written in SARIF, the static-analysis results interchange format that language tools already emit, because the language tools the factory wraps already emit it. A finding's identity is a hash of rule, path, line and column, never of its message, so rewording does not create a new finding. Test results are not findings and take their own path; no test framework emits SARIF.
 
 ### Runs are replayable
 

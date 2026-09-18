@@ -6,7 +6,7 @@ Date: 2026-09-15
 
 ## Context
 
-The factory reaches a workspace as a core in a container image and a surface vendored per repository; `docs/architecture/factory-distribution-model.md` describes that composition. This record decides what is published, under which names, how it is versioned, and how the core is protected once installed.
+The factory reaches a workspace as a core in a container image and a surface vendored per repository; `docs/architecture/how-the-factory-reaches-a-repository.md` describes that composition. This record decides what is published, under which names, how it is versioned, and how the core is protected once installed.
 
 "Software factory" is a generic industry term in continuous use since 1968 and stays the project's description. The bare word `factory` is taken on the npm, PyPI and crates.io registries, and a commercial coding-agent company publishes a command-line tool under it. The project name and the organisation name stay as they are; only the published artifacts need distinct names.
 
@@ -39,11 +39,10 @@ The binary installs into the container image read-only and owned by root, under 
 
 ### What an adopting repository receives
 
-Nothing it did not ask for. Level zero adoption needs no file: the binary detects the ecosystem from its marker files, runs that ecosystem's standard tools and reads their native output. A repository overrides commands in one configuration file when the defaults are wrong. A repository that emits the factory's events from its own tooling needs no wrapping at all.
+A repository needs no file at all: the binary detects the ecosystem from its marker files, runs that ecosystem's standard tools and reads their native output. A repository overrides commands in one configuration file when the defaults are wrong. A repository that emits the factory's events from its own tooling needs no wrapping at all.
 
 ## Consequences
 
-- A release is one commit, one version, four artifacts. Nothing is versioned separately.
-- The repository split question is closed until a concrete adopter or cadence conflict reopens it.
+- A release is one commit and one version across every artifact; nothing is versioned separately.
+- The question of whether each folder becomes its own repository is closed until a concrete adopter or cadence conflict reopens it.
 - The container image is the only place the core is installed writable; every other copy is read-only.
-- The binary name is a working name. Changing it before the first public release is one search-and-replace and one registry claim.

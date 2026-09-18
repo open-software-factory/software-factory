@@ -16,14 +16,14 @@ LLM review may interpret evidence, find issues outside deterministic coverage or
 
 ### Vocabulary
 
-The word "gate" was carrying three jobs. They are separate:
+Four words, each with one job:
 
 | Term | Meaning |
 |---|---|
 | Verifier | Runs one check and emits evidence. It knows nothing about consequences. Any command can be a verifier; the factory ships defaults per language ecosystem. |
 | Reporter | Renders evidence onto a surface: a check, a pull-request block, a review, a store. |
 | Policy | Reads evidence and decides. A soft cap warns; a hard limit blocks. |
-| Gate | Not a component. The name for the moment a policy hard limit stops the work. |
+| Gate | The name for the moment a policy hard limit stops the work. |
 
 ### Two rules every verifier and every reader of evidence follows
 

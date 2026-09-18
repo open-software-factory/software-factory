@@ -6,7 +6,7 @@ What the factory installs, where each part lives, and how the parts combine when
 
 ## Two layers
 
-**Core.** The commands and their guardrails, baked into a development-container image, root-owned and read-only. The core never ships into a product repository. It is Rust (decision 0001). What is published, under which names and versions, is decision 0006.
+**Core.** The commands and their guardrails, baked into a development-container image, root-owned and read-only. The core never ships into a product repository. It is Rust ([decision 0001](decisions/0001-rust-for-the-factory-engine.md)). What is published, under which names and versions, is [decision 0006](decisions/0006-distribution-and-packaging.md).
 
 The core is a front command named `osf` and a set of part binaries in known locations, the shape git and the dotnet command line use. `osf <command>` finds the part that serves that command and runs it. A new capability adds a binary instead of growing one file, and an uncalled part costs nothing at run time, but every part ships and versions together, at one version per release ([decision 0006](decisions/0006-distribution-and-packaging.md)). The front command owns the command list, the configuration, and the exit codes, so a caller sees one tool.
 
@@ -54,8 +54,8 @@ Installing, syncing, verifying a surface against the pinned version, deploying t
 
 ## Constraints this model must keep
 
-- Provider neutrality (decision 0002): the forge, the container runtime, and the agent harness are adapters, and the composition rule names none of them.
-- Deterministic verification is authoritative (decision 0003): the drift gate and the hooks are deterministic checks, so no model judges them.
-- The console reads the engine and probes nothing itself (decision 0007), so the surface it needs is an engine concern.
+- Provider neutrality ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)): the forge, the container runtime, and the agent harness are adapters, and the composition rule names none of them.
+- Deterministic verification is authoritative ([decision 0003](decisions/0003-deterministic-verification-is-authoritative.md)): the drift gate and the hooks are deterministic checks, so no model judges them.
+- The console reads the engine and probes nothing itself ([decision 0007](decisions/0007-console-stack.md)), so the surface it needs is an engine concern.
 - Per-repository containers must remain possible, so nothing in the installer may assume every repository shares one filesystem.
 - A part binary is replaceable on its own, so no part may require another part to be present.
