@@ -53,13 +53,14 @@ See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-archit
 - Is attention an Engine entity or a console projection?
 
 ## Observability and meta-loop
+- Where does the evidence ledger live: forge-native first, or an external store such as DuckDB or OpenTelemetry, and when is the crossover worth it?
 - What events/traces are first-class from day one?
 - OpenTelemetry as the canonical telemetry substrate?
 - How are gate false positives, escapes, agent performance and cost measured?
 - Which meta-loop recommendations can be generated automatically?
 
 ## External systems
-- Backlog: GitHub Issues/Projects, Linear, Jira, Markdown, custom?
+- Backlog: which tracker does an adopter bring? Candidates are GitHub issues and projects, Linear and Jira, both hosted issue trackers, a Markdown file, or something of their own.
 - SCM/forge: GitHub first but provider-neutral?
 - Agent surfaces: Codex, Pi, OpenCode, Claude Code and others.
 - Coding-agent harness control: ACP first where supported, with provider-native adapters where necessary.
@@ -67,3 +68,4 @@ See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-archit
 - Agent access to tools and context: MCP and native harness mechanisms.
 - Agent-to-agent interoperability, if required: A2A or a separate factory-mediated contract; not AHP/ACP by default.
 - Dynamic/operator UI: AG-UI, A2UI, MCP Apps or a factory-native typed presentation protocol; not conflated with AHP session synchronization.
+- On-demand analytics surface: do CopilotKit, AG-UI or the Vercel AI SDK fit the natural-language query layer over the evidence ledger?
