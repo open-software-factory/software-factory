@@ -1,6 +1,6 @@
 # Draft factory vocabulary
 
-Status: draft hypothesis, not a decision
+Status: draft hypothesis, and no decision rests on it yet
 
 Date: 2026-09-05
 
@@ -8,13 +8,13 @@ Date: 2026-09-05
 
 The UX benchmark work in August 2026 built a synthetic factory to render an operator console. To do that, it had to name the entities, states, relationships and events an operator sees. That vocabulary is the first concrete one this project has written down.
 
-The benchmark is dropped. This document keeps the vocabulary so the first Factory Engine slice can test it, keep what fits and delete the rest. It is a hypothesis. The Engine slice decides the real vocabulary, as `todo.md` requires.
+The benchmark is dropped. This document keeps the vocabulary so the smallest working engine, the smallest version of the engine that does one useful job from end to end, can test it, keep what fits and delete the rest. It is a hypothesis. That engine decides the real vocabulary.
 
 The vocabulary below reflects the schema and fixture used in the dropped August 2026 benchmark work. That work, including its later changes, is not included in this repository.
 
 ## Entity families
 
-Every entity has a stable string ID. Relationships use IDs, never names.
+Every entity has a stable string ID. Relationships use an identifier and never a name.
 
 | Family | Fields | Status values |
 |---|---|---|
@@ -110,7 +110,7 @@ The two decision options are:
 
 - Does the Engine's durable unit map onto work item, agent session, check, deployment and event, or does it need something else, such as attempt or run?
 - Is "attention" an entity the Engine owns, or a projection the console derives?
-- Is the catalog-versus-state split still natural when state comes from real providers, not a fixture?
+- Is the catalog-versus-state split still natural when state comes from a real provider instead of a fixture?
 - Do trace links need a relation vocabulary this small, or a richer one?
 - Do the six availability values survive contact with real disconnects and partial data?
 
