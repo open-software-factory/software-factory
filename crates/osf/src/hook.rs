@@ -29,6 +29,20 @@ use std::process::ExitCode;
 
 const MAX_LINES_IN_REASON: usize = 30;
 
+/// How many advice lines one turn may leave for the next prompt. A session
+/// that never read its advice once accumulated sixty kilobytes of it.
+const MAX_ADVICE_LINES: usize = 20;
+
+/// Printed on every prompt, before any stored advice. One line, so it costs
+/// almost nothing, naming the shapes a model falls into most often. The
+/// stored advice only covers a slip that already happened; this covers the
+/// first message of a session too.
+pub const STANDING_REMINDER: &str =
+    "osf writing-lint reminder for this reply. State the point and stop. \
+    Do not end a sentence with a `, not X` or `, never X` tail. \
+    Write a reference as owner/repo#N (what it is). \
+    Name a thing by what it is rather than by its place in a list.";
+
 /// Every spelling of the session key, most common first.
 const SESSION_KEYS: &[&str] = &["session_id", "sessionId", "sessionID"];
 
@@ -156,7 +170,7 @@ fn stop_with_input(
         .filter(|f| f.remediation == Remediation::Advise)
         .collect();
     if !advise.is_empty() {
-        append_advice(&session, &advise);
+        store_advice(&session, &advise);
     }
 
     let counter = counter_path(&session, &prompt);
@@ -306,31 +320,41 @@ fn build_reason(
     )
 }
 
-/// Reads a prompt-submitted hook payload from standard input, prints any
-/// advice stored for that session as context for the new turn, and clears
-/// it. This is how an `advise` finding from the previous turn's stop check
-/// reaches the agent without costing a rewrite.
+/// Reads a prompt-submitted hook payload from standard input and prints the
+/// context for the new turn: the standing reminder, then any advice stored
+/// for that session, which it clears. This is how an `advise` finding from
+/// the previous turn's stop check reaches the agent without costing a
+/// rewrite. The reminder prints whatever the payload holds, so a broken
+/// payload still gets it.
 pub fn prompt() -> ExitCode {
     let mut raw = String::new();
     if let Err(e) = std::io::stdin().read_to_string(&mut raw) {
         eprintln!("osf hook prompt: cannot read standard input: {e}");
+        println!("{STANDING_REMINDER}");
         return ExitCode::SUCCESS;
     }
     let event: Value = match serde_json::from_str(&raw) {
         Ok(v) => v,
         Err(e) => {
             eprintln!("osf hook prompt: input is not JSON: {e}");
+            println!("{STANDING_REMINDER}");
             return ExitCode::SUCCESS;
         }
     };
     let session =
         string_at(&event, &["session_id", "sessionId"]).unwrap_or_else(|| "unknown".to_string());
-    if let Some(advice) = take_advice(&session) {
-        println!(
-            "osf writing-lint has style advice from your last turn, worth a look next time:\n{advice}"
-        );
-    }
+    println!("{}", prompt_text(&session));
     ExitCode::SUCCESS
+}
+
+/// The reminder, followed by the session's stored advice when there is any.
+fn prompt_text(session: &str) -> String {
+    match take_advice(session) {
+        Some(advice) => format!(
+            "{STANDING_REMINDER}\nosf writing-lint has style advice from your last turn, worth a look this time:\n{advice}"
+        ),
+        None => STANDING_REMINDER.to_string(),
+    }
 }
 
 /// Reads and clears the session's advice file, returning its trimmed
@@ -419,17 +443,26 @@ fn advice_path(session: &str) -> PathBuf {
     dir.join(format!("{}.txt", safe_id(session)))
 }
 
-/// Appends every advise finding's rendered line to the session's advice
-/// file, for `osf hook prompt` to deliver on the next turn.
-fn append_advice(session: &str, findings: &[&lints::Finding]) {
-    use std::fmt::Write as _;
-    let mut lines = String::new();
+/// Writes the advise findings of this turn to the session's advice file,
+/// replacing whatever the last turn left, for `osf hook prompt` to deliver
+/// on the next turn. Advice is about the message just sent, so an older
+/// turn's lines are stale by the time anyone reads them. Duplicate lines
+/// collapse to one, and the file holds at most [`MAX_ADVICE_LINES`].
+fn store_advice(session: &str, findings: &[&lints::Finding]) {
+    let mut lines: Vec<String> = Vec::new();
     for f in findings {
-        let _ = writeln!(lines, "{}", f.render("message", f.level));
+        let line = f.render("message", f.level);
+        if !lines.contains(&line) {
+            lines.push(line);
+        }
+    }
+    let total = lines.len();
+    lines.truncate(MAX_ADVICE_LINES);
+    if total > MAX_ADVICE_LINES {
+        lines.push(format!("...and {} more", total - MAX_ADVICE_LINES));
     }
     let path = advice_path(session);
-    let existing = std::fs::read_to_string(&path).unwrap_or_default();
-    let _ = std::fs::write(&path, existing + &lines);
+    let _ = std::fs::write(&path, lines.join("\n") + "\n");
 }
 
 #[cfg(test)]
@@ -628,13 +661,74 @@ mod tests {
         let session = "test-session-advice-survives";
         let _ = std::fs::remove_file(advice_path(session));
         let finding = finding_with(Remediation::Advise);
-        append_advice(session, &[&finding]);
+        store_advice(session, &[&finding]);
         let advice = take_advice(session).expect("advice was stored");
         assert!(advice.contains("probe-rule"), "{advice}");
         assert!(
             take_advice(session).is_none(),
             "advice is cleared once read"
         );
+    }
+
+    /// A session whose prompt hook was never wired once piled up sixty
+    /// kilobytes of advice. Each turn now replaces the last turn's lines.
+    #[test]
+    fn advice_holds_the_last_turn_only() {
+        let session = "test-session-advice-last-turn";
+        let _ = std::fs::remove_file(advice_path(session));
+        let mut first = finding_with(Remediation::Advise);
+        first.excerpt = "first-turn".to_string();
+        let mut second = finding_with(Remediation::Advise);
+        second.excerpt = "second-turn".to_string();
+        store_advice(session, &[&first]);
+        store_advice(session, &[&second]);
+        let advice = take_advice(session).expect("advice was stored");
+        assert!(advice.contains("second-turn"), "{advice}");
+        assert!(!advice.contains("first-turn"), "{advice}");
+    }
+
+    #[test]
+    fn advice_is_capped_and_deduplicated() {
+        let session = "test-session-advice-cap";
+        let _ = std::fs::remove_file(advice_path(session));
+        let same = finding_with(Remediation::Advise);
+        let mut distinct: Vec<lints::Finding> = Vec::new();
+        for i in 0..(MAX_ADVICE_LINES + 5) {
+            let mut f = finding_with(Remediation::Advise);
+            f.excerpt = format!("line-{i}");
+            distinct.push(f);
+        }
+        let mut all: Vec<&lints::Finding> = vec![&same, &same, &same];
+        all.extend(distinct.iter());
+        store_advice(session, &all);
+        let advice = take_advice(session).expect("advice was stored");
+        let lines: Vec<&str> = advice.lines().collect();
+        assert_eq!(lines.len(), MAX_ADVICE_LINES + 1, "{advice}");
+        assert_eq!(
+            lines.iter().filter(|l| l.contains("\"x\"")).count(),
+            1,
+            "{advice}"
+        );
+        assert!(
+            lines.last().is_some_and(|l| l.starts_with("...and ")),
+            "{advice}"
+        );
+    }
+
+    /// The reminder is what every prompt pays for, so it stays one line and
+    /// it must not itself carry the shapes it warns against.
+    #[test]
+    fn the_standing_reminder_is_one_line_and_leads_the_prompt_text() {
+        assert_eq!(STANDING_REMINDER.lines().count(), 1);
+        assert!(STANDING_REMINDER.len() < 400, "{}", STANDING_REMINDER.len());
+        let session = "test-session-reminder-order";
+        let _ = std::fs::remove_file(advice_path(session));
+        assert_eq!(prompt_text(session), STANDING_REMINDER);
+        let finding = finding_with(Remediation::Advise);
+        store_advice(session, &[&finding]);
+        let text = prompt_text(session);
+        assert!(text.starts_with(STANDING_REMINDER), "{text}");
+        assert!(text.contains("probe-rule"), "{text}");
     }
 
     /// `ExitCode` exposes nothing else to a caller in the same process, but
