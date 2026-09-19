@@ -19,14 +19,10 @@ warning fails the build on purpose.
 
 ## Run the checks before you push
 
-The project checks itself with its own tool.
-
-```
-cargo run --bin osf -- verify --stage pre-push
-```
-
-This runs the same checks that run on a pull request. If it passes here, it
-passes there. If the two ever disagree, that is a bug worth reporting.
+The checks a pull request must pass are defined in
+`.github/workflows/ci.yml`. That file is the single source of truth: read it
+to see what runs, and to work out how to reproduce any step on your own
+machine before you push.
 
 ## What the checks look for
 
