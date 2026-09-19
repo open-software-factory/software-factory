@@ -2,11 +2,11 @@
 
 Status: provisional design. Date: 2026-09-18.
 
-What the factory installs, where each part lives, and how the parts combine when a repository is opened. One model serves a container that mounts many repositories today, and a factory deployed into each repository later.
+What the factory installs, where each part lives, and how the parts combine when a repository is opened. One model serves every shape: a sandbox that mounts many repositories, a factory deployed into a single repository, and the sandbox implementations between them.
 
 ## Two layers
 
-**Core.** The commands and their guardrails, baked into a development-container image, root-owned and read-only. The core never ships into a product repository. It is Rust.
+**Core.** The commands and their guardrails, installed root-owned and read-only into whatever sandbox the adopter runs, on whatever platform that sandbox runs on. Both are providers ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)), and the factory ships a container on the local platform as the default pair. The core never ships into a product repository. It is Rust ([decision 0001](decisions/0001-rust-for-the-factory-engine.md)). What is published, under which names and versions, is [decision 0006](decisions/0006-distribution-and-packaging.md).
 
 The core is a front command named `osf` and a set of part binaries in known locations, the shape git and the dotnet command line use. `osf <command>` finds the part that serves that command and runs it. A new capability adds a binary instead of growing one file, and an uncalled part costs nothing at run time, but every part ships and versions together, at one version per release ([decision 0006](decisions/0006-distribution-and-packaging.md)). The front command owns the command list, the configuration, and the exit codes, so a caller sees one tool.
 
@@ -14,12 +14,14 @@ The core is a front command named `osf` and a set of part binaries in known loca
 
 ## Composition
 
-The installer composes the core with the surface of each repository it can see. Both deployment shapes are supported at once, and neither is a later stage:
+The installer composes the core with the surface of each repository it can see. The adopter chooses the shape, and neither is a later stage:
 
-1. one container mounting many repositories under a workspace directory;
-2. the factory deployed into a single repository, or one container per repository.
+1. the factory as its own repository in the adopting organisation, serving every repository there from one sandbox;
+2. the factory vendored into a single repository that wants it alone, with one sandbox per repository.
 
 Flipping between them changes the deploy target and nothing else. The loop over repositories lives only in the installer. Every check acts on the one repository it fires in.
+
+How an organisation or a team starts from nothing is undecided.
 
 ## Precedence
 
@@ -54,7 +56,8 @@ Installing, syncing, verifying a surface against the pinned version, deploying t
 
 ## Constraints this model must keep
 
-- Provider neutrality (decision 0002): the forge, the container runtime, and the agent harness are adapters, and the composition rule names none of them.
-- Deterministic verification is authoritative (decision 0003): the drift gate and the hooks are deterministic checks, so no model judges them.
-- Per-repository containers must remain possible, so nothing in the installer may assume every repository shares one filesystem.
+- Provider neutrality ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)): the forge, the container runtime, and the agent harness are adapters, and the composition rule names none of them.
+- Deterministic verification is authoritative ([decision 0003](decisions/0003-deterministic-verification-is-authoritative.md)): the drift gate and the hooks are deterministic checks, so no model judges them.
+- The console reads the engine and probes nothing itself ([decision 0007](decisions/0007-console-stack.md)), so the surface it needs is an engine concern.
+- One sandbox per repository must remain possible, so nothing in the installer may assume every repository shares one filesystem.
 - A part binary is replaceable on its own, so no part may require another part to be present.

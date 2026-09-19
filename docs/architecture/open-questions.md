@@ -33,8 +33,10 @@ These are architectural questions to resolve through implementation and research
 
 See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-architecture-direction.md) for the approved research direction and evidence behind these questions.
 
-## Isolation and compute
-- Worktrees, containers, VMs/sandboxes, remote runners: what abstraction is actually stable across them?
+## Sandboxes, execution platforms and compute
+- How does an organisation or a team adopt the factory from nothing, and does that differ between the factory as its own repository and the factory vendored into one repository?
+- The sandbox is a provider (decision 0002) and a container is the default. What interface is stable across a container, a virtual machine and the sandbox types that follow?
+- The execution platform is a separate provider. What interface is stable across a local machine, a server, a cloud and a rented virtual machine?
 - How do Windows/macOS/Linux and x64/ARM64 capabilities enter scheduling?
 - Where does remote caching belong: factory concern, build-system concern, or provider capability?
 
