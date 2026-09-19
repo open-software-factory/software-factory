@@ -1167,7 +1167,11 @@ fn short_kicker(p: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
 const RHETORICAL_OPENERS: &[&str] = &["what if i told you", "think about it", "plot twist"];
 
 /// One of the listed openers, or a question followed in the same paragraph
-/// by a sentence of six words or fewer, the writer's own short answer.
+/// by a sentence of six words or fewer, the writer's own short answer. The
+/// staged answer needs flowing prose to read as staged, so that half never
+/// fires on a list item, a table cell, or a heading, matching `short_kicker`.
+/// A stock opener reads as staged wherever it appears, so that half always
+/// fires.
 fn rhetorical_setup(p: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     let sentences = split_local_sentences(&p.text);
     let mut out = Vec::new();
@@ -1183,6 +1187,9 @@ fn rhetorical_setup(p: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
                 sentence,
             ));
         }
+    }
+    if p.in_table || p.in_list_item || p.is_heading {
+        return out;
     }
     for pair in sentences.windows(2) {
         let (Some(first), Some(second)) = (pair.first(), pair.get(1)) else {
