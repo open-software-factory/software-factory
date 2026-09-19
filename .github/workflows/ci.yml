@@ -4,6 +4,18 @@ on:
   pull_request:
   push:
     branches: [main]
+  # A whole-repository writing pass, on demand and every second day. The
+  # everyday gate reads only what a change touches; this catches drift that
+  # no change happens to touch, and is the pass to run before a release.
+  workflow_dispatch:
+    inputs:
+      writing_scope:
+        description: Which Markdown the writing gate reads
+        type: choice
+        options: [changed, all]
+        default: changed
+  schedule:
+    - cron: '0 19 */2 * *'
 
 permissions:
   contents: read
@@ -161,44 +173,65 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: cargo build --release --bin osf
 
-      # Only what this change touches. A new check does not retroactively
-      # condemn every document written before the check existed.
+      # Two scopes, one gate. `changed` reads only what this change touches
+      # and is the everyday cost. `all` reads every tracked Markdown file and
+      # is for a release pass, or for the run after a new rule lands. The
+      # weekly schedule uses `all`, so drift that no change happens to touch
+      # still surfaces.
       #
-      # This step is not gated on the Rust workspace being present. A change
-      # that touches Markdown must always be checked. The only allowed skip
-      # is that the change touches no Markdown at all.
-      - name: Check the writing in the files this change touches
-        if: github.event_name == 'pull_request'
+      # This step is not gated on the Rust workspace being present. Markdown
+      # must always be checked. The only allowed skip is a scope that selects
+      # no Markdown at all.
+      - name: Check the writing
         env:
           WORKSPACE_PRESENT: ${{ steps.detect.outputs.present }}
+          SCOPE: ${{ inputs.writing_scope || (github.event_name == 'schedule' && 'all') || 'changed' }}
+          BASE_REF: ${{ github.base_ref }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          git fetch --quiet origin "${{ github.base_ref }}"
-          mapfile -t changed < <(
-            git diff --name-only --diff-filter=ACMR \
-              "origin/${{ github.base_ref }}...HEAD" -- '*.md'
-          )
-          if [ ${#changed[@]} -eq 0 ]; then
-            echo "::notice::this change touches no Markdown"
+          if [ "$SCOPE" = 'all' ]; then
+            mapfile -t docs < <(git ls-files '*.md')
+            echo "scope: every tracked Markdown file"
+          elif [ -n "$BASE_REF" ]; then
+            git fetch --quiet origin "$BASE_REF"
+            mapfile -t docs < <(
+              git diff --name-only --diff-filter=ACMR "origin/$BASE_REF...HEAD" -- '*.md'
+            )
+            echo "scope: what this pull request changes against $BASE_REF"
+          elif [ -n "$PUSH_BEFORE" ] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
+            mapfile -t docs < <(
+              git diff --name-only --diff-filter=ACMR "$PUSH_BEFORE...HEAD" -- '*.md'
+            )
+            echo "scope: what this push changes"
+          else
+            mapfile -t docs < <(git ls-files '*.md')
+            echo "scope: every tracked Markdown file, because there is no earlier commit to diff against"
+          fi
+          if [ ${#docs[@]} -eq 0 ]; then
+            echo "::notice::this scope selects no Markdown"
             exit 0
           fi
           if [ "$WORKSPACE_PRESENT" != 'true' ]; then
-            echo "::error::this change touches Markdown, but the writing gate could not run."
+            echo "::error::there is Markdown to check, but the writing gate could not run."
             echo "::error::there is no Cargo.toml at the repository root, so the osf tool could not be built."
             echo "::error::rebase this branch onto a commit that has the crate, then push again."
             exit 1
           fi
-          printf 'checking %s\n' "${changed[@]}"
+          echo "checking ${#docs[@]} files"
           # --no-suppress so a suppression comment cannot hide a finding from this gate
           # --gate so this change's own config file cannot loosen the exclude list
-          ./target/release/osf lint writing --no-suppress --gate --format human "${changed[@]}"
+          ./target/release/osf lint writing --no-suppress --gate --format human "${docs[@]}"
 
-      - name: Report the writing across the whole repository
+      # The same files again, as a findings file for the run's artifacts.
+      # The step above is the gate; this one only records what it found, so
+      # a non-zero exit here must not fail the job a second time.
+      - name: Record the findings as a file
         if: always() && steps.detect.outputs.present == 'true'
         continue-on-error: true
         run: |
           set -euo pipefail
-          find . -name '*.md' -not -path './target/*' -print0 \
+          git ls-files -z '*.md' \
             | xargs -0 ./target/release/osf lint writing --no-suppress --gate --format sarif \
             > osf.sarif
 
