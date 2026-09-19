@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 description = "Reusable engine for Open Software Factory linters: findings, known names, text segmentation, and output rendering"
 license = "Apache-2.0 OR MIT"
+repository = "https://github.com/open-software-factory/software-factory"
+homepage = "https://github.com/open-software-factory/software-factory"
 rust-version = "1.85"
 
 [lints]

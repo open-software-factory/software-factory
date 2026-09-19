@@ -1191,6 +1191,10 @@ fn rhetorical_setup(p: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         if !first.trim_end().ends_with('?') {
             continue;
         }
+        // A question after a question is a list of questions, not a staged answer.
+        if second.trim_end().ends_with('?') {
+            continue;
+        }
         let wc = word_count(strip_terminal(second));
         if (1..=6).contains(&wc) {
             out.push(finding(

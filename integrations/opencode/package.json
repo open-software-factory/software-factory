@@ -2,6 +2,8 @@
   "name": "@open-software-factory/osf-opencode-plugin",
   "version": "0.1.0",
   "description": "Reports the osf writing check after every OpenCode turn, by reading the session's last assistant message",
+  "repository": { "type": "git", "url": "git+https://github.com/open-software-factory/software-factory.git", "directory": "integrations/opencode" },
+  "homepage": "https://github.com/open-software-factory/software-factory",
   "license": "Apache-2.0 OR MIT",
   "type": "module",
   "main": "dist/src/index.js",
