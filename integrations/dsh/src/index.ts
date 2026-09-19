@@ -68,7 +68,7 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 
 export const name = "osf-writing-check";
 
-export const inject = ["logger"];
+// ctx.logger is cordis core's default; dsh registers no logger service, so nothing to inject.
 
 export const Config = z.object({
   /** The `osf` binary. A bare name is resolved on the path. */
