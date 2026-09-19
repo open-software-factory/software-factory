@@ -74,6 +74,17 @@ fn answer_for(event: &Value) -> Answer {
     }
 }
 
+/// Reads a coding agent's Stop event from standard input, lints the final
+/// message, and refuses the turn on errors.
+///
+/// Four things can stop this from checking anything at all: standard input
+/// cannot be read, the input is not JSON, the event carries no assistant
+/// message, or the known-names list cannot be loaded. Each of those is a
+/// failure to run, not a clean message, and
+/// [0003](../../../docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md)
+/// requires that a failure to run never reads as a pass. So every one of
+/// them refuses the turn too, worded to say the check itself did not run,
+/// through the same [`refuse`] a genuine finding uses.
 pub fn stop(
     known_names: Option<&Path>,
     max_bounces: u32,
@@ -81,15 +92,42 @@ pub fn stop(
     answer: Option<Answer>,
 ) -> ExitCode {
     let mut raw = String::new();
-    if let Err(e) = std::io::stdin().read_to_string(&mut raw) {
-        eprintln!("osf hook stop: cannot read standard input: {e}");
-        return ExitCode::SUCCESS;
-    }
+    let read = std::io::stdin().read_to_string(&mut raw).map(|_| raw);
+    stop_with_input(read, known_names, max_bounces, cfg, answer)
+}
+
+/// The body of [`stop`], taking the already-attempted standard input read
+/// as a parameter instead of performing it, so every failure-to-run path
+/// can be driven by a test without a real process or a real stream.
+fn stop_with_input(
+    raw: std::io::Result<String>,
+    known_names: Option<&Path>,
+    max_bounces: u32,
+    cfg: &WritingConfig,
+    answer: Option<Answer>,
+) -> ExitCode {
+    let raw = match raw {
+        Ok(r) => r,
+        Err(e) => {
+            return refuse_could_not_run(
+                answer.unwrap_or(Answer::ExitCode),
+                "unknown",
+                "",
+                max_bounces,
+                &format!("cannot read standard input: {e}"),
+            );
+        }
+    };
     let event: Value = match serde_json::from_str(&raw) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("osf hook stop: input is not JSON, message not checked: {e}");
-            return ExitCode::SUCCESS;
+            return refuse_could_not_run(
+                answer.unwrap_or(Answer::ExitCode),
+                "unknown",
+                "",
+                max_bounces,
+                &format!("input is not JSON: {e}"),
+            );
         }
     };
     let answer = answer.unwrap_or_else(|| answer_for(&event));
@@ -97,14 +135,18 @@ pub fn stop(
     let prompt = string_at(&event, PROMPT_KEYS).unwrap_or_default();
 
     let Some(text) = message_text(&event) else {
-        eprintln!("osf hook stop: no assistant message in the event, nothing checked");
-        return ExitCode::SUCCESS;
+        return refuse_could_not_run(
+            answer,
+            &session,
+            &prompt,
+            max_bounces,
+            "no assistant message in the event",
+        );
     };
     let known = match lints::load_known_names(&cfg.known_names, known_names) {
         Ok(k) => k,
         Err(e) => {
-            eprintln!("osf hook stop: {e}; message not checked");
-            return ExitCode::SUCCESS;
+            return refuse_could_not_run(answer, &session, &prompt, max_bounces, &e);
         }
     };
     let findings = checked_findings(&text, &known, cfg);
@@ -135,6 +177,14 @@ pub fn stop(
     write_counter(&counter, bounces + 1);
 
     let reason = build_reason(&blocking, verb, instruction, bounces + 1, max_bounces);
+    refuse(answer, &reason)
+}
+
+/// How a harness learns that the stop check refused the turn, whichever
+/// reason it refused for. A finding worth blocking and a check that could
+/// not run at all both answer through here, so neither path invents a
+/// second way to refuse.
+fn refuse(answer: Answer, reason: &str) -> ExitCode {
     match answer {
         Answer::ExitCode => {
             eprintln!("{reason}");
@@ -148,6 +198,43 @@ pub fn stop(
             ExitCode::SUCCESS
         }
     }
+}
+
+/// Refuses the turn because the writing check could not run at all: no
+/// input, no JSON, no assistant message, or no known-names list to check
+/// against. Worded to say plainly that the check did not run, unlike
+/// [`build_reason`]'s wording for a check that ran and found errors, since
+/// a reader needs to tell the two apart.
+///
+/// A harness that retries a refusal could bounce forever against a defect
+/// that never clears, such as a known-names file that stays unreadable.
+/// This is counted against the same `max_bounces` budget, the same way a
+/// genuine finding is: after that many attempts the turn is let through,
+/// but loudly, on standard error, saying it went through unchecked rather
+/// than saying it passed. `session` and `prompt` fall back to fixed keys
+/// when the event could not be read far enough to name either.
+fn refuse_could_not_run(
+    answer: Answer,
+    session: &str,
+    prompt: &str,
+    max_bounces: u32,
+    detail: &str,
+) -> ExitCode {
+    let counter = counter_path(session, prompt);
+    let bounces = read_counter(&counter);
+    if bounces >= max_bounces {
+        eprintln!(
+            "osf hook stop: the writing check could not run after {bounces} attempt(s) ({detail}); letting the message through unchecked"
+        );
+        let _ = std::fs::remove_file(&counter);
+        return ExitCode::SUCCESS;
+    }
+    write_counter(&counter, bounces + 1);
+    let reason = format!(
+        "osf hook stop: the writing check could not run, so the turn is refused rather than treated as a pass (attempt {} of {max_bounces}): {detail}",
+        bounces + 1
+    );
+    refuse(answer, &reason)
 }
 
 /// Lints `text` as a transcript, and applies the config's level overrides,
@@ -547,6 +634,98 @@ mod tests {
         assert!(
             take_advice(session).is_none(),
             "advice is cleared once read"
+        );
+    }
+
+    /// `ExitCode` exposes nothing else to a caller in the same process, but
+    /// its debug form embeds the value: 0 for `SUCCESS`, 2 for the exit-code
+    /// refusal `refuse` sends. Good enough to tell a refusal from a pass
+    /// here, where nothing else can.
+    fn is_refusal(code: ExitCode) -> bool {
+        let text = format!("{code:?}");
+        assert!(
+            text.contains('0') || text.contains('2'),
+            "unexpected exit code shape: {text}"
+        );
+        text.contains('2')
+    }
+
+    /// A check that could not run must never look like a check that ran and
+    /// found nothing: [0003](../../../docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md)
+    /// forbids exactly that, and the four tests below cover the four ways
+    /// `stop` can fail to run at all.
+    #[test]
+    fn a_standard_input_read_failure_refuses_rather_than_passes() {
+        let _ = std::fs::remove_file(counter_path("unknown", ""));
+        let err = std::io::Error::other("device is busy");
+        let code = stop_with_input(Err(err), None, 2, &WritingConfig::default(), None);
+        assert!(is_refusal(code));
+    }
+
+    #[test]
+    fn input_that_is_not_json_refuses_rather_than_passes() {
+        let _ = std::fs::remove_file(counter_path("unknown", ""));
+        let code = stop_with_input(
+            Ok("not json at all".to_string()),
+            None,
+            2,
+            &WritingConfig::default(),
+            None,
+        );
+        assert!(is_refusal(code));
+    }
+
+    #[test]
+    fn an_event_with_no_assistant_message_refuses_rather_than_passes() {
+        let session = "test-session-no-assistant-message";
+        let _ = std::fs::remove_file(counter_path(session, ""));
+        let raw = serde_json::json!({ "session_id": session }).to_string();
+        let code = stop_with_input(Ok(raw), None, 2, &WritingConfig::default(), None);
+        assert!(is_refusal(code));
+    }
+
+    #[test]
+    fn an_unreadable_known_names_file_refuses_rather_than_passes() {
+        let session = "test-session-unreadable-known-names";
+        let _ = std::fs::remove_file(counter_path(session, ""));
+        let raw = serde_json::json!({
+            "session_id": session,
+            "last_assistant_message": "hello"
+        })
+        .to_string();
+        let missing = Path::new("osf-hook-test-missing-known-names-file.txt");
+        let code = stop_with_input(Ok(raw), Some(missing), 2, &WritingConfig::default(), None);
+        assert!(is_refusal(code));
+    }
+
+    /// The bounce budget applies to a could-not-run refusal the same way it
+    /// applies to a genuine finding, so a harness that retries forever
+    /// against a defect that never clears (here: a known-names file that
+    /// stays missing) still gets let through eventually, loudly, rather
+    /// than hanging the turn forever.
+    #[test]
+    fn a_could_not_run_refusal_is_let_through_after_max_bounces() {
+        let session = "test-session-could-not-run-bounce-limit";
+        let counter = counter_path(session, "");
+        let _ = std::fs::remove_file(&counter);
+        let raw = serde_json::json!({
+            "session_id": session,
+            "last_assistant_message": "hello"
+        })
+        .to_string();
+        let missing = Path::new("osf-hook-test-missing-known-names-file.txt");
+        let cfg = WritingConfig::default();
+
+        let first = stop_with_input(Ok(raw.clone()), Some(missing), 1, &cfg, None);
+        assert!(is_refusal(first), "attempt 1 of 1 still refuses");
+        let second = stop_with_input(Ok(raw), Some(missing), 1, &cfg, None);
+        assert!(
+            !is_refusal(second),
+            "the bounce budget is spent, so the turn goes through"
+        );
+        assert!(
+            !counter.exists(),
+            "the counter is cleared once the turn is let through"
         );
     }
 }
