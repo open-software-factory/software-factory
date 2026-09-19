@@ -96,10 +96,20 @@ A hooks file for Claude Code, Codex and the dsh bridge:
   "hooks": {
     "Stop": [
       { "hooks": [ { "type": "command", "command": "osf hook stop --known-names ~/.osf/known-names.txt" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "osf hook prompt" } ] }
     ]
   }
 }
 ```
+
+The two entries work as a pair. A style finding in a sent message, such as a
+sentence that trails off in `, not X`, cannot be corrected by a follow-up, so
+the stop check lets the message through and stores the finding. `osf hook
+prompt` prints what was stored when the next prompt arrives, so the agent sees
+it before writing again. Wire only the stop check and that advice is never
+delivered.
 
 `--known-names` points at a file, one name per line, of project names that need
 no description on first use. Everyday names such as GitHub or Rust are built in.
