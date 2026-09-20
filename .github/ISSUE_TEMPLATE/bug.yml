@@ -1,0 +1,32 @@
+name: Something is wrong
+description: A command, a check, or a document does something other than what it says.
+labels: []
+body:
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: The command you ran, or the page you read, and what it did. Paste output as text.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to see it again
+      description: The smallest set of steps from a fresh clone. A file that triggers it is worth more than a description of one.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and platform
+      description: The output of `cargo run -p osf -- --version`, or the commit, and your operating system.
+      placeholder: osf 0.1.0, Windows 11
+    validations:
+      required: true
