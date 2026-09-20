@@ -1,0 +1,28 @@
+name: Propose a change
+description: A new check, a new command, or a change to a design or a decision record.
+labels: []
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What goes wrong today, or what cannot be done, in plain words. Say who it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would change
+      description: The smallest change that solves it. Name the files, commands or documents it touches if you know them.
+    validations:
+      required: true
+  - type: textarea
+    id: outside
+    attributes:
+      label: What stays outside
+      description: What this change does not try to do, so a reviewer can judge it on its own scope.
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: How a reviewer would see that it works. A command and its expected output, or a document and the sentence it must contain.
