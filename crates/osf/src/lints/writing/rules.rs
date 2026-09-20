@@ -29,6 +29,7 @@ const SENTENCE_RULES: &[FnRule<WritingConfig>] = &[
     FnRule::sentence("faux-insight", faux_insight),
     FnRule::sentence("puffery", puffery),
     FnRule::sentence("weasel-attribution", weasel_attribution),
+    FnRule::sentence("universal-pronoun", universal_pronoun),
     FnRule::sentence("colon-reveal", colon_reveal),
     FnRule::sentence("ing-tail", ing_tail),
 ];
@@ -924,7 +925,34 @@ fn puffery(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         .collect()
 }
 
-/// `experts agree`, `studies show`, `widely regarded`, with nobody named.
+/// `nobody`, `no one`, `everybody`, `everyone`, and `every one` used as a
+/// pronoun. A sweep over all people stands in for a fact about some of
+/// them. `every one of` is a determiner phrase and is left alone.
+fn universal_pronoun(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = re(
+        &RE,
+        r"(?i)\b(?:nobody|no-?one|everybody|everyone|every one)\b",
+    );
+    let text = reduce_inline(&s.text);
+    re.find_iter(&text)
+        .filter(|m| {
+            let rest = text[m.end()..].trim_start().to_ascii_lowercase();
+            !(m.as_str().eq_ignore_ascii_case("every one") && rest.starts_with("of "))
+        })
+        .map(|m| {
+            finding(
+                s,
+                "universal-pronoun",
+                Level::Error,
+                "say who, or state the fact without the sweep".to_string(),
+                m.as_str(),
+            )
+        })
+        .collect()
+}
+
+/// `experts agree`, `studies show`, `widely regarded`, with no source named.
 fn weasel_attribution(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(

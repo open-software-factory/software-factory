@@ -41,7 +41,8 @@ pub const STANDING_REMINDER: &str =
     "osf writing-lint reminder for this reply. State the point and stop. \
     Do not end a sentence with a `, not X` or `, never X` tail. \
     Write a reference as owner/repo#N (what it is). \
-    Name a thing by what it is rather than by its place in a list.";
+    Name a thing by what it is rather than by its place in a list. \
+    No sweeps such as `nobody` or `everyone`.";
 
 /// Every spelling of the session key, most common first.
 const SESSION_KEYS: &[&str] = &["session_id", "sessionId", "sessionID"];

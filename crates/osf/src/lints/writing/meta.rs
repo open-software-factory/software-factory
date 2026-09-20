@@ -534,6 +534,29 @@ pub const RULE_META: &[RuleMeta] = &[
         Exception::FixedLevel(Level::Error)
     ),
     rule_meta!(
+        "universal-pronoun",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags `nobody`, `no one`, `everybody`, `everyone`, and `every one` \
+         used as a pronoun. `every one of` is a determiner and is left alone.\n\
+         ### Why it is bad\n\
+         A sweep over all people stands in for a fact about some of them. It \
+         reads as a punchline, and it is never true as written.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: A classifier nobody has measured is a guess.\n\
+         Good: An unmeasured classifier is a guess.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
         "puffery",
         House,
         Style,
@@ -563,7 +586,7 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags `experts agree`, `studies show`, and `widely regarded`, with \
-         nobody named.\n\
+         no source named.\n\
          ### Why it is bad\n\
          An unnamed source cannot be checked. The reader has no way to \
          judge the claim behind it.\n\

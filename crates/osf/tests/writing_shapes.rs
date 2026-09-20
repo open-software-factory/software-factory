@@ -78,6 +78,11 @@ fn contrast_not_just() {
 }
 
 #[test]
+fn universal_pronoun() {
+    assert_rule_pair("universal-pronoun");
+}
+
+#[test]
 fn contrast_pair() {
     assert_rule_pair("contrast-pair");
 }
@@ -169,8 +174,8 @@ fn every_fixture_matches_its_declaration() {
         checked += 1;
     }
     assert_eq!(
-        checked, 30,
-        "expected 30 fixture files (14 rules x positive/negative, \
+        checked, 32,
+        "expected 32 fixture files (15 rules x positive/negative, \
          plus the chat-local-named-label pair)"
     );
 }
