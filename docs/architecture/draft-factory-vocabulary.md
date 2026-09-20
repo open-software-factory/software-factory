@@ -1,8 +1,8 @@
 # Draft factory vocabulary
 
-Status: draft hypothesis, and no decision rests on it yet
+Status: draft hypothesis, tested on paper against the smallest working engine on 2026-09-20. The answers are in the closing section. Real runs confirm or amend them.
 
-Date: 2026-09-05
+Date: 2026-09-05, amended 2026-09-20
 
 ## Why this document exists
 
@@ -106,12 +106,18 @@ The two decision options are:
 - **Roll back.** Stops inconsistent totals while freshness stays delayed. Confidence 0.98. Reversible by approving a later controlled replay. Unknown: the length of the safe resync window.
 - **Forward fix.** Restores totals with changed recovery behaviour. Confidence 0.87. Can be halted before each replay batch completes. Unknown: the overlap rate in the first replay batch.
 
-## What to test against the smallest working engine
+## What was tested against the smallest working engine
 
-- Does the Engine's durable unit map onto work item, agent session, check, deployment and event, or does it need something else, such as attempt or run?
-- Is "attention" an entity the Engine owns, or a projection the console derives?
-- Is the catalog-versus-state split still natural when state comes from a real provider instead of a fixture?
-- Do trace links need a relation vocabulary this small, or a richer one?
-- Do the six availability values survive contact with real disconnects and partial data?
+Five questions were left for the engine. Each has an answer on paper in [the engine's design](smallest-working-engine.md), against the domain model in [decision 0005](decisions/0005-the-factory-domain-model.md). Real runs confirm or amend each one.
+
+| Question | Answer on paper |
+|---|---|
+| Does the Engine's durable unit map onto work item, agent session, check, deployment and event, or does it need something else, such as attempt or run? | The work item is the durable unit and is the tracker's issue. A run is one execution by one actor, and a retry is another run naming the first. An agent session is the harness's identifier on the run and is no factory entity. A check is a verifier run. |
+| Is "attention" an entity the Engine owns, or a projection the console derives? | The engine emits an attention event when a person is needed. The list is a projection of those events and the blocked states. There is no attention table. |
+| Is the catalog-versus-state split still natural when state comes from a real provider instead of a fixture? | The split is retired. The journal is the state, the run-started event records what the providers said at the start, and a snapshot is a projection up to a moment. |
+| Do trace links need a relation vocabulary this small, or a richer one? | The seven edges of decision 0005 replace the five relations here. Informs is traced from, implements is produces, deploys is deploys to, and observes waits for production evidence. |
+| Do the six availability values survive contact with real disconnects and partial data? | They move to the console. The engine exposes the journal's freshness and the console derives the six from it. |
+
+The entity families, the reference incident scenario and the actions above remain as they were written, as the record of what the console needed. Where a family has no answer above, the engine has not reached it yet.
 
 Related: [`open-questions.md`](open-questions.md), [`decisions/0003-deterministic-verification-is-authoritative.md`](decisions/0003-deterministic-verification-is-authoritative.md), [`../research/ux/agent-built-ui-lessons.md`](../research/ux/agent-built-ui-lessons.md).

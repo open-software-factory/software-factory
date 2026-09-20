@@ -7,3 +7,4 @@ Each record uses a numbered, lowercase kebab-case filename and states its status
 | Record | Status | Summary |
 |---|---|---|
 | [`0001-factory-ui-is-an-operator-console.md`](0001-factory-ui-is-an-operator-console.md) | Accepted | The UI is for operating the factory and intervening in it, so an operator can act on what they see. |
+| [`0002-operator-persona-and-product-vocabulary.md`](0002-operator-persona-and-product-vocabulary.md) | Accepted | The operator is an engineer who runs the factory and looks at it whenever they choose, never continuously; one product word per domain term; builder doctrine stays off the screen. |

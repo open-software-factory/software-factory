@@ -50,9 +50,7 @@ See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-archit
 - Whatever a test requires in the product, the agent builds into the product. How do test-only controls stay out of product surfaces?
 
 ## Domain vocabulary
-- The UX benchmark left a draft entity, state, action and event vocabulary in [`draft-factory-vocabulary.md`](draft-factory-vocabulary.md). Which parts survive the smallest working engine, the smallest version of the engine that does one useful job from end to end?
-- Is the split between an immutable catalog and cumulative state natural when state comes from real providers?
-- Is attention an Engine entity or a console projection?
+- The UX benchmark left a draft entity, state, action and event vocabulary in [`draft-factory-vocabulary.md`](draft-factory-vocabulary.md). Its five questions are answered on paper in [`smallest-working-engine.md`](smallest-working-engine.md), and real runs confirm or amend them. What remains open is which event and execution names survive the first runs.
 
 ## Observability and meta-loop
 - Where does the evidence ledger live: forge-native first, or an external store such as DuckDB or OpenTelemetry, and when is the crossover worth it?

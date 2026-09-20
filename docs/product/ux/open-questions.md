@@ -194,13 +194,6 @@ When implementing early prototypes:
 
 The August 2026 console prototypes showed a gap. Agents were given the vision and design principles, but not who the operator is or what words the operator uses. They filled the gap with the doctrine itself, printing phrases such as "persistent spatial backbone" as UI labels. See [`../../research/ux/agent-built-ui-lessons.md`](../../research/ux/agent-built-ui-lessons.md).
 
-Not yet decided:
+Decided on 2026-09-20 in [product decision 0002](../decisions/0002-operator-persona-and-product-vocabulary.md): who the operator is, which identifiers stay behind a details view, the in-product names for the six surfaces and for attention, evidence and blocked states, the navigation labels, and which builder phrases stay off the screen.
 
-- who the operator is: expertise, authority, how often they are at the console, whether they read code,
-- which machine identifiers the operator wants visible by default and which stay behind a details view,
-- the canonical in-product names for the six surfaces, for attention, evidence, containment and recovery,
-- the navigation labels,
-- the initial evidence density and the language of progressive disclosure,
-- how builder-facing doctrine is kept out of operator-facing copy.
-
-Until these are decided, any agent building a surface will invent them. Decide the persona and a short vocabulary before the next surface is built.
+Still open: the initial evidence density, and the words of progressive disclosure beyond "details" and "evidence". Both are settled on the first surface built against the record.
