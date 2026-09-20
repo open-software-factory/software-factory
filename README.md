@@ -4,7 +4,7 @@ Software Factory is an agent-native operating environment for shipping high-qual
 
 It is for engineers who run coding agents over their own repositories and want that work verified, recorded and visible.
 
-The project is moving from vision and research toward its first architecture and implementation. There is no runnable factory yet. What runs today is `osf`, a command-line tool: it lints prose and skill files, scans for text that must never reach a public repository, reports the risk of a change, and keeps a status block on a pull request. Build it and try it on this repository:
+The project is moving from vision and research toward its first architecture and implementation. There is no runnable factory yet. What runs today is `osf`, a command-line tool. It lints prose and skill files. It scans for text that must never reach a public repository. It reports the risk of a change, and it keeps a status block on a pull request. Build it and try it on this repository:
 
 ```
 cargo run -p osf -- --help
@@ -41,6 +41,7 @@ cannot do, and how to run the same checks by hand.
 
 ## Licence
 
-This project is offered under Apache-2.0 or MIT, at your option, in
-[`LICENSE-APACHE`](LICENSE-APACHE) and [`LICENSE-MIT`](LICENSE-MIT), and
-[`CONTRIBUTING.md`](CONTRIBUTING.md) says how to send a change.
+This project is offered under the Apache License 2.0 or the MIT licence, at
+your option, in [`LICENSE-APACHE`](LICENSE-APACHE) and
+[`LICENSE-MIT`](LICENSE-MIT), and [`CONTRIBUTING.md`](CONTRIBUTING.md) says
+how to send a change.
