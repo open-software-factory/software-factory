@@ -43,5 +43,5 @@ cannot do, and how to run the same checks by hand.
 
 This project is offered under the Apache License 2.0 or the MIT licence, at
 your option, in [`LICENSE-APACHE`](LICENSE-APACHE) and
-[`LICENSE-MIT`](LICENSE-MIT), and [`CONTRIBUTING.md`](CONTRIBUTING.md) says
-how to send a change.
+[`LICENSE-MIT`](LICENSE-MIT). [`CONTRIBUTING.md`](CONTRIBUTING.md) says how to
+send a change.
