@@ -424,7 +424,7 @@ pub struct Loaded {
 /// With `gate` set, `file_flag`, `flags`, and `extra_exclude` are all
 /// ignored, and the file at `OSF_CONFIG` or `~/.osf/config.toml` is not
 /// read either, with one exception: see [`gate_loaded`]. A gate run checks
-/// a change nobody has approved yet, so no setting that loosens this check
+/// a change that has not yet been approved, so no setting that loosens this check
 /// may come from that change's own config file, its environment, or a flag
 /// built from either: a rule's level, a word list, a numeric limit, the
 /// known-name list, and the exclude list all fall back to the compiled

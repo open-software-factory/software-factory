@@ -24,7 +24,7 @@ export interface SessionMessage {
  *
  * A message is a list of blocks and only the text ones are the reply.
  * Reasoning and tool calls are skipped: neither is written for a reader,
- * so checking either would report on text nobody sees.
+ * so checking either would report on text no reader sees.
  *
  * A message holding only tool calls is passed over rather than treated as
  * an empty reply, so a turn that ended in a tool call still gets its last

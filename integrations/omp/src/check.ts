@@ -52,7 +52,7 @@ function isAssistantMessage(message: Message): message is AssistantMessage {
  * omp passes the stopped turn's last assistant message directly, as one
  * message with a list of content blocks. Only the text blocks are the
  * reply: reasoning and tool calls are not written for a reader, so
- * checking either would report on text nobody sees.
+ * checking either would report on text no reader sees.
  *
  * When that message carries no text, the most recent assistant message
  * in the full list is used instead, so a turn that ended in a tool call

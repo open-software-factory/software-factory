@@ -270,7 +270,7 @@ struct ScanArgs {
     /// running the tool by hand; a gate run does not accept it.
     #[arg(long, conflicts_with = "gate")]
     no_exclude: bool,
-    /// Runs as a gate over a change nobody has approved yet: the exclude
+    /// Runs as a gate over a change that has not yet been approved: the exclude
     /// list is the compiled defaults only, never the config file or the
     /// environment, so that change cannot loosen this check by editing its
     /// own configuration.
@@ -327,7 +327,7 @@ struct VerifyArgs {
     /// running the tool by hand; a gate run does not accept it.
     #[arg(long, conflicts_with = "gate")]
     no_exclude: bool,
-    /// Runs as a gate over a change nobody has approved yet: the exclude
+    /// Runs as a gate over a change that has not yet been approved: the exclude
     /// list is the compiled defaults only, never the config file or the
     /// environment, so that change cannot loosen this check by editing its
     /// own configuration.
@@ -413,7 +413,7 @@ struct WritingArgs {
     /// running the tool by hand; a gate run does not accept it.
     #[arg(long, conflicts_with = "gate")]
     no_exclude: bool,
-    /// Runs as a gate over a change nobody has approved yet: the exclude
+    /// Runs as a gate over a change that has not yet been approved: the exclude
     /// list is the compiled defaults only, never the config file or the
     /// environment, so that change cannot loosen this check by editing its
     /// own configuration.

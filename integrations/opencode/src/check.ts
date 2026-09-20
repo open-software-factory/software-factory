@@ -32,7 +32,7 @@ export interface ConversationEntry {
  * `entries` is what OpenCode's `session.messages` call returns: a list of
  * `{ info, parts }` pairs, oldest first. Only the text parts of an
  * assistant message are the reply: a tool call or a step marker is not
- * written for a reader, so checking either would report on text nobody
+ * written for a reader, so checking either would report on text no reader
  * sees.
  *
  * A message holding only non-text parts is passed over rather than

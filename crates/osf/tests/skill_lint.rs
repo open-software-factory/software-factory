@@ -63,7 +63,7 @@ fn a_folded_description_is_read_whole() {
 /// No rule here checks for a duplicate frontmatter key; the agnix engine
 /// does. This test is what stops that check going missing: if an upgrade
 /// drops the rule, this file reports nothing and the test fails, rather
-/// than the gate quietly losing a check nobody notices.
+/// than the gate quietly losing a check that goes unnoticed.
 #[test]
 fn a_duplicate_frontmatter_key_is_caught_by_the_agnix_engine() {
     let findings = lint(&fixture("bad-frontmatter"));

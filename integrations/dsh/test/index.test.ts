@@ -67,7 +67,7 @@ test("several text blocks in one message are joined", () => {
 });
 
 /// Reasoning and tool calls are not written for a reader, so checking
-/// them would report on text nobody sees.
+/// them would report on text no reader sees.
 test("only the text blocks are checked", () => {
   const message = assistant(
     { type: "reasoning", text: "thinking out loud" },
