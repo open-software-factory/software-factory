@@ -27,7 +27,7 @@ use std::path::Path;
 
 /// The version of the engine compiled in. `version_matches_the_manifest`
 /// keeps this equal to the pinned dependency.
-pub const AGNIX_VERSION: &str = "0.53.0";
+pub const AGNIX_VERSION: &str = "0.54.0";
 
 /// Named on every run so a clean result is never read as "nothing ran".
 #[must_use]
