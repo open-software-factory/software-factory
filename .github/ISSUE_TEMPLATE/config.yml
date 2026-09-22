@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/open-software-factory/software-factory/security/advisories/new
+    about: Opens a private thread with the maintainers. Do not open a public issue for it.
