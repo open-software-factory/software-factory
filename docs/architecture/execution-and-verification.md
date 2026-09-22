@@ -1,14 +1,16 @@
 # OSF Execution and Verification Architecture
 
 **Status:** Proposed high-level design  
-**Date:** 2026-09-18  
+**Date:** 2026-09-18, amended 2026-09-23  
 **Decision basis:** [Moon as the OSF Execution Substrate](../research/2026-09-18-moon-as-osf-execution-substrate.md)
+
+Amended 2026-09-23 by [the verification seam](verification-seam.md) and [decision 0011](decisions/0011-the-check-is-the-unit.md). The seam runs moon at five checkpoints, and the first of them is the harness hook that fires while the agent edits. Where this page says moon runs only at lifecycle checkpoints, the seam's five checkpoints replace that list. Where this page says the factory generates no moon configuration, the seam now renders the factory's own moon project under `.osf/`, while the adopter's task files stay repository-owned.
 
 ## Decision
 
 OSF will use moon as an external execution-orchestration dependency for canonical deterministic verification. Native ecosystem tools remain responsible for compiling, testing, linting, analysing and packaging their own projects.
 
-Coding agents may use native commands directly during implementation. OSF invokes moon at lifecycle checkpoints and treats those checkpoint results as authoritative evidence.
+Coding agents may use native commands directly during implementation. OSF invokes moon at every checkpoint, from the harness hook to the schedule, and treats those checkpoint results as authoritative evidence.
 
 OSF will not initially provide an `osf exec` command, intercept every agent command, embed moon's Rust crates, fork moon, or implement its own task graph and cache.
 

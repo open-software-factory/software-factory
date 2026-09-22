@@ -1,8 +1,8 @@
 # 0009: Journal store and sinks
 
-Status: provisional
+Status: provisional. Amended by [decision 0014](0014-the-journal-at-every-checkpoint.md).
 
-Date: 2026-09-20
+Date: 2026-09-20, amended 2026-09-23 with the buffer, the flush and the two sinks below.
 
 ## Context
 
@@ -17,6 +17,8 @@ The writer validates every event against the schema before appending it and refu
 Readers compute projections on read. There is no second store and no database until a reader's need is measured. The meta-loop's analytical queries are the expected first such need, and an analytical engine over the same files is the expected answer.
 
 A sink copies a completed run's journal to where other readers can see it. The local sink is the state directory itself and is the first. A forge-native sink, which keeps the journal beside the pull request, follows behind the same interface. A run's journal reaches its sink before the run's work item changes state, so a reader never sees a state without the events that led to it.
+
+Decision 0014 adds the rest. Events on an agent's own machine go to a local buffer first, and a flush sends the buffer on push and on a timer, so a hook never waits on the network. The forge-native sink is an orphan branch on the code host and is the default. An object store with an S3-compatible interface is an optional second sink, and both receive every write when both are configured. Raw harness transcripts travel the same path, keyed by run identifier.
 
 ## Consequences
 
