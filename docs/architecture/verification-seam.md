@@ -256,7 +256,7 @@ Each check still writes its own verification event. When the aggregation finishe
 | contract-tests | slot attestation, 2026-09-22 | pass | | reported |
 | review | second-opinion review, round 2 | 1 thread open | 1 | reported |
 
-The result-file readers detect a file by content. The formats they read are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. JUnit XML is the test-result format most runners can write. TRX is the .NET test-result format. The coverage formats are Cobertura, LCOV and JaCoCo, the last being the Java coverage tool's own format. CTRF is a common test-report format in JSON. A glob in `osf.toml` narrows the scan. A job with a known conclusion and no readable file still counts as passed or failed.
+The result-file readers detect a file by content. The formats they read are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. JUnit XML is the test-result format most runners can write. TRX is the .NET test-result format. The coverage formats are Cobertura, LCOV and JaCoCo. JaCoCo is the Java coverage tool's own format. CTRF is a common test-report format in JSON. A glob in `osf.toml` narrows the scan. A job with a known conclusion and no readable file still counts as passed or failed.
 
 A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it, and a policy never merges on reported evidence alone.
 
