@@ -63,6 +63,28 @@ Add `--format human` for readable output in a script or a non-interactive
 shell. Run `osf explain <rule-id>` for the full text of one rule, using
 the rule id shown in a finding, for example `osf explain long-sentence`.
 
+## Install moon on the host
+
+The container image already has moon. Outside the container, on a host
+machine running Windows, macOS, or Linux, install it by hand:
+
+1. Open the release page for the pinned version:
+   `https://github.com/moonrepo/moon/releases/tag/v2.5.5`.
+2. Download the archive for your platform. For example, use
+   `moon_cli-x86_64-pc-windows-msvc.zip` on Windows, or
+   `moon_cli-aarch64-apple-darwin.tar.xz` on an Arm Mac. Extract the
+   `moon` binary (`moon.exe` on Windows) from it onto a folder on your
+   `PATH`.
+3. Check the version: `moon --version` must print `2.5.5`.
+4. In your clone of this repository, run:
+
+   ```sh
+   git config core.hooksPath .osf/hooks
+   ```
+
+That folder does not exist yet. A later change in this repository adds
+it.
+
 ## The git wrapper, and its limit
 
 `/opt/factory/bin` comes before the real git on the container's path, and

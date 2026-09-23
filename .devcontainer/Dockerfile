@@ -45,6 +45,20 @@ RUN mkdir -p /opt/factory/bin && \
     install -o root -g root -m 0555 /usr/src/osf-build/target/release/osf /opt/factory/bin/osf && \
     rm -rf /usr/src/osf-build
 
+# moon runs every factory check; pinned by version and checksum. The
+# release ships a tar.xz holding the binary alongside its docs, not a
+# bare binary, so this extracts the one file it needs.
+ARG MOON_VERSION=2.5.5
+ARG MOON_SHA256=f397057a22c88ff9e4b28a4a2fbf01d99f4d9a4f35e5a42634255a9f509ccbd6
+RUN set -eu; \
+    curl -fsSL -o /tmp/moon.tar.xz \
+      "https://github.com/moonrepo/moon/releases/download/v${MOON_VERSION}/moon_cli-x86_64-unknown-linux-gnu.tar.xz"; \
+    echo "${MOON_SHA256}  /tmp/moon.tar.xz" | sha256sum -c -; \
+    tar -xJf /tmp/moon.tar.xz -C /tmp moon_cli-x86_64-unknown-linux-gnu/moon; \
+    install -o root -g root -m 0555 /tmp/moon_cli-x86_64-unknown-linux-gnu/moon /opt/factory/bin/moon; \
+    rm -rf /tmp/moon.tar.xz /tmp/moon_cli-x86_64-unknown-linux-gnu; \
+    /opt/factory/bin/moon --version
+
 # Root-owned git hooks. Each file only calls osf; see docs/development.md
 # for what each check does and how to run it by hand.
 COPY .devcontainer/githooks/pre-commit /opt/factory/githooks/pre-commit

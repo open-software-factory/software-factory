@@ -1,0 +1,9 @@
+language: rust
+tasks:
+  probe:
+    command: 'echo probe'
+    inputs: ['/**/*.md']
+    tags: [osf-pre-commit, osf-slot-probe]
+    options:
+      runFromWorkspaceRoot: true
+      affectedFiles: true
