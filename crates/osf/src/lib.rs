@@ -11,6 +11,7 @@ mod git;
 pub mod hook;
 pub mod journal;
 pub mod lints;
+pub mod moon;
 pub mod repository;
 pub mod review;
 pub mod risk;

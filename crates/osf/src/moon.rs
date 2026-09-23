@@ -1,0 +1,361 @@
+//! The moon adapter: runs `moon run <targets> --affected --stdin` for the
+//! checkpoint runner and reports what happened, without the runner ever
+//! shelling out to moon itself.
+
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::Duration;
+use wait_timeout::ChildExt as _;
+
+/// The oldest moon version this adapter trusts.
+pub const MINIMUM: (u64, u64) = (2, 3);
+
+/// One `moon run` request.
+pub struct Invocation<'a> {
+    /// The workspace root: where `.moon/` lives, and where moon runs from.
+    pub root: &'a Path,
+    /// The targets to pass to `moon run`, such as `:#osf-pre-commit`.
+    pub targets: &'a [String],
+    /// Repository-relative, forward-slash paths for moon's `--stdin`
+    /// affected-file selection. Never passed to tasks directly (ruling R7).
+    pub files: &'a [String],
+    /// Extra environment variables for the moon process, added to the
+    /// inherited parent environment rather than replacing it.
+    pub env: &'a [(String, String)],
+    /// How long to wait for moon before killing it. `None` waits forever.
+    pub timeout: Option<Duration>,
+}
+
+/// One task's outcome, read from moon's run report.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TaskOutcome {
+    pub target: String,
+    pub status: TaskStatus,
+    pub duration_ms: u64,
+    pub cached: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TaskStatus {
+    Passed,
+    Failed,
+    Skipped,
+}
+
+pub enum Outcome {
+    Ran {
+        exit_code: i32,
+        tasks: Vec<TaskOutcome>,
+    },
+    NothingAffected,
+    TimedOut,
+    CouldNotRun(String),
+}
+
+const NO_AFFECTED_MARKER: &str = "No tasks affected by changed files";
+
+/// The moon binary to run: `OSF_MOON` overrides a `PATH` lookup.
+fn moon_binary() -> PathBuf {
+    std::env::var_os("OSF_MOON").map_or_else(|| PathBuf::from("moon"), PathBuf::from)
+}
+
+/// The installed moon's version, parsed from `moon --version`'s `moon
+/// X.Y.Z` output.
+///
+/// # Errors
+/// Returns an error when moon cannot run, or its version output does not
+/// parse.
+pub fn version(root: &Path) -> Result<(u64, u64, u64), String> {
+    let output = Command::new(moon_binary())
+        .arg("--version")
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("cannot run moon: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "moon --version failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    parse_version(text.trim())
+        .ok_or_else(|| format!("cannot parse moon version from '{}'", text.trim()))
+}
+
+/// Parses `moon 2.5.5` into `(2, 5, 5)`.
+fn parse_version(text: &str) -> Option<(u64, u64, u64)> {
+    let version = text.strip_prefix("moon ")?;
+    let mut parts = version.split('.');
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next()?.parse().ok()?;
+    let patch = parts.next()?.parse().ok()?;
+    Some((major, minor, patch))
+}
+
+/// One line per file, in stdin order, using the platform's native
+/// separator (ruling R8). Callers pass forward-slash repository-relative
+/// paths; this is where they are converted.
+fn stdin_payload(files: &[String]) -> Vec<u8> {
+    let mut payload = String::new();
+    for file in files {
+        payload.push_str(&file.replace('/', std::path::MAIN_SEPARATOR_STR));
+        payload.push('\n');
+    }
+    payload.into_bytes()
+}
+
+/// The run report's path under a workspace root.
+fn report_path(root: &Path) -> PathBuf {
+    root.join(".moon").join("cache").join("runReport.json")
+}
+
+/// Removes a stale run report before spawning moon, so a leftover report
+/// from an earlier run is never read as this run's result.
+fn clear_report(root: &Path) -> Result<(), String> {
+    match std::fs::remove_file(report_path(root)) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!(
+            "cannot remove stale run report at {}: {e}",
+            report_path(root).display()
+        )),
+    }
+}
+
+/// Runs `moon run <targets> --affected --stdin` for `inv`.
+#[must_use]
+pub fn run(inv: &Invocation) -> Outcome {
+    match version(inv.root) {
+        Ok(v) if v >= (MINIMUM.0, MINIMUM.1, 0) => {}
+        Ok(v) => {
+            return Outcome::CouldNotRun(format!(
+                "moon {}.{}.{} is older than the minimum {}.{}",
+                v.0, v.1, v.2, MINIMUM.0, MINIMUM.1
+            ))
+        }
+        Err(e) => return Outcome::CouldNotRun(e),
+    }
+    if let Err(e) = clear_report(inv.root) {
+        return Outcome::CouldNotRun(e);
+    }
+
+    let mut command = Command::new(moon_binary());
+    command
+        .arg("run")
+        .args(inv.targets)
+        .arg("--affected")
+        .arg("--stdin")
+        .current_dir(inv.root)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    for (key, value) in inv.env {
+        command.env(key, value);
+    }
+
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(e) => return Outcome::CouldNotRun(format!("cannot run moon: {e}")),
+    };
+
+    if let Some(mut stdin) = child.stdin.take() {
+        if let Err(e) = stdin.write_all(&stdin_payload(inv.files)) {
+            return Outcome::CouldNotRun(format!("cannot write to moon's stdin: {e}"));
+        }
+    }
+
+    let mut stdout_pipe = child.stdout.take();
+    let mut stderr_pipe = child.stderr.take();
+    let stdout_reader = stdout_pipe
+        .take()
+        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
+    let stderr_reader = stderr_pipe
+        .take()
+        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
+
+    let status = match inv.timeout {
+        Some(timeout) => match child.wait_timeout(timeout) {
+            Ok(Some(status)) => status,
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Outcome::TimedOut;
+            }
+            Err(e) => return Outcome::CouldNotRun(format!("cannot wait for moon: {e}")),
+        },
+        None => match child.wait() {
+            Ok(status) => status,
+            Err(e) => return Outcome::CouldNotRun(format!("cannot wait for moon: {e}")),
+        },
+    };
+
+    let stderr_text = stderr_reader.map(|h| h.join().unwrap_or_default());
+    let _stdout_text = stdout_reader.map(|h| h.join().unwrap_or_default());
+
+    if stderr_text.is_some_and(|text| text.contains(NO_AFFECTED_MARKER)) {
+        return Outcome::NothingAffected;
+    }
+
+    let path = report_path(inv.root);
+    let report_text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) => return Outcome::CouldNotRun(format!("cannot read {}: {e}", path.display())),
+    };
+    match parse_report(&report_text) {
+        Ok(tasks) => Outcome::Ran {
+            exit_code: status.code().unwrap_or(-1),
+            tasks,
+        },
+        Err(e) => Outcome::CouldNotRun(e),
+    }
+}
+
+/// Reads a pipe to the end, discarding a read error's content but not its
+/// occurrence: a partial read is still worth the caller having.
+fn read_all(pipe: &mut impl std::io::Read) -> String {
+    let mut buf = String::new();
+    let _ = std::io::Read::read_to_string(pipe, &mut buf);
+    buf
+}
+
+/// Parses moon's `runReport.json`, one [`TaskOutcome`] per entry in
+/// `context.targetStates`.
+///
+/// # Errors
+/// Returns an error when `json` is not valid JSON, is missing the
+/// `context.targetStates` object, or a task's status is not one this
+/// adapter recognises.
+pub fn parse_report(json: &str) -> Result<Vec<TaskOutcome>, String> {
+    let value: serde_json::Value =
+        serde_json::from_str(json).map_err(|e| format!("run report is not JSON: {e}"))?;
+    let target_states = value
+        .pointer("/context/targetStates")
+        .and_then(serde_json::Value::as_object)
+        .ok_or("run report has no context.targetStates object")?;
+
+    let mut durations = std::collections::HashMap::new();
+    if let Some(actions) = value.get("actions").and_then(serde_json::Value::as_array) {
+        for action in actions {
+            let Some(target) = action_target(action) else {
+                continue;
+            };
+            let ms = action
+                .get("duration")
+                .and_then(duration_ms)
+                .unwrap_or_default();
+            durations.insert(target, ms);
+        }
+    }
+
+    let mut tasks = Vec::with_capacity(target_states.len());
+    for (target, state) in target_states {
+        let raw_status = state
+            .get("state")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("task '{target}' has no state field"))?;
+        let (status, cached) = map_status(raw_status)
+            .ok_or_else(|| format!("task '{target}' has an unrecognised status '{raw_status}'"))?;
+        tasks.push(TaskOutcome {
+            target: target.clone(),
+            status,
+            duration_ms: durations.get(target).copied().unwrap_or_default(),
+            cached,
+        });
+    }
+    Ok(tasks)
+}
+
+/// The target an `actions` entry's label names, such as `osf:probe` from
+/// `RunTask(osf:probe)`.
+fn action_target(action: &serde_json::Value) -> Option<String> {
+    let label = action.get("label")?.as_str()?;
+    let inner = label.strip_prefix("RunTask(")?.strip_suffix(')')?;
+    Some(inner.to_string())
+}
+
+/// A `{secs, nanos}` duration object, in whole milliseconds.
+fn duration_ms(value: &serde_json::Value) -> Option<u64> {
+    let secs = value.get("secs")?.as_u64()?;
+    let nanos = value.get("nanos")?.as_u64()?;
+    Some(secs.saturating_mul(1000) + nanos / 1_000_000)
+}
+
+/// Maps a moon task status to this adapter's status, and whether it was a
+/// cache hit. A passed or cached status is a pass; a failed status is a
+/// fail; a skipped or invalid status is skipped. Any other value is
+/// unrecognised, so an unknown status never reads as a pass.
+fn map_status(raw: &str) -> Option<(TaskStatus, bool)> {
+    match raw {
+        "passed" => Some((TaskStatus::Passed, false)),
+        "cached" => Some((TaskStatus::Passed, true)),
+        "failed" => Some((TaskStatus::Failed, false)),
+        "skipped" | "invalid" => Some((TaskStatus::Skipped, false)),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const REPORT: &str = include_str!("../tests/fixtures/moon/run-report.json");
+
+    #[test]
+    fn the_captured_report_parses_into_one_outcome_per_task() {
+        let tasks = parse_report(REPORT).expect("report parses");
+        assert!(!tasks.is_empty());
+        assert!(
+            tasks.iter().any(|t| t.target.ends_with(":probe")),
+            "{:?}",
+            tasks.iter().map(|t| &t.target).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_report_that_is_not_json_is_an_error() {
+        assert!(parse_report("not json").is_err());
+    }
+
+    #[test]
+    fn the_probe_task_in_the_captured_report_passed_and_was_not_cached() {
+        let tasks = parse_report(REPORT).expect("report parses");
+        let probe = tasks
+            .iter()
+            .find(|t| t.target.ends_with(":probe"))
+            .expect("probe task present");
+        assert_eq!(probe.status, TaskStatus::Passed);
+        assert!(!probe.cached);
+        assert_eq!(probe.duration_ms, 400);
+    }
+
+    #[test]
+    fn an_unrecognised_status_is_an_error() {
+        let json = r#"{"actions":[],"context":{"targetStates":{"a:b":{"state":"mystery"}}}}"#;
+        assert!(parse_report(json).is_err());
+    }
+
+    #[test]
+    fn moon_s_own_version_output_parses() {
+        assert_eq!(parse_version("moon 2.5.5"), Some((2, 5, 5)));
+    }
+
+    #[test]
+    fn an_unparseable_version_string_is_none() {
+        assert_eq!(parse_version("2.5.5"), None);
+        assert_eq!(parse_version("moon two"), None);
+        assert_eq!(parse_version(""), None);
+    }
+
+    #[test]
+    fn the_real_moon_reports_a_version_at_or_above_the_minimum() {
+        let root = std::env::temp_dir();
+        let (major, minor, _) = version(&root).expect("moon --version runs and parses");
+        assert!(
+            (major, minor) >= MINIMUM,
+            "moon {major}.{minor} is below the minimum {}.{}",
+            MINIMUM.0,
+            MINIMUM.1
+        );
+    }
+}
