@@ -329,11 +329,16 @@ fn an_unreadable_script_file_is_reported() {
 /// about a rule.
 #[test]
 fn the_cli_names_the_engine_that_ran_the_deferred_checks() {
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_osf"))
-        .args(["lint", "skill", "--format", "human"])
-        .arg(fixture("good-skill"))
-        .output()
-        .expect("osf runs");
+    let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_osf"));
+    cmd.args(["lint", "skill", "--format", "human"])
+        .arg(fixture("good-skill"));
+    // Scrub inherited OSF_* (e.g. this repository's own checkpoint job's OSF_CONFIG).
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") {
+            cmd.env_remove(key);
+        }
+    }
+    let output = cmd.output().expect("osf runs");
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf-8");
     assert!(stdout.contains("agnix"), "{stdout}");
     assert!(stdout.contains("name format"), "{stdout}");

@@ -152,14 +152,9 @@ fn osf_cmd(dir: &std::path::Path, home: &std::path::Path, env: &[(&str, &str)]) 
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_osf"));
     cmd.current_dir(dir)
         .env("HOME", home)
-        .env("USERPROFILE", home)
-        .env_remove("OSF_CONFIG")
-        .env_remove("OSF_DENYLIST")
-        .env_remove("OSF_FILES_FROM")
-        .env_remove("OSF_BASE")
-        .env_remove("OSF_CHECKPOINT");
+        .env("USERPROFILE", home);
     for (key, _) in std::env::vars() {
-        if key.starts_with("MOON_") {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") {
             cmd.env_remove(key);
         }
     }
@@ -172,11 +167,12 @@ fn osf_cmd(dir: &std::path::Path, home: &std::path::Path, env: &[(&str, &str)]) 
 /// The same as [`run_osf`], with extra environment variables set for this
 /// one run, such as `OSF_FILES_FROM` or `OSF_BASE`.
 ///
-/// Removes those same checkpoint-runner variables from the ambient
-/// environment first: this repository's own checkpoint sets them on the
-/// `moon` process, which every task it spawns inherits, `cargo test`
-/// included, so a test binary that never clears them reads its own
-/// checkpoint run's file list instead of the caller's `env`.
+/// Removes every inherited `OSF_*` variable from the ambient environment
+/// first: this repository's own checkpoint sets some of them (`OSF_CONFIG`,
+/// `OSF_DENYLIST`, `OSF_STATE_DIR`, and more) on the `moon` process, which
+/// every task it spawns inherits, `cargo test` included, so a test binary
+/// that never clears them reads its own checkpoint run's config, denylist,
+/// or state directory instead of the caller's `home`/`env`.
 ///
 /// Also removes every inherited `MOON_*` variable: moon sets these on a
 /// task's own process (`MOON_WORKSPACE_ROOT`, `MOON_CACHE_DIR`, and the
