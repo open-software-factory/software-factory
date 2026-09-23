@@ -74,6 +74,14 @@ impl CheckOutcome {
     }
 }
 
+/// How many of `candidates` the exclude list drops, without the caller
+/// needing the kept list too. Collapses the repeated
+/// `excluder.partition(x.clone()).1` this module used to write at every
+/// call site.
+fn excluded_count(excluder: &Excluder, candidates: &[String]) -> usize {
+    excluder.partition(candidates.to_vec()).1
+}
+
 /// Every check `osf verify` ran for one stage, and what each one found.
 pub struct Report {
     checks: Vec<CheckOutcome>,
@@ -176,7 +184,7 @@ fn pre_commit(opts: &Options) -> Result<Report, String> {
     let scan_outcome = if staged.is_empty() {
         CheckOutcome::skipped("scan")
     } else {
-        let (_, excluded) = opts.excluder.partition(staged.clone());
+        let excluded = excluded_count(opts.excluder, &staged);
         let findings = check::run_check(CheckName::ScanStaged, opts, &staged, false)?;
         CheckOutcome::ran("scan", excluded, findings)
     };
@@ -219,7 +227,7 @@ fn pre_push(opts: &Options, ignore_suppress: bool) -> Result<Report, String> {
     let scan_outcome = if changed.is_empty() {
         CheckOutcome::skipped("scan")
     } else {
-        let (_, excluded) = opts.excluder.partition(changed.clone());
+        let excluded = excluded_count(opts.excluder, &changed);
         let findings = check::run_check(CheckName::Scan, opts, &changed, false)?;
         CheckOutcome::ran("scan", excluded, findings)
     };
@@ -232,7 +240,7 @@ fn pre_push(opts: &Options, ignore_suppress: bool) -> Result<Report, String> {
     let writing_outcome = if writing_candidates.is_empty() {
         CheckOutcome::skipped("lint writing")
     } else {
-        let (_, excluded) = opts.excluder.partition(writing_candidates.clone());
+        let excluded = excluded_count(opts.excluder, &writing_candidates);
         let findings = check::run_check(
             CheckName::LintWriting,
             opts,
@@ -250,7 +258,7 @@ fn pre_push(opts: &Options, ignore_suppress: bool) -> Result<Report, String> {
             .iter()
             .map(|p| p.to_string_lossy().replace('\\', "/"))
             .collect();
-        let (_, excluded) = opts.excluder.partition(candidate_strings);
+        let excluded = excluded_count(opts.excluder, &candidate_strings);
         let findings = check::run_check(CheckName::LintSkill, opts, &changed, false)?;
         CheckOutcome::ran("lint skill", excluded, findings)
     };
