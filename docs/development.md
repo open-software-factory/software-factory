@@ -54,14 +54,31 @@ Every hook is a thin call to `osf`, so the same commands work outside a
 hook:
 
 ```sh
-osf verify --stage pre-commit
-osf verify --stage pre-push
+osf verify --checkpoint pre-commit
+osf verify --checkpoint pre-push
 osf lint writing path/to/file.md
 ```
 
-Add `--format human` for readable output in a script or a non-interactive
-shell. Run `osf explain <rule-id>` for the full text of one rule, using
-the rule id shown in a finding, for example `osf explain long-sentence`.
+`osf verify` prints its own plain-text summary. It has no `--format`
+flag. `osf lint writing` accepts `--format human` for readable output
+in a script or a non-interactive shell. Run `osf explain <rule-id>` for
+the full text of one rule, using the rule id shown in a finding, for
+example `osf explain long-sentence`.
+
+`osf` removes every `MOON_*` variable it inherits. It does this before
+it starts its own moon process. A nested checkpoint run then never
+reads an outer one's workspace by mistake.
+
+`osf verify` reads two variables of its own, and sets three more for
+each task moon runs:
+
+| Variable | Read or set | Holds |
+|---|---|---|
+| `OSF_STATE_DIR` | Read | Where the journal lives |
+| `OSF_MOON` | Read | A moon binary other than the one on `PATH` |
+| `OSF_FILES_FROM` | Set | A file with one path to check per line |
+| `OSF_BASE` | Set | The commit the checkpoint compares against |
+| `OSF_CHECKPOINT` | Set | Which checkpoint is running |
 
 ## Install moon on the host
 
