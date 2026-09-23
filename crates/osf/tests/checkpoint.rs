@@ -4,7 +4,7 @@ mod common;
 use common::{isolated_home, run_osf, run_osf_with_env, session_link, TempRepo};
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
-    home.join("state")
+    home.join(".osf").join("state")
 }
 
 #[test]
@@ -122,6 +122,57 @@ fn a_leak_in_a_session_link_fails_pre_commit() {
     let home = isolated_home("cp-leak");
     let out = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
     assert_eq!(out.status.code(), Some(1), "{out:?}");
+}
+
+/// Ruling R12: a task that failed and left no readable SARIF has unknown
+/// findings, never a silent zero. This fixture defines its own single
+/// task, tagged `osf-pre-push`, that fails without ever writing SARIF.
+#[test]
+fn a_failed_task_with_no_sarif_reports_unknown_findings() {
+    let repo = TempRepo::new("cp-no-sarif");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        "tasks:\n  boom:\n    script: 'exit 1'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n",
+    );
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("dirty");
+    let home = isolated_home("cp-no-sarif");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("findings unknown"),
+        "{out:?}"
+    );
+    let buffer = std::fs::read_dir(state(&home).join("buffer"))
+        .expect("buffer")
+        .next()
+        .expect("one file")
+        .expect("entry")
+        .path();
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+        .expect("read")
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("json"))
+        .collect();
+    let verification = lines
+        .iter()
+        .find(|e| e["event_type"] == "verification")
+        .expect("a verification event");
+    let reason = verification
+        .get("payload")
+        .and_then(|p| p.get("reason"))
+        .and_then(serde_json::Value::as_str)
+        .expect("reason is a string");
+    assert!(reason.contains("no findings file"), "{reason}");
 }
 
 /// Moved from `tests/verify.rs`: an unresolvable base is a failure to run,

@@ -165,24 +165,35 @@ fn task_id(target: &str) -> &str {
     target.rsplit(':').next().unwrap_or(target)
 }
 
-/// The findings an `osf check` task wrote as SARIF, rendered one line each
-/// as `<rule>: <message>`. Missing or unreadable SARIF reads as no
-/// findings: that is correct for a task that passed, and the only signal
-/// available for one that did not.
-fn sarif_findings(root: &Path, target: &str) -> Vec<String> {
+/// What reading a task's SARIF output found: the findings themselves,
+/// rendered one line each as `<rule>: <message>`; the file was never
+/// written; or the file exists but could not be read or parsed.
+enum SarifOutcome {
+    Findings(Vec<String>),
+    Missing(PathBuf),
+    Unreadable(PathBuf, String),
+}
+
+/// Reads the SARIF an `osf check` task wrote to `.osf/out/<task-id>.sarif`.
+fn sarif_outcome(root: &Path, target: &str) -> SarifOutcome {
     let path = root
         .join(".osf")
         .join("out")
         .join(format!("{}.sarif", task_id(target)));
-    let Ok(text) = std::fs::read_to_string(&path) else {
-        return Vec::new();
+    if !path.is_file() {
+        return SarifOutcome::Missing(path);
+    }
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) => return SarifOutcome::Unreadable(path, e.to_string()),
     };
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return Vec::new();
+    let value: serde_json::Value = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(e) => return SarifOutcome::Unreadable(path, e.to_string()),
     };
     let mut lines = Vec::new();
     let Some(runs) = value.get("runs").and_then(serde_json::Value::as_array) else {
-        return lines;
+        return SarifOutcome::Findings(lines);
     };
     for run in runs {
         let Some(results) = run.get("results").and_then(serde_json::Value::as_array) else {
@@ -201,7 +212,7 @@ fn sarif_findings(root: &Path, target: &str) -> Vec<String> {
             lines.push(format!("{rule}: {message}"));
         }
     }
-    lines
+    SarifOutcome::Findings(lines)
 }
 
 const ACTOR: &str = "osf";
@@ -233,14 +244,48 @@ fn append_checkpoint_complete(
     }
 }
 
-/// One task's outcome: its journal result, its rendered summary line, and
-/// its SARIF finding lines (kept separately so the caller only surfaces
-/// them for a task that failed).
+/// One task's outcome: its journal result, its rendered summary line, its
+/// SARIF finding lines (kept separately so the caller only surfaces them
+/// for a task that failed), the finding count the journal records, and a
+/// reason when that count is not a genuine observation (ruling R12).
 struct TaskLine {
     result: CheckResult,
     line: String,
     findings: Vec<String>,
     findings_count: u32,
+    reason: Option<String>,
+}
+
+/// Ruling R12: a failed task with no SARIF file has unknown findings, not
+/// zero — the check never ran to completion, so there is nothing to count.
+/// A SARIF file that exists but will not parse is the same problem for any
+/// task, whatever its status: the count cannot be trusted either way.
+fn findings_from_sarif(
+    root: &Path,
+    target: &str,
+    status: TaskStatus,
+) -> (u32, Option<String>, Vec<String>, String) {
+    match sarif_outcome(root, target) {
+        SarifOutcome::Findings(lines) => {
+            let count = u32::try_from(lines.len()).unwrap_or(u32::MAX);
+            let word = format!("{count} finding(s)");
+            (count, None, lines, word)
+        }
+        SarifOutcome::Missing(path) if status == TaskStatus::Failed => {
+            let reason = format!("no findings file: {}", path.display());
+            (0, Some(reason), Vec::new(), "findings unknown".to_string())
+        }
+        SarifOutcome::Missing(_) => (0, None, Vec::new(), "0 finding(s)".to_string()),
+        SarifOutcome::Unreadable(path, err) => {
+            let reason = format!("cannot read SARIF at {}: {err}", path.display());
+            (
+                0,
+                Some(reason),
+                Vec::new(),
+                "findings unreadable".to_string(),
+            )
+        }
+    }
 }
 
 fn task_line(root: &Path, task: &moon::TaskOutcome) -> TaskLine {
@@ -249,8 +294,8 @@ fn task_line(root: &Path, task: &moon::TaskOutcome) -> TaskLine {
         TaskStatus::Failed => CheckResult::Failed,
         TaskStatus::Skipped => CheckResult::Skipped,
     };
-    let findings = sarif_findings(root, &task.target);
-    let findings_count = u32::try_from(findings.len()).unwrap_or(u32::MAX);
+    let (findings_count, reason, findings, findings_word) =
+        findings_from_sarif(root, &task.target, task.status);
     let cache = if task.cached { "hit" } else { "miss" };
     let word = match task.status {
         TaskStatus::Passed => "passed",
@@ -258,7 +303,7 @@ fn task_line(root: &Path, task: &moon::TaskOutcome) -> TaskLine {
         TaskStatus::Skipped => "skipped",
     };
     let line = format!(
-        "{}: {word} ({findings_count} finding(s), {}ms, cache {cache})",
+        "{}: {word} ({findings_word}, {}ms, cache {cache})",
         task.target, task.duration_ms
     );
     TaskLine {
@@ -266,6 +311,7 @@ fn task_line(root: &Path, task: &moon::TaskOutcome) -> TaskLine {
         line,
         findings,
         findings_count,
+        reason,
     }
 }
 
@@ -297,6 +343,9 @@ fn handle_ran(
             CheckResult::Skipped => skipped += 1,
             CheckResult::CouldNotRun | CheckResult::NothingToCheck => {}
         }
+        if let Some(reason) = &outcome.reason {
+            error_findings.push(reason.clone());
+        }
         total_findings += outcome.findings_count;
         lines.push(outcome.line);
         let cache = if task.cached { "hit" } else { "miss" };
@@ -313,7 +362,7 @@ fn handle_ran(
                     cache: Some(cache.to_string()),
                     findings: outcome.findings_count,
                     grade: "observed".to_string(),
-                    reason: None,
+                    reason: outcome.reason.clone(),
                 }),
             ) {
                 journal_error.get_or_insert(e);

@@ -1,5 +1,7 @@
 use osf::status::GhClient;
-use osf::{check, checkpoint, config, exclude, hook, lints, review, risk, scan, status, verify};
+use osf::{
+    check, checkpoint, config, exclude, hook, journal, lints, review, risk, scan, status, verify,
+};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -1230,19 +1232,6 @@ fn read_hook_files() -> Result<Vec<String>, ExitCode> {
         .collect())
 }
 
-/// Where a checkpoint's journal buffer lives: `OSF_STATE_DIR`, else
-/// `<home>/state` (`USERPROFILE` on Windows, `HOME` elsewhere).
-fn checkpoint_state_dir() -> Result<PathBuf, String> {
-    if let Ok(dir) = std::env::var("OSF_STATE_DIR") {
-        return Ok(PathBuf::from(dir));
-    }
-    let home_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
-    let home = std::env::var(home_var).map_err(|_| {
-        format!("cannot find the state directory: neither OSF_STATE_DIR nor {home_var} is set")
-    })?;
-    Ok(PathBuf::from(home).join("state"))
-}
-
 fn verify_cmd(args: &VerifyArgs) -> ExitCode {
     let checkpoint = match resolve_checkpoint(args) {
         Ok(c) => c,
@@ -1256,7 +1245,7 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
     } else {
         None
     };
-    let state_dir = match checkpoint_state_dir() {
+    let state_dir = match journal::state_dir() {
         Ok(d) => d,
         Err(e) => {
             eprintln!("osf: {e}");
