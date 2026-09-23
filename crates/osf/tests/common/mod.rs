@@ -87,8 +87,8 @@ impl TempRepo {
 
     /// Writes `.moon/workspace.yml` and a small `.osf/moon.yml` with two
     /// tasks, uncommitted: `lint-writing`, tagged `osf-pre-push` and
-    /// `osf-hook`, and `scan`, tagged `osf-pre-commit` and `osf-pre-push`. Both read only
-    /// Markdown (`inputs: ['/**/*.md']`), so a change to a non-Markdown
+    /// `osf-hook`, and `scan`, tagged `osf-pre-commit`, `osf-pre-push` and
+    /// `osf-hook`. Both read only
     /// file affects neither. Each task's command is the built `osf`
     /// binary under test. The caller commits these files itself, along
     /// with whatever else the test needs in that first commit.
@@ -105,7 +105,7 @@ impl TempRepo {
         repo.write(
             ".osf/moon.yml",
             &format!(
-                "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push, osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-commit, osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+                "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push, osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-commit, osf-pre-push, osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
             ),
         );
         repo

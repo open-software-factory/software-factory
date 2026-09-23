@@ -467,22 +467,43 @@ fn written_path(event: &Value) -> Option<String> {
         .find_map(|k| input.get(k).and_then(Value::as_str).map(str::to_string))
 }
 
-/// `raw` made repository-relative to `root`, with forward slashes. `None`
-/// when `raw` resolves outside `root`.
+/// `raw` made repository-relative to `root`, with forward slashes. A
+/// relative `raw` is resolved against `root` first. `None` when the result
+/// leaves `root`, `.`/`..` components included: `../outside.md` must never
+/// read back as a path inside the repository.
 fn repo_relative(root: &Path, raw: &str) -> Option<String> {
     let normalized = raw.replace('\\', "/");
     let candidate = PathBuf::from(&normalized);
-    if candidate.is_relative() {
-        let cleaned = normalized.strip_prefix("./").unwrap_or(&normalized);
-        return Some(cleaned.to_string());
-    }
-    if let Ok(rel) = candidate.strip_prefix(root) {
+    let absolute = if candidate.is_absolute() {
+        candidate
+    } else {
+        root.join(&candidate)
+    };
+    let resolved = lexically_normalize(&absolute);
+    if let Ok(rel) = resolved.strip_prefix(root) {
         return Some(rel.to_string_lossy().replace('\\', "/"));
     }
     let root_canon = std::fs::canonicalize(root).ok()?;
-    let candidate_canon = std::fs::canonicalize(&candidate).ok()?;
+    let candidate_canon = std::fs::canonicalize(&resolved).ok()?;
     let rel = candidate_canon.strip_prefix(&root_canon).ok()?;
     Some(rel.to_string_lossy().replace('\\', "/"))
+}
+
+/// `path`'s `.` and `..` components collapsed left to right, without
+/// touching the filesystem: a containment check must work even when
+/// nothing exists at `path` yet, such as a rejected `../outside.md`.
+fn lexically_normalize(path: &Path) -> PathBuf {
+    let mut out: Vec<std::path::Component> = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    out.into_iter().collect()
 }
 
 fn string_at(v: &Value, keys: &[&str]) -> Option<String> {

@@ -1,7 +1,7 @@
 //! Integration tests for `osf hook post-tool`: moon required on `PATH`.
 
 mod common;
-use common::{isolated_home, run_osf_stdin, TempRepo};
+use common::{isolated_home, run_osf_stdin, session_link, TempRepo};
 
 #[test]
 fn a_payload_with_no_file_path_exits_zero_without_starting_moon() {
@@ -81,4 +81,86 @@ fn a_timeout_reports_skipped_and_lets_the_edit_stand() {
     );
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(String::from_utf8_lossy(&out.stderr).contains("skipped"));
+}
+
+// R14: at the hook checkpoint every check reads the file as it is on disk,
+// not at its last commit, because the hook exists to check what the agent
+// just wrote. `scan` reading `HEAD` here would miss a secret typed into an
+// already-committed file, which is exactly the case this test covers.
+#[test]
+fn a_secret_written_into_an_existing_committed_file_is_refused_by_the_scan_check() {
+    let repo = TempRepo::with_moon_workspace("pt-secret");
+    repo.commit("base");
+    repo.write("notes.md", "Clean.\n");
+    repo.commit("clean");
+    repo.write(
+        "notes.md",
+        &format!("See {} here.\n", session_link("abc123")),
+    );
+    let home = isolated_home("pt-secret");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        repo.dir
+            .join("notes.md")
+            .to_string_lossy()
+            .replace('\\', "/")
+    );
+    let out = run_osf_stdin(&repo.dir, &home, &[], &["hook", "post-tool"], &payload);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(String::from_utf8_lossy(&out.stderr).contains("scan-session-link"));
+}
+
+// A relative written path is resolved against the repository root and its
+// `.`/`..` components collapse lexically first, so `../outside.md` cannot
+// walk out of the root and reach a file the hook has no business touching.
+#[test]
+fn a_relative_path_that_walks_outside_the_repository_is_reported_and_skipped() {
+    let repo = TempRepo::with_moon_workspace("pt-outside-rel");
+    repo.commit("base");
+    let home = isolated_home("pt-outside-rel");
+    for raw in ["../outside.md", "sub/../../outside.md"] {
+        let payload = format!(
+            r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{raw}"}}}}"#
+        );
+        let out = run_osf_stdin(
+            &repo.dir,
+            &home,
+            &[("OSF_MOON", "/nonexistent/moon")],
+            &["hook", "post-tool"],
+            &payload,
+        );
+        assert_eq!(out.status.code(), Some(0), "{raw}: {out:?}");
+        assert!(
+            String::from_utf8_lossy(&out.stderr).contains("outside the repository"),
+            "{raw}: {out:?}"
+        );
+    }
+}
+
+#[test]
+fn an_absolute_path_outside_the_repository_is_reported_and_skipped() {
+    let repo = TempRepo::with_moon_workspace("pt-outside-abs");
+    repo.commit("base");
+    let home = isolated_home("pt-outside-abs");
+    let outside = repo
+        .dir
+        .parent()
+        .expect("the temp repo dir has a parent")
+        .join("pt-outside-abs-sibling.md");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        outside.to_string_lossy().replace('\\', "/")
+    );
+    let out = run_osf_stdin(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", "/nonexistent/moon")],
+        &["hook", "post-tool"],
+        &payload,
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("outside the repository"),
+        "{out:?}"
+    );
 }

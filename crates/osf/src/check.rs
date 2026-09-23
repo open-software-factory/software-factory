@@ -146,7 +146,7 @@ fn scan_files(
         let bytes = if staged {
             crate::git::staged_content(opts.dir, path).map_err(|e| e.to_string())?
         } else {
-            crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?
+            content_for_check(opts.dir, path)?
         };
         if crate::scan::is_binary(&bytes) {
             continue;
@@ -162,11 +162,19 @@ fn scan_files(
     Ok(findings)
 }
 
-/// The hook checkpoint lints a file a tool just wrote, before it is ever
-/// committed, so its tasks read the working tree; every other checkpoint
-/// diffs against already-committed history and keeps reading git `HEAD`.
-fn checkpoint_reads_working_tree() -> bool {
-    std::env::var("OSF_CHECKPOINT").as_deref() == Ok(crate::checkpoint::Checkpoint::Hook.label())
+/// `path`'s content for a check to read. At the hook checkpoint every check
+/// reads a file as it is on disk, because the hook exists to check what the
+/// agent just wrote; every other checkpoint keeps reading git `HEAD`, since
+/// it diffs against already-committed history. `scan-staged` never calls
+/// this: it always reads the index, at every checkpoint that runs it.
+fn content_for_check(dir: &Path, path: &str) -> Result<Vec<u8>, String> {
+    let at_hook_checkpoint = std::env::var("OSF_CHECKPOINT").as_deref()
+        == Ok(crate::checkpoint::Checkpoint::Hook.label());
+    if at_hook_checkpoint {
+        std::fs::read(dir.join(path)).map_err(|e| e.to_string())
+    } else {
+        crate::git::content_at(dir, "HEAD", path).map_err(|e| e.to_string())
+    }
 }
 
 fn lint_writing_files(
@@ -184,14 +192,9 @@ fn lint_writing_files(
     }
     let (markdown, _excluded) = opts.excluder.partition(candidates);
     let known = lints::load_known_names(&opts.config.writing.known_names, None)?;
-    let working_tree = checkpoint_reads_working_tree();
     let mut findings = Vec::new();
     for path in &markdown {
-        let bytes = if working_tree {
-            std::fs::read(opts.dir.join(path)).map_err(|e| e.to_string())?
-        } else {
-            crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?
-        };
+        let bytes = content_for_check(opts.dir, path)?;
         let text = String::from_utf8_lossy(&bytes);
         let raw = lints::writing::lint_writing(
             &text,

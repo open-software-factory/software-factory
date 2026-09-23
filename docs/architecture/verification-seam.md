@@ -100,7 +100,7 @@ Every event reaches the local journal first. A buffer flushes on push and on a t
 
 ### The harness hook checkpoint
 
-The hook checkpoint fires on two harness events. After a tool call that wrote a file, and at the end of a turn. It runs every tagged check on the touched files, so the agent fixes its edits at once. A check that cannot finish inside the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
+The hook checkpoint fires on two harness events. After a tool call that wrote a file, and at the end of a turn. It runs every tagged check on the touched files, so the agent fixes its edits at once. At this checkpoint every check reads a touched file as it is on disk, because the hook checks what the agent just wrote, and every other checkpoint keeps its own current source. A check that cannot finish inside the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
 
 The event to refuse a tool call, such as a commit that skips hooks, is a separate concern. It stays with [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97).
 
