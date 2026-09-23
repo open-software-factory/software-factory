@@ -241,6 +241,10 @@ fn clear_stale_sarif(root: &Path, tag: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Ruling R16: a failed task's own output must be visible, capped so one
+/// runaway task cannot flood a hook's refusal text.
+const FAILED_TASK_OUTPUT_LINES: usize = 80;
+
 const ACTOR: &str = "osf";
 
 /// Appends a checkpoint-complete event when a journal is open, folding any
@@ -365,6 +369,19 @@ fn handle_ran(
             CheckResult::Failed => {
                 failed += 1;
                 error_findings.extend(outcome.findings.iter().cloned());
+                if let Some((tail, shown, total)) =
+                    moon::task_output_tail(req.root, &task.target, FAILED_TASK_OUTPUT_LINES)
+                {
+                    let header = if shown < total {
+                        format!(
+                            "--- {} output (last {shown} of {total} lines) ---",
+                            task.target
+                        )
+                    } else {
+                        format!("--- {} output ({total} line(s)) ---", task.target)
+                    };
+                    error_findings.push(format!("{header}\n{tail}"));
+                }
             }
             CheckResult::Skipped => skipped += 1,
             CheckResult::CouldNotRun | CheckResult::NothingToCheck => {}

@@ -165,13 +165,13 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Test
-        if: steps.detect.outputs.present == 'true'
-        run: cargo test --workspace
-
       - name: Install moon
         if: steps.detect.outputs.present == 'true'
         uses: ./.github/actions/install-moon
+
+      - name: Test
+        if: steps.detect.outputs.present == 'true'
+        run: cargo test --workspace
 
       - name: Build the tool
         if: steps.detect.outputs.present == 'true'
@@ -258,7 +258,9 @@ jobs:
           fetch-depth: 0
 
       - name: Install the toolchain components
-        run: rustup component add clippy rustfmt
+        run: |
+          set -euo pipefail
+          rustup component add clippy rustfmt
 
       - name: Cache the build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -274,7 +276,9 @@ jobs:
         uses: ./.github/actions/install-moon
 
       - name: Build the tool
-        run: cargo build --release --bin osf
+        run: |
+          set -euo pipefail
+          cargo build --release --bin osf
 
       - name: Put osf on PATH
         run: |
@@ -303,4 +307,4 @@ jobs:
           path: |
             ${{ env.OSF_STATE_DIR }}/buffer
             .osf/out
-          if-no-files-found: warn
+          if-no-files-found: error

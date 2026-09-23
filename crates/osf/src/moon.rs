@@ -112,6 +112,51 @@ fn report_path(root: &Path) -> PathBuf {
     root.join(".moon").join("cache").join("runReport.json")
 }
 
+/// Where moon 2.5.5 writes a task's own captured stdout and stderr:
+/// `.moon/cache/states/<project>/<task>/{stdout,stderr}.log`, checked by
+/// running a real failing task and inspecting the cache directory it left.
+fn task_log_paths(root: &Path, target: &str) -> (PathBuf, PathBuf) {
+    let (project, task) = target.rsplit_once(':').unwrap_or(("", target));
+    let dir = root
+        .join(".moon")
+        .join("cache")
+        .join("states")
+        .join(project)
+        .join(task);
+    (dir.join("stdout.log"), dir.join("stderr.log"))
+}
+
+/// A task's own captured output (stdout then stderr), capped to its last
+/// `max_lines` lines: the text shown, how many lines that is, and how many
+/// lines the task actually produced. `None` when moon wrote neither log
+/// file or both are empty, since there is nothing to show (ruling R16).
+#[must_use]
+pub fn task_output_tail(
+    root: &Path,
+    target: &str,
+    max_lines: usize,
+) -> Option<(String, usize, usize)> {
+    let (stdout_path, stderr_path) = task_log_paths(root, target);
+    let mut combined = String::new();
+    if let Ok(text) = std::fs::read_to_string(&stdout_path) {
+        combined.push_str(&text);
+    }
+    if let Ok(text) = std::fs::read_to_string(&stderr_path) {
+        if !combined.is_empty() && !combined.ends_with('\n') {
+            combined.push('\n');
+        }
+        combined.push_str(&text);
+    }
+    if combined.trim().is_empty() {
+        return None;
+    }
+    let mut lines: Vec<&str> = combined.lines().collect();
+    let total = lines.len();
+    let start = total.saturating_sub(max_lines);
+    let shown = lines.split_off(start);
+    Some((shown.join("\n"), shown.len(), total))
+}
+
 /// Removes a stale run report before spawning moon, so a leftover report
 /// from an earlier run is never read as this run's result.
 fn clear_report(root: &Path) -> Result<(), String> {
@@ -456,6 +501,57 @@ mod tests {
     #[test]
     fn a_query_missing_the_tasks_object_is_an_error() {
         assert!(parse_query_tasks(r#"{"options":{}}"#).is_err());
+    }
+
+    #[test]
+    fn no_log_files_at_all_is_none() {
+        let root = std::env::temp_dir().join("osf-moon-tail-test-missing");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("dir creates");
+        assert_eq!(task_output_tail(&root, "proj:boom", 80), None);
+    }
+
+    #[test]
+    fn output_under_the_cap_is_returned_whole() {
+        let root = std::env::temp_dir().join("osf-moon-tail-test-small");
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root
+            .join(".moon")
+            .join("cache")
+            .join("states")
+            .join("proj")
+            .join("boom");
+        std::fs::create_dir_all(&dir).expect("dir creates");
+        std::fs::write(dir.join("stdout.log"), "one\ntwo\n").expect("stdout writes");
+        std::fs::write(dir.join("stderr.log"), "three\n").expect("stderr writes");
+        let (text, shown, total) = task_output_tail(&root, "proj:boom", 80).expect("some output");
+        assert_eq!(text, "one\ntwo\nthree");
+        assert_eq!(shown, 3);
+        assert_eq!(total, 3);
+    }
+
+    #[test]
+    fn output_over_the_cap_keeps_only_the_last_lines() {
+        use std::fmt::Write as _;
+        let root = std::env::temp_dir().join("osf-moon-tail-test-large");
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root
+            .join(".moon")
+            .join("cache")
+            .join("states")
+            .join("proj")
+            .join("boom");
+        std::fs::create_dir_all(&dir).expect("dir creates");
+        let mut content = String::new();
+        for n in 1..=100 {
+            writeln!(content, "line {n}").expect("writing to a string never fails");
+        }
+        std::fs::write(dir.join("stdout.log"), content).expect("stdout writes");
+        let (text, shown, total) = task_output_tail(&root, "proj:boom", 10).expect("some output");
+        assert_eq!(shown, 10);
+        assert_eq!(total, 100);
+        assert!(text.starts_with("line 91"), "{text}");
+        assert!(text.ends_with("line 100"), "{text}");
     }
 
     #[test]

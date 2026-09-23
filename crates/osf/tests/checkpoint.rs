@@ -206,6 +206,37 @@ fn a_failed_task_with_no_sarif_reports_unknown_findings() {
     assert!(reason.contains("no findings file"), "{reason}");
 }
 
+/// Ruling R16: a failed task's own captured output must reach stderr, since
+/// moon's own console output is not attributed per task and would otherwise
+/// leave a failure undiagnosable. This fixture's task prints a marker line
+/// before it fails.
+#[test]
+fn a_failed_task_s_output_is_printed_to_stderr() {
+    let repo = TempRepo::new("cp-task-output");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        "tasks:\n  boom:\n    script: 'echo OSF_TEST_MARKER_7f3a1; exit 1'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n",
+    );
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("dirty");
+    let home = isolated_home("cp-task-output");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("OSF_TEST_MARKER_7f3a1"),
+        "{out:?}"
+    );
+}
+
 /// Ruling R13: a SARIF left over from an earlier run must be cleared
 /// before moon runs, so a task that fails without writing one is never
 /// read through a stale file from a previous pass. This fixture's `boom`
