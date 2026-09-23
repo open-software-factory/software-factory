@@ -243,7 +243,7 @@ fn kill_tree(child: &Child) -> Result<(), String> {
         .output();
     #[cfg(unix)]
     let output = Command::new("kill")
-        .args(["-KILL", &format!("-{pid}")])
+        .args(["-KILL", "--", &format!("-{pid}")])
         .output();
     match output {
         Ok(o) if o.status.success() => Ok(()),

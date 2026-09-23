@@ -171,20 +171,7 @@ jobs:
 
       - name: Install moon
         if: steps.detect.outputs.present == 'true'
-        env:
-          MOON_VERSION: '2.5.5'
-          MOON_SHA256: f397057a22c88ff9e4b28a4a2fbf01d99f4d9a4f35e5a42634255a9f509ccbd6
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          curl -fsSL -o /tmp/moon.tar.xz \
-            "https://github.com/moonrepo/moon/releases/download/v${MOON_VERSION}/moon_cli-x86_64-unknown-linux-gnu.tar.xz"
-          echo "${MOON_SHA256}  /tmp/moon.tar.xz" | sha256sum -c -
-          tar -xJf /tmp/moon.tar.xz -C /tmp "moon_cli-x86_64-unknown-linux-gnu/moon"
-          install -m 0755 /tmp/moon_cli-x86_64-unknown-linux-gnu/moon "$HOME/.local/bin/moon"
-          rm -rf /tmp/moon.tar.xz /tmp/moon_cli-x86_64-unknown-linux-gnu
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/moon" --version
+        uses: ./.github/actions/install-moon
 
       - name: Build the tool
         if: steps.detect.outputs.present == 'true'
@@ -259,3 +246,61 @@ jobs:
           name: writing-lint-findings
           path: osf.sarif
           if-no-files-found: ignore
+
+  checkpoint:
+    name: checkpoint
+    # github.base_ref only exists on pull_request events, so this job only runs there.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Install the toolchain components
+        run: rustup component add clippy rustfmt
+
+      - name: Cache the build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Install moon
+        uses: ./.github/actions/install-moon
+
+      - name: Build the tool
+        run: cargo build --release --bin osf
+
+      - name: Put osf on PATH
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_WORKSPACE}/target/release" >> "$GITHUB_PATH"
+
+      - name: Set the state directory
+        run: |
+          set -euo pipefail
+          echo "OSF_STATE_DIR=${RUNNER_TEMP}/osf-state" >> "$GITHUB_ENV"
+
+      - name: Run the pull-request checkpoint
+        env:
+          OSF_CONFIG: osf.toml
+          OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "${{ github.base_ref }}"
+          osf verify --checkpoint pull-request --base "origin/${{ github.base_ref }}"
+
+      - name: Keep the checkpoint evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: checkpoint-evidence
+          path: |
+            ${{ env.OSF_STATE_DIR }}/buffer
+            .osf/out
+          if-no-files-found: warn
