@@ -75,6 +75,41 @@ impl TempRepo {
         }
         self.write(path, &content);
     }
+
+    /// Writes raw bytes to `path`, creating any parent directory it needs.
+    pub fn write_bytes(&self, path: &str, content: &[u8]) {
+        let full = self.dir.join(path);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).expect("fixture parent dir creates");
+        }
+        std::fs::write(&full, content).expect("fixture file writes");
+    }
+
+    /// Writes `.moon/workspace.yml` and a small `.osf/moon.yml` with two
+    /// tasks, uncommitted: `lint-writing`, tagged `osf-pre-push`, and
+    /// `scan`, tagged `osf-pre-commit` and `osf-pre-push`. Both read only
+    /// Markdown (`inputs: ['/**/*.md']`), so a change to a non-Markdown
+    /// file affects neither. Each task's command is the built `osf`
+    /// binary under test. The caller commits these files itself, along
+    /// with whatever else the test needs in that first commit.
+    pub fn with_moon_workspace(name: &str) -> Self {
+        let repo = TempRepo::new(name);
+        repo.write(
+            ".moon/workspace.yml",
+            "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+        );
+        // `shell: false` runs the binary directly. Without it, moon's
+        // default shell on Windows is PowerShell, which cannot parse a
+        // quoted path followed by bare arguments on one line.
+        let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+        repo.write(
+            ".osf/moon.yml",
+            &format!(
+                "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-commit, osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+            ),
+        );
+        repo
+    }
 }
 
 impl Drop for TempRepo {
@@ -84,11 +119,18 @@ impl Drop for TempRepo {
 }
 
 /// A fresh, empty directory to stand in for `HOME`, so a spawned `osf`
-/// never picks up this machine's real `~/.osf/config.toml`.
+/// never picks up this machine's real `~/.osf/config.toml`. Also holds an
+/// `AppData\Roaming` folder on Windows: moon's WASM plugin runtime derives
+/// its own cache config path from `USERPROFILE`, and fails to start at all
+/// when that folder is missing under an overridden profile.
 pub fn isolated_home(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("osf-verify-test-home-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("isolated home dir creates");
+    std::fs::create_dir_all(dir.join("AppData").join("Roaming"))
+        .expect("isolated home AppData\\Roaming creates");
+    std::fs::create_dir_all(dir.join("AppData").join("Local"))
+        .expect("isolated home AppData\\Local creates");
     dir
 }
 

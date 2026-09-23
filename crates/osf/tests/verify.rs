@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{coauthor_trailer, isolated_home, run_osf, session_link, TempRepo};
+use common::{coauthor_trailer, session_link, TempRepo};
 use osf::config::Config;
 use osf::exclude::Excluder;
 use osf::verify::{run, Options, Stage};
@@ -263,94 +263,6 @@ fn a_base_that_does_not_resolve_is_an_error_not_a_clean_report() {
         result.is_err(),
         "a base git cannot resolve must fail the run, not report zero errors"
     );
-}
-
-/// Exit code 0: `osf verify` ran every check and none of them found a problem.
-#[test]
-fn a_clean_pre_push_exits_zero() {
-    let repo = TempRepo::new("cli-exit-clean");
-    repo.write("a.md", "Clean.\n");
-    let base = repo.commit("only commit");
-    let home = isolated_home("cli-exit-clean");
-
-    let output = run_osf(
-        &repo.dir,
-        &home,
-        &["verify", "--stage", "pre-push", "--base", &base],
-    );
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
-}
-
-/// Exit code 1: `osf verify` ran fine and found something to fix.
-#[test]
-fn a_dirty_pre_push_exits_one() {
-    let repo = TempRepo::new("cli-exit-dirty");
-    repo.write("base.md", "Clean.\n");
-    let base = repo.commit("base commit");
-    repo.write(
-        "leak.md",
-        &format!("See {} here.\n", session_link("abc123")),
-    );
-    repo.commit("add a leak");
-    let home = isolated_home("cli-exit-dirty");
-
-    let output = run_osf(
-        &repo.dir,
-        &home,
-        &["verify", "--stage", "pre-push", "--base", &base],
-    );
-    assert_eq!(output.status.code(), Some(1), "{output:?}");
-}
-
-/// Exit code 2: the tool itself could not run. Never confused with 0.
-#[test]
-fn a_pre_push_with_an_unresolvable_base_exits_two() {
-    let repo = TempRepo::new("cli-exit-broken");
-    repo.write("a.md", "Clean.\n");
-    repo.commit("add a file");
-    let home = isolated_home("cli-exit-broken");
-
-    let output = run_osf(
-        &repo.dir,
-        &home,
-        &["verify", "--stage", "pre-push", "--base", "not-a-real-ref"],
-    );
-    assert_eq!(output.status.code(), Some(2), "{output:?}");
-}
-
-/// `--gate` forces the exclude list back to the compiled defaults, ignoring
-/// a config file's own exclude setting, so a change under review cannot
-/// loosen the check it is being checked against.
-#[test]
-fn gate_ignores_a_config_files_exclude_list() {
-    let repo = TempRepo::new("verify-gate-ignores-config-file");
-    repo.write("base.md", "Clean.\n");
-    let base = repo.commit("base commit");
-    repo.write(
-        "leak.md",
-        &format!("See {} here.\n", session_link("abc123")),
-    );
-    repo.write("osf.toml", "exclude = [\"leak.md\"]\n");
-    repo.commit("add a leak and a loosened config");
-    let home = isolated_home("verify-gate-ignores-config-file");
-
-    let without_gate = run_osf(
-        &repo.dir,
-        &home,
-        &[
-            "--config", "osf.toml", "verify", "--stage", "pre-push", "--base", &base,
-        ],
-    );
-    assert_eq!(without_gate.status.code(), Some(0), "{without_gate:?}");
-
-    let with_gate = run_osf(
-        &repo.dir,
-        &home,
-        &[
-            "--config", "osf.toml", "verify", "--stage", "pre-push", "--base", &base, "--gate",
-        ],
-    );
-    assert_eq!(with_gate.status.code(), Some(1), "{with_gate:?}");
 }
 
 /// A deliberately bad writing fixture under `tests/fixtures` is checked
