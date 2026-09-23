@@ -99,15 +99,28 @@ pub fn run_osf(
     home: &std::path::Path,
     args: &[&str],
 ) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_osf"))
-        .current_dir(dir)
+    run_osf_with_env(dir, home, &[], args)
+}
+
+/// The same as [`run_osf`], with extra environment variables set for this
+/// one run, such as `OSF_FILES_FROM` or `OSF_BASE`.
+pub fn run_osf_with_env(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    env: &[(&str, &str)],
+    args: &[&str],
+) -> std::process::Output {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_osf"));
+    cmd.current_dir(dir)
         .env("HOME", home)
         .env("USERPROFILE", home)
         .env_remove("OSF_CONFIG")
         .env_remove("OSF_DENYLIST")
-        .args(args)
-        .output()
-        .expect("osf runs")
+        .args(args);
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    cmd.output().expect("osf runs")
 }
 
 /// Builds a session-link-shaped string at run time for one agent, from the

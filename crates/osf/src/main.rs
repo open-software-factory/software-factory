@@ -1,5 +1,5 @@
 use osf::status::GhClient;
-use osf::{config, exclude, hook, lints, review, risk, scan, status, verify};
+use osf::{check, config, exclude, hook, lints, review, risk, scan, status, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -97,6 +97,8 @@ enum Command {
     },
     /// Find text that must never reach a public repository.
     Scan(ScanArgs),
+    /// Run one check `osf verify` also runs, on its own file list.
+    Check(CheckArgs),
     /// Run every check one gate needs, in one entry point every gate calls.
     Verify(VerifyArgs),
     /// Report the blast radius of a change: low, normal, or high, with the reasons.
@@ -276,6 +278,26 @@ struct ScanArgs {
     /// own configuration.
     #[arg(long)]
     gate: bool,
+}
+
+#[derive(Args)]
+struct CheckArgs {
+    /// Which check to run: scan, scan-staged, lint-writing, lint-skill, or scan-commits.
+    #[arg(value_enum)]
+    name: check::CheckName,
+    /// What to diff commits against, for `scan-commits`. Else `OSF_BASE`, else the default branch.
+    #[arg(long)]
+    base: Option<String>,
+    /// Ignores a suppression marker and uses the compiled exclude list, the
+    /// same way `--gate` already does for `osf verify`.
+    #[arg(long)]
+    gate: bool,
+    /// Write the findings as SARIF 2.1.0 to this path, creating parent folders.
+    #[arg(long = "sarif-out")]
+    sarif_out: Option<PathBuf>,
+    /// Files to check. Else one repository-relative path per line in the
+    /// file named by `OSF_FILES_FROM`. Else nothing to check.
+    files: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
@@ -493,6 +515,7 @@ fn main() -> ExitCode {
         } => config_show(cli.config.as_deref()),
         Command::Explain { rule_id } => explain(rule_id),
         Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
+        Command::Check(args) => check_cmd(args, cli.config.as_deref()),
         Command::Verify(args) => verify_cmd(args, cli.config.as_deref()),
         Command::Risk(args) => risk_cmd(args),
         Command::Status {
@@ -793,19 +816,142 @@ fn lint_one(
     finish_lint_one(name, text, findings, args, format, tally)
 }
 
-fn print_sarif(sarif_files: &[(String, Vec<lints::Finding>)]) -> Result<(), ExitCode> {
+fn render_sarif(sarif_files: &[(String, Vec<lints::Finding>)]) -> Result<String, ExitCode> {
     let tool = osf_lint_core::ToolInfo {
         name: "osf",
         version: env!("CARGO_PKG_VERSION"),
         information_uri: INFORMATION_URI,
     };
     let report = osf_lint_core::to_sarif(sarif_files, &tool);
-    let text = serde_json::to_string_pretty(&report).map_err(|e| {
+    serde_json::to_string_pretty(&report).map_err(|e| {
         eprintln!("osf: cannot render sarif: {e}");
         ExitCode::from(2)
-    })?;
+    })
+}
+
+fn print_sarif(sarif_files: &[(String, Vec<lints::Finding>)]) -> Result<(), ExitCode> {
+    let text = render_sarif(sarif_files)?;
     println!("{text}");
     Ok(())
+}
+
+/// Writes `sarif_files` as SARIF 2.1.0 to `path`, creating its parent
+/// folders first, so a checkpoint task can point `--sarif-out` anywhere.
+fn write_sarif_out(
+    path: &Path,
+    sarif_files: &[(String, Vec<lints::Finding>)],
+) -> Result<(), ExitCode> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                eprintln!("osf: cannot create {}: {e}", parent.display());
+                ExitCode::from(2)
+            })?;
+        }
+    }
+    let text = render_sarif(sarif_files)?;
+    std::fs::write(path, text).map_err(|e| {
+        eprintln!("osf: cannot write {}: {e}", path.display());
+        ExitCode::from(2)
+    })
+}
+
+/// The files a check runs over: `FILES` when given, else every non-blank
+/// line in the file named by `OSF_FILES_FROM`, else none. A backslash path
+/// is normalised to the forward-slash, repository-relative form every
+/// other path in this tool already uses.
+fn resolve_check_files(cli_files: &[String]) -> Result<Vec<String>, ExitCode> {
+    if !cli_files.is_empty() {
+        return Ok(cli_files.iter().map(|p| p.replace('\\', "/")).collect());
+    }
+    let Some(list_path) = std::env::var_os("OSF_FILES_FROM") else {
+        return Ok(Vec::new());
+    };
+    let text = std::fs::read_to_string(&list_path).map_err(|e| {
+        eprintln!(
+            "osf: cannot read {}: {e}",
+            PathBuf::from(&list_path).display()
+        );
+        ExitCode::from(2)
+    })?;
+    Ok(text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(|l| l.replace('\\', "/"))
+        .collect())
+}
+
+fn check_cmd(args: &CheckArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
+    let loaded = match config::load(config_flag, &[], &[], args.gate) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let excluder = match exclude::Excluder::build(&loaded.config.exclude) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let files = match resolve_check_files(&args.files) {
+        Ok(f) => f,
+        Err(code) => return code,
+    };
+    let name = args.name.label();
+    if args.name != check::CheckName::ScanCommits && files.is_empty() {
+        println!("osf check {name}: nothing to check");
+        if let Some(path) = &args.sarif_out {
+            if let Err(code) = write_sarif_out(path, &[]) {
+                return code;
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+    let base = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok());
+    let opts = verify::Options {
+        dir: Path::new("."),
+        base,
+        message_file: None,
+        config: &loaded.config,
+        excluder: &excluder,
+    };
+    let findings = match check::run_check(args.name, &opts, &files, args.gate) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut errors = 0usize;
+    let mut warnings = 0usize;
+    let mut infos = 0usize;
+    let mut sarif_files: Vec<(String, Vec<lints::Finding>)> = Vec::new();
+    for (path, finding) in &findings {
+        if finding.suppressed.is_none() {
+            println!("{}", finding.render(path, finding.level));
+            match finding.level {
+                lints::Level::Error => errors += 1,
+                lints::Level::Warning => warnings += 1,
+                lints::Level::Info => infos += 1,
+            }
+        }
+        sarif_files.push((path.clone(), vec![finding.clone()]));
+    }
+    println!("osf check {name}: {errors} error(s), {warnings} warning(s), {infos} info");
+    if let Some(path) = &args.sarif_out {
+        if let Err(code) = write_sarif_out(path, &sarif_files) {
+            return code;
+        }
+    }
+    if errors > 0 {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn lint_writing(
