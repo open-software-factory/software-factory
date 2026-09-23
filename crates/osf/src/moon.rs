@@ -3,8 +3,10 @@
 //! shelling out to moon itself.
 
 use std::io::Write as _;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt as _;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use wait_timeout::ChildExt as _;
 
@@ -153,11 +155,28 @@ pub fn run(inv: &Invocation) -> Outcome {
     for (key, value) in inv.env {
         command.env(key, value);
     }
+    // On Unix, moon becomes its own process-group leader so a timeout can
+    // kill the group (ruling R10); on Windows, `taskkill /T` walks the
+    // parent-child tree instead, so no extra spawn setup is needed there.
+    #[cfg(unix)]
+    command.process_group(0);
 
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(e) => return Outcome::CouldNotRun(format!("cannot run moon: {e}")),
     };
+
+    // Reader threads must start before the stdin write below: a large file
+    // list can fill the stdout/stderr pipe buffers while moon is still
+    // reading stdin, and nothing would be draining them yet otherwise.
+    let stdout_reader = child
+        .stdout
+        .take()
+        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
+    let stderr_reader = child
+        .stderr
+        .take()
+        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
 
     if let Some(mut stdin) = child.stdin.take() {
         if let Err(e) = stdin.write_all(&stdin_payload(inv.files)) {
@@ -165,23 +184,10 @@ pub fn run(inv: &Invocation) -> Outcome {
         }
     }
 
-    let mut stdout_pipe = child.stdout.take();
-    let mut stderr_pipe = child.stderr.take();
-    let stdout_reader = stdout_pipe
-        .take()
-        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
-    let stderr_reader = stderr_pipe
-        .take()
-        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
-
     let status = match inv.timeout {
         Some(timeout) => match child.wait_timeout(timeout) {
             Ok(Some(status)) => status,
-            Ok(None) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Outcome::TimedOut;
-            }
+            Ok(None) => return timed_out(&mut child),
             Err(e) => return Outcome::CouldNotRun(format!("cannot wait for moon: {e}")),
         },
         None => match child.wait() {
@@ -208,6 +214,41 @@ pub fn run(inv: &Invocation) -> Outcome {
             tasks,
         },
         Err(e) => Outcome::CouldNotRun(e),
+    }
+}
+
+/// A timeout elapsed: kills moon's whole process tree, then reaps it.
+/// Ruling R10: a tree-kill command that fails becomes `CouldNotRun` naming
+/// the failure, since the caller cannot otherwise know a task might still
+/// be running; a direct kill of moon itself follows as a fallback so
+/// `wait` below cannot hang on a tree-kill command that never started.
+fn timed_out(child: &mut Child) -> Outcome {
+    let killed = kill_tree(child);
+    let _ = child.kill();
+    let _ = child.wait();
+    match killed {
+        Ok(()) => Outcome::TimedOut,
+        Err(e) => Outcome::CouldNotRun(format!("moon timed out and could not be killed: {e}")),
+    }
+}
+
+/// Kills `child` and every process it spawned: `taskkill /PID <pid> /T /F`
+/// on Windows, `kill -KILL` on the process group on Unix (ruling R10 — no
+/// new crate).
+fn kill_tree(child: &Child) -> Result<(), String> {
+    let pid = child.id();
+    #[cfg(windows)]
+    let output = Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .output();
+    #[cfg(unix)]
+    let output = Command::new("kill")
+        .args(["-KILL", &format!("-{pid}")])
+        .output();
+    match output {
+        Ok(o) if o.status.success() => Ok(()),
+        Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
+        Err(e) => Err(e.to_string()),
     }
 }
 
