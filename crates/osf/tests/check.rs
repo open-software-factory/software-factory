@@ -124,9 +124,11 @@ fn check_scan_staged_reports_could_not_run_for_a_file_in_neither_place() {
     let home = isolated_home("check-staged-missing");
     let out = run_osf(&repo.dir, &home, &["check", "scan-staged", "ghost.md"]);
     assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("ghost.md"), "{out:?}");
     assert!(
-        String::from_utf8_lossy(&out.stderr).contains("ghost.md"),
-        "{out:?}"
+        stderr.contains("does not exist"),
+        "git's own error text must survive, not just the file name: {out:?}"
     );
 }
 

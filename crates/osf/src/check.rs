@@ -80,11 +80,14 @@ fn ensure_files_exist(dir: &Path, files: &[String]) -> Result<(), String> {
 
 /// `scan-staged` reads the index, so a file staged then deleted from an
 /// unstaged working tree is still there to check: existence for this
-/// check means present in the index, never the working tree.
+/// check means present in the index, never the working tree. Git's own
+/// error text is kept, not collapsed to a generic message: a missing git
+/// binary, a broken repository, and a path absent from the index are three
+/// different problems, and only git can tell them apart.
 fn ensure_staged_files_exist(dir: &Path, files: &[String]) -> Result<(), String> {
     for path in files {
-        if crate::git::staged_content(dir, path).is_err() {
-            return Err(format!("file not found: {path}"));
+        if let Err(e) = crate::git::staged_content(dir, path) {
+            return Err(format!("file not found in the index: {path} ({e})"));
         }
     }
     Ok(())
