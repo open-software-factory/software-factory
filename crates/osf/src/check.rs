@@ -162,6 +162,13 @@ fn scan_files(
     Ok(findings)
 }
 
+/// The hook checkpoint lints a file a tool just wrote, before it is ever
+/// committed, so its tasks read the working tree; every other checkpoint
+/// diffs against already-committed history and keeps reading git `HEAD`.
+fn checkpoint_reads_working_tree() -> bool {
+    std::env::var("OSF_CHECKPOINT").as_deref() == Ok(crate::checkpoint::Checkpoint::Hook.label())
+}
+
 fn lint_writing_files(
     opts: &Options,
     files: &[String],
@@ -177,9 +184,14 @@ fn lint_writing_files(
     }
     let (markdown, _excluded) = opts.excluder.partition(candidates);
     let known = lints::load_known_names(&opts.config.writing.known_names, None)?;
+    let working_tree = checkpoint_reads_working_tree();
     let mut findings = Vec::new();
     for path in &markdown {
-        let bytes = crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?;
+        let bytes = if working_tree {
+            std::fs::read(opts.dir.join(path)).map_err(|e| e.to_string())?
+        } else {
+            crate::git::content_at(opts.dir, "HEAD", path).map_err(|e| e.to_string())?
+        };
         let text = String::from_utf8_lossy(&bytes);
         let raw = lints::writing::lint_writing(
             &text,

@@ -82,8 +82,30 @@ machine running Windows, macOS, or Linux, install it by hand:
    git config core.hooksPath .osf/hooks
    ```
 
-That folder does not exist yet. A later change in this repository adds
-it.
+That folder already exists in this repository, at `.osf/hooks`.
+
+## Lint a file right after your agent writes it
+
+`osf hook post-tool` runs the hook checkpoint on one file, right after a
+tool writes it and before anyone commits it. It reads the tool event from
+standard input and finds the written path there. It reports an error on
+the agent's next turn.
+
+Add this entry to your coding agent's settings file, alongside `Stop` and
+`UserPromptSubmit`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [ { "type": "command", "command": "osf hook post-tool" } ]
+      }
+    ]
+  }
+}
+```
 
 ## The git wrapper, and its limit
 

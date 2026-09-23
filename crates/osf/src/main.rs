@@ -430,6 +430,19 @@ enum HookEvent {
     Stop(StopArgs),
     /// The user submitted a new prompt: deliver any advice stored from the last turn.
     Prompt,
+    /// A tool wrote a file: run the hook checkpoint on it, refuse it on errors.
+    PostTool(PostToolArgs),
+}
+
+#[derive(Args)]
+struct PostToolArgs {
+    /// How long to let the hook checkpoint run before it reports skipped, in seconds.
+    #[arg(long, default_value_t = 45)]
+    timeout_secs: u64,
+    /// How to report a refusal: `exit-code` or `decision-json`. Guessed from
+    /// the event's key spelling when not given.
+    #[arg(long, value_enum)]
+    answer: Option<hook::Answer>,
 }
 
 #[derive(Args)]
@@ -491,6 +504,12 @@ fn main() -> ExitCode {
         Command::Hook {
             event: HookEvent::Prompt,
         } => hook::prompt(),
+        Command::Hook {
+            event: HookEvent::PostTool(args),
+        } => hook::post_tool(
+            std::time::Duration::from_secs(args.timeout_secs),
+            args.answer,
+        ),
         Command::Config {
             action: ConfigAction::Show,
         } => config_show(cli.config.as_deref()),

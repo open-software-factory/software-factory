@@ -86,8 +86,8 @@ impl TempRepo {
     }
 
     /// Writes `.moon/workspace.yml` and a small `.osf/moon.yml` with two
-    /// tasks, uncommitted: `lint-writing`, tagged `osf-pre-push`, and
-    /// `scan`, tagged `osf-pre-commit` and `osf-pre-push`. Both read only
+    /// tasks, uncommitted: `lint-writing`, tagged `osf-pre-push` and
+    /// `osf-hook`, and `scan`, tagged `osf-pre-commit` and `osf-pre-push`. Both read only
     /// Markdown (`inputs: ['/**/*.md']`), so a change to a non-Markdown
     /// file affects neither. Each task's command is the built `osf`
     /// binary under test. The caller commits these files itself, along
@@ -105,7 +105,7 @@ impl TempRepo {
         repo.write(
             ".osf/moon.yml",
             &format!(
-                "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-commit, osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+                "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push, osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-commit, osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
             ),
         );
         repo
@@ -144,6 +144,31 @@ pub fn run_osf(
     run_osf_with_env(dir, home, &[], args)
 }
 
+/// The `osf` command, in `dir`, with `home` standing in for
+/// `HOME`/`USERPROFILE`, `env` applied on top, and every checkpoint-runner
+/// and `MOON_*` variable this repository's own checkpoint sets on `cargo
+/// test` scrubbed first (see [`run_osf_with_env`]'s doc comment).
+fn osf_cmd(dir: &std::path::Path, home: &std::path::Path, env: &[(&str, &str)]) -> Command {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_osf"));
+    cmd.current_dir(dir)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env_remove("OSF_CONFIG")
+        .env_remove("OSF_DENYLIST")
+        .env_remove("OSF_FILES_FROM")
+        .env_remove("OSF_BASE")
+        .env_remove("OSF_CHECKPOINT");
+    for (key, _) in std::env::vars() {
+        if key.starts_with("MOON_") {
+            cmd.env_remove(key);
+        }
+    }
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    cmd
+}
+
 /// The same as [`run_osf`], with extra environment variables set for this
 /// one run, such as `OSF_FILES_FROM` or `OSF_BASE`.
 ///
@@ -165,25 +190,37 @@ pub fn run_osf_with_env(
     env: &[(&str, &str)],
     args: &[&str],
 ) -> std::process::Output {
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_osf"));
-    cmd.current_dir(dir)
-        .env("HOME", home)
-        .env("USERPROFILE", home)
-        .env_remove("OSF_CONFIG")
-        .env_remove("OSF_DENYLIST")
-        .env_remove("OSF_FILES_FROM")
-        .env_remove("OSF_BASE")
-        .env_remove("OSF_CHECKPOINT")
-        .args(args);
-    for (key, _) in std::env::vars() {
-        if key.starts_with("MOON_") {
-            cmd.env_remove(key);
-        }
-    }
-    for (key, value) in env {
-        cmd.env(key, value);
-    }
-    cmd.output().expect("osf runs")
+    osf_cmd(dir, home, env)
+        .args(args)
+        .output()
+        .expect("osf runs")
+}
+
+/// The same as [`run_osf_with_env`], writing `stdin` to the child's
+/// standard input instead of leaving it closed, for a hook command that
+/// reads its event from there.
+pub fn run_osf_stdin(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    env: &[(&str, &str)],
+    args: &[&str],
+    stdin: &str,
+) -> std::process::Output {
+    use std::io::Write as _;
+    let mut child = osf_cmd(dir, home, env)
+        .args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("osf spawns");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(stdin.as_bytes())
+        .expect("stdin writes");
+    child.wait_with_output().expect("osf runs")
 }
 
 /// Builds a session-link-shaped string at run time for one agent, from the

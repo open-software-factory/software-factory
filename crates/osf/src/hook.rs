@@ -21,11 +21,13 @@
 //! ships its own dsh plugin rather than relying on that bridge.
 
 use crate::config::WritingConfig;
+use crate::journal::CheckResult;
 use crate::lints::{self, Remediation};
 use serde_json::Value;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 
 const MAX_LINES_IN_REASON: usize = 30;
 
@@ -366,6 +368,121 @@ fn take_advice(session: &str) -> Option<String> {
     let _ = std::fs::remove_file(&path);
     let trimmed = advice.trim();
     (!trimmed.is_empty()).then(|| trimmed.to_string())
+}
+
+/// The keys a `PostToolUse` event's `tool_input` names the written path
+/// under, checked in this order.
+const WRITTEN_PATH_KEYS: &[&str] = &["file_path", "path", "notebook_path"];
+
+/// Runs the hook checkpoint on the file a `PostToolUse` event names, and
+/// refuses the tool call through [`refuse`] on an error finding.
+pub fn post_tool(timeout: Duration, answer: Option<Answer>) -> ExitCode {
+    let mut raw = String::new();
+    let read = std::io::stdin().read_to_string(&mut raw).map(|_| raw);
+    post_tool_with_input(read, timeout, answer)
+}
+
+/// The body of [`post_tool`], taking the standard input read as a
+/// parameter so every path can be driven by a test.
+fn post_tool_with_input(
+    raw: std::io::Result<String>,
+    timeout: Duration,
+    answer: Option<Answer>,
+) -> ExitCode {
+    let raw = match raw {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("osf hook post-tool: cannot read standard input: {e}");
+            return ExitCode::SUCCESS;
+        }
+    };
+    let event: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("osf hook post-tool: input is not JSON: {e}");
+            return ExitCode::SUCCESS;
+        }
+    };
+    let Some(raw_path) = written_path(&event) else {
+        return ExitCode::SUCCESS;
+    };
+    let answer = answer.unwrap_or_else(|| answer_for(&event));
+    let root = match crate::git::repo_root(Path::new(".")) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("osf hook post-tool: cannot find the repository root: {e}");
+            return ExitCode::SUCCESS;
+        }
+    };
+    let Some(rel) = repo_relative(&root, &raw_path) else {
+        eprintln!(
+            "osf hook post-tool: {raw_path} is outside the repository root {}; nothing to check",
+            root.display()
+        );
+        return ExitCode::SUCCESS;
+    };
+    let state_dir = match crate::journal::state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("osf hook post-tool: {e}");
+            return ExitCode::SUCCESS;
+        }
+    };
+    let req = crate::checkpoint::Request {
+        root: Path::new("."),
+        checkpoint: crate::checkpoint::Checkpoint::Hook,
+        base: None,
+        files: Some(vec![rel]),
+        timeout: Some(timeout),
+    };
+    let summary = crate::checkpoint::run(&req, &state_dir);
+    if let Some(err) = &summary.journal_error {
+        eprintln!("osf hook post-tool: {err}");
+    }
+    match summary.result {
+        CheckResult::Skipped => {
+            eprintln!(
+                "osf hook post-tool: skipped (hook time limit {}s)",
+                timeout.as_secs()
+            );
+            ExitCode::SUCCESS
+        }
+        CheckResult::Failed | CheckResult::CouldNotRun => {
+            let mut lines = vec![
+                "osf hook post-tool: the written file did not pass the hook checkpoint".to_string(),
+            ];
+            lines.extend(summary.error_findings.iter().cloned());
+            refuse(answer, &lines.join("\n"))
+        }
+        CheckResult::Passed | CheckResult::NothingToCheck => ExitCode::SUCCESS,
+    }
+}
+
+/// The written path an event names, from the first of [`WRITTEN_PATH_KEYS`]
+/// its `tool_input` carries.
+fn written_path(event: &Value) -> Option<String> {
+    let input = event.get("tool_input")?;
+    WRITTEN_PATH_KEYS
+        .iter()
+        .find_map(|k| input.get(k).and_then(Value::as_str).map(str::to_string))
+}
+
+/// `raw` made repository-relative to `root`, with forward slashes. `None`
+/// when `raw` resolves outside `root`.
+fn repo_relative(root: &Path, raw: &str) -> Option<String> {
+    let normalized = raw.replace('\\', "/");
+    let candidate = PathBuf::from(&normalized);
+    if candidate.is_relative() {
+        let cleaned = normalized.strip_prefix("./").unwrap_or(&normalized);
+        return Some(cleaned.to_string());
+    }
+    if let Ok(rel) = candidate.strip_prefix(root) {
+        return Some(rel.to_string_lossy().replace('\\', "/"));
+    }
+    let root_canon = std::fs::canonicalize(root).ok()?;
+    let candidate_canon = std::fs::canonicalize(&candidate).ok()?;
+    let rel = candidate_canon.strip_prefix(&root_canon).ok()?;
+    Some(rel.to_string_lossy().replace('\\', "/"))
 }
 
 fn string_at(v: &Value, keys: &[&str]) -> Option<String> {
