@@ -9,6 +9,7 @@ pub mod config;
 pub mod exclude;
 mod git;
 pub mod hook;
+pub mod journal;
 pub mod lints;
 pub mod repository;
 pub mod review;
