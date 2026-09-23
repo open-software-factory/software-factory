@@ -76,6 +76,58 @@ fn check_scan_staged_reads_the_index_not_the_working_tree() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
+/// Moved from `tests/verify.rs` (M5): a fixture under `tests/fixtures`
+/// that declares an `osf-expect` marker is checked against that
+/// declaration, rather than against the usual level rules, the same way
+/// `osf lint writing` treats one.
+#[test]
+fn check_lint_writing_matches_a_fixture_s_declared_rule() {
+    let repo = TempRepo::new("check-fixture-declared");
+    repo.write(
+        "crates/osf/tests/fixtures/writing/demo.md",
+        "A thing — another thing.\n\n<!-- osf-expect\nem-dash\n-->\n",
+    );
+    repo.commit("add a declared writing fixture");
+    let home = isolated_home("check-fixture-declared");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "lint-writing",
+            "crates/osf/tests/fixtures/writing/demo.md",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+}
+
+/// The mirror case: a fixture that no longer produces a rule it declares
+/// is a failure, the alarm for a rule that silently stopped firing.
+#[test]
+fn check_lint_writing_fails_a_fixture_missing_its_declared_rule() {
+    let repo = TempRepo::new("check-fixture-missing");
+    repo.write(
+        "crates/osf/tests/fixtures/writing/demo.md",
+        "Nothing wrong here.\n\n<!-- osf-expect\nem-dash\n-->\n",
+    );
+    repo.commit("add a fixture missing its declared rule");
+    let home = isolated_home("check-fixture-missing");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "lint-writing",
+            "crates/osf/tests/fixtures/writing/demo.md",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("expectation-missing"),
+        "{out:?}"
+    );
+}
+
 #[test]
 fn check_lint_writing_gate_ignores_a_suppression_marker() {
     let repo = TempRepo::new("check-gate");
