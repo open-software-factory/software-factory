@@ -17,7 +17,13 @@ tasks:
     options: { runFromWorkspaceRoot: true, cache: false, shell: false }
   scan-commits:
     command: 'osf check scan-commits --sarif-out .osf/out/scan-commits.sarif'
-    tags: [osf-pre-push, osf-pull-request, osf-slot-secrets]
+    inputs: ['/**/*']
+    tags: [osf-pre-push, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  scan-commits-gate:
+    command: 'osf check scan-commits --gate --sarif-out .osf/out/scan-commits-gate.sarif'
+    inputs: ['/**/*']
+    tags: [osf-pull-request, osf-slot-secrets]
     options: { runFromWorkspaceRoot: true, cache: false, shell: false }
   lint-writing:
     command: 'osf check lint-writing --sarif-out .osf/out/lint-writing.sarif'
@@ -32,7 +38,12 @@ tasks:
   lint-skill:
     command: 'osf check lint-skill --sarif-out .osf/out/lint-skill.sarif'
     inputs: ['/**/SKILL.md', '/**/skills/**/*']
-    tags: [osf-hook, osf-pre-push, osf-pull-request, osf-slot-skill]
+    tags: [osf-hook, osf-pre-push, osf-slot-skill]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  lint-skill-gate:
+    command: 'osf check lint-skill --gate --sarif-out .osf/out/lint-skill-gate.sarif'
+    inputs: ['/**/SKILL.md', '/**/skills/**/*']
+    tags: [osf-pull-request, osf-slot-skill]
     options: { runFromWorkspaceRoot: true, cache: false, shell: false }
   fmt:
     command: 'cargo fmt --all --check'
