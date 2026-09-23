@@ -1,5 +1,5 @@
 use osf::status::GhClient;
-use osf::{check, config, exclude, hook, lints, review, risk, scan, status, verify};
+use osf::{check, checkpoint, config, exclude, hook, lints, review, risk, scan, status, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -307,54 +307,33 @@ enum StageArg {
     Ci,
 }
 
-impl From<StageArg> for verify::Stage {
+impl From<StageArg> for checkpoint::Checkpoint {
     fn from(value: StageArg) -> Self {
         match value {
-            StageArg::PreCommit => verify::Stage::PreCommit,
-            StageArg::PrePush => verify::Stage::PrePush,
-            StageArg::Ci => verify::Stage::Ci,
-        }
-    }
-}
-
-impl StageArg {
-    const fn label(self) -> &'static str {
-        match self {
-            StageArg::PreCommit => "pre-commit",
-            StageArg::PrePush => "pre-push",
-            StageArg::Ci => "ci",
+            StageArg::PreCommit => checkpoint::Checkpoint::PreCommit,
+            StageArg::PrePush => checkpoint::Checkpoint::PrePush,
+            StageArg::Ci => checkpoint::Checkpoint::PullRequest,
         }
     }
 }
 
 #[derive(Args)]
 struct VerifyArgs {
-    /// Which gate is calling: pre-commit, pre-push, or continuous integration.
+    /// Which checkpoint is calling: hook, pre-commit, pre-push, pull-request, or schedule.
+    #[arg(long, value_enum, conflicts_with = "stage")]
+    checkpoint: Option<checkpoint::Checkpoint>,
+    /// Deprecated alias for `--checkpoint`: pre-commit, pre-push, or ci (mapped to pull-request).
     #[arg(long, value_enum)]
-    stage: StageArg,
+    stage: Option<StageArg>,
     /// What to diff changed files against. Defaults to the repository's default branch.
     #[arg(long)]
     base: Option<String>,
-    /// A file holding the commit message, for the pre-commit stage.
+    /// Reads the hook checkpoint's file list from standard input, one repository-relative path per line.
     #[arg(long)]
-    message_file: Option<PathBuf>,
-    /// How to print findings: human, sarif, or json.
-    #[arg(long, value_enum)]
-    format: Option<Format>,
-    /// A path pattern to skip, on top of the configured list. Repeatable.
-    /// For a person running the tool by hand; a gate run does not accept it.
-    #[arg(long = "exclude", conflicts_with = "gate")]
-    exclude: Vec<String>,
-    /// Ignore the exclude list entirely and check everything. For a person
-    /// running the tool by hand; a gate run does not accept it.
-    #[arg(long, conflicts_with = "gate")]
-    no_exclude: bool,
-    /// Runs as a gate over a change that has not yet been approved: the exclude
-    /// list is the compiled defaults only, never the config file or the
-    /// environment, so that change cannot loosen this check by editing its
-    /// own configuration.
+    files_from_stdin: bool,
+    /// How long to let moon run before it is killed, in seconds. No limit when absent.
     #[arg(long)]
-    gate: bool,
+    timeout_secs: Option<u64>,
 }
 
 #[derive(Subcommand)]
@@ -516,7 +495,7 @@ fn main() -> ExitCode {
         Command::Explain { rule_id } => explain(rule_id),
         Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
         Command::Check(args) => check_cmd(args, cli.config.as_deref()),
-        Command::Verify(args) => verify_cmd(args, cli.config.as_deref()),
+        Command::Verify(args) => verify_cmd(args),
         Command::Risk(args) => risk_cmd(args),
         Command::Status {
             action: StatusAction::Render(args),
@@ -1222,68 +1201,86 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
     }
 }
 
-fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
-    let loaded = match config::load(config_flag, &[], &args.exclude, args.gate) {
-        Ok(l) => l,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
-    let excluder = match build_excluder(&loaded.config.exclude, args.no_exclude) {
-        Ok(e) => e,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
-    let opts = verify::Options {
-        dir: Path::new("."),
-        base: args.base.clone(),
-        message_file: args.message_file.as_deref(),
-        config: &loaded.config,
-        excluder: &excluder,
-    };
-    let report = match verify::run(args.stage.into(), &opts) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
+/// `--checkpoint` when given, else `--stage` mapped onto it. One of the two
+/// is required.
+fn resolve_checkpoint(args: &VerifyArgs) -> Result<checkpoint::Checkpoint, ExitCode> {
+    if let Some(c) = args.checkpoint {
+        return Ok(c);
+    }
+    if let Some(stage) = args.stage {
+        return Ok(stage.into());
+    }
+    eprintln!("osf verify: needs --checkpoint or --stage");
+    Err(ExitCode::from(2))
+}
 
-    let format = resolve_format(args.format, false);
-    match format {
-        Format::Human => {
-            for (check, name, f) in report.findings() {
-                if f.suppressed.is_none() {
-                    println!("{}", f.render(&format!("{check}: {name}"), f.level));
-                }
-            }
-            print!("{}", report.render_summary(args.stage.label()));
-        }
-        Format::Json => {
-            for (check, name, f) in report.findings() {
-                if f.suppressed.is_none() {
-                    println!("{}", f.to_json(&format!("{check}: {name}"), f.level));
-                }
-            }
-        }
-        Format::Sarif => {
-            let sarif_files: Vec<(String, Vec<lints::Finding>)> = report
-                .findings()
-                .map(|(check, name, f)| (format!("{check}: {name}"), vec![f.clone()]))
-                .collect();
-            if let Err(code) = print_sarif(&sarif_files) {
-                return code;
-            }
-        }
+/// The hook checkpoint's file list, one repository-relative path per line
+/// on standard input, normalised to forward slashes.
+fn read_hook_files() -> Result<Vec<String>, ExitCode> {
+    let mut text = String::new();
+    std::io::stdin().read_to_string(&mut text).map_err(|e| {
+        eprintln!("osf verify: cannot read standard input: {e}");
+        ExitCode::from(2)
+    })?;
+    Ok(text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(|l| l.replace('\\', "/"))
+        .collect())
+}
+
+/// Where a checkpoint's journal buffer lives: `OSF_STATE_DIR`, else
+/// `<home>/state` (`USERPROFILE` on Windows, `HOME` elsewhere).
+fn checkpoint_state_dir() -> Result<PathBuf, String> {
+    if let Ok(dir) = std::env::var("OSF_STATE_DIR") {
+        return Ok(PathBuf::from(dir));
     }
-    if report.total_errors() > 0 {
-        ExitCode::from(1)
+    let home_var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    let home = std::env::var(home_var).map_err(|_| {
+        format!("cannot find the state directory: neither OSF_STATE_DIR nor {home_var} is set")
+    })?;
+    Ok(PathBuf::from(home).join("state"))
+}
+
+fn verify_cmd(args: &VerifyArgs) -> ExitCode {
+    let checkpoint = match resolve_checkpoint(args) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let files = if checkpoint == checkpoint::Checkpoint::Hook && args.files_from_stdin {
+        match read_hook_files() {
+            Ok(f) => Some(f),
+            Err(code) => return code,
+        }
     } else {
-        ExitCode::SUCCESS
+        None
+    };
+    let state_dir = match checkpoint_state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let req = checkpoint::Request {
+        root: Path::new("."),
+        checkpoint,
+        base: args.base.clone(),
+        files,
+        timeout: args.timeout_secs.map(std::time::Duration::from_secs),
+    };
+    let summary = checkpoint::run(&req, &state_dir);
+    for line in &summary.lines {
+        println!("{line}");
     }
+    for finding in &summary.error_findings {
+        eprintln!("osf verify: {finding}");
+    }
+    if let Some(err) = &summary.journal_error {
+        eprintln!("osf verify: {err}");
+    }
+    ExitCode::from(checkpoint::exit_code(&summary, checkpoint))
 }
 
 fn risk_cmd(args: &RiskArgs) -> ExitCode {

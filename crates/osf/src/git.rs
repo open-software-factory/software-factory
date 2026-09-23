@@ -237,6 +237,16 @@ pub fn commit_exists(dir: &Path, rev: &str) -> bool {
     .is_ok()
 }
 
+/// Tracked paths whose working tree differs from the index right now: a
+/// file staged for commit and then edited again shows up here too, so a
+/// caller can tell the author that two versions of it were checked.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`.
+pub fn unstaged_files(dir: &Path) -> Result<Vec<String>, GitError> {
+    run(dir, &["diff", "--name-only", "-z"]).map(|raw| split_nul(&raw))
+}
+
 /// Every path that differs between `rev` and the working tree plus index,
 /// added, modified, deleted or renamed alike. Unlike [`changed_files`],
 /// nothing is filtered out: a deleted path still names a changed path.

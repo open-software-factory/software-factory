@@ -5,6 +5,7 @@
 
 pub mod agents;
 pub mod check;
+pub mod checkpoint;
 pub mod config;
 pub mod exclude;
 mod git;
