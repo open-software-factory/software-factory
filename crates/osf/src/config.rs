@@ -559,14 +559,57 @@ mod tests {
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    /// Every environment variable the config layer reads: `OSF_CONFIG` plus
+    /// every `ENV_FIELDS` name. A config unit test must never see a
+    /// caller's own environment (this repository's own CI checkpoint job
+    /// sets `OSF_CONFIG` and `OSF_DENYLIST` on `cargo test`, which a moon
+    /// task inherits) — cleared before a test's own `vars` are applied, and
+    /// restored to whatever ambient value each one held, not merely
+    /// deleted, since one test's explicit `("OSF_CONFIG", ...)` must not
+    /// permanently erase a value another test (or the caller) had set.
+    fn config_env_names() -> Vec<&'static str> {
+        std::iter::once(ENV_VAR)
+            .chain(ENV_FIELDS.iter().map(|f| f.var))
+            .collect()
+    }
+
+    /// Removes every name `config_env_names` returns, returning each one's
+    /// prior value (`None` when it was unset) so the caller can restore it.
+    fn clear_config_env() -> Vec<(&'static str, Option<String>)> {
+        let ambient: Vec<(&'static str, Option<String>)> = config_env_names()
+            .into_iter()
+            .map(|k| (k, std::env::var(k).ok()))
+            .collect();
+        for (k, _) in &ambient {
+            // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
+            unsafe { std::env::remove_var(k) };
+        }
+        ambient
+    }
+
+    /// Puts back what `clear_config_env` captured: re-sets a name that had
+    /// a value, leaves one that did not have one still unset.
+    fn restore_config_env(ambient: Vec<(&'static str, Option<String>)>) {
+        for (k, v) in ambient {
+            match v {
+                // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
+                Some(v) => unsafe { std::env::set_var(k, v) },
+                // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
+                None => unsafe { std::env::remove_var(k) },
+            }
+        }
+    }
+
     /// Runs `f` while holding the process-wide environment lock, setting
     /// `vars` first when any are given. Every test in this module goes
-    /// through here, because `OSF_WRITING_*` is process-global state and
-    /// two tests must never touch it at the same time.
+    /// through here, because `OSF_WRITING_*` and the rest of the config
+    /// environment are process-global state and two tests must never touch
+    /// them at the same time.
     fn serial<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
         let guard = ENV_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ambient = clear_config_env();
         for (k, v) in vars {
             // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
             unsafe { std::env::set_var(k, v) };
@@ -576,6 +619,7 @@ mod tests {
             // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
             unsafe { std::env::remove_var(k) };
         }
+        restore_config_env(ambient);
         drop(guard);
         result
     }
@@ -601,6 +645,7 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let original = std::env::current_dir().expect("the current directory reads");
         std::env::set_current_dir(dir).expect("chdir into the test directory");
+        let ambient = clear_config_env();
         for (k, v) in vars {
             // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
             unsafe { std::env::set_var(k, v) };
@@ -610,6 +655,7 @@ mod tests {
             // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
             unsafe { std::env::remove_var(k) };
         }
+        restore_config_env(ambient);
         std::env::set_current_dir(original).expect("chdir back to the original directory");
         drop(guard);
         result

@@ -340,9 +340,12 @@ fn read_all(pipe: &mut impl std::io::Read) -> String {
 /// Returns an error when moon cannot run, exits non-zero, or its output
 /// does not parse.
 pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, String> {
-    let output = Command::new(moon_binary())
+    let mut command = Command::new(moon_binary());
+    command
         .args(["query", "tasks", "--tags", tag])
-        .current_dir(root)
+        .current_dir(root);
+    strip_inherited_moon_vars(&mut command);
+    let output = command
         .output()
         .map_err(|e| format!("cannot run moon query tasks: {e}"))?;
     if !output.status.success() {
