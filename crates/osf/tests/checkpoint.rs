@@ -91,6 +91,22 @@ fn a_base_with_no_committed_difference_at_all_is_nothing_to_check() {
     );
 }
 
+/// Moved from `tests/verify.rs` (M5): nothing staged is nothing to check,
+/// never a silent pass mistaken for a clean run.
+#[test]
+fn pre_commit_with_nothing_staged_is_nothing_to_check() {
+    let repo = TempRepo::with_moon_workspace("cp-pc-nothing");
+    repo.write("a.md", "Clean.\n");
+    repo.commit("add a file");
+    let home = isolated_home("cp-pc-nothing");
+    let out = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("nothing to check"),
+        "{out:?}"
+    );
+}
+
 #[test]
 fn a_staged_file_with_unstaged_edits_is_named_on_stderr() {
     let repo = TempRepo::with_moon_workspace("cp-partial");
@@ -100,8 +116,10 @@ fn a_staged_file_with_unstaged_edits_is_named_on_stderr() {
     repo.write("notes.md", "Different working text.\n");
     let home = isolated_home("cp-partial");
     let out = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert!(
-        String::from_utf8_lossy(&out.stderr).contains("notes.md"),
+        String::from_utf8_lossy(&out.stderr)
+            .contains("staged with unstaged edits, so both versions were checked: notes.md"),
         "{out:?}"
     );
 }
@@ -203,7 +221,61 @@ fn a_failed_task_with_no_sarif_reports_unknown_findings() {
         .and_then(|p| p.get("reason"))
         .and_then(serde_json::Value::as_str)
         .expect("reason is a string");
-    assert!(reason.contains("no findings file"), "{reason}");
+    assert!(
+        reason.contains("no findings file: .osf/out/boom.sarif"),
+        "{reason}"
+    );
+}
+
+/// M2: a suppressed result never counts toward a task's finding total, and
+/// `error_findings` (what the hook or the pull-request checkpoint's own
+/// refusal text shows) lists error-level results only, so a warning never
+/// reads back as a reason to refuse.
+#[test]
+fn a_suppressed_error_is_excluded_from_the_count_and_the_refusal_text() {
+    let repo = TempRepo::new("cp-suppressed");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    // Base64 of a SARIF holding one suppressed error and one (unsuppressed)
+    // warning, so the task can write it with no quoting trouble in this
+    // YAML scalar: {"runs":[{"results":[
+    //   {"ruleId":"suppressed-rule","level":"error",
+    //    "message":{"text":"suppressed message"},
+    //    "suppressions":[{"kind":"inSource"}]},
+    //   {"ruleId":"warn-rule","level":"warning",
+    //    "message":{"text":"warn message"}}]}]}
+    let payload = "eyJydW5zIjpbeyJyZXN1bHRzIjpbeyJydWxlSWQiOiJzdXBwcmVzc2VkLXJ1bGUiLCJsZXZlbCI6ImVycm9yIiwibWVzc2FnZSI6eyJ0ZXh0Ijoic3VwcHJlc3NlZCBtZXNzYWdlIn0sInN1cHByZXNzaW9ucyI6W3sia2luZCI6ImluU291cmNlIn1dfSx7InJ1bGVJZCI6Indhcm4tcnVsZSIsImxldmVsIjoid2FybmluZyIsIm1lc3NhZ2UiOnsidGV4dCI6Indhcm4gbWVzc2FnZSJ9fV19XX0=";
+    let script = if cfg!(windows) {
+        format!(
+            "New-Item -ItemType Directory -Force .osf/out | Out-Null; [IO.File]::WriteAllText(\".osf/out/boom.sarif\", [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(\"{payload}\"))); exit 1"
+        )
+    } else {
+        format!("mkdir -p .osf/out && echo {payload} | base64 -d > .osf/out/boom.sarif && exit 1")
+    };
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "tasks:\n  boom:\n    script: '{script}'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n"
+        ),
+    );
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("dirty");
+    let home = isolated_home("cp-suppressed");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("1 finding(s)"), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!stderr.contains("suppressed-rule"), "{out:?}");
+    assert!(!stderr.contains("suppressed message"), "{out:?}");
+    assert!(!stderr.contains("warn-rule"), "{out:?}");
 }
 
 /// Ruling R16: both of moon's own captured streams must reach stderr under
@@ -332,6 +404,119 @@ fn the_pull_request_checkpoint_ignores_a_suppression_marker_and_the_exclude_list
         &["verify", "--checkpoint", "pull-request", "--base", &base],
     );
     assert_eq!(pull_request.status.code(), Some(1), "{pull_request:?}");
+}
+
+/// C1: `.osf/moon.yml`'s own `scan-commits` task had no `inputs` at all,
+/// so moon's own default (`**/*`, relative to the `.osf/` project) made it
+/// affected only by a change under `.osf/` — never by an ordinary changed
+/// file. This documents that default directly: a task with an explicit
+/// `inputs: ['/**/*']` runs for a change that touches only `docs/x.txt`;
+/// a task with no `inputs` at all does not.
+#[test]
+fn a_task_with_no_inputs_is_affected_only_by_a_change_under_its_own_project() {
+    let repo = TempRepo::new("cp-inputs-default");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        "tasks:\n  wide:\n    script: 'exit 0'\n    inputs: ['/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n  narrow-default:\n    script: 'exit 0'\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n",
+    );
+    let base = repo.commit("base");
+    repo.write("docs/x.txt", "hello\n");
+    repo.commit("touch an unrelated doc file");
+    let home = isolated_home("cp-inputs-default");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("osf:wide"), "{out:?}");
+    assert!(!stdout.contains("osf:narrow-default"), "{out:?}");
+}
+
+/// I5: `lint-skill-gate`, the pull-request checkpoint's own task, ignores
+/// a config file's exclude list, the same way `lint-writing-gate` and
+/// `scan-gate` already do; `lint-skill`, the pre-push task, honours it.
+#[test]
+fn the_pull_request_checkpoint_s_lint_skill_gate_ignores_the_exclude_list() {
+    let repo = TempRepo::new("cp-skill-gate");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "language: rust\ntasks:\n  lint-skill:\n    command: '\"{bin}\" check lint-skill --sarif-out .osf/out/lint-skill.sarif'\n    inputs: ['/**/SKILL.md', '/**/skills/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  lint-skill-gate:\n    command: '\"{bin}\" check lint-skill --gate --sarif-out .osf/out/lint-skill-gate.sarif'\n    inputs: ['/**/SKILL.md', '/**/skills/**/*']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+        ),
+    );
+    repo.write("osf.toml", "exclude = [\"skills/demo\"]\n");
+    let base = repo.commit("base");
+    repo.write(
+        "skills/demo/SKILL.md",
+        "---\nname: demo\ndescription: Checks a folder for problems.\n---\n\n1. Run the check.\n",
+    );
+    repo.commit("dirty");
+    let home = isolated_home("cp-skill-gate");
+    let pre_push = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(pre_push.status.code(), Some(0), "{pre_push:?}");
+    let pull_request = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pull-request", "--base", &base],
+    );
+    assert_eq!(pull_request.status.code(), Some(1), "{pull_request:?}");
+}
+
+/// I2: when moon itself cannot run, the checkpoint still journals one
+/// verification event per task it was about to run, with the moon error
+/// as the reason, rather than leaving the failure silent in the journal.
+#[test]
+fn a_missing_moon_journals_a_could_not_run_verification_per_task() {
+    let repo = TempRepo::with_moon_workspace("cp-missing-moon");
+    let base = repo.commit("base");
+    repo.write("a.md", "Hello.\n");
+    repo.commit("dirty");
+    let home = isolated_home("cp-missing-moon");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", "/nonexistent/moon")],
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let buffer = std::fs::read_dir(state(&home).join("buffer"))
+        .expect("buffer")
+        .next()
+        .expect("one file")
+        .expect("entry")
+        .path();
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+        .expect("read")
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("json"))
+        .collect();
+    let is_verification = |e: &&serde_json::Value| {
+        e.get("event_type").and_then(serde_json::Value::as_str) == Some("verification")
+    };
+    let verifications: Vec<&serde_json::Value> = lines.iter().filter(is_verification).collect();
+    assert!(!verifications.is_empty(), "{lines:?}");
+    assert!(
+        verifications.iter().all(|v| v
+            .get("payload")
+            .and_then(|p| p.get("result"))
+            .and_then(serde_json::Value::as_str)
+            == Some("could-not-run")),
+        "{lines:?}"
+    );
 }
 
 /// Moved from `tests/verify.rs`: an unresolvable base is a failure to run,

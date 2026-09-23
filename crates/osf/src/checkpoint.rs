@@ -121,10 +121,15 @@ fn resolve_files(req: &Request, base: Option<&str>) -> Result<Vec<String>, Strin
 /// Staged files that also have edits in the working tree beyond what is
 /// staged: the scan checks the index, a moon task's own tooling reads the
 /// working tree, so both versions of such a file were checked, and the
-/// author is told which files that applies to.
+/// author is told which files that applies to. A git error here is printed
+/// as a notice rather than swallowed (M10); the check itself still runs.
 fn partially_staged(root: &Path, staged: &[String]) -> Vec<String> {
-    let Ok(unstaged) = crate::git::unstaged_files(root) else {
-        return Vec::new();
+    let unstaged = match crate::git::unstaged_files(root) {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("osf verify: cannot check for files with unstaged edits: {e}");
+            return Vec::new();
+        }
     };
     let unstaged: std::collections::BTreeSet<&str> = unstaged.iter().map(String::as_str).collect();
     staged
@@ -134,18 +139,14 @@ fn partially_staged(root: &Path, staged: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Writes `files`, one per line, to a fresh file under `state_dir/files`,
-/// for `OSF_FILES_FROM` (ruling R7). Moon itself cannot pass a changed-file
-/// list to a task, so this is how each task's `osf check` learns it.
-fn write_files_from(state_dir: &Path, run: &str, files: &[String]) -> Result<PathBuf, String> {
-    let dir = state_dir.join("files");
-    std::fs::create_dir_all(&dir).map_err(|e| {
-        format!(
-            "cannot create the checkpoint files directory {}: {e}",
-            dir.display()
-        )
-    })?;
-    let path = dir.join(format!("{run}.txt"));
+/// Writes `files`, one per line, to a fresh file under the OS temp
+/// directory, for `OSF_FILES_FROM` (ruling R7). Moon itself cannot pass a
+/// changed-file list to a task, so this is how each task's `osf check`
+/// learns it. Ruling R21: this lives outside the journal's own state
+/// directory, so an unwritable state dir never blocks it, and the caller
+/// deletes it once moon has run, on every path.
+fn write_files_from(run: &str, files: &[String]) -> Result<PathBuf, String> {
+    let path = std::env::temp_dir().join(format!("osf-checkpoint-files-{run}.txt"));
     let mut content = String::new();
     for file in files {
         content.push_str(file);
@@ -160,18 +161,49 @@ fn write_files_from(state_dir: &Path, run: &str, files: &[String]) -> Result<Pat
     Ok(path)
 }
 
+/// Best-effort removal of the `OSF_FILES_FROM` list `write_files_from`
+/// wrote: a leftover temp file is not evidence anything depends on, so a
+/// removal failure is not worth reporting.
+fn cleanup_files_from(path: &Path) {
+    let _ = std::fs::remove_file(path);
+}
+
 /// The task id a moon target names: the part after its last `:`.
 fn task_id(target: &str) -> &str {
     target.rsplit(':').next().unwrap_or(target)
 }
 
-/// What reading a task's SARIF output found: the findings themselves,
-/// rendered one line each as `<rule>: <message>`; the file was never
-/// written; or the file exists but could not be read or parsed.
+/// One SARIF result worth counting: never a suppressed one (M2), since a
+/// suppressed finding is a decision already made, not something to count
+/// or show again.
+struct SarifFinding {
+    rule: String,
+    message: String,
+    level: String,
+}
+
+/// What reading a task's SARIF output found: every non-suppressed finding;
+/// the file was never written; or the file exists but could not be read or
+/// parsed.
 enum SarifOutcome {
-    Findings(Vec<String>),
-    Missing(PathBuf),
-    Unreadable(PathBuf, String),
+    Findings(Vec<SarifFinding>),
+    Missing,
+    Unreadable(String),
+}
+
+/// The forward-slash, repository-relative label for a task's own SARIF
+/// file (M3): a reason built from this reads the same on every operating
+/// system, unlike one built from a joined, platform-separated `PathBuf`.
+fn sarif_rel_label(target: &str) -> String {
+    format!(".osf/out/{}.sarif", task_id(target))
+}
+
+/// True when a SARIF result carries a non-empty `suppressions` array.
+fn is_suppressed(result: &serde_json::Value) -> bool {
+    result
+        .get("suppressions")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|s| !s.is_empty())
 }
 
 /// Reads the SARIF an `osf check` task wrote to `.osf/out/<task-id>.sarif`.
@@ -181,25 +213,28 @@ fn sarif_outcome(root: &Path, target: &str) -> SarifOutcome {
         .join("out")
         .join(format!("{}.sarif", task_id(target)));
     if !path.is_file() {
-        return SarifOutcome::Missing(path);
+        return SarifOutcome::Missing;
     }
     let text = match std::fs::read_to_string(&path) {
         Ok(t) => t,
-        Err(e) => return SarifOutcome::Unreadable(path, e.to_string()),
+        Err(e) => return SarifOutcome::Unreadable(e.to_string()),
     };
     let value: serde_json::Value = match serde_json::from_str(&text) {
         Ok(v) => v,
-        Err(e) => return SarifOutcome::Unreadable(path, e.to_string()),
+        Err(e) => return SarifOutcome::Unreadable(e.to_string()),
     };
-    let mut lines = Vec::new();
+    let mut findings = Vec::new();
     let Some(runs) = value.get("runs").and_then(serde_json::Value::as_array) else {
-        return SarifOutcome::Findings(lines);
+        return SarifOutcome::Findings(findings);
     };
     for run in runs {
         let Some(results) = run.get("results").and_then(serde_json::Value::as_array) else {
             continue;
         };
         for result in results {
+            if is_suppressed(result) {
+                continue;
+            }
             let rule = result
                 .get("ruleId")
                 .and_then(serde_json::Value::as_str)
@@ -209,10 +244,18 @@ fn sarif_outcome(root: &Path, target: &str) -> SarifOutcome {
                 .and_then(|m| m.get("text"))
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("");
-            lines.push(format!("{rule}: {message}"));
+            let level = result
+                .get("level")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("warning");
+            findings.push(SarifFinding {
+                rule: rule.to_string(),
+                message: message.to_string(),
+                level: level.to_string(),
+            });
         }
     }
-    SarifOutcome::Findings(lines)
+    SarifOutcome::Findings(findings)
 }
 
 /// Ruling R13: a SARIF file left over from an earlier run must never be
@@ -307,24 +350,36 @@ struct TaskLine {
 /// zero — the check never ran to completion, so there is nothing to count.
 /// A SARIF file that exists but will not parse is the same problem for any
 /// task, whatever its status: the count cannot be trusted either way.
+///
+/// M2: a suppressed result is already excluded by [`sarif_outcome`], so the
+/// count here is every other result; the lines returned are error-level
+/// only, since those are the ones worth putting in a hook's refusal text.
+///
+/// M3: a reason naming the SARIF path uses the forward-slash,
+/// repository-relative label, never a platform-separated `PathBuf`.
 fn findings_from_sarif(
     root: &Path,
     target: &str,
     status: TaskStatus,
 ) -> (u32, Option<String>, Vec<String>, String) {
     match sarif_outcome(root, target) {
-        SarifOutcome::Findings(lines) => {
-            let count = u32::try_from(lines.len()).unwrap_or(u32::MAX);
+        SarifOutcome::Findings(findings) => {
+            let count = u32::try_from(findings.len()).unwrap_or(u32::MAX);
             let word = format!("{count} finding(s)");
-            (count, None, lines, word)
+            let error_lines: Vec<String> = findings
+                .iter()
+                .filter(|f| f.level == "error")
+                .map(|f| format!("{}: {}", f.rule, f.message))
+                .collect();
+            (count, None, error_lines, word)
         }
-        SarifOutcome::Missing(path) if status == TaskStatus::Failed => {
-            let reason = format!("no findings file: {}", path.display());
+        SarifOutcome::Missing if status == TaskStatus::Failed => {
+            let reason = format!("no findings file: {}", sarif_rel_label(target));
             (0, Some(reason), Vec::new(), "findings unknown".to_string())
         }
-        SarifOutcome::Missing(_) => (0, None, Vec::new(), "0 finding(s)".to_string()),
-        SarifOutcome::Unreadable(path, err) => {
-            let reason = format!("cannot read SARIF at {}: {err}", path.display());
+        SarifOutcome::Missing => (0, None, Vec::new(), "0 finding(s)".to_string()),
+        SarifOutcome::Unreadable(err) => {
+            let reason = format!("cannot read SARIF at {}: {err}", sarif_rel_label(target));
             (
                 0,
                 Some(reason),
@@ -457,6 +512,7 @@ struct Prepared {
     env: Vec<(String, String)>,
     error_findings: Vec<String>,
     journal_error: Option<String>,
+    files_path: PathBuf,
 }
 
 /// Resolves `req`'s base and files, notes any partially staged file,
@@ -485,7 +541,7 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
         std::process::id()
     );
 
-    let files_path = match write_files_from(state_dir, &run_id, &files) {
+    let files_path = match write_files_from(&run_id, &files) {
         Ok(p) => p,
         Err(e) => {
             error_findings.push(e);
@@ -505,6 +561,7 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
             None
         }
         Err(e) => {
+            cleanup_files_from(&files_path);
             return Err(Summary {
                 result: CheckResult::CouldNotRun,
                 lines: Vec::new(),
@@ -538,7 +595,185 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
         env,
         error_findings,
         journal_error,
+        files_path,
     })
+}
+
+/// Writes one verification event, so [`append_unset_verifications`] does
+/// not repeat the `Payload::Verification` shape at each of its two sites.
+fn append_unset_verification(
+    journal: &mut Journal,
+    label: &str,
+    check: String,
+    result: CheckResult,
+    reason: &str,
+    journal_error: &mut Option<String>,
+) {
+    if let Err(e) = journal.append(
+        ACTOR,
+        now_millis(),
+        Payload::Verification(Verification {
+            check,
+            slot: None,
+            checkpoint: label.to_string(),
+            result,
+            duration_ms: 0,
+            cache: None,
+            findings: 0,
+            grade: "observed".to_string(),
+            reason: Some(reason.to_string()),
+        }),
+    ) {
+        journal_error.get_or_insert(e);
+    }
+}
+
+/// I2: moon never got to report on any task — a timeout, a could-not-run
+/// from `moon::run`, or a failure clearing the stale SARIF before it ran —
+/// so one verification event per target the checkpoint was about to run
+/// records why, instead of leaving the journal silent about work that
+/// never happened. When even the target list cannot be read, records one
+/// event naming `moon` itself instead.
+fn append_unset_verifications(
+    root: &Path,
+    tag: &str,
+    label: &str,
+    journal: &mut Option<Journal>,
+    result: CheckResult,
+    reason: &str,
+    journal_error: &mut Option<String>,
+) {
+    let Some(j) = journal.as_mut() else {
+        return;
+    };
+    match moon::task_targets_for_tag(root, tag) {
+        Ok(targets) => {
+            for target in targets {
+                append_unset_verification(j, label, target, result, reason, journal_error);
+            }
+        }
+        Err(e) => {
+            append_unset_verification(
+                j,
+                label,
+                "moon".to_string(),
+                CheckResult::CouldNotRun,
+                &e,
+                journal_error,
+            );
+        }
+    }
+}
+
+/// Builds the [`Summary`] for a `clear_stale_sarif` failure: I2's
+/// per-target could-not-run events, then the one-line summary every
+/// outcome with no per-task detail shares.
+#[allow(clippy::too_many_arguments)]
+fn stale_sarif_could_not_run(
+    req: &Request,
+    journal: &mut Option<Journal>,
+    commit: Option<String>,
+    label: &str,
+    mut error_findings: Vec<String>,
+    mut journal_error: Option<String>,
+    reason: &str,
+) -> Summary {
+    append_unset_verifications(
+        req.root,
+        req.checkpoint.tag(),
+        label,
+        journal,
+        CheckResult::CouldNotRun,
+        reason,
+        &mut journal_error,
+    );
+    error_findings.push(reason.to_string());
+    let line = format!("{label}: could not run: cannot clear stale findings");
+    finish(
+        journal,
+        label,
+        commit,
+        CheckResult::CouldNotRun,
+        line,
+        error_findings,
+        journal_error,
+    )
+}
+
+/// Builds the [`Summary`] for `Outcome::TimedOut` (I2): a hook checkpoint
+/// reports skipped, decision 0011; every other checkpoint could not run.
+/// Either way, one verification event per target names the time limit.
+#[allow(clippy::too_many_arguments)]
+fn timed_out_summary(
+    req: &Request,
+    journal: &mut Option<Journal>,
+    commit: Option<String>,
+    label: &str,
+    mut error_findings: Vec<String>,
+    mut journal_error: Option<String>,
+) -> Summary {
+    let result = if req.checkpoint == Checkpoint::Hook {
+        CheckResult::Skipped
+    } else {
+        CheckResult::CouldNotRun
+    };
+    let timeout_reason = format!(
+        "hook time limit {}s",
+        req.timeout.unwrap_or_default().as_secs()
+    );
+    append_unset_verifications(
+        req.root,
+        req.checkpoint.tag(),
+        label,
+        journal,
+        CheckResult::Skipped,
+        &timeout_reason,
+        &mut journal_error,
+    );
+    error_findings.push("moon timed out".to_string());
+    finish(
+        journal,
+        label,
+        commit,
+        result,
+        format!("{label}: moon timed out"),
+        error_findings,
+        journal_error,
+    )
+}
+
+/// Builds the [`Summary`] for `Outcome::CouldNotRun` (I2): one
+/// verification event per target names moon's own error as the reason.
+#[allow(clippy::too_many_arguments)]
+fn moon_could_not_run_summary(
+    req: &Request,
+    journal: &mut Option<Journal>,
+    commit: Option<String>,
+    label: &str,
+    mut error_findings: Vec<String>,
+    mut journal_error: Option<String>,
+    reason: &str,
+) -> Summary {
+    append_unset_verifications(
+        req.root,
+        req.checkpoint.tag(),
+        label,
+        journal,
+        CheckResult::CouldNotRun,
+        reason,
+        &mut journal_error,
+    );
+    error_findings.push(reason.to_string());
+    let line = format!("{label}: could not run: {reason}");
+    finish(
+        journal,
+        label,
+        commit,
+        CheckResult::CouldNotRun,
+        line,
+        error_findings,
+        journal_error,
+    )
 }
 
 /// Appends a checkpoint-complete event and builds the one-line [`Summary`]
@@ -570,8 +805,9 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
         files,
         mut journal,
         env,
-        mut error_findings,
+        error_findings,
         journal_error,
+        files_path,
     } = match prepare(req, state_dir) {
         Ok(p) => p,
         Err(summary) => return summary,
@@ -585,6 +821,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
     // opposite of what an empty change means here. Report it directly,
     // the same as `Outcome::NothingAffected`, without asking moon at all.
     if files.is_empty() {
+        cleanup_files_from(&files_path);
         let line = format!("{label}: nothing to check");
         return finish(
             &mut journal,
@@ -598,16 +835,15 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
     }
 
     if let Err(e) = clear_stale_sarif(req.root, req.checkpoint.tag()) {
-        error_findings.push(e);
-        let line = format!("{label}: could not run: cannot clear stale findings");
-        return finish(
+        cleanup_files_from(&files_path);
+        return stale_sarif_could_not_run(
+            req,
             &mut journal,
-            label,
             commit,
-            CheckResult::CouldNotRun,
-            line,
+            label,
             error_findings,
             journal_error,
+            &e,
         );
     }
 
@@ -619,6 +855,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
         env: &env,
         timeout: req.timeout,
     });
+    cleanup_files_from(&files_path);
 
     match outcome {
         Outcome::NothingAffected => finish(
@@ -639,40 +876,23 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
             error_findings,
             journal_error,
         ),
-        Outcome::TimedOut => {
-            // Decision 0011: a check that cannot finish in the hook's time
-            // reports skipped with a reason; the pre-commit checkpoint runs
-            // it in full. Every other checkpoint treats a timeout as a
-            // failure to run at all.
-            let result = if req.checkpoint == Checkpoint::Hook {
-                CheckResult::Skipped
-            } else {
-                CheckResult::CouldNotRun
-            };
-            error_findings.push("moon timed out".to_string());
-            finish(
-                &mut journal,
-                label,
-                commit,
-                result,
-                format!("{label}: moon timed out"),
-                error_findings,
-                journal_error,
-            )
-        }
-        Outcome::CouldNotRun(reason) => {
-            error_findings.push(reason.clone());
-            let line = format!("{label}: could not run: {reason}");
-            finish(
-                &mut journal,
-                label,
-                commit,
-                CheckResult::CouldNotRun,
-                line,
-                error_findings,
-                journal_error,
-            )
-        }
+        Outcome::TimedOut => timed_out_summary(
+            req,
+            &mut journal,
+            commit,
+            label,
+            error_findings,
+            journal_error,
+        ),
+        Outcome::CouldNotRun(reason) => moon_could_not_run_summary(
+            req,
+            &mut journal,
+            commit,
+            label,
+            error_findings,
+            journal_error,
+            &reason,
+        ),
     }
 }
 

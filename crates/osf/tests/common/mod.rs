@@ -88,10 +88,11 @@ impl TempRepo {
     /// Writes `.moon/workspace.yml` and a small `.osf/moon.yml` with two
     /// tasks, uncommitted: `lint-writing`, tagged `osf-pre-push` and
     /// `osf-hook`, and `scan`, tagged `osf-pre-commit`, `osf-pre-push` and
-    /// `osf-hook`. Both read only
-    /// file affects neither. Each task's command is the built `osf`
-    /// binary under test. The caller commits these files itself, along
-    /// with whatever else the test needs in that first commit.
+    /// `osf-hook`. Both read only Markdown (`inputs: ['/**/*.md']`), so a
+    /// change to a non-Markdown file affects neither. Each task's command
+    /// is the built `osf` binary under test. The caller commits these
+    /// files itself, along with whatever else the test needs in that
+    /// first commit.
     pub fn with_moon_workspace(name: &str) -> Self {
         let repo = TempRepo::new(name);
         repo.write(
