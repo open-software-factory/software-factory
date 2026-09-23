@@ -241,6 +241,53 @@ fn an_inherited_moon_workspace_root_from_an_outer_task_does_not_redirect_the_run
     );
 }
 
+/// I1: a target's cache outcome comes from the real moon binary, not this
+/// adapter's own guess, so this runs the same cacheable task twice and
+/// checks the second run's own report.
+#[test]
+fn a_task_run_twice_is_cached_the_second_time() {
+    serial(&[], || {
+        let ws = MoonWorkspace::new("cache-twice");
+        let targets = vec![":#osf-pre-commit".to_string()];
+        let files = vec!["app/notes.md".to_string()];
+        match run(&Invocation {
+            root: &ws.root,
+            targets: &targets,
+            files: &files,
+            env: &[],
+            timeout: Some(std::time::Duration::from_secs(30)),
+        }) {
+            Outcome::Ran { tasks, .. } => assert_eq!(tasks.len(), 1, "{tasks:?}"),
+            Outcome::NothingAffected => {
+                panic!("expected Ran on the first run, got NothingAffected")
+            }
+            Outcome::TimedOut => panic!("expected Ran on the first run, got TimedOut"),
+            Outcome::CouldNotRun(e) => {
+                panic!("expected Ran on the first run, got CouldNotRun({e})")
+            }
+        }
+        match run(&Invocation {
+            root: &ws.root,
+            targets: &targets,
+            files: &files,
+            env: &[],
+            timeout: Some(std::time::Duration::from_secs(30)),
+        }) {
+            Outcome::Ran { tasks, .. } => {
+                let task = tasks.first().expect("one task");
+                assert!(task.cached, "{tasks:?}");
+            }
+            Outcome::NothingAffected => {
+                panic!("expected Ran on the second run, got NothingAffected")
+            }
+            Outcome::TimedOut => panic!("expected Ran on the second run, got TimedOut"),
+            Outcome::CouldNotRun(e) => {
+                panic!("expected Ran on the second run, got CouldNotRun({e})")
+            }
+        }
+    });
+}
+
 #[test]
 fn a_few_thousand_stdin_paths_do_not_deadlock() {
     serial(&[], || {

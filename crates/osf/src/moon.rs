@@ -396,6 +396,7 @@ pub fn parse_report(json: &str) -> Result<Vec<TaskOutcome>, String> {
         .ok_or("run report has no context.targetStates object")?;
 
     let mut durations = std::collections::HashMap::new();
+    let mut cached_targets = std::collections::HashSet::new();
     if let Some(actions) = value.get("actions").and_then(serde_json::Value::as_array) {
         for action in actions {
             let Some(target) = action_target(action) else {
@@ -405,6 +406,12 @@ pub fn parse_report(json: &str) -> Result<Vec<TaskOutcome>, String> {
                 .get("duration")
                 .and_then(duration_ms)
                 .unwrap_or_default();
+            // I1: `context.targetStates[*].state` says "passed" on a cache
+            // hit too; the action's own status is the only place "cached"
+            // appears.
+            if action.get("status").and_then(serde_json::Value::as_str) == Some("cached") {
+                cached_targets.insert(target.clone());
+            }
             durations.insert(target, ms);
         }
     }
@@ -415,13 +422,13 @@ pub fn parse_report(json: &str) -> Result<Vec<TaskOutcome>, String> {
             .get("state")
             .and_then(serde_json::Value::as_str)
             .ok_or_else(|| format!("task '{target}' has no state field"))?;
-        let (status, cached) = map_status(raw_status)
+        let status = map_status(raw_status)
             .ok_or_else(|| format!("task '{target}' has an unrecognised status '{raw_status}'"))?;
         tasks.push(TaskOutcome {
             target: target.clone(),
             status,
             duration_ms: durations.get(target).copied().unwrap_or_default(),
-            cached,
+            cached: cached_targets.contains(target),
         });
     }
     Ok(tasks)
@@ -442,16 +449,17 @@ fn duration_ms(value: &serde_json::Value) -> Option<u64> {
     Some(secs.saturating_mul(1000) + nanos / 1_000_000)
 }
 
-/// Maps a moon task status to this adapter's status, and whether it was a
-/// cache hit. A passed or cached status is a pass; a failed status is a
-/// fail; a skipped or invalid status is skipped. Any other value is
-/// unrecognised, so an unknown status never reads as a pass.
-fn map_status(raw: &str) -> Option<(TaskStatus, bool)> {
+/// Maps a moon target state's status to this adapter's status. A passed or
+/// cached value is a pass; a failed value is a fail; a skipped or invalid
+/// value is skipped. Any other value is unrecognised, so an unknown status
+/// never reads as a pass. Whether the task was a cache hit is a separate
+/// question, answered from the matching action's own status, not this one
+/// (I1: `targetStates[*].state` says "passed" on a cache hit too).
+fn map_status(raw: &str) -> Option<TaskStatus> {
     match raw {
-        "passed" => Some((TaskStatus::Passed, false)),
-        "cached" => Some((TaskStatus::Passed, true)),
-        "failed" => Some((TaskStatus::Failed, false)),
-        "skipped" | "invalid" => Some((TaskStatus::Skipped, false)),
+        "passed" | "cached" => Some(TaskStatus::Passed),
+        "failed" => Some(TaskStatus::Failed),
+        "skipped" | "invalid" => Some(TaskStatus::Skipped),
         _ => None,
     }
 }
@@ -461,6 +469,7 @@ mod tests {
     use super::*;
 
     const REPORT: &str = include_str!("../tests/fixtures/moon/run-report.json");
+    const CACHED_REPORT: &str = include_str!("../tests/fixtures/moon/run-report-cached.json");
     const QUERY_TASKS: &str = include_str!("../tests/fixtures/moon/query-tasks.json");
 
     #[test]
@@ -489,6 +498,20 @@ mod tests {
         assert_eq!(probe.status, TaskStatus::Passed);
         assert!(!probe.cached);
         assert_eq!(probe.duration_ms, 400);
+    }
+
+    /// I1: `context.targetStates[*].state` says "passed" on a cache hit
+    /// too; only the `RunTask(<target>)` action's own `status` says
+    /// "cached". This fixture captures exactly that shape.
+    #[test]
+    fn a_cached_run_task_action_reports_cached_true() {
+        let tasks = parse_report(CACHED_REPORT).expect("cached report parses");
+        let probe = tasks
+            .iter()
+            .find(|t| t.target.ends_with(":probe"))
+            .expect("probe task present");
+        assert_eq!(probe.status, TaskStatus::Passed);
+        assert!(probe.cached, "{tasks:?}");
     }
 
     #[test]
