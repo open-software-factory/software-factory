@@ -3,6 +3,36 @@
 mod common;
 use common::{isolated_home, run_osf_stdin, session_link, TempRepo};
 
+fn state(home: &std::path::Path) -> std::path::PathBuf {
+    home.join(".osf").join("state")
+}
+
+/// Every verification-event payload in every buffer file under `home`'s
+/// journal state directory, across every run: a timeout writes its own
+/// run id, distinct from any other event written in the same test.
+fn verification_payloads(home: &std::path::Path) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    let buffer = state(home).join("buffer");
+    let Ok(entries) = std::fs::read_dir(&buffer) else {
+        return out;
+    };
+    for entry in entries {
+        let path = entry.expect("entry").path();
+        let text = std::fs::read_to_string(&path).expect("buffer file reads");
+        for line in text.lines() {
+            let v: serde_json::Value = serde_json::from_str(line).expect("json");
+            let is_verification =
+                v.get("event_type").and_then(serde_json::Value::as_str) == Some("verification");
+            if is_verification {
+                if let Some(payload) = v.get("payload") {
+                    out.push(payload.clone());
+                }
+            }
+        }
+    }
+    out
+}
+
 #[test]
 fn a_payload_with_no_file_path_exits_zero_without_starting_moon() {
     let repo = TempRepo::with_moon_workspace("pt-none");
@@ -81,6 +111,19 @@ fn a_timeout_reports_skipped_and_lets_the_edit_stand() {
     );
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(String::from_utf8_lossy(&out.stderr).contains("skipped"));
+    // I2: a timeout still journals one verification event per task the
+    // checkpoint was about to run, so the record shows a check was skipped
+    // rather than silently missing.
+    let payloads = verification_payloads(&home);
+    assert!(
+        payloads.iter().any(|p| {
+            p.get("result").and_then(serde_json::Value::as_str) == Some("skipped")
+                && p.get("reason")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(|r| r.contains("hook time limit"))
+        }),
+        "{payloads:?}"
+    );
 }
 
 // R14: at the hook checkpoint every check reads the file as it is on disk,
@@ -135,6 +178,126 @@ fn a_relative_path_that_walks_outside_the_repository_is_reported_and_skipped() {
             "{raw}: {out:?}"
         );
     }
+}
+
+/// I3 / review focus 5, the hook half: an unwritable journal must never
+/// stop the hook from reporting a real finding, and must never need
+/// `OSF_FILES_FROM`'s own list file to live under the state directory
+/// (ruling R21: that list goes to the OS temp directory instead, so an
+/// unwritable state dir cannot block writing it).
+#[test]
+fn an_unwritable_journal_still_refuses_a_real_finding_and_names_the_failure() {
+    let repo = TempRepo::with_moon_workspace("pt-unwritable-state");
+    repo.commit("base");
+    repo.write("guide.md", "Do Phase 2 next.\n");
+    let home = isolated_home("pt-unwritable-state");
+    std::fs::write(home.join("blocked"), "x").expect("blocked file writes");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        repo.dir
+            .join("guide.md")
+            .to_string_lossy()
+            .replace('\\', "/")
+    );
+    let out = run_osf_stdin(
+        &repo.dir,
+        &home,
+        &[(
+            "OSF_STATE_DIR",
+            home.join("blocked").to_str().expect("utf8"),
+        )],
+        &["hook", "post-tool"],
+        &payload,
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("chat-local-reference"), "{out:?}");
+    assert!(stderr.contains("journal"), "{out:?}");
+    assert!(
+        !home.join("blocked").join("files").exists(),
+        "no files/ folder should exist under an unwritable state dir: {out:?}"
+    );
+}
+
+/// The other half of the same case: a clean file still exits 0, and the
+/// journal failure is still named on standard error rather than swallowed.
+#[test]
+fn an_unwritable_journal_with_a_clean_file_still_exits_zero_and_names_the_failure() {
+    let repo = TempRepo::with_moon_workspace("pt-unwritable-state-clean");
+    repo.commit("base");
+    repo.write("guide.md", "Clean.\n");
+    let home = isolated_home("pt-unwritable-state-clean");
+    std::fs::write(home.join("blocked"), "x").expect("blocked file writes");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        repo.dir
+            .join("guide.md")
+            .to_string_lossy()
+            .replace('\\', "/")
+    );
+    let out = run_osf_stdin(
+        &repo.dir,
+        &home,
+        &[(
+            "OSF_STATE_DIR",
+            home.join("blocked").to_str().expect("utf8"),
+        )],
+        &["hook", "post-tool"],
+        &payload,
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("journal"), "{out:?}");
+    assert!(
+        !home.join("blocked").join("files").exists(),
+        "no files/ folder should exist under an unwritable state dir: {out:?}"
+    );
+}
+
+/// I6: input that cannot be parsed at all is a failure to run, so it is
+/// refused rather than let through silently, the same way `osf hook stop`
+/// already treats its own unreadable or non-JSON input.
+#[test]
+fn non_json_input_refuses_with_could_not_run_wording() {
+    let repo = TempRepo::with_moon_workspace("pt-non-json");
+    repo.commit("base");
+    let home = isolated_home("pt-non-json");
+    let out = run_osf_stdin(
+        &repo.dir,
+        &home,
+        &[],
+        &["hook", "post-tool"],
+        "not json at all",
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("could not run"),
+        "{out:?}"
+    );
+}
+
+/// I6: a payload naming a path that is not inside any git repository at
+/// all cannot be checked, and is a failure to run rather than a silent
+/// pass. `path outside the repository` (a path outside a repository the
+/// hook did find) stays exit 0, unlike this case.
+#[test]
+fn a_path_with_no_repository_at_all_refuses_with_could_not_run_wording() {
+    let dir = std::env::temp_dir().join("osf-hook-post-tool-no-repo");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("plain dir creates");
+    std::fs::write(dir.join("guide.md"), "Clean.\n").expect("fixture file writes");
+    let home = isolated_home("pt-no-repo");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        dir.join("guide.md").to_string_lossy().replace('\\', "/")
+    );
+    let out = run_osf_stdin(&dir, &home, &[], &["hook", "post-tool"], &payload);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("could not run"),
+        "{out:?}"
+    );
 }
 
 #[test]

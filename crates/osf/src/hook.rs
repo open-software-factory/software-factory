@@ -382,6 +382,20 @@ pub fn post_tool(timeout: Duration, answer: Option<Answer>) -> ExitCode {
     post_tool_with_input(read, timeout, answer)
 }
 
+/// I6: says the hook checkpoint itself could not run, as `refuse_could_not_run`
+/// does for `stop` in this same file. A finding worth blocking and a check
+/// that could not run at all must not read the same either way, so this
+/// never claims a pass.
+fn refuse_post_tool_could_not_run(answer: Answer, detail: &str) -> ExitCode {
+    refuse(
+        answer,
+        &format!(
+            "osf hook post-tool: the hook checkpoint could not run, so the write is refused \
+             rather than treated as a pass: {detail}"
+        ),
+    )
+}
+
 /// The body of [`post_tool`], taking the standard input read as a
 /// parameter so every path can be driven by a test.
 fn post_tool_with_input(
@@ -392,15 +406,19 @@ fn post_tool_with_input(
     let raw = match raw {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("osf hook post-tool: cannot read standard input: {e}");
-            return ExitCode::SUCCESS;
+            return refuse_post_tool_could_not_run(
+                answer.unwrap_or(Answer::ExitCode),
+                &format!("cannot read standard input: {e}"),
+            );
         }
     };
     let event: Value = match serde_json::from_str(&raw) {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("osf hook post-tool: input is not JSON: {e}");
-            return ExitCode::SUCCESS;
+            return refuse_post_tool_could_not_run(
+                answer.unwrap_or(Answer::ExitCode),
+                &format!("input is not JSON: {e}"),
+            );
         }
     };
     let Some(raw_path) = written_path(&event) else {
@@ -410,8 +428,10 @@ fn post_tool_with_input(
     let root = match crate::git::repo_root(Path::new(".")) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("osf hook post-tool: cannot find the repository root: {e}");
-            return ExitCode::SUCCESS;
+            return refuse_post_tool_could_not_run(
+                answer,
+                &format!("cannot find the repository root: {e}"),
+            );
         }
     };
     let Some(rel) = repo_relative(&root, &raw_path) else {
@@ -424,8 +444,7 @@ fn post_tool_with_input(
     let state_dir = match crate::journal::state_dir() {
         Ok(d) => d,
         Err(e) => {
-            eprintln!("osf hook post-tool: {e}");
-            return ExitCode::SUCCESS;
+            return refuse_post_tool_could_not_run(answer, &e);
         }
     };
     let req = crate::checkpoint::Request {
