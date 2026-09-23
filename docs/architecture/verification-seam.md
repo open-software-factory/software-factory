@@ -68,27 +68,29 @@ tasks:
   scan:
     command: osf scan --format json
     inputs: ['**/*']
-    tags: [osf:hook, osf:pre-commit, osf:pre-push, osf:pull-request, osf:slot:secrets]
+    tags: [osf-hook, osf-pre-commit, osf-pre-push, osf-pull-request, osf-slot-secrets]
   lint-writing:
     command: osf lint writing
     inputs: ['**/*.md']
-    tags: [osf:hook, osf:pre-push, osf:pull-request, osf:slot:writing]
+    tags: [osf-hook, osf-pre-push, osf-pull-request, osf-slot-writing]
   fmt:
     command: cargo fmt --all --check
     inputs: ['**/*.rs']
-    tags: [osf:pre-commit, osf:pull-request, osf:slot:format]
+    tags: [osf-pre-commit, osf-pull-request, osf-slot-format]
   clippy:
     command: cargo clippy --workspace --all-targets -- -D warnings
     inputs: ['**/*.rs', 'Cargo.toml', 'Cargo.lock']
-    tags: [osf:pre-push, osf:pull-request, osf:slot:lint]
+    tags: [osf-pre-push, osf-pull-request, osf-slot-lint]
   test:
     command: cargo test --workspace
     inputs: ['**/*.rs', 'Cargo.toml', 'Cargo.lock']
     deps: [clippy]
-    tags: [osf:pre-push, osf:pull-request, osf:slot:unit-tests]
+    tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
 ```
 
-The pre-commit checkpoint runs the tasks tagged `osf:pre-commit` on the affected files. The `inputs` line is what makes an unaffected task free. A change to one Markdown file leaves the Rust tasks untouched. The slot tag says which slot the task fills, so the aggregation knows the slot is covered.
+Tags use a hyphen, because moon's target syntax gives the colon a meaning.
+
+The pre-commit checkpoint runs the tasks tagged `osf-pre-commit` on the affected files. The `inputs` line is what makes an unaffected task free. A change to one Markdown file leaves the Rust tasks untouched. The slot tag says which slot the task fills, so the aggregation knows the slot is covered.
 
 The pull-request checkpoint has one more piece. The adopter's existing CI jobs fill slots without becoming moon tasks. The check recogniser reads their workflow and project files and judges each slot. The aggregation runs after every workflow on the commit finishes. It reads each job's conclusion and result files, adds the moon results, and posts the one required check.
 

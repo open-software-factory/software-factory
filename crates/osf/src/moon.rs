@@ -260,6 +260,53 @@ fn read_all(pipe: &mut impl std::io::Read) -> String {
     buf
 }
 
+/// The moon targets tagged `tag`, from `moon query tasks --tags <tag>`.
+/// Moon itself decides tag membership across every project in the
+/// workspace, so this reads exactly the set `moon run :#<tag>` is about to
+/// select, rather than this crate guessing at it by re-reading a project's
+/// own YAML.
+///
+/// # Errors
+/// Returns an error when moon cannot run, exits non-zero, or its output
+/// does not parse.
+pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, String> {
+    let output = Command::new(moon_binary())
+        .args(["query", "tasks", "--tags", tag])
+        .current_dir(root)
+        .output()
+        .map_err(|e| format!("cannot run moon query tasks: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "moon query tasks failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    parse_query_tasks(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// Parses `moon query tasks`' JSON: one target per task, across every
+/// project the query returned.
+fn parse_query_tasks(json: &str) -> Result<Vec<String>, String> {
+    let value: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| format!("moon query tasks output is not JSON: {e}"))?;
+    let projects = value
+        .get("tasks")
+        .and_then(serde_json::Value::as_object)
+        .ok_or("moon query tasks output has no tasks object")?;
+    let mut targets = Vec::new();
+    for tasks in projects.values() {
+        let Some(tasks) = tasks.as_object() else {
+            continue;
+        };
+        for task in tasks.values() {
+            if let Some(target) = task.get("target").and_then(serde_json::Value::as_str) {
+                targets.push(target.to_string());
+            }
+        }
+    }
+    Ok(targets)
+}
+
 /// Parses moon's `runReport.json`, one [`TaskOutcome`] per entry in
 /// `context.targetStates`.
 ///
@@ -341,6 +388,7 @@ mod tests {
     use super::*;
 
     const REPORT: &str = include_str!("../tests/fixtures/moon/run-report.json");
+    const QUERY_TASKS: &str = include_str!("../tests/fixtures/moon/query-tasks.json");
 
     #[test]
     fn the_captured_report_parses_into_one_outcome_per_task() {
@@ -386,6 +434,28 @@ mod tests {
         assert_eq!(parse_version("2.5.5"), None);
         assert_eq!(parse_version("moon two"), None);
         assert_eq!(parse_version(""), None);
+    }
+
+    #[test]
+    fn the_captured_query_parses_into_one_target_per_task() {
+        let targets = parse_query_tasks(QUERY_TASKS).expect("query parses");
+        assert_eq!(targets, vec!["osf:probe".to_string()]);
+    }
+
+    #[test]
+    fn a_query_with_no_matching_tasks_is_an_empty_list() {
+        let targets = parse_query_tasks(r#"{"tasks":{}}"#).expect("empty query parses");
+        assert!(targets.is_empty());
+    }
+
+    #[test]
+    fn a_query_that_is_not_json_is_an_error() {
+        assert!(parse_query_tasks("not json").is_err());
+    }
+
+    #[test]
+    fn a_query_missing_the_tasks_object_is_an_error() {
+        assert!(parse_query_tasks(r#"{"options":{}}"#).is_err());
     }
 
     #[test]

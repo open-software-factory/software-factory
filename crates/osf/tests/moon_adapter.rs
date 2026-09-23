@@ -15,10 +15,24 @@ static ENV_LOCK: Mutex<()> = Mutex::new(());
 /// `vars` first when any are given. Every test in this file goes through
 /// here, because `OSF_MOON` is process-global state and two tests must
 /// never touch it at the same time.
+///
+/// Also clears every inherited `MOON_*` variable for the call: this
+/// repository's own checkpoint sets them on the `cargo test` process when
+/// its `test` task runs, and moon honours an inherited `MOON_WORKSPACE_ROOT`
+/// over the workspace a test builds under a throwaway directory, so a
+/// nested `run` here would otherwise act on this repository instead of the
+/// fixture.
 fn serial<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
     let guard = ENV_LOCK
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let moon_vars: Vec<(String, String)> = std::env::vars()
+        .filter(|(k, _)| k.starts_with("MOON_"))
+        .collect();
+    for (k, _) in &moon_vars {
+        // SAFETY: serialised by ENV_LOCK; no other thread touches the environment here.
+        unsafe { std::env::remove_var(k) };
+    }
     for (k, v) in vars {
         // SAFETY: serialised by ENV_LOCK; no other thread touches the environment here.
         unsafe { std::env::set_var(k, v) };
@@ -27,6 +41,10 @@ fn serial<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
     for (k, _) in vars {
         // SAFETY: serialised by ENV_LOCK; no other thread touches the environment here.
         unsafe { std::env::remove_var(k) };
+    }
+    for (k, v) in &moon_vars {
+        // SAFETY: serialised by ENV_LOCK; no other thread touches the environment here.
+        unsafe { std::env::set_var(k, v) };
     }
     drop(guard);
     result

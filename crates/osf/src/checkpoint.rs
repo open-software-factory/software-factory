@@ -215,6 +215,32 @@ fn sarif_outcome(root: &Path, target: &str) -> SarifOutcome {
     SarifOutcome::Findings(lines)
 }
 
+/// Ruling R13: a SARIF file left over from an earlier run must never be
+/// read as this run's result. Deletes `.osf/out/<task-id>.sarif` for every
+/// task tagged `tag` before moon runs, reading the task set from moon's own
+/// `query tasks` rather than this crate's guess at what a project file's
+/// tags resolve to.
+fn clear_stale_sarif(root: &Path, tag: &str) -> Result<(), String> {
+    let targets = moon::task_targets_for_tag(root, tag)?;
+    for target in &targets {
+        let path = root
+            .join(".osf")
+            .join("out")
+            .join(format!("{}.sarif", task_id(target)));
+        match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                return Err(format!(
+                    "cannot remove the stale SARIF at {}: {e}",
+                    path.display()
+                ))
+            }
+        }
+    }
+    Ok(())
+}
+
 const ACTOR: &str = "osf";
 
 /// Appends a checkpoint-complete event when a journal is open, folding any
@@ -490,6 +516,26 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
     })
 }
 
+/// Appends a checkpoint-complete event and builds the one-line [`Summary`]
+/// that goes with it, for every outcome that carries no per-task detail.
+fn finish(
+    journal: &mut Option<Journal>,
+    label: &str,
+    commit: Option<String>,
+    result: CheckResult,
+    line: String,
+    error_findings: Vec<String>,
+    mut journal_error: Option<String>,
+) -> Summary {
+    append_checkpoint_complete(journal, label, commit, result, 0, &mut journal_error);
+    Summary {
+        result,
+        lines: vec![line],
+        error_findings,
+        journal_error,
+    }
+}
+
 /// Runs `req`'s checkpoint: resolves its files, hands the tagged moon
 /// target to `moon::run`, and journals one verification event per task
 /// plus one checkpoint-complete event under `state_dir`.
@@ -500,11 +546,45 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
         mut journal,
         env,
         mut error_findings,
-        mut journal_error,
+        journal_error,
     } = match prepare(req, state_dir) {
         Ok(p) => p,
         Err(summary) => return summary,
     };
+
+    let commit = crate::git::head_short_sha(req.root).ok();
+    let label = req.checkpoint.label();
+
+    // Moon's own `--stdin` reads a genuinely empty file list as no filter
+    // at all, and runs every task as if everything were affected — the
+    // opposite of what an empty change means here. Report it directly,
+    // the same as `Outcome::NothingAffected`, without asking moon at all.
+    if files.is_empty() {
+        let line = format!("{label}: nothing to check");
+        return finish(
+            &mut journal,
+            label,
+            commit,
+            CheckResult::NothingToCheck,
+            line,
+            error_findings,
+            journal_error,
+        );
+    }
+
+    if let Err(e) = clear_stale_sarif(req.root, req.checkpoint.tag()) {
+        error_findings.push(e);
+        let line = format!("{label}: could not run: cannot clear stale findings");
+        return finish(
+            &mut journal,
+            label,
+            commit,
+            CheckResult::CouldNotRun,
+            line,
+            error_findings,
+            journal_error,
+        );
+    }
 
     let target = format!(":#{}", req.checkpoint.tag());
     let outcome = moon::run(&Invocation {
@@ -515,26 +595,16 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
         timeout: req.timeout,
     });
 
-    let commit = crate::git::head_short_sha(req.root).ok();
-    let label = req.checkpoint.label();
-
     match outcome {
-        Outcome::NothingAffected => {
-            append_checkpoint_complete(
-                &mut journal,
-                label,
-                commit,
-                CheckResult::NothingToCheck,
-                0,
-                &mut journal_error,
-            );
-            Summary {
-                result: CheckResult::NothingToCheck,
-                lines: vec![format!("{label}: nothing to check")],
-                error_findings,
-                journal_error,
-            }
-        }
+        Outcome::NothingAffected => finish(
+            &mut journal,
+            label,
+            commit,
+            CheckResult::NothingToCheck,
+            format!("{label}: nothing to check"),
+            error_findings,
+            journal_error,
+        ),
         Outcome::Ran { tasks, .. } => handle_ran(
             req,
             journal,
@@ -555,30 +625,28 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
                 CheckResult::CouldNotRun
             };
             error_findings.push("moon timed out".to_string());
-            append_checkpoint_complete(&mut journal, label, commit, result, 0, &mut journal_error);
-            Summary {
+            finish(
+                &mut journal,
+                label,
+                commit,
                 result,
-                lines: vec![format!("{label}: moon timed out")],
+                format!("{label}: moon timed out"),
                 error_findings,
                 journal_error,
-            }
+            )
         }
         Outcome::CouldNotRun(reason) => {
             error_findings.push(reason.clone());
-            append_checkpoint_complete(
+            let line = format!("{label}: could not run: {reason}");
+            finish(
                 &mut journal,
                 label,
                 commit,
                 CheckResult::CouldNotRun,
-                0,
-                &mut journal_error,
-            );
-            Summary {
-                result: CheckResult::CouldNotRun,
-                lines: vec![format!("{label}: could not run: {reason}")],
+                line,
                 error_findings,
                 journal_error,
-            }
+            )
         }
     }
 }

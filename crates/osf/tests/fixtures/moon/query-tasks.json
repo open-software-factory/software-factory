@@ -1,0 +1,25 @@
+{
+  "tasks": {
+    "osf": {
+      "probe": {
+        "command": "echo",
+        "args": ["probe"],
+        "id": "probe",
+        "tags": ["osf-pre-commit", "osf-slot-probe"],
+        "target": "osf:probe",
+        "type": "test"
+      }
+    }
+  },
+  "options": {
+    "affected": null,
+    "query": null,
+    "id": null,
+    "command": null,
+    "project": null,
+    "script": null,
+    "tags": "osf-pre-commit",
+    "toolchain": null,
+    "type": null
+  }
+}

@@ -1,9 +1,52 @@
 language: rust
 tasks:
-  probe:
-    command: 'echo probe'
+  scan-staged:
+    command: 'osf check scan-staged --sarif-out .osf/out/scan-staged.sarif'
+    inputs: ['/**/*']
+    tags: [osf-pre-commit, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  scan:
+    command: 'osf check scan --sarif-out .osf/out/scan.sarif'
+    inputs: ['/**/*']
+    tags: [osf-hook, osf-pre-push, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  scan-gate:
+    command: 'osf check scan --gate --sarif-out .osf/out/scan-gate.sarif'
+    inputs: ['/**/*']
+    tags: [osf-pull-request, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  scan-commits:
+    command: 'osf check scan-commits --sarif-out .osf/out/scan-commits.sarif'
+    tags: [osf-pre-push, osf-pull-request, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  lint-writing:
+    command: 'osf check lint-writing --sarif-out .osf/out/lint-writing.sarif'
     inputs: ['/**/*.md']
-    tags: [osf-pre-commit, osf-slot-probe]
-    options:
-      runFromWorkspaceRoot: true
-      affectedFiles: true
+    tags: [osf-hook, osf-pre-push, osf-slot-writing]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  lint-writing-gate:
+    command: 'osf check lint-writing --gate --sarif-out .osf/out/lint-writing-gate.sarif'
+    inputs: ['/**/*.md']
+    tags: [osf-pull-request, osf-slot-writing]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  lint-skill:
+    command: 'osf check lint-skill --sarif-out .osf/out/lint-skill.sarif'
+    inputs: ['/**/SKILL.md', '/**/skills/**/*']
+    tags: [osf-hook, osf-pre-push, osf-pull-request, osf-slot-skill]
+    options: { runFromWorkspaceRoot: true, cache: false, shell: false }
+  fmt:
+    command: 'cargo fmt --all --check'
+    inputs: ['/**/*.rs']
+    tags: [osf-pre-commit, osf-pull-request, osf-slot-format]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  clippy:
+    command: 'cargo clippy --workspace --all-targets -- -D warnings'
+    inputs: ['/**/*.rs', '/Cargo.toml', '/Cargo.lock', '/crates/*/Cargo.toml']
+    tags: [osf-pre-push, osf-pull-request, osf-slot-lint]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  test:
+    command: 'cargo test --workspace'
+    inputs: ['/**/*.rs', '/Cargo.toml', '/Cargo.lock', '/crates/*/Cargo.toml', '/crates/*/tests/fixtures/**/*']
+    deps: ['~:clippy']
+    tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
+    options: { runFromWorkspaceRoot: true, shell: false }

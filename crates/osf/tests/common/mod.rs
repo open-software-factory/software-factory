@@ -146,6 +146,19 @@ pub fn run_osf(
 
 /// The same as [`run_osf`], with extra environment variables set for this
 /// one run, such as `OSF_FILES_FROM` or `OSF_BASE`.
+///
+/// Removes those same checkpoint-runner variables from the ambient
+/// environment first: this repository's own checkpoint sets them on the
+/// `moon` process, which every task it spawns inherits, `cargo test`
+/// included, so a test binary that never clears them reads its own
+/// checkpoint run's file list instead of the caller's `env`.
+///
+/// Also removes every inherited `MOON_*` variable: moon sets these on a
+/// task's own process (`MOON_WORKSPACE_ROOT`, `MOON_CACHE_DIR`, and the
+/// rest), and a test spawning `osf` under this repository's own `cargo
+/// test` task inherits them. Left in place, a test's own nested `moon`
+/// call reads them back and treats itself as still inside this
+/// repository's workspace instead of the throwaway one at `dir`.
 pub fn run_osf_with_env(
     dir: &std::path::Path,
     home: &std::path::Path,
@@ -158,7 +171,15 @@ pub fn run_osf_with_env(
         .env("USERPROFILE", home)
         .env_remove("OSF_CONFIG")
         .env_remove("OSF_DENYLIST")
+        .env_remove("OSF_FILES_FROM")
+        .env_remove("OSF_BASE")
+        .env_remove("OSF_CHECKPOINT")
         .args(args);
+    for (key, _) in std::env::vars() {
+        if key.starts_with("MOON_") {
+            cmd.env_remove(key);
+        }
+    }
     for (key, value) in env {
         cmd.env(key, value);
     }

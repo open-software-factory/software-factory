@@ -60,6 +60,37 @@ fn a_change_no_task_reads_is_nothing_to_check_and_exits_zero() {
     assert!(String::from_utf8_lossy(&out.stdout).contains("nothing to check"));
 }
 
+/// A base with no committed difference from `HEAD` at all (not merely one
+/// with nothing a task reads) must still report nothing to check. Observed
+/// live on this repository's own `.osf/moon.yml`: with a catch-all
+/// `/**/*` input (as `scan` uses) and a genuinely empty `--stdin` file
+/// list, moon runs every task instead of none, so this exact case must
+/// never reach `moon::run` at all.
+#[test]
+fn a_base_with_no_committed_difference_at_all_is_nothing_to_check() {
+    let repo = TempRepo::new("cp-zero-diff");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        "tasks:\n  boom:\n    script: 'exit 1'\n    inputs: ['/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n",
+    );
+    let head = repo.commit("base");
+    let home = isolated_home("cp-zero-diff");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &head],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("nothing to check"),
+        "{out:?}"
+    );
+}
+
 #[test]
 fn a_staged_file_with_unstaged_edits_is_named_on_stderr() {
     let repo = TempRepo::with_moon_workspace("cp-partial");
@@ -173,6 +204,89 @@ fn a_failed_task_with_no_sarif_reports_unknown_findings() {
         .and_then(serde_json::Value::as_str)
         .expect("reason is a string");
     assert!(reason.contains("no findings file"), "{reason}");
+}
+
+/// Ruling R13: a SARIF left over from an earlier run must be cleared
+/// before moon runs, so a task that fails without writing one is never
+/// read through a stale file from a previous pass. This fixture's `boom`
+/// task always fails and never writes SARIF; without the clearing step,
+/// the stale file below would be misread as this run's one finding.
+#[test]
+fn a_stale_sarif_from_an_earlier_run_is_cleared_before_the_task_runs() {
+    let repo = TempRepo::new("cp-stale-sarif");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        "tasks:\n  boom:\n    script: 'exit 1'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n",
+    );
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("dirty");
+    let stale_sarif = serde_json::json!({
+        "runs": [{
+            "results": [{"ruleId": "stale-rule", "message": {"text": "stale finding"}}]
+        }]
+    });
+    let out_dir = repo.dir.join(".osf").join("out");
+    std::fs::create_dir_all(&out_dir).expect("out dir creates");
+    std::fs::write(
+        out_dir.join("boom.sarif"),
+        serde_json::to_string(&stale_sarif).expect("json renders"),
+    )
+    .expect("stale sarif writes");
+    let home = isolated_home("cp-stale-sarif");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("findings unknown"), "{out:?}");
+    assert!(!stdout.contains("1 finding"), "{out:?}");
+}
+
+/// Replaces a test deleted in an earlier task: `--gate` (the pull-request
+/// checkpoint's own task) ignores a suppression marker and a config file's
+/// exclude list, since a change under review must not be able to loosen
+/// its own gate; the pre-push task, with neither flag, honours both.
+#[test]
+fn the_pull_request_checkpoint_ignores_a_suppression_marker_and_the_exclude_list() {
+    let repo = TempRepo::new("cp-gate-ignores");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  lint-writing-gate:\n    command: '\"{bin}\" check lint-writing --gate --sarif-out .osf/out/lint-writing-gate.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+        ),
+    );
+    repo.write("osf.toml", "exclude = [\"notes.md\"]\n");
+    let base = repo.commit("base");
+    repo.write(
+        "notes.md",
+        "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n",
+    );
+    repo.commit("dirty");
+    let home = isolated_home("cp-gate-ignores");
+    let pre_push = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(pre_push.status.code(), Some(0), "{pre_push:?}");
+    let pull_request = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pull-request", "--base", &base],
+    );
+    assert_eq!(pull_request.status.code(), Some(1), "{pull_request:?}");
 }
 
 /// Moved from `tests/verify.rs`: an unresolvable base is a failure to run,

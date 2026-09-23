@@ -1,0 +1,2 @@
+#!/bin/sh
+exec osf lint writing --context commit --format human "$1"
