@@ -116,6 +116,7 @@ pub fn state_dir() -> Result<PathBuf, String> {
 
 /// A run's hash-chained event log, appended to
 /// `<state_dir>/buffer/<run>.jsonl`.
+#[derive(Debug)]
 pub struct Journal {
     path: PathBuf,
     run: String,
@@ -124,11 +125,16 @@ pub struct Journal {
 
 impl Journal {
     /// Opens the buffer file for `run` under `state_dir`, creating the
-    /// `buffer` directory if needed.
+    /// `buffer` directory if needed. Each run is its own hash chain starting
+    /// from genesis, so a run whose buffer file already holds events is
+    /// refused rather than resumed: resuming would let two processes
+    /// interleave one chain, and a real caller only ever reuses a run id by
+    /// mistake.
     ///
     /// # Errors
     /// Returns the path and the underlying error when the buffer directory
-    /// cannot be created.
+    /// cannot be created, or when the buffer file cannot be inspected.
+    /// Returns an error naming the file when it already holds events.
     pub fn open(state_dir: &Path, run: &str) -> Result<Journal, String> {
         let buffer_dir = state_dir.join("buffer");
         std::fs::create_dir_all(&buffer_dir).map_err(|e| {
@@ -137,8 +143,25 @@ impl Journal {
                 buffer_dir.display()
             )
         })?;
+        let path = buffer_dir.join(format!("{run}.jsonl"));
+        let has_events = match std::fs::metadata(&path) {
+            Ok(meta) => meta.len() > 0,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+            Err(e) => {
+                return Err(format!(
+                    "cannot check the journal buffer {}: {e}",
+                    path.display()
+                ))
+            }
+        };
+        if has_events {
+            return Err(format!(
+                "cannot open run '{run}': {} already has events; each run must use a unique id",
+                path.display()
+            ));
+        }
         Ok(Journal {
-            path: buffer_dir.join(format!("{run}.jsonl")),
+            path,
             run: run.to_string(),
             last_hash: genesis_hash(),
         })
@@ -203,24 +226,42 @@ mod tests {
     }
 
     /// A directory unique to this call, so parallel tests (or repeated
-    /// runs) never share one. The caller removes it when done.
-    fn temp_dir(name: &str) -> PathBuf {
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("clock is after the epoch")
-            .as_nanos();
-        let d = std::env::temp_dir().join(format!(
-            "osf-journal-{name}-{}-{unique}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&d).expect("temp dir");
-        d
+    /// runs) never share one. Its `Drop` removes it, so cleanup happens
+    /// even when an assertion panics partway through a test.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let unique = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock is after the epoch")
+                .as_nanos();
+            let d = std::env::temp_dir().join(format!(
+                "osf-journal-{name}-{}-{unique}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&d).expect("temp dir");
+            TempDir(d)
+        }
+    }
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
     }
 
     #[test]
     fn two_runs_with_the_same_events_have_the_same_head_hash_whatever_the_time() {
-        let a_dir = temp_dir("a");
-        let b_dir = temp_dir("b");
+        let a_dir = TempDir::new("a");
+        let b_dir = TempDir::new("b");
         let mut a = Journal::open(&a_dir, "run-1").expect("open");
         let mut b = Journal::open(&b_dir, "run-1").expect("open");
         a.append("osf", 1, verification("scan")).expect("append");
@@ -234,13 +275,11 @@ mod tests {
             .expect("append")
             .hash;
         assert_eq!(ha, hb);
-        std::fs::remove_dir_all(&a_dir).expect("remove temp dir");
-        std::fs::remove_dir_all(&b_dir).expect("remove temp dir");
     }
 
     #[test]
     fn each_event_carries_the_hash_of_the_one_before() {
-        let dir = temp_dir("chain");
+        let dir = TempDir::new("chain");
         let mut j = Journal::open(&dir, "run-2").expect("open");
         let first = j.append("osf", 1, verification("scan")).expect("append");
         let second = j.append("osf", 2, verification("fmt")).expect("append");
@@ -248,15 +287,33 @@ mod tests {
         assert_eq!(second.prev_hash, first.hash);
         let text = std::fs::read_to_string(dir.join("buffer/run-2.jsonl")).expect("file");
         assert_eq!(text.lines().count(), 2);
-        std::fs::remove_dir_all(&dir).expect("remove temp dir");
     }
 
     #[test]
     fn an_unwritable_state_dir_is_an_error() {
-        let base = temp_dir("blocked");
+        let base = TempDir::new("blocked");
         let file = base.join("not-a-dir");
         std::fs::write(&file, "x").expect("file");
         assert!(Journal::open(&file, "run-3").is_err());
-        std::fs::remove_dir_all(&base).expect("remove temp dir");
+    }
+
+    #[test]
+    fn opening_a_run_that_already_has_events_is_an_error() {
+        let dir = TempDir::new("existing");
+        {
+            let mut j = Journal::open(&dir, "run-4").expect("open");
+            j.append("osf", 1, verification("scan")).expect("append");
+        }
+        let err = Journal::open(&dir, "run-4").expect_err("run already has events");
+        assert!(err.contains("run-4.jsonl"), "{err}");
+    }
+
+    #[test]
+    fn an_existing_empty_buffer_file_opens_fine() {
+        let dir = TempDir::new("empty");
+        let buffer_dir = dir.join("buffer");
+        std::fs::create_dir_all(&buffer_dir).expect("buffer dir");
+        std::fs::write(buffer_dir.join("run-5.jsonl"), "").expect("empty file");
+        Journal::open(&dir, "run-5").expect("open");
     }
 }
