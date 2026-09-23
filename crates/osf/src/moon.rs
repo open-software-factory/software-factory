@@ -62,6 +62,22 @@ fn moon_binary() -> PathBuf {
     std::env::var_os("OSF_MOON").map_or_else(|| PathBuf::from("moon"), PathBuf::from)
 }
 
+/// Ruling R18: `osf` always starts a fresh moon for its own workspace, so a
+/// nested moon must never inherit an outer moon task's own `MOON_*`
+/// variables (`MOON_WORKSPACE_ROOT` and the rest) — moon honours an
+/// inherited one over the `current_dir` this adapter passes, which would
+/// run the nested moon against the outer task's workspace instead of this
+/// one. Removes every `MOON_*` variable this process has from `command`'s
+/// environment; explicit `env()` calls made after this still apply, since
+/// this only removes what would otherwise be inherited.
+fn strip_inherited_moon_vars(command: &mut Command) {
+    for (key, _) in std::env::vars() {
+        if key.starts_with("MOON_") {
+            command.env_remove(key);
+        }
+    }
+}
+
 /// The installed moon's version, parsed from `moon --version`'s `moon
 /// X.Y.Z` output.
 ///
@@ -69,9 +85,10 @@ fn moon_binary() -> PathBuf {
 /// Returns an error when moon cannot run, or its version output does not
 /// parse.
 pub fn version(root: &Path) -> Result<(u64, u64, u64), String> {
-    let output = Command::new(moon_binary())
-        .arg("--version")
-        .current_dir(root)
+    let mut command = Command::new(moon_binary());
+    command.arg("--version").current_dir(root);
+    strip_inherited_moon_vars(&mut command);
+    let output = command
         .output()
         .map_err(|e| format!("cannot run moon: {e}"))?;
     if !output.status.success() {
@@ -126,35 +143,42 @@ fn task_log_paths(root: &Path, target: &str) -> (PathBuf, PathBuf) {
     (dir.join("stdout.log"), dir.join("stderr.log"))
 }
 
-/// A task's own captured output (stdout then stderr), capped to its last
-/// `max_lines` lines: the text shown, how many lines that is, and how many
-/// lines the task actually produced. `None` when moon wrote neither log
-/// file or both are empty, since there is nothing to show (ruling R16).
-#[must_use]
-pub fn task_output_tail(
-    root: &Path,
-    target: &str,
-    max_lines: usize,
-) -> Option<(String, usize, usize)> {
-    let (stdout_path, stderr_path) = task_log_paths(root, target);
-    let mut combined = String::new();
-    if let Ok(text) = std::fs::read_to_string(&stdout_path) {
-        combined.push_str(&text);
-    }
-    if let Ok(text) = std::fs::read_to_string(&stderr_path) {
-        if !combined.is_empty() && !combined.ends_with('\n') {
-            combined.push('\n');
-        }
-        combined.push_str(&text);
-    }
-    if combined.trim().is_empty() {
+/// One log stream's tail, capped to its last `max_lines` lines: the text
+/// shown, how many lines that is, and how many lines the file actually
+/// held. `None` when the file is missing or holds no content, since there
+/// is nothing to show.
+fn read_log_tail(path: &Path, max_lines: usize) -> Option<(String, usize, usize)> {
+    let text = std::fs::read_to_string(path).ok()?;
+    if text.trim().is_empty() {
         return None;
     }
-    let mut lines: Vec<&str> = combined.lines().collect();
+    let mut lines: Vec<&str> = text.lines().collect();
     let total = lines.len();
     let start = total.saturating_sub(max_lines);
     let shown = lines.split_off(start);
     Some((shown.join("\n"), shown.len(), total))
+}
+
+/// A task's own captured stdout and stderr, each independently capped to
+/// its last `max_lines` lines (ruling R16). Kept as two separate tails
+/// rather than one combined-and-capped text: a task's stderr alone can
+/// exceed the cap (a compiler's warnings, say), which would silently push
+/// every line of its stdout (a failing test's own name) out of a single
+/// shared tail.
+#[must_use]
+pub fn task_output_tail(root: &Path, target: &str, max_lines: usize) -> TaskOutputTail {
+    let (stdout_path, stderr_path) = task_log_paths(root, target);
+    TaskOutputTail {
+        stdout: read_log_tail(&stdout_path, max_lines),
+        stderr: read_log_tail(&stderr_path, max_lines),
+    }
+}
+
+/// One failed task's captured output, one entry per stream. Each entry is
+/// `None` when moon wrote that log file empty or not at all.
+pub struct TaskOutputTail {
+    pub stdout: Option<(String, usize, usize)>,
+    pub stderr: Option<(String, usize, usize)>,
 }
 
 /// Removes a stale run report before spawning moon, so a leftover report
@@ -197,6 +221,7 @@ pub fn run(inv: &Invocation) -> Outcome {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    strip_inherited_moon_vars(&mut command);
     for (key, value) in inv.env {
         command.env(key, value);
     }
@@ -504,15 +529,17 @@ mod tests {
     }
 
     #[test]
-    fn no_log_files_at_all_is_none() {
+    fn no_log_files_at_all_is_two_empty_streams() {
         let root = std::env::temp_dir().join("osf-moon-tail-test-missing");
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("dir creates");
-        assert_eq!(task_output_tail(&root, "proj:boom", 80), None);
+        let tail = task_output_tail(&root, "proj:boom", 80);
+        assert!(tail.stdout.is_none(), "{:?}", tail.stdout);
+        assert!(tail.stderr.is_none(), "{:?}", tail.stderr);
     }
 
     #[test]
-    fn output_under_the_cap_is_returned_whole() {
+    fn each_stream_under_the_cap_is_returned_whole() {
         let root = std::env::temp_dir().join("osf-moon-tail-test-small");
         let _ = std::fs::remove_dir_all(&root);
         let dir = root
@@ -524,14 +551,19 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("dir creates");
         std::fs::write(dir.join("stdout.log"), "one\ntwo\n").expect("stdout writes");
         std::fs::write(dir.join("stderr.log"), "three\n").expect("stderr writes");
-        let (text, shown, total) = task_output_tail(&root, "proj:boom", 80).expect("some output");
-        assert_eq!(text, "one\ntwo\nthree");
-        assert_eq!(shown, 3);
-        assert_eq!(total, 3);
+        let tail = task_output_tail(&root, "proj:boom", 80);
+        let (text, shown, total) = tail.stdout.expect("stdout present");
+        assert_eq!(text, "one\ntwo");
+        assert_eq!(shown, 2);
+        assert_eq!(total, 2);
+        let (text, shown, total) = tail.stderr.expect("stderr present");
+        assert_eq!(text, "three");
+        assert_eq!(shown, 1);
+        assert_eq!(total, 1);
     }
 
     #[test]
-    fn output_over_the_cap_keeps_only_the_last_lines() {
+    fn a_long_stderr_does_not_push_stdout_out_of_its_own_tail() {
         use std::fmt::Write as _;
         let root = std::env::temp_dir().join("osf-moon-tail-test-large");
         let _ = std::fs::remove_dir_all(&root);
@@ -542,12 +574,18 @@ mod tests {
             .join("proj")
             .join("boom");
         std::fs::create_dir_all(&dir).expect("dir creates");
+        std::fs::write(dir.join("stdout.log"), "stdout marker\n").expect("stdout writes");
         let mut content = String::new();
         for n in 1..=100 {
             writeln!(content, "line {n}").expect("writing to a string never fails");
         }
-        std::fs::write(dir.join("stdout.log"), content).expect("stdout writes");
-        let (text, shown, total) = task_output_tail(&root, "proj:boom", 10).expect("some output");
+        std::fs::write(dir.join("stderr.log"), content).expect("stderr writes");
+        let tail = task_output_tail(&root, "proj:boom", 10);
+        let (text, shown, total) = tail.stdout.expect("stdout present");
+        assert_eq!(text, "stdout marker");
+        assert_eq!(shown, 1);
+        assert_eq!(total, 1);
+        let (text, shown, total) = tail.stderr.expect("stderr present");
         assert_eq!(shown, 10);
         assert_eq!(total, 100);
         assert!(text.starts_with("line 91"), "{text}");

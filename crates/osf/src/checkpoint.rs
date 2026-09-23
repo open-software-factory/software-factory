@@ -245,6 +245,23 @@ fn clear_stale_sarif(root: &Path, tag: &str) -> Result<(), String> {
 /// runaway task cannot flood a hook's refusal text.
 const FAILED_TASK_OUTPUT_LINES: usize = 80;
 
+/// One block for `error_findings`: `target`'s captured `stream` (`stdout`
+/// or `stderr`), under a header naming the task and the stream. A stream
+/// moon wrote empty or not at all says so in one line, rather than being
+/// silently skipped — its absence is itself worth knowing when diagnosing
+/// a failure.
+fn output_stream_block(target: &str, stream: &str, tail: Option<(String, usize, usize)>) -> String {
+    match tail {
+        Some((text, shown, total)) if shown < total => {
+            format!("--- {target} {stream} (last {shown} of {total} lines) ---\n{text}")
+        }
+        Some((text, _, total)) => {
+            format!("--- {target} {stream} ({total} line(s)) ---\n{text}")
+        }
+        None => format!("--- {target} {stream}: empty or missing ---"),
+    }
+}
+
 const ACTOR: &str = "osf";
 
 /// Appends a checkpoint-complete event when a journal is open, folding any
@@ -369,19 +386,10 @@ fn handle_ran(
             CheckResult::Failed => {
                 failed += 1;
                 error_findings.extend(outcome.findings.iter().cloned());
-                if let Some((tail, shown, total)) =
-                    moon::task_output_tail(req.root, &task.target, FAILED_TASK_OUTPUT_LINES)
-                {
-                    let header = if shown < total {
-                        format!(
-                            "--- {} output (last {shown} of {total} lines) ---",
-                            task.target
-                        )
-                    } else {
-                        format!("--- {} output ({total} line(s)) ---", task.target)
-                    };
-                    error_findings.push(format!("{header}\n{tail}"));
-                }
+                let output =
+                    moon::task_output_tail(req.root, &task.target, FAILED_TASK_OUTPUT_LINES);
+                error_findings.push(output_stream_block(&task.target, "stdout", output.stdout));
+                error_findings.push(output_stream_block(&task.target, "stderr", output.stderr));
             }
             CheckResult::Skipped => skipped += 1,
             CheckResult::CouldNotRun | CheckResult::NothingToCheck => {}

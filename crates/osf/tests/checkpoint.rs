@@ -206,20 +206,32 @@ fn a_failed_task_with_no_sarif_reports_unknown_findings() {
     assert!(reason.contains("no findings file"), "{reason}");
 }
 
-/// Ruling R16: a failed task's own captured output must reach stderr, since
-/// moon's own console output is not attributed per task and would otherwise
-/// leave a failure undiagnosable. This fixture's task prints a marker line
-/// before it fails.
+/// Ruling R16: both of moon's own captured streams must reach stderr under
+/// their own cap, since a real failure (cargo's failing test names on
+/// stdout, its "test failed" summary on stderr) can put what an agent needs
+/// on either one. This fixture's task writes one stdout marker, then a
+/// stderr flood past the 80-line cap: a single combined-and-capped tail
+/// would drop the stdout marker entirely, since the stderr flood alone
+/// already fills the cap.
 #[test]
-fn a_failed_task_s_output_is_printed_to_stderr() {
+fn a_failed_task_s_stdout_and_stderr_are_both_printed() {
     let repo = TempRepo::new("cp-task-output");
     repo.write(
         ".moon/workspace.yml",
         "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
     );
+    // PowerShell has no `1>&2` redirection (the operator is reserved); a
+    // POSIX shell has no `[Console]::Error.WriteLine`.
+    let script = if cfg!(windows) {
+        "Write-Output ''OSF_STDOUT_MARKER_7f3a1''; 1..100 | ForEach-Object { [Console]::Error.WriteLine(\"filler line $_\") }; exit 1"
+    } else {
+        "echo OSF_STDOUT_MARKER_7f3a1; for i in $(seq 1 100); do echo \"filler line $i\" 1>&2; done; exit 1"
+    };
     repo.write(
         ".osf/moon.yml",
-        "tasks:\n  boom:\n    script: 'echo OSF_TEST_MARKER_7f3a1; exit 1'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n",
+        &format!(
+            "tasks:\n  boom:\n    script: '{script}'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n"
+        ),
     );
     let base = repo.commit("base");
     repo.write("guide.md", "Hello.\n");
@@ -231,10 +243,12 @@ fn a_failed_task_s_output_is_printed_to_stderr() {
         &["verify", "--checkpoint", "pre-push", "--base", &base],
     );
     assert_eq!(out.status.code(), Some(1), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        String::from_utf8_lossy(&out.stderr).contains("OSF_TEST_MARKER_7f3a1"),
-        "{out:?}"
+        stderr.contains("OSF_STDOUT_MARKER_7f3a1"),
+        "stdout marker missing under a large stderr: {out:?}"
     );
+    assert!(stderr.contains("filler line 100"), "{out:?}");
 }
 
 /// Ruling R13: a SARIF left over from an earlier run must be cleared

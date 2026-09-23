@@ -202,6 +202,45 @@ fn a_timed_out_run_kills_the_whole_process_tree() {
     });
 }
 
+/// Ruling R18: `osf` always starts a fresh moon for its own workspace, so
+/// `run` must never let the child inherit `MOON_*` variables an outer moon
+/// task set on this process (as `.osf/moon.yml`'s own `test` task does when
+/// `cargo test` runs under moon) — moon honours an inherited
+/// `MOON_WORKSPACE_ROOT` (and other `MOON_*` vars) over the `--current-dir`
+/// this adapter passes, which would point the nested moon at the wrong
+/// workspace entirely.
+#[test]
+fn an_inherited_moon_workspace_root_from_an_outer_task_does_not_redirect_the_run() {
+    let other_real_dir = std::env::temp_dir().to_string_lossy().into_owned();
+    serial(
+        &[
+            ("MOON_WORKSPACE_ROOT", other_real_dir.as_str()),
+            ("MOON_PROJECT_ROOT", other_real_dir.as_str()),
+        ],
+        || {
+            let ws = MoonWorkspace::new("env-leak");
+            let targets = vec![":#osf-pre-commit".to_string()];
+            let files = vec!["app/notes.md".to_string()];
+            let out = run(&Invocation {
+                root: &ws.root,
+                targets: &targets,
+                files: &files,
+                env: &[],
+                timeout: Some(std::time::Duration::from_secs(30)),
+            });
+            match out {
+                Outcome::Ran { tasks, .. } => {
+                    assert_eq!(tasks.len(), 1, "{tasks:?}");
+                    assert_eq!(tasks.first().expect("one task").status, TaskStatus::Passed);
+                }
+                Outcome::NothingAffected => panic!("expected Ran, got NothingAffected"),
+                Outcome::TimedOut => panic!("expected Ran, got TimedOut"),
+                Outcome::CouldNotRun(e) => panic!("expected Ran, got CouldNotRun({e})"),
+            }
+        },
+    );
+}
+
 #[test]
 fn a_few_thousand_stdin_paths_do_not_deadlock() {
     serial(&[], || {
