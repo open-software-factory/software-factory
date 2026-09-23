@@ -46,14 +46,23 @@ pub fn run_check(
     files: &[String],
     gate: bool,
 ) -> Result<Vec<(String, Finding)>, String> {
-    if !matches!(name, CheckName::ScanCommits) {
-        ensure_files_exist(opts.dir, files)?;
-    }
     match name {
-        CheckName::Scan => scan_files(opts, files, false),
-        CheckName::ScanStaged => scan_files(opts, files, true),
-        CheckName::LintWriting => lint_writing_files(opts, files, gate),
-        CheckName::LintSkill => lint_skill_files(opts, files),
+        CheckName::Scan => {
+            ensure_files_exist(opts.dir, files)?;
+            scan_files(opts, files, false)
+        }
+        CheckName::ScanStaged => {
+            ensure_staged_files_exist(opts.dir, files)?;
+            scan_files(opts, files, true)
+        }
+        CheckName::LintWriting => {
+            ensure_files_exist(opts.dir, files)?;
+            lint_writing_files(opts, files, gate)
+        }
+        CheckName::LintSkill => {
+            ensure_files_exist(opts.dir, files)?;
+            lint_skill_files(opts, files)
+        }
         CheckName::ScanCommits => scan_commits(opts),
     }
 }
@@ -63,6 +72,18 @@ pub fn run_check(
 fn ensure_files_exist(dir: &Path, files: &[String]) -> Result<(), String> {
     for path in files {
         if !dir.join(path).is_file() {
+            return Err(format!("file not found: {path}"));
+        }
+    }
+    Ok(())
+}
+
+/// `scan-staged` reads the index, so a file staged then deleted from an
+/// unstaged working tree is still there to check: existence for this
+/// check means present in the index, never the working tree.
+fn ensure_staged_files_exist(dir: &Path, files: &[String]) -> Result<(), String> {
+    for path in files {
+        if crate::git::staged_content(dir, path).is_err() {
             return Err(format!("file not found: {path}"));
         }
     }

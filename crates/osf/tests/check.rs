@@ -95,6 +95,41 @@ fn check_lint_writing_gate_ignores_a_suppression_marker() {
     assert_eq!(gated.status.code(), Some(1), "{gated:?}");
 }
 
+/// `scan-staged` reads the index, so a file staged then deleted from disk
+/// (the deletion itself not staged) is still there to check: existence for
+/// this check means present in the index, never the working tree.
+#[test]
+fn check_scan_staged_finds_a_leak_staged_then_deleted_from_disk() {
+    let repo = TempRepo::new("check-staged-deleted");
+    repo.write("notes.md", "Clean for now.\n");
+    repo.commit("clean");
+    repo.write(
+        "notes.md",
+        &format!("See {} here.\n", session_link("abc123")),
+    );
+    repo.stage("notes.md");
+    std::fs::remove_file(repo.dir.join("notes.md")).expect("file removes");
+    let home = isolated_home("check-staged-deleted");
+    let out = run_osf(&repo.dir, &home, &["check", "scan-staged", "notes.md"]);
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+}
+
+/// A file that is in neither the index nor the working tree is still a
+/// could-not-run error naming it, never a silent drop.
+#[test]
+fn check_scan_staged_reports_could_not_run_for_a_file_in_neither_place() {
+    let repo = TempRepo::new("check-staged-missing");
+    repo.write("a.md", "Clean.\n");
+    repo.commit("add a file");
+    let home = isolated_home("check-staged-missing");
+    let out = run_osf(&repo.dir, &home, &["check", "scan-staged", "ghost.md"]);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("ghost.md"),
+        "{out:?}"
+    );
+}
+
 /// Moon cannot pass changed file paths to these tasks, so each check falls
 /// back to `OSF_FILES_FROM`: a file naming one repository-relative path per
 /// line, used only when no `FILES` are given on the command line.

@@ -62,6 +62,33 @@ fn pre_commit_scans_staged_content_not_the_working_tree() {
     );
 }
 
+/// A file modified, staged, then deleted from disk (the deletion itself
+/// not staged) is still in the index: `pre-commit` must still find its
+/// staged leak, never report the gate itself as unable to run.
+#[test]
+fn pre_commit_scans_staged_content_deleted_from_the_working_tree() {
+    let repo = TempRepo::new("pc-staged-deleted");
+    repo.write("notes.md", "Clean for now.\n");
+    repo.commit("add a clean file");
+    repo.write(
+        "notes.md",
+        &format!("See {} here.\n", session_link("abc123")),
+    );
+    repo.stage("notes.md");
+    std::fs::remove_file(repo.dir.join("notes.md")).expect("file removes");
+
+    let config = Config::default();
+    let excluder = Excluder::none();
+    let report =
+        run(Stage::PreCommit, &opts(&repo.dir, &config, &excluder)).expect("pre-commit runs");
+    assert_eq!(
+        report.total_errors(),
+        1,
+        "{}",
+        report.render_summary("pre-commit")
+    );
+}
+
 #[test]
 fn pre_commit_lints_the_message_file_when_one_is_given() {
     let repo = TempRepo::new("pc-message");
