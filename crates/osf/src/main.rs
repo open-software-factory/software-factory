@@ -1526,8 +1526,10 @@ fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
 /// # Errors
 /// Returns an error when git cannot run or exits non-zero.
 fn git_fetch(remote: &str, ref_name: &str) -> Result<(), String> {
-    let output = std::process::Command::new("git")
-        .args(["fetch", remote, ref_name])
+    let mut command = std::process::Command::new("git");
+    command.args(["fetch", remote, ref_name]);
+    osf::scrub_git_env_for_dir(&mut command, Path::new("."));
+    let output = command
         .output()
         .map_err(|e| format!("cannot run git: {e}"))?;
     if !output.status.success() {

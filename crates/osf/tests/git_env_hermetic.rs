@@ -3,7 +3,7 @@
 //! redirected by an inherited `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`.
 
 mod common;
-use common::TempRepo;
+use common::{session_link, TempRepo};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -84,6 +84,19 @@ fn checkpoint_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     let sentinel = Sentinel::new("checkpoint");
     let before = sentinel.config_bytes();
     run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--test", "checkpoint"]);
+    let after = sentinel.config_bytes();
+    assert_eq!(before, after, "the sentinel's config changed");
+}
+
+/// Task 8's own regression: `risk::assess` takes an explicit folder, but
+/// every git call it made ran unscrubbed, so an inherited `GIT_DIR` (the
+/// same shape a real pre-push hook running `cargo test` leaves on the
+/// process) redirected it to the wrong repository and the wrong tier.
+#[test]
+fn risk_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
+    let sentinel = Sentinel::new("risk");
+    let before = sentinel.config_bytes();
+    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--test", "risk"]);
     let after = sentinel.config_bytes();
     assert_eq!(before, after, "the sentinel's config changed");
 }
@@ -189,5 +202,150 @@ fn a_real_pre_push_hook_run_touches_neither_the_sentinel_nor_the_clone() {
     );
 
     let _ = std::fs::remove_dir_all(&clone_dir);
+    let _ = std::fs::remove_dir_all(&bare_dir);
+}
+
+/// A `.osf/hooks/pre-commit` script that execs the built `osf` binary.
+fn write_pre_commit_hook(dir: &Path) {
+    let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+    std::fs::create_dir_all(dir.join(".osf").join("hooks")).expect("hooks dir creates");
+    let script = format!("#!/bin/sh\nexec \"{bin}\" verify --checkpoint pre-commit\n");
+    let hook = dir.join(".osf").join("hooks").join("pre-commit");
+    std::fs::write(&hook, script).expect("hook writes");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mut perms = std::fs::metadata(&hook)
+            .expect("hook metadata")
+            .permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&hook, perms).expect("hook chmod");
+    }
+}
+
+/// A throwaway repository with one moon task, `command`, tagged for
+/// `tags`, plus the `.moon/workspace.yml` moon itself needs to see it.
+fn repo_with_moon_task(name: &str, task: &str, command: &str, tags: &str) -> TempRepo {
+    let repo = TempRepo::new(name);
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "language: rust\ntasks:\n  {task}:\n    command: '{command}'\n    inputs: ['/**/*']\n    tags: [{tags}]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+        ),
+    );
+    repo
+}
+
+/// Bullet 2: `git commit -a` folds a working-tree-only change into a
+/// temporary index and hands the pre-commit hook `GIT_INDEX_FILE` for it,
+/// with no `GIT_DIR` at all (git sets none for this hook). A secret present
+/// only in that `-a`-only change must still be caught by the staged-content
+/// scan, and the commit refused: proof that `GIT_INDEX_FILE` survives when
+/// the folder named is the one hosting it.
+#[test]
+fn a_secret_only_in_the_dash_a_change_is_caught_and_the_commit_is_refused() {
+    let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+    let repo = repo_with_moon_task(
+        "pre-commit-secret",
+        "scan-staged",
+        &format!("\"{bin}\" check scan-staged --sarif-out .osf/out/scan-staged.sarif"),
+        "osf-pre-commit",
+    );
+    repo.write("notes.md", "base\n");
+    repo.commit("base");
+
+    write_pre_commit_hook(&repo.dir);
+    let hooks_path = git_in(&repo.dir, &["config", "core.hooksPath", ".osf/hooks"]);
+    assert!(hooks_path.status.success(), "core.hooksPath set failed");
+
+    // Staged, secret-free: the real index holds this.
+    repo.write("notes.md", "base\nmore\n");
+    repo.stage("notes.md");
+
+    // Working-tree-only: only `git commit -a` folds this in, into a
+    // temporary index, never the real one.
+    let secret = session_link("dash-a-secret");
+    repo.write("notes.md", &format!("base\nmore\n{secret}\n"));
+
+    let commit = git_in(&repo.dir, &["commit", "-a", "-m", "add a secret"]);
+    assert!(
+        !commit.status.success(),
+        "the commit should have been refused"
+    );
+
+    let head_count = git_in(&repo.dir, &["rev-list", "--count", "HEAD"]);
+    assert_eq!(
+        String::from_utf8_lossy(&head_count.stdout).trim(),
+        "1",
+        "a refused commit must not add a second one"
+    );
+}
+
+/// Bullet 3: the whole pre-push checkpoint (writing, general and staged
+/// secret scanning together, the way the real one is composed) still
+/// passes through a real `git push --dry-run` to a local bare remote, once
+/// every git call osf itself makes is scrubbed for the folder it was given.
+#[test]
+fn the_whole_pre_push_checkpoint_passes_through_a_real_dry_run_push() {
+    let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+    let repo = TempRepo::new("whole-pre-push-checkpoint");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan-staged:\n    command: '\"{bin}\" check scan-staged --sarif-out .osf/out/scan-staged.sarif'\n    inputs: ['/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+        ),
+    );
+    repo.write("README.md", "a clean repository\n");
+    repo.commit("base");
+    repo.track_origin_main();
+
+    write_pre_push_hook(&repo.dir);
+    let hooks_path = git_in(&repo.dir, &["config", "core.hooksPath", ".osf/hooks"]);
+    assert!(hooks_path.status.success(), "core.hooksPath set failed");
+
+    repo.write(
+        "README.md",
+        "a clean repository\nwith one more clean line\n",
+    );
+    repo.commit("a clean follow-up commit");
+
+    let bare_dir = std::env::temp_dir().join("osf-git-env-whole-checkpoint-bare.git");
+    let _ = std::fs::remove_dir_all(&bare_dir);
+    let bare_init = git_in(
+        Path::new("."),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            bare_dir.to_str().expect("utf8 path"),
+        ],
+    );
+    assert!(bare_init.status.success(), "bare remote init failed");
+    let remote = git_in(
+        &repo.dir,
+        &[
+            "remote",
+            "add",
+            "scratch",
+            bare_dir.to_str().expect("utf8 path"),
+        ],
+    );
+    assert!(remote.status.success(), "remote add failed");
+
+    let push = git_in(&repo.dir, &["push", "--dry-run", "scratch", "main"]);
+    assert!(
+        push.status.success(),
+        "the whole pre-push checkpoint failed: {}",
+        String::from_utf8_lossy(&push.stderr)
+    );
+
     let _ = std::fs::remove_dir_all(&bare_dir);
 }

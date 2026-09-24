@@ -29,10 +29,65 @@ pub fn scrub_git_env(command: &mut Command) {
     }
 }
 
-fn run(dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
-    let output = Command::new("git")
+/// The `GIT_*` variables that tell git which repository to use, as opposed
+/// to `GIT_INDEX_FILE`, which only names which index to read once the
+/// repository is already settled.
+const LOCATING_VARS: &[&str] = &[
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_PREFIX",
+];
+
+/// `dir`'s own `.git` directory, absolute, resolved with every locating
+/// variable already removed so the answer is `dir`'s and not a caller's.
+fn absolute_git_dir(dir: &Path) -> Option<PathBuf> {
+    let mut command = Command::new("git");
+    command
         .current_dir(dir)
-        .args(args)
+        .args(["rev-parse", "--absolute-git-dir"]);
+    for var in LOCATING_VARS {
+        command.env_remove(var);
+    }
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    Some(PathBuf::from(text.trim()))
+}
+
+/// Removes the repository-locating `GIT_*` variables from `command`, so a
+/// git call aimed at `dir` finds its repository from `dir`, never from a
+/// caller's own inherited `GIT_DIR`/`GIT_WORK_TREE`. `GIT_INDEX_FILE` is left
+/// alone unless an inherited `GIT_DIR`, made absolute, proves it names a
+/// different repository than `dir`'s own: git sets no `GIT_DIR` at all for an
+/// ordinary hook, and a pre-commit hook's `git commit -a` needs
+/// `GIT_INDEX_FILE` there to find the index holding the change about to be
+/// committed. Only a proven mismatch, the case a nested hook or a test
+/// fixture can create, removes it too.
+pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
+    for var in LOCATING_VARS {
+        command.env_remove(var);
+    }
+    let proven_elsewhere = std::env::var_os("GIT_DIR").is_some_and(|inherited| {
+        let inherited_abs = std::fs::canonicalize(inherited);
+        let dir_git = absolute_git_dir(dir).and_then(|p| std::fs::canonicalize(&p).ok());
+        !matches!((inherited_abs, dir_git), (Ok(a), Some(b)) if a == b)
+    });
+    if proven_elsewhere {
+        command.env_remove("GIT_INDEX_FILE");
+    }
+}
+
+fn run(dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
+    let mut command = Command::new("git");
+    command.current_dir(dir).args(args);
+    scrub_git_env_for_dir(&mut command, dir);
+    let output = command
         .output()
         .map_err(|e| GitError(format!("cannot run git: {e}")))?;
     if output.status.success() {
@@ -234,7 +289,7 @@ pub fn repo_root_if_any(dir: &Path) -> Result<Option<PathBuf>, GitError> {
     command
         .current_dir(dir)
         .args(["rev-parse", "--show-toplevel"]);
-    scrub_git_env(&mut command);
+    scrub_git_env_for_dir(&mut command, dir);
     let output = command
         .output()
         .map_err(|e| GitError(format!("cannot run git: {e}")))?;
@@ -326,6 +381,40 @@ pub fn untracked_files(dir: &Path) -> Result<Vec<String>, GitError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// Serialises every test that sets `GIT_DIR`/`GIT_INDEX_FILE`: both are process-wide.
+    static GIT_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// Runs `f` with `vars` applied for its duration (`None` means unset), restoring whatever each one held before.
+    fn with_git_env<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
+        let guard = GIT_ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ambient: Vec<(&str, Option<String>)> = vars
+            .iter()
+            .map(|(k, _)| (*k, std::env::var(k).ok()))
+            .collect();
+        for (k, v) in vars {
+            match v {
+                // SAFETY: serialised by GIT_ENV_LOCK.
+                Some(v) => unsafe { std::env::set_var(k, v) },
+                // SAFETY: serialised by GIT_ENV_LOCK.
+                None => unsafe { std::env::remove_var(k) },
+            }
+        }
+        let result = f();
+        for (k, prior) in ambient {
+            match prior {
+                // SAFETY: serialised by GIT_ENV_LOCK.
+                Some(v) => unsafe { std::env::set_var(k, v) },
+                // SAFETY: serialised by GIT_ENV_LOCK.
+                None => unsafe { std::env::remove_var(k) },
+            }
+        }
+        drop(guard);
+        result
+    }
 
     #[test]
     fn the_three_common_remote_shapes_parse_the_same_way() {
@@ -406,5 +495,117 @@ mod tests {
         init_repo(&dir, true);
         let err = repo_root_if_any(&dir).expect_err("a bare repository is an error");
         assert!(!err.to_string().contains("not a git repository"), "{err}");
+    }
+
+    /// Every locating variable is removed, regardless of what is inherited.
+    #[test]
+    fn scrub_removes_the_locating_variables_unconditionally() {
+        with_git_env(&[("GIT_DIR", None), ("GIT_INDEX_FILE", None)], || {
+            let dir = outside_any_repo("osf-git-test-scrub-locating");
+            let mut command = Command::new("git");
+            scrub_git_env_for_dir(&mut command, &dir);
+            let removed: Vec<String> = command
+                .get_envs()
+                .filter(|(_, v)| v.is_none())
+                .map(|(k, _)| k.to_string_lossy().into_owned())
+                .collect();
+            for var in LOCATING_VARS {
+                assert!(removed.iter().any(|r| r == var), "{var} not removed");
+            }
+        });
+    }
+
+    /// `GIT_INDEX_FILE` is left alone when the inherited `GIT_DIR` already names `dir`'s own repository.
+    #[test]
+    fn git_index_file_survives_when_git_dir_names_the_same_repository() {
+        let dir = outside_any_repo("osf-git-test-index-same-repo");
+        init_repo(&dir, false);
+        let git_dir = std::fs::canonicalize(dir.join(".git")).expect("git dir canonicalises");
+        with_git_env(
+            &[
+                ("GIT_DIR", Some(git_dir.to_str().expect("utf8 path"))),
+                ("GIT_INDEX_FILE", Some("sentinel-index")),
+            ],
+            || {
+                let mut command = Command::new("git");
+                scrub_git_env_for_dir(&mut command, &dir);
+                let touched = command
+                    .get_envs()
+                    .any(|(k, _)| k == std::ffi::OsStr::new("GIT_INDEX_FILE"));
+                assert!(!touched, "GIT_INDEX_FILE should have been left alone");
+            },
+        );
+    }
+
+    /// `GIT_INDEX_FILE` is removed when the inherited `GIT_DIR` names a different repository.
+    #[test]
+    fn git_index_file_is_removed_when_git_dir_names_a_different_repository() {
+        let dir = outside_any_repo("osf-git-test-index-diff-repo-target");
+        init_repo(&dir, false);
+        let other = outside_any_repo("osf-git-test-index-diff-repo-other");
+        init_repo(&other, false);
+        let other_git_dir =
+            std::fs::canonicalize(other.join(".git")).expect("git dir canonicalises");
+        with_git_env(
+            &[
+                ("GIT_DIR", Some(other_git_dir.to_str().expect("utf8 path"))),
+                ("GIT_INDEX_FILE", Some("sentinel-index")),
+            ],
+            || {
+                let mut command = Command::new("git");
+                scrub_git_env_for_dir(&mut command, &dir);
+                let removed = command
+                    .get_envs()
+                    .any(|(k, v)| k == std::ffi::OsStr::new("GIT_INDEX_FILE") && v.is_none());
+                assert!(removed, "GIT_INDEX_FILE should have been removed");
+            },
+        );
+    }
+
+    /// `GIT_INDEX_FILE` is removed when `GIT_DIR` is inherited but `dir` has
+    /// no repository of its own to prove it matches.
+    #[test]
+    fn git_index_file_is_removed_when_dir_has_no_repository_of_its_own() {
+        let source = outside_any_repo("osf-git-test-index-no-dir-repo-source");
+        init_repo(&source, false);
+        let dir = outside_any_repo("osf-git-test-index-no-dir-repo-target");
+        let git_dir = std::fs::canonicalize(source.join(".git")).expect("git dir canonicalises");
+        with_git_env(
+            &[
+                ("GIT_DIR", Some(git_dir.to_str().expect("utf8 path"))),
+                ("GIT_INDEX_FILE", Some("sentinel-index")),
+            ],
+            || {
+                let mut command = Command::new("git");
+                scrub_git_env_for_dir(&mut command, &dir);
+                let removed = command
+                    .get_envs()
+                    .any(|(k, v)| k == std::ffi::OsStr::new("GIT_INDEX_FILE") && v.is_none());
+                assert!(removed, "GIT_INDEX_FILE should have been removed");
+            },
+        );
+    }
+
+    /// `GIT_INDEX_FILE` survives when no `GIT_DIR` is inherited at all: an
+    /// ordinary pre-commit hook gets no `GIT_DIR` from git, only
+    /// `GIT_INDEX_FILE`, and still needs it.
+    #[test]
+    fn git_index_file_survives_when_no_git_dir_is_inherited() {
+        let dir = outside_any_repo("osf-git-test-index-no-git-dir");
+        init_repo(&dir, false);
+        with_git_env(
+            &[
+                ("GIT_DIR", None),
+                ("GIT_INDEX_FILE", Some("sentinel-index")),
+            ],
+            || {
+                let mut command = Command::new("git");
+                scrub_git_env_for_dir(&mut command, &dir);
+                let touched = command
+                    .get_envs()
+                    .any(|(k, _)| k == std::ffi::OsStr::new("GIT_INDEX_FILE"));
+                assert!(!touched, "GIT_INDEX_FILE should have been left alone");
+            },
+        );
     }
 }
