@@ -22,10 +22,12 @@
     }
   },
   "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.2",
     "@deepseek-ai/dsh-llm": ">=0.1.5-rc.1",
     "@deepseek-ai/schemastery": ">=3.18.2"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
     "@deepseek-ai/dsh-llm": "0.1.5-rc.2",
     "@deepseek-ai/schemastery": "3.18.2",
     "@types/node": "26.6.1",
@@ -36,6 +38,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit && oxlint -c .oxlintrc.json --deny-warnings src test && oxfmt --check src test",
-    "test": "npm run build && cd dist && node --test"
+    "test": "pnpm run build && cd dist && node --test"
   }
 }

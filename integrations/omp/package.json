@@ -14,8 +14,8 @@
     "lint": "oxlint .",
     "format": "oxfmt --write src test",
     "format:check": "oxfmt --check src test",
-    "check": "npm run typecheck && npm run lint && npm run format:check",
-    "pretest": "npm run build",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
+    "pretest": "pnpm run build",
     "test": "node --test dist/test/**/*.test.js"
   },
   "devDependencies": {

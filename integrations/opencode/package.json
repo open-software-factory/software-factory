@@ -16,12 +16,12 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "check": "npm run check:types && npm run check:lint && npm run check:format",
+    "check": "pnpm run check:types && pnpm run check:lint && pnpm run check:format",
     "check:types": "tsc --noEmit -p tsconfig.json",
     "check:lint": "oxlint -D correctness -D suspicious -D pedantic --deny-warnings src test",
     "check:format": "oxfmt --check src test",
     "format": "oxfmt src test",
-    "pretest": "npm run build",
+    "pretest": "pnpm run build",
     "test": "node --test dist/test/*.test.js"
   },
   "devDependencies": {

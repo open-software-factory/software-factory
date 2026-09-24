@@ -6,8 +6,8 @@ replies. This hook runs `osf` over the reply at the end of every turn.
 It asks for a short follow-up when the reply has a problem a reader
 would trip on.
 
-The hook is written in strict TypeScript. `npm run check` type-checks
-it, lints it, and checks its formatting; `npm test` builds it and runs
+The hook is written in strict TypeScript. `pnpm run check` type-checks
+it, lints it, and checks its formatting; `pnpm test` builds it and runs
 its tests against the compiled output.
 
 ## Why a global hook
@@ -24,9 +24,12 @@ already in hand. No file to find, no transcript to parse.
 
 ## Building it
 
+This repository is a pnpm workspace, so `pnpm install` here installs
+from the root lock file.
+
 ```
-npm ci
-npm run build
+pnpm install
+pnpm run build
 ```
 
 This compiles `src/*.ts` and `test/*.ts` into `dist/`. `dist/` is not
@@ -76,7 +79,7 @@ checked.
 ## Checking it
 
 ```
-npm run check
+pnpm run check
 ```
 
 This type-checks the source with `tsc` from the `typescript` package at
@@ -86,7 +89,7 @@ version 7.0.2, lints it with `oxlint`, and checks its formatting with
 ## Testing it
 
 ```
-npm test
+pnpm test
 ```
 
 This builds the package, then runs `node --test` against the compiled

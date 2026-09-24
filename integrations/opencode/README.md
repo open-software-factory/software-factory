@@ -21,14 +21,15 @@ It only decides how loud the report is.
 ## Building it
 
 This plugin is written in TypeScript and ships as a compiled package.
-Build it once before registering it with OpenCode:
+Build it once before registering it with OpenCode. This repository is a
+pnpm workspace, so `pnpm install` here installs from the root lock file.
 
 ```
-npm ci
-npm run build
+pnpm install
+pnpm run build
 ```
 
-`npm run build` writes `dist/src/index.js`, the file OpenCode loads, and
+`pnpm run build` writes `dist/src/index.js`, the file OpenCode loads, and
 `dist/test/`, the compiled tests. Nothing under `dist/` is checked in.
 
 ## Installing it
@@ -78,13 +79,13 @@ said, so there is nothing to check, and no report either.
 ## Checking it
 
 ```
-npm run check
-npm test
+pnpm run check
+pnpm test
 ```
 
-`npm run check` type-checks with `tsc` from the `typescript` package at
+`pnpm run check` type-checks with `tsc` from the `typescript` package at
 version 7.0.2, lints with `oxlint`, and checks formatting with `oxfmt`.
-`npm test` builds, then runs the compiled tests with `node --test`.
+`pnpm test` builds, then runs the compiled tests with `node --test`.
 
 The two decisions this plugin makes are plain functions in `src/check.ts`,
 which imports nothing from OpenCode. The tests run anywhere, including
