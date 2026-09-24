@@ -242,10 +242,14 @@ fn repo_with_moon_task(name: &str, task: &str, command: &str, tags: &str) -> Tem
 
 /// Bullet 2: `git commit -a` folds a working-tree-only change into a
 /// temporary index and hands the pre-commit hook `GIT_INDEX_FILE` for it,
-/// with no `GIT_DIR` at all (git sets none for this hook). A secret present
-/// only in that `-a`-only change must still be caught by the staged-content
-/// scan, and the commit refused: proof that `GIT_INDEX_FILE` survives when
-/// the folder named is the one hosting it.
+/// a path inside this repository's own git directory (an ordinary,
+/// non-worktree hook run gets no `GIT_DIR` at all for it; a hook run from a
+/// linked worktree does, pointing at that worktree's own git directory —
+/// see `a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository`
+/// below). A secret present only in that `-a`-only change must still be
+/// caught by the staged-content scan, and the commit refused: proof that
+/// `GIT_INDEX_FILE` survives when its own path lies inside the folder
+/// named.
 #[test]
 fn a_secret_only_in_the_dash_a_change_is_caught_and_the_commit_is_refused() {
     let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
@@ -347,5 +351,104 @@ fn the_whole_pre_push_checkpoint_passes_through_a_real_dry_run_push() {
         String::from_utf8_lossy(&push.stderr)
     );
 
+    let _ = std::fs::remove_dir_all(&bare_dir);
+}
+
+/// Item 2: a hook run from a linked worktree gets a real, non-empty
+/// `GIT_DIR` from git itself (`<main>/.git/worktrees/<name>`), unlike an
+/// ordinary same-directory hook run. This is how the incident that
+/// motivated this fix actually happened: `cargo test` running inside this
+/// very worktree's own pre-push hook inherited that `GIT_DIR`. A real
+/// `git push --dry-run` from a linked worktree, through a real pre-push
+/// hook running the built osf checkpoint, must still pass and must never
+/// touch the main repository's own (shared) config.
+#[test]
+fn a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository() {
+    let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+    let main_repo = repo_with_moon_task(
+        "linked-worktree-main",
+        "scan",
+        &format!("\"{bin}\" check scan --sarif-out .osf/out/scan.sarif"),
+        "osf-pre-push",
+    );
+    main_repo.write("README.md", "a clean repository\n");
+    main_repo.commit("base");
+
+    let worktree_dir = std::env::temp_dir().join("osf-git-env-linked-worktree");
+    let _ = std::fs::remove_dir_all(&worktree_dir);
+    let worktree_add = git_in(
+        &main_repo.dir,
+        &[
+            "worktree",
+            "add",
+            worktree_dir.to_str().expect("utf8 path"),
+            "-b",
+            "feature",
+        ],
+    );
+    assert!(
+        worktree_add.status.success(),
+        "worktree add failed: {}",
+        String::from_utf8_lossy(&worktree_add.stderr)
+    );
+
+    write_pre_push_hook(&worktree_dir);
+    let hooks_path = git_in(&worktree_dir, &["config", "core.hooksPath", ".osf/hooks"]);
+    assert!(hooks_path.status.success(), "core.hooksPath set failed");
+
+    std::fs::write(
+        worktree_dir.join("README.md"),
+        "a clean repository\nedited in the linked worktree\n",
+    )
+    .expect("README.md writes");
+    let add = git_in(&worktree_dir, &["add", "README.md"]);
+    assert!(add.status.success(), "git add failed");
+    let commit = git_in(
+        &worktree_dir,
+        &["commit", "-q", "-m", "a clean commit made in the worktree"],
+    );
+    assert!(commit.status.success(), "commit failed");
+
+    let bare_dir = std::env::temp_dir().join("osf-git-env-linked-worktree-bare.git");
+    let _ = std::fs::remove_dir_all(&bare_dir);
+    let bare_init = git_in(
+        Path::new("."),
+        &[
+            "init",
+            "-q",
+            "--bare",
+            bare_dir.to_str().expect("utf8 path"),
+        ],
+    );
+    assert!(bare_init.status.success(), "bare remote init failed");
+    let remote = git_in(
+        &worktree_dir,
+        &[
+            "remote",
+            "add",
+            "scratch",
+            bare_dir.to_str().expect("utf8 path"),
+        ],
+    );
+    assert!(remote.status.success(), "remote add failed");
+
+    let main_config_before =
+        std::fs::read(main_repo.dir.join(".git").join("config")).expect("main config reads");
+
+    let push = git_in(&worktree_dir, &["push", "--dry-run", "scratch", "feature"]);
+    assert!(
+        push.status.success(),
+        "the linked-worktree pre-push hook failed: {}",
+        String::from_utf8_lossy(&push.stderr)
+    );
+
+    let main_config_after =
+        std::fs::read(main_repo.dir.join(".git").join("config")).expect("main config reads");
+    assert_eq!(
+        main_config_before, main_config_after,
+        "the main repository's shared config changed"
+    );
+
+    let _ = std::fs::remove_dir_all(&worktree_dir);
     let _ = std::fs::remove_dir_all(&bare_dir);
 }

@@ -44,6 +44,8 @@ const LOCATING_VARS: &[&str] = &[
 
 /// `dir`'s own `.git` directory, absolute, resolved with every locating
 /// variable already removed so the answer is `dir`'s and not a caller's.
+/// This is also the correct answer from inside a linked worktree: git
+/// resolves it to that worktree's own `<main>/.git/worktrees/<name>`.
 fn absolute_git_dir(dir: &Path) -> Option<PathBuf> {
     let mut command = Command::new("git");
     command
@@ -60,26 +62,66 @@ fn absolute_git_dir(dir: &Path) -> Option<PathBuf> {
     Some(PathBuf::from(text.trim()))
 }
 
+/// Whether `a` and `b` name the same path component, case-insensitively on
+/// Windows (where the filesystem itself is), byte-for-byte elsewhere.
+fn path_component_matches(a: &std::ffi::OsStr, b: &std::ffi::OsStr) -> bool {
+    #[cfg(windows)]
+    {
+        a.to_string_lossy()
+            .eq_ignore_ascii_case(&b.to_string_lossy())
+    }
+    #[cfg(not(windows))]
+    {
+        a == b
+    }
+}
+
+/// Whether every component of `parent` is a prefix of `child`'s own
+/// components, in order: `child` is `parent` itself or somewhere under it.
+fn path_contains(parent: &Path, child: &Path) -> bool {
+    let mut child_components = child.components();
+    for parent_component in parent.components() {
+        match child_components.next() {
+            Some(c) if path_component_matches(parent_component.as_os_str(), c.as_os_str()) => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
+/// Whether `index_file` lies inside `dir`'s own git directory: the only
+/// case that makes it the index a caller working in `dir` is entitled to
+/// read. Canonicalises both sides first, so a symlink or a case difference
+/// never causes a false negative on Windows.
+fn index_file_is_within_dirs_git_dir(index_file: &std::ffi::OsStr, dir: &Path) -> bool {
+    let Some(git_dir) = absolute_git_dir(dir) else {
+        return false;
+    };
+    let Ok(git_dir) = std::fs::canonicalize(&git_dir) else {
+        return false;
+    };
+    let Ok(index_file) = std::fs::canonicalize(Path::new(index_file)) else {
+        return false;
+    };
+    path_contains(&git_dir, &index_file)
+}
+
 /// Removes the repository-locating `GIT_*` variables from `command`, so a
 /// git call aimed at `dir` finds its repository from `dir`, never from a
-/// caller's own inherited `GIT_DIR`/`GIT_WORK_TREE`. `GIT_INDEX_FILE` is left
-/// alone unless an inherited `GIT_DIR`, made absolute, proves it names a
-/// different repository than `dir`'s own: git sets no `GIT_DIR` at all for an
-/// ordinary hook, and a pre-commit hook's `git commit -a` needs
-/// `GIT_INDEX_FILE` there to find the index holding the change about to be
-/// committed. Only a proven mismatch, the case a nested hook or a test
-/// fixture can create, removes it too.
+/// caller's own inherited `GIT_DIR`/`GIT_WORK_TREE`. An inherited
+/// `GIT_INDEX_FILE` is kept only when its own absolute path lies inside
+/// `dir`'s own git directory (a pre-commit hook's `git commit -a` sets
+/// exactly that, so the staged-content scan can still read it); otherwise
+/// it is removed, since a path outside `dir`'s own git directory names some
+/// other repository's index and cannot be read against `dir`'s objects.
 pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
     for var in LOCATING_VARS {
         command.env_remove(var);
     }
-    let proven_elsewhere = std::env::var_os("GIT_DIR").is_some_and(|inherited| {
-        let inherited_abs = std::fs::canonicalize(inherited);
-        let dir_git = absolute_git_dir(dir).and_then(|p| std::fs::canonicalize(&p).ok());
-        !matches!((inherited_abs, dir_git), (Ok(a), Some(b)) if a == b)
-    });
-    if proven_elsewhere {
-        command.env_remove("GIT_INDEX_FILE");
+    if let Some(index_file) = std::env::var_os("GIT_INDEX_FILE") {
+        if !index_file_is_within_dirs_git_dir(&index_file, dir) {
+            command.env_remove("GIT_INDEX_FILE");
+        }
     }
 }
 
@@ -515,17 +557,18 @@ mod tests {
         });
     }
 
-    /// `GIT_INDEX_FILE` is left alone when the inherited `GIT_DIR` already names `dir`'s own repository.
+    /// `GIT_INDEX_FILE` is left alone when its own path lies inside `dir`'s own git directory.
     #[test]
-    fn git_index_file_survives_when_git_dir_names_the_same_repository() {
-        let dir = outside_any_repo("osf-git-test-index-same-repo");
+    fn git_index_file_survives_when_it_lies_inside_dirs_own_git_dir() {
+        let dir = outside_any_repo("osf-git-test-index-inside");
         init_repo(&dir, false);
-        let git_dir = std::fs::canonicalize(dir.join(".git")).expect("git dir canonicalises");
+        let index_path = dir.join(".git").join("fake-index");
+        std::fs::write(&index_path, b"stand-in for an index").expect("fake index writes");
         with_git_env(
-            &[
-                ("GIT_DIR", Some(git_dir.to_str().expect("utf8 path"))),
-                ("GIT_INDEX_FILE", Some("sentinel-index")),
-            ],
+            &[(
+                "GIT_INDEX_FILE",
+                Some(index_path.to_str().expect("utf8 path")),
+            )],
             || {
                 let mut command = Command::new("git");
                 scrub_git_env_for_dir(&mut command, &dir);
@@ -537,20 +580,22 @@ mod tests {
         );
     }
 
-    /// `GIT_INDEX_FILE` is removed when the inherited `GIT_DIR` names a different repository.
+    /// `GIT_INDEX_FILE` is removed when its own path lies outside `dir`'s
+    /// own git directory: the two-repository shape the reviewer reproduced.
     #[test]
-    fn git_index_file_is_removed_when_git_dir_names_a_different_repository() {
-        let dir = outside_any_repo("osf-git-test-index-diff-repo-target");
-        init_repo(&dir, false);
-        let other = outside_any_repo("osf-git-test-index-diff-repo-other");
+    fn git_index_file_is_removed_when_it_lies_outside_dirs_own_git_dir() {
+        let other = outside_any_repo("osf-git-test-index-outside-other");
         init_repo(&other, false);
-        let other_git_dir =
-            std::fs::canonicalize(other.join(".git")).expect("git dir canonicalises");
+        let other_index = other.join(".git").join("fake-index");
+        std::fs::write(&other_index, b"stand-in for another repository's index")
+            .expect("fake index writes");
+        let dir = outside_any_repo("osf-git-test-index-outside-target");
+        init_repo(&dir, false);
         with_git_env(
-            &[
-                ("GIT_DIR", Some(other_git_dir.to_str().expect("utf8 path"))),
-                ("GIT_INDEX_FILE", Some("sentinel-index")),
-            ],
+            &[(
+                "GIT_INDEX_FILE",
+                Some(other_index.to_str().expect("utf8 path")),
+            )],
             || {
                 let mut command = Command::new("git");
                 scrub_git_env_for_dir(&mut command, &dir);
@@ -562,19 +607,20 @@ mod tests {
         );
     }
 
-    /// `GIT_INDEX_FILE` is removed when `GIT_DIR` is inherited but `dir` has
-    /// no repository of its own to prove it matches.
+    /// `GIT_INDEX_FILE` is removed when `dir` has no repository of its own:
+    /// there is nothing to prove containment against.
     #[test]
     fn git_index_file_is_removed_when_dir_has_no_repository_of_its_own() {
         let source = outside_any_repo("osf-git-test-index-no-dir-repo-source");
         init_repo(&source, false);
+        let source_index = source.join(".git").join("fake-index");
+        std::fs::write(&source_index, b"stand-in for an index").expect("fake index writes");
         let dir = outside_any_repo("osf-git-test-index-no-dir-repo-target");
-        let git_dir = std::fs::canonicalize(source.join(".git")).expect("git dir canonicalises");
         with_git_env(
-            &[
-                ("GIT_DIR", Some(git_dir.to_str().expect("utf8 path"))),
-                ("GIT_INDEX_FILE", Some("sentinel-index")),
-            ],
+            &[(
+                "GIT_INDEX_FILE",
+                Some(source_index.to_str().expect("utf8 path")),
+            )],
             || {
                 let mut command = Command::new("git");
                 scrub_git_env_for_dir(&mut command, &dir);
@@ -586,25 +632,58 @@ mod tests {
         );
     }
 
-    /// `GIT_INDEX_FILE` survives when no `GIT_DIR` is inherited at all: an
-    /// ordinary pre-commit hook gets no `GIT_DIR` from git, only
-    /// `GIT_INDEX_FILE`, and still needs it.
+    /// No `GIT_INDEX_FILE` inherited at all: nothing to touch.
     #[test]
-    fn git_index_file_survives_when_no_git_dir_is_inherited() {
-        let dir = outside_any_repo("osf-git-test-index-no-git-dir");
+    fn no_git_index_file_is_left_untouched() {
+        let dir = outside_any_repo("osf-git-test-no-index-file");
         init_repo(&dir, false);
+        with_git_env(&[("GIT_INDEX_FILE", None)], || {
+            let mut command = Command::new("git");
+            scrub_git_env_for_dir(&mut command, &dir);
+            let touched = command
+                .get_envs()
+                .any(|(k, _)| k == std::ffi::OsStr::new("GIT_INDEX_FILE"));
+            assert!(!touched, "nothing named GIT_INDEX_FILE should be touched");
+        });
+    }
+
+    /// The reviewer's exact two-repository reproduction: `GIT_INDEX_FILE`
+    /// inherited from repo A's real index, no `GIT_DIR` at all, and a git
+    /// call made for repo B. Before this fix this failed outright
+    /// ("unable to read <sha>") or, with coincidental blobs, silently
+    /// scanned the wrong content. `staged_files` must now read repo B's own
+    /// index.
+    #[test]
+    fn a_foreign_git_index_file_no_longer_lets_a_call_for_another_folder_read_it() {
+        let repo_a = outside_any_repo("osf-git-test-two-repo-a");
+        init_repo(&repo_a, false);
+        std::fs::write(repo_a.join("a.txt"), b"a").expect("a.txt writes");
+        let mut add_a = Command::new("git");
+        add_a.current_dir(&repo_a).args(["add", "a.txt"]);
+        scrub_git_env(&mut add_a);
+        assert!(add_a.status().expect("git add runs").success());
+
+        let repo_b = outside_any_repo("osf-git-test-two-repo-b");
+        init_repo(&repo_b, false);
+        std::fs::write(repo_b.join("b.txt"), b"b").expect("b.txt writes");
+        let mut add_b = Command::new("git");
+        add_b.current_dir(&repo_b).args(["add", "b.txt"]);
+        scrub_git_env(&mut add_b);
+        assert!(add_b.status().expect("git add runs").success());
+
+        let repo_a_index = std::fs::canonicalize(repo_a.join(".git").join("index"))
+            .expect("repo a's index canonicalises");
         with_git_env(
             &[
                 ("GIT_DIR", None),
-                ("GIT_INDEX_FILE", Some("sentinel-index")),
+                (
+                    "GIT_INDEX_FILE",
+                    Some(repo_a_index.to_str().expect("utf8 path")),
+                ),
             ],
             || {
-                let mut command = Command::new("git");
-                scrub_git_env_for_dir(&mut command, &dir);
-                let touched = command
-                    .get_envs()
-                    .any(|(k, _)| k == std::ffi::OsStr::new("GIT_INDEX_FILE"));
-                assert!(!touched, "GIT_INDEX_FILE should have been left alone");
+                let files = staged_files(&repo_b).expect("staged_files reads repo b's own index");
+                assert_eq!(files, vec!["b.txt".to_string()]);
             },
         );
     }
