@@ -417,6 +417,35 @@ fn task_line(root: &Path, task: &moon::TaskOutcome) -> TaskLine {
     }
 }
 
+/// `Some(reason)` when nothing genuinely ran at `checkpoint`, so it must not pass.
+fn ran_could_not_run(checkpoint: Checkpoint, tasks: &[moon::TaskOutcome]) -> Option<String> {
+    if checkpoint == Checkpoint::Hook {
+        return None;
+    }
+    if tasks.is_empty() {
+        return Some(
+            "moon's run report named no task, though it did not report nothing affected"
+                .to_string(),
+        );
+    }
+    let mut reasons = Vec::new();
+    let invalid: Vec<&str> = tasks
+        .iter()
+        .filter(|t| t.invalid)
+        .map(|t| t.target.as_str())
+        .collect();
+    if !invalid.is_empty() {
+        reasons.push(format!(
+            "moon reported an invalid status for: {}",
+            invalid.join(", ")
+        ));
+    }
+    if tasks.iter().all(|t| t.status == TaskStatus::Skipped) {
+        reasons.push("every selected task was skipped".to_string());
+    }
+    (!reasons.is_empty()).then(|| reasons.join("; "))
+}
+
 /// The `Outcome::Ran` branch of [`run`]: one line and one verification
 /// event per task, then the total line and the checkpoint-complete event.
 #[allow(clippy::too_many_arguments)]
@@ -475,16 +504,25 @@ fn handle_ran(
             }
         }
     }
-    let overall = if failed > 0 {
+    let ran_reason = ran_could_not_run(req.checkpoint, tasks);
+    let overall = if ran_reason.is_some() {
+        CheckResult::CouldNotRun
+    } else if failed > 0 {
         CheckResult::Failed
     } else if passed == 0 && skipped > 0 {
         CheckResult::Skipped
     } else {
         CheckResult::Passed
     };
-    lines.push(format!(
-        "{label}: {passed} passed, {failed} failed, {skipped} skipped, {total_findings} finding(s) total"
-    ));
+    match &ran_reason {
+        Some(reason) => {
+            error_findings.push(reason.clone());
+            lines.push(format!("{label}: could not run: {reason}"));
+        }
+        None => lines.push(format!(
+            "{label}: {passed} passed, {failed} failed, {skipped} skipped, {total_findings} finding(s) total"
+        )),
+    }
     let checks = u32::try_from(tasks.len()).unwrap_or(u32::MAX);
     append_checkpoint_complete(
         &mut journal,
@@ -910,5 +948,75 @@ pub fn exit_code(summary: &Summary, checkpoint: Checkpoint) -> u8 {
         CheckResult::Failed => 1,
         CheckResult::CouldNotRun => 2,
         CheckResult::Passed | CheckResult::Skipped | CheckResult::NothingToCheck => 0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::moon::TaskOutcome;
+
+    fn task(target: &str, status: TaskStatus, invalid: bool) -> TaskOutcome {
+        TaskOutcome {
+            target: target.to_string(),
+            status,
+            duration_ms: 1,
+            cached: false,
+            invalid,
+        }
+    }
+
+    /// Fixes-135 task 1, bullet 1: every selected task skipped is could-not-run.
+    #[test]
+    fn an_all_skipped_run_at_pre_push_is_could_not_run() {
+        let tasks = vec![
+            task("a:one", TaskStatus::Skipped, false),
+            task("a:two", TaskStatus::Skipped, false),
+        ];
+        let reason = ran_could_not_run(Checkpoint::PrePush, &tasks).expect("a reason");
+        assert!(reason.contains("skipped"), "{reason}");
+    }
+
+    /// Bullet 3: one invalid task is could-not-run even when others pass.
+    #[test]
+    fn an_invalid_task_is_could_not_run_even_when_others_pass() {
+        let tasks = vec![
+            task("a:one", TaskStatus::Passed, false),
+            task("a:two", TaskStatus::Skipped, true),
+        ];
+        let reason = ran_could_not_run(Checkpoint::PullRequest, &tasks).expect("a reason");
+        assert!(reason.contains("a:two"), "{reason}");
+    }
+
+    /// Bullet 2: a report with no task at all is could-not-run.
+    #[test]
+    fn an_empty_task_list_from_a_genuine_run_is_could_not_run() {
+        let tasks: Vec<TaskOutcome> = Vec::new();
+        assert!(ran_could_not_run(Checkpoint::Schedule, &tasks).is_some());
+    }
+
+    #[test]
+    fn a_passing_run_is_not_could_not_run() {
+        let tasks = vec![task("a:one", TaskStatus::Passed, false)];
+        assert!(ran_could_not_run(Checkpoint::PreCommit, &tasks).is_none());
+    }
+
+    /// A genuine mix of passed and skipped tasks is a pass, not could-not-run.
+    #[test]
+    fn a_mixed_pass_and_skip_run_is_not_could_not_run() {
+        let tasks = vec![
+            task("a:one", TaskStatus::Passed, false),
+            task("a:two", TaskStatus::Skipped, false),
+        ];
+        assert!(ran_could_not_run(Checkpoint::PreCommit, &tasks).is_none());
+    }
+
+    /// The hook checkpoint keeps its current behaviour under this rule.
+    #[test]
+    fn the_hook_checkpoint_is_never_forced_could_not_run_by_this_rule() {
+        let tasks = vec![task("a:one", TaskStatus::Skipped, false)];
+        assert!(ran_could_not_run(Checkpoint::Hook, &tasks).is_none());
+        let empty: Vec<TaskOutcome> = Vec::new();
+        assert!(ran_could_not_run(Checkpoint::Hook, &empty).is_none());
     }
 }

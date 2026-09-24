@@ -36,6 +36,8 @@ pub struct TaskOutcome {
     pub status: TaskStatus,
     pub duration_ms: u64,
     pub cached: bool,
+    /// True when moon's own raw state was `invalid`, never a genuine skip.
+    pub invalid: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -429,6 +431,7 @@ pub fn parse_report(json: &str) -> Result<Vec<TaskOutcome>, String> {
             status,
             duration_ms: durations.get(target).copied().unwrap_or_default(),
             cached: cached_targets.contains(target),
+            invalid: raw_status == "invalid",
         });
     }
     Ok(tasks)
@@ -518,6 +521,25 @@ mod tests {
     fn an_unrecognised_status_is_an_error() {
         let json = r#"{"actions":[],"context":{"targetStates":{"a:b":{"state":"mystery"}}}}"#;
         assert!(parse_report(json).is_err());
+    }
+
+    /// An `invalid` status still maps to skipped, but is flagged separately.
+    #[test]
+    fn an_invalid_status_maps_to_skipped_and_is_flagged_invalid() {
+        let json = r#"{"actions":[],"context":{"targetStates":{"a:b":{"state":"invalid"}}}}"#;
+        let tasks = parse_report(json).expect("report parses");
+        let task = tasks.first().expect("one task");
+        assert_eq!(task.status, TaskStatus::Skipped);
+        assert!(task.invalid, "{task:?}");
+    }
+
+    #[test]
+    fn a_genuine_skipped_status_is_not_flagged_invalid() {
+        let json = r#"{"actions":[],"context":{"targetStates":{"a:b":{"state":"skipped"}}}}"#;
+        let tasks = parse_report(json).expect("report parses");
+        let task = tasks.first().expect("one task");
+        assert_eq!(task.status, TaskStatus::Skipped);
+        assert!(!task.invalid, "{task:?}");
     }
 
     #[test]

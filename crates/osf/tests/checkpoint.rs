@@ -1,7 +1,10 @@
 //! Integration tests for `osf verify --checkpoint`: moon required on `PATH`.
 
 mod common;
-use common::{isolated_home, run_osf, run_osf_with_env, session_link, TempRepo};
+use common::{
+    isolated_home, run_osf, run_osf_with_env, session_link, write_fake_moon,
+    write_fake_moon_report, TempRepo,
+};
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
     home.join(".osf").join("state")
@@ -538,4 +541,86 @@ fn a_pre_push_with_an_unresolvable_base_exits_two() {
         ],
     );
     assert_eq!(out.status.code(), Some(2), "{out:?}");
+}
+
+/// Bullet 1: every selected task came back skipped, so this is could-not-run.
+#[test]
+fn an_all_skipped_run_at_pre_push_is_could_not_run_and_names_the_reason() {
+    let repo = TempRepo::new("cp-all-skipped");
+    repo.write("README.md", "init\n");
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("dirty");
+    let moon = write_fake_moon(&repo);
+    write_fake_moon_report(
+        &repo,
+        r#""app:one":{"state":"skipped"},"app:two":{"state":"skipped"}"#,
+    );
+    let home = isolated_home("cp-all-skipped");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", moon.to_str().expect("utf8 path"))],
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("could not run"),
+        "{out:?}"
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("every selected task was skipped"),
+        "{out:?}"
+    );
+}
+
+/// Bullet 3: moon's own `invalid` status is could-not-run even amid passes.
+#[test]
+fn a_task_with_moon_s_invalid_status_is_could_not_run() {
+    let repo = TempRepo::new("cp-invalid-task");
+    repo.write("README.md", "init\n");
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("dirty");
+    let moon = write_fake_moon(&repo);
+    write_fake_moon_report(
+        &repo,
+        r#""app:one":{"state":"passed","hash":"abc"},"app:two":{"state":"invalid"}"#,
+    );
+    let home = isolated_home("cp-invalid-task");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", moon.to_str().expect("utf8 path"))],
+        &["verify", "--checkpoint", "pull-request", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("invalid status for: app:two"),
+        "{out:?}"
+    );
+}
+
+/// Bullet 2: a run report naming no task at all is could-not-run.
+#[test]
+fn a_run_report_with_no_task_at_all_is_could_not_run() {
+    let repo = TempRepo::new("cp-empty-report");
+    repo.write("README.md", "init\n");
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("dirty");
+    let moon = write_fake_moon(&repo);
+    write_fake_moon_report(&repo, "");
+    let home = isolated_home("cp-empty-report");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", moon.to_str().expect("utf8 path"))],
+        &["verify", "--checkpoint", "schedule", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("no task"),
+        "{out:?}"
+    );
 }

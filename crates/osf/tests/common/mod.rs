@@ -119,6 +119,46 @@ impl Drop for TempRepo {
     }
 }
 
+/// A fake `moon` for `OSF_MOON`: it copies [`write_fake_moon_report`]'s file into `.moon/cache/runReport.json` for `run`.
+#[cfg(windows)]
+pub fn write_fake_moon(repo: &TempRepo) -> PathBuf {
+    let path = repo.dir.join("fake-moon.cmd");
+    let script = "@echo off\r\n\
+        if \"%~1\"==\"--version\" (\r\n  echo moon 2.5.5\r\n  exit /b 0\r\n)\r\n\
+        if \"%~1\"==\"query\" (\r\n  echo {\"tasks\":{}}\r\n  exit /b 0\r\n)\r\n\
+        if \"%~1\"==\"run\" (\r\n  more > nul\r\n  if not exist \".moon\\cache\" mkdir \".moon\\cache\"\r\n  copy /y \"fake-moon-report.json\" \".moon\\cache\\runReport.json\" > nul\r\n  exit /b 0\r\n)\r\n\
+        exit /b 1\r\n";
+    std::fs::write(&path, script).expect("fake moon script writes");
+    path
+}
+
+/// The same as the Windows [`write_fake_moon`], as a POSIX shell script.
+#[cfg(unix)]
+pub fn write_fake_moon(repo: &TempRepo) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    let path = repo.dir.join("fake-moon.sh");
+    let script = "#!/bin/sh\ncase \"$1\" in\n  \
+        --version) echo 'moon 2.5.5'; exit 0 ;;\n  \
+        query) echo '{\"tasks\":{}}'; exit 0 ;;\n  \
+        run) cat > /dev/null; mkdir -p .moon/cache; cp fake-moon-report.json .moon/cache/runReport.json; exit 0 ;;\n  \
+        *) exit 1 ;;\nesac\n";
+    std::fs::write(&path, script).expect("fake moon script writes");
+    let mut perms = std::fs::metadata(&path)
+        .expect("fake moon metadata")
+        .permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&path, perms).expect("fake moon chmod");
+    path
+}
+
+/// Writes the report `write_fake_moon`'s `run` branch copies, from a raw `targetStates` body.
+pub fn write_fake_moon_report(repo: &TempRepo, target_states: &str) {
+    repo.write(
+        "fake-moon-report.json",
+        &format!(r#"{{"actions":[],"context":{{"targetStates":{{{target_states}}}}}}}"#),
+    );
+}
+
 /// A fresh, empty directory to stand in for `HOME`, so a spawned `osf`
 /// never picks up this machine's real `~/.osf/config.toml`. Also holds an
 /// `AppData\Roaming` folder on Windows: moon's WASM plugin runtime derives
