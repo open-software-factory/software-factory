@@ -45,6 +45,51 @@ impl Checkpoint {
     }
 }
 
+/// The file whose presence means a repository has adopted osf.
+const MOON_YML_LABEL: &str = ".osf/moon.yml";
+
+/// Whether a folder has adopted osf: `.osf/moon.yml` exists at its root.
+pub enum Adoption {
+    /// `.osf/moon.yml` exists at this root.
+    Adopted(PathBuf),
+    /// `osf.toml` exists at this root, but the named file does not.
+    AdoptedButBroken(PathBuf, String),
+    /// No git repository, or neither file present: the path and why.
+    NotAdopted(PathBuf, String),
+}
+
+/// `dir` canonicalised, with Windows' verbatim prefix stripped.
+fn display_path(dir: &Path) -> PathBuf {
+    let Ok(canon) = std::fs::canonicalize(dir) else {
+        return dir.to_path_buf();
+    };
+    match canon.to_string_lossy().strip_prefix(r"\\?\") {
+        Some(rest) => PathBuf::from(rest),
+        None => canon,
+    }
+}
+
+/// The one adoption check `verify` and `hook post-tool` both call first.
+#[must_use]
+pub fn detect_adoption(dir: &Path) -> Adoption {
+    let root = match crate::git::repo_root(dir) {
+        Ok(r) => r,
+        Err(e) => {
+            return Adoption::NotAdopted(display_path(dir), format!("no git repository here: {e}"))
+        }
+    };
+    if root.join(".osf").join("moon.yml").is_file() {
+        return Adoption::Adopted(root);
+    }
+    if root.join("osf.toml").is_file() {
+        return Adoption::AdoptedButBroken(root, MOON_YML_LABEL.to_string());
+    }
+    Adoption::NotAdopted(
+        root,
+        "neither .osf/moon.yml nor osf.toml exists here".to_string(),
+    )
+}
+
 /// One checkpoint invocation: where the repository lives, which checkpoint
 /// is calling, what to diff against, the caller's own file list (the hook
 /// checkpoint's only source of files), and how long to let moon run.
@@ -1018,5 +1063,84 @@ mod tests {
         assert!(ran_could_not_run(Checkpoint::Hook, &tasks).is_none());
         let empty: Vec<TaskOutcome> = Vec::new();
         assert!(ran_could_not_run(Checkpoint::Hook, &empty).is_none());
+    }
+
+    /// A fresh directory outside any git repository.
+    fn outside_any_repo(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        dir
+    }
+
+    /// Runs `git init --quiet` in `dir`.
+    fn init_repo(dir: &Path) {
+        let status = std::process::Command::new("git")
+            .arg("init")
+            .arg("--quiet")
+            .arg(dir)
+            .status()
+            .expect("git init runs");
+        assert!(status.success(), "git init failed for {}", dir.display());
+    }
+
+    /// Compares two paths after canonicalising both.
+    fn assert_same_dir(a: &Path, b: &Path) {
+        let ca = std::fs::canonicalize(a).expect("a canonicalises");
+        let cb = std::fs::canonicalize(b).expect("b canonicalises");
+        assert_eq!(ca, cb, "{a:?} vs {b:?}");
+    }
+
+    /// No git repository at all is not adopted.
+    #[test]
+    fn no_git_repository_at_all_is_not_adopted() {
+        let dir = outside_any_repo("osf-adoption-test-no-git");
+        assert!(
+            crate::git::repo_root(&dir).is_err(),
+            "git rev-parse must fail with no repository present"
+        );
+        match detect_adoption(&dir) {
+            Adoption::NotAdopted(_, reason) => assert!(reason.contains("git"), "{reason}"),
+            _ => panic!("expected NotAdopted"),
+        }
+    }
+
+    /// A repository with neither file is not adopted.
+    #[test]
+    fn a_repository_with_neither_file_is_not_adopted() {
+        let dir = outside_any_repo("osf-adoption-test-neither");
+        init_repo(&dir);
+        match detect_adoption(&dir) {
+            Adoption::NotAdopted(path, _) => assert_same_dir(&path, &dir),
+            _ => panic!("expected NotAdopted"),
+        }
+    }
+
+    /// `osf.toml` without `.osf/moon.yml` is adopted-but-broken.
+    #[test]
+    fn osf_toml_without_moon_yml_is_adopted_but_broken() {
+        let dir = outside_any_repo("osf-adoption-test-broken");
+        init_repo(&dir);
+        std::fs::write(dir.join("osf.toml"), "").expect("osf.toml writes");
+        match detect_adoption(&dir) {
+            Adoption::AdoptedButBroken(path, missing) => {
+                assert_same_dir(&path, &dir);
+                assert!(missing.contains("moon.yml"), "{missing}");
+            }
+            _ => panic!("expected AdoptedButBroken"),
+        }
+    }
+
+    /// `.osf/moon.yml` present is adopted.
+    #[test]
+    fn moon_yml_present_is_adopted() {
+        let dir = outside_any_repo("osf-adoption-test-adopted");
+        init_repo(&dir);
+        std::fs::create_dir_all(dir.join(".osf")).expect(".osf dir creates");
+        std::fs::write(dir.join(".osf").join("moon.yml"), "").expect("moon.yml writes");
+        match detect_adoption(&dir) {
+            Adoption::Adopted(path) => assert_same_dir(&path, &dir),
+            _ => panic!("expected Adopted"),
+        }
     }
 }

@@ -276,12 +276,9 @@ fn non_json_input_refuses_with_could_not_run_wording() {
     );
 }
 
-/// I6: a payload naming a path that is not inside any git repository at
-/// all cannot be checked, and is a failure to run rather than a silent
-/// pass. `path outside the repository` (a path outside a repository the
-/// hook did find) stays exit 0, unlike this case.
+/// No git repository at all: the hook stands down at exit 0, no moon.
 #[test]
-fn a_path_with_no_repository_at_all_refuses_with_could_not_run_wording() {
+fn a_path_with_no_repository_at_all_stands_down_rather_than_refusing() {
     let dir = std::env::temp_dir().join("osf-hook-post-tool-no-repo");
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("plain dir creates");
@@ -291,11 +288,72 @@ fn a_path_with_no_repository_at_all_refuses_with_could_not_run_wording() {
         r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
         dir.join("guide.md").to_string_lossy().replace('\\', "/")
     );
-    let out = run_osf_stdin(&dir, &home, &[], &["hook", "post-tool"], &payload);
+    let out = run_osf_stdin(
+        &dir,
+        &home,
+        &[("OSF_MOON", "/nonexistent/moon")],
+        &["hook", "post-tool"],
+        &payload,
+    );
     let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("not adopted"),
+        "{out:?}"
+    );
+}
+
+/// A repository with neither file also stands down, no moon or journal.
+#[test]
+fn a_repository_that_never_adopted_osf_stands_down_for_the_hook() {
+    let repo = TempRepo::new("pt-never-adopted");
+    repo.write("guide.md", "Clean.\n");
+    repo.commit("base");
+    let home = isolated_home("pt-never-adopted");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        repo.dir
+            .join("guide.md")
+            .to_string_lossy()
+            .replace('\\', "/")
+    );
+    let out = run_osf_stdin(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", "/nonexistent/moon")],
+        &["hook", "post-tool"],
+        &payload,
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("not adopted"),
+        "{out:?}"
+    );
+    assert!(
+        !state(&home).join("buffer").exists(),
+        "no journal should open for a repository that never adopted osf"
+    );
+}
+
+/// `osf.toml` without `.osf/moon.yml` refuses at exit 2, naming the file.
+#[test]
+fn hook_post_tool_refuses_when_osf_toml_asks_for_osf_but_moon_yml_is_missing() {
+    let repo = TempRepo::new("pt-adopted-but-broken");
+    repo.write("osf.toml", "");
+    repo.write("guide.md", "Clean.\n");
+    repo.commit("base");
+    let home = isolated_home("pt-adopted-but-broken");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        repo.dir
+            .join("guide.md")
+            .to_string_lossy()
+            .replace('\\', "/")
+    );
+    let out = run_osf_stdin(&repo.dir, &home, &[], &["hook", "post-tool"], &payload);
     assert_eq!(out.status.code(), Some(2), "{out:?}");
     assert!(
-        String::from_utf8_lossy(&out.stderr).contains("could not run"),
+        String::from_utf8_lossy(&out.stderr).contains(".osf/moon.yml"),
         "{out:?}"
     );
 }

@@ -1252,6 +1252,20 @@ fn read_hook_files() -> Result<Vec<String>, ExitCode> {
 }
 
 fn verify_cmd(args: &VerifyArgs) -> ExitCode {
+    match checkpoint::detect_adoption(Path::new(".")) {
+        checkpoint::Adoption::Adopted(_) => {}
+        checkpoint::Adoption::NotAdopted(path, reason) => {
+            println!("osf verify: not adopted at {}: {reason}", path.display());
+            return ExitCode::SUCCESS;
+        }
+        checkpoint::Adoption::AdoptedButBroken(root, missing) => {
+            eprintln!(
+                "osf verify: osf.toml at {} asks for osf, but {missing} is missing",
+                root.display()
+            );
+            return ExitCode::from(2);
+        }
+    }
     let checkpoint = match resolve_checkpoint(args) {
         Ok(c) => c,
         Err(code) => return code,

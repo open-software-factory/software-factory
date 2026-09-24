@@ -425,12 +425,22 @@ fn post_tool_with_input(
         return ExitCode::SUCCESS;
     };
     let answer = answer.unwrap_or_else(|| answer_for(&event));
-    let root = match crate::git::repo_root(Path::new(".")) {
-        Ok(r) => r,
-        Err(e) => {
+    let root = match crate::checkpoint::detect_adoption(Path::new(".")) {
+        crate::checkpoint::Adoption::Adopted(root) => root,
+        crate::checkpoint::Adoption::NotAdopted(path, reason) => {
+            eprintln!(
+                "osf hook post-tool: not adopted at {}: {reason}",
+                path.display()
+            );
+            return ExitCode::SUCCESS;
+        }
+        crate::checkpoint::Adoption::AdoptedButBroken(root, missing) => {
             return refuse_post_tool_could_not_run(
                 answer,
-                &format!("cannot find the repository root: {e}"),
+                &format!(
+                    "osf.toml at {} asks for osf, but {missing} is missing",
+                    root.display()
+                ),
             );
         }
     };

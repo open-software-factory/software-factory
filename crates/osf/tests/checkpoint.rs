@@ -547,6 +547,7 @@ fn a_pre_push_with_an_unresolvable_base_exits_two() {
 #[test]
 fn an_all_skipped_run_at_pre_push_is_could_not_run_and_names_the_reason() {
     let repo = TempRepo::new("cp-all-skipped");
+    repo.write(".osf/moon.yml", "tasks: {}\n");
     repo.write("README.md", "init\n");
     let base = repo.commit("base");
     repo.write("guide.md", "Hello.\n");
@@ -578,6 +579,7 @@ fn an_all_skipped_run_at_pre_push_is_could_not_run_and_names_the_reason() {
 #[test]
 fn a_task_with_moon_s_invalid_status_is_could_not_run() {
     let repo = TempRepo::new("cp-invalid-task");
+    repo.write(".osf/moon.yml", "tasks: {}\n");
     repo.write("README.md", "init\n");
     let base = repo.commit("base");
     repo.write("guide.md", "Hello.\n");
@@ -601,10 +603,71 @@ fn a_task_with_moon_s_invalid_status_is_could_not_run() {
     );
 }
 
+/// No git repository at all: `osf verify` stands down at exit 0, no moon.
+#[test]
+fn verify_stands_down_with_no_git_repository_at_all() {
+    let dir = std::env::temp_dir().join("osf-verify-test-no-repo-at-all");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("plain dir creates");
+    let home = isolated_home("verify-no-repo-at-all");
+    let out = run_osf_with_env(
+        &dir,
+        &home,
+        &[("OSF_MOON", "/nonexistent/moon")],
+        &["verify", "--checkpoint", "hook"],
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("not adopted"),
+        "{out:?}"
+    );
+    assert!(
+        !state(&home).join("buffer").exists(),
+        "no journal should open for a folder that never adopted osf"
+    );
+}
+
+/// A repository with neither file has also not adopted osf.
+#[test]
+fn verify_stands_down_in_a_repository_that_never_adopted_osf() {
+    let repo = TempRepo::new("verify-never-adopted");
+    repo.write("README.md", "init\n");
+    repo.commit("base");
+    let home = isolated_home("verify-never-adopted");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", "/nonexistent/moon")],
+        &["verify", "--checkpoint", "pre-commit"],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("not adopted"),
+        "{out:?}"
+    );
+}
+
+/// `osf.toml` without `.osf/moon.yml` refuses at exit 2, naming the file.
+#[test]
+fn verify_refuses_when_osf_toml_asks_for_osf_but_moon_yml_is_missing() {
+    let repo = TempRepo::new("verify-adopted-but-broken");
+    repo.write("osf.toml", "");
+    repo.commit("base");
+    let home = isolated_home("verify-adopted-but-broken");
+    let out = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains(".osf/moon.yml"),
+        "{out:?}"
+    );
+}
+
 /// Bullet 2: a run report naming no task at all is could-not-run.
 #[test]
 fn a_run_report_with_no_task_at_all_is_could_not_run() {
     let repo = TempRepo::new("cp-empty-report");
+    repo.write(".osf/moon.yml", "tasks: {}\n");
     repo.write("README.md", "init\n");
     let base = repo.commit("base");
     repo.write("guide.md", "Hello.\n");
