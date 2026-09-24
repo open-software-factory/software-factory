@@ -114,6 +114,8 @@ fn index_file_is_within_dirs_git_dir(index_file: &std::ffi::OsStr, dir: &Path) -
 /// exactly that, so the staged-content scan can still read it); otherwise
 /// it is removed, since a path outside `dir`'s own git directory names some
 /// other repository's index and cannot be read against `dir`'s objects.
+/// Also forces `LC_ALL=C` and removes `LANGUAGE`, so git's own messages are
+/// stable English text a caller can match, whatever locale is inherited.
 pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
     for var in LOCATING_VARS {
         command.env_remove(var);
@@ -123,6 +125,8 @@ pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
             command.env_remove("GIT_INDEX_FILE");
         }
     }
+    command.env("LC_ALL", "C");
+    command.env_remove("LANGUAGE");
 }
 
 fn run(dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {

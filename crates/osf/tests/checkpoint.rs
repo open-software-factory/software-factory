@@ -697,6 +697,29 @@ fn verify_refuses_when_git_cannot_run() {
     assert_eq!(out.status.code(), Some(2), "{out:?}");
 }
 
+/// "Not a git repository" is detected from git's own English wording.
+/// `LANG` and `LC_ALL` are set to a non-English locale on this one child
+/// process, so the classification must not depend on the ambient locale.
+#[test]
+fn verify_stands_down_with_no_repository_under_a_non_english_locale() {
+    let dir = std::env::temp_dir().join("osf-verify-test-no-repo-locale");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).expect("plain dir creates");
+    let home = isolated_home("verify-no-repo-locale");
+    let out = run_osf_with_env(
+        &dir,
+        &home,
+        &[("LANG", "fr_FR.UTF-8"), ("LC_ALL", "fr_FR.UTF-8")],
+        &["verify", "--checkpoint", "hook"],
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("not adopted"),
+        "{out:?}"
+    );
+}
+
 /// Bullet 2: a run report naming no task at all is could-not-run.
 #[test]
 fn a_run_report_with_no_task_at_all_is_could_not_run() {

@@ -425,7 +425,8 @@ fn post_tool_with_input(
         return ExitCode::SUCCESS;
     };
     let answer = answer.unwrap_or_else(|| answer_for(&event));
-    let anchor = written_file_parent(&raw_path);
+    let absolute_path = absolute_written_path(&raw_path);
+    let anchor = written_file_parent(&absolute_path);
     let root = match crate::checkpoint::detect_adoption(&anchor) {
         crate::checkpoint::Adoption::Adopted(root) => root,
         crate::checkpoint::Adoption::NotAdopted(path, reason) => {
@@ -448,7 +449,7 @@ fn post_tool_with_input(
             return refuse_post_tool_could_not_run(answer, &reason);
         }
     };
-    let Some(rel) = repo_relative(&root, &raw_path) else {
+    let Some(rel) = repo_relative(&root, &absolute_path) else {
         eprintln!(
             "osf hook post-tool: {raw_path} is outside the repository root {}; nothing to check",
             root.display()
@@ -501,8 +502,11 @@ fn written_path(event: &Value) -> Option<String> {
         .find_map(|k| input.get(k).and_then(Value::as_str).map(str::to_string))
 }
 
-/// The written path's own parent directory: the adoption anchor is the repository holding the file, not the process's working directory.
-fn written_file_parent(raw: &str) -> PathBuf {
+/// `raw` resolved once to an absolute, lexically normalised path, against
+/// the current directory when it is not already absolute. Both the
+/// adoption anchor and the repository-relative path are derived from this
+/// one value, so they can never disagree on where the file actually is.
+fn absolute_written_path(raw: &str) -> PathBuf {
     let normalized = raw.replace('\\', "/");
     let candidate = PathBuf::from(&normalized);
     let absolute = if candidate.is_absolute() {
@@ -512,28 +516,25 @@ fn written_file_parent(raw: &str) -> PathBuf {
             .unwrap_or_else(|_| PathBuf::from("."))
             .join(&candidate)
     };
-    let resolved = lexically_normalize(&absolute);
-    resolved.parent().map(Path::to_path_buf).unwrap_or(resolved)
+    lexically_normalize(&absolute)
 }
 
-/// `raw` made repository-relative to `root`, with forward slashes. A
-/// relative `raw` is resolved against `root` first. `None` when the result
-/// leaves `root`, `.`/`..` components included: `../outside.md` must never
-/// read back as a path inside the repository.
-fn repo_relative(root: &Path, raw: &str) -> Option<String> {
-    let normalized = raw.replace('\\', "/");
-    let candidate = PathBuf::from(&normalized);
-    let absolute = if candidate.is_absolute() {
-        candidate
-    } else {
-        root.join(&candidate)
-    };
-    let resolved = lexically_normalize(&absolute);
-    if let Ok(rel) = resolved.strip_prefix(root) {
+/// The written path's own parent directory: the adoption anchor is the repository holding the file, not the process's working directory.
+fn written_file_parent(absolute: &Path) -> PathBuf {
+    absolute
+        .parent()
+        .map_or_else(|| absolute.to_path_buf(), Path::to_path_buf)
+}
+
+/// `absolute` made repository-relative to `root`, with forward slashes.
+/// `None` when it leaves `root` entirely: a path outside the repository
+/// the adoption check found must never read back as one inside it.
+fn repo_relative(root: &Path, absolute: &Path) -> Option<String> {
+    if let Ok(rel) = absolute.strip_prefix(root) {
         return Some(rel.to_string_lossy().replace('\\', "/"));
     }
     let root_canon = std::fs::canonicalize(root).ok()?;
-    let candidate_canon = std::fs::canonicalize(&resolved).ok()?;
+    let candidate_canon = std::fs::canonicalize(absolute).ok()?;
     let rel = candidate_canon.strip_prefix(&root_canon).ok()?;
     Some(rel.to_string_lossy().replace('\\', "/"))
 }

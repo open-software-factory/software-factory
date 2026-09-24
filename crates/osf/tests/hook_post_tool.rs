@@ -383,6 +383,57 @@ fn a_file_in_a_non_adopted_sibling_folder_stands_down_naming_it() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("not adopted"), "{out:?}");
+    let sibling_canon = std::fs::canonicalize(&sibling).expect("sibling canonicalises");
+    let sibling_text = sibling_canon.to_string_lossy().into_owned();
+    let sibling_text = sibling_text
+        .strip_prefix(r"\\?\")
+        .unwrap_or(&sibling_text)
+        .to_string();
+    assert!(
+        stderr.contains(&sibling_text),
+        "{out:?} sibling={sibling_text}"
+    );
+}
+
+// A relative payload path must resolve the same way for the adoption
+// anchor and for the repository-relative path: both against the current
+// directory. The current directory sits two levels under the temp root;
+// the adopted repository sits one level under it, a different depth, so
+// resolving the relative path against the repository root instead would
+// land somewhere else entirely.
+#[test]
+fn a_relative_payload_path_resolves_the_same_way_for_the_anchor_and_the_relative_path() {
+    let other_repo = TempRepo::with_moon_workspace("pt-relanchor-repo");
+    other_repo.commit("base");
+    other_repo.write("sub/guide.md", "Do Phase 2 next.\n");
+    let other_repo_name = other_repo
+        .dir
+        .file_name()
+        .expect("the repo dir has a name")
+        .to_string_lossy()
+        .into_owned();
+
+    let cwd_base = std::env::temp_dir().join("osf-hook-post-tool-relanchor-cwd");
+    let _ = std::fs::remove_dir_all(&cwd_base);
+    let cwd = cwd_base.join("nested");
+    std::fs::create_dir_all(&cwd).expect("nested cwd dir creates");
+
+    let home = isolated_home("pt-relanchor-repo");
+    let relative = format!("../../{other_repo_name}/sub/guide.md");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{relative}"}}}}"#
+    );
+    let out = run_osf_stdin(&cwd, &home, &[], &["hook", "post-tool"], &payload);
+    let _ = std::fs::remove_dir_all(&cwd_base);
+
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("chat-local-reference"), "{out:?}");
+    assert!(stderr.contains(&other_repo_name), "{out:?}");
+    assert!(
+        stderr.contains("sub/guide.md") || stderr.contains("sub\\guide.md"),
+        "{out:?}"
+    );
 }
 
 // The current directory is a separate, non-adopted folder; the written
