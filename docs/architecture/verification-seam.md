@@ -2,7 +2,7 @@
 
 Status: proposed design, written from the owner's answers in a questioning session on 2026-09-21 and a design session on 2026-09-22. It waits for the owner's review of this file. The decision records listed at the end are written after that review.
 
-Date: 2026-09-22
+Date: 2026-09-22, amended 2026-09-25 with the review check, several tools per slot and gap checks, from a second design session.
 
 The issue for this design is [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26). This design replaces the template file that issue proposed with tagged moon tasks and one configuration file. It also serves [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97) and [open-software-factory/software-factory#50 (fast native git hooks and agent hooks)](https://github.com/open-software-factory/software-factory/issues/50).
 
@@ -41,9 +41,10 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 | Journal | Every checkpoint writes events in the domain model's structure. A local run buffers events and flushes them on push and on a timer. The orphan branch on the code host is the default sink. An object store with an S3-compatible interface, the interface Amazon's object store made common, is an optional second sink. When both are configured, both receive every write. |
 | Required checks | The aggregation and the adopter's own jobs are all required. Checks run in parallel and the aggregation runs last. |
 | Slots | A slot counts as filled by the adopter's own check only when the check recogniser reads that it is at least as strong as the factory's. Where no recogniser exists, a slot attestation fills it and is reported as such. A periodic audit compares attestations with completed runs. |
-| Empty slots | The factory fills an empty slot with its own default when it has one. A slot only the adopter can fill, such as architecture tests, reports at warning until the adopter raises it to error. |
+| Empty slots | The factory fills an empty slot with its own default when it has one. A slot with no tool, or one only the adopter can fill such as architecture tests, runs a gap check at warning, tracked by an issue in the osf repository, until a tool or the adopter fills it. |
+| Several tools per slot | Every task tagged for a slot fills it, and the slot passes only when all of them pass. [Decision 0017](decisions/0017-native-default-checks-and-gap-checks.md) sets this out with the native default tools. |
 | Results | A job's conclusion decides pass or fail. Result files add counts and findings, and the tool finds them by content. |
-| Reviews | A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it. |
+| Reviews | A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it. [Decision 0016](decisions/0016-the-review-check.md) sets how it runs: review lenses, reviewers from a roster, a JSON Schema for every answer, and a deterministic reducer. |
 | Catalogue | The list of checks per ecosystem is generated from the defaults the tool ships. The order is Rust, .NET, Java, TypeScript, Python and Go. The first two ship together. The scheduled checks are an open list that grows. |
 | Suppressions | Both the factory's own marker and each ecosystem's native markers. The factory marker carries a reason and an expiry. Native markers keep working for their tools and the factory reads them. |
 | Configuration | One table per slot in `osf.toml`. |
@@ -252,13 +253,27 @@ Each check still writes its own verification event. When the aggregation finishe
 | --- | --- | --- | --- | --- |
 | lint | this repository's Build job, check recogniser confirmed | pass | 0 | observed |
 | unit-tests | this repository's Unit Tests job | pass | 412 tests, 0 failed | observed |
-| architecture-tests | empty, warning | skipped | | |
+| architecture-tests | gap check, tracked by its issue | warning | | |
 | contract-tests | slot attestation, 2026-09-22 | pass | | reported |
-| review | second-opinion review, round 2 | 1 thread open | 1 | reported |
+| review | six must-run lenses and two triggered lenses, two model families each | 1 blocker, verified | 1 | reported |
 
 The result-file readers detect a file by content. The formats they read are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. JUnit XML is the test-result format most runners can write. TRX is the .NET test-result format. The coverage formats are Cobertura, LCOV and JaCoCo. JaCoCo is the Java coverage tool's own format. CTRF is a common test-report format in JSON. A glob in `osf.toml` narrows the scan. A job with a known conclusion and no readable file still counts as passed or failed.
 
 A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it, and a policy never merges on reported evidence alone.
+
+## The review check
+
+`osf review run` reviews a change through review lenses. A review lens is one area a reviewer judges on its own, such as security or data migration, with its own criteria and severity guide. The review runs on every change, as a moon task tagged for pre-push and for the pull request.
+
+- Six must-run lenses run on every change: correctness, spec and acceptance, test quality, security, privacy and data protection, and data migration and compatibility.
+- Every other lens runs whenever its trigger fires, at any risk tier.
+- The `osf risk` tier sets how much code each reviewer reads. At the high tier, architecture adherence and duplication and reuse also run on every change.
+- Each lens declares the context it needs, such as the work item and its acceptance criteria. A missing required input makes that lens could-not-run.
+- An adopter adds a domain lens, such as money or health data, as a file under `.osf/review-lenses/`.
+
+osf runs each reviewer through a coding-agent command-line tool, from a roster of harness and model pairs. Every answer must match a JSON Schema shipped with osf. Deterministic code keeps a finding only when its quoted code exists at the file and line it names. A reducer decides per lens: two model families for quorum, a verified blocker vetoes, and a weighted score must clear a threshold. Too few answers is could-not-run. A must-fix finding sends the change back to the coding agent before the pull request.
+
+[Decision 0016](decisions/0016-the-review-check.md) holds the full catalogue, the roster and the reducer rules.
 
 ## The scheduled checkpoint
 
@@ -317,7 +332,7 @@ Every component has its own tests, and this repository proves the whole by runni
 | Hook adapters | In each harness's container, write a file, end a turn, and commit with the skip flag. | The runner is called on the first two, and the third is refused. The bridge that sends no text still yields journal events. |
 | Drift gate and sync | Edit a generated file by hand. Tag a new factory release. | The gate fails and names where the edit belongs. The sync pull request opens unaided under the builder identity. |
 | The seam on itself | This repository runs every checkpoint on its own changes, from the first pull request that lands the seam. | Its own pull requests carry the slot table. |
-| The second ecosystem | A fixture repository in .NET with existing jobs that fill slots. | Its slot table shows the lint, unit-test and integration-test slots filled by its own jobs, the architecture slot empty at warning, and a deliberate writing-lint failure refused at pre-commit. |
+| The second ecosystem | A fixture repository in .NET with existing jobs that fill slots. | Its slot table shows the lint, unit-test and integration-test slots filled by its own jobs, the architecture slot running its tracked gap check, and a deliberate writing-lint failure refused at pre-commit. |
 
 ## What this changes in existing documents
 
@@ -337,6 +352,8 @@ Each one records the options weighed and the option taken.
 | The aggregation check | Parallel checks with one final check, run in the adopter's repository, results found by content, reviews as reported checks. |
 | The journal at every checkpoint | Local buffer, flush on push and on a timer, orphan branch and object store as sinks, transcripts on the same path. |
 | Suppressions | The factory marker and the native markers, each with a reason and an expiry where the form allows. |
+| The review check | Review lenses, the must-run set, adopter lenses, the reviewer roster, the answer schema and the reducer. |
+| Native default checks and gap checks | Native tools per slot, several tasks per slot, candidates and a default pick, gap checks tracked by an issue, qlty as a candidate. |
 
 ## Later
 

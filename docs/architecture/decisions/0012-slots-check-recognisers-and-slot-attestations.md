@@ -1,8 +1,8 @@
 # 0012: Slots, check recognisers and slot attestations
 
-Status: accepted
+Status: accepted. Amended by [decision 0017](0017-native-default-checks-and-gap-checks.md).
 
-Date: 2026-09-23
+Date: 2026-09-23, amended 2026-09-25: an empty slot gets a gap check tracked by an issue, in place of an untracked warning.
 
 ## Context
 
@@ -18,7 +18,7 @@ An adopting repository already runs a linter, a formatter and a test suite throu
 | A slot attestation | The adopter writes in the configuration file that a slot is filled, with a reason and a date. | Taken, only for a slot no recogniser covers. Reported as the owner's word rather than a measured fact. |
 | Always run the factory's own check and compare | Both run on every pull request and the findings are compared. | Set aside for pull requests. Taken as a periodic audit on the schedule. |
 
-**The level of an empty slot the factory cannot fill itself.** Error blocks a new adopter on day one, because architecture tests and integration tests take time to write. Warning was taken. The adopter raises the slot to error in the configuration file when ready.
+**The level of an empty slot the factory cannot fill itself.** Error blocks a new adopter on day one, because architecture tests and integration tests take time to write. Warning was taken. The adopter raises the slot to error in the configuration file when ready. Decision 0017 keeps the warning level and adds a gap check tracked by an issue, so an empty slot is never an untracked warning.
 
 **The shape of the configuration file.**
 
@@ -46,7 +46,7 @@ An adopting repository already runs a linter, a formatter and a test suite throu
 
 ## Decision
 
-A slot is a named kind of check the factory expects. A slot is filled by the factory's default, by the adopter's own task carrying the slot tag, by the adopter's CI job that a check recogniser confirms, or by a slot attestation. The aggregation reports how each slot was filled. A slot only the adopter can fill reports at warning until raised.
+A slot is a named kind of check the factory expects. A slot is filled by the factory's default, by the adopter's own task carrying the slot tag, by the adopter's CI job that a check recogniser confirms, or by a slot attestation. The aggregation reports how each slot was filled. A slot only the adopter can fill runs a gap check at warning until the adopter fills it, as decision 0017 sets out.
 
 The configuration file `osf.toml` has one table per slot. An organisation-wide file with the same shape sits above it, and the repository file overrides one key at a time.
 

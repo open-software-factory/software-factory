@@ -18,5 +18,8 @@ The files in this directory are working research notes. They are not canonical r
 - `2026-09-15-skill-lint-validation-and-evaluation.md`: what validation, testing and evaluation of agent skills looks like in the wild, and why a lint alone is not enough.
 - `2026-09-18-moon-as-osf-execution-substrate.md`: why moon is adopted as the execution engine for deterministic tasks, and what stays outside it.
 - `2026-09-17-change-risk-classification.md`: what research, industry systems, deterministic tooling, models and regulated domains say about classifying a change set's risk, and what that changes in the classifier design.
+- `2026-09-25-verifier-and-reducer-review-patterns.md`: a public coding-agent project that scores a change with several independent model reviews, then checks the result with a deterministic reducer, compared against the factory's own review-lens and deterministic-authority records.
+- `2026-09-25-qlty-as-a-check-runner.md`: what qlty checks by ecosystem, its licence terms, and how its own default picks compare with a per-ecosystem tool list.
+- `2026-09-25-native-tools-per-verification-slot.md`: one fast, native tool per verification slot, per ecosystem, plus a deeper look at Rust architecture tools and .NET licence-audit tools.
 
 These notes capture questions, conclusions and leads from earlier research. Refresh them from current primary sources when a topic becomes implementation-critical.
