@@ -3,7 +3,7 @@
 mod common;
 use common::{
     isolated_home, run_osf, run_osf_with_env, session_link, write_fake_moon,
-    write_fake_moon_report, TempRepo,
+    write_fake_moon_report, BareRepo, TempRepo,
 };
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
@@ -661,6 +661,40 @@ fn verify_refuses_when_osf_toml_asks_for_osf_but_moon_yml_is_missing() {
         String::from_utf8_lossy(&out.stderr).contains(".osf/moon.yml"),
         "{out:?}"
     );
+}
+
+/// A bare repository is could-not-run, never not-adopted: it is a git
+/// repository, just one with no work tree for osf to check.
+#[test]
+fn verify_refuses_with_a_bare_repository() {
+    let bare = BareRepo::new("verify-bare-repo");
+    let home = isolated_home("verify-bare-repo");
+    let out = run_osf(&bare.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        !String::from_utf8_lossy(&out.stdout).contains("not adopted"),
+        "{out:?}"
+    );
+}
+
+/// When git itself cannot start, that is also could-not-run, never
+/// not-adopted. `PATH` here names a directory with no `git` binary, set
+/// only on this one child process.
+#[test]
+fn verify_refuses_when_git_cannot_run() {
+    let repo = TempRepo::new("verify-git-cannot-run");
+    repo.write("README.md", "init\n");
+    repo.commit("base");
+    let home = isolated_home("verify-git-cannot-run");
+    let empty_path = std::env::temp_dir().join("osf-verify-test-empty-path");
+    std::fs::create_dir_all(&empty_path).expect("empty PATH dir creates");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("PATH", empty_path.to_str().expect("utf8 path"))],
+        &["verify", "--checkpoint", "pre-commit"],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
 }
 
 /// Bullet 2: a run report naming no task at all is could-not-run.

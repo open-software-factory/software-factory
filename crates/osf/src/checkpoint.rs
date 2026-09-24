@@ -56,6 +56,8 @@ pub enum Adoption {
     AdoptedButBroken(PathBuf, String),
     /// No git repository, or neither file present: the path and why.
     NotAdopted(PathBuf, String),
+    /// The check itself could not run: git failed, or a file could not be read.
+    CouldNotRun(String),
 }
 
 /// `dir` canonicalised, with Windows' verbatim prefix stripped.
@@ -69,20 +71,34 @@ fn display_path(dir: &Path) -> PathBuf {
     }
 }
 
+/// Whether `path` exists as a file. `Ok(false)` only for a plain "not found".
+fn file_presence(path: &Path) -> Result<bool, String> {
+    match std::fs::metadata(path) {
+        Ok(meta) => Ok(meta.is_file()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(format!("cannot check {}: {e}", path.display())),
+    }
+}
+
 /// The one adoption check `verify` and `hook post-tool` both call first.
 #[must_use]
 pub fn detect_adoption(dir: &Path) -> Adoption {
-    let root = match crate::git::repo_root(dir) {
-        Ok(r) => r,
-        Err(e) => {
-            return Adoption::NotAdopted(display_path(dir), format!("no git repository here: {e}"))
+    let root = match crate::git::repo_root_if_any(dir) {
+        Ok(Some(r)) => r,
+        Ok(None) => {
+            return Adoption::NotAdopted(display_path(dir), "no git repository here".to_string())
         }
+        Err(e) => return Adoption::CouldNotRun(format!("cannot resolve the repository root: {e}")),
     };
-    if root.join(".osf").join("moon.yml").is_file() {
-        return Adoption::Adopted(root);
+    match file_presence(&root.join(".osf").join("moon.yml")) {
+        Ok(true) => return Adoption::Adopted(root),
+        Ok(false) => {}
+        Err(e) => return Adoption::CouldNotRun(e),
     }
-    if root.join("osf.toml").is_file() {
-        return Adoption::AdoptedButBroken(root, MOON_YML_LABEL.to_string());
+    match file_presence(&root.join("osf.toml")) {
+        Ok(true) => return Adoption::AdoptedButBroken(root, MOON_YML_LABEL.to_string()),
+        Ok(false) => {}
+        Err(e) => return Adoption::CouldNotRun(e),
     }
     Adoption::NotAdopted(
         root,

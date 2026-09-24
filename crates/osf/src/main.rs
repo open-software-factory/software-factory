@@ -1265,6 +1265,10 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
             );
             return ExitCode::from(2);
         }
+        checkpoint::Adoption::CouldNotRun(reason) => {
+            eprintln!("osf verify: {reason}");
+            return ExitCode::from(2);
+        }
     }
     let checkpoint = match resolve_checkpoint(args) {
         Ok(c) => c,

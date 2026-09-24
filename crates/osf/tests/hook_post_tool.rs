@@ -1,7 +1,7 @@
 //! Integration tests for `osf hook post-tool`: moon required on `PATH`.
 
 mod common;
-use common::{isolated_home, run_osf_stdin, session_link, TempRepo};
+use common::{isolated_home, run_osf_stdin, session_link, BareRepo, TempRepo};
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
     home.join(".osf").join("state")
@@ -153,11 +153,9 @@ fn a_secret_written_into_an_existing_committed_file_is_refused_by_the_scan_check
     assert!(String::from_utf8_lossy(&out.stderr).contains("scan-session-link"));
 }
 
-// A relative written path is resolved against the repository root and its
-// `.`/`..` components collapse lexically first, so `../outside.md` cannot
-// walk out of the root and reach a file the hook has no business touching.
+// `../outside.md` lands outside any adopted repository, so this stands down.
 #[test]
-fn a_relative_path_that_walks_outside_the_repository_is_reported_and_skipped() {
+fn a_relative_path_that_walks_outside_the_repository_stands_down_as_not_adopted() {
     let repo = TempRepo::with_moon_workspace("pt-outside-rel");
     repo.commit("base");
     let home = isolated_home("pt-outside-rel");
@@ -174,7 +172,7 @@ fn a_relative_path_that_walks_outside_the_repository_is_reported_and_skipped() {
         );
         assert_eq!(out.status.code(), Some(0), "{raw}: {out:?}");
         assert!(
-            String::from_utf8_lossy(&out.stderr).contains("outside the repository"),
+            String::from_utf8_lossy(&out.stderr).contains("not adopted"),
             "{raw}: {out:?}"
         );
     }
@@ -358,16 +356,19 @@ fn hook_post_tool_refuses_when_osf_toml_asks_for_osf_but_moon_yml_is_missing() {
     );
 }
 
+// The current directory is adopted, but the written file sits in a
+// non-adopted sibling folder: the hook checks that folder, not the cwd.
 #[test]
-fn an_absolute_path_outside_the_repository_is_reported_and_skipped() {
+fn a_file_in_a_non_adopted_sibling_folder_stands_down_naming_it() {
     let repo = TempRepo::with_moon_workspace("pt-outside-abs");
     repo.commit("base");
     let home = isolated_home("pt-outside-abs");
-    let outside = repo
+    let sibling = repo
         .dir
         .parent()
         .expect("the temp repo dir has a parent")
-        .join("pt-outside-abs-sibling.md");
+        .to_path_buf();
+    let outside = sibling.join("pt-outside-abs-sibling.md");
     let payload = format!(
         r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
         outside.to_string_lossy().replace('\\', "/")
@@ -380,8 +381,79 @@ fn an_absolute_path_outside_the_repository_is_reported_and_skipped() {
         &payload,
     );
     assert_eq!(out.status.code(), Some(0), "{out:?}");
-    assert!(
-        String::from_utf8_lossy(&out.stderr).contains("outside the repository"),
-        "{out:?}"
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("not adopted"), "{out:?}");
+}
+
+// The current directory is a separate, non-adopted folder; the written
+// file lives in its own adopted repository, which the hook must check.
+#[test]
+fn the_hook_checks_the_written_file_s_own_repository_not_the_current_directory() {
+    let other_repo = TempRepo::with_moon_workspace("pt-anchor-other-repo");
+    other_repo.commit("base");
+    other_repo.write("guide.md", "Do Phase 2 next.\n");
+    let cwd = std::env::temp_dir().join("osf-hook-post-tool-anchor-cwd");
+    let _ = std::fs::remove_dir_all(&cwd);
+    std::fs::create_dir_all(&cwd).expect("plain cwd dir creates");
+    let home = isolated_home("pt-anchor-other-repo");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        other_repo
+            .dir
+            .join("guide.md")
+            .to_string_lossy()
+            .replace('\\', "/")
     );
+    let out = run_osf_stdin(&cwd, &home, &[], &["hook", "post-tool"], &payload);
+    let _ = std::fs::remove_dir_all(&cwd);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("chat-local-reference"), "{out:?}");
+    assert!(stderr.contains("pt-anchor-other-repo"), "{out:?}");
+}
+
+/// A bare repository is could-not-run for the hook too, never not-adopted.
+#[test]
+fn hook_post_tool_refuses_with_a_bare_repository() {
+    let bare = BareRepo::new("pt-bare-repo");
+    std::fs::write(bare.dir.join("guide.md"), "Clean.\n").expect("fixture file writes");
+    let home = isolated_home("pt-bare-repo");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        bare.dir
+            .join("guide.md")
+            .to_string_lossy()
+            .replace('\\', "/")
+    );
+    let out = run_osf_stdin(&bare.dir, &home, &[], &["hook", "post-tool"], &payload);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!stderr.contains("not adopted"), "{out:?}");
+}
+
+/// When git itself cannot start, that is also could-not-run for the hook.
+/// `PATH` here names a directory with no `git` binary, on this one child.
+#[test]
+fn hook_post_tool_refuses_when_git_cannot_run() {
+    let repo = TempRepo::with_moon_workspace("pt-git-cannot-run");
+    repo.commit("base");
+    repo.write("guide.md", "Clean.\n");
+    let home = isolated_home("pt-git-cannot-run");
+    let empty_path = std::env::temp_dir().join("osf-hook-post-tool-empty-path");
+    std::fs::create_dir_all(&empty_path).expect("empty PATH dir creates");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        repo.dir
+            .join("guide.md")
+            .to_string_lossy()
+            .replace('\\', "/")
+    );
+    let out = run_osf_stdin(
+        &repo.dir,
+        &home,
+        &[("PATH", empty_path.to_str().expect("utf8 path"))],
+        &["hook", "post-tool"],
+        &payload,
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
 }

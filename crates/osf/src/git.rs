@@ -213,13 +213,52 @@ pub fn to_local_path(dir: &Path, git_path: &str) -> PathBuf {
     dir.join(git_path.replace('/', std::path::MAIN_SEPARATOR_STR))
 }
 
+/// Whether git's own wording for `stderr` says plainly that `dir` sits in
+/// no git repository at all, as against any other failure such as a bare
+/// repository's own "must be run in a work tree" answer.
+fn says_no_repository_here(stderr: &str) -> bool {
+    stderr.contains("not a git repository")
+}
+
+/// `dir`'s repository root, if it has one with a working tree.
+///
+/// `Ok(None)` when git ran cleanly and said plainly that `dir` is not
+/// inside a git repository. `Err` for anything else: git could not start,
+/// `dir` sits in a bare repository, or any other git failure.
+///
+/// # Errors
+/// Returns an error for every failure except a plain "not a git
+/// repository" answer.
+pub fn repo_root_if_any(dir: &Path) -> Result<Option<PathBuf>, GitError> {
+    let mut command = Command::new("git");
+    command
+        .current_dir(dir)
+        .args(["rev-parse", "--show-toplevel"]);
+    scrub_git_env(&mut command);
+    let output = command
+        .output()
+        .map_err(|e| GitError(format!("cannot run git: {e}")))?;
+    if output.status.success() {
+        let text = String::from_utf8_lossy(&output.stdout);
+        return Ok(Some(PathBuf::from(text.trim())));
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if says_no_repository_here(&stderr) {
+        return Ok(None);
+    }
+    Err(GitError(format!(
+        "git rev-parse --show-toplevel failed: {}",
+        stderr.trim()
+    )))
+}
+
 /// The repository's working-tree root.
 ///
 /// # Errors
-/// Returns an error if git cannot run in `dir`.
+/// Returns an error if git cannot run in `dir`, or `dir` is not inside a
+/// git repository.
 pub fn repo_root(dir: &Path) -> Result<PathBuf, GitError> {
-    let text = run_text(dir, &["rev-parse", "--show-toplevel"])?;
-    Ok(PathBuf::from(text.trim()))
+    repo_root_if_any(dir)?.ok_or_else(|| GitError("not a git repository".to_string()))
 }
 
 /// `HEAD`'s short commit hash.
@@ -314,5 +353,58 @@ mod tests {
     fn a_url_with_too_few_segments_is_none() {
         assert!(parse_remote("https://github.com/tools").is_none());
         assert!(parse_remote("nonsense").is_none());
+    }
+
+    /// A fresh directory outside any git repository.
+    fn outside_any_repo(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        dir
+    }
+
+    /// Runs `git init --quiet [--bare] dir`, GIT_* scrubbed first.
+    fn init_repo(dir: &Path, bare: bool) {
+        let mut command = Command::new("git");
+        command.arg("init").arg("--quiet");
+        if bare {
+            command.arg("--bare");
+        }
+        command.arg(dir);
+        scrub_git_env(&mut command);
+        let status = command.status().expect("git init runs");
+        assert!(status.success(), "git init failed for {}", dir.display());
+    }
+
+    /// A plain non-repository directory answers `Ok(None)`.
+    #[test]
+    fn a_plain_directory_has_no_repo_root() {
+        let dir = outside_any_repo("osf-git-test-no-repo");
+        assert_eq!(repo_root_if_any(&dir).expect("git runs"), None);
+    }
+
+    /// A normal repository answers `Ok(Some(root))`.
+    #[test]
+    fn a_normal_repository_has_a_repo_root() {
+        let dir = outside_any_repo("osf-git-test-normal-repo");
+        init_repo(&dir, false);
+        let root = repo_root_if_any(&dir)
+            .expect("git runs")
+            .expect("a repository root");
+        assert_eq!(
+            std::fs::canonicalize(&root).expect("root canonicalises"),
+            std::fs::canonicalize(&dir).expect("dir canonicalises")
+        );
+    }
+
+    /// A bare repository is an error, not a plain "no repository" answer:
+    /// its own "must be run in a work tree" wording differs from git's
+    /// "not a git repository" wording, though both exit the same way.
+    #[test]
+    fn a_bare_repository_is_an_error_not_a_plain_absence() {
+        let dir = outside_any_repo("osf-git-test-bare-repo");
+        init_repo(&dir, true);
+        let err = repo_root_if_any(&dir).expect_err("a bare repository is an error");
+        assert!(!err.to_string().contains("not a git repository"), "{err}");
     }
 }

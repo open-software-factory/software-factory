@@ -118,6 +118,34 @@ impl Drop for TempRepo {
     }
 }
 
+/// A throwaway bare repository: a git repository with no work tree. Removed on drop.
+pub struct BareRepo {
+    pub dir: PathBuf,
+}
+
+impl BareRepo {
+    pub fn new(name: &str) -> Self {
+        let dir = std::env::temp_dir().join(format!("osf-verify-test-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut command = Command::new("git");
+        command.args(["init", "-q", "--bare"]).arg(&dir);
+        osf::scrub_git_env(&mut command);
+        let status = command.status().expect("git init runs");
+        assert!(
+            status.success(),
+            "bare git init failed for {}",
+            dir.display()
+        );
+        BareRepo { dir }
+    }
+}
+
+impl Drop for BareRepo {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
 /// A fake `moon` for `OSF_MOON`: it copies [`write_fake_moon_report`]'s file into `.moon/cache/runReport.json` for `run`.
 #[cfg(windows)]
 pub fn write_fake_moon(repo: &TempRepo) -> PathBuf {

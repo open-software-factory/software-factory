@@ -425,7 +425,8 @@ fn post_tool_with_input(
         return ExitCode::SUCCESS;
     };
     let answer = answer.unwrap_or_else(|| answer_for(&event));
-    let root = match crate::checkpoint::detect_adoption(Path::new(".")) {
+    let anchor = written_file_parent(&raw_path);
+    let root = match crate::checkpoint::detect_adoption(&anchor) {
         crate::checkpoint::Adoption::Adopted(root) => root,
         crate::checkpoint::Adoption::NotAdopted(path, reason) => {
             eprintln!(
@@ -443,6 +444,9 @@ fn post_tool_with_input(
                 ),
             );
         }
+        crate::checkpoint::Adoption::CouldNotRun(reason) => {
+            return refuse_post_tool_could_not_run(answer, &reason);
+        }
     };
     let Some(rel) = repo_relative(&root, &raw_path) else {
         eprintln!(
@@ -458,7 +462,7 @@ fn post_tool_with_input(
         }
     };
     let req = crate::checkpoint::Request {
-        root: Path::new("."),
+        root: &root,
         checkpoint: crate::checkpoint::Checkpoint::Hook,
         base: None,
         files: Some(vec![rel]),
@@ -477,9 +481,10 @@ fn post_tool_with_input(
             ExitCode::SUCCESS
         }
         CheckResult::Failed | CheckResult::CouldNotRun => {
-            let mut lines = vec![
-                "osf hook post-tool: the written file did not pass the hook checkpoint".to_string(),
-            ];
+            let mut lines = vec![format!(
+                "osf hook post-tool: the written file did not pass the hook checkpoint in {}",
+                root.display()
+            )];
             lines.extend(summary.error_findings.iter().cloned());
             refuse(answer, &lines.join("\n"))
         }
@@ -494,6 +499,21 @@ fn written_path(event: &Value) -> Option<String> {
     WRITTEN_PATH_KEYS
         .iter()
         .find_map(|k| input.get(k).and_then(Value::as_str).map(str::to_string))
+}
+
+/// The written path's own parent directory: the adoption anchor is the repository holding the file, not the process's working directory.
+fn written_file_parent(raw: &str) -> PathBuf {
+    let normalized = raw.replace('\\', "/");
+    let candidate = PathBuf::from(&normalized);
+    let absolute = if candidate.is_absolute() {
+        candidate
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(&candidate)
+    };
+    let resolved = lexically_normalize(&absolute);
+    resolved.parent().map(Path::to_path_buf).unwrap_or(resolved)
 }
 
 /// `raw` made repository-relative to `root`, with forward slashes. A
