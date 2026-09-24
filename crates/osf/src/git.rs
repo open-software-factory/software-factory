@@ -507,8 +507,13 @@ mod tests {
         }
         command.arg(dir);
         scrub_git_env(&mut command);
-        let status = command.status().expect("git init runs");
-        assert!(status.success(), "git init failed for {}", dir.display());
+        let out = command.output().expect("git init runs");
+        assert!(
+            out.status.success(),
+            "git init failed for {}: {}",
+            dir.display(),
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
 
     /// A plain non-repository directory answers `Ok(None)`.
@@ -657,38 +662,45 @@ mod tests {
     /// ("unable to read <sha>") or, with coincidental blobs, silently
     /// scanned the wrong content. `staged_files` must now read repo B's own
     /// index.
+    /// Stages `path` in `dir`, with the real stderr in the panic message on
+    /// failure: `.status()` alone throws it away, leaving a bare "false"
+    /// with no clue why.
+    fn stage_or_panic(dir: &Path, path: &str) {
+        let mut command = Command::new("git");
+        command.current_dir(dir).args(["add", path]);
+        scrub_git_env(&mut command);
+        let out = command.output().expect("git add runs");
+        assert!(
+            out.status.success(),
+            "git add {path} failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
     #[test]
     fn a_foreign_git_index_file_no_longer_lets_a_call_for_another_folder_read_it() {
-        let repo_a = outside_any_repo("osf-git-test-two-repo-a");
-        init_repo(&repo_a, false);
-        std::fs::write(repo_a.join("a.txt"), b"a").expect("a.txt writes");
-        let mut add_a = Command::new("git");
-        add_a.current_dir(&repo_a).args(["add", "a.txt"]);
-        scrub_git_env(&mut add_a);
-        assert!(add_a.status().expect("git add runs").success());
+        // The whole body runs under one lock, not just the final assertion:
+        // `git add` below reads the ambient environment at spawn time same
+        // as any other git call, so it is just as exposed as `staged_files`
+        // to another test's `with_git_env` setting GIT_INDEX_FILE mid-flight
+        // if it is left unguarded.
+        with_git_env(&[("GIT_DIR", None), ("GIT_INDEX_FILE", None)], || {
+            let repo_a = outside_any_repo("osf-git-test-two-repo-a");
+            init_repo(&repo_a, false);
+            std::fs::write(repo_a.join("a.txt"), b"a").expect("a.txt writes");
+            stage_or_panic(&repo_a, "a.txt");
 
-        let repo_b = outside_any_repo("osf-git-test-two-repo-b");
-        init_repo(&repo_b, false);
-        std::fs::write(repo_b.join("b.txt"), b"b").expect("b.txt writes");
-        let mut add_b = Command::new("git");
-        add_b.current_dir(&repo_b).args(["add", "b.txt"]);
-        scrub_git_env(&mut add_b);
-        assert!(add_b.status().expect("git add runs").success());
+            let repo_b = outside_any_repo("osf-git-test-two-repo-b");
+            init_repo(&repo_b, false);
+            std::fs::write(repo_b.join("b.txt"), b"b").expect("b.txt writes");
+            stage_or_panic(&repo_b, "b.txt");
 
-        let repo_a_index = std::fs::canonicalize(repo_a.join(".git").join("index"))
-            .expect("repo a's index canonicalises");
-        with_git_env(
-            &[
-                ("GIT_DIR", None),
-                (
-                    "GIT_INDEX_FILE",
-                    Some(repo_a_index.to_str().expect("utf8 path")),
-                ),
-            ],
-            || {
-                let files = staged_files(&repo_b).expect("staged_files reads repo b's own index");
-                assert_eq!(files, vec!["b.txt".to_string()]);
-            },
-        );
+            let repo_a_index = std::fs::canonicalize(repo_a.join(".git").join("index"))
+                .expect("repo a's index canonicalises");
+            // SAFETY: serialised by GIT_ENV_LOCK, held by the enclosing with_git_env call.
+            unsafe { std::env::set_var("GIT_INDEX_FILE", &repo_a_index) };
+            let files = staged_files(&repo_b).expect("staged_files reads repo b's own index");
+            assert_eq!(files, vec!["b.txt".to_string()]);
+        });
     }
 }

@@ -50,12 +50,22 @@ impl Drop for Sentinel {
     }
 }
 
-/// Runs `cargo test <args>` with `GIT_DIR`/`GIT_WORK_TREE` set on that one child process, the way a pre-push hook exports them, and asserts it passed.
+/// Runs `cargo test <args>` with `GIT_DIR`/`GIT_WORK_TREE` set on that one
+/// child process, the way a pre-push hook exports them, and asserts it
+/// passed. Also clears every inherited `OSF_*`/`MOON_*` variable first:
+/// this repository's own checkpoint sets `OSF_CONFIG`, `OSF_DENYLIST` and
+/// various `MOON_*` variables on `cargo test` itself, and the nested run
+/// here must see this workspace's plain `osf.toml`, not whatever config or
+/// task state the outer checkpoint run left behind.
 fn run_cargo_test_under_sentinel_git_env(sentinel: &Sentinel, args: &[&str]) {
-    let status = Command::new(env!("CARGO"))
-        .current_dir(workspace_root())
-        .arg("test")
-        .args(args)
+    let mut command = Command::new(env!("CARGO"));
+    command.current_dir(workspace_root()).arg("test").args(args);
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") {
+            command.env_remove(key);
+        }
+    }
+    let status = command
         .env("GIT_DIR", sentinel.git_dir())
         .env("GIT_WORK_TREE", &sentinel.dir)
         .status()
@@ -119,11 +129,21 @@ fn write_pre_push_hook(dir: &Path) {
     }
 }
 
-/// A git command in `dir`, with every inherited `GIT_*` variable scrubbed first.
+/// A git command in `dir`, with every inherited `GIT_*` variable scrubbed
+/// first, along with `OSF_*` and `MOON_*`: this repository's own checkpoint
+/// sets `OSF_CONFIG`, `OSF_DENYLIST` and various `MOON_*` variables on
+/// `cargo test` itself, and a `git commit`/`git push` here can run a real
+/// hook that execs the built `osf` binary, which would otherwise inherit
+/// them and resolve a config path relative to the wrong directory.
 fn git_in(dir: &Path, args: &[&str]) -> std::process::Output {
     let mut command = Command::new("git");
     command.current_dir(dir).args(args);
     osf::scrub_git_env(&mut command);
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") {
+            command.env_remove(key);
+        }
+    }
     command.output().expect("git runs")
 }
 
