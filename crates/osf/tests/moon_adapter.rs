@@ -107,11 +107,10 @@ impl MoonWorkspace {
     }
 
     fn git(&self, args: &[&str]) {
-        let status = Command::new("git")
-            .current_dir(&self.root)
-            .args(args)
-            .status()
-            .expect("git runs");
+        let mut command = Command::new("git");
+        command.current_dir(&self.root).args(args);
+        osf::scrub_git_env(&mut command);
+        let status = command.status().expect("git runs");
         assert!(status.success(), "git {args:?} failed");
     }
 }

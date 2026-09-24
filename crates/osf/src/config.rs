@@ -379,10 +379,10 @@ pub fn resolve_path(flag: Option<&Path>) -> Option<PathBuf> {
 /// an error: running outside a repository, or without `git` installed,
 /// must fall through to the next layer rather than fail.
 fn repo_config_path() -> Option<PathBuf> {
-    let output = std::process::Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
+    let mut command = std::process::Command::new("git");
+    command.args(["rev-parse", "--show-toplevel"]);
+    crate::git::scrub_git_env(&mut command);
+    let output = command.output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -675,12 +675,10 @@ mod tests {
     /// Runs `git init --quiet` in `dir`, so `git rev-parse --show-toplevel`
     /// resolves to `dir` from anywhere under it.
     fn init_repo(dir: &Path) {
-        let status = std::process::Command::new("git")
-            .arg("init")
-            .arg("--quiet")
-            .arg(dir)
-            .status()
-            .expect("git init runs");
+        let mut command = std::process::Command::new("git");
+        command.arg("init").arg("--quiet").arg(dir);
+        crate::git::scrub_git_env(&mut command);
+        let status = command.status().expect("git init runs");
         assert!(status.success(), "git init failed for {}", dir.display());
     }
 

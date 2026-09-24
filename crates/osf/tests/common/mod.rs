@@ -26,11 +26,10 @@ impl TempRepo {
     }
 
     pub fn git(&self, args: &[&str]) -> String {
-        let output = Command::new("git")
-            .current_dir(&self.dir)
-            .args(args)
-            .output()
-            .expect("git runs");
+        let mut command = Command::new("git");
+        command.current_dir(&self.dir).args(args);
+        osf::scrub_git_env(&mut command);
+        let output = command.output().expect("git runs");
         assert!(
             output.status.success(),
             "git {args:?} failed: {}",
@@ -186,16 +185,17 @@ pub fn run_osf(
 }
 
 /// The `osf` command, in `dir`, with `home` standing in for
-/// `HOME`/`USERPROFILE`, `env` applied on top, and every checkpoint-runner
-/// and `MOON_*` variable this repository's own checkpoint sets on `cargo
-/// test` scrubbed first (see [`run_osf_with_env`]'s doc comment).
+/// `HOME`/`USERPROFILE`, `env` applied on top, and every checkpoint-runner,
+/// `MOON_*` and `GIT_*` variable this repository's own checkpoint (or a
+/// caller's own git hook) sets on `cargo test` scrubbed first (see
+/// [`run_osf_with_env`]'s doc comment).
 fn osf_cmd(dir: &std::path::Path, home: &std::path::Path, env: &[(&str, &str)]) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_osf"));
     cmd.current_dir(dir)
         .env("HOME", home)
         .env("USERPROFILE", home);
     for (key, _) in std::env::vars() {
-        if key.starts_with("OSF_") || key.starts_with("MOON_") {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") || key.starts_with("GIT_") {
             cmd.env_remove(key);
         }
     }

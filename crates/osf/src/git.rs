@@ -20,6 +20,15 @@ impl fmt::Display for GitError {
 
 impl std::error::Error for GitError {}
 
+/// Removes every inherited `GIT_*` variable from `command`, so a git call aimed at one directory is never redirected by a caller's own `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`.
+pub fn scrub_git_env(command: &mut Command) {
+    for (key, _) in std::env::vars() {
+        if key.starts_with("GIT_") {
+            command.env_remove(key);
+        }
+    }
+}
+
 fn run(dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
     let output = Command::new("git")
         .current_dir(dir)

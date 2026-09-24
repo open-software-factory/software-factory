@@ -1075,12 +1075,10 @@ mod tests {
 
     /// Runs `git init --quiet` in `dir`.
     fn init_repo(dir: &Path) {
-        let status = std::process::Command::new("git")
-            .arg("init")
-            .arg("--quiet")
-            .arg(dir)
-            .status()
-            .expect("git init runs");
+        let mut command = std::process::Command::new("git");
+        command.arg("init").arg("--quiet").arg(dir);
+        crate::git::scrub_git_env(&mut command);
+        let status = command.status().expect("git init runs");
         assert!(status.success(), "git init failed for {}", dir.display());
     }
 

@@ -224,6 +224,7 @@ pub fn run(inv: &Invocation) -> Outcome {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     strip_inherited_moon_vars(&mut command);
+    // GIT_* stays inherited here: a pre-commit task reads GIT_INDEX_FILE during `git commit -a`.
     for (key, value) in inv.env {
         command.env(key, value);
     }
