@@ -3,5 +3,6 @@ The bug appeared yesterday, right after the last deploy went out. Support has no
 <!-- osf-unplaceable
 label: unplaceable
 kind: time
+target: yesterday
 reason: a relative time with no absolute date in the paragraph, in durable text
 -->

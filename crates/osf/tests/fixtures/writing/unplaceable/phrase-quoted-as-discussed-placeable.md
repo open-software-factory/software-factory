@@ -3,5 +3,6 @@ We removed the stock opener "as discussed" from every reply template last quarte
 <!-- osf-unplaceable
 label: placeable
 kind: phrase
+target: as discussed
 reason: quoted mention of a forbidden phrase, not a use of it
 -->

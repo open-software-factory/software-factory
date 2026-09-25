@@ -3,5 +3,6 @@ Ship the previous fix before touching anything new in this area. The queue is al
 <!-- osf-unplaceable
 label: unplaceable
 kind: phrase
+target: the previous
 reason: phrase that only works inside one conversation
 -->

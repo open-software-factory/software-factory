@@ -3,5 +3,6 @@ The report went out on the eighteenth, right after the incident review closed. E
 <!-- osf-unplaceable
 label: unplaceable
 kind: time
+target: the eighteenth
 reason: a date without a month or year
 -->

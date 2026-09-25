@@ -1,12 +1,4 @@
-//! Precision and recall for the writing lint against the fixture that
-//! stands in for `unplaceable-reference`: one paragraph per file under
-//! `tests/fixtures/writing/unplaceable/`, each declaring whether it should
-//! resolve (`placeable`) or stay a finding (`unplaceable`), its kind, and
-//! a one-line reason.
-//!
-//! This file measures whichever rule ids `MEASURED_RULE_IDS` names, so the
-//! same test runs against the six rules replaced today and, later, against
-//! the one rule that replaces them: only that constant changes.
+//! Precision and recall for the writing lint against the unplaceable-reference fixture, per kind and in total.
 
 use osf::config::WritingConfig;
 use osf::lints::{load_known_names, Context, KnownNames};
@@ -14,9 +6,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// The rule ids this measure treats as a "flagged" finding. Swap this to
-/// `&["unplaceable-reference"]` once that rule replaces the six below; the
-/// rest of this file does not change.
+/// Rule ids this measure treats as flagged; swap to `["unplaceable-reference"]` once that rule lands.
 const MEASURED_RULE_IDS: &[&str] = &[
     "bare-reference",
     "reference-without-label",
@@ -26,8 +16,7 @@ const MEASURED_RULE_IDS: &[&str] = &[
     "undefined-name-at-start",
 ];
 
-/// The kind reported on its own row and left out of every total: a
-/// deterministic layer is not expected to place or flag it.
+/// Kind reported on its own row, excluded from every total.
 const EXCLUDED_KIND: &str = "model";
 
 fn fixtures_dir() -> PathBuf {
@@ -48,13 +37,11 @@ struct FixtureCase {
     file: String,
     label: Label,
     kind: String,
+    target: String,
     text: String,
 }
 
-/// Reads the `label`, `kind` and `reason` a fixture declares in its own
-/// `osf-unplaceable` HTML-comment header, the same comment-block shape the
-/// writing lint's own `osf-expect` marker uses. A header field this parser
-/// cannot make sense of is a fixture-authoring mistake, not a soft failure.
+/// Parses a fixture's own `osf-unplaceable` HTML-comment header.
 fn parse_fixture(path: &Path) -> FixtureCase {
     let text = fs::read_to_string(path).unwrap_or_else(|e| panic!("{} reads: {e}", path.display()));
     let marker = "<!-- osf-unplaceable";
@@ -69,6 +56,7 @@ fn parse_fixture(path: &Path) -> FixtureCase {
 
     let mut label = None;
     let mut kind = None;
+    let mut target = None;
     let mut reason = None;
     for line in block.lines() {
         let line = line.trim();
@@ -81,6 +69,7 @@ fn parse_fixture(path: &Path) -> FixtureCase {
         match key.trim() {
             "label" => label = Some(value.trim().to_string()),
             "kind" => kind = Some(value.trim().to_string()),
+            "target" => target = Some(value.trim().to_string()),
             "reason" => reason = Some(value.trim().to_string()),
             other => panic!("{}: unknown header key {other:?}", path.display()),
         }
@@ -94,6 +83,12 @@ fn parse_fixture(path: &Path) -> FixtureCase {
         ),
     };
     let kind = kind.unwrap_or_else(|| panic!("{}: header has no kind", path.display()));
+    let target = target.unwrap_or_else(|| panic!("{}: header has no target", path.display()));
+    assert!(
+        text.contains(&target),
+        "{}: target {target:?} is not literal text in the paragraph",
+        path.display()
+    );
     reason.unwrap_or_else(|| panic!("{}: header has no reason", path.display()));
 
     FixtureCase {
@@ -103,6 +98,7 @@ fn parse_fixture(path: &Path) -> FixtureCase {
             .unwrap_or_default(),
         label,
         kind,
+        target,
         text,
     }
 }
@@ -119,17 +115,28 @@ fn load_all_fixtures() -> Vec<FixtureCase> {
     cases
 }
 
+/// Whether a finding's excerpt and a fixture's target text refer to the same span, by containment either way.
+fn overlaps(excerpt: &str, target: &str) -> bool {
+    let excerpt = excerpt.trim().to_lowercase();
+    let target = target.trim().to_lowercase();
+    !excerpt.is_empty()
+        && !target.is_empty()
+        && (target.contains(&excerpt) || excerpt.contains(&target))
+}
+
 #[derive(Default, Clone, Copy)]
 struct Stats {
     true_positive: u32,
     false_positive: u32,
     false_negative: u32,
     true_negative: u32,
+    /// A measured finding that lands away from the fixture's own target.
+    stray: u32,
 }
 
 impl Stats {
-    fn record(&mut self, label: Label, flagged: bool) {
-        match (label, flagged) {
+    fn record(&mut self, label: Label, hit_on_target: bool) {
+        match (label, hit_on_target) {
             (Label::Unplaceable, true) => self.true_positive += 1,
             (Label::Unplaceable, false) => self.false_negative += 1,
             (Label::Placeable, true) => self.false_positive += 1,
@@ -146,64 +153,51 @@ impl Stats {
         let denom = self.true_positive + self.false_negative;
         (denom > 0).then(|| f64::from(self.true_positive) / f64::from(denom))
     }
+
+    fn add(&mut self, other: Stats) {
+        self.true_positive += other.true_positive;
+        self.false_positive += other.false_positive;
+        self.false_negative += other.false_negative;
+        self.true_negative += other.true_negative;
+        self.stray += other.stray;
+    }
 }
 
 fn percent(value: Option<f64>) -> String {
     value.map_or_else(|| "n/a".to_string(), |v| format!("{:.1}%", v * 100.0))
 }
 
+fn print_row(label: &str, stats: &Stats) {
+    println!(
+        "| {label} | {} | {} | {} | {} | {} | {} | {} |",
+        stats.true_positive,
+        stats.false_positive,
+        stats.false_negative,
+        stats.true_negative,
+        stats.stray,
+        percent(stats.precision()),
+        percent(stats.recall())
+    );
+}
+
 fn print_table(by_kind: &BTreeMap<String, Stats>) {
-    println!("| Kind | TP | FP | FN | TN | Precision | Recall |");
-    println!("| --- | --- | --- | --- | --- | --- | --- |");
+    println!("| Kind | TP | FP | FN | TN | Stray | Precision | Recall |");
+    println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
     let mut total = Stats::default();
     for (kind, stats) in by_kind {
         if kind == EXCLUDED_KIND {
             continue;
         }
-        println!(
-            "| {kind} | {} | {} | {} | {} | {} | {} |",
-            stats.true_positive,
-            stats.false_positive,
-            stats.false_negative,
-            stats.true_negative,
-            percent(stats.precision()),
-            percent(stats.recall())
-        );
-        total.true_positive += stats.true_positive;
-        total.false_positive += stats.false_positive;
-        total.false_negative += stats.false_negative;
-        total.true_negative += stats.true_negative;
+        print_row(kind, stats);
+        total.add(*stats);
     }
-    println!(
-        "| **Total** | {} | {} | {} | {} | {} | {} |",
-        total.true_positive,
-        total.false_positive,
-        total.false_negative,
-        total.true_negative,
-        percent(total.precision()),
-        percent(total.recall())
-    );
+    print_row("**Total**", &total);
     if let Some(model) = by_kind.get(EXCLUDED_KIND) {
-        println!(
-            "| model (excluded from totals) | {} | {} | {} | {} | {} | {} |",
-            model.true_positive,
-            model.false_positive,
-            model.false_negative,
-            model.true_negative,
-            percent(model.precision()),
-            percent(model.recall())
-        );
+        print_row("model (excluded from totals)", model);
     }
 }
 
-/// Runs every unplaceable fixture through the writing lint in message
-/// context, the same context a reply or a hook check runs in, and prints
-/// the precision-and-recall table `MEASURED_RULE_IDS` produces today.
-///
-/// This only asserts that every fixture file parses and that its declared
-/// kind and label are well formed; it asserts nothing about the printed
-/// numbers. Thresholds land once `unplaceable-reference` replaces the rule
-/// ids above, and this file's only change at that point is the constant.
+/// Prints the precision-and-recall table `MEASURED_RULE_IDS` produces today; asserts only that every fixture parses.
 #[test]
 fn writing_lint_precision_and_recall_on_the_unplaceable_fixture() {
     let cases = load_all_fixtures();
@@ -226,11 +220,19 @@ fn writing_lint_precision_and_recall_on_the_unplaceable_fixture() {
             false,
             false,
         );
-        let flagged = findings.iter().any(|f| MEASURED_RULE_IDS.contains(&f.rule));
-        by_kind
-            .entry(case.kind.clone())
-            .or_default()
-            .record(case.label, flagged);
+        let measured: Vec<_> = findings
+            .iter()
+            .filter(|f| MEASURED_RULE_IDS.contains(&f.rule))
+            .collect();
+        let hit_on_target = measured.iter().any(|f| overlaps(&f.excerpt, &case.target));
+        let stray_count = measured
+            .iter()
+            .filter(|f| !overlaps(&f.excerpt, &case.target))
+            .count();
+
+        let stats = by_kind.entry(case.kind.clone()).or_default();
+        stats.record(case.label, hit_on_target);
+        stats.stray += u32::try_from(stray_count).unwrap_or(u32::MAX);
     }
 
     print_table(&by_kind);

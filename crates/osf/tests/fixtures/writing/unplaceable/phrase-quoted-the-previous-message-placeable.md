@@ -3,5 +3,6 @@ The style guide gives "the previous message" as an example of a phrase that neve
 <!-- osf-unplaceable
 label: placeable
 kind: phrase
+target: the previous message
 reason: quoted mention of a forbidden phrase, not a use of it
 -->

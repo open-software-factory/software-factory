@@ -7,5 +7,6 @@ The outage traced back to mechanism (b). Three mechanisms were on the list:
 <!-- osf-unplaceable
 label: placeable
 kind: number
+target: mechanism (b)
 reason: a list item in the same paragraph starts with the bracketed letter
 -->

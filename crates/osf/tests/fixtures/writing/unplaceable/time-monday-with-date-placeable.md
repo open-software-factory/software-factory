@@ -3,5 +3,6 @@ Ship it on Monday, 2026-09-28, once the last two reviews land. The release notes
 <!-- osf-unplaceable
 label: placeable
 kind: time
+target: Monday
 reason: an absolute date in the paragraph resolves the weekday
 -->

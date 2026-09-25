@@ -3,5 +3,6 @@ The report went out on the eighteenth, 2026-08-18, right after the incident revi
 <!-- osf-unplaceable
 label: placeable
 kind: time
+target: the eighteenth
 reason: an absolute date in the paragraph resolves the relative one
 -->

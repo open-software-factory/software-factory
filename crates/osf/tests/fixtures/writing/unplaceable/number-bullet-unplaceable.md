@@ -3,5 +3,6 @@ Please re-read bullet 1 before you start the migration; it changes the order the
 <!-- osf-unplaceable
 label: unplaceable
 kind: number
+target: bullet 1
 reason: word-and-number label naming no repository or description
 -->

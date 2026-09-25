@@ -3,5 +3,6 @@ The login crash is now closed in acme/widgets#125 (the login crash). Support can
 <!-- osf-unplaceable
 label: placeable
 kind: number
+target: acme/widgets#125
 reason: repository-qualified number carries its own bracketed description
 -->
