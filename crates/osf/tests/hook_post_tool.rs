@@ -181,8 +181,8 @@ fn a_relative_path_that_walks_outside_the_repository_stands_down_as_not_adopted(
 /// I3 / review focus 5, the hook half: an unwritable journal must never
 /// stop the hook from reporting a real finding, and must never need
 /// `OSF_FILES_FROM`'s own list file to live under the state directory
-/// (ruling R21: that list goes to the OS temp directory instead, so an
-/// unwritable state dir cannot block writing it).
+/// (ruling R21: that list goes to `.osf/in/` in the workspace instead, so
+/// an unwritable state dir cannot block writing it).
 #[test]
 fn an_unwritable_journal_still_refuses_a_real_finding_and_names_the_failure() {
     let repo = TempRepo::with_moon_workspace("pt-unwritable-state");

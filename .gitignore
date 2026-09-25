@@ -21,3 +21,4 @@ target-linux/
 # moon cache and osf task output
 .moon/cache/
 .osf/out/
+.osf/in/

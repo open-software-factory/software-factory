@@ -714,6 +714,127 @@ fn verify_stands_down_with_no_repository_under_a_non_english_locale() {
     );
 }
 
+/// Fixes-135 task 4: the fixed-path file list (mechanism (a)) is a task
+/// input, so moon's own cache now covers osf's checks. Moon hashes a wide
+/// content glob (such as `/**/*.md`) from every matching file on disk, not
+/// just the ones a given run's `--base` selected, so that alone cannot
+/// distinguish two runs with different `--base` values over an unchanged
+/// working tree; the checkpoint's own file list closes that gap. The same
+/// `--base` run twice is a cache hit the second time; the declared
+/// `outputs` entry restores the SARIF `clear_stale_sarif` deletes before
+/// every run, so a hit still reports the real finding count, not zero. A
+/// different `--base`, with the working tree otherwise untouched between
+/// runs, changes only the file list's own content and is a miss again.
+#[test]
+fn moon_caches_a_checkpoint_task_by_its_file_list_and_restores_its_sarif_on_a_hit() {
+    let repo = TempRepo::new("cp-moon-cache");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    // Base64 of {"runs":[{"results":[{"ruleId":"probe-rule","level":"error","message":{"text":"probe finding"}}]}]}
+    let payload = "eyJydW5zIjpbeyJyZXN1bHRzIjpbeyJydWxlSWQiOiJwcm9iZS1ydWxlIiwibGV2ZWwiOiJlcnJvciIsIm1lc3NhZ2UiOnsidGV4dCI6InByb2JlIGZpbmRpbmcifX1dfV19";
+    let script = if cfg!(windows) {
+        format!(
+            "New-Item -ItemType Directory -Force .osf/out | Out-Null; [IO.File]::WriteAllText(\".osf/out/probe.sarif\", [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(\"{payload}\")))"
+        )
+    } else {
+        format!("mkdir -p .osf/out && echo {payload} | base64 -d > .osf/out/probe.sarif")
+    };
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "tasks:\n  probe:\n    script: '{script}'\n    inputs: ['/**/*.md', '/.osf/in/pull-request.files']\n    outputs: ['/.osf/out/probe.sarif']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n"
+        ),
+    );
+    let c0 = repo.commit("base");
+    repo.write("a.md", "a\n");
+    let c1 = repo.commit("add a.md");
+    repo.write("b.md", "b\n");
+    repo.commit("add b.md");
+    let home = isolated_home("cp-moon-cache");
+
+    let run1 = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pull-request", "--base", &c0],
+    );
+    assert_eq!(run1.status.code(), Some(0), "{run1:?}");
+    let stdout1 = String::from_utf8_lossy(&run1.stdout);
+    assert!(stdout1.contains("cache miss"), "{run1:?}");
+    assert!(stdout1.contains("1 finding(s)"), "{run1:?}");
+
+    let run2 = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pull-request", "--base", &c0],
+    );
+    assert_eq!(run2.status.code(), Some(0), "{run2:?}");
+    let stdout2 = String::from_utf8_lossy(&run2.stdout);
+    assert!(
+        stdout2.contains("cache hit"),
+        "the same base run twice over an unchanged tree must be a cache hit the second time: {run2:?}"
+    );
+    assert!(
+        stdout2.contains("1 finding(s)"),
+        "a cache hit must restore the SARIF moon declares as its output, not report it away: {run2:?}"
+    );
+
+    let run3 = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pull-request", "--base", &c1],
+    );
+    assert_eq!(run3.status.code(), Some(0), "{run3:?}");
+    let stdout3 = String::from_utf8_lossy(&run3.stdout);
+    assert!(
+        stdout3.contains("cache miss"),
+        "a different base selecting a different file list, tree otherwise unchanged, must be a miss: {run3:?}"
+    );
+}
+
+/// Fixes-135 task 4, a regression guard: moon's glob walker for a wide
+/// input such as `/**/*` does not consult `.gitignore`, so it hashes moon's
+/// own `.moon/cache/` state and would hash a real `target/` directory too —
+/// both grow and change on every run regardless of the tree, which would
+/// make a wide-glob osf task (`scan-*` in the real `.osf/moon.yml`) never
+/// cache-hit at all, silently keeping the fix a no-op for that whole task
+/// family. `.osf/moon.yml` excludes them with `!/.moon/**` and
+/// `!/.osf/out/**`; this fixture mirrors that shape and proves the same
+/// staged change run twice, with nothing else touched in between, is a
+/// cache hit the second time.
+#[test]
+fn a_wide_glob_task_excluding_moon_and_osf_out_still_caches_across_unchanged_runs() {
+    let repo = TempRepo::new("cp-wide-glob-cache");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        "tasks:\n  probe:\n    script: 'exit 0'\n    inputs: ['/**/*', '!/.moon/**', '!/.osf/out/**']\n    tags: [osf-pre-commit]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n",
+    );
+    repo.write("a.md", "a\n");
+    repo.commit("base");
+    repo.write("a.md", "a2\n");
+    repo.stage("a.md");
+    let home = isolated_home("cp-wide-glob-cache");
+
+    let run1 = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(run1.status.code(), Some(0), "{run1:?}");
+    assert!(
+        String::from_utf8_lossy(&run1.stdout).contains("cache miss"),
+        "{run1:?}"
+    );
+
+    let run2 = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(run2.status.code(), Some(0), "{run2:?}");
+    assert!(
+        String::from_utf8_lossy(&run2.stdout).contains("cache hit"),
+        "a wide-glob task must still cache-hit once moon's own state and osf's own SARIF output are excluded from its inputs: {run2:?}"
+    );
+}
+
 /// Bullet 2: a run report naming no task at all is could-not-run.
 #[test]
 fn a_run_report_with_no_task_at_all_is_could_not_run() {

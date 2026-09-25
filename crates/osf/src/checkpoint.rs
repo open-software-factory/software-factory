@@ -200,14 +200,29 @@ fn partially_staged(root: &Path, staged: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Writes `files`, one per line, to a fresh file under the OS temp
-/// directory, for `OSF_FILES_FROM` (ruling R7). Moon itself cannot pass a
-/// changed-file list to a task, so this is how each task's `osf check`
-/// learns it. Ruling R21: this lives outside the journal's own state
-/// directory, so an unwritable state dir never blocks it, and the caller
-/// deletes it once moon has run, on every path.
-fn write_files_from(run: &str, files: &[String]) -> Result<PathBuf, String> {
-    let path = std::env::temp_dir().join(format!("osf-checkpoint-files-{run}.txt"));
+/// Writes `files`, one per line, to a fixed path inside the workspace, one
+/// per checkpoint (`.osf/in/<checkpoint>.files`), for `OSF_FILES_FROM`
+/// (ruling R7). Moon itself cannot pass a changed-file list to a task, so
+/// this is how each task's `osf check` learns it; a fixed path also lets a
+/// task declare the list as an input, so moon's own cache fingerprint
+/// covers it (fixes-135 task 4) — mechanism (a), kept over an env-var hash
+/// because moon 2.5.5 hashes this content even though `.osf/in/` is
+/// git-ignored (measured directly; see the task report). Ruling R21: this
+/// lives outside the journal's own state directory, so an unwritable state
+/// dir never blocks it, and the caller overwrites or deletes it every run.
+fn write_files_from(
+    root: &Path,
+    checkpoint: Checkpoint,
+    files: &[String],
+) -> Result<PathBuf, String> {
+    let dir = root.join(".osf").join("in");
+    std::fs::create_dir_all(&dir).map_err(|e| {
+        format!(
+            "cannot create the checkpoint file list dir {}: {e}",
+            dir.display()
+        )
+    })?;
+    let path = dir.join(format!("{}.files", checkpoint.label()));
     let mut content = String::new();
     for file in files {
         content.push_str(file);
@@ -640,7 +655,7 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
         std::process::id()
     );
 
-    let files_path = match write_files_from(&run_id, &files) {
+    let files_path = match write_files_from(req.root, req.checkpoint, &files) {
         Ok(p) => p,
         Err(e) => {
             error_findings.push(e);
@@ -1145,5 +1160,50 @@ mod tests {
             Adoption::Adopted(path) => assert_same_dir(&path, &dir),
             _ => panic!("expected Adopted"),
         }
+    }
+
+    /// Fixes-135 task 4: the file list moon's own tasks now declare as an
+    /// input lives at a fixed, per-checkpoint path inside the workspace, so
+    /// its content is part of a task's fingerprint. A second write for the
+    /// same checkpoint overwrites that same path rather than accumulating a
+    /// new file per run, and cleanup removes it on every path.
+    #[test]
+    fn the_files_from_list_lives_at_a_fixed_workspace_path_per_checkpoint() {
+        let dir = TempDir::new("osf-checkpoint-test-files-from-fixed-path");
+        let path = write_files_from(&dir, Checkpoint::PreCommit, &["a.md".to_string()])
+            .expect("first write succeeds");
+        assert_eq!(path, dir.join(".osf").join("in").join("pre-commit.files"));
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), "a.md\n");
+
+        let path2 = write_files_from(&dir, Checkpoint::PreCommit, &["b.md".to_string()])
+            .expect("second write succeeds");
+        assert_eq!(
+            path2, path,
+            "a second run overwrites the same file, not a new one"
+        );
+        assert_eq!(std::fs::read_to_string(&path).expect("read"), "b.md\n");
+
+        cleanup_files_from(&path);
+        assert!(
+            !path.exists(),
+            "cleanup must remove the list file every run"
+        );
+    }
+
+    /// Two checkpoints running against the same workspace must not clobber
+    /// each other's file list: each checkpoint gets its own path.
+    #[test]
+    fn two_checkpoints_get_two_separate_files_from_paths() {
+        let dir = TempDir::new("osf-checkpoint-test-files-from-separate");
+        let pre_commit = write_files_from(&dir, Checkpoint::PreCommit, &["a.md".to_string()])
+            .expect("pre-commit write succeeds");
+        let pre_push = write_files_from(&dir, Checkpoint::PrePush, &["b.md".to_string()])
+            .expect("pre-push write succeeds");
+        assert_ne!(pre_commit, pre_push);
+        assert_eq!(
+            std::fs::read_to_string(&pre_commit).expect("read"),
+            "a.md\n"
+        );
+        assert_eq!(std::fs::read_to_string(&pre_push).expect("read"), "b.md\n");
     }
 }
