@@ -372,8 +372,28 @@ pub fn unplaceable_reference(
     context: Context,
     out: &mut Vec<Finding>,
 ) {
-    for (i, paragraph) in doc.paragraphs.iter().enumerate() {
-        let candidates = first_use_per_name(reference::candidates(paragraph, cfg, known, context));
+    let doc_run_counts = reference::document_run_counts(&doc.sentences);
+    let per_paragraph: Vec<Vec<Candidate>> = doc
+        .paragraphs
+        .iter()
+        .map(|p| {
+            first_use_per_name(reference::candidates(
+                p,
+                cfg,
+                known,
+                context,
+                &doc_run_counts,
+            ))
+        })
+        .collect();
+    let name_winners = name_report_winners(doc, &per_paragraph);
+
+    let paragraph_candidates = doc.paragraphs.iter().zip(per_paragraph.iter());
+    for (i, (paragraph, own_candidates)) in paragraph_candidates.enumerate() {
+        let candidates: Vec<&Candidate> = own_candidates
+            .iter()
+            .filter(|c| c.kind != Kind::Name || name_winners.get(&c.text) == Some(&i))
+            .collect();
         if candidates.is_empty() {
             continue;
         }
@@ -406,6 +426,23 @@ fn first_use_per_name(mut candidates: Vec<Candidate>) -> Vec<Candidate> {
     let mut seen: HashSet<String> = HashSet::new();
     candidates.retain(|c| c.kind != Kind::Name || seen.insert(c.text.clone()));
     candidates
+}
+
+/// Picks one paragraph to report each repeated name from: prose over a table, else the table's first.
+fn name_report_winners(doc: &Doc, per_paragraph: &[Vec<Candidate>]) -> HashMap<String, usize> {
+    let mut winners = HashMap::new();
+    for wants_table in [false, true] {
+        let paragraph_candidates = doc.paragraphs.iter().zip(per_paragraph.iter());
+        for (i, (paragraph, candidates)) in paragraph_candidates.enumerate() {
+            if paragraph.in_table != wants_table {
+                continue;
+            }
+            for c in candidates.iter().filter(|c| c.kind == Kind::Name) {
+                winners.entry(c.text.clone()).or_insert(i);
+            }
+        }
+    }
+    winners
 }
 
 /// The list items right after `paragraphs[from]`, the shape a Markdown list
@@ -460,7 +497,25 @@ fn number_is_placed(
             .iter()
             .any(|item| item.text.trim().to_lowercase().starts_with(&wanted));
     }
-    repo_named_in_same_sentence(candidate, local_sentences) || file_path_names_it(text, candidate)
+    repo_named_in_same_sentence(candidate, local_sentences)
+        || file_path_names_it(text, candidate)
+        || has_qualifying_description(candidate, local_sentences)
+}
+
+/// A bracket or colon description right after a word-and-number candidate: two-plus plain words, no digit.
+fn has_qualifying_description(candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
+    let Some(sentence) = containing_sentence(local_sentences, candidate.range.start) else {
+        return false;
+    };
+    let local_end = candidate.range.end.saturating_sub(sentence.span.start);
+    let rest = sentence.text.get(local_end..).unwrap_or("").trim_start();
+    let description = rest
+        .strip_prefix('(')
+        .and_then(|inner| inner.split_once(')').map(|(d, _)| d))
+        .or_else(|| rest.strip_prefix(':').map(str::trim_start));
+    description.is_some_and(|d| {
+        d.split_whitespace().count() >= 2 && !d.chars().any(|c| c.is_ascii_digit())
+    })
 }
 
 fn is_linked(text: &str, candidate: &Candidate) -> bool {
@@ -1333,6 +1388,30 @@ mod unplaceable_reference_tests {
     fn a_sentence_naming_a_repository_places_a_word_and_number() {
         let t = "We tracked it to issue 31 in acme/widgets, and confirmed the fix.";
         assert!(is_placed(t, "issue 31"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_bracketed_two_word_description_places_a_word_and_number() {
+        let t = "This file reproduces the agreement, version 2 (the ICLA), for review.";
+        assert!(is_placed(t, "version 2"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_colon_introduced_two_word_description_places_a_word_and_number() {
+        let t = "Milestone 3: the design work is done.";
+        assert!(is_placed(t, "Milestone 3"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_branch_slug_in_brackets_does_not_place_a_word_and_number() {
+        let t = "Task 6 (fixes-135) is blocked until the release ships.";
+        assert!(!is_placed(t, "Task 6"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_one_word_bracket_does_not_place_a_word_and_number() {
+        let t = "Deploying fix 5 (it) cleared the queue.";
+        assert!(!is_placed(t, "fix 5"), "{:?}", find(t));
     }
 
     #[test]

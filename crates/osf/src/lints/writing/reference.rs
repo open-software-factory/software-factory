@@ -69,11 +69,14 @@ struct QuotedSpan {
 }
 
 /// Every candidate in `unit`'s own text, with its kind, text and byte range within it.
+/// `doc_run_counts` is the whole document's multi-word name-repeat evidence.
+#[allow(clippy::implicit_hasher)]
 pub fn candidates(
     unit: &TextUnit,
     cfg: &WritingConfig,
     known: &KnownNames,
     context: Context,
+    doc_run_counts: &HashMap<String, usize>,
 ) -> Vec<Candidate> {
     let doc = segment::parse(&unit.text);
     let sentence_spans: Vec<Range<usize>> = doc.sentences.iter().map(|s| s.span.clone()).collect();
@@ -83,8 +86,28 @@ pub fn candidates(
     out.extend(number_candidates(&masked, known));
     out.extend(phrase_candidates(&masked, cfg));
     out.extend(time_candidates(&masked, context));
-    out.extend(name_candidates(unit, &quotes, cfg, &doc.sentences));
+    out.extend(name_candidates(
+        unit,
+        &quotes,
+        cfg,
+        &doc.sentences,
+        doc_run_counts,
+    ));
     keep_longest_per_kind(out)
+}
+
+/// Multi-word name-repeat counts gathered once over the whole document, so a name split across paragraphs still counts as seen more than once.
+#[must_use]
+pub fn document_run_counts(doc_sentences: &[TextUnit]) -> HashMap<String, usize> {
+    let mut run_counts = HashMap::new();
+    for s in doc_sentences {
+        for name in super::rules::candidate_names(s) {
+            if name.contains(' ') {
+                *run_counts.entry(name).or_insert(0) += 1;
+            }
+        }
+    }
+    run_counts
 }
 
 /// When two candidates of the same kind overlap, keeps only the longer one (`see above` over `above`).
@@ -265,15 +288,22 @@ fn number_candidates(text: &str, known: &KnownNames) -> Vec<Candidate> {
     out
 }
 
-/// Whether `word` matches a known name regardless of case, so `windows 11` is excluded like `Windows 11`.
-fn is_known_name(known: &KnownNames, word: &str) -> bool {
+/// `word` itself, Title-cased, and fully upper-cased: every form a case-blind known-name lookup must try.
+fn case_variants(word: &str) -> [String; 3] {
     let lower = word.to_lowercase();
     let mut chars = lower.chars();
     let title = match chars.next() {
         Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
         None => String::new(),
     };
-    known.contains(word) || known.contains(&title) || known.contains(&word.to_uppercase())
+    [word.to_string(), title, word.to_uppercase()]
+}
+
+/// Whether `word` is also a real name by `names::is_name_head`, not just a known word.
+fn is_known_name_head(known: &KnownNames, word: &str) -> bool {
+    case_variants(word)
+        .into_iter()
+        .any(|form| known.contains(&form) && super::names::is_name_head(&form))
 }
 
 /// A word and a plain integer, unless it is a version, a range, a known name, or a month and day.
@@ -296,7 +326,7 @@ fn word_number_candidate(
     if after.next() == Some('-') && after.next().is_some_and(|ch| ch.is_ascii_digit()) {
         return None;
     }
-    if is_known_name(known, word.as_str()) {
+    if is_known_name_head(known, word.as_str()) {
         return None;
     }
     Some(Candidate {
@@ -311,7 +341,7 @@ fn word_bracket_candidate(c: &regex::Captures<'_>, known: &KnownNames) -> Option
     let whole = c.get(0)?;
     let word = c.get(1)?;
     let word_lower = word.as_str().to_lowercase();
-    if NON_LABEL_WORDS.contains(&word_lower.as_str()) || is_known_name(known, word.as_str()) {
+    if NON_LABEL_WORDS.contains(&word_lower.as_str()) || is_known_name_head(known, word.as_str()) {
         return None;
     }
     Some(Candidate {
@@ -447,9 +477,15 @@ fn name_candidates(
     quotes: &[QuotedSpan],
     cfg: &WritingConfig,
     sentences: &[TextUnit],
+    doc_run_counts: &HashMap<String, usize>,
 ) -> Vec<Candidate> {
     let mut out = Vec::new();
-    out.extend(capitalised_name_candidates(cfg, sentences));
+    out.extend(capitalised_name_candidates(
+        cfg,
+        unit,
+        sentences,
+        doc_run_counts,
+    ));
     for q in quotes {
         if q.kind != MentionKind::DoubleQuote {
             continue;
@@ -466,14 +502,22 @@ fn name_candidates(
     out
 }
 
-/// Reads `sentences` (the paragraph's own, parsed once by the caller) so each one's own start is judged, not the paragraph's.
-fn capitalised_name_candidates(cfg: &WritingConfig, sentences: &[TextUnit]) -> Vec<Candidate> {
+/// Reads `sentences` with `unit`'s own heading and list-item flags, so a re-parsed paragraph does not lose them.
+fn capitalised_name_candidates(
+    cfg: &WritingConfig,
+    unit: &TextUnit,
+    sentences: &[TextUnit],
+    doc_run_counts: &HashMap<String, usize>,
+) -> Vec<Candidate> {
     let found: Vec<(Range<usize>, String)> = sentences
         .iter()
         .flat_map(|s| {
             let start = s.span.start;
+            let mut flagged = s.clone();
+            flagged.is_heading = unit.is_heading;
+            flagged.in_list_item = unit.in_list_item;
             let mut cursor = 0usize;
-            super::rules::candidate_names(s)
+            super::rules::candidate_names(&flagged)
                 .into_iter()
                 .filter_map(move |name| {
                     let local = s.text.get(cursor..)?.find(&name)?;
@@ -483,17 +527,11 @@ fn capitalised_name_candidates(cfg: &WritingConfig, sentences: &[TextUnit]) -> V
                 })
         })
         .collect();
-    let mut run_counts: HashMap<String, usize> = HashMap::new();
-    for (_, name) in &found {
-        if name.contains(' ') {
-            *run_counts.entry(name.clone()).or_insert(0) += 1;
-        }
-    }
     found
         .into_iter()
         .filter(|(_, name)| {
             cfg.must_explain_names.contains(name)
-                || super::rules::looks_like_a_name(name, &run_counts)
+                || super::rules::looks_like_a_name(name, doc_run_counts)
         })
         .map(|(range, text)| Candidate {
             kind: Kind::Name,
@@ -529,11 +567,13 @@ mod tests {
     }
 
     fn find(text: &str, context: Context) -> Vec<Candidate> {
+        let run_counts = document_run_counts(&segment::parse(text).sentences);
         candidates(
             &paragraph(text),
             &WritingConfig::default(),
             &known(),
             context,
+            &run_counts,
         )
     }
 
@@ -624,6 +664,14 @@ mod tests {
         .all(|k| *k != Kind::Number));
     }
 
+    /// A generic label word from `names.rs`, such as `Phase` or `Item`, is not a known name, so the number after it must still be a candidate.
+    #[test]
+    fn number_does_not_exclude_a_generic_label_word_followed_by_a_number() {
+        assert!(has("In Phase 2 we ship it.", Kind::Number, "Phase 2"));
+        assert!(has("In Item 3 we ship it.", Kind::Number, "Item 3"));
+        assert!(has("Do Step 4 next.", Kind::Number, "Step 4"));
+    }
+
     #[test]
     fn number_excludes_a_known_name_regardless_of_case() {
         assert!(kinds(
@@ -639,7 +687,9 @@ mod tests {
     fn is_known_name_title_cases_a_multi_byte_first_letter() {
         let known = load_known_names(&["\u{c9}clair".to_string()], None)
             .expect("known names with a multi-byte entry load");
-        assert!(is_known_name(&known, "\u{e9}clair"));
+        assert!(case_variants("\u{e9}clair")
+            .iter()
+            .any(|form| known.contains(form)));
     }
 
     #[test]
@@ -1131,10 +1181,11 @@ mod tests {
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
             let doc = segment::parse(&text);
+            let run_counts = document_run_counts(&doc.sentences);
             let found: Vec<Candidate> = doc
                 .paragraphs
                 .iter()
-                .flat_map(|p| candidates(p, &cfg, &known_names, Context::Document))
+                .flat_map(|p| candidates(p, &cfg, &known_names, Context::Document, &run_counts))
                 .collect();
 
             if label == "unplaceable" && kind != "model" {

@@ -506,14 +506,16 @@ mod tests {
 
     #[test]
     fn a_multi_word_name_ending_in_an_acronym_plural_is_not_torn_apart() {
-        // A list item's leading word only keeps its run when the paragraph
-        // itself carries the list-item flag; the candidate layer re-parses
-        // the paragraph text alone, so this case still reports "JetBrains"
-        // rather than the whole "JetBrains IDEs" run.
+        // Real example from the false-positive analysis,
+        // docs/research/ahp-acp-architecture-direction.md:296: "JetBrains
+        // IDEs" was once fragmented into a lone "JetBrains" because "IDEs"
+        // alone is an acronym's plural. "JetBrains" carries its own
+        // internal-capital evidence, so the whole run is still reported,
+        // as a warning rather than the older design's error.
         let t = "- JetBrains IDEs include a built-in client.\n";
         let found = lint(t);
         let excerpt = found.first().map(|f| f.excerpt.as_str());
-        assert_eq!(excerpt, Some("JetBrains"), "{found:?}");
+        assert_eq!(excerpt, Some("JetBrains IDEs"), "{found:?}");
     }
 
     #[test]
@@ -570,6 +572,29 @@ mod tests {
             vec!["unplaceable-reference"],
             "{f:?}"
         );
+    }
+
+    #[test]
+    fn table_only_name_is_reported_the_factory_engine_example() {
+        // A name seen only in a table is still reported, from its first appearance.
+        let t = "| A | B |\n|---|---|\n| x | The Factory Engine starts in Go. |\n| y | The Factory Engine also builds. |\n";
+        let f = lint(t);
+        assert_eq!(rules_of(t), vec!["unplaceable-reference"]);
+        assert_eq!(
+            f.first().map(|x| x.excerpt.as_str()),
+            Some("Factory Engine")
+        );
+    }
+
+    #[test]
+    fn a_name_also_in_prose_is_not_reported_from_the_table() {
+        // A name also used in prose is reported there, not from the table.
+        let t = "| A | B |\n|---|---|\n| x | The Factory Engine starts in Go. |\n\nThe Factory Engine has no upstream dependency.\n";
+        let f = lint(t);
+        let hits: Vec<_> = f.iter().filter(|x| x.excerpt == "Factory Engine").collect();
+        assert_eq!(hits.len(), 1, "{f:?}");
+        let hit = hits.first().expect("one hit checked above");
+        assert_eq!(hit.line, 5, "reported from prose, not the table");
     }
 
     #[test]
@@ -661,8 +686,7 @@ mod tests {
         .unwrap_or_else(|| panic!("{rule} did not fire on {text:?} in {context:?}"))
     }
 
-    /// Change 3: a comprehension rule (unplaceable-reference) resolves to
-    /// the matrix's level and remediation in every context.
+    /// A comprehension rule resolves to the level-and-remediation matrix in every context.
     #[test]
     fn a_comprehension_rule_resolves_per_context() {
         let text = "Fixed in #125 today.";
@@ -679,8 +703,7 @@ mod tests {
         }
     }
 
-    /// Change 3: a style rule (em-dash) resolves to the matrix's level and
-    /// remediation in every context, only blocking outside a transcript.
+    /// A style rule blocks outside a transcript but only warns inside one.
     #[test]
     fn a_style_rule_resolves_per_context() {
         let text = "A thing — another thing.";
@@ -697,7 +720,7 @@ mod tests {
         }
     }
 
-    /// Change 3: heading-in-short-text is off in a document.
+    /// heading-in-short-text never fires in a document, only in a short reply.
     #[test]
     fn heading_in_short_text_is_off_in_a_document() {
         let known = load_known_names(&[], None).expect("built-in names load");
@@ -728,7 +751,7 @@ mod tests {
         assert!(f.iter().all(|x| x.rule != "heading-in-short-text"), "{f:?}");
     }
 
-    /// Change 3: every finding points at `osf explain <rule-id>`.
+    /// Every finding's message points at its own `osf explain <rule-id>`.
     #[test]
     fn every_finding_points_at_explain() {
         let f = find_in(
@@ -783,6 +806,22 @@ mod tests {
             .filter(|r| *r == "unplaceable-reference")
             .collect();
         assert!(names.is_empty(), "{:?}", lint(&t));
+    }
+
+    #[test]
+    fn a_heading_with_evidence_is_still_reported() {
+        // A name introduced in a heading is reported again when prose repeats it.
+        let filler = "It ran. ".repeat(300);
+        let t = format!(
+            "# Notes\n\n{filler}\n\n### Prison Architect\n\nStudy Prison Architect's spatial systems.\n"
+        );
+        let found = lint(&t);
+        let hit = found
+            .iter()
+            .find(|f| f.excerpt == "Prison Architect")
+            .unwrap_or_else(|| panic!("Prison Architect not reported: {found:?}"));
+        assert_eq!(hit.rule, "unplaceable-reference");
+        assert_eq!(hit.level, Level::Warning);
     }
 
     #[test]
