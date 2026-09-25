@@ -285,7 +285,8 @@ fn osf_cmd(dir: &std::path::Path, home: &std::path::Path, env: &[(&str, &str)]) 
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_osf"));
     cmd.current_dir(dir)
         .env("HOME", home)
-        .env("USERPROFILE", home);
+        .env("USERPROFILE", home)
+        .env("PROTO_HOME", home.join(".proto"));
     for (key, _) in std::env::vars() {
         if key.starts_with("OSF_") || key.starts_with("MOON_") || key.starts_with("GIT_") {
             cmd.env_remove(key);
