@@ -5,5 +5,5 @@
     "context": ".."
   },
   "remoteUser": "dev",
-  "postCreateCommand": "osf --version && git config --show-origin core.hooksPath"
+  "postCreateCommand": "osf --version && moon --version && node --version && pnpm --version && git config --show-origin core.hooksPath"
 }

@@ -1,7 +1,8 @@
 # Development container
 
 This repository ships a development container. It has a pinned Rust
-toolchain, `git-town`, and the `osf` command line tool built in.
+toolchain, `git-town`, `moon`, Node, `pnpm`, and the `osf` command line tool
+built in.
 
 ## Open the container
 
