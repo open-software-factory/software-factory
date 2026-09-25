@@ -77,6 +77,7 @@ fn run_cargo_test_under_sentinel_git_env(sentinel: &Sentinel, args: &[&str]) {
 
 /// `cargo test -p osf --lib config`, run with `GIT_DIR`/`GIT_WORK_TREE` set the way a pre-push hook sets them, must leave the sentinel byte-identical and pass every test.
 #[test]
+#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
 fn config_unit_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     let sentinel = Sentinel::new("config");
     let before = sentinel.config_bytes();
@@ -90,6 +91,7 @@ fn config_unit_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
 /// (moon included) through `run_osf`, spawning the built `osf` binary the
 /// same way a real hook would.
 #[test]
+#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
 fn checkpoint_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     let sentinel = Sentinel::new("checkpoint");
     let before = sentinel.config_bytes();
@@ -103,6 +105,7 @@ fn checkpoint_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
 /// hook running `cargo test` leaves on the process) redirected it to the
 /// wrong repository and the wrong tier.
 #[test]
+#[ignore = "starts a nested cargo test; run alone by the test-nested task"]
 fn risk_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     let sentinel = Sentinel::new("risk");
     let before = sentinel.config_bytes();

@@ -114,3 +114,15 @@ tasks:
     deps: ['~:clippy']
     tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
     options: { runFromWorkspaceRoot: true, shell: false }
+  # A few osf tests each start a nested `cargo test` of their own, to check
+  # a checkpoint stays hermetic under an inherited GIT_DIR. Run alongside
+  # `test`'s own default-concurrency run, that doubles those tests' own
+  # concurrent moon/git subprocess load and fails at random. `--ignored`
+  # marks them for this task alone, and `--test-threads=1` keeps them from
+  # doubling up on each other here too.
+  test-nested:
+    command: 'cargo test -p osf -- --ignored --test-threads=1'
+    inputs: ['/**/*.rs', '/Cargo.toml', '/Cargo.lock', '/crates/*/Cargo.toml', '/crates/*/tests/fixtures/**/*']
+    deps: ['~:test']
+    tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
+    options: { runFromWorkspaceRoot: true, shell: false }

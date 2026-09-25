@@ -41,9 +41,9 @@ const WIDE_GLOB_TASKS: &[&str] = &[
     "lint-skill-gate",
 ];
 
-/// The three moon.yml tasks that are not osf checks: narrow, Rust-source
-/// inputs, and not part of [`WIDE_GLOB_TASKS`].
-const NON_CHECK_TASKS: &[&str] = &["fmt", "clippy", "test"];
+/// The moon.yml tasks that are not osf checks: narrow, Rust-source inputs,
+/// and not part of [`WIDE_GLOB_TASKS`].
+const NON_CHECK_TASKS: &[&str] = &["fmt", "clippy", "test", "test-nested"];
 
 /// Directories this walk never descends into, since none holds a
 /// `.gitignore` worth reading and some (`node_modules`, if ever installed)
