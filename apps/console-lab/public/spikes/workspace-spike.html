@@ -1,0 +1,2083 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Workspace spike — Dockview adoption</title>
+<!-- v8 ships structural CSS per framework package, not in dockview-core -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/dockview-react@8.2.0/dist/styles/dockview.css" />
+<style>
+  :root {
+    /* DESIGN.md §13.3 starter OKLch palette */
+    --bg: oklch(0.165 0.014 210);
+    --bg-canvas: oklch(0.145 0.012 210);
+    --surface-1: oklch(0.200 0.015 210);
+    --surface-2: oklch(0.240 0.016 210);
+    --surface-3: oklch(0.280 0.017 210);
+    /* Chrome recedes: separators sit barely above the surface they divide. */
+    --border-subtle: oklch(0.243 0.010 210);
+    --border-strong: oklch(0.330 0.012 210);
+    --fg: oklch(0.885 0.010 210); /* spike experiment: no near-pure-white default text */
+    --fg-strong: oklch(0.920 0.008 210);
+    --fg-muted: oklch(0.710 0.012 210);
+    --fg-faint: oklch(0.550 0.012 210);
+    --accent: oklch(0.780 0.100 170);
+    --accent-2: oklch(0.770 0.110 160);
+    --state-ok: oklch(0.760 0.090 150);
+    --state-active: oklch(0.760 0.080 215);
+    --state-blocked: oklch(0.780 0.100 75);
+    --state-fail: oklch(0.720 0.150 25);
+    --state-recovering: oklch(0.780 0.090 190);
+    --state-idle: oklch(0.620 0.010 210);
+    --state-stale: oklch(0.580 0.012 210);
+    --attention: oklch(0.800 0.150 75);
+
+    /* DESIGN.md §16.5 motion tokens */
+    --dur-micro: 120ms;
+    --dur-panel: 200ms;
+    --dur-transform: 280ms;
+    --dur-emphasis: 400ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
+
+    /* DESIGN.md §14 spacing / radii / elevation */
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 24px;
+    /* Locked: R1.5 radius, G3.5 gutter. */
+    --radius-control: 1.5px;
+    --radius-panel: 4.5px;
+    --radius-overlay: 6px;
+    --pane-gutter: 3.5px;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 2px 8px rgba(0, 0, 0, 0.45);
+    --shadow-3: 0 4px 20px rgba(0, 0, 0, 0.5);
+
+    /* DESIGN.md §12 type */
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+    --text-caption: 11px;
+    --text-label: 11px;
+    --text-body: 13px;
+    --text-section: 15px;
+  }
+
+  * { box-sizing: border-box; }
+  /* Scrollbars are chrome too — they must not out-shout the content. */
+  * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-corner { background: transparent; }
+  *::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: var(--fg-faint); background-clip: content-box; }
+  html, body { margin: 0; height: 100%; overflow-x: hidden; background: var(--bg); }
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    color: var(--fg);
+  }
+  button, input { font-family: inherit; font-size: inherit; color: inherit; }
+  .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  button:focus:not(:focus-visible) { outline: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition-duration: 0.001ms !important;
+      animation-duration: 0.001ms !important;
+    }
+  }
+
+  #shell {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    overflow: hidden;
+  }
+
+  #toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .control-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .control-label {
+    font-size: var(--text-label);
+    letter-spacing: 0.02em;
+    color: var(--fg-faint);
+    text-transform: uppercase;
+  }
+  .control-row { display: flex; gap: var(--space-2); align-items: center; }
+
+  .btn {
+    appearance: none;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-2);
+    color: var(--fg);
+    padding: 6px 12px;
+    border-radius: var(--radius-control);
+    cursor: pointer;
+    min-height: 30px;
+    transition: background var(--dur-micro) var(--ease-standard), border-color var(--dur-micro) var(--ease-standard);
+  }
+  .btn:hover { background: color-mix(in oklch, var(--surface-2) 82%, white 18%); }
+  .btn:active { background: color-mix(in oklch, var(--surface-2) 70%, black 20%); }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--surface-1);
+  }
+  .btn-primary {
+    background: color-mix(in oklch, var(--accent) 22%, var(--surface-2) 78%);
+    border-color: var(--accent);
+  }
+  .btn-primary:hover { background: color-mix(in oklch, var(--accent) 34%, var(--surface-2) 66%); }
+
+  label.chk { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); }
+
+  #persist-status { font-size: var(--text-caption); color: var(--fg-muted); }
+
+  #dockview-host {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    /*
+      The gutter is only a few px wide, so any texture here reads as a dashed
+      border rather than a surface. Keep it plain and dark; the canvas feeling
+      belongs to the centre work area (.canvas-surface), not to the seams.
+    */
+    background-color: var(--bg-canvas);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.55);
+  }
+
+  /*
+    Panes separate by GAP + TONE, never by a drawn line. The gutter shows the void
+    beneath, which is what makes the corner radius readable at all.
+  */
+  /*
+    The gutter is cut with clip-path, NOT by shrinking the box. Dockview sizes the
+    group's inner elements in pixels from the view's own dimensions, so any CSS that
+    makes the group smaller leaves those children oversized — which is what put a
+    scrollbar on every pane in both directions.
+  */
+  .dv-groupview {
+    background: var(--surface-1);
+    border: none;
+    /* Inset only — clip-path would cut an outer shadow off. */
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+    overflow: hidden;
+    clip-path: inset(var(--pane-gutter) round var(--radius-panel));
+  }
+
+  /* ---- Dockview theming: our tokens only, no baked-in colour left unmapped ---- */
+  .od-theme {
+    --dv-group-view-background-color: transparent;
+    --dv-tabs-and-actions-container-background-color: transparent;
+    --dv-tabs-and-actions-container-height: 32px;
+    --dv-tabs-and-actions-container-font-size: var(--text-label);
+    --dv-activegroup-visiblepanel-tab-background-color: var(--surface-2);
+    --dv-activegroup-visiblepanel-tab-color: var(--fg);
+    --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+    --dv-activegroup-hiddenpanel-tab-color: var(--fg-muted);
+    --dv-inactivegroup-visiblepanel-tab-background-color: var(--surface-1);
+    --dv-inactivegroup-visiblepanel-tab-color: var(--fg-muted);
+    --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+    --dv-inactivegroup-hiddenpanel-tab-color: var(--fg-faint);
+    --dv-tab-divider-color: transparent;
+    --dv-tab-font-size: 11px;
+    --dv-tab-margin: 0 2px;
+    --dv-tab-border-radius: var(--radius-control);
+    --dv-tab-close-icon-size: 11px;
+    /* No drawn separator: the gutter between panes is the separator. */
+    --dv-separator-border: none;
+    --dv-paneview-header-border-color: transparent;
+    --dv-paneview-active-outline-color: var(--accent);
+    --dv-drag-over-background-color: color-mix(in oklch, var(--accent) 18%, transparent);
+    --dv-drag-over-border-color: var(--accent);
+    --dv-drag-over-border: 2px dashed var(--accent);
+    --dv-edge-dock-indicator-color: var(--accent);
+    --dv-icon-hover-background-color: var(--surface-3);
+    --dv-border-radius: var(--radius-panel);
+    /* The sash never fills. A short centred handle carries the affordance instead. */
+    --dv-sash-color: transparent;
+    --dv-active-sash-color: transparent;
+    --dv-active-sash-transition-duration: var(--dur-micro);
+    --dv-active-sash-transition-delay: 0s;
+    --dv-spacing-padding: var(--space-3);
+    --dv-sash-border-radius: 0px;
+    --dv-dropdown-border-radius: var(--radius-overlay);
+    --dv-floating-box-shadow:
+      0 48px 110px rgba(0, 0, 0, 0.80),
+      0 18px 44px rgba(0, 0, 0, 0.58),
+      0 3px 10px rgba(0, 0, 0, 0.40);
+    --dv-floating-border: 1px solid color-mix(in oklch, var(--border-subtle) 30%, transparent);
+    --dv-floating-group-border: 1px solid color-mix(in oklch, var(--border-subtle) 30%, transparent);
+    --dv-floating-group-dragging-opacity: 0.7;
+    --dv-floating-titlebar-height: 26px;
+    --dv-floating-titlebar-background-color: var(--surface-2);
+    --dv-floating-titlebar-border-bottom: 1px solid var(--border-subtle);
+    --dv-scrollbar-background-color: var(--surface-1);
+    --dv-tabs-container-scrollbar-color: var(--border-strong);
+    --dv-context-menu-background-color: var(--surface-3);
+    --dv-context-menu-color: var(--fg);
+    --dv-overlay-z-index: 900;
+  }
+
+  /*
+    Layout motion is driven from JS (FLIP), not by a CSS transition on the
+    library's internals. Dockview rebuilds branch nodes on close/open, so the
+    element that should animate is often a brand-new node with no previous value
+    for a transition to interpolate from — which is why a pure CSS rule animated
+    nothing. The ghost layer holds a clone of a departing pane so it can fade out
+    after its real DOM node is gone.
+  */
+  #layout-ghosts {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 60;
+    overflow: hidden;
+  }
+  #layout-ghosts > .ghost {
+    position: absolute;
+    overflow: hidden;
+  }
+
+  .panel-body {
+    height: 100%;
+    overflow: auto;
+    padding: var(--space-4);
+    background: transparent;
+  }
+  /*
+    The centre work area is the canvas. Depth is light and shadow only: a light
+    source at the top and a vignette darkening the far corners, so the surface has
+    a middle. No texture by default.
+  */
+  .canvas-surface {
+    background-color: oklch(0.178 0.013 210);
+    background-image:
+      radial-gradient(90% 70% at 50% -10%, oklch(0.225 0.016 210) 0%, transparent 70%),
+      radial-gradient(120% 110% at 50% 50%, transparent 45%, oklch(0.135 0.012 212) 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.03),
+      inset 0 -40px 70px -50px rgba(0, 0, 0, 0.9);
+  }
+
+  /*
+    Opt-in only. A dot grid belongs to content that is genuinely spatial — a node
+    graph you pan and zoom — where it gives motion something to move against. It is
+    noise on a list, a table or a form, so it is never the default.
+  */
+  .canvas-surface.has-grid {
+    background-image:
+      radial-gradient(circle at 1px 1px, oklch(0.255 0.012 210) 1px, transparent 0),
+      radial-gradient(90% 70% at 50% -10%, oklch(0.225 0.016 210) 0%, transparent 70%),
+      radial-gradient(120% 110% at 50% 50%, transparent 45%, oklch(0.135 0.012 212) 100%);
+    background-size: 24px 24px, 100% 100%, 100% 100%;
+  }
+
+  /* ---- Sample content (fixture data — not real factory state) ------------- */
+  .fx-head {
+    display: flex; align-items: baseline; gap: var(--space-3);
+    padding: 0 0 var(--space-3);
+  }
+  .fx-head h3 { font-size: var(--text-section); margin: 0; color: var(--fg-strong); }
+  .fx-tag {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--fg-faint);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-control);
+    padding: 1px 5px;
+  }
+  .fx-scroll { height: 100%; overflow: auto; padding: var(--space-4); }
+
+  /* Floor — topology */
+  .fx-floor { position: relative; height: 100%; padding: var(--space-4); display: flex; flex-direction: column; }
+  .fx-graph { flex: 1; min-height: 0; width: 100%; }
+  .fx-graph .edge { stroke: var(--border-strong); stroke-width: 1.25; fill: none; }
+  .fx-graph .edge.pending { stroke-dasharray: 4 4; opacity: 0.6; }
+  .fx-graph .box { fill: var(--surface-2); stroke: var(--border-subtle); stroke-width: 1; rx: 4; }
+  .fx-graph .label { fill: var(--fg); font-size: 11px; font-family: var(--font-sans); }
+  .fx-graph .sub {
+    fill: var(--fg-faint); font-size: 9px;
+    font-family: var(--font-mono); letter-spacing: 0.04em;
+  }
+  .fx-graph .pip { r: 3.2; }
+  .fx-legend {
+    display: flex; gap: var(--space-4); padding-top: var(--space-3);
+    font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint);
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .fx-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .fx-legend i { width: 7px; height: 7px; border-radius: 50%; }
+
+  /* Board — columns */
+  .fx-board { display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: var(--space-3); align-items: start; }
+  .fx-col-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.07em;
+    text-transform: uppercase; color: var(--fg-faint); padding-bottom: var(--space-2);
+  }
+  .fx-card {
+    background: var(--surface-2); border-radius: var(--radius-panel);
+    padding: 9px 10px; margin-bottom: 6px;
+    border-left: 2px solid var(--state-idle);
+    transition: background var(--dur-micro) var(--ease-standard);
+  }
+  .fx-card:hover { background: var(--surface-3); }
+  .fx-card .id { font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); }
+  .fx-card .ttl { font-size: 12px; color: var(--fg); margin-top: 2px; line-height: 1.35; }
+  .fx-card .who { font-family: var(--font-mono); font-size: 10px; color: var(--fg-muted); margin-top: 5px; }
+
+  /* Runway — table */
+  .fx-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .fx-table th {
+    text-align: left; font-family: var(--font-mono); font-size: 10px;
+    letter-spacing: 0.07em; text-transform: uppercase; color: var(--fg-faint);
+    font-weight: 400; padding: 0 var(--space-3) 7px 0;
+  }
+  .fx-table td { padding: 8px var(--space-3) 8px 0; border-top: 1px solid var(--border-subtle); color: var(--fg-muted); }
+  .fx-table td.k { color: var(--fg); }
+  .fx-table tr:hover td { background: color-mix(in oklch, var(--surface-2) 55%, transparent); }
+  .fx-mono { font-family: var(--font-mono); font-size: 11px; }
+
+  .fx-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+
+  /* Nav — destinations */
+  .fx-nav { list-style: none; margin: 0; padding: 0; }
+  .fx-nav .grp {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--fg-faint);
+    padding: var(--space-4) 0 5px;
+  }
+  .fx-nav button {
+    appearance: none; width: 100%; text-align: left; cursor: pointer;
+    display: flex; align-items: center; gap: var(--space-2);
+    background: transparent; border: none; color: var(--fg-muted);
+    font: inherit; font-size: 12px; padding: 6px 8px;
+    border-radius: var(--radius-control);
+    transition: background var(--dur-micro) var(--ease-standard), color var(--dur-micro) var(--ease-standard);
+  }
+  .fx-nav button:hover { background: var(--surface-2); color: var(--fg); }
+  .fx-nav button[aria-current="true"] {
+    background: color-mix(in oklch, var(--accent) 14%, var(--surface-2));
+    color: var(--fg-strong);
+  }
+  .fx-nav .count {
+    margin-left: auto; font-family: var(--font-mono); font-size: 10px;
+    color: var(--fg-faint);
+  }
+  .fx-nav button[aria-current="true"] .count { color: var(--accent); }
+
+  /* Timeline — scrubber */
+  .fx-tl { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); height: 100%; }
+  .fx-track { position: relative; height: 34px; border-radius: var(--radius-control); background: var(--surface-2); }
+  .fx-track .tick { position: absolute; top: 7px; width: 2px; height: 20px; border-radius: 1px; }
+  .fx-track .play {
+    position: absolute; top: -3px; bottom: -3px; width: 2px;
+    background: var(--accent);
+  }
+  .fx-track .play::after {
+    content: ''; position: absolute; top: -4px; left: -3px;
+    width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+  }
+  .fx-scale {
+    display: flex; justify-content: space-between;
+    font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint);
+  }
+
+  .panel-title { color: var(--fg-strong); }
+  .panel-eyebrow {
+    font-size: var(--text-label);
+    letter-spacing: 0.04em;
+    color: var(--fg-faint);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .panel-title { font-size: var(--text-section); margin: 0 0 var(--space-2); }
+  .panel-copy { color: var(--fg-muted); line-height: 1.5; max-width: 46ch; }
+  .evidence-row {
+    font-size: var(--text-caption);
+    color: var(--fg-muted);
+    border-top: 1px solid var(--border-subtle);
+    padding: 6px 0;
+  }
+  .inspector-actions { display: flex; gap: var(--space-2); margin-top: var(--space-4); }
+
+  /*
+    Floating is now Dockview's own floating group, so a floated pane can be dragged
+    and dropped back into left / right / centre. It is the only surface that casts
+    a shadow, which is what reads as "above".
+  */
+  .dv-resize-container {
+    background: var(--surface-2);
+    border-radius: var(--radius-overlay);
+    overflow: hidden;
+  }
+  .dv-resize-container > .dv-grid-view .dv-groupview { background: var(--surface-2); clip-path: none; }
+  .dv-floating-titlebar { cursor: grab; }
+  .dv-floating-titlebar:active { cursor: grabbing; }
+
+  .pane-root { display: flex; flex-direction: column; height: 100%; background: transparent; }
+  .pane-header {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: calc(var(--pane-gutter) + 7px) calc(var(--pane-gutter) + var(--space-3)) 3px;
+    background: transparent;
+    border-bottom: none;
+    flex-shrink: 0;
+  }
+  .pane-header .pane-title {
+    flex: 1;
+    font-size: var(--text-label);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--fg-faint);
+  }
+  .icon-btn {
+    appearance: none; border: none; background: transparent; color: var(--fg-muted);
+    width: 24px; height: 24px; border-radius: var(--radius-control);
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: background var(--dur-micro) var(--ease-standard), color var(--dur-micro) var(--ease-standard);
+  }
+  .icon-btn:hover { background: var(--surface-3); color: var(--fg); }
+  .icon-btn.is-pinned { color: var(--accent); }
+  .pane-body-scroll { flex: 1; overflow: auto; }
+
+  /* Tabs are centre-only for now: any group holding a side pane hides its tab strip. */
+  .dv-groupview:has([data-pane="side"]) .dv-tabs-and-actions-container { display: none; }
+  /* Standard tab widths on the remaining (centre) tabs. */
+  .dv-tab { min-width: 104px; max-width: 160px; padding: 0 8px; letter-spacing: 0.01em; }
+  /*
+    The close control is a secondary affordance: nearly invisible until wanted.
+    Selectors match the library's own specificity (.dv-tab.dv-*-tab .dv-default-tab …)
+    or these rules lose.
+  */
+  .dv-tab.dv-active-tab .dv-default-tab .dv-default-tab-action,
+  .dv-tab.dv-inactive-tab .dv-default-tab .dv-default-tab-action {
+    color: var(--fg-faint);
+    opacity: 0.3;
+    transition: opacity var(--dur-micro) var(--ease-standard), color var(--dur-micro) var(--ease-standard);
+  }
+  .dv-tab.dv-active-tab .dv-default-tab:hover .dv-default-tab-action,
+  .dv-tab.dv-inactive-tab .dv-default-tab:hover .dv-default-tab-action { opacity: 0.65; }
+  .dv-tab.dv-active-tab .dv-default-tab .dv-default-tab-action:hover,
+  .dv-tab.dv-inactive-tab .dv-default-tab .dv-default-tab-action:hover,
+  .dv-tab .dv-default-tab .dv-default-tab-action:focus-visible {
+    opacity: 1;
+    color: var(--fg);
+    background: transparent;
+  }
+  /* Tab strip breathes inside the pane instead of forming a banded header. */
+  .dv-tabs-and-actions-container {
+    padding: calc(var(--pane-gutter) + 5px) calc(var(--pane-gutter) + 5px) 0;
+    border-bottom: none;
+  }
+
+  /*
+    Resize affordance: a short pill in the middle of the sash, revealed on hover.
+    The whole divider never lights up.
+  */
+  .dv-sash-container > .dv-sash::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background: var(--fg-faint);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-micro) var(--ease-standard);
+  }
+  .dv-horizontal > .dv-sash-container > .dv-sash::after { width: 3px; height: 26px; }
+  .dv-vertical > .dv-sash-container > .dv-sash::after { width: 26px; height: 3px; }
+  .dv-sash-container > .dv-sash:hover::after { opacity: 0.45; }
+  .dv-sash-container > .dv-sash:active::after { opacity: 0.8; }
+
+
+  .edge-affordance {
+    position: absolute;
+    background: color-mix(in oklch, var(--accent) 30%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-panel) var(--ease-standard), background var(--dur-micro) var(--ease-standard);
+    z-index: 700;
+    border: none;
+    cursor: pointer;
+  }
+  .edge-affordance:hover { background: color-mix(in oklch, var(--accent) 55%, transparent); }
+  body.is-focus-mode .edge-affordance { opacity: 1; pointer-events: auto; }
+  #edge-left { left: 0; top: 0; bottom: 0; width: 6px; }
+  #edge-right { right: 0; top: 0; bottom: 0; width: 6px; }
+  #edge-bottom { left: 0; right: 0; bottom: 0; height: 6px; }
+
+  footer#p0-note {
+    font-size: var(--text-caption);
+    color: var(--fg-faint);
+    padding: 4px var(--space-4);
+    border-top: 1px solid var(--border-subtle);
+    background: var(--surface-1);
+    flex-shrink: 0;
+  }
+</style>
+<!-- od:fixtures:start -->
+<script type="application/json" id="od-fixtures">
+{
+  "attention": {
+    "title": "Attention",
+    "tag": "silveroak-apps · project 2",
+    "summary": "3 at P0 · 136 open · 0 pull requests",
+    "items": [
+      {
+        "id": "service-auth#5",
+        "state": "blocked",
+        "needsYou": true,
+        "headline": "Go-live: harden Keycloak availability — single 2GB Lightsail VM, no…",
+        "detail": "service-auth#5 · Go-Live",
+        "age": "Backlog",
+        "verb": "Open issue"
+      },
+      {
+        "id": "infra-aws-bootstrap#10",
+        "state": "blocked",
+        "needsYou": true,
+        "headline": "Ops alerting: no CloudWatch/Lightsail alarm reaches a human — build…",
+        "detail": "infra-aws-bootstrap#10",
+        "age": "Backlog",
+        "verb": "Open issue"
+      },
+      {
+        "id": "all-about-money-ui#319",
+        "state": "fail",
+        "needsYou": true,
+        "headline": "Prod Wiredash credentials are invalid (401) - feedback is silently…",
+        "detail": "all-about-money-ui#319",
+        "age": "Ready",
+        "verb": "Open issue"
+      }
+    ]
+  },
+  "board": {
+    "title": "Board",
+    "tag": "silveroak-apps · project 2",
+    "columns": [
+      {
+        "name": "Backlog",
+        "items": [
+          {
+            "id": "service-auth#5",
+            "title": "Go-live: harden Keycloak availability — single 2GB Lightsail VM, no monit…",
+            "who": "P0 · Go-Live · bug",
+            "state": "idle"
+          },
+          {
+            "id": "infra-aws-bootstrap#10",
+            "title": "Ops alerting: no CloudWatch/Lightsail alarm reaches a human — build Pusho…",
+            "who": "P0",
+            "state": "idle"
+          },
+          {
+            "id": "service-wallet-transaction-importer#90",
+            "title": "fairness: prevent head-of-line blocking when one big wallet hogs the impo…",
+            "who": "P1",
+            "state": "idle"
+          },
+          {
+            "id": "service-portfolio-api#87",
+            "title": "data-driven token-alias mechanism (replace static TokenAliasResolver dict)",
+            "who": "P1",
+            "state": "idle"
+          },
+          {
+            "id": "service-wallet-transaction-importer#98",
+            "title": "feat: cap wallet imports to MaxTransactionsPerConnection at Covalent boun…",
+            "who": "P1",
+            "state": "idle"
+          }
+        ]
+      },
+      {
+        "name": "Ready",
+        "items": [
+          {
+            "id": "all-about-money-ui#319",
+            "title": "Prod Wiredash credentials are invalid (401) - feedback is silently broken…",
+            "who": "P0",
+            "state": "active"
+          }
+        ]
+      },
+      {
+        "name": "In progress",
+        "items": [
+          {
+            "id": "all-about-money-ui#357",
+            "title": "Portfolio investment distribution",
+            "who": "P1 · ado-import",
+            "state": "active"
+          },
+          {
+            "id": "service-exchange-api-transaction-importer#121",
+            "title": "Automatically import transactions from (centralised) exchanges",
+            "who": "P1 · ado-import",
+            "state": "active"
+          },
+          {
+            "id": "service-wallet-transaction-importer#183",
+            "title": "Automatically import transactions from crypto wallets",
+            "who": "P1 · ado-import",
+            "state": "active"
+          },
+          {
+            "id": "service-auth#23",
+            "title": "Login, user auth, profile, subscriptions and licensing",
+            "who": "P1 · ado-import",
+            "state": "active"
+          },
+          {
+            "id": "service-market-sentiment#8",
+            "title": "Market Analysis - News, Social and Sentiment analysis Pages",
+            "who": "P1 · ado-import",
+            "state": "active"
+          }
+        ]
+      },
+      {
+        "name": "Done",
+        "items": [
+          {
+            "id": "service-wallet-transaction-importer#92",
+            "title": "bypass: wallet importer deletes every SQS message even on failure, losing…",
+            "who": "P0 · Go-Live",
+            "state": "ok"
+          },
+          {
+            "id": "service-portfolio-api#89",
+            "title": "MATIC holders see $0 in portfolio post-POL rebrand",
+            "who": "P0 · Go-Live · bug",
+            "state": "ok"
+          },
+          {
+            "id": "service-portfolio-api#91",
+            "title": "Location lookups failing with GSI mismatch, creating duplicate wallet rows",
+            "who": "P0 · Go-Live",
+            "state": "ok"
+          },
+          {
+            "id": "service-wallet-transaction-importer#96",
+            "title": "Wallet importer drops outbound native AVAX value from swap-call internal…",
+            "who": "P0 · Go-Live",
+            "state": "ok"
+          },
+          {
+            "id": "all-about-money-ui#185",
+            "title": "Auth re-login loading shimmer has no timeout/escape (stuck 'Sign In' gray…",
+            "who": "P0 · Go-Live",
+            "state": "ok"
+          }
+        ]
+      }
+    ]
+  },
+  "environments": {
+    "current": "prod",
+    "items": [
+      {
+        "id": "prod",
+        "label": "prod",
+        "health": "healthy",
+        "state": "ok"
+      },
+      {
+        "id": "staging",
+        "label": "staging",
+        "health": "degraded",
+        "state": "blocked"
+      },
+      {
+        "id": "dev",
+        "label": "dev",
+        "health": "idle",
+        "state": "idle"
+      }
+    ]
+  },
+  "floor": {
+    "title": "Factory floor",
+    "tag": "silveroak-apps · project 2 · gates are sample",
+    "viewBox": "0 0 860 300",
+    "nodes": [
+      {
+        "id": "w0",
+        "x": 20,
+        "y": 24,
+        "w": 210,
+        "h": 46,
+        "title": "Batch transaction import lacks id…",
+        "sub": "service-portfolio-api#195 · unset",
+        "state": "active"
+      },
+      {
+        "id": "w1",
+        "x": 20,
+        "y": 92,
+        "w": 210,
+        "h": 46,
+        "title": "Prod Wiredash credentials are inv…",
+        "sub": "all-about-money-ui#319 · P0",
+        "state": "active"
+      },
+      {
+        "id": "w2",
+        "x": 20,
+        "y": 160,
+        "w": 210,
+        "h": 46,
+        "title": "Portfolio investment distribution",
+        "sub": "all-about-money-ui#357 · P1",
+        "state": "active"
+      },
+      {
+        "id": "w3",
+        "x": 20,
+        "y": 228,
+        "w": 210,
+        "h": 46,
+        "title": "Automatically import transactions…",
+        "sub": "service-exchange-api-transaction-import…",
+        "state": "active"
+      },
+      {
+        "id": "ci-gate",
+        "x": 300,
+        "y": 78,
+        "w": 130,
+        "h": 46,
+        "title": "CI gate",
+        "sub": "sample",
+        "state": "fail"
+      },
+      {
+        "id": "review-gate",
+        "x": 300,
+        "y": 168,
+        "w": 130,
+        "h": 46,
+        "title": "Review gate",
+        "sub": "sample",
+        "state": "blocked"
+      },
+      {
+        "id": "canary",
+        "x": 500,
+        "y": 122,
+        "w": 130,
+        "h": 46,
+        "title": "canary",
+        "sub": "sample",
+        "state": "active"
+      },
+      {
+        "id": "prod",
+        "x": 700,
+        "y": 122,
+        "w": 130,
+        "h": 46,
+        "title": "prod",
+        "sub": "sample",
+        "state": "idle"
+      }
+    ],
+    "edges": [
+      {
+        "from": "w0",
+        "to": "ci-gate"
+      },
+      {
+        "from": "w1",
+        "to": "review-gate"
+      },
+      {
+        "from": "w2",
+        "to": "ci-gate"
+      },
+      {
+        "from": "w3",
+        "to": "review-gate"
+      },
+      {
+        "from": "ci-gate",
+        "to": "canary"
+      },
+      {
+        "from": "review-gate",
+        "to": "canary"
+      },
+      {
+        "from": "canary",
+        "to": "prod"
+      }
+    ],
+    "legend": [
+      {
+        "state": "active",
+        "label": "in progress"
+      },
+      {
+        "state": "ok",
+        "label": "done"
+      },
+      {
+        "state": "blocked",
+        "label": "blocked"
+      },
+      {
+        "state": "fail",
+        "label": "failed"
+      },
+      {
+        "state": "idle",
+        "label": "backlog"
+      }
+    ]
+  },
+  "inspector": {
+    "title": "service-auth#5 · Go-live: harden Keycloak availability — single 2GB Lightsai…",
+    "summary": "Go-live blocker (operational) — verified against AWS + repo on 2026-06-18",
+    "fields": [
+      {
+        "label": "status",
+        "value": "Backlog"
+      },
+      {
+        "label": "priority",
+        "value": "P0"
+      },
+      {
+        "label": "repo",
+        "value": "service-auth"
+      },
+      {
+        "label": "milestone",
+        "value": "Go-Live"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "service-auth#5",
+        "text": "opened on github",
+        "state": "idle"
+      },
+      {
+        "id": "labels",
+        "text": "bug",
+        "state": "idle"
+      }
+    ],
+    "actions": [
+      {
+        "id": "open",
+        "label": "Open on GitHub"
+      }
+    ]
+  },
+  "logs": {
+    "title": "Run output",
+    "tag": "sample",
+    "run": "run-4471 · SF-147 · attempt 3",
+    "lines": [
+      {
+        "t": "12:04:02",
+        "level": "info",
+        "text": "checkout out web@a91f3c2, 1 342 files"
+      },
+      {
+        "t": "12:04:11",
+        "level": "info",
+        "text": "pnpm install --frozen-lockfile"
+      },
+      {
+        "t": "12:04:48",
+        "level": "info",
+        "text": "resolved 812 packages in 37s"
+      },
+      {
+        "t": "12:05:02",
+        "level": "info",
+        "text": "tsc --noEmit"
+      },
+      {
+        "t": "12:05:39",
+        "level": "ok",
+        "text": "typecheck passed"
+      },
+      {
+        "t": "12:05:40",
+        "level": "info",
+        "text": "vitest run --reporter dot"
+      },
+      {
+        "t": "12:06:14",
+        "level": "warn",
+        "text": "payments/adapter.test.ts took 8.2s (slow)"
+      },
+      {
+        "t": "12:06:51",
+        "level": "fail",
+        "text": "FAIL payments/adapter.test.ts > refunds a partial capture"
+      },
+      {
+        "t": "12:06:51",
+        "level": "fail",
+        "text": "  expected 1 200, received 0 — capture id was not forwarded"
+      },
+      {
+        "t": "12:06:52",
+        "level": "fail",
+        "text": "1 failed, 486 passed (487)"
+      },
+      {
+        "t": "12:06:53",
+        "level": "info",
+        "text": "gate ci-unit → blocked, notifying operator"
+      },
+      {
+        "t": "12:07:01",
+        "level": "info",
+        "text": "atlas: re-reading payments/adapter.ts"
+      }
+    ]
+  },
+  "nav": {
+    "defaultActive": "floor",
+    "groups": [
+      {
+        "name": "Views",
+        "kind": "view",
+        "items": [
+          {
+            "id": "floor",
+            "label": "Floor",
+            "count": "136",
+            "opensView": true
+          },
+          {
+            "id": "board",
+            "label": "Board",
+            "count": "279",
+            "opensView": true
+          },
+          {
+            "id": "runway",
+            "label": "Runway",
+            "count": "6",
+            "opensView": true
+          }
+        ]
+      },
+      {
+        "name": "Panels",
+        "kind": "panel",
+        "items": [
+          {
+            "id": "attention",
+            "label": "Attention",
+            "count": "3",
+            "slot": "left",
+            "opensView": false
+          },
+          {
+            "id": "recorder",
+            "label": "Flight recorder",
+            "count": "",
+            "slot": "bottom",
+            "opensView": false
+          },
+          {
+            "id": "logs",
+            "label": "Run output",
+            "count": "",
+            "slot": "right",
+            "opensView": false
+          }
+        ]
+      }
+    ]
+  },
+  "p0": {
+    "id": "PF-2261",
+    "title": "Irreversible production step armed without authorization — scope paused",
+    "raisedAt": "14:58:41",
+    "what": "DEPLOY-prod armed migration step 7/7 (billing.backfill_v3 — destructive, no rollback path), auto-triggered by SF-138 “Usage billing” clearing its promotion gates.",
+    "why": "Deterministic policy match — POL-04 · irreversible action executing without required human authorization. Raised automatically, not by model judgement. State snapshot #PF-2261 frozen at trigger: states, events and triggering evidence.",
+    "scope": [
+      {
+        "label": "target: prod",
+        "hot": true
+      },
+      {
+        "label": "service: billing-api",
+        "hot": true
+      },
+      {
+        "label": "dataset: 1.2M rows"
+      },
+      {
+        "label": "downstream: invoicing jobs"
+      },
+      {
+        "label": "rollback: unavailable"
+      }
+    ],
+    "paused": [
+      "DEPLOY-prod · production deploy — held at the safe boundary",
+      "SF-138 · Usage billing — promotion withheld"
+    ],
+    "pausedExpanded": [
+      "GATE-CI + platform pipeline (SF-142, SF-147) — containment expanded by operator"
+    ],
+    "running": [
+      "11 unrelated work items executing normally",
+      "Diagnostics, gates and evidence collection on non-prod paths",
+      "Flight recorder tails — readable throughout the pause"
+    ],
+    "evidence": [
+      {
+        "id": "rec",
+        "text": "Flight recorder — promotion chain",
+        "meta": "phase → event → raw",
+        "state": "fail"
+      },
+      {
+        "id": "snap",
+        "text": "State snapshot #PF-2261",
+        "meta": "read-only",
+        "state": "blocked"
+      },
+      {
+        "id": "policy",
+        "text": "Policy POL-04 definition",
+        "meta": "governance",
+        "state": "idle"
+      }
+    ],
+    "playbook": {
+      "id": "PB-07",
+      "result": "PB-07 executed — promotion token revoked, SF-138 returned to GATING, deploy credentials rotated. Scope verified stable; a resume decision is still required."
+    },
+    "abortResult": "SF-138 promotion withdrawn · migration step disarmed. The pause stays in force until resumed with a recorded justification.",
+    "justificationHint": "e.g. Token revoked under PB-07; SF-138 re-gated; prod path verified clean before resume."
+  },
+  "runway": {
+    "title": "Go-live readiness",
+    "tag": "silveroak-apps · project 2",
+    "columns": [
+      "Repository",
+      "Open",
+      "P0",
+      "Readiness",
+      "Go-live scope"
+    ],
+    "rows": [
+      {
+        "release": "all-about-money-ui",
+        "scope": "45 of 96 closed",
+        "state": "fail",
+        "stateLabel": "1 at P0",
+        "gates": "51",
+        "when": "3 tagged"
+      },
+      {
+        "release": "service-portfolio-api",
+        "scope": "54 of 85 closed",
+        "state": "blocked",
+        "stateLabel": "31 open",
+        "gates": "31",
+        "when": "3 tagged"
+      },
+      {
+        "release": "service-wallet-transaction-importer",
+        "scope": "13 of 28 closed",
+        "state": "blocked",
+        "stateLabel": "15 open",
+        "gates": "15",
+        "when": "2 tagged"
+      },
+      {
+        "release": "service-exchange-api-transaction-importer",
+        "scope": "13 of 28 closed",
+        "state": "blocked",
+        "stateLabel": "15 open",
+        "gates": "15",
+        "when": "—"
+      },
+      {
+        "release": "silveroak-business",
+        "scope": "1 of 7 closed",
+        "state": "active",
+        "stateLabel": "6 open",
+        "gates": "6",
+        "when": "—"
+      },
+      {
+        "release": "service-market-price-synchroniser",
+        "scope": "1 of 5 closed",
+        "state": "active",
+        "stateLabel": "4 open",
+        "gates": "4",
+        "when": "—"
+      }
+    ]
+  },
+  "timeline": {
+    "title": "Timeline",
+    "playheadPercent": 88,
+    "scale": [
+      "−2 h",
+      "−90 m",
+      "−60 m",
+      "−30 m",
+      "now"
+    ],
+    "events": [
+      {
+        "at": 8,
+        "state": "ok",
+        "label": "SF-151 merged"
+      },
+      {
+        "at": 17,
+        "state": "ok",
+        "label": "SF-144 review opened"
+      },
+      {
+        "at": 26,
+        "state": "active",
+        "label": "SF-147 started"
+      },
+      {
+        "at": 34,
+        "state": "blocked",
+        "label": "Review gate waiting"
+      },
+      {
+        "at": 41,
+        "state": "ok",
+        "label": "search index shipped"
+      },
+      {
+        "at": 52,
+        "state": "fail",
+        "label": "CI gate unit-tests failed"
+      },
+      {
+        "at": 58,
+        "state": "active",
+        "label": "SF-149 started"
+      },
+      {
+        "at": 66,
+        "state": "ok",
+        "label": "refunds shipped"
+      },
+      {
+        "at": 74,
+        "state": "blocked",
+        "label": "SF-153 needs you"
+      },
+      {
+        "at": 81,
+        "state": "ok",
+        "label": "canary healthy"
+      },
+      {
+        "at": 88,
+        "state": "active",
+        "label": "canary 5% traffic"
+      }
+    ]
+  }
+}
+</script>
+<!-- od:fixtures:end -->
+</head>
+<body>
+<div id="shell" data-od-id="shell">
+  <header id="toolbar" data-od-id="toolbar">
+    <div class="control-group" data-od-id="control-theming">
+      <span class="control-label">1 · Theming</span>
+      <div class="control-row">
+        <button type="button" class="btn" id="theme-toggle">Theme: token-pure (click for built-in Abyss)</button>
+        <button type="button" class="btn" id="grid-toggle">Dot grid: off</button>
+      </div>
+    </div>
+
+    <div class="control-group" data-od-id="control-layout">
+      <span class="control-label">2 · Layout / reopen closed panes</span>
+      <div class="control-row">
+        <button type="button" class="btn" id="reopen-nav">Nav</button>
+        <button type="button" class="btn" id="reopen-timeline">Timeline</button>
+      </div>
+    </div>
+
+    <div class="control-group" data-od-id="control-lockdown">
+      <span class="control-label">3 · Interaction lock-down</span>
+      <div class="control-row">
+        <label class="chk"><input type="checkbox" id="lock-toggle" /> Lock layout</label>
+      </div>
+    </div>
+
+    <div class="control-group" data-od-id="control-overlay-pin">
+      <span class="control-label">4 · Docked by default → float</span>
+      <div class="control-row">
+        <button type="button" class="btn" id="show-overlay-btn">Float / dock the Inspector</button>
+      </div>
+    </div>
+
+    <div class="control-group" data-od-id="control-animation">
+      <span class="control-label">5 · Animated transitions</span>
+      <div class="control-row">
+        <label class="chk"><input type="checkbox" id="animate-toggle" checked /> Layout animation (drag stays 1:1)</label>
+      </div>
+    </div>
+
+    <div class="control-group" data-od-id="control-focus">
+      <span class="control-label">6 · Focus mode</span>
+      <div class="control-row">
+        <button type="button" class="btn" id="focus-btn">Focus mode (F)</button>
+      </div>
+    </div>
+
+    <div class="control-group" data-od-id="control-popout">
+      <span class="control-label">7 · Pop-out</span>
+      <div class="control-row">
+        <span class="mono" style="font-size: var(--text-caption); color: var(--fg-muted);">Button lives on the Inspector panel itself</span>
+      </div>
+    </div>
+
+    <div class="control-group" data-od-id="control-persistence">
+      <span class="control-label">8 · Persistence</span>
+      <div class="control-row">
+        <span id="persist-status">autosaves to localStorage</span>
+        <button type="button" class="btn" id="clear-persist-btn">Clear saved layout</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="dockview-host" data-od-id="dockview-host">
+    <div id="load-status" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--fg-muted);font-family:var(--font-mono);font-size:12px;">loading dockview-core from CDN…</div>
+    <div id="layout-ghosts" aria-hidden="true"></div>
+    <button type="button" class="edge-affordance" id="edge-left" data-od-id="edge-left" aria-label="Exit focus mode"></button>
+    <button type="button" class="edge-affordance" id="edge-right" data-od-id="edge-right" aria-label="Exit focus mode"></button>
+    <button type="button" class="edge-affordance" id="edge-bottom" data-od-id="edge-bottom" aria-label="Exit focus mode"></button>
+  </div>
+
+  <footer id="p0-note" data-od-id="p0-note">
+    dockview-core@8.2.0 via esm.sh + dockview.css from dockview-react@8.2.0 · findings in survey/06-workspace-spike.md
+  </footer>
+</div>
+
+<script type="module">
+function showFatal(err) {
+  const hostEl = document.getElementById('dockview-host');
+  const box = document.createElement('div');
+  box.setAttribute('data-od-id', 'spike-error');
+  box.style.cssText = 'position:absolute;inset:16px;z-index:999;overflow:auto;padding:20px;background:oklch(0.2 0.05 25);border:1px solid oklch(0.72 0.15 25);border-radius:4px;color:oklch(0.93 0.008 210);font:13px/1.5 ui-monospace,monospace;white-space:pre-wrap;';
+  box.textContent = 'SPIKE FAILED TO INITIALISE\n\n' + (err && (err.stack || err.message || String(err)));
+  hostEl.appendChild(box);
+  const s = document.getElementById('load-status');
+  if (s) s.remove();
+}
+window.addEventListener('error', (e) => showFatal(e.error || e.message));
+window.addEventListener('unhandledrejection', (e) => showFatal(e.reason));
+
+let createDockview, themeAbyss;
+try {
+  let mod;
+  try {
+    mod = await import('https://esm.sh/dockview-core@8.2.0');
+  } catch (e1) {
+    mod = await import('https://cdn.jsdelivr.net/npm/dockview-core@8.2.0/+esm');
+  }
+  ({ createDockview, themeAbyss } = mod);
+  if (typeof createDockview !== 'function') {
+    throw new Error('createDockview is not exported by dockview-core@8.2.0. Actual exports: ' + Object.keys(mod).join(', '));
+  }
+} catch (err) {
+  showFatal(err);
+  throw err;
+}
+
+const LAYOUT_KEY = 'od-workspace-spike-layout-v1';
+const storage = (() => {
+  try {
+    const t = window.localStorage;
+    t.getItem(LAYOUT_KEY);
+    return t;
+  } catch (e) {
+    return null;
+  }
+})();
+const host = document.getElementById('dockview-host');
+
+const odTheme = {
+  name: 'od-tokens',
+  className: 'od-theme',
+  colorScheme: 'dark',
+  gap: 0,
+  dndOverlayMounting: 'absolute',
+  dndPanelOverlay: 'group',
+  dndTabIndicator: 'line',
+  dndOverlayBorder: '2px solid var(--accent)',
+};
+
+const X_SVG = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4L4 12"/></svg>';
+const FLOAT_SVG = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4.5" width="8" height="7.5" rx="1"/><path d="M6 4.5V3.2A1.2 1.2 0 0 1 7.2 2H13a1 1 0 0 1 1 1v5.8A1.2 1.2 0 0 1 12.8 10H11.5"/></svg>';
+const DOCK_SVG = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1"/><path d="M10 3v10"/></svg>';
+
+/*
+  Home = where a pane docks by default, and where "Dock" returns it to.
+  addPanel() takes above/below/left/right/within; api.moveTo() takes top/bottom/
+  left/right/center. Two different vocabularies in the same library — keep both.
+*/
+const PANE_HOME = {
+  nav: { addDirection: 'left', movePosition: 'left', size: { width: 220 }, float: { width: 260, height: 340 } },
+  timeline: { addDirection: 'below', movePosition: 'bottom', size: { height: 140 }, float: { width: 520, height: 220 } },
+  inspector: { addDirection: 'right', movePosition: 'right', size: { width: 380 }, float: { width: 380, height: 460 } },
+};
+
+/* ---------------------------------------------------------------------------
+   Sample content lives in ./data/*.json, shared with workspace-spike-panels.html
+   so both shells show identical data and only the UI differs. State COLOURS stay
+   here: they are design tokens, not data.
+--------------------------------------------------------------------------- */
+const STATE_COLOR = {
+  ok: 'var(--state-ok)',
+  active: 'var(--state-active)',
+  blocked: 'var(--state-blocked)',
+  fail: 'var(--state-fail)',
+  idle: 'var(--state-idle)',
+};
+
+/*
+  Read the inlined block, not fetch. The preview can load this page from a data:
+  URL, where a relative fetch cannot resolve — that is what broke the spikes.
+  data/*.json stays the source; `node inline-data.mjs` copies it in here.
+*/
+let DATA;
+try {
+  const el = document.getElementById('od-fixtures');
+  if (!el || !el.textContent.trim()) throw new Error('The #od-fixtures block is empty.');
+  DATA = JSON.parse(el.textContent);
+} catch (err) {
+  showFatal(new Error('Could not read the sample data.\n\n' + (err && err.message || err) +
+    '\n\nRun: node inline-data.mjs'));
+  throw err;
+}
+
+function fxHead(title, tag) {
+  return '<div class="fx-head"><h3>' + title + '</h3><span class="fx-tag">' + tag + '</span></div>';
+}
+
+function makeFloorPanel() {
+  const el = document.createElement('div');
+  el.className = 'fx-floor canvas-surface';
+  if (document.body.classList.contains('canvas-grid-on')) el.classList.add('has-grid');
+
+  const d = DATA.floor;
+  const byId = Object.fromEntries(d.nodes.map((n) => [n.id, n]));
+
+  const edges = d.edges.map((e) => {
+    const n1 = byId[e.from];
+    const n2 = byId[e.to];
+    const x1 = n1.x + n1.w;
+    const y1 = n1.y + n1.h / 2;
+    const x2 = n2.x;
+    const y2 = n2.y + n2.h / 2;
+    const mid = (x1 + x2) / 2;
+    const pending = n2.state === 'idle' || n1.state === 'blocked';
+    return '<path class="edge' + (pending ? ' pending' : '') + '" d="M' + x1 + ' ' + y1 +
+      ' C' + mid + ' ' + y1 + ', ' + mid + ' ' + y2 + ', ' + x2 + ' ' + y2 + '"/>';
+  }).join('');
+
+  const nodes = d.nodes.map((n) =>
+    '<g>' +
+    '<rect class="box" x="' + n.x + '" y="' + n.y + '" width="' + n.w + '" height="' + n.h + '"/>' +
+    '<circle class="pip" cx="' + (n.x + 13) + '" cy="' + (n.y + n.h / 2) + '" fill="' + STATE_COLOR[n.state] + '"/>' +
+    '<text class="label" x="' + (n.x + 26) + '" y="' + (n.y + 18) + '">' + n.title + '</text>' +
+    '<text class="sub" x="' + (n.x + 26) + '" y="' + (n.y + 31) + '">' + n.sub + '</text>' +
+    '</g>'
+  ).join('');
+
+  const legend = d.legend.map((l) =>
+    '<span><i style="background:' + STATE_COLOR[l.state] + '"></i>' + l.label + '</span>'
+  ).join('');
+
+  el.innerHTML =
+    fxHead(d.title, d.tag) +
+    '<svg class="fx-graph" viewBox="' + d.viewBox + '" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Sample work topology">' +
+    edges + nodes + '</svg>' +
+    '<div class="fx-legend">' + legend + '</div>';
+  return { element: el, init() {} };
+}
+
+function makeBoardPanel() {
+  const d = DATA.board;
+  const el = document.createElement('div');
+  el.className = 'fx-scroll';
+  const cols = d.columns.map((c) =>
+    '<div><div class="fx-col-head"><span>' + c.name + '</span><span>' + c.items.length + '</span></div>' +
+    c.items.map((i) =>
+      '<div class="fx-card" style="border-left-color:' + STATE_COLOR[i.state] + '">' +
+      '<div class="id">' + i.id + '</div>' +
+      '<div class="ttl">' + i.title + '</div>' +
+      '<div class="who">' + i.who + '</div></div>'
+    ).join('') + '</div>'
+  ).join('');
+  el.innerHTML = fxHead(d.title, d.tag) + '<div class="fx-board">' + cols + '</div>';
+  return { element: el, init() {} };
+}
+
+function makeRunwayPanel() {
+  const d = DATA.runway;
+  const el = document.createElement('div');
+  el.className = 'fx-scroll';
+  const head = d.columns.map((c) => '<th>' + c + '</th>').join('');
+  const rows = d.rows.map((r) =>
+    '<tr><td class="k fx-mono">' + r.release + '</td>' +
+    '<td>' + r.scope + '</td>' +
+    '<td class="k"><span class="fx-dot" style="background:' + STATE_COLOR[r.state] + '"></span>' + r.stateLabel + '</td>' +
+    '<td class="fx-mono">' + r.gates + '</td>' +
+    '<td class="fx-mono">' + r.when + '</td></tr>'
+  ).join('');
+  el.innerHTML = fxHead(d.title, d.tag) +
+    '<table class="fx-table"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table>';
+  return { element: el, init() {} };
+}
+
+function makeNavContent() {
+  const d = DATA.nav;
+  const items = d.groups.map((g) =>
+    '<li class="grp">' + g.name + '</li>' +
+    g.items.map((n) =>
+      '<li><button type="button" data-nav="' + n.id + '"' +
+      (n.opensView ? '' : ' data-inert="1"') +
+      (n.id === d.defaultActive ? ' aria-current="true"' : '') + '>' +
+      '<span>' + n.label + '</span><span class="count">' + n.count + '</span></button></li>'
+    ).join('')
+  ).join('');
+  return '<ul class="fx-nav">' + items + '</ul>';
+}
+
+function makeTimelineContent() {
+  const d = DATA.timeline;
+  const ticks = d.events.map((e) =>
+    '<span class="tick" title="' + e.label + '" style="left:' + e.at + '%;background:' + STATE_COLOR[e.state] + '"></span>'
+  ).join('');
+  const scale = d.scale.map((s) => '<span>' + s + '</span>').join('');
+  return '<div class="fx-tl">' +
+    '<div class="fx-track">' + ticks + '<span class="play" style="left:' + d.playheadPercent + '%"></span></div>' +
+    '<div class="fx-scale">' + scale + '</div>' +
+    '</div>';
+}
+
+function makeSidePane(id, title, bodyHtml) {
+  const root = document.createElement('div');
+  root.className = 'pane-root';
+  root.setAttribute('data-pane', 'side');
+  root.setAttribute('data-pane-id', id);
+  root.innerHTML =
+    '<div class="pane-header"><span class="pane-title">' + title + '</span>' +
+    '<button type="button" class="icon-btn" data-float-toggle aria-label="Float ' + title + ' pane" title="Float — then drag it anywhere">' + FLOAT_SVG + '</button>' +
+    '<button type="button" class="icon-btn" data-close aria-label="Close ' + title + ' pane" title="Close pane">' + X_SVG + '</button></div>' +
+    '<div class="pane-body-scroll">' + bodyHtml + '</div>';
+  root.querySelector('[data-close]').addEventListener('click', () => {
+    const p = dockviewApi.getPanel(id);
+    if (p) p.api.close();
+  });
+  root.querySelector('[data-float-toggle]').addEventListener('click', () => toggleFloat(id));
+  /* Nav drives the centre tabs, so tab motion is reachable from the rail too. */
+  root.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.inert) return;
+    dockviewApi.getPanel(b.dataset.nav)?.api.setActive();
+    root.querySelectorAll('[data-nav]').forEach((o) => o.setAttribute('aria-current', String(o === b)));
+  }));
+  return { element: root, init() { requestAnimationFrame(updatePaneButtons); } };
+}
+
+let inspectorHostEl = null;
+let pipActive = false;
+
+const inspectorContentEl = (() => {
+  const el = document.createElement('div');
+  el.className = 'pane-root';
+  el.setAttribute('data-pane', 'side');
+  el.setAttribute('data-od-id', 'inspector-content');
+  el.innerHTML =
+    '<div class="pane-header"><span class="pane-title">Inspector</span>' +
+    '<button type="button" class="icon-btn" data-float-toggle aria-label="Float inspector" aria-pressed="false" title="Float — then drag it anywhere">' + FLOAT_SVG + '</button>' +
+    '<button type="button" class="icon-btn" data-action="close" aria-label="Close inspector" title="Close">' + X_SVG + '</button></div>' +
+    '<div class="pane-body-scroll"><div class="panel-body">' +
+    '<h3 class="panel-title">' + DATA.inspector.title + '</h3>' +
+    '<p class="panel-copy">' + DATA.inspector.summary + '</p>' +
+    DATA.inspector.evidence.map((e) =>
+      '<div class="evidence-row"><span class="mono">' + e.id + '</span> ' + e.text + '</div>').join('') +
+    '<div class="inspector-actions">' +
+      '<button type="button" class="btn" data-action="popout">Pop out</button>' +
+    '</div></div></div>';
+  el.querySelector('[data-float-toggle]').addEventListener('click', () => {
+    if (document.body.classList.contains('is-focus-mode')) return;
+    toggleFloat('inspector');
+  });
+  el.querySelector('[data-action="close"]').addEventListener('click', () => {
+    dockviewApi.getPanel('inspector')?.api.close();
+  });
+  el.querySelector('[data-action="popout"]').addEventListener('click', () => {
+    if (!pipActive) openPopout();
+  });
+  return el;
+})();
+
+function isFloating(id) {
+  const p = dockviewApi.getPanel(id);
+  return !!(p && p.api.location && p.api.location.type === 'floating');
+}
+
+function floatPane(id) {
+  const p = dockviewApi.getPanel(id);
+  const home = PANE_HOME[id];
+  if (!p || !home) return;
+  const r = host.getBoundingClientRect();
+  dockviewApi.addFloatingGroup(p, {
+    x: Math.max(24, Math.round((r.width - home.float.width) / 2)),
+    y: Math.max(24, Math.round((r.height - home.float.height) / 3)),
+    width: home.float.width,
+    height: home.float.height,
+  });
+  requestAnimationFrame(updatePaneButtons);
+}
+
+function dockPane(id) {
+  const p = dockviewApi.getPanel(id);
+  const anchor = dockviewApi.getPanel('floor') || dockviewApi.panels.find((x) => !PANE_HOME[x.id]);
+  const home = PANE_HOME[id];
+  if (!p || !anchor || !home) return;
+  p.api.moveTo({ group: anchor.api.group, position: home.movePosition });
+  requestAnimationFrame(() => {
+    dockviewApi.getPanel(id)?.api.setSize(home.size);
+    updatePaneButtons();
+  });
+}
+
+function toggleFloat(id) {
+  isFloating(id) ? dockPane(id) : floatPane(id);
+}
+
+/* Every pane header shows the action it will perform, not the state it is in. */
+function updatePaneButtons() {
+  Object.keys(PANE_HOME).forEach((id) => {
+    const p = dockviewApi.getPanel(id);
+    if (!p) return;
+    const root = id === 'inspector'
+      ? inspectorContentEl
+      : document.querySelector('[data-pane-id="' + id + '"]');
+    const btn = root && root.querySelector('[data-float-toggle]');
+    if (!btn) return;
+    const floating = isFloating(id);
+    btn.innerHTML = floating ? DOCK_SVG : FLOAT_SVG;
+    btn.classList.toggle('is-pinned', floating);
+    btn.title = floating ? 'Dock back into the layout' : 'Float — then drag it anywhere';
+    btn.setAttribute('aria-label', (floating ? 'Dock ' : 'Float ') + id + ' pane');
+    btn.setAttribute('aria-pressed', String(floating));
+  });
+  const popBtn = inspectorContentEl.querySelector('[data-action="popout"]');
+  if (popBtn) popBtn.textContent = pipActive ? 'Popped out (see PiP window)' : 'Pop out';
+  if (popBtn) popBtn.disabled = pipActive || !('documentPictureInPicture' in window);
+  if (popBtn && !('documentPictureInPicture' in window)) {
+    popBtn.title = 'Document PiP unsupported in this engine. Production path: a Tauri WebviewWindow rendering this panel from shared state.';
+  }
+}
+
+function makeInspectorPanel() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'dockview-panel-wrapper';
+  wrapper.style.height = '100%';
+  return {
+    element: wrapper,
+    init() {
+      inspectorHostEl = wrapper;
+      if (!pipActive) wrapper.appendChild(inspectorContentEl);
+      requestAnimationFrame(updatePaneButtons);
+    },
+  };
+}
+
+/* Reopen a closed pane at its home dock position. */
+function reopenPane(id) {
+  const home = PANE_HOME[id];
+  if (!home || dockviewApi.getPanel(id)) return;
+  dockviewApi.addPanel({
+    id: id,
+    component: id,
+    title: id.charAt(0).toUpperCase() + id.slice(1),
+    position: { referencePanel: 'floor', direction: home.addDirection },
+    initialWidth: home.size.width,
+    initialHeight: home.size.height,
+  });
+  requestAnimationFrame(() => {
+    dockviewApi.getPanel(id)?.api.setSize(home.size);
+    updatePaneButtons();
+  });
+}
+
+async function openPopout() {
+  if (!('documentPictureInPicture' in window)) return;
+  const pipWin = await window.documentPictureInPicture.requestWindow({ width: 420, height: 520 });
+  [...document.styleSheets].forEach((sheet) => {
+    try {
+      if (sheet.href) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = sheet.href;
+        pipWin.document.head.appendChild(link);
+      } else {
+        const style = document.createElement('style');
+        style.textContent = [...sheet.cssRules].map((r) => r.cssText).join('\n');
+        pipWin.document.head.appendChild(style);
+      }
+    } catch (e) {
+      /* cross-origin sheet, skip */
+    }
+  });
+  pipWin.document.documentElement.classList.add('od-theme');
+  pipWin.document.body.style.margin = '0';
+  pipWin.document.body.style.background = 'var(--bg)';
+  const returnHost = inspectorHostEl;
+  pipWin.document.body.appendChild(inspectorContentEl);
+  pipActive = true;
+  updatePaneButtons();
+  pipWin.addEventListener('pagehide', () => {
+    pipActive = false;
+    returnHost.appendChild(inspectorContentEl);
+    updatePaneButtons();
+  }, { once: true });
+}
+
+let locked = false;
+function applyLockState() {
+  dockviewApi.updateOptions({ disableDnd: locked, disableFloatingGroups: locked, locked: locked });
+  dockviewApi.groups.forEach((g) => {
+    g.locked = locked ? 'no-drop-target' : false;
+  });
+}
+
+function persist() {
+  if (!storage) return;
+  try {
+    storage.setItem(LAYOUT_KEY, JSON.stringify(dockviewApi.toJSON()));
+  } catch (e) {
+    /* quota exceeded */
+  }
+}
+
+let focusSnapshot = null;
+function toggleFocusMode() {
+  const active = document.body.classList.contains('is-focus-mode');
+  if (!active) {
+    focusSnapshot = dockviewApi.toJSON();
+    ['nav', 'timeline', 'inspector'].forEach((id) => {
+      const p = dockviewApi.panels.find((pp) => pp.id === id);
+      if (p) p.api.close();
+    });
+    document.body.classList.add('is-focus-mode');
+  } else {
+    if (focusSnapshot) dockviewApi.fromJSON(focusSnapshot);
+    document.body.classList.remove('is-focus-mode');
+    requestAnimationFrame(updatePaneButtons);
+  }
+  applyLockState();
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'f' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    toggleFocusMode();
+  }
+});
+
+const panelEls = new Map();
+
+function buildComponent(options) {
+    switch (options.name) {
+      case 'floor':
+        return makeFloorPanel();
+      case 'board':
+        return makeBoardPanel();
+      case 'runway':
+        return makeRunwayPanel();
+      case 'nav':
+        return makeSidePane('nav', 'Nav', '<div style="padding:var(--space-2) var(--space-3) var(--space-4)">' + makeNavContent() + '</div>');
+      case 'timeline':
+        return makeSidePane('timeline', 'Timeline', makeTimelineContent());
+      case 'inspector':
+        return makeInspectorPanel();
+      default: {
+        const el = document.createElement('div');
+        el.className = 'fx-scroll';
+        el.innerHTML = fxHead(options.name, 'unknown');
+        return { element: el, init() {} };
+      }
+    }
+}
+
+const dockviewComponent = createDockview(host, {
+  theme: odTheme,
+  className: 'od-theme',
+  tabGroupAccent: 'off',
+  createComponent(options) {
+    const built = buildComponent(options);
+    panelEls.set(options.name, built.element);
+    return built;
+  },
+});
+const dockviewApi = (dockviewComponent && typeof dockviewComponent.addPanel === 'function')
+  ? dockviewComponent
+  : dockviewComponent.api;
+if (!dockviewApi || typeof dockviewApi.addPanel !== 'function') {
+  throw new Error('Could not locate DockviewApi on createDockview() return value. Keys: ' + Object.keys(dockviewComponent || {}).join(', '));
+}
+
+function buildDefaultLayout() {
+  dockviewApi.addPanel({ id: 'floor', component: 'floor', title: 'Floor' });
+  dockviewApi.addPanel({ id: 'board', component: 'board', title: 'Board', position: { referencePanel: 'floor', direction: 'within' } });
+  dockviewApi.addPanel({ id: 'runway', component: 'runway', title: 'Runway', position: { referencePanel: 'floor', direction: 'within' } });
+  dockviewApi.addPanel({ id: 'nav', component: 'nav', title: 'Nav', position: { referencePanel: 'floor', direction: 'left' }, initialWidth: 220 });
+  /* No bottom pane by default — Timeline is opened on demand. */
+  /* Side panes boot DOCKED. Floating is a user action, never the default. */
+  dockviewApi.addPanel({ id: 'inspector', component: 'inspector', title: 'Inspector', position: { referencePanel: 'floor', direction: 'right' }, initialWidth: 380 });
+  dockviewApi.getPanel('floor')?.api.setActive();
+  requestAnimationFrame(() => {
+    dockviewApi.getPanel('nav')?.api.setSize({ width: 220 });
+    dockviewApi.getPanel('inspector')?.api.setSize({ width: 380 });
+  });
+}
+
+if (typeof dockviewApi.layout === 'function') {
+  const r = host.getBoundingClientRect();
+  if (r.width > 0 && r.height > 0) dockviewApi.layout(r.width, r.height, true);
+}
+
+const saved = storage ? storage.getItem(LAYOUT_KEY) : null;
+if (!storage) {
+  document.getElementById('persist-status').textContent = 'persistence unavailable in this preview (storage blocked)';
+}
+let restoredOk = false;
+if (saved) {
+  try {
+    dockviewApi.fromJSON(JSON.parse(saved));
+    restoredOk = true;
+  } catch (e) {
+    restoredOk = false;
+  }
+}
+if (!restoredOk) buildDefaultLayout();
+requestAnimationFrame(updatePaneButtons);
+applyLockState();
+{
+  const s = document.getElementById('load-status');
+  if (s) s.remove();
+}
+
+dockviewApi.onDidLayoutChange(() => {
+  runFlip();
+  persist();
+  applyLockState();
+});
+
+document.getElementById('theme-toggle').addEventListener('click', (e) => {
+  const btn = e.currentTarget;
+  const switchingToBuiltIn = btn.dataset.od !== 'builtin';
+  dockviewApi.updateOptions({ theme: switchingToBuiltIn ? themeAbyss : odTheme });
+  btn.dataset.od = switchingToBuiltIn ? 'builtin' : 'token';
+  btn.textContent = switchingToBuiltIn
+    ? 'Theme: built-in Abyss (click for token-pure)'
+    : 'Theme: token-pure (click for built-in Abyss)';
+});
+
+document.getElementById('lock-toggle').addEventListener('change', (e) => {
+  locked = e.currentTarget.checked;
+  applyLockState();
+});
+
+document.getElementById('show-overlay-btn').addEventListener('click', () => {
+  if (!dockviewApi.getPanel('inspector')) reopenPane('inspector');
+  else toggleFloat('inspector');
+});
+
+document.getElementById('reopen-nav').addEventListener('click', () => reopenPane('nav'));
+document.getElementById('reopen-timeline').addEventListener('click', () => reopenPane('timeline'));
+
+document.getElementById('grid-toggle').addEventListener('click', (e) => {
+  const on = !document.body.classList.contains('canvas-grid-on');
+  document.body.classList.toggle('canvas-grid-on', on);
+  document.querySelectorAll('.canvas-surface').forEach((el) => el.classList.toggle('has-grid', on));
+  e.currentTarget.textContent = 'Dot grid: ' + (on ? 'on' : 'off');
+});
+
+/* ---------------------------------------------------------------------------
+   Layout animation — FLIP driven from onDidLayoutChange.
+
+   onDidLayoutChange fires after Dockview mutates the DOM but before the browser
+   paints, so comparing the previous frame's geometry against the current one is
+   a true First-Last-Invert-Play. This survives Dockview rebuilding branch nodes,
+   which a CSS transition cannot.
+--------------------------------------------------------------------------- */
+const ghostLayer = document.getElementById('layout-ghosts');
+/*
+  The OS preference sets the DEFAULT only. It must not silently veto motion at
+  runtime: this machine reports reduce, which made every animation a no-op with
+  no signal anywhere. The explicit toggle is the authority.
+*/
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+let animEnabled = true;
+let dragging = false;
+let keySeq = 0;
+let prevGeom = new Map();
+
+function gridViews() {
+  return [...host.querySelectorAll('.dv-view')].filter((el) => !el.closest('.dv-resize-container'));
+}
+
+function geomOf(el) {
+  return { left: el.offsetLeft, top: el.offsetTop, width: el.offsetWidth, height: el.offsetHeight };
+}
+
+function sameGeom(a, b) {
+  return a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;
+}
+
+function snapshotGeometry() {
+  const map = new Map();
+  gridViews().forEach((el) => {
+    if (!el.dataset.odKey) el.dataset.odKey = 'v' + ++keySeq;
+    map.set(el.dataset.odKey, { el: el, geom: geomOf(el) });
+  });
+  return map;
+}
+
+const MOTION = { duration: 280, easing: 'cubic-bezier(0.2, 0, 0.2, 1)' };
+
+function ghostOut(el, geom) {
+  const clone = el.cloneNode(true);
+  clone.className = 'ghost';
+  clone.removeAttribute('id');
+  clone.style.left = geom.left + 'px';
+  clone.style.top = geom.top + 'px';
+  clone.style.width = geom.width + 'px';
+  clone.style.height = geom.height + 'px';
+  ghostLayer.appendChild(clone);
+  const a = clone.animate(
+    [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(0.985)' }],
+    { duration: 200, easing: 'cubic-bezier(0.4, 0, 1, 1)' }
+  );
+  a.finished.catch(() => {}).then(() => clone.remove());
+}
+
+function runFlip(isRetry) {
+  const now = snapshotGeometry();
+  if (!animEnabled || dragging) {
+    prevGeom = now;
+    return;
+  }
+
+  /*
+    onDidLayoutChange can fire before Dockview has written the new geometry. If
+    nothing moved, look again next frame instead of swallowing the change.
+  */
+  let changed = prevGeom.size !== now.size;
+  if (!changed) {
+    now.forEach((rec, key) => {
+      const before = prevGeom.get(key);
+      if (!before || !sameGeom(before.geom, rec.geom)) changed = true;
+    });
+  }
+  if (!changed) {
+    if (!isRetry) requestAnimationFrame(() => runFlip(true));
+    return;
+  }
+
+  /* Panes that left the layout: fade a clone out from where they were. */
+  prevGeom.forEach((rec, key) => {
+    if (now.has(key)) return;
+    if (rec.geom.width > 0 && rec.geom.height > 0) ghostOut(rec.el, rec.geom);
+  });
+
+  now.forEach((rec, key) => {
+    const before = prevGeom.get(key);
+    const to = rec.geom;
+    if (to.width === 0 || to.height === 0) return;
+
+    if (!before) {
+      /* New pane: arrive, do not pop. */
+      rec.el.animate(
+        [{ opacity: 0, transform: 'scale(0.99)' }, { opacity: 1, transform: 'scale(1)' }],
+        MOTION
+      );
+      return;
+    }
+    if (sameGeom(before.geom, to)) return;
+
+    /* Moved or resized: interpolate the box Dockview already set to its final value. */
+    rec.el.animate(
+      [
+        { left: before.geom.left + 'px', top: before.geom.top + 'px', width: before.geom.width + 'px', height: before.geom.height + 'px' },
+        { left: to.left + 'px', top: to.top + 'px', width: to.width + 'px', height: to.height + 'px' },
+      ],
+      MOTION
+    );
+  });
+
+  prevGeom = now;
+}
+
+host.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('.dv-sash')) dragging = true;
+}, true);
+window.addEventListener('pointerup', () => {
+  dragging = false;
+  prevGeom = snapshotGeometry();
+});
+
+document.getElementById('animate-toggle').addEventListener('change', (e) => {
+  animEnabled = e.currentTarget.checked;
+  prevGeom = snapshotGeometry();
+});
+
+/* ---------------------------------------------------------------------------
+   Tab switching. Dockview swaps panel visibility instantly; the incoming panel
+   crossfades and slides in from the side it sits on in the tab strip, so the
+   motion tells you which way you moved.
+--------------------------------------------------------------------------- */
+const CENTRE_ORDER = ['floor', 'board', 'runway'];
+let lastCentre = 'floor';
+let booted = false;
+
+dockviewApi.onDidActivePanelChange((ev) => {
+  const panel = ev && ev.panel ? ev.panel : ev;
+  const id = panel && panel.id;
+  if (!id || !CENTRE_ORDER.includes(id)) return;
+  const from = CENTRE_ORDER.indexOf(lastCentre);
+  const to = CENTRE_ORDER.indexOf(id);
+  lastCentre = id;
+  if (!booted || !animEnabled || from === to) return;
+
+  const el = panelEls.get(id);
+  if (!el) return;
+  const dx = to > from ? 14 : -14;
+  el.animate(
+    [
+      { opacity: 0, transform: 'translateX(' + dx + 'px)' },
+      { opacity: 1, transform: 'translateX(0)' },
+    ],
+    { duration: 200, easing: 'cubic-bezier(0.2, 0, 0.2, 1)' }
+  );
+});
+
+/* Seed the baseline so the first real change animates from the booted layout,
+   not from nothing. */
+requestAnimationFrame(() => { prevGeom = snapshotGeometry(); booted = true; });
+new ResizeObserver(() => { if (!dragging) prevGeom = snapshotGeometry(); }).observe(host);
+
+document.getElementById('focus-btn').addEventListener('click', toggleFocusMode);
+
+document.getElementById('clear-persist-btn').addEventListener('click', () => {
+  if (storage) storage.removeItem(LAYOUT_KEY);
+  document.getElementById('persist-status').textContent = storage ? 'cleared — reload to rebuild default' : 'nothing to clear (storage blocked)';
+});
+
+['edge-left', 'edge-right', 'edge-bottom'].forEach((id) => {
+  document.getElementById(id).addEventListener('click', () => {
+    if (document.body.classList.contains('is-focus-mode')) toggleFocusMode();
+  });
+});
+
+/* ---------------------------------------------------------------------------
+   SELF-TEST. Drives the real interactions and reports what actually happened,
+   so animation can be verified from a static screenshot instead of by asking
+   the owner to click things. Set SELFTEST = false to switch off.
+--------------------------------------------------------------------------- */
+const SELFTEST = false; /* flip to true to re-run and print the report on load */
+if (SELFTEST) {
+  const lines = [];
+  let created = [];
+  const nativeAnimate = Element.prototype.animate;
+  Element.prototype.animate = function (frames, opts) {
+    created.push({ el: this.className || this.tagName, dur: (opts && opts.duration) || 0 });
+    return nativeAnimate.call(this, frames, opts);
+  };
+
+  const box = document.createElement('pre');
+  box.style.cssText =
+    'position:fixed;left:12px;bottom:34px;z-index:9999;margin:0;padding:10px 12px;' +
+    'background:oklch(0.16 0.02 210);border:1px solid var(--accent);border-radius:4px;' +
+    'color:var(--fg);font:11px/1.55 ui-monospace,monospace;white-space:pre;max-height:70vh;overflow:auto;';
+  box.textContent = 'self-test running…';
+  document.body.appendChild(box);
+
+  const twoFrames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  async function step(name, fn) {
+    created = [];
+    try { fn(); } catch (e) { lines.push(name.padEnd(22) + 'THREW ' + e.message); return; }
+    await twoFrames();
+    const n = created.length;
+    const durs = [...new Set(created.map((c) => c.dur))].join('/');
+    lines.push(name.padEnd(22) + (n ? 'PASS  ' + n + ' anim' + (n > 1 ? 's' : '') + ' @' + durs + 'ms' : 'FAIL  0 animations'));
+    box.textContent = lines.join('\n');
+  }
+
+  (async () => {
+    await new Promise((r) => setTimeout(r, 200));
+    lines.push('prefers-reduced-motion  ' + REDUCED_MOTION);
+    lines.push('animEnabled ' + animEnabled + ' · booted ' + booted + ' (OS pref no longer vetoes)');
+    lines.push('views at rest           ' + gridViews().length + ' · prevGeom ' + prevGeom.size);
+    lines.push('');
+    box.textContent = lines.join('\n');
+
+    await step('close nav', () => dockviewApi.getPanel('nav').api.close());
+    await step('reopen nav', () => reopenPane('nav'));
+    await step('float inspector', () => floatPane('inspector'));
+    await step('dock inspector', () => dockPane('inspector'));
+    await step('open timeline', () => reopenPane('timeline'));
+    await step('resize nav 220->320', () => dockviewApi.getPanel('nav').api.setSize({ width: 320 }));
+    await step('tab -> board', () => dockviewApi.getPanel('board').api.setActive());
+    await step('tab -> runway', () => dockviewApi.getPanel('runway').api.setActive());
+
+    lines.push('');
+    lines.push('done');
+    box.textContent = lines.join('\n');
+  })();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+{
+  "title": "Go-live readiness",
+  "tag": "silveroak-apps · project 2",
+  "columns": [
+    "Repository",
+    "Open",
+    "P0",
+    "Readiness",
+    "Go-live scope"
+  ],
+  "rows": [
+    {
+      "release": "all-about-money-ui",
+      "scope": "45 of 96 closed",
+      "state": "fail",
+      "stateLabel": "1 at P0",
+      "gates": "51",
+      "when": "3 tagged"
+    },
+    {
+      "release": "service-portfolio-api",
+      "scope": "54 of 85 closed",
+      "state": "blocked",
+      "stateLabel": "31 open",
+      "gates": "31",
+      "when": "3 tagged"
+    },
+    {
+      "release": "service-wallet-transaction-importer",
+      "scope": "13 of 28 closed",
+      "state": "blocked",
+      "stateLabel": "15 open",
+      "gates": "15",
+      "when": "2 tagged"
+    },
+    {
+      "release": "service-exchange-api-transaction-importer",
+      "scope": "13 of 28 closed",
+      "state": "blocked",
+      "stateLabel": "15 open",
+      "gates": "15",
+      "when": "—"
+    },
+    {
+      "release": "silveroak-business",
+      "scope": "1 of 7 closed",
+      "state": "active",
+      "stateLabel": "6 open",
+      "gates": "6",
+      "when": "—"
+    },
+    {
+      "release": "service-market-price-synchroniser",
+      "scope": "1 of 5 closed",
+      "state": "active",
+      "stateLabel": "4 open",
+      "gates": "4",
+      "when": "—"
+    }
+  ]
+}

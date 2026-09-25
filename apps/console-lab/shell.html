@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Factory shell</title>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+/*
+  The safety net goes on before anything it protects. It used to be registered
+  at the foot of the app script, which meant any error *in* that script — the
+  common case — happened while nothing was listening, and showed as a blank
+  page with no explanation. Rejections are covered too: an async boot turns a
+  render error into an unhandled rejection that no error listener sees.
+*/
+(function () {
+  function show(title, detail) {
+    if (document.getElementById('fatal')) return;
+    var b = document.createElement('div');
+    b.id = 'fatal';
+    b.textContent = title + '\n\n' + detail;
+    (document.body || document.documentElement).appendChild(b);
+  }
+  window.addEventListener('error', function (e) {
+    show('Runtime error', (e.error && e.error.stack) || e.message || String(e));
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason;
+    show('Unhandled rejection', (r && r.stack) || String(r));
+  });
+})();
+</script>
+
+<script type="module" src="./src/shell/main.jsx"></script>
+</body>
+</html>

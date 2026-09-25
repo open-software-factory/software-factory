@@ -21,3 +21,6 @@ target-linux/
 # Installed dependencies
 node_modules/
 
+# Vite build output
+apps/console-lab/dist/
+
