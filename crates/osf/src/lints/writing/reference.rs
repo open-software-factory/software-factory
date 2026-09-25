@@ -6,7 +6,7 @@ use osf_lint_core::{Context, KnownNames};
 use regex::Regex;
 use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock, PoisonError};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
@@ -75,13 +75,15 @@ pub fn candidates(
     known: &KnownNames,
     context: Context,
 ) -> Vec<Candidate> {
-    let quotes = quoted_spans(&unit.text);
+    let doc = segment::parse(&unit.text);
+    let sentence_spans: Vec<Range<usize>> = doc.sentences.iter().map(|s| s.span.clone()).collect();
+    let quotes = quoted_spans(&unit.text, &sentence_spans);
     let masked = mask_quotes(&unit.text, &quotes);
     let mut out = Vec::new();
     out.extend(number_candidates(&masked, known));
     out.extend(phrase_candidates(&masked, cfg));
     out.extend(time_candidates(&masked, context));
-    out.extend(name_candidates(unit, &quotes, cfg));
+    out.extend(name_candidates(unit, &quotes, cfg, &doc.sentences));
     keep_longest_per_kind(out)
 }
 
@@ -102,7 +104,7 @@ fn keep_longest_per_kind(mut candidates: Vec<Candidate>) -> Vec<Candidate> {
     kept
 }
 
-fn quoted_spans(text: &str) -> Vec<QuotedSpan> {
+fn quoted_spans(text: &str, sentences: &[Range<usize>]) -> Vec<QuotedSpan> {
     static BACKTICK: OnceLock<Regex> = OnceLock::new();
 
     let mut spans = Vec::new();
@@ -116,13 +118,15 @@ fn quoted_spans(text: &str) -> Vec<QuotedSpan> {
         ));
     }
     for (open_ch, close_ch) in [('\'', '\''), ('\u{2018}', '\u{2019}')] {
-        spans.extend(paired_quote_spans(text, open_ch, close_ch).into_iter().map(
-            |(open, content)| QuotedSpan {
-                open,
-                content,
-                kind: MentionKind::SingleQuote,
-            },
-        ));
+        spans.extend(
+            paired_quote_spans(text, open_ch, close_ch, sentences)
+                .into_iter()
+                .map(|(open, content)| QuotedSpan {
+                    open,
+                    content,
+                    kind: MentionKind::SingleQuote,
+                }),
+        );
     }
     let backtick_re = super::rules::re(&BACKTICK, r"`([^`]*)`");
     spans.extend(backtick_re.captures_iter(text).filter_map(|c| {
@@ -164,8 +168,8 @@ fn paired_quote_spans(
     text: &str,
     open_ch: char,
     close_ch: char,
+    sentences: &[Range<usize>],
 ) -> Vec<(Range<usize>, Range<usize>)> {
-    let sentences = sentence_spans(text);
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let is_word = |idx: usize| chars.get(idx).is_some_and(|&(_, c)| c.is_alphanumeric());
     let mut spans = Vec::new();
@@ -186,7 +190,7 @@ fn paired_quote_spans(
         }
         if let Some((j, close_start, close_char)) = close_at {
             let content = text.get(content_start..close_start).unwrap_or("");
-            let safe_to_mask = same_sentence(&sentences, start, close_start)
+            let safe_to_mask = same_sentence(sentences, start, close_start)
                 && content.split_whitespace().count() <= 6
                 && !content.chars().any(is_single_quote_mark);
             if safe_to_mask {
@@ -194,21 +198,12 @@ fn paired_quote_spans(
                     start..close_start + close_char.len_utf8(),
                     content_start..close_start,
                 ));
+                i = j;
             }
-            i = j;
         }
         i += 1;
     }
     spans
-}
-
-/// The byte range of every sentence `segment::parse` finds in `text`.
-fn sentence_spans(text: &str) -> Vec<Range<usize>> {
-    segment::parse(text)
-        .sentences
-        .into_iter()
-        .map(|s| s.span)
-        .collect()
 }
 
 /// Whether `a` and `b` fall inside the same one of `sentences`.
@@ -334,7 +329,7 @@ fn phrase_candidates(text: &str, cfg: &WritingConfig) -> Vec<Candidate> {
         .collect();
     alternatives.push(regex::escape("the previous"));
     let mut out = Vec::new();
-    if let Some(re) = super::rules::word_boundary_alternation(&alternatives) {
+    if let Some(re) = cached_phrase_regex(&alternatives) {
         out.extend(re.find_iter(text).map(|m| Candidate {
             kind: Kind::Phrase,
             text: m.as_str().to_string(),
@@ -343,6 +338,21 @@ fn phrase_candidates(text: &str, cfg: &WritingConfig) -> Vec<Candidate> {
     }
     out.extend(above_reference_candidates(text));
     out
+}
+
+/// Compiling this pattern costs a few milliseconds; the last-built regex is kept so a lint run
+/// that calls this once per paragraph with the same configured phrases only pays that cost once.
+fn cached_phrase_regex(alternatives: &[String]) -> Option<Regex> {
+    static CACHE: Mutex<Option<(Vec<String>, Regex)>> = Mutex::new(None);
+    let mut cache = CACHE.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some((key, re)) = cache.as_ref() {
+        if key == alternatives {
+            return Some(re.clone());
+        }
+    }
+    let re = super::rules::word_boundary_alternation(alternatives)?;
+    *cache = Some((alternatives.to_vec(), re.clone()));
+    Some(re)
 }
 
 /// `above` as a reference, told apart from the preposition by a determiner or number right after it.
@@ -432,9 +442,14 @@ fn time_candidate(m: regex::Match<'_>) -> Candidate {
 }
 
 /// A capitalised run with real evidence, plus a lowercase double-quoted term; backticks mark code.
-fn name_candidates(unit: &TextUnit, quotes: &[QuotedSpan], cfg: &WritingConfig) -> Vec<Candidate> {
+fn name_candidates(
+    unit: &TextUnit,
+    quotes: &[QuotedSpan],
+    cfg: &WritingConfig,
+    sentences: &[TextUnit],
+) -> Vec<Candidate> {
     let mut out = Vec::new();
-    out.extend(capitalised_name_candidates(unit, cfg));
+    out.extend(capitalised_name_candidates(cfg, sentences));
     for q in quotes {
         if q.kind != MentionKind::DoubleQuote {
             continue;
@@ -451,11 +466,9 @@ fn name_candidates(unit: &TextUnit, quotes: &[QuotedSpan], cfg: &WritingConfig) 
     out
 }
 
-/// Re-parses `unit`'s text into sentences so each one's own start is judged, not the paragraph's.
-fn capitalised_name_candidates(unit: &TextUnit, cfg: &WritingConfig) -> Vec<Candidate> {
-    let doc = segment::parse(&unit.text);
-    let found: Vec<(Range<usize>, String)> = doc
-        .sentences
+/// Reads `sentences` (the paragraph's own, parsed once by the caller) so each one's own start is judged, not the paragraph's.
+fn capitalised_name_candidates(cfg: &WritingConfig, sentences: &[TextUnit]) -> Vec<Candidate> {
+    let found: Vec<(Range<usize>, String)> = sentences
         .iter()
         .flat_map(|s| {
             let start = s.span.start;
@@ -850,6 +863,28 @@ mod tests {
             Kind::Number,
             "issue 31"
         ));
+    }
+
+    /// A rejected outer pair must not jump past the real, valid quote it was hiding.
+    #[test]
+    fn a_rejected_pair_still_lets_a_later_open_in_the_same_sentence_mask() {
+        let t = "The 'quote here never closes and so we lose 'fix 5' entirely in one sentence.";
+        assert!(
+            !has(t, Kind::Number, "fix 5"),
+            "{:?}",
+            find(t, Context::Document)
+        );
+    }
+
+    /// The same failure, but the rejected pair spans two sentences instead of one.
+    #[test]
+    fn a_rejected_pair_across_sentences_still_lets_a_later_open_mask() {
+        let t = "The 'promo never closes here and just keeps going. Later they said 'fix 5' aloud.";
+        assert!(
+            !has(t, Kind::Number, "fix 5"),
+            "{:?}",
+            find(t, Context::Document)
+        );
     }
 
     #[test]
