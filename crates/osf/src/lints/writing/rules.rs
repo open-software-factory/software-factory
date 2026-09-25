@@ -826,7 +826,8 @@ fn is_quoted_term(text: &str) -> bool {
 
 /// Whether the candidate's own sentence names the thing linguistically:
 /// `phrase`, `word`, `wording`, `term`, `expression`, `example`, `opener`,
-/// `label` or `called`, or the fixed phrases `such as` and `for example`.
+/// `label` or `called`, or the fixed phrase `such as`. `for example` is not
+/// its own alternative: `example` alone already covers it.
 fn has_mention_marker_in_sentence(local_sentences: &[TextUnit], start: usize) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
@@ -841,7 +842,6 @@ fn has_mention_marker_in_sentence(local_sentences: &[TextUnit], start: usize) ->
             "label",
             "called",
             "such as",
-            "for example",
         ]
         .iter()
         .map(|m| regex::escape(m))
@@ -1638,5 +1638,26 @@ mod unplaceable_reference_tests {
     fn a_speech_verb_alone_does_not_place_a_quoted_term() {
         let t = r#"She wrote "the done wave" in the notes without explaining it."#;
         assert!(!is_placed(t, "the done wave"), "{:?}", find(t));
+    }
+
+    /// A marker word next to the quote does not prove it explains the
+    /// quote rather than merely mentioning, dismissing or blaming it; that
+    /// judgment is the model layer's, not a shape this rule can check.
+    #[test]
+    fn a_marker_word_next_to_the_quote_is_not_proof_it_explains_the_quote() {
+        let cases = [
+            (
+                r#"He wrote the phrase "as discussed" in every reply."#,
+                "as discussed",
+            ),
+            (r#"The label "fix 5" means nothing here."#, "fix 5"),
+            (
+                r#"This example shows why "as discussed" causes confusion."#,
+                "as discussed",
+            ),
+        ];
+        for (text, excerpt) in cases {
+            assert!(is_placed(text, excerpt), "{:?}", find(text));
+        }
     }
 }
