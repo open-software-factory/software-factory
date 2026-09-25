@@ -382,7 +382,7 @@ pub fn post_tool(timeout: Duration, answer: Option<Answer>) -> ExitCode {
     post_tool_with_input(read, timeout, answer)
 }
 
-/// I6: says the hook checkpoint itself could not run, as `refuse_could_not_run`
+/// Says the hook checkpoint itself could not run, as `refuse_could_not_run`
 /// does for `stop` in this same file. A finding worth blocking and a check
 /// that could not run at all must not read the same either way, so this
 /// never claims a pass.

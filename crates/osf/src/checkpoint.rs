@@ -183,7 +183,7 @@ fn resolve_files(req: &Request, base: Option<&str>) -> Result<Vec<String>, Strin
 /// staged: the scan checks the index, a moon task's own tooling reads the
 /// working tree, so both versions of such a file were checked, and the
 /// author is told which files that applies to. A git error here is printed
-/// as a notice rather than swallowed (M10); the check itself still runs.
+/// as a notice rather than swallowed; the check itself still runs.
 fn partially_staged(root: &Path, staged: &[String]) -> Vec<String> {
     let unstaged = match crate::git::unstaged_files(root) {
         Ok(u) => u,
@@ -213,9 +213,9 @@ fn files_from_content(files: &[String]) -> String {
 }
 
 /// Writes `files`, one per line, to a fresh file under the OS temp
-/// directory, for `OSF_FILES_FROM` (ruling R7). Moon itself cannot pass a
+/// directory, for `OSF_FILES_FROM`. Moon itself cannot pass a
 /// changed-file list to a task, so this is how each task's `osf check`
-/// learns it. Ruling R21: this lives outside the journal's own state
+/// learns it. This lives outside the journal's own state
 /// directory, so an unwritable state dir never blocks it, and the caller
 /// deletes it once moon has run, on every path. `run` makes the path
 /// unique to this one invocation: two overlapping runs of the same
@@ -258,7 +258,7 @@ fn task_id(target: &str) -> &str {
     target.rsplit(':').next().unwrap_or(target)
 }
 
-/// One SARIF result worth counting: never a suppressed one (M2), since a
+/// One SARIF result worth counting: never a suppressed one, since a
 /// suppressed finding is a decision already made, not something to count
 /// or show again.
 struct SarifFinding {
@@ -277,7 +277,7 @@ enum SarifOutcome {
 }
 
 /// The forward-slash, repository-relative label for a task's own SARIF
-/// file (M3): a reason built from this reads the same on every operating
+/// file: a reason built from this reads the same on every operating
 /// system, unlike one built from a joined, platform-separated `PathBuf`.
 fn sarif_rel_label(target: &str) -> String {
     format!(".osf/out/{}.sarif", task_id(target))
@@ -343,7 +343,7 @@ fn sarif_outcome(root: &Path, target: &str) -> SarifOutcome {
     SarifOutcome::Findings(findings)
 }
 
-/// Ruling R13: a SARIF file left over from an earlier run must never be
+/// A SARIF file left over from an earlier run must never be
 /// read as this run's result. Deletes `.osf/out/<task-id>.sarif` for every
 /// task tagged `tag` before moon runs, reading the task set from moon's own
 /// `query tasks` rather than this crate's guess at what a project file's
@@ -369,7 +369,7 @@ fn clear_stale_sarif(root: &Path, tag: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Ruling R16: a failed task's own output must be visible, capped so one
+/// A failed task's own output must be visible, capped so one
 /// runaway task cannot flood a hook's refusal text.
 const FAILED_TASK_OUTPUT_LINES: usize = 80;
 
@@ -422,7 +422,7 @@ fn append_checkpoint_complete(
 /// One task's outcome: its journal result, its rendered summary line, its
 /// SARIF finding lines (kept separately so the caller only surfaces them
 /// for a task that failed), the finding count the journal records, and a
-/// reason when that count is not a genuine observation (ruling R12).
+/// reason when that count is not a genuine observation.
 struct TaskLine {
     result: CheckResult,
     line: String,
@@ -431,16 +431,16 @@ struct TaskLine {
     reason: Option<String>,
 }
 
-/// Ruling R12: a failed task with no SARIF file has unknown findings, not
+/// A failed task with no SARIF file has unknown findings, not
 /// zero — the check never ran to completion, so there is nothing to count.
 /// A SARIF file that exists but will not parse is the same problem for any
 /// task, whatever its status: the count cannot be trusted either way.
 ///
-/// M2: a suppressed result is already excluded by [`sarif_outcome`], so the
+/// A suppressed result is already excluded by [`sarif_outcome`], so the
 /// count here is every other result; the lines returned are error-level
 /// only, since those are the ones worth putting in a hook's refusal text.
 ///
-/// M3: a reason naming the SARIF path uses the forward-slash,
+/// A reason naming the SARIF path uses the forward-slash,
 /// repository-relative label, never a platform-separated `PathBuf`.
 fn findings_from_sarif(
     root: &Path,
@@ -639,7 +639,7 @@ struct Prepared {
 }
 
 /// Resolves `req`'s base and files, notes any partially staged file,
-/// writes the `OSF_FILES_FROM` list (ruling R7), and opens the journal.
+/// writes the `OSF_FILES_FROM` list, and opens the journal.
 /// Returns `Err` with the final [`Summary`] when any of that fails badly
 /// enough that moon must not run at all.
 fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
@@ -748,7 +748,7 @@ fn append_unset_verification(
     }
 }
 
-/// I2: moon never got to report on any task — a timeout, a could-not-run
+/// Moon never got to report on any task — a timeout, a could-not-run
 /// from `moon::run`, or a failure clearing the stale SARIF before it ran —
 /// so one verification event per target the checkpoint was about to run
 /// records why, instead of leaving the journal silent about work that
@@ -785,8 +785,8 @@ fn append_unset_verifications(
     }
 }
 
-/// Builds the [`Summary`] for a `clear_stale_sarif` failure: I2's
-/// per-target could-not-run events, then the one-line summary every
+/// Builds the [`Summary`] for a `clear_stale_sarif` failure:
+/// `append_unset_verifications`'s per-target could-not-run events, then the one-line summary every
 /// outcome with no per-task detail shares.
 #[allow(clippy::too_many_arguments)]
 fn stale_sarif_could_not_run(
@@ -820,7 +820,7 @@ fn stale_sarif_could_not_run(
     )
 }
 
-/// Builds the [`Summary`] for `Outcome::TimedOut` (I2): a hook checkpoint
+/// Builds the [`Summary`] for `Outcome::TimedOut`: a hook checkpoint
 /// reports skipped, decision 0011; every other checkpoint could not run.
 /// Either way, one verification event per target names the time limit.
 #[allow(clippy::too_many_arguments)]
@@ -862,7 +862,7 @@ fn timed_out_summary(
     )
 }
 
-/// Builds the [`Summary`] for `Outcome::CouldNotRun` (I2): one
+/// Builds the [`Summary`] for `Outcome::CouldNotRun`: one
 /// verification event per target names moon's own error as the reason.
 #[allow(clippy::too_many_arguments)]
 fn moon_could_not_run_summary(
@@ -1020,7 +1020,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
 /// nothing to check, 1 at least one task failed, 2 could not run. A
 /// journal error forces 2 everywhere except the hook checkpoint, which
 /// still reports its findings and names the failure on standard error
-/// (decision 0014; review focus item 5).
+/// (decision 0014).
 #[must_use]
 pub fn exit_code(summary: &Summary, checkpoint: Checkpoint) -> u8 {
     if checkpoint != Checkpoint::Hook && summary.journal_error.is_some() {

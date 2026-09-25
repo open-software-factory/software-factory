@@ -111,7 +111,7 @@ fn a_timeout_reports_skipped_and_lets_the_edit_stand() {
     );
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(String::from_utf8_lossy(&out.stderr).contains("skipped"));
-    // I2: a timeout still journals one verification event per task the
+    // A timeout still journals one verification event per task the
     // checkpoint was about to run, so the record shows a check was skipped
     // rather than silently missing.
     let payloads = verification_payloads(&home);
@@ -126,7 +126,7 @@ fn a_timeout_reports_skipped_and_lets_the_edit_stand() {
     );
 }
 
-// R14: at the hook checkpoint every check reads the file as it is on disk,
+// At the hook checkpoint every check reads the file as it is on disk,
 // not at its last commit, because the hook exists to check what the agent
 // just wrote. `scan` reading `HEAD` here would miss a secret typed into an
 // already-committed file, which is exactly the case this test covers.
@@ -178,10 +178,10 @@ fn a_relative_path_that_walks_outside_the_repository_stands_down_as_not_adopted(
     }
 }
 
-/// I3 / review focus 5, the hook half: an unwritable journal must never
+/// The hook side of this guard: an unwritable journal must never
 /// stop the hook from reporting a real finding, and must never need
 /// `OSF_FILES_FROM`'s own list file to live under the state directory
-/// (ruling R21: that list goes to `.osf/in/` in the workspace instead, so
+/// (that list goes to `.osf/in/` in the workspace instead, so
 /// an unwritable state dir cannot block writing it).
 #[test]
 fn an_unwritable_journal_still_refuses_a_real_finding_and_names_the_failure() {
@@ -290,7 +290,7 @@ fn an_unwritable_journal_with_a_clean_file_still_exits_zero_and_names_the_failur
     );
 }
 
-/// I6: input that cannot be parsed at all is a failure to run, so it is
+/// Input that cannot be parsed at all is a failure to run, so it is
 /// refused rather than let through silently, the same way `osf hook stop`
 /// already treats its own unreadable or non-JSON input.
 #[test]

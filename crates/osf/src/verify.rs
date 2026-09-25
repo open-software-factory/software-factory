@@ -1,7 +1,7 @@
 //! What `osf check <name>` needs to run one check, shared with `osf verify`
 //! at its call site in `main.rs`. The runner that used to live here moved
-//! to `checkpoint.rs`: the plan forbids an in-process fallback, and every
-//! caller now reaches a check through moon (M5).
+//! to `checkpoint.rs`: an in-process fallback is not allowed, so every
+//! caller now reaches a check through moon.
 
 use crate::config::Config;
 use crate::exclude::Excluder;

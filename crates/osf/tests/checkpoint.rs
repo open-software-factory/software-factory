@@ -94,7 +94,7 @@ fn a_base_with_no_committed_difference_at_all_is_nothing_to_check() {
     );
 }
 
-/// Moved from `tests/verify.rs` (M5): nothing staged is nothing to check,
+/// Moved from `tests/verify.rs`: nothing staged is nothing to check,
 /// never a silent pass mistaken for a clean run.
 #[test]
 fn pre_commit_with_nothing_staged_is_nothing_to_check() {
@@ -176,7 +176,7 @@ fn a_leak_in_a_session_link_fails_pre_commit() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
-/// Ruling R12: a task that failed and left no readable SARIF has unknown
+/// A task that failed and left no readable SARIF has unknown
 /// findings, never a silent zero. This fixture defines its own single
 /// task, tagged `osf-pre-push`, that fails without ever writing SARIF.
 #[test]
@@ -230,7 +230,7 @@ fn a_failed_task_with_no_sarif_reports_unknown_findings() {
     );
 }
 
-/// M2: a suppressed result never counts toward a task's finding total, and
+/// A suppressed result never counts toward a task's finding total, and
 /// `error_findings` (what the hook or the pull-request checkpoint's own
 /// refusal text shows) lists error-level results only, so a warning never
 /// reads back as a reason to refuse.
@@ -281,7 +281,7 @@ fn a_suppressed_error_is_excluded_from_the_count_and_the_refusal_text() {
     assert!(!stderr.contains("warn-rule"), "{out:?}");
 }
 
-/// Ruling R16: both of moon's own captured streams must reach stderr under
+/// Both of moon's own captured streams must reach stderr under
 /// their own cap, since a real failure (cargo's failing test names on
 /// stdout, its "test failed" summary on stderr) can put what an agent needs
 /// on either one. This fixture's task writes one stdout marker, then a
@@ -326,7 +326,7 @@ fn a_failed_task_s_stdout_and_stderr_are_both_printed() {
     assert!(stderr.contains("filler line 100"), "{out:?}");
 }
 
-/// Ruling R13: a SARIF left over from an earlier run must be cleared
+/// A SARIF left over from an earlier run must be cleared
 /// before moon runs, so a task that fails without writing one is never
 /// read through a stale file from a previous pass. This fixture's `boom`
 /// task always fails and never writes SARIF; without the clearing step,
@@ -409,7 +409,7 @@ fn the_pull_request_checkpoint_ignores_a_suppression_marker_and_the_exclude_list
     assert_eq!(pull_request.status.code(), Some(1), "{pull_request:?}");
 }
 
-/// C1: `.osf/moon.yml`'s own `scan-commits` task had no `inputs` at all,
+/// `.osf/moon.yml`'s own `scan-commits` task had no `inputs` at all,
 /// so moon's own default (`**/*`, relative to the `.osf/` project) made it
 /// affected only by a change under `.osf/` — never by an ordinary changed
 /// file. This documents that default directly: a task with an explicit
@@ -440,7 +440,7 @@ fn a_task_with_no_inputs_is_affected_only_by_a_change_under_its_own_project() {
     assert!(!stdout.contains("osf:narrow-default"), "{out:?}");
 }
 
-/// I5: `lint-skill-gate`, the pull-request checkpoint's own task, ignores
+/// `lint-skill-gate`, the pull-request checkpoint's own task, ignores
 /// a config file's exclude list, the same way `lint-writing-gate` and
 /// `scan-gate` already do; `lint-skill`, the pre-push task, honours it.
 #[test]
@@ -479,7 +479,7 @@ fn the_pull_request_checkpoint_s_lint_skill_gate_ignores_the_exclude_list() {
     assert_eq!(pull_request.status.code(), Some(1), "{pull_request:?}");
 }
 
-/// I2: when moon itself cannot run, the checkpoint still journals one
+/// When moon itself cannot run, the checkpoint still journals one
 /// verification event per task it was about to run, with the moon error
 /// as the reason, rather than leaving the failure silent in the journal.
 #[test]

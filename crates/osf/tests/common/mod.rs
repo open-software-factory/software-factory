@@ -127,8 +127,8 @@ impl TempRepo {
     }
 
     /// Writes `.moon/workspace.yml` and a small `.osf/moon.yml` with one
-    /// task per checkpoint each of `lint-writing` and `scan` serves (ruling
-    /// F1): `lint-writing-hook` (`osf-hook`), `lint-writing-pre-push`
+    /// task per checkpoint each of `lint-writing` and `scan` serves:
+    /// `lint-writing-hook` (`osf-hook`), `lint-writing-pre-push`
     /// (`osf-pre-push`), `scan-pre-commit` (`osf-pre-commit`), `scan-hook`
     /// (`osf-hook`), and `scan-pre-push` (`osf-pre-push`). Each passes its
     /// own `--checkpoint` value. All read only Markdown

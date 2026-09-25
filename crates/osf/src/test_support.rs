@@ -1,6 +1,6 @@
 //! The one place in this crate's own tests that reserves a directory under
 //! the OS temp directory, so no two calls, in one process or several, ever
-//! share one (ruling F8).
+//! share one.
 #![cfg(test)]
 
 use std::ops::Deref;

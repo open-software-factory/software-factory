@@ -1,4 +1,4 @@
-//! Ruling F8: a temporary test directory must be safe for two processes to
+//! A temporary test directory must be safe for two processes to
 //! use at once, and a production one must never be wiped before use. Every
 //! direct call to the OS temp directory must say why on its own line, with
 //! a `// osf: temp-dir allowed, <reason>` marker, so an unrelated edit

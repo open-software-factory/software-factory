@@ -203,7 +203,7 @@ fn a_timed_out_run_kills_the_whole_process_tree() {
     });
 }
 
-/// Ruling R18: `osf` always starts a fresh moon for its own workspace, so
+/// `osf` always starts a fresh moon for its own workspace, so
 /// `run` must never let the child inherit `MOON_*` variables an outer moon
 /// task set on this process (as `.osf/moon.yml`'s own `test` task does when
 /// `cargo test` runs under moon) — moon honours an inherited
@@ -243,7 +243,7 @@ fn an_inherited_moon_workspace_root_from_an_outer_task_does_not_redirect_the_run
     );
 }
 
-/// I1: a target's cache outcome comes from the real moon binary, not this
+/// A target's cache outcome comes from the real moon binary, not this
 /// adapter's own guess, so this runs the same cacheable task twice and
 /// checks the second run's own report.
 #[test]

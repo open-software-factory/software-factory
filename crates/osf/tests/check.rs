@@ -95,7 +95,7 @@ fn check_scan_staged_reads_the_index_not_the_working_tree() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
-/// Moved from `tests/verify.rs` (M5): a fixture under `tests/fixtures`
+/// Moved from `tests/verify.rs`: a fixture under `tests/fixtures`
 /// that declares an `osf-expect` marker is checked against that
 /// declaration, rather than against the usual level rules, the same way
 /// `osf lint writing` treats one.

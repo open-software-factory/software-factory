@@ -20,7 +20,8 @@ pub struct Invocation<'a> {
     /// The targets to pass to `moon run`, such as `:#osf-pre-commit`.
     pub targets: &'a [String],
     /// Repository-relative, forward-slash paths for moon's `--stdin`
-    /// affected-file selection. Never passed to tasks directly (ruling R7).
+    /// affected-file selection. Never passed to tasks directly: moon has no
+    /// way to forward them, so `OSF_FILES_FROM` carries them instead.
     pub files: &'a [String],
     /// Extra environment variables for the moon process, added to the
     /// inherited parent environment rather than replacing it.
@@ -64,7 +65,7 @@ fn moon_binary() -> PathBuf {
     std::env::var_os("OSF_MOON").map_or_else(|| PathBuf::from("moon"), PathBuf::from)
 }
 
-/// Ruling R18: `osf` always starts a fresh moon for its own workspace, so a
+/// `osf` always starts a fresh moon for its own workspace, so a
 /// nested moon must never inherit an outer moon task's own `MOON_*`
 /// variables (`MOON_WORKSPACE_ROOT` and the rest) — moon honours an
 /// inherited one over the `current_dir` this adapter passes, which would
@@ -115,7 +116,7 @@ fn parse_version(text: &str) -> Option<(u64, u64, u64)> {
 }
 
 /// One line per file, in stdin order, using the platform's native
-/// separator (ruling R8). Callers pass forward-slash repository-relative
+/// separator. Callers pass forward-slash repository-relative
 /// paths; this is where they are converted.
 fn stdin_payload(files: &[String]) -> Vec<u8> {
     let mut payload = String::new();
@@ -162,7 +163,7 @@ fn read_log_tail(path: &Path, max_lines: usize) -> Option<(String, usize, usize)
 }
 
 /// A task's own captured stdout and stderr, each independently capped to
-/// its last `max_lines` lines (ruling R16). Kept as two separate tails
+/// its last `max_lines` lines. Kept as two separate tails
 /// rather than one combined-and-capped text: a task's stderr alone can
 /// exceed the cap (a compiler's warnings, say), which would silently push
 /// every line of its stdout (a failing test's own name) out of a single
@@ -229,7 +230,7 @@ pub fn run(inv: &Invocation) -> Outcome {
         command.env(key, value);
     }
     // On Unix, moon becomes its own process-group leader so a timeout can
-    // kill the group (ruling R10); on Windows, `taskkill /T` walks the
+    // kill the group; on Windows, `taskkill /T` walks the
     // parent-child tree instead, so no extra spawn setup is needed there.
     #[cfg(unix)]
     command.process_group(0);
@@ -291,7 +292,7 @@ pub fn run(inv: &Invocation) -> Outcome {
 }
 
 /// A timeout elapsed: kills moon's whole process tree, then reaps it.
-/// Ruling R10: a tree-kill command that fails becomes `CouldNotRun` naming
+/// A tree-kill command that fails becomes `CouldNotRun` naming
 /// the failure, since the caller cannot otherwise know a task might still
 /// be running; a direct kill of moon itself follows as a fallback so
 /// `wait` below cannot hang on a tree-kill command that never started.
@@ -306,8 +307,7 @@ fn timed_out(child: &mut Child) -> Outcome {
 }
 
 /// Kills `child` and every process it spawned: `taskkill /PID <pid> /T /F`
-/// on Windows, `kill -KILL` on the process group on Unix (ruling R10 — no
-/// new crate).
+/// on Windows, `kill -KILL` on the process group on Unix (no new crate).
 fn kill_tree(child: &Child) -> Result<(), String> {
     let pid = child.id();
     #[cfg(windows)]
@@ -409,7 +409,7 @@ pub fn parse_report(json: &str) -> Result<Vec<TaskOutcome>, String> {
                 .get("duration")
                 .and_then(duration_ms)
                 .unwrap_or_default();
-            // I1: `context.targetStates[*].state` says "passed" on a cache
+            // `context.targetStates[*].state` says "passed" on a cache
             // hit too; the action's own status is the only place "cached"
             // appears.
             if action.get("status").and_then(serde_json::Value::as_str) == Some("cached") {
@@ -458,7 +458,7 @@ fn duration_ms(value: &serde_json::Value) -> Option<u64> {
 /// value is skipped. Any other value is unrecognised, so an unknown status
 /// never reads as a pass. Whether the task was a cache hit is a separate
 /// question, answered from the matching action's own status, not this one
-/// (I1: `targetStates[*].state` says "passed" on a cache hit too).
+/// (`targetStates[*].state` says "passed" on a cache hit too).
 fn map_status(raw: &str) -> Option<TaskStatus> {
     match raw {
         "passed" | "cached" => Some(TaskStatus::Passed),
@@ -505,7 +505,7 @@ mod tests {
         assert_eq!(probe.duration_ms, 400);
     }
 
-    /// I1: `context.targetStates[*].state` says "passed" on a cache hit
+    /// `context.targetStates[*].state` says "passed" on a cache hit
     /// too; only the `RunTask(<target>)` action's own `status` says
     /// "cached". This fixture captures exactly that shape.
     #[test]
