@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "@opencode-ai/plugin": "1.18.31",
-    "@types/node": "26.6.1",
+    "@types/node": "26.6.2",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
     "typescript": "7.0.2"

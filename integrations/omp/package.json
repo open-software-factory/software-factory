@@ -20,7 +20,7 @@
   },
   "devDependencies": {
     "@oh-my-pi/pi-coding-agent": "18.2.4",
-    "@types/node": "26.6.1",
+    "@types/node": "26.6.2",
     "oxfmt": "0.68.0",
     "oxlint": "1.83.0",
     "typescript": "7.0.2"
