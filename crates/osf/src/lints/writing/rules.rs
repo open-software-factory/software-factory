@@ -658,7 +658,6 @@ pub fn unplaceable_reference(
                 &local.sentences,
                 &reduced,
                 known,
-                cfg,
             );
             (!placed).then(|| unplaced_finding(paragraph, candidate, cfg))
         }));
@@ -692,20 +691,12 @@ fn is_placed(
     local_sentences: &[TextUnit],
     reduced: &[String],
     known: &KnownNames,
-    cfg: &WritingConfig,
 ) -> bool {
     match candidate.kind {
         Kind::Number => number_is_placed(&paragraph.text, candidate, list_items, local_sentences),
         Kind::Phrase => false,
         Kind::Time => has_absolute_date(&paragraph.text),
-        Kind::Name => name_is_placed(
-            candidate,
-            &paragraph.text,
-            local_sentences,
-            reduced,
-            known,
-            cfg,
-        ),
+        Kind::Name => name_is_placed(candidate, local_sentences, reduced, known),
     }
 }
 
@@ -804,16 +795,15 @@ fn has_absolute_date(text: &str) -> bool {
 }
 
 /// A name candidate is placed by the known-names list or a definer
-/// sentence. A quoted term is also placed by an example marker before it,
-/// or by being itself one of the configured chat-local phrases: quoting one
-/// of those is a mention of the rule's own example, not a coined term.
+/// sentence. A quoted term is also placed by a mention marker anywhere in
+/// its own sentence: a word about language, never a speech verb such as
+/// `said` or `wrote`, since a speech verb only says the words were spoken,
+/// not what they mean.
 fn name_is_placed(
     candidate: &Candidate,
-    paragraph_text: &str,
     local_sentences: &[TextUnit],
     reduced: &[String],
     known: &KnownNames,
-    cfg: &WritingConfig,
 ) -> bool {
     if is_known_name_run(known, &candidate.text) {
         return true;
@@ -825,11 +815,8 @@ fn name_is_placed(
     if described {
         return true;
     }
-    if !is_quoted_term(&candidate.text) {
-        return false;
-    }
-    has_example_marker_before(paragraph_text, candidate.range.start)
-        || is_a_configured_chat_local_phrase(&candidate.text, cfg)
+    is_quoted_term(&candidate.text)
+        && has_mention_marker_in_sentence(local_sentences, candidate.range.start)
 }
 
 /// A name candidate with no uppercase letter is the quoted-lowercase-term shape; a capitalised run never is.
@@ -837,29 +824,31 @@ fn is_quoted_term(text: &str) -> bool {
     !text.chars().any(char::is_uppercase)
 }
 
-fn is_a_configured_chat_local_phrase(text: &str, cfg: &WritingConfig) -> bool {
-    cfg.chat_local_phrases
-        .iter()
-        .any(|p| p.eq_ignore_ascii_case(text))
-}
-
-fn has_example_marker_before(text: &str, start: usize) -> bool {
+/// Whether the candidate's own sentence names the thing linguistically:
+/// `phrase`, `word`, `wording`, `term`, `expression`, `example`, `opener`,
+/// `label` or `called`, or the fixed phrases `such as` and `for example`.
+fn has_mention_marker_in_sentence(local_sentences: &[TextUnit], start: usize) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
         let alternatives: Vec<String> = [
+            "phrase",
+            "word",
+            "wording",
+            "term",
+            "expression",
+            "example",
+            "opener",
+            "label",
+            "called",
             "such as",
             "for example",
-            "the phrase",
-            "the word",
-            "called",
-            "like",
         ]
         .iter()
         .map(|m| regex::escape(m))
         .collect();
         word_boundary_alternation(&alternatives).expect("marker alternation compiles")
     });
-    text.get(..start).is_some_and(|before| re.is_match(before))
+    containing_sentence(local_sentences, start).is_some_and(|s| re.is_match(&s.text))
 }
 
 fn unplaced_finding(paragraph: &TextUnit, candidate: &Candidate, cfg: &WritingConfig) -> Finding {
@@ -1628,5 +1617,26 @@ mod unplaceable_reference_tests {
     fn an_absolute_date_as_month_and_day_places_a_time_reference() {
         let t = "Ship it on Monday, September 25, once reviews land.";
         assert!(is_placed(t, "on Monday"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_mention_marker_word_places_a_quoted_term() {
+        let t = r#"The team uses the term "the done wave" for a finished cleanup cycle."#;
+        assert!(is_placed(t, "the done wave"), "{:?}", find(t));
+    }
+
+    /// Quoting a chat-local phrase is not, on its own, a mention of it: the
+    /// sentence still needs a word about language, or the quote is just as
+    /// unresolved as if it had never been quoted at all.
+    #[test]
+    fn a_quoted_chat_local_phrase_with_no_mention_marker_is_not_placed() {
+        let t = r#"He said "as discussed" and hung up, without saying what he meant."#;
+        assert!(!is_placed(t, "as discussed"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_speech_verb_alone_does_not_place_a_quoted_term() {
+        let t = r#"She wrote "the done wave" in the notes without explaining it."#;
+        assert!(!is_placed(t, "the done wave"), "{:?}", find(t));
     }
 }

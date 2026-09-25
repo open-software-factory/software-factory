@@ -52,12 +52,13 @@ pub fn lint_writing(
 }
 
 /// Sets each finding's level and remediation from its rule's class and
-/// group, resolved against `context`. A finding with no metadata (a
-/// suppression-engine diagnostic, for instance) is left as its own level.
+/// group, resolved against `context` and the finding's own evidence. A
+/// finding with no metadata (a suppression-engine diagnostic, for
+/// instance) is left as its own level.
 fn apply_context(findings: &mut [Finding], context: Context) {
     for f in findings.iter_mut() {
         if let Some(meta) = meta::rule_meta(f.rule) {
-            let (level, remediation) = meta.resolve(context);
+            let (level, remediation) = meta.resolve(context, f.evidence);
             f.level = level;
             f.remediation = remediation;
         }
@@ -373,6 +374,23 @@ mod tests {
             .expect("the evidenced name is reported");
         assert_eq!(tier2.level, Level::Warning);
         assert_eq!(tier2.evidence, Evidence::Statistical);
+
+        // The new rule reports the same two names again under its own id;
+        // its must-explain finding resolves normally, but its
+        // statistical-evidence finding never blocks, in this or any context.
+        let new_tier1 = f
+            .iter()
+            .find(|x| x.excerpt == "Fastfix" && x.rule == "unplaceable-reference")
+            .expect("the curated name is reported under the new rule too");
+        assert_eq!(new_tier1.level, Level::Error);
+        assert_eq!(new_tier1.remediation, Remediation::Clarify);
+        let new_tier2 = f
+            .iter()
+            .find(|x| x.excerpt == "DuckDB" && x.rule == "unplaceable-reference")
+            .expect("the evidenced name is reported under the new rule too");
+        assert_eq!(new_tier2.level, Level::Warning);
+        assert_eq!(new_tier2.remediation, Remediation::Advise);
+        assert_eq!(new_tier2.evidence, Evidence::Statistical);
     }
 
     /// A contraction such as "I'll" or "Don't" is never a name, even though
@@ -581,6 +599,13 @@ mod tests {
         assert_eq!(hit.rule, "undefined-name-at-start");
         assert_eq!(hit.level, Level::Warning);
         assert_eq!(hit.evidence, Evidence::Statistical);
+        let new_hit = f
+            .iter()
+            .find(|x| x.rule == "unplaceable-reference")
+            .expect("the new rule reports it too");
+        assert_eq!(new_hit.level, Level::Warning);
+        assert_eq!(new_hit.remediation, Remediation::Advise);
+        assert_eq!(new_hit.evidence, Evidence::Statistical);
     }
 
     #[test]
@@ -632,6 +657,12 @@ mod tests {
         let hit = f.first().expect("one finding checked above");
         assert_eq!(hit.rule, "undefined-name-at-start");
         assert_eq!(hit.level, Level::Warning);
+        let new_hit = f
+            .iter()
+            .find(|x| x.rule == "unplaceable-reference")
+            .expect("the new rule reports it too");
+        assert_eq!(new_hit.level, Level::Warning);
+        assert_eq!(new_hit.remediation, Remediation::Advise);
     }
 
     #[test]

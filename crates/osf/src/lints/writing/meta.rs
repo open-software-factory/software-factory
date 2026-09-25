@@ -8,7 +8,7 @@
 //! says plainly that the limit comes from a secondary summary and is
 //! unverified.
 
-use osf_lint_core::{Class, Context, Exception, Group, Level, Remediation};
+use osf_lint_core::{Class, Context, Evidence, Exception, Group, Level, Remediation};
 
 pub struct RuleMeta {
     pub id: &'static str,
@@ -22,11 +22,12 @@ pub struct RuleMeta {
 
 impl RuleMeta {
     /// The level and remediation for this rule in `context`, from the
-    /// class-and-group matrix, the [`Exception`] above, and nothing else;
-    /// a caller's own config may still override the level afterwards.
+    /// class-and-group matrix, the [`Exception`] above, `evidence`, and
+    /// nothing else; a caller's own config may still override the level
+    /// afterwards.
     #[must_use]
-    pub fn resolve(&self, context: Context) -> (Level, Remediation) {
-        osf_lint_core::resolve(self.class, self.group, context, self.exception)
+    pub fn resolve(&self, context: Context, evidence: Evidence) -> (Level, Remediation) {
+        osf_lint_core::resolve(self.class, self.group, context, self.exception, evidence)
     }
 }
 
