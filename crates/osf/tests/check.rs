@@ -29,6 +29,8 @@ fn check_scan_reports_a_leak_in_a_named_file_and_writes_sarif() {
         &[
             "check",
             "scan",
+            "--checkpoint",
+            "pre-push",
             "--sarif-out",
             ".osf/out/scan.sarif",
             "leak.md",
@@ -50,7 +52,14 @@ fn check_with_no_files_says_nothing_to_check_and_writes_an_empty_sarif() {
     let out = run_osf(
         &repo.dir,
         &home,
-        &["check", "lint-writing", "--sarif-out", "o.sarif"],
+        &[
+            "check",
+            "lint-writing",
+            "--checkpoint",
+            "pre-push",
+            "--sarif-out",
+            "o.sarif",
+        ],
     );
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(String::from_utf8_lossy(&out.stdout).contains("nothing to check"));
@@ -72,7 +81,17 @@ fn check_scan_staged_reads_the_index_not_the_working_tree() {
     repo.stage("notes.md");
     repo.write("notes.md", "Clean again in the working tree.\n");
     let home = isolated_home("check-staged");
-    let out = run_osf(&repo.dir, &home, &["check", "scan-staged", "notes.md"]);
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "notes.md",
+        ],
+    );
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
@@ -95,6 +114,8 @@ fn check_lint_writing_matches_a_fixture_s_declared_rule() {
         &[
             "check",
             "lint-writing",
+            "--checkpoint",
+            "pre-push",
             "crates/osf/tests/fixtures/writing/demo.md",
         ],
     );
@@ -118,6 +139,8 @@ fn check_lint_writing_fails_a_fixture_missing_its_declared_rule() {
         &[
             "check",
             "lint-writing",
+            "--checkpoint",
+            "pre-push",
             "crates/osf/tests/fixtures/writing/demo.md",
         ],
     );
@@ -137,12 +160,23 @@ fn check_lint_writing_gate_ignores_a_suppression_marker() {
     );
     repo.commit("suppressed");
     let home = isolated_home("check-gate");
-    let plain = run_osf(&repo.dir, &home, &["check", "lint-writing", "n.md"]);
+    let plain = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "lint-writing", "--checkpoint", "pre-push", "n.md"],
+    );
     assert_eq!(plain.status.code(), Some(0), "{plain:?}");
     let gated = run_osf(
         &repo.dir,
         &home,
-        &["check", "lint-writing", "--gate", "n.md"],
+        &[
+            "check",
+            "lint-writing",
+            "--checkpoint",
+            "pull-request",
+            "--gate",
+            "n.md",
+        ],
     );
     assert_eq!(gated.status.code(), Some(1), "{gated:?}");
 }
@@ -162,7 +196,17 @@ fn check_scan_staged_finds_a_leak_staged_then_deleted_from_disk() {
     repo.stage("notes.md");
     std::fs::remove_file(repo.dir.join("notes.md")).expect("file removes");
     let home = isolated_home("check-staged-deleted");
-    let out = run_osf(&repo.dir, &home, &["check", "scan-staged", "notes.md"]);
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "notes.md",
+        ],
+    );
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
@@ -174,7 +218,17 @@ fn check_scan_staged_reports_could_not_run_for_a_file_in_neither_place() {
     repo.write("a.md", "Clean.\n");
     repo.commit("add a file");
     let home = isolated_home("check-staged-missing");
-    let out = run_osf(&repo.dir, &home, &["check", "scan-staged", "ghost.md"]);
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "ghost.md",
+        ],
+    );
     assert_eq!(out.status.code(), Some(2), "{out:?}");
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("ghost.md"), "{out:?}");
@@ -202,7 +256,85 @@ fn check_scan_reads_files_from_the_env_var_list_when_no_files_are_given() {
         &repo.dir,
         &home,
         &[("OSF_FILES_FROM", list_path.to_str().expect("utf8 path"))],
-        &["check", "scan"],
+        &["check", "scan", "--checkpoint", "pre-push"],
     );
     assert_eq!(out.status.code(), Some(1), "{out:?}");
+}
+
+/// Task 3, the missing-flag case: `osf check scan` with no `--checkpoint`
+/// exits 2 and names every valid value, so a broken moon task fails loudly
+/// instead of silently reading the wrong content.
+#[test]
+fn check_scan_with_no_checkpoint_flag_exits_two_and_names_the_valid_values() {
+    let repo = TempRepo::new("check-no-checkpoint");
+    repo.write("a.md", "Clean.\n");
+    repo.commit("add a file");
+    let home = isolated_home("check-no-checkpoint");
+    let out = run_osf(&repo.dir, &home, &["check", "scan"]);
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    for value in ["hook", "pre-commit", "pre-push", "pull-request", "schedule"] {
+        assert!(stderr.contains(value), "{value} missing from: {stderr}");
+    }
+}
+
+/// Task 3: the hook checkpoint, selected by the flag, reads a file as it is
+/// on disk right now, not its last committed content.
+#[test]
+fn check_scan_at_the_hook_checkpoint_reads_the_file_just_written_to_disk() {
+    let repo = TempRepo::new("check-hook-reads-disk");
+    repo.write("notes.md", "Clean.\n");
+    repo.commit("clean");
+    repo.write(
+        "notes.md",
+        &format!("See {} here.\n", session_link("abc123")),
+    );
+    let home = isolated_home("check-hook-reads-disk");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "hook", "notes.md"],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+}
+
+/// Task 3: the pre-push checkpoint, selected by the same flag, reads `HEAD`
+/// instead, so the same uncommitted leak on disk is invisible to it.
+#[test]
+fn check_scan_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
+    let repo = TempRepo::new("check-pre-push-reads-head");
+    repo.write("notes.md", "Clean.\n");
+    repo.commit("clean");
+    repo.write(
+        "notes.md",
+        &format!("See {} here.\n", session_link("abc123")),
+    );
+    let home = isolated_home("check-pre-push-reads-head");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "pre-push", "notes.md"],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+}
+
+/// Task 3: `OSF_CHECKPOINT` is no longer read at all. An inherited value of
+/// `hook` must not turn a `--checkpoint pre-push` run into a disk read.
+#[test]
+fn an_inherited_osf_checkpoint_env_var_no_longer_changes_what_pre_push_reads() {
+    let repo = TempRepo::new("check-env-var-ignored");
+    repo.write("notes.md", "Clean.\n");
+    repo.commit("clean");
+    repo.write(
+        "notes.md",
+        &format!("See {} here.\n", session_link("abc123")),
+    );
+    let home = isolated_home("check-env-var-ignored");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_CHECKPOINT", "hook")],
+        &["check", "scan", "--checkpoint", "pre-push", "notes.md"],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
 }

@@ -384,7 +384,7 @@ fn the_pull_request_checkpoint_ignores_a_suppression_marker_and_the_exclude_list
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  lint-writing-gate:\n    command: '\"{bin}\" check lint-writing --gate --sarif-out .osf/out/lint-writing-gate.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+            "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --checkpoint pre-push --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  lint-writing-gate:\n    command: '\"{bin}\" check lint-writing --checkpoint pull-request --gate --sarif-out .osf/out/lint-writing-gate.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
         ),
     );
     repo.write("osf.toml", "exclude = [\"notes.md\"]\n");
@@ -454,7 +454,7 @@ fn the_pull_request_checkpoint_s_lint_skill_gate_ignores_the_exclude_list() {
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "language: rust\ntasks:\n  lint-skill:\n    command: '\"{bin}\" check lint-skill --sarif-out .osf/out/lint-skill.sarif'\n    inputs: ['/**/SKILL.md', '/**/skills/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  lint-skill-gate:\n    command: '\"{bin}\" check lint-skill --gate --sarif-out .osf/out/lint-skill-gate.sarif'\n    inputs: ['/**/SKILL.md', '/**/skills/**/*']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+            "language: rust\ntasks:\n  lint-skill:\n    command: '\"{bin}\" check lint-skill --checkpoint pre-push --sarif-out .osf/out/lint-skill.sarif'\n    inputs: ['/**/SKILL.md', '/**/skills/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  lint-skill-gate:\n    command: '\"{bin}\" check lint-skill --checkpoint pull-request --gate --sarif-out .osf/out/lint-skill-gate.sarif'\n    inputs: ['/**/SKILL.md', '/**/skills/**/*']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
         ),
     );
     repo.write("osf.toml", "exclude = [\"skills/demo\"]\n");

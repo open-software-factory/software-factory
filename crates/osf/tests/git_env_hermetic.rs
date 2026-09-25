@@ -276,7 +276,7 @@ fn a_secret_only_in_the_dash_a_change_is_caught_and_the_commit_is_refused() {
     let repo = repo_with_moon_task(
         "pre-commit-secret",
         "scan-staged",
-        &format!("\"{bin}\" check scan-staged --sarif-out .osf/out/scan-staged.sarif"),
+        &format!("\"{bin}\" check scan-staged --checkpoint pre-commit --sarif-out .osf/out/scan-staged.sarif"),
         "osf-pre-commit",
     );
     repo.write("notes.md", "base\n");
@@ -324,7 +324,7 @@ fn the_whole_pre_push_checkpoint_passes_through_a_real_dry_run_push() {
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan-staged:\n    command: '\"{bin}\" check scan-staged --sarif-out .osf/out/scan-staged.sarif'\n    inputs: ['/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+            "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --checkpoint pre-push --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --checkpoint pre-push --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan-staged:\n    command: '\"{bin}\" check scan-staged --checkpoint pre-push --sarif-out .osf/out/scan-staged.sarif'\n    inputs: ['/**/*']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
         ),
     );
     repo.write("README.md", "a clean repository\n");
@@ -388,7 +388,7 @@ fn a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository
     let main_repo = repo_with_moon_task(
         "linked-worktree-main",
         "scan",
-        &format!("\"{bin}\" check scan --sarif-out .osf/out/scan.sarif"),
+        &format!("\"{bin}\" check scan --checkpoint pre-push --sarif-out .osf/out/scan.sarif"),
         "osf-pre-push",
     );
     main_repo.write("README.md", "a clean repository\n");

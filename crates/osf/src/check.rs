@@ -146,7 +146,7 @@ fn scan_files(
         let bytes = if staged {
             crate::git::staged_content(opts.dir, path).map_err(|e| e.to_string())?
         } else {
-            content_for_check(opts.dir, path)?
+            content_for_check(opts.dir, path, opts.checkpoint)?
         };
         if crate::scan::is_binary(&bytes) {
             continue;
@@ -167,10 +167,12 @@ fn scan_files(
 /// agent just wrote; every other checkpoint keeps reading git `HEAD`, since
 /// it diffs against already-committed history. `scan-staged` never calls
 /// this: it always reads the index, at every checkpoint that runs it.
-fn content_for_check(dir: &Path, path: &str) -> Result<Vec<u8>, String> {
-    let at_hook_checkpoint = std::env::var("OSF_CHECKPOINT").as_deref()
-        == Ok(crate::checkpoint::Checkpoint::Hook.label());
-    if at_hook_checkpoint {
+fn content_for_check(
+    dir: &Path,
+    path: &str,
+    checkpoint: crate::checkpoint::Checkpoint,
+) -> Result<Vec<u8>, String> {
+    if checkpoint == crate::checkpoint::Checkpoint::Hook {
         std::fs::read(dir.join(path)).map_err(|e| e.to_string())
     } else {
         crate::git::content_at(dir, "HEAD", path).map_err(|e| e.to_string())
@@ -194,7 +196,7 @@ fn lint_writing_files(
     let known = lints::load_known_names(&opts.config.writing.known_names, None)?;
     let mut findings = Vec::new();
     for path in &markdown {
-        let bytes = content_for_check(opts.dir, path)?;
+        let bytes = content_for_check(opts.dir, path, opts.checkpoint)?;
         let text = String::from_utf8_lossy(&bytes);
         let raw = lints::writing::lint_writing(
             &text,

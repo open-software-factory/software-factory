@@ -69,8 +69,10 @@ example `osf explain long-sentence`.
 it starts its own moon process. A nested checkpoint run then never
 reads an outer one's workspace by mistake.
 
-`osf verify` reads two variables of its own, and sets three more for
-each task moon runs:
+`osf verify` reads two variables of its own, and sets two more for
+each task moon runs. Moon cannot tell a task which tag selected it.
+Which checkpoint is running instead reaches each task through its own
+`--checkpoint <name>` flag:
 
 | Variable | Read or set | Holds |
 |---|---|---|
@@ -78,7 +80,6 @@ each task moon runs:
 | `OSF_MOON` | Read | A moon binary other than the one on `PATH` |
 | `OSF_FILES_FROM` | Set | A file with one path to check per line |
 | `OSF_BASE` | Set | The commit the checkpoint compares against |
-| `OSF_CHECKPOINT` | Set | Which checkpoint is running |
 
 ## Install moon on the host
 

@@ -680,10 +680,6 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
         env.push(("OSF_BASE".to_string(), b.clone()));
     }
     env.push((
-        "OSF_CHECKPOINT".to_string(),
-        req.checkpoint.label().to_string(),
-    ));
-    env.push((
         "OSF_FILES_FROM".to_string(),
         files_path.to_string_lossy().into_owned(),
     ));

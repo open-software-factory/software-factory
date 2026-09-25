@@ -84,14 +84,16 @@ impl TempRepo {
         std::fs::write(&full, content).expect("fixture file writes");
     }
 
-    /// Writes `.moon/workspace.yml` and a small `.osf/moon.yml` with two
-    /// tasks, uncommitted: `lint-writing`, tagged `osf-pre-push` and
-    /// `osf-hook`, and `scan`, tagged `osf-pre-commit`, `osf-pre-push` and
-    /// `osf-hook`. Both read only Markdown (`inputs: ['/**/*.md']`), so a
-    /// change to a non-Markdown file affects neither. Each task's command
-    /// is the built `osf` binary under test. The caller commits these
-    /// files itself, along with whatever else the test needs in that
-    /// first commit.
+    /// Writes `.moon/workspace.yml` and a small `.osf/moon.yml` with one
+    /// task per checkpoint each of `lint-writing` and `scan` serves (ruling
+    /// F1): `lint-writing-hook` (`osf-hook`), `lint-writing-pre-push`
+    /// (`osf-pre-push`), `scan-pre-commit` (`osf-pre-commit`), `scan-hook`
+    /// (`osf-hook`), and `scan-pre-push` (`osf-pre-push`). Each passes its
+    /// own `--checkpoint` value. All read only Markdown
+    /// (`inputs: ['/**/*.md']`), so a change to a non-Markdown file affects
+    /// none of them. Each task's command is the built `osf` binary under
+    /// test. The caller commits these files itself, along with whatever
+    /// else the test needs in that first commit.
     pub fn with_moon_workspace(name: &str) -> Self {
         let repo = TempRepo::new(name);
         repo.write(
@@ -105,7 +107,12 @@ impl TempRepo {
         repo.write(
             ".osf/moon.yml",
             &format!(
-                "language: rust\ntasks:\n  lint-writing:\n    command: '\"{bin}\" check lint-writing --sarif-out .osf/out/lint-writing.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push, osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  scan:\n    command: '\"{bin}\" check scan --sarif-out .osf/out/scan.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-commit, osf-pre-push, osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+                "language: rust\ntasks:\n  \
+                lint-writing-hook:\n    command: '\"{bin}\" check lint-writing --checkpoint hook --sarif-out .osf/out/lint-writing-hook.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  \
+                lint-writing-pre-push:\n    command: '\"{bin}\" check lint-writing --checkpoint pre-push --sarif-out .osf/out/lint-writing-pre-push.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  \
+                scan-pre-commit:\n    command: '\"{bin}\" check scan --checkpoint pre-commit --sarif-out .osf/out/scan-pre-commit.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-commit]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  \
+                scan-hook:\n    command: '\"{bin}\" check scan --checkpoint hook --sarif-out .osf/out/scan-hook.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  \
+                scan-pre-push:\n    command: '\"{bin}\" check scan --checkpoint pre-push --sarif-out .osf/out/scan-pre-push.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
             ),
         );
         repo

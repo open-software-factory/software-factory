@@ -287,6 +287,9 @@ struct CheckArgs {
     /// Which check to run: scan, scan-staged, lint-writing, lint-skill, or scan-commits.
     #[arg(value_enum)]
     name: check::CheckName,
+    /// Which checkpoint is calling: hook, pre-commit, pre-push, pull-request, or schedule. Required.
+    #[arg(long, value_enum)]
+    checkpoint: Option<checkpoint::Checkpoint>,
     /// What to diff commits against, for `scan-commits`. Else `OSF_BASE`, else the default branch.
     #[arg(long)]
     base: Option<String>,
@@ -882,7 +885,22 @@ fn resolve_check_files(cli_files: &[String]) -> Result<Vec<String>, ExitCode> {
         .collect())
 }
 
+/// `--checkpoint` is missing: exits 2, naming every value it accepts, so a
+/// broken moon task fails loudly instead of silently reading the wrong
+/// checkpoint's content.
+fn missing_checkpoint_exit() -> ExitCode {
+    let values: Vec<&str> = checkpoint::Checkpoint::value_variants()
+        .iter()
+        .map(|c| c.label())
+        .collect();
+    eprintln!("osf check: --checkpoint is required: {}", values.join(", "));
+    ExitCode::from(2)
+}
+
 fn check_cmd(args: &CheckArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
+    let Some(checkpoint) = args.checkpoint else {
+        return missing_checkpoint_exit();
+    };
     let loaded = match config::load(config_flag, &[], &[], args.gate) {
         Ok(l) => l,
         Err(e) => {
@@ -918,6 +936,7 @@ fn check_cmd(args: &CheckArgs, config_flag: Option<&std::path::Path>) -> ExitCod
         message_file: None,
         config: &loaded.config,
         excluder: &excluder,
+        checkpoint,
     };
     let findings = match check::run_check(args.name, &opts, &files, args.gate) {
         Ok(f) => f,
