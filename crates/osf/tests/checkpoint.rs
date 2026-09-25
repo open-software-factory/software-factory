@@ -912,7 +912,7 @@ fn two_overlapping_hook_runs_never_see_each_other_s_file_list() {
         )
     } else {
         format!(
-            "seen=$(cat \"$OSF_FILES_FROM\"); sleep {}; if [ ! -f \"$OSF_FILES_FROM\" ]; then echo DELETED-UNDER-US > \"seen-$PROBE_MARKER.txt\"; exit 1; fi; seen2=$(cat \"$OSF_FILES_FROM\"); printf '%s' \"$seen\" > \"seen-$PROBE_MARKER.txt\"; [ \"$seen\" = \"$seen2\" ]",
+            "seen=$(cat \"$OSF_FILES_FROM\"); sleep {}; if [ ! -f \"$OSF_FILES_FROM\" ]; then echo DELETED-UNDER-US > \"seen-$PROBE_MARKER.txt\"; exit 1; fi; seen2=$(cat \"$OSF_FILES_FROM\"); printf \"%s\\n\" \"$seen\" > \"seen-$PROBE_MARKER.txt\"; [ \"$seen\" = \"$seen2\" ]",
             f64::from(sleep_ms) / 1000.0
         )
     };
