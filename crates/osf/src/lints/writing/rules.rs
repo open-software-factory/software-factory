@@ -1578,3 +1578,55 @@ pub fn recap_ending(doc: &Doc, _cfg: &WritingConfig, out: &mut Vec<Finding>) {
         &excerpt,
     ));
 }
+
+#[cfg(test)]
+mod unplaceable_reference_tests {
+    use super::*;
+    use crate::lints::load_known_names;
+
+    fn known() -> KnownNames {
+        load_known_names(&[], None).expect("built-in names load")
+    }
+
+    fn find(text: &str) -> Vec<Finding> {
+        let doc = segment::parse(text);
+        let cfg = WritingConfig::default();
+        let mut out = Vec::new();
+        unplaceable_reference(&doc, &known(), &cfg, Context::Document, &mut out);
+        out
+    }
+
+    fn is_placed(text: &str, excerpt: &str) -> bool {
+        find(text).iter().all(|f| f.excerpt != excerpt)
+    }
+
+    #[test]
+    fn a_link_around_a_number_places_it() {
+        let t = "The fix is in [Milestone 3](https://example.com/milestones/3) now.";
+        assert!(is_placed(t, "Milestone 3"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_sentence_naming_a_repository_places_a_word_and_number() {
+        let t = "We tracked it to issue 31 in acme/widgets, and confirmed the fix.";
+        assert!(is_placed(t, "issue 31"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_file_path_containing_the_number_places_it() {
+        let t = "The retry policy follows decision 0003, in docs/decisions/0003-retry.md.";
+        assert!(is_placed(t, "decision 0003"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn an_absolute_date_as_day_month_year_places_a_time_reference() {
+        let t = "Ship it on Monday, 25 September 2026, once reviews land.";
+        assert!(is_placed(t, "on Monday"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn an_absolute_date_as_month_and_day_places_a_time_reference() {
+        let t = "Ship it on Monday, September 25, once reviews land.";
+        assert!(is_placed(t, "on Monday"), "{:?}", find(t));
+    }
+}
