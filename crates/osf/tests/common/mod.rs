@@ -10,12 +10,43 @@ use std::process::Command;
 /// A folder name unique to this process and this call, so two processes (or
 /// two calls in one process) building a directory from the same `name` never
 /// share one.
-fn unique_dir(prefix: &str) -> PathBuf {
+pub fn unique_dir(prefix: &str) -> PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock is after the epoch")
         .as_nanos();
     std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()))
+}
+
+/// A fresh, empty directory unique to this process and this call, for a
+/// throwaway fixture with no git repository of its own. Removed on drop.
+pub struct TempDir(PathBuf);
+
+impl TempDir {
+    pub fn new(prefix: &str) -> Self {
+        let dir = unique_dir(prefix);
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        TempDir(dir)
+    }
+}
+
+impl std::ops::Deref for TempDir {
+    type Target = Path;
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for TempDir {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 /// A throwaway git repository under the system temp directory, named
@@ -142,8 +173,7 @@ pub struct BareRepo {
 
 impl BareRepo {
     pub fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("osf-verify-test-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = unique_dir(&format!("osf-verify-test-{name}"));
         let mut command = Command::new("git");
         command.args(["init", "-q", "--bare"]).arg(&dir);
         osf::scrub_git_env(&mut command);

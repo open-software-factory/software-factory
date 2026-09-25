@@ -1012,6 +1012,7 @@ pub fn exit_code(summary: &Summary, checkpoint: Checkpoint) -> u8 {
 mod tests {
     use super::*;
     use crate::moon::TaskOutcome;
+    use crate::test_support::TempDir;
 
     fn task(target: &str, status: TaskStatus, invalid: bool) -> TaskOutcome {
         TaskOutcome {
@@ -1077,14 +1078,6 @@ mod tests {
         assert!(ran_could_not_run(Checkpoint::Hook, &empty).is_none());
     }
 
-    /// A fresh directory outside any git repository.
-    fn outside_any_repo(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(name);
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
-        dir
-    }
-
     /// Runs `git init --quiet` in `dir`.
     fn init_repo(dir: &Path) {
         let mut command = std::process::Command::new("git");
@@ -1104,7 +1097,7 @@ mod tests {
     /// No git repository at all is not adopted.
     #[test]
     fn no_git_repository_at_all_is_not_adopted() {
-        let dir = outside_any_repo("osf-adoption-test-no-git");
+        let dir = TempDir::new("osf-adoption-test-no-git");
         assert!(
             crate::git::repo_root(&dir).is_err(),
             "git rev-parse must fail with no repository present"
@@ -1118,7 +1111,7 @@ mod tests {
     /// A repository with neither file is not adopted.
     #[test]
     fn a_repository_with_neither_file_is_not_adopted() {
-        let dir = outside_any_repo("osf-adoption-test-neither");
+        let dir = TempDir::new("osf-adoption-test-neither");
         init_repo(&dir);
         match detect_adoption(&dir) {
             Adoption::NotAdopted(path, _) => assert_same_dir(&path, &dir),
@@ -1129,7 +1122,7 @@ mod tests {
     /// `osf.toml` without `.osf/moon.yml` is adopted-but-broken.
     #[test]
     fn osf_toml_without_moon_yml_is_adopted_but_broken() {
-        let dir = outside_any_repo("osf-adoption-test-broken");
+        let dir = TempDir::new("osf-adoption-test-broken");
         init_repo(&dir);
         std::fs::write(dir.join("osf.toml"), "").expect("osf.toml writes");
         match detect_adoption(&dir) {
@@ -1144,7 +1137,7 @@ mod tests {
     /// `.osf/moon.yml` present is adopted.
     #[test]
     fn moon_yml_present_is_adopted() {
-        let dir = outside_any_repo("osf-adoption-test-adopted");
+        let dir = TempDir::new("osf-adoption-test-adopted");
         init_repo(&dir);
         std::fs::create_dir_all(dir.join(".osf")).expect(".osf dir creates");
         std::fs::write(dir.join(".osf").join("moon.yml"), "").expect("moon.yml writes");

@@ -1,7 +1,7 @@
 //! Integration tests for `osf hook post-tool`: moon required on `PATH`.
 
 mod common;
-use common::{isolated_home, run_osf_stdin, session_link, BareRepo, TempRepo};
+use common::{isolated_home, run_osf_stdin, session_link, unique_dir, BareRepo, TempDir, TempRepo};
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
     home.join(".osf").join("state")
@@ -277,9 +277,7 @@ fn non_json_input_refuses_with_could_not_run_wording() {
 /// No git repository at all: the hook stands down at exit 0, no moon.
 #[test]
 fn a_path_with_no_repository_at_all_stands_down_rather_than_refusing() {
-    let dir = std::env::temp_dir().join("osf-hook-post-tool-no-repo");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("plain dir creates");
+    let dir = TempDir::new("osf-hook-post-tool-no-repo");
     std::fs::write(dir.join("guide.md"), "Clean.\n").expect("fixture file writes");
     let home = isolated_home("pt-no-repo");
     let payload = format!(
@@ -413,8 +411,7 @@ fn a_relative_payload_path_resolves_the_same_way_for_the_anchor_and_the_relative
         .to_string_lossy()
         .into_owned();
 
-    let cwd_base = std::env::temp_dir().join("osf-hook-post-tool-relanchor-cwd");
-    let _ = std::fs::remove_dir_all(&cwd_base);
+    let cwd_base = unique_dir("osf-hook-post-tool-relanchor-cwd");
     let cwd = cwd_base.join("nested");
     std::fs::create_dir_all(&cwd).expect("nested cwd dir creates");
 
@@ -443,9 +440,7 @@ fn the_hook_checks_the_written_file_s_own_repository_not_the_current_directory()
     let other_repo = TempRepo::with_moon_workspace("pt-anchor-other-repo");
     other_repo.commit("base");
     other_repo.write("guide.md", "Do Phase 2 next.\n");
-    let cwd = std::env::temp_dir().join("osf-hook-post-tool-anchor-cwd");
-    let _ = std::fs::remove_dir_all(&cwd);
-    std::fs::create_dir_all(&cwd).expect("plain cwd dir creates");
+    let cwd = TempDir::new("osf-hook-post-tool-anchor-cwd");
     let home = isolated_home("pt-anchor-other-repo");
     let payload = format!(
         r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
@@ -490,8 +485,7 @@ fn hook_post_tool_refuses_when_git_cannot_run() {
     repo.commit("base");
     repo.write("guide.md", "Clean.\n");
     let home = isolated_home("pt-git-cannot-run");
-    let empty_path = std::env::temp_dir().join("osf-hook-post-tool-empty-path");
-    std::fs::create_dir_all(&empty_path).expect("empty PATH dir creates");
+    let empty_path = TempDir::new("osf-hook-post-tool-empty-path");
     let payload = format!(
         r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
         repo.dir

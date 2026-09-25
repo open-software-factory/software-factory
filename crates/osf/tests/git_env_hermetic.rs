@@ -3,7 +3,7 @@
 //! redirected by an inherited `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE`.
 
 mod common;
-use common::{session_link, TempRepo};
+use common::{session_link, unique_dir, TempRepo};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -24,8 +24,7 @@ struct Sentinel {
 
 impl Sentinel {
     fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("osf-git-env-sentinel-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = unique_dir(&format!("osf-git-env-sentinel-{name}"));
         std::fs::create_dir_all(&dir).expect("sentinel dir creates");
         let mut command = Command::new("git");
         command.current_dir(&dir).args(["init", "-q", "-b", "main"]);
@@ -161,8 +160,7 @@ fn a_real_pre_push_hook_run_touches_neither_the_sentinel_nor_the_clone() {
     let sentinel_config_before =
         std::fs::read(sentinel.dir.join(".git").join("config")).expect("sentinel config reads");
 
-    let clone_dir = std::env::temp_dir().join("osf-git-env-hook-clone");
-    let _ = std::fs::remove_dir_all(&clone_dir);
+    let clone_dir = unique_dir("osf-git-env-hook-clone");
     let clone = git_in(
         Path::new("."),
         &[
@@ -179,8 +177,7 @@ fn a_real_pre_push_hook_run_touches_neither_the_sentinel_nor_the_clone() {
     let hooks_path = git_in(&clone_dir, &["config", "core.hooksPath", ".osf/hooks"]);
     assert!(hooks_path.status.success(), "core.hooksPath set failed");
 
-    let bare_dir = std::env::temp_dir().join("osf-git-env-hook-bare.git");
-    let _ = std::fs::remove_dir_all(&bare_dir);
+    let bare_dir = unique_dir("osf-git-env-hook-bare.git");
     let bare_init = git_in(
         Path::new("."),
         &[
@@ -341,8 +338,7 @@ fn the_whole_pre_push_checkpoint_passes_through_a_real_dry_run_push() {
     );
     repo.commit("a clean follow-up commit");
 
-    let bare_dir = std::env::temp_dir().join("osf-git-env-whole-checkpoint-bare.git");
-    let _ = std::fs::remove_dir_all(&bare_dir);
+    let bare_dir = unique_dir("osf-git-env-whole-checkpoint-bare.git");
     let bare_init = git_in(
         Path::new("."),
         &[
@@ -394,8 +390,7 @@ fn a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository
     main_repo.write("README.md", "a clean repository\n");
     main_repo.commit("base");
 
-    let worktree_dir = std::env::temp_dir().join("osf-git-env-linked-worktree");
-    let _ = std::fs::remove_dir_all(&worktree_dir);
+    let worktree_dir = unique_dir("osf-git-env-linked-worktree");
     let worktree_add = git_in(
         &main_repo.dir,
         &[
@@ -429,8 +424,7 @@ fn a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository
     );
     assert!(commit.status.success(), "commit failed");
 
-    let bare_dir = std::env::temp_dir().join("osf-git-env-linked-worktree-bare.git");
-    let _ = std::fs::remove_dir_all(&bare_dir);
+    let bare_dir = unique_dir("osf-git-env-linked-worktree-bare.git");
     let bare_init = git_in(
         Path::new("."),
         &[

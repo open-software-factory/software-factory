@@ -427,6 +427,7 @@ pub fn untracked_files(dir: &Path) -> Result<Vec<String>, GitError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
     use std::sync::Mutex;
 
     /// Serialises every test that sets `GIT_DIR`/`GIT_INDEX_FILE`: both are process-wide.
@@ -490,14 +491,6 @@ mod tests {
         assert!(parse_remote("nonsense").is_none());
     }
 
-    /// A fresh directory outside any git repository.
-    fn outside_any_repo(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(name);
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
-        dir
-    }
-
     /// Runs `git init --quiet [--bare] dir`, GIT_* scrubbed first.
     fn init_repo(dir: &Path, bare: bool) {
         let mut command = Command::new("git");
@@ -519,14 +512,14 @@ mod tests {
     /// A plain non-repository directory answers `Ok(None)`.
     #[test]
     fn a_plain_directory_has_no_repo_root() {
-        let dir = outside_any_repo("osf-git-test-no-repo");
+        let dir = TempDir::new("osf-git-test-no-repo");
         assert_eq!(repo_root_if_any(&dir).expect("git runs"), None);
     }
 
     /// A normal repository answers `Ok(Some(root))`.
     #[test]
     fn a_normal_repository_has_a_repo_root() {
-        let dir = outside_any_repo("osf-git-test-normal-repo");
+        let dir = TempDir::new("osf-git-test-normal-repo");
         init_repo(&dir, false);
         let root = repo_root_if_any(&dir)
             .expect("git runs")
@@ -542,7 +535,7 @@ mod tests {
     /// "not a git repository" wording, though both exit the same way.
     #[test]
     fn a_bare_repository_is_an_error_not_a_plain_absence() {
-        let dir = outside_any_repo("osf-git-test-bare-repo");
+        let dir = TempDir::new("osf-git-test-bare-repo");
         init_repo(&dir, true);
         let err = repo_root_if_any(&dir).expect_err("a bare repository is an error");
         assert!(!err.to_string().contains("not a git repository"), "{err}");
@@ -552,7 +545,7 @@ mod tests {
     #[test]
     fn scrub_removes_the_locating_variables_unconditionally() {
         with_git_env(&[("GIT_DIR", None), ("GIT_INDEX_FILE", None)], || {
-            let dir = outside_any_repo("osf-git-test-scrub-locating");
+            let dir = TempDir::new("osf-git-test-scrub-locating");
             let mut command = Command::new("git");
             scrub_git_env_for_dir(&mut command, &dir);
             let removed: Vec<String> = command
@@ -569,7 +562,7 @@ mod tests {
     /// `GIT_INDEX_FILE` is left alone when its own path lies inside `dir`'s own git directory.
     #[test]
     fn git_index_file_survives_when_it_lies_inside_dirs_own_git_dir() {
-        let dir = outside_any_repo("osf-git-test-index-inside");
+        let dir = TempDir::new("osf-git-test-index-inside");
         init_repo(&dir, false);
         let index_path = dir.join(".git").join("fake-index");
         std::fs::write(&index_path, b"stand-in for an index").expect("fake index writes");
@@ -593,12 +586,12 @@ mod tests {
     /// own git directory: the two-repository shape the reviewer reproduced.
     #[test]
     fn git_index_file_is_removed_when_it_lies_outside_dirs_own_git_dir() {
-        let other = outside_any_repo("osf-git-test-index-outside-other");
+        let other = TempDir::new("osf-git-test-index-outside-other");
         init_repo(&other, false);
         let other_index = other.join(".git").join("fake-index");
         std::fs::write(&other_index, b"stand-in for another repository's index")
             .expect("fake index writes");
-        let dir = outside_any_repo("osf-git-test-index-outside-target");
+        let dir = TempDir::new("osf-git-test-index-outside-target");
         init_repo(&dir, false);
         with_git_env(
             &[(
@@ -620,11 +613,11 @@ mod tests {
     /// there is nothing to prove containment against.
     #[test]
     fn git_index_file_is_removed_when_dir_has_no_repository_of_its_own() {
-        let source = outside_any_repo("osf-git-test-index-no-dir-repo-source");
+        let source = TempDir::new("osf-git-test-index-no-dir-repo-source");
         init_repo(&source, false);
         let source_index = source.join(".git").join("fake-index");
         std::fs::write(&source_index, b"stand-in for an index").expect("fake index writes");
-        let dir = outside_any_repo("osf-git-test-index-no-dir-repo-target");
+        let dir = TempDir::new("osf-git-test-index-no-dir-repo-target");
         with_git_env(
             &[(
                 "GIT_INDEX_FILE",
@@ -644,7 +637,7 @@ mod tests {
     /// No `GIT_INDEX_FILE` inherited at all: nothing to touch.
     #[test]
     fn no_git_index_file_is_left_untouched() {
-        let dir = outside_any_repo("osf-git-test-no-index-file");
+        let dir = TempDir::new("osf-git-test-no-index-file");
         init_repo(&dir, false);
         with_git_env(&[("GIT_INDEX_FILE", None)], || {
             let mut command = Command::new("git");
@@ -685,12 +678,12 @@ mod tests {
         // to another test's `with_git_env` setting GIT_INDEX_FILE mid-flight
         // if it is left unguarded.
         with_git_env(&[("GIT_DIR", None), ("GIT_INDEX_FILE", None)], || {
-            let repo_a = outside_any_repo("osf-git-test-two-repo-a");
+            let repo_a = TempDir::new("osf-git-test-two-repo-a");
             init_repo(&repo_a, false);
             std::fs::write(repo_a.join("a.txt"), b"a").expect("a.txt writes");
             stage_or_panic(&repo_a, "a.txt");
 
-            let repo_b = outside_any_repo("osf-git-test-two-repo-b");
+            let repo_b = TempDir::new("osf-git-test-two-repo-b");
             init_repo(&repo_b, false);
             std::fs::write(repo_b.join("b.txt"), b"b").expect("b.txt writes");
             stage_or_panic(&repo_b, "b.txt");

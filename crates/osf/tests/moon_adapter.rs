@@ -5,6 +5,9 @@
 //! test here goes through `serial`, since `run` always reads `OSF_MOON`
 //! even when it does not set it.
 
+mod common;
+
+use common::TempDir;
 use osf::moon::{run, Invocation, Outcome, TaskStatus};
 use std::process::Command;
 use std::sync::Mutex;
@@ -53,7 +56,7 @@ fn serial<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
 #[test]
 fn a_missing_moon_is_could_not_run() {
     serial(&[("OSF_MOON", "does-not-exist-anywhere")], || {
-        let root = std::env::temp_dir();
+        let root = TempDir::new("osf-moon-adapter-missing-moon");
         let out = run(&Invocation {
             root: &root,
             targets: &[":#osf-pre-commit".to_string()],
@@ -80,8 +83,7 @@ impl MoonWorkspace {
     /// `script` (moon's `command` setting rejects shell syntax such as
     /// `;` or `|`, which the timeout test's sleep-then-write needs).
     fn with_command(name: &str, command: &str) -> Self {
-        let root = std::env::temp_dir().join(format!("osf-moon-adapter-test-{name}"));
-        let _ = std::fs::remove_dir_all(&root);
+        let root = common::unique_dir(&format!("osf-moon-adapter-test-{name}"));
         std::fs::create_dir_all(root.join(".moon")).expect("workspace dir creates");
         std::fs::create_dir_all(root.join("app")).expect("project dir creates");
         std::fs::write(
@@ -210,7 +212,8 @@ fn a_timed_out_run_kills_the_whole_process_tree() {
 /// workspace entirely.
 #[test]
 fn an_inherited_moon_workspace_root_from_an_outer_task_does_not_redirect_the_run() {
-    let other_real_dir = std::env::temp_dir().to_string_lossy().into_owned();
+    let other_dir = TempDir::new("osf-moon-adapter-other-real-dir");
+    let other_real_dir = other_dir.to_string_lossy().into_owned();
     serial(
         &[
             ("MOON_WORKSPACE_ROOT", other_real_dir.as_str()),

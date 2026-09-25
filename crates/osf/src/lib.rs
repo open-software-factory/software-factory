@@ -19,4 +19,6 @@ pub mod review;
 pub mod risk;
 pub mod scan;
 pub mod status;
+#[cfg(test)]
+mod test_support;
 pub mod verify;

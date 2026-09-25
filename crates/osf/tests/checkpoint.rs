@@ -3,7 +3,7 @@
 mod common;
 use common::{
     isolated_home, run_osf, run_osf_with_env, session_link, write_fake_moon,
-    write_fake_moon_report, BareRepo, TempRepo,
+    write_fake_moon_report, BareRepo, TempDir, TempRepo,
 };
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
@@ -606,9 +606,7 @@ fn a_task_with_moon_s_invalid_status_is_could_not_run() {
 /// No git repository at all: `osf verify` stands down at exit 0, no moon.
 #[test]
 fn verify_stands_down_with_no_git_repository_at_all() {
-    let dir = std::env::temp_dir().join("osf-verify-test-no-repo-at-all");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("plain dir creates");
+    let dir = TempDir::new("osf-verify-test-no-repo-at-all");
     let home = isolated_home("verify-no-repo-at-all");
     let out = run_osf_with_env(
         &dir,
@@ -616,7 +614,6 @@ fn verify_stands_down_with_no_git_repository_at_all() {
         &[("OSF_MOON", "/nonexistent/moon")],
         &["verify", "--checkpoint", "hook"],
     );
-    let _ = std::fs::remove_dir_all(&dir);
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(
         String::from_utf8_lossy(&out.stdout).contains("not adopted"),
@@ -686,8 +683,7 @@ fn verify_refuses_when_git_cannot_run() {
     repo.write("README.md", "init\n");
     repo.commit("base");
     let home = isolated_home("verify-git-cannot-run");
-    let empty_path = std::env::temp_dir().join("osf-verify-test-empty-path");
-    std::fs::create_dir_all(&empty_path).expect("empty PATH dir creates");
+    let empty_path = TempDir::new("osf-verify-test-empty-path");
     let out = run_osf_with_env(
         &repo.dir,
         &home,
@@ -702,9 +698,7 @@ fn verify_refuses_when_git_cannot_run() {
 /// process, so the classification must not depend on the ambient locale.
 #[test]
 fn verify_stands_down_with_no_repository_under_a_non_english_locale() {
-    let dir = std::env::temp_dir().join("osf-verify-test-no-repo-locale");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("plain dir creates");
+    let dir = TempDir::new("osf-verify-test-no-repo-locale");
     let home = isolated_home("verify-no-repo-locale");
     let out = run_osf_with_env(
         &dir,

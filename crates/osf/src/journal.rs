@@ -210,6 +210,7 @@ impl Journal {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
 
     fn verification(check: &str) -> Payload {
         Payload::Verification(Verification {
@@ -225,43 +226,10 @@ mod tests {
         })
     }
 
-    /// A directory unique to this call, so parallel tests (or repeated
-    /// runs) never share one. Its `Drop` removes it, so cleanup happens
-    /// even when an assertion panics partway through a test.
-    struct TempDir(PathBuf);
-
-    impl TempDir {
-        fn new(name: &str) -> Self {
-            let unique = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("clock is after the epoch")
-                .as_nanos();
-            let d = std::env::temp_dir().join(format!(
-                "osf-journal-{name}-{}-{unique}",
-                std::process::id()
-            ));
-            std::fs::create_dir_all(&d).expect("temp dir");
-            TempDir(d)
-        }
-    }
-
-    impl std::ops::Deref for TempDir {
-        type Target = Path;
-        fn deref(&self) -> &Path {
-            &self.0
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            let _ = std::fs::remove_dir_all(&self.0);
-        }
-    }
-
     #[test]
     fn two_runs_with_the_same_events_have_the_same_head_hash_whatever_the_time() {
-        let a_dir = TempDir::new("a");
-        let b_dir = TempDir::new("b");
+        let a_dir = TempDir::new("osf-journal-a");
+        let b_dir = TempDir::new("osf-journal-b");
         let mut a = Journal::open(&a_dir, "run-1").expect("open");
         let mut b = Journal::open(&b_dir, "run-1").expect("open");
         a.append("osf", 1, verification("scan")).expect("append");
@@ -279,7 +247,7 @@ mod tests {
 
     #[test]
     fn each_event_carries_the_hash_of_the_one_before() {
-        let dir = TempDir::new("chain");
+        let dir = TempDir::new("osf-journal-chain");
         let mut j = Journal::open(&dir, "run-2").expect("open");
         let first = j.append("osf", 1, verification("scan")).expect("append");
         let second = j.append("osf", 2, verification("fmt")).expect("append");
@@ -291,7 +259,7 @@ mod tests {
 
     #[test]
     fn an_unwritable_state_dir_is_an_error() {
-        let base = TempDir::new("blocked");
+        let base = TempDir::new("osf-journal-blocked");
         let file = base.join("not-a-dir");
         std::fs::write(&file, "x").expect("file");
         assert!(Journal::open(&file, "run-3").is_err());
@@ -299,7 +267,7 @@ mod tests {
 
     #[test]
     fn opening_a_run_that_already_has_events_is_an_error() {
-        let dir = TempDir::new("existing");
+        let dir = TempDir::new("osf-journal-existing");
         {
             let mut j = Journal::open(&dir, "run-4").expect("open");
             j.append("osf", 1, verification("scan")).expect("append");
@@ -310,7 +278,7 @@ mod tests {
 
     #[test]
     fn an_existing_empty_buffer_file_opens_fine() {
-        let dir = TempDir::new("empty");
+        let dir = TempDir::new("osf-journal-empty");
         let buffer_dir = dir.join("buffer");
         std::fs::create_dir_all(&buffer_dir).expect("buffer dir");
         std::fs::write(buffer_dir.join("run-5.jsonl"), "").expect("empty file");

@@ -555,6 +555,7 @@ fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{unique_temp_path, TempDir};
     use std::sync::Mutex;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -628,7 +629,7 @@ mod tests {
     /// test for "no config file" is not fooled by a real file this
     /// machine happens to have at `~/.osf/config.toml`.
     fn empty_home() -> String {
-        let dir = std::env::temp_dir().join(format!("osf-config-test-home-{}", std::process::id()));
+        let dir = unique_temp_path("osf-config-test-home");
         std::fs::create_dir_all(&dir).expect("empty home dir creates");
         dir.to_string_lossy().into_owned()
     }
@@ -661,17 +662,6 @@ mod tests {
         result
     }
 
-    /// A fresh, empty directory that is not inside any git repository, so
-    /// a test for "no repository" is not fooled by this worktree's own
-    /// `osf.toml`, or by the machine happening to run the test suite
-    /// somewhere under a repository of its own.
-    fn outside_any_repo(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(name);
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
-        dir
-    }
-
     /// Runs `git init --quiet` in `dir`, so `git rev-parse --show-toplevel`
     /// resolves to `dir` from anywhere under it.
     fn init_repo(dir: &Path) {
@@ -684,7 +674,7 @@ mod tests {
 
     #[test]
     fn defaults_round_trip() {
-        let dir = outside_any_repo("osf-config-test-defaults");
+        let dir = TempDir::new("osf-config-test-defaults");
         let home = empty_home();
         let loaded = serial_in_dir(&dir, &[("HOME", &home), ("USERPROFILE", &home)], || {
             load(None, &[], &[], false)
@@ -697,8 +687,7 @@ mod tests {
 
     #[test]
     fn a_partial_file_keeps_the_other_defaults() {
-        let dir = std::env::temp_dir().join("osf-config-test-partial");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-partial");
         let path = dir.join("config.toml");
         std::fs::write(
             &path,
@@ -725,8 +714,7 @@ mod tests {
 
     #[test]
     fn an_unknown_key_is_refused_with_the_valid_keys_named() {
-        let dir = std::env::temp_dir().join("osf-config-test-unknown");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-unknown");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentance_words = 30\n").expect("file writes");
         let err = serial(&[], || load(Some(&path), &[], &[], false))
@@ -738,8 +726,7 @@ mod tests {
 
     #[test]
     fn an_environment_variable_overrides_the_file() {
-        let dir = std::env::temp_dir().join("osf-config-test-env");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-env");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentence_words = 30\n").expect("file writes");
         let loaded = serial(&[("OSF_WRITING_MAX_SENTENCE_WORDS", "40")], || {
@@ -776,8 +763,7 @@ mod tests {
 
     #[test]
     fn a_flag_not_passed_leaves_the_file_value_alone() {
-        let dir = std::env::temp_dir().join("osf-config-test-no-flag");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-no-flag");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentence_words = 30\n").expect("file writes");
         let loaded =
@@ -804,8 +790,7 @@ mod tests {
             "\n",
             "[writing.levels]\n",
         );
-        let dir = std::env::temp_dir().join("osf-config-test-every-key");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-every-key");
         let path = dir.join("config.toml");
         std::fs::write(&path, text).expect("the file writes");
         let loaded =
@@ -832,8 +817,7 @@ mod tests {
 
     #[test]
     fn a_file_exclude_list_replaces_the_compiled_default() {
-        let dir = std::env::temp_dir().join("osf-config-test-exclude-file");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-exclude-file");
         let path = dir.join("config.toml");
         std::fs::write(&path, "exclude = [\"vendor/**\"]\n").expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], false)).expect("file loads");
@@ -861,8 +845,7 @@ mod tests {
 
     #[test]
     fn gate_ignores_a_file_exclude_list() {
-        let dir = std::env::temp_dir().join("osf-config-test-gate-file");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-file");
         let path = dir.join("config.toml");
         std::fs::write(&path, "exclude = [\"vendor/**\"]\n").expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
@@ -901,8 +884,7 @@ mod tests {
     /// growing this one list can only add errors, never remove one.
     #[test]
     fn gate_reads_must_explain_names_from_the_configured_file() {
-        let dir = std::env::temp_dir().join("osf-config-test-gate-must-explain");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-must-explain");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmust_explain_names = [\"Widgetly\"]\n")
             .expect("file writes");
@@ -921,9 +903,8 @@ mod tests {
     /// so this worktree's own `osf.toml` cannot answer in the flag's place.
     #[test]
     fn gate_ignores_the_config_flag_for_must_explain_names() {
-        let outside = outside_any_repo("osf-config-test-gate-must-explain-flag-outside");
-        let dir = std::env::temp_dir().join("osf-config-test-gate-must-explain-flag");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let outside = TempDir::new("osf-config-test-gate-must-explain-flag-outside");
+        let dir = TempDir::new("osf-config-test-gate-must-explain-flag");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmust_explain_names = [\"Widgetly\"]\n")
             .expect("file writes");
@@ -939,7 +920,7 @@ mod tests {
     /// reads nothing rather than erroring.
     #[test]
     fn gate_must_explain_names_is_empty_with_no_file() {
-        let outside = outside_any_repo("osf-config-test-gate-must-explain-empty-outside");
+        let outside = TempDir::new("osf-config-test-gate-must-explain-empty-outside");
         let home = empty_home();
         let loaded = serial_in_dir(&outside, &[("HOME", &home), ("USERPROFILE", &home)], || {
             load(None, &[], &[], true)
@@ -954,7 +935,7 @@ mod tests {
     /// pointed `OSF_CONFIG` at it by hand.
     #[test]
     fn the_repository_root_file_is_found_from_a_subdirectory() {
-        let dir = outside_any_repo("osf-config-test-repo-root-subdir");
+        let dir = TempDir::new("osf-config-test-repo-root-subdir");
         init_repo(&dir);
         std::fs::write(
             dir.join("osf.toml"),
@@ -980,7 +961,7 @@ mod tests {
     /// home file, here also absent.
     #[test]
     fn outside_a_repository_the_layer_is_skipped_without_error() {
-        let dir = outside_any_repo("osf-config-test-repo-root-outside");
+        let dir = TempDir::new("osf-config-test-repo-root-outside");
         let home = empty_home();
 
         let loaded = serial_in_dir(&dir, &[("HOME", &home), ("USERPROFILE", &home)], || {
@@ -994,7 +975,7 @@ mod tests {
     /// `OSF_CONFIG` still wins over a repository's own `osf.toml`.
     #[test]
     fn the_environment_variable_still_wins_over_the_repository_root_file() {
-        let dir = outside_any_repo("osf-config-test-repo-root-env-wins");
+        let dir = TempDir::new("osf-config-test-repo-root-env-wins");
         init_repo(&dir);
         std::fs::write(
             dir.join("osf.toml"),
@@ -1020,7 +1001,7 @@ mod tests {
     /// gate run.
     #[test]
     fn the_flag_still_wins_over_the_repository_root_file() {
-        let dir = outside_any_repo("osf-config-test-repo-root-flag-wins");
+        let dir = TempDir::new("osf-config-test-repo-root-flag-wins");
         init_repo(&dir);
         std::fs::write(
             dir.join("osf.toml"),
@@ -1047,7 +1028,7 @@ mod tests {
     /// back to the compiled default.
     #[test]
     fn the_gate_still_gets_the_repository_root_file() {
-        let dir = outside_any_repo("osf-config-test-repo-root-gate");
+        let dir = TempDir::new("osf-config-test-repo-root-gate");
         init_repo(&dir);
         std::fs::write(
             dir.join("osf.toml"),
@@ -1068,8 +1049,7 @@ mod tests {
     /// turns `bare-reference` off must not reach a gate run.
     #[test]
     fn gate_ignores_a_file_level_override() {
-        let dir = std::env::temp_dir().join("osf-config-test-gate-levels");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-levels");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing.levels]\nbare-reference = \"off\"\n").expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
@@ -1084,8 +1064,7 @@ mod tests {
     /// compiled defaults too, the same as `exclude` already did.
     #[test]
     fn gate_ignores_known_names_and_word_lists_from_a_file() {
-        let dir = std::env::temp_dir().join("osf-config-test-gate-lists");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-lists");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nknown_names = [\"Vale\"]\nfiller = []\n")
             .expect("file writes");
@@ -1163,8 +1142,7 @@ mod tests {
         }
         let text = toml::to_string(&poisoned).expect("poisoned tree renders as TOML");
 
-        let dir = std::env::temp_dir().join("osf-config-test-gate-poison");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-poison");
         let path = dir.join("config.toml");
         std::fs::write(&path, &text).expect("poisoned file writes");
         let path_str = path.to_string_lossy().into_owned();
@@ -1208,8 +1186,7 @@ mod tests {
 
     #[test]
     fn the_skill_section_layers_the_same_way_as_writing() {
-        let dir = std::env::temp_dir().join("osf-config-test-skill-section");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-skill-section");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[skill]\noverview_max_paragraphs = 1\n").expect("file writes");
         let loaded = serial(&[("OSF_SKILL_OVERVIEW_MAX_WORDS", "40")], || {
@@ -1231,8 +1208,7 @@ mod tests {
 
     #[test]
     fn an_unknown_skill_key_is_refused() {
-        let dir = std::env::temp_dir().join("osf-config-test-skill-unknown");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-skill-unknown");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[skill]\noverview_max_paragraph = 1\n").expect("file writes");
         let err = serial(&[], || load(Some(&path), &[], &[], false))
