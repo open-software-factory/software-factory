@@ -2,7 +2,7 @@ The rollout used a `dark launch` for the new pricing page, gated behind a flag. 
 
 <!-- osf-unplaceable
 label: unplaceable
-kind: name
+kind: model
 target: dark launch
-reason: lowercase term in backticks with no code characters, never defined
+reason: lowercase term in backticks, never defined; backtick terms are the model layer's job
 -->

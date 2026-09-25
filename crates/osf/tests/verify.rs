@@ -187,7 +187,7 @@ fn pre_push_honours_a_suppression_marker_that_ci_ignores() {
     let base = repo.commit("base commit");
     repo.write(
         "notes.md",
-        "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n",
+        "Fixed in #125 now. <!-- osf-disable-line bare-reference,unplaceable-reference -- tracked -->\n",
     );
     repo.commit("add a suppressed finding");
 

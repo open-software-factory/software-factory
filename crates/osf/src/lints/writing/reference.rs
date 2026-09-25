@@ -26,11 +26,11 @@ pub struct Candidate {
 /// Words that never label a referent, so a number after one is a quantity, a year, or a clock time.
 const NON_LABEL_WORDS: &[&str] = &[
     "a", "an", "the", "at", "in", "on", "of", "by", "for", "with", "from", "since", "until",
-    "during", "before", "after", "about", "around", "near", "past", "over", "under", "to", "is",
-    "was", "were", "are", "and", "or", "but", "this", "that", "these", "those", "it",
+    "during", "before", "after", "about", "around", "near", "past", "over", "under", "than", "to",
+    "is", "was", "were", "are", "and", "or", "but", "this", "that", "these", "those", "it",
 ];
 
-const MONTHS: &[&str] = &[
+pub(super) const MONTHS: &[&str] = &[
     "january",
     "february",
     "march",
@@ -661,6 +661,15 @@ mod tests {
     }
 
     #[test]
+    fn number_excludes_a_comparison_quantity() {
+        assert!(
+            kinds("No more than 20 words in a procedure.", Context::Document)
+                .iter()
+                .all(|k| *k != Kind::Number)
+        );
+    }
+
+    #[test]
     fn number_excludes_a_hyphenated_range() {
         assert!(
             kinds("See issues 12-15 for the full list.", Context::Document)
@@ -1097,9 +1106,6 @@ mod tests {
         }
     }
 
-    /// A backtick term is no longer a name candidate; excluded here since it is not this module's fixture to edit.
-    const KNOWN_FIXTURE_GAPS: &[&str] = &["name-backtick-lowercase-unplaceable.md"];
-
     /// Every non-model unplaceable fixture must yield a candidate of its own kind.
     #[test]
     fn every_unplaceable_fixture_yields_a_candidate_of_its_kind() {
@@ -1108,7 +1114,6 @@ mod tests {
         let known_names = known();
         let mut checked = 0;
         let mut placeable_with_candidates: Vec<String> = Vec::new();
-        let mut known_gaps: Vec<String> = Vec::new();
 
         let mut entries: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
             .unwrap_or_else(|e| panic!("{} reads: {e}", dir.display()))
@@ -1133,10 +1138,6 @@ mod tests {
                 .collect();
 
             if label == "unplaceable" && kind != "model" {
-                if KNOWN_FIXTURE_GAPS.contains(&file_name.as_str()) {
-                    known_gaps.push(file_name.clone());
-                    continue;
-                }
                 checked += 1;
                 assert!(
                     found.iter().any(|c| kind_name(c.kind) == kind),
@@ -1151,9 +1152,6 @@ mod tests {
         }
 
         assert!(checked > 0, "no unplaceable fixtures were checked");
-        if !known_gaps.is_empty() {
-            println!("unplaceable fixtures excluded as known gaps: {known_gaps:?}");
-        }
         if !placeable_with_candidates.is_empty() {
             println!("placeable fixtures that still yield a candidate (resolution clears these):");
             for line in &placeable_with_candidates {

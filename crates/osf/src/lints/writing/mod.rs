@@ -38,6 +38,7 @@ pub fn lint_writing(
     }
     rules::per_sentence(&doc, cfg, fast_only, &mut findings);
     rules::undefined_names(&doc, known, cfg, &mut findings);
+    rules::unplaceable_reference(&doc, known, cfg, context, &mut findings);
     rules::recap_ending(&doc, cfg, &mut findings);
     apply_context(&mut findings, context);
     let mut findings = if no_suppress {
@@ -125,7 +126,10 @@ mod tests {
 
     #[test]
     fn bare_issue_reference() {
-        assert_eq!(rules_of("Fixed in #125 today."), vec!["bare-reference"]);
+        assert_eq!(
+            rules_of("Fixed in #125 today."),
+            vec!["bare-reference", "unplaceable-reference"]
+        );
         assert!(rules_of("Use `#12` in code.").is_empty());
     }
 
@@ -133,7 +137,11 @@ mod tests {
     fn reference_needs_a_label_and_a_link() {
         assert_eq!(
             rules_of("Fixed in open-software-factory/software-factory#125 today."),
-            vec!["reference-without-label", "reference-without-link"]
+            vec![
+                "reference-without-label",
+                "reference-without-link",
+                "unplaceable-reference"
+            ]
         );
         assert_eq!(
             rules_of("Fixed in repo#125 (the canvas fixes) today."),
@@ -170,7 +178,7 @@ mod tests {
         assert_eq!(rules_of("Do Phase 2 next."), vec!["chat-local-reference"]);
         assert_eq!(
             rules_of("As discussed, ship it."),
-            vec!["chat-local-reference"]
+            vec!["chat-local-reference", "unplaceable-reference"]
         );
         assert!(rules_of("Round 2 found nothing.").is_empty());
     }
@@ -282,7 +290,7 @@ mod tests {
                 .into_iter()
                 .map(|f| f.rule)
                 .collect::<Vec<_>>(),
-            vec!["undefined-name"]
+            vec!["undefined-name", "unplaceable-reference"]
         );
         assert!(lint_with(&cfg, "Use Vale, a prose checker, for this.").is_empty());
         assert!(lint_with(&cfg, "Use Vale for this. Vale is a prose checker.").is_empty());
@@ -302,16 +310,19 @@ mod tests {
     #[test]
     fn multi_word_name_is_one_name() {
         let f = lint("Open Sublime Merge now. Then open Sublime Merge again.");
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f.first().map(|x| x.excerpt.as_str()), Some("Sublime Merge"));
-        assert_eq!(f.first().map(|x| x.evidence), Some(Evidence::Statistical));
+        assert_eq!(f.len(), 2, "{f:?}");
+        assert!(f.iter().all(|x| x.excerpt == "Sublime Merge"), "{f:?}");
+        assert!(
+            f.iter().all(|x| x.evidence == Evidence::Statistical),
+            "{f:?}"
+        );
     }
 
     #[test]
     fn tier_2_evidence_internal_capital() {
         assert_eq!(
             rules_of("Deploy with DuckDB today."),
-            vec!["undefined-name-at-start"]
+            vec!["undefined-name-at-start", "unplaceable-reference"]
         );
     }
 
@@ -319,7 +330,7 @@ mod tests {
     fn tier_2_evidence_digit_in_token() {
         assert_eq!(
             rules_of("The build uses Log4j for output."),
-            vec!["undefined-name-at-start"]
+            vec!["undefined-name-at-start", "unplaceable-reference"]
         );
     }
 
@@ -327,7 +338,7 @@ mod tests {
     fn tier_2_evidence_domain_suffix() {
         assert_eq!(
             rules_of("Check Contentful.io for the docs."),
-            vec!["undefined-name-at-start"]
+            vec!["undefined-name-at-start", "unplaceable-reference"]
         );
     }
 
@@ -491,7 +502,7 @@ mod tests {
     fn numbers_in_prose() {
         assert_eq!(
             rules_of("It ran 12 axes over 3 rounds in 41 minutes."),
-            vec!["numbers-in-prose"]
+            vec!["numbers-in-prose", "unplaceable-reference"]
         );
     }
 
@@ -564,9 +575,10 @@ mod tests {
         let filler = "It ran. ".repeat(300);
         let t = format!("{filler}\n\n### RimWorld\n");
         let f = lint(&t);
-        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f.len(), 2, "{f:?}");
+        assert!(f.iter().all(|x| x.excerpt == "RimWorld"), "{f:?}");
         let hit = f.first().expect("one finding checked above");
-        assert_eq!(hit.excerpt, "RimWorld");
+        assert_eq!(hit.rule, "undefined-name-at-start");
         assert_eq!(hit.level, Level::Warning);
         assert_eq!(hit.evidence, Evidence::Statistical);
     }
@@ -615,9 +627,10 @@ mod tests {
         // is still reported, as a warning from that evidence alone.
         let t = "The team is choosing between React/TypeScript for the client.\n";
         let f = lint(t);
-        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f.len(), 2, "{f:?}");
+        assert!(f.iter().all(|x| x.excerpt == "React/TypeScript"), "{f:?}");
         let hit = f.first().expect("one finding checked above");
-        assert_eq!(hit.excerpt, "React/TypeScript");
+        assert_eq!(hit.rule, "undefined-name-at-start");
         assert_eq!(hit.level, Level::Warning);
     }
 
@@ -631,7 +644,7 @@ mod tests {
         let t = "- What is the durable unit: WorkItem, Run, Execution, Task, Step, Attempt, Session?\n\nA run of the pipeline records each attempt and session in a task queue.\n";
         let found = lint(t);
         let names: Vec<&str> = found.iter().map(|f| f.excerpt.as_str()).collect();
-        assert_eq!(names, vec!["WorkItem"], "{found:?}");
+        assert_eq!(names, vec!["WorkItem", "WorkItem"], "{found:?}");
     }
 
     #[test]
@@ -649,7 +662,7 @@ mod tests {
         let f = lint(&t);
         assert_eq!(
             f.iter().map(|x| x.rule).collect::<Vec<_>>(),
-            vec!["undefined-name-at-start"],
+            vec!["undefined-name-at-start", "unplaceable-reference"],
             "{f:?}"
         );
     }
@@ -690,7 +703,7 @@ mod tests {
         // sentence: position decides nothing in the new design.
         assert_eq!(
             rules_of("DuckDB runs fast."),
-            vec!["undefined-name-at-start"]
+            vec!["undefined-name-at-start", "unplaceable-reference"]
         );
         assert!(rules_of("Build runs fast.").is_empty());
         assert!(rules_of("Fixing runs fast.").is_empty());
@@ -716,20 +729,36 @@ mod tests {
             .into_iter()
             .filter(|f| f.level == Level::Error)
             .collect();
-        assert_eq!(f.len(), 1);
-        assert_eq!(f.first().map(|x| x.line), Some(4));
+        assert_eq!(f.len(), 2, "{f:?}");
+        let bare = f
+            .iter()
+            .find(|x| x.rule == "bare-reference")
+            .expect("bare-reference kept");
+        assert_eq!(bare.line, 4);
+        let paragraph_scope = f
+            .iter()
+            .find(|x| x.rule == "unplaceable-reference")
+            .expect("unplaceable-reference kept");
+        // A paragraph-scope rule reports the paragraph's own start line, the
+        // same as every other paragraph-scope rule, not the sentence's line.
+        assert_eq!(paragraph_scope.line, 3);
     }
 
     #[test]
     fn a_suppressed_line_is_kept_but_marked() {
         let f = lint("Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n");
         // The marker's own `-->` and ` -- ` must not lint as an arrow or an em dash.
-        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f.len(), 2, "{f:?}");
         let bare = f
             .iter()
             .find(|x| x.rule == "bare-reference")
             .expect("finding kept");
         assert!(bare.suppressed.is_some());
+        let unplaceable = f
+            .iter()
+            .find(|x| x.rule == "unplaceable-reference")
+            .expect("finding kept");
+        assert!(unplaceable.suppressed.is_none());
     }
 
     #[test]
@@ -943,7 +972,7 @@ mod tests {
         let f = lint_with(&cfg, t);
         assert_eq!(
             f.iter().map(|x| x.rule).collect::<Vec<_>>(),
-            vec!["undefined-name"],
+            vec!["undefined-name", "unplaceable-reference"],
             "{f:?}"
         );
     }
@@ -1022,7 +1051,7 @@ mod tests {
                 .into_iter()
                 .map(|f| f.rule)
                 .collect::<Vec<_>>(),
-            vec!["undefined-name"]
+            vec!["undefined-name", "unplaceable-reference"]
         );
     }
 

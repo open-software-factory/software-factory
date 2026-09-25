@@ -6,15 +6,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Rule ids this measure treats as flagged; swap to `["unplaceable-reference"]` once that rule lands.
-const MEASURED_RULE_IDS: &[&str] = &[
-    "bare-reference",
-    "reference-without-label",
-    "reference-without-link",
-    "chat-local-reference",
-    "undefined-name",
-    "undefined-name-at-start",
-];
+/// Rule ids this measure treats as flagged.
+const MEASURED_RULE_IDS: &[&str] = &["unplaceable-reference"];
 
 /// Kind reported on its own row, excluded from every total.
 const EXCLUDED_KIND: &str = "model";
@@ -180,24 +173,33 @@ fn print_row(label: &str, stats: &Stats) {
     );
 }
 
+/// Every kind's stats added together, the excluded kind left out.
+fn total_excluding_model(by_kind: &BTreeMap<String, Stats>) -> Stats {
+    let mut total = Stats::default();
+    for (kind, stats) in by_kind {
+        if kind != EXCLUDED_KIND {
+            total.add(*stats);
+        }
+    }
+    total
+}
+
 fn print_table(by_kind: &BTreeMap<String, Stats>) {
     println!("| Kind | TP | FP | FN | TN | Stray | Precision | Recall |");
     println!("| --- | --- | --- | --- | --- | --- | --- | --- |");
-    let mut total = Stats::default();
     for (kind, stats) in by_kind {
         if kind == EXCLUDED_KIND {
             continue;
         }
         print_row(kind, stats);
-        total.add(*stats);
     }
-    print_row("**Total**", &total);
+    print_row("**Total**", &total_excluding_model(by_kind));
     if let Some(model) = by_kind.get(EXCLUDED_KIND) {
         print_row("model (excluded from totals)", model);
     }
 }
 
-/// Prints the precision-and-recall table `MEASURED_RULE_IDS` produces today; asserts only that every fixture parses.
+/// Prints the precision-and-recall table `MEASURED_RULE_IDS` produces, and requires perfect recall and precision.
 #[test]
 fn writing_lint_precision_and_recall_on_the_unplaceable_fixture() {
     let cases = load_all_fixtures();
@@ -216,7 +218,7 @@ fn writing_lint_precision_and_recall_on_the_unplaceable_fixture() {
             &case.text,
             &known,
             &cfg,
-            Context::Transcript,
+            Context::Document,
             false,
             false,
         );
@@ -249,5 +251,13 @@ fn writing_lint_precision_and_recall_on_the_unplaceable_fixture() {
         by_kind.len(),
         expected_kinds.len(),
         "an unexpected kind was declared: {kinds:?}"
+    );
+
+    let total = total_excluding_model(&by_kind);
+    assert_eq!(total.precision(), Some(1.0), "total precision must be 100%");
+    assert_eq!(total.recall(), Some(1.0), "total recall must be 100%");
+    assert_eq!(
+        total.stray, 0,
+        "no measured finding may land away from its own fixture's target"
     );
 }
