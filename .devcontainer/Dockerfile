@@ -137,6 +137,12 @@ RUN useradd --create-home --shell /bin/bash dev
 # binaries are still found via /usr/local/cargo/bin, already on PATH.
 ENV CARGO_HOME=/home/dev/.cargo
 
+# The base image ships this toolchain group- and other-writable, on both
+# directories and many of the binaries and libraries themselves, so dev
+# could still replace or edit rustc or cargo in place. Strip only the
+# write bits; nothing here needs to be executable-only or unreadable.
+RUN find /usr/local/cargo /usr/local/rustup -perm /022 -exec chmod go-w {} +
+
 ENV PATH="/opt/factory/bin:${PATH}"
 
 USER dev
