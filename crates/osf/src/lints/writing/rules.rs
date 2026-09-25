@@ -90,7 +90,7 @@ pub fn headings_in_short_text(doc: &Doc, cfg: &WritingConfig, out: &mut Vec<Find
     }));
 }
 
-fn re(cell: &'static OnceLock<Regex>, pattern: &'static str) -> &'static Regex {
+pub(super) fn re(cell: &'static OnceLock<Regex>, pattern: &'static str) -> &'static Regex {
     cell.get_or_init(|| Regex::new(pattern).expect("rule pattern compiles"))
 }
 
@@ -138,7 +138,7 @@ fn bare_reference(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
 /// Replaces every byte inside a range in `ranges` with an ASCII space, one
 /// space per byte of the original character, so the result stays the same
 /// length and every other byte offset in `text` still lines up.
-fn mask_ranges(text: &str, ranges: &[Range<usize>]) -> String {
+pub(super) fn mask_ranges(text: &str, ranges: &[Range<usize>]) -> String {
     let mut out = String::with_capacity(text.len());
     for (i, ch) in text.char_indices() {
         if ranges.iter().any(|r| r.contains(&i)) {
@@ -209,7 +209,7 @@ fn reference_without_label(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
 /// not the same thing as "nothing configured, so this never matches."
 /// A caller escapes its own words first; a literal alternative is not safe
 /// to pass here unescaped.
-fn word_boundary_alternation(alternatives: &[String]) -> Option<Regex> {
+pub(super) fn word_boundary_alternation(alternatives: &[String]) -> Option<Regex> {
     if alternatives.is_empty() {
         return None;
     }
@@ -637,7 +637,7 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: 
 /// `DuckDB`'s, a digit in one of its words, a domain-like suffix such as
 /// `.dev`, or, only for a multi-word run, more than one occurrence of that
 /// exact run elsewhere in the document.
-fn looks_like_a_name(name: &str, run_counts: &HashMap<String, usize>) -> bool {
+pub(super) fn looks_like_a_name(name: &str, run_counts: &HashMap<String, usize>) -> bool {
     let words: Vec<&str> = name.split(' ').collect();
     words.iter().any(|w| has_inner_capital(w))
         || words.iter().any(|w| w.chars().any(|c| c.is_ascii_digit()))
@@ -667,7 +667,7 @@ fn has_domain_suffix(w: &str) -> bool {
 /// list item is exempt, since both are normally a title or a labelled
 /// term in full, such as `Prison Architect` or `JetBrains IDEs`, where the
 /// first word is as much the name as the rest.
-fn candidate_names(s: &TextUnit) -> Vec<String> {
+pub(super) fn candidate_names(s: &TextUnit) -> Vec<String> {
     let words = s.words();
     let first_word = words
         .iter()

@@ -7,6 +7,8 @@
 
 pub(super) mod meta;
 pub(super) mod names;
+// Fully public: clippy's dead-code check only exempts a genuinely reachable item.
+pub mod reference;
 pub(super) mod rules;
 
 use super::{Context, Finding, KnownNames};
