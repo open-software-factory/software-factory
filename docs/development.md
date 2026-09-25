@@ -15,6 +15,9 @@ Open the repository folder in such an editor, then run that command. The
 first build compiles `osf` from this repository's own source, so the
 first open takes a few minutes.
 
+On Windows, clone the repository inside the WSL filesystem, not on a
+Windows drive. Tests run far slower over a Windows bind mount.
+
 The container user is called `dev`. It is a normal user. It has no
 password-less root access, so it cannot install packages as root or
 change files that root owns.

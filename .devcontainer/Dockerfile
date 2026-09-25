@@ -131,9 +131,11 @@ RUN chown root:root /opt/factory/bin/git && chmod 0555 /opt/factory/bin/git
 # for it in /etc/sudoers, and it is not in the sudo group.
 RUN useradd --create-home --shell /bin/bash dev
 
-# The Rust toolchain and cargo's registry cache were populated as root while
-# building osf above; hand them to dev so cargo commands work as that user.
-RUN chown -R dev:dev /usr/local/cargo /usr/local/rustup
+# The toolchain under /usr/local/cargo and /usr/local/rustup stays
+# root-owned, so dev cannot replace rustc or cargo. dev gets its own
+# writable CARGO_HOME for its registry cache and config; the cargo/rustc
+# binaries are still found via /usr/local/cargo/bin, already on PATH.
+ENV CARGO_HOME=/home/dev/.cargo
 
 ENV PATH="/opt/factory/bin:${PATH}"
 
