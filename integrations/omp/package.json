@@ -19,7 +19,7 @@
     "test": "node --test dist/test/**/*.test.js"
   },
   "devDependencies": {
-    "@oh-my-pi/pi-coding-agent": "18.2.4",
+    "@oh-my-pi/pi-coding-agent": "18.2.8",
     "@types/node": "26.6.2",
     "oxfmt": "0.68.0",
     "oxlint": "1.85.0",
