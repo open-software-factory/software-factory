@@ -217,6 +217,45 @@ fn an_unwritable_journal_still_refuses_a_real_finding_and_names_the_failure() {
     );
 }
 
+/// Task 6 (fixes-135): before the fix, `hook.rs` printed the journal-open
+/// failure once directly, then the refusal body built from
+/// `error_findings` repeated the same line, so a real finding's refusal
+/// named the journal failure twice on standard error. It must be named
+/// exactly once.
+#[test]
+fn an_unwritable_journal_names_the_failure_exactly_once_in_the_refusal() {
+    let repo = TempRepo::with_moon_workspace("pt-unwritable-state-once");
+    repo.commit("base");
+    repo.write("guide.md", "Do Phase 2 next.\n");
+    let home = isolated_home("pt-unwritable-state-once");
+    std::fs::write(home.join("blocked"), "x").expect("blocked file writes");
+    let payload = format!(
+        r#"{{"session_id":"s","tool_name":"Write","tool_input":{{"file_path":"{}"}}}}"#,
+        repo.dir
+            .join("guide.md")
+            .to_string_lossy()
+            .replace('\\', "/")
+    );
+    let out = run_osf_stdin(
+        &repo.dir,
+        &home,
+        &[(
+            "OSF_STATE_DIR",
+            home.join("blocked").to_str().expect("utf8"),
+        )],
+        &["hook", "post-tool"],
+        &payload,
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let needle = "cannot create the journal buffer directory";
+    assert_eq!(
+        stderr.matches(needle).count(),
+        1,
+        "journal error should be named exactly once: {stderr}"
+    );
+}
+
 /// The other half of the same case: a clean file still exits 0, and the
 /// journal failure is still named on standard error rather than swallowed.
 #[test]

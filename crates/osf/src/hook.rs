@@ -486,7 +486,15 @@ fn post_tool_with_input(
                 "osf hook post-tool: the written file did not pass the hook checkpoint in {}",
                 root.display()
             )];
-            lines.extend(summary.error_findings.iter().cloned());
+            // The journal error, if any, was already printed above; do not
+            // let the refusal body repeat the same line.
+            lines.extend(
+                summary
+                    .error_findings
+                    .iter()
+                    .filter(|f| Some(f.as_str()) != summary.journal_error.as_deref())
+                    .cloned(),
+            );
             refuse(answer, &lines.join("\n"))
         }
         CheckResult::Passed | CheckResult::NothingToCheck => ExitCode::SUCCESS,
