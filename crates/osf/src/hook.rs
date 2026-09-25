@@ -616,7 +616,8 @@ fn safe_id(s: &str) -> String {
 }
 
 fn counter_path(session: &str, prompt: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("osf-stop");
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, shared across hook invocations
+    let dir = base.join("osf-stop");
     let _ = std::fs::create_dir_all(&dir);
     dir.join(format!("{}-{}", safe_id(session), safe_id(prompt)))
 }
@@ -635,7 +636,8 @@ fn write_counter(p: &Path, n: u32) {
 /// Where an `advise` finding waits for the next turn's prompt hook,
 /// keyed by session id, under the system temporary directory.
 fn advice_path(session: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("osf-advice");
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, shared across hook invocations
+    let dir = base.join("osf-advice");
     let _ = std::fs::create_dir_all(&dir);
     dir.join(format!("{}.txt", safe_id(session)))
 }

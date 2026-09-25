@@ -13,7 +13,8 @@ pub(crate) fn unique_temp_path(prefix: &str) -> PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("clock is after the epoch")
         .as_nanos();
-    std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()))
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, the shared helper
+    base.join(format!("{prefix}-{}-{unique}", std::process::id()))
 }
 
 /// A fresh, empty directory unique to this process and this call. Its

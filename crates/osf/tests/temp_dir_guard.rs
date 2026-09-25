@@ -1,57 +1,22 @@
-//! Ruling F8: every temporary test directory must come from one of the two
-//! shared helpers, so two processes running the same test never collide.
-//! This walks the crate's own source and fails on any other direct call to
-//! the OS temp directory, naming the file and line.
+//! Ruling F8: a temporary test directory must be safe for two processes to
+//! use at once, and a production one must never be wiped before use. Every
+//! direct call to the OS temp directory must say why on its own line, with
+//! a `// osf: temp-dir allowed, <reason>` marker, so an unrelated edit
+//! elsewhere in the file can never make an old line-number allowance stale
+//! without anyone noticing.
 
 use std::path::{Path, PathBuf};
 
-/// Where a file may build a path from the OS temp directory directly.
-enum Lines {
-    /// The shared helper's own file: every line in it is allowed.
-    Whole,
-    /// Production code that already keys its own path uniquely and is
-    /// never wiped before use: only these one-based lines are allowed.
-    Only(&'static [usize]),
-}
-
-/// A file's own allowance, matched against its crate-root-relative path.
-struct Allowed {
-    path: &'static str,
-    lines: Lines,
-}
-
-const ALLOWED: &[Allowed] = &[
-    Allowed {
-        path: "src/test_support.rs",
-        lines: Lines::Whole,
-    },
-    Allowed {
-        path: "tests/common/mod.rs",
-        lines: Lines::Whole,
-    },
-    Allowed {
-        path: "src/review.rs",
-        lines: Lines::Only(&[737]),
-    },
-    Allowed {
-        path: "src/hook.rs",
-        lines: Lines::Only(&[619, 638]),
-    },
-    Allowed {
-        path: "src/checkpoint.rs",
-        lines: Lines::Only(&[227]),
-    },
-    Allowed {
-        path: "src/status.rs",
-        lines: Lines::Only(&[740]),
-    },
-];
-
-/// This file's own name: it names the call syntax in a string to search
-/// for it, which is not itself a call.
+/// This file's own name: it names the call syntax and the marker text in
+/// strings to search for them, which is not itself a call or a marker.
 const SELF_FILE: &str = "temp_dir_guard.rs";
 
 const PATTERN: &str = "temp_dir()";
+
+/// The text right before a marker's own reason. The reason must be
+/// non-empty: a marker is a place to say why, not a way to silence this
+/// check for free.
+const MARKER_PREFIX: &str = "osf: temp-dir allowed,";
 
 fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     let entries =
@@ -66,12 +31,29 @@ fn collect_rs_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn allowance_for(rel: &str) -> Option<&'static Lines> {
-    ALLOWED.iter().find(|a| a.path == rel).map(|a| &a.lines)
+/// The marker's own reason text on `line`, trimmed. `None` when `line`
+/// carries no marker at all; `Some("")` when it carries one with nothing
+/// after the comma.
+fn marker_reason(line: &str) -> Option<&str> {
+    let idx = line.find(MARKER_PREFIX)?;
+    Some(line[idx + MARKER_PREFIX.len()..].trim())
 }
 
 #[test]
-fn no_file_calls_the_os_temp_dir_outside_the_two_shared_helpers() {
+fn a_marker_is_only_found_with_a_reason_after_its_comma() {
+    assert_eq!(
+        marker_reason("let x = 1; // osf: temp-dir allowed, shared per-run file"),
+        Some("shared per-run file")
+    );
+    assert_eq!(
+        marker_reason("let x = 1; // osf: temp-dir allowed,"),
+        Some("")
+    );
+    assert_eq!(marker_reason("let x = 1;"), None);
+}
+
+#[test]
+fn no_file_calls_the_os_temp_dir_without_a_marker_naming_why() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files = Vec::new();
     collect_rs_files(&root.join("src"), &mut files);
@@ -87,10 +69,6 @@ fn no_file_calls_the_os_temp_dir_outside_the_two_shared_helpers() {
             .expect("file is under the crate root")
             .to_string_lossy()
             .replace('\\', "/");
-        let allow = allowance_for(&rel);
-        if matches!(allow, Some(Lines::Whole)) {
-            continue;
-        }
         let text = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
         for (i, line) in text.lines().enumerate() {
@@ -98,15 +76,22 @@ fn no_file_calls_the_os_temp_dir_outside_the_two_shared_helpers() {
                 continue;
             }
             let line_no = i + 1;
-            let ok = matches!(allow, Some(Lines::Only(lines)) if lines.contains(&line_no));
-            if !ok {
-                violations.push(format!("{rel}:{line_no}: {}", line.trim()));
+            match marker_reason(line) {
+                Some(reason) if !reason.is_empty() => {}
+                Some(_) => violations.push(format!(
+                    "{rel}:{line_no}: marker with no reason: {}",
+                    line.trim()
+                )),
+                None => violations.push(format!(
+                    "{rel}:{line_no}: no marker naming why: {}",
+                    line.trim()
+                )),
             }
         }
     }
     assert!(
         violations.is_empty(),
-        "temp_dir() called outside the shared helpers:\n{}",
+        "temp_dir() called with no `// osf: temp-dir allowed, <reason>` marker on the same line:\n{}",
         violations.join("\n")
     );
 }

@@ -734,7 +734,8 @@ mod tests {
 
     #[test]
     fn findings_that_are_not_a_json_array_are_refused() {
-        let dir = std::env::temp_dir().join(format!(
+        let base = std::env::temp_dir(); // osf: temp-dir allowed, unique per test process
+        let dir = base.join(format!(
             "osf-review-test-{}-{}",
             std::process::id(),
             "not-an-array"

@@ -224,7 +224,8 @@ fn files_from_content(files: &[String]) -> String {
 /// or deleting the other's file out from under it. A fixed, checkpoint-shared
 /// path was tried and reverted for exactly that race.
 fn write_files_from(run: &str, files: &[String]) -> Result<PathBuf, String> {
-    let path = std::env::temp_dir().join(format!("osf-checkpoint-files-{run}.txt"));
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, unique per checkpoint run
+    let path = base.join(format!("osf-checkpoint-files-{run}.txt"));
     std::fs::write(&path, files_from_content(files)).map_err(|e| {
         format!(
             "cannot write the checkpoint file list {}: {e}",

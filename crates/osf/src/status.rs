@@ -737,7 +737,8 @@ impl GhClient for RealGh {
     }
 
     fn edit_body(&self, repo: &str, pr: &str, body: &str) -> Result<(), StatusError> {
-        let tmp = std::env::temp_dir().join(format!("osf-status-{}.md", std::process::id()));
+        let base = std::env::temp_dir(); // osf: temp-dir allowed, gh needs a real file path
+        let tmp = base.join(format!("osf-status-{}.md", std::process::id()));
         std::fs::write(&tmp, body)
             .map_err(|e| StatusError(format!("cannot write a temporary file: {e}")))?;
         let run = Command::new("gh")
