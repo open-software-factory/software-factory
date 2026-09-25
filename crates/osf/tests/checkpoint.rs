@@ -543,7 +543,7 @@ fn a_pre_push_with_an_unresolvable_base_exits_two() {
     assert_eq!(out.status.code(), Some(2), "{out:?}");
 }
 
-/// Bullet 1: every selected task came back skipped, so this is could-not-run.
+/// Every selected task came back skipped, so this is could-not-run.
 #[test]
 fn an_all_skipped_run_at_pre_push_is_could_not_run_and_names_the_reason() {
     let repo = TempRepo::new("cp-all-skipped");
@@ -575,7 +575,7 @@ fn an_all_skipped_run_at_pre_push_is_could_not_run_and_names_the_reason() {
     );
 }
 
-/// Bullet 3: moon's own `invalid` status is could-not-run even amid passes.
+/// Moon's own `invalid` status is could-not-run even amid passes.
 #[test]
 fn a_task_with_moon_s_invalid_status_is_could_not_run() {
     let repo = TempRepo::new("cp-invalid-task");
@@ -793,13 +793,13 @@ fn moon_caches_a_checkpoint_task_by_its_file_list_and_restores_its_sarif_on_a_hi
     );
 }
 
-/// Fixes-135 task 4, a regression guard: moon's glob walker for a wide
-/// input such as `/**/*` does not consult `.gitignore`, so it hashes moon's
-/// own `.moon/cache/` state and would hash a real `target/` directory too —
+/// A regression guard: moon's glob walker for a wide input such as
+/// `/**/*` does not consult `.gitignore`, so it hashes moon's own
+/// `.moon/cache/` state and would hash a real `target/` directory too —
 /// both grow and change on every run regardless of the tree, which would
 /// make a wide-glob osf task (`scan-*` in the real `.osf/moon.yml`) never
-/// cache-hit at all, silently keeping the fix a no-op for that whole task
-/// family. `.osf/moon.yml` excludes them with `!/.moon/**` and
+/// cache-hit at all, silently leaving moon's cache unable to cover that
+/// whole task family. `.osf/moon.yml` excludes them with `!/.moon/**` and
 /// `!/.osf/out/**`; this fixture mirrors that shape and proves the same
 /// staged change run twice, with nothing else touched in between, is a
 /// cache hit the second time.
@@ -957,7 +957,7 @@ fn two_overlapping_hook_runs_never_see_each_other_s_file_list() {
     );
 }
 
-/// Bullet 2: a run report naming no task at all is could-not-run.
+/// A run report naming no task at all is could-not-run.
 #[test]
 fn a_run_report_with_no_task_at_all_is_could_not_run() {
     let repo = TempRepo::new("cp-empty-report");

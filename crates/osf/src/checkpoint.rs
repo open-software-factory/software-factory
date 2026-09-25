@@ -1049,7 +1049,7 @@ mod tests {
         }
     }
 
-    /// Fixes-135 task 1, bullet 1: every selected task skipped is could-not-run.
+    /// Every selected task skipped is could-not-run.
     #[test]
     fn an_all_skipped_run_at_pre_push_is_could_not_run() {
         let tasks = vec![
@@ -1060,7 +1060,7 @@ mod tests {
         assert!(reason.contains("skipped"), "{reason}");
     }
 
-    /// Bullet 3: one invalid task is could-not-run even when others pass.
+    /// One invalid task is could-not-run even when others pass.
     #[test]
     fn an_invalid_task_is_could_not_run_even_when_others_pass() {
         let tasks = vec![
@@ -1071,7 +1071,7 @@ mod tests {
         assert!(reason.contains("a:two"), "{reason}");
     }
 
-    /// Bullet 2: a report with no task at all is could-not-run.
+    /// A report with no task at all is could-not-run.
     #[test]
     fn an_empty_task_list_from_a_genuine_run_is_could_not_run() {
         let tasks: Vec<TaskOutcome> = Vec::new();

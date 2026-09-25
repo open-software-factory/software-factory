@@ -261,9 +261,9 @@ fn check_scan_reads_files_from_the_env_var_list_when_no_files_are_given() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
-/// Task 3, the missing-flag case: `osf check scan` with no `--checkpoint`
-/// exits 2 and names every valid value, so a broken moon task fails loudly
-/// instead of silently reading the wrong content.
+/// `osf check scan` with no `--checkpoint` exits 2 and names every valid
+/// value, so a broken moon task fails loudly instead of silently reading
+/// the wrong content.
 #[test]
 fn check_scan_with_no_checkpoint_flag_exits_two_and_names_the_valid_values() {
     let repo = TempRepo::new("check-no-checkpoint");
@@ -278,8 +278,8 @@ fn check_scan_with_no_checkpoint_flag_exits_two_and_names_the_valid_values() {
     }
 }
 
-/// Task 3: the hook checkpoint, selected by the flag, reads a file as it is
-/// on disk right now, not its last committed content.
+/// The hook checkpoint, selected by the flag, reads a file as it is on
+/// disk right now, not its last committed content.
 #[test]
 fn check_scan_at_the_hook_checkpoint_reads_the_file_just_written_to_disk() {
     let repo = TempRepo::new("check-hook-reads-disk");
@@ -298,7 +298,7 @@ fn check_scan_at_the_hook_checkpoint_reads_the_file_just_written_to_disk() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
-/// Task 3: the pre-push checkpoint, selected by the same flag, reads `HEAD`
+/// The pre-push checkpoint, selected by the same flag, reads `HEAD`
 /// instead, so the same uncommitted leak on disk is invisible to it.
 #[test]
 fn check_scan_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
@@ -318,8 +318,8 @@ fn check_scan_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
 }
 
-/// Task 3: `OSF_CHECKPOINT` is no longer read at all. An inherited value of
-/// `hook` must not turn a `--checkpoint pre-push` run into a disk read.
+/// `OSF_CHECKPOINT` is no longer read at all. An inherited value of `hook`
+/// must not turn a `--checkpoint pre-push` run into a disk read.
 #[test]
 fn an_inherited_osf_checkpoint_env_var_no_longer_changes_what_pre_push_reads() {
     let repo = TempRepo::new("check-env-var-ignored");

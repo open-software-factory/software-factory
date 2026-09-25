@@ -75,7 +75,7 @@ fn run_cargo_test_under_sentinel_git_env(sentinel: &Sentinel, args: &[&str]) {
     );
 }
 
-/// Bullet 1: `cargo test -p osf --lib config`, run with `GIT_DIR`/`GIT_WORK_TREE` set the way a pre-push hook sets them, must leave the sentinel byte-identical and pass every test.
+/// `cargo test -p osf --lib config`, run with `GIT_DIR`/`GIT_WORK_TREE` set the way a pre-push hook sets them, must leave the sentinel byte-identical and pass every test.
 #[test]
 fn config_unit_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     let sentinel = Sentinel::new("config");
@@ -85,9 +85,10 @@ fn config_unit_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     assert_eq!(before, after, "the sentinel's config changed");
 }
 
-/// Bullet 1's named integration test file: `checkpoint.rs` runs the real
-/// pre-push checkpoint (moon included) through `run_osf`, spawning the
-/// built `osf` binary the same way a real hook would.
+/// The same check as the previous test, against `checkpoint.rs`'s own
+/// integration tests instead: those run the real pre-push checkpoint
+/// (moon included) through `run_osf`, spawning the built `osf` binary the
+/// same way a real hook would.
 #[test]
 fn checkpoint_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     let sentinel = Sentinel::new("checkpoint");
@@ -97,10 +98,10 @@ fn checkpoint_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     assert_eq!(before, after, "the sentinel's config changed");
 }
 
-/// Task 8's own regression: `risk::assess` takes an explicit folder, but
-/// every git call it made ran unscrubbed, so an inherited `GIT_DIR` (the
-/// same shape a real pre-push hook running `cargo test` leaves on the
-/// process) redirected it to the wrong repository and the wrong tier.
+/// `risk::assess` takes an explicit folder, but every git call it made ran
+/// unscrubbed, so an inherited `GIT_DIR` (the same shape a real pre-push
+/// hook running `cargo test` leaves on the process) redirected it to the
+/// wrong repository and the wrong tier.
 #[test]
 fn risk_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     let sentinel = Sentinel::new("risk");
@@ -152,7 +153,7 @@ fn core_bare(dir: &Path) -> String {
     String::from_utf8_lossy(&out.stdout).trim().to_string()
 }
 
-/// Bullet 2: a real `git push --dry-run` through a hooked scratch clone, with `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` set by git itself for the hook, must pass and touch neither the sentinel nor the clone.
+/// A real `git push --dry-run` through a hooked scratch clone, with `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` set by git itself for the hook, must pass and touch neither the sentinel nor the clone.
 #[test]
 fn a_real_pre_push_hook_run_touches_neither_the_sentinel_nor_the_clone() {
     let sentinel = TempRepo::with_moon_workspace("hook-path-sentinel");
@@ -257,7 +258,7 @@ fn repo_with_moon_task(name: &str, task: &str, command: &str, tags: &str) -> Tem
     repo
 }
 
-/// Bullet 2: `git commit -a` folds a working-tree-only change into a
+/// `git commit -a` folds a working-tree-only change into a
 /// temporary index and hands the pre-commit hook `GIT_INDEX_FILE` for it,
 /// a path inside this repository's own git directory (an ordinary,
 /// non-worktree hook run gets no `GIT_DIR` at all for it; a hook run from a
@@ -306,7 +307,7 @@ fn a_secret_only_in_the_dash_a_change_is_caught_and_the_commit_is_refused() {
     );
 }
 
-/// Bullet 3: the whole pre-push checkpoint (writing, general and staged
+/// The whole pre-push checkpoint (writing, general and staged
 /// secret scanning together, the way the real one is composed) still
 /// passes through a real `git push --dry-run` to a local bare remote, once
 /// every git call osf itself makes is scrubbed for the folder it was given.

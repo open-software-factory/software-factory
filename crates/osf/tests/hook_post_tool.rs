@@ -217,11 +217,10 @@ fn an_unwritable_journal_still_refuses_a_real_finding_and_names_the_failure() {
     );
 }
 
-/// Task 6 (fixes-135): before the fix, `hook.rs` printed the journal-open
-/// failure once directly, then the refusal body built from
-/// `error_findings` repeated the same line, so a real finding's refusal
-/// named the journal failure twice on standard error. It must be named
-/// exactly once.
+/// Before the fix, `hook.rs` printed the journal-open failure once
+/// directly, then the refusal body built from `error_findings` repeated
+/// the same line, so a real finding's refusal named the journal failure
+/// twice on standard error. It must be named exactly once.
 #[test]
 fn an_unwritable_journal_names_the_failure_exactly_once_in_the_refusal() {
     let repo = TempRepo::with_moon_workspace("pt-unwritable-state-once");
