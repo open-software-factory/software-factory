@@ -4,8 +4,19 @@
 //! only one of them calls is not dead code, just unused in this one.
 #![allow(dead_code)]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// A folder name unique to this process and this call, so two processes (or
+/// two calls in one process) building a directory from the same `name` never
+/// share one.
+fn unique_dir(prefix: &str) -> PathBuf {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock is after the epoch")
+        .as_nanos();
+    std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()))
+}
 
 /// A throwaway git repository under the system temp directory, named
 /// uniquely so parallel tests never collide. Removed on drop.
@@ -15,8 +26,7 @@ pub struct TempRepo {
 
 impl TempRepo {
     pub fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("osf-verify-test-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = unique_dir(&format!("osf-verify-test-{name}"));
         std::fs::create_dir_all(&dir).expect("temp repo dir creates");
         let repo = TempRepo { dir };
         repo.git(&["init", "-q", "-b", "main"]);
@@ -193,20 +203,36 @@ pub fn write_fake_moon_report(repo: &TempRepo, target_states: &str) {
     );
 }
 
+/// A fresh, empty directory standing in for `HOME`, named uniquely so
+/// parallel tests never collide. Removed on drop.
+pub struct IsolatedHome(PathBuf);
+
+impl std::ops::Deref for IsolatedHome {
+    type Target = Path;
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for IsolatedHome {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// A fresh, empty directory to stand in for `HOME`, so a spawned `osf`
 /// never picks up this machine's real `~/.osf/config.toml`. Also holds an
 /// `AppData\Roaming` folder on Windows: moon's WASM plugin runtime derives
 /// its own cache config path from `USERPROFILE`, and fails to start at all
 /// when that folder is missing under an overridden profile.
-pub fn isolated_home(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("osf-verify-test-home-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
+pub fn isolated_home(name: &str) -> IsolatedHome {
+    let dir = unique_dir(&format!("osf-verify-test-home-{name}"));
     std::fs::create_dir_all(&dir).expect("isolated home dir creates");
     std::fs::create_dir_all(dir.join("AppData").join("Roaming"))
         .expect("isolated home AppData\\Roaming creates");
     std::fs::create_dir_all(dir.join("AppData").join("Local"))
         .expect("isolated home AppData\\Local creates");
-    dir
+    IsolatedHome(dir)
 }
 
 /// Runs the compiled `osf` binary in `dir`, with `home` standing in for

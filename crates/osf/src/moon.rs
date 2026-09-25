@@ -476,6 +476,38 @@ mod tests {
     const CACHED_REPORT: &str = include_str!("../tests/fixtures/moon/run-report-cached.json");
     const QUERY_TASKS: &str = include_str!("../tests/fixtures/moon/query-tasks.json");
 
+    /// A directory unique to this call, so parallel tests (or repeated
+    /// runs) never share one. Its `Drop` removes it.
+    struct TempDir(PathBuf);
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let unique = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock is after the epoch")
+                .as_nanos();
+            let d = std::env::temp_dir().join(format!(
+                "osf-moon-tail-test-{name}-{}-{unique}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&d).expect("temp dir");
+            TempDir(d)
+        }
+    }
+
+    impl std::ops::Deref for TempDir {
+        type Target = Path;
+        fn deref(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
     #[test]
     fn the_captured_report_parses_into_one_outcome_per_task() {
         let tasks = parse_report(REPORT).expect("report parses");
@@ -579,9 +611,7 @@ mod tests {
 
     #[test]
     fn no_log_files_at_all_is_two_empty_streams() {
-        let root = std::env::temp_dir().join("osf-moon-tail-test-missing");
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).expect("dir creates");
+        let root = TempDir::new("missing");
         let tail = task_output_tail(&root, "proj:boom", 80);
         assert!(tail.stdout.is_none(), "{:?}", tail.stdout);
         assert!(tail.stderr.is_none(), "{:?}", tail.stderr);
@@ -589,8 +619,7 @@ mod tests {
 
     #[test]
     fn each_stream_under_the_cap_is_returned_whole() {
-        let root = std::env::temp_dir().join("osf-moon-tail-test-small");
-        let _ = std::fs::remove_dir_all(&root);
+        let root = TempDir::new("small");
         let dir = root
             .join(".moon")
             .join("cache")
@@ -614,8 +643,7 @@ mod tests {
     #[test]
     fn a_long_stderr_does_not_push_stdout_out_of_its_own_tail() {
         use std::fmt::Write as _;
-        let root = std::env::temp_dir().join("osf-moon-tail-test-large");
-        let _ = std::fs::remove_dir_all(&root);
+        let root = TempDir::new("large");
         let dir = root
             .join(".moon")
             .join("cache")
