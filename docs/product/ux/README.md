@@ -15,6 +15,10 @@ Supporting research:
 - [`../../research/ux/prototypes/README.md`](../../research/ux/prototypes/README.md): screenshots of four agent-built console prototypes, for visual reference only.
 - [`../../research/ux/ux-references.md`](../../research/ux/ux-references.md): products, tools, games and interface families to study, plus what to learn from each.
 
+## Where the design work is
+
+The console's design guidance, component catalogue, tracker, surveys and prototype pages live under [docs/design/](../../design/README.md). The documents in this folder are the stable context the design work reads first.
+
 ## Relationship to the software-factory vision
 
 These documents are a UI/UX companion to the existing Software Factory documents:
