@@ -6,3 +6,7 @@ kind: number
 target: Task 6
 reason: the bracketed text is a branch slug, not a repository-qualified description
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

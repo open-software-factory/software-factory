@@ -6,3 +6,7 @@ kind: number
 target: Milestone 3
 reason: word-and-number label with no repository named and no bracketed description
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

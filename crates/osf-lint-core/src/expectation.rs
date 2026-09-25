@@ -55,40 +55,68 @@ pub fn parse_expectation(source: &str) -> Option<BTreeSet<String>> {
 }
 
 /// What a declared file's actual findings did not match: rule ids it
-/// promised but did not produce, and rule ids it produced but did not
-/// promise. Both are sorted, since they come from a `BTreeSet`.
+/// promised but did not produce, rule ids it produced but did not promise,
+/// and declared ids that name a rule retired from the set entirely, each
+/// paired with the id that replaced it. All three are sorted or built from
+/// a `BTreeSet`, except `retired`, which follows `retired_rules`' order.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Mismatch {
     pub missing: Vec<String>,
     pub unexpected: Vec<String>,
+    pub retired: Vec<(String, String)>,
 }
 
 impl Mismatch {
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.missing.is_empty() && self.unexpected.is_empty()
+        self.missing.is_empty() && self.unexpected.is_empty() && self.retired.is_empty()
     }
 }
 
 /// Compares `expected` against the rule ids actually present in
 /// `findings`, ignoring suppression: the declaration is about whether a
 /// rule fires, not about whether its finding stays visible.
+///
+/// `retired_rules` names ids a caller's rule set no longer produces, each
+/// paired with the id that replaced it. An expected id found there is
+/// never treated as merely missing: it is a rule that cannot come back, so
+/// it is reported on its own, in [`Mismatch::retired`], pointing at the
+/// replacement. Its replacement firing is not also reported as unexpected:
+/// the declaration already named the shape it covers, just by an id that no
+/// longer exists. Pass an empty slice when there is nothing retired.
 #[must_use]
-pub fn check(expected: &BTreeSet<String>, findings: &[Finding]) -> Mismatch {
+pub fn check(
+    expected: &BTreeSet<String>,
+    findings: &[Finding],
+    retired_rules: &[(&str, &str)],
+) -> Mismatch {
     let actual: BTreeSet<&str> = findings.iter().map(|f| f.rule).collect();
+    let retired: Vec<(String, String)> = expected
+        .iter()
+        .filter_map(|id| {
+            retired_rules
+                .iter()
+                .find(|(old, _)| old == id)
+                .map(|(_, new)| (id.clone(), (*new).to_string()))
+        })
+        .collect();
+    let retired_ids: BTreeSet<&str> = retired.iter().map(|(old, _)| old.as_str()).collect();
+    let retired_replacements: BTreeSet<&str> =
+        retired.iter().map(|(_, new)| new.as_str()).collect();
     let missing = expected
         .iter()
-        .filter(|id| !actual.contains(id.as_str()))
+        .filter(|id| !actual.contains(id.as_str()) && !retired_ids.contains(id.as_str()))
         .cloned()
         .collect();
     let unexpected = actual
         .iter()
-        .filter(|id| !expected.contains(**id))
+        .filter(|id| !expected.contains(**id) && !retired_replacements.contains(*id))
         .map(|id| (*id).to_string())
         .collect();
     Mismatch {
         missing,
         unexpected,
+        retired,
     }
 }
 
@@ -150,6 +178,7 @@ pub fn check_skill<'a>(
     Mismatch {
         missing,
         unexpected,
+        retired: Vec::new(),
     }
 }
 
@@ -181,14 +210,14 @@ mod tests {
     fn a_matching_declaration_has_no_mismatch() {
         let expected = BTreeSet::from(["arrow".to_string()]);
         let findings = vec![finding("arrow")];
-        assert!(check(&expected, &findings).is_empty());
+        assert!(check(&expected, &findings, &[]).is_empty());
     }
 
     #[test]
     fn a_missing_declared_rule_is_reported() {
         let expected = BTreeSet::from(["arrow".to_string(), "semicolon".to_string()]);
         let findings = vec![finding("arrow")];
-        let mismatch = check(&expected, &findings);
+        let mismatch = check(&expected, &findings, &[]);
         assert_eq!(mismatch.missing, vec!["semicolon".to_string()]);
         assert!(mismatch.unexpected.is_empty());
     }
@@ -197,8 +226,39 @@ mod tests {
     fn an_undeclared_rule_is_reported() {
         let expected = BTreeSet::from(["arrow".to_string()]);
         let findings = vec![finding("arrow"), finding("semicolon")];
-        let mismatch = check(&expected, &findings);
+        let mismatch = check(&expected, &findings, &[]);
         assert!(mismatch.missing.is_empty());
+        assert_eq!(mismatch.unexpected, vec!["semicolon".to_string()]);
+    }
+
+    /// A declared id that names a retired rule is reported on its own,
+    /// pointing at the replacement, never folded into `missing`; its
+    /// replacement firing is not also reported as unexpected.
+    #[test]
+    fn a_retired_declared_rule_names_its_replacement() {
+        let expected = BTreeSet::from(["bare-reference".to_string()]);
+        let findings = vec![finding("unplaceable-reference")];
+        let retired: &[(&str, &str)] = &[("bare-reference", "unplaceable-reference")];
+        let mismatch = check(&expected, &findings, retired);
+        assert!(mismatch.missing.is_empty());
+        assert!(mismatch.unexpected.is_empty());
+        assert_eq!(
+            mismatch.retired,
+            vec![(
+                "bare-reference".to_string(),
+                "unplaceable-reference".to_string()
+            )]
+        );
+    }
+
+    /// A retired declaration does not excuse an unrelated rule that also
+    /// fired without being declared.
+    #[test]
+    fn an_unrelated_unexpected_rule_still_surfaces_alongside_a_retired_one() {
+        let expected = BTreeSet::from(["bare-reference".to_string()]);
+        let findings = vec![finding("unplaceable-reference"), finding("semicolon")];
+        let retired: &[(&str, &str)] = &[("bare-reference", "unplaceable-reference")];
+        let mismatch = check(&expected, &findings, retired);
         assert_eq!(mismatch.unexpected, vec!["semicolon".to_string()]);
     }
 
@@ -217,14 +277,14 @@ mod tests {
 
     #[test]
     fn a_qualified_line_names_its_own_file() {
-        let text = "<!-- osf-expect-skill\nundefined-name-at-start\nscripts/install.sh skill-script-unpinned\n-->\n";
+        let text = "<!-- osf-expect-skill\nunplaceable-reference\nscripts/install.sh skill-script-unpinned\n-->\n";
         let expected = parse_skill_expectation(text).expect("marker parses");
         assert_eq!(
             expected,
             BTreeMap::from([
                 (
                     "SKILL.md".to_string(),
-                    BTreeSet::from(["undefined-name-at-start".to_string()])
+                    BTreeSet::from(["unplaceable-reference".to_string()])
                 ),
                 (
                     "scripts/install.sh".to_string(),

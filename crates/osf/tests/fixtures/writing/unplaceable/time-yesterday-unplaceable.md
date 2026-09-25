@@ -6,3 +6,7 @@ kind: time
 target: yesterday
 reason: a relative time with no absolute date in the paragraph, in durable text
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

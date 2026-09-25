@@ -6,3 +6,7 @@ kind: number
 target: issue 31
 reason: bare word-and-number reference with no repository named nearby
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

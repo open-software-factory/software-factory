@@ -61,3 +61,16 @@ pub fn is_fixture_path(name: &str) -> bool {
 pub fn is_scan_rule(id: &str) -> bool {
     id.starts_with("scan-")
 }
+
+/// Rule ids retired when `unplaceable-reference` replaced them, each paired
+/// with the id that now covers what it caught. A suppression, a level
+/// override, or an `osf-expect` declaration that still names one of these
+/// is an error pointing at the replacement, never a silent no-op.
+pub const RETIRED_RULE_IDS: &[(&str, &str)] = &[
+    ("bare-reference", "unplaceable-reference"),
+    ("reference-without-label", "unplaceable-reference"),
+    ("reference-without-link", "unplaceable-reference"),
+    ("chat-local-reference", "unplaceable-reference"),
+    ("undefined-name", "unplaceable-reference"),
+    ("undefined-name-at-start", "unplaceable-reference"),
+];

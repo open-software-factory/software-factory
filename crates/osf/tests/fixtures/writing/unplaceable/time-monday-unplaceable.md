@@ -6,3 +6,7 @@ kind: time
 target: Monday
 reason: a weekday alone, with no month, year, or day of month
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

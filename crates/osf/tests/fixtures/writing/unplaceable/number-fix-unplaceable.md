@@ -6,3 +6,7 @@ kind: number
 target: fix 5
 reason: bare word-and-number label with no repository or description
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

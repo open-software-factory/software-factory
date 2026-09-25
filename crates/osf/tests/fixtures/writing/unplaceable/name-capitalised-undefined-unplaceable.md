@@ -6,3 +6,7 @@ kind: name
 target: DuckDB
 reason: capitalised name with internal-capital evidence and no description on first use
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

@@ -163,7 +163,7 @@ fn every_fixture_matches_its_declaration() {
             .unwrap_or_else(|| panic!("{} carries no osf-expect marker", path.display()));
         let findings =
             osf::lints::writing::lint_writing(&text, &known, &cfg, Context::Document, false, false);
-        let mismatch = check_expectation(&expected, &findings);
+        let mismatch = check_expectation(&expected, &findings, osf::lints::RETIRED_RULE_IDS);
         assert!(
             mismatch.is_empty(),
             "{}: missing {:?}, unexpected {:?}",
@@ -174,8 +174,7 @@ fn every_fixture_matches_its_declaration() {
         checked += 1;
     }
     assert_eq!(
-        checked, 32,
-        "expected 32 fixture files (15 rules x positive/negative, \
-         plus the chat-local-named-label pair)"
+        checked, 30,
+        "expected 30 fixture files (15 rules x positive/negative)"
     );
 }

@@ -6,3 +6,8 @@ kind: number
 target: bullet 1
 reason: word-and-number label naming no repository or description
 -->
+
+<!-- osf-expect
+semicolon
+unplaceable-reference
+-->

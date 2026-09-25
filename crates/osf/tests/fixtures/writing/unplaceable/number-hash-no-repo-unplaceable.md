@@ -6,3 +6,7 @@ kind: number
 target: #12
 reason: hash-number with no repository in front of it
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

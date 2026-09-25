@@ -6,3 +6,7 @@ kind: phrase
 target: As discussed
 reason: phrase that only works inside one conversation
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

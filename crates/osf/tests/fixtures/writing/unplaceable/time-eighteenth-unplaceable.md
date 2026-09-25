@@ -6,3 +6,7 @@ kind: time
 target: the eighteenth
 reason: a date without a month or year
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

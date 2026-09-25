@@ -6,3 +6,7 @@ kind: number
 target: decision 0003
 reason: word-and-number label with nothing in the paragraph naming what it points to
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

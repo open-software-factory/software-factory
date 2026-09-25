@@ -14,8 +14,6 @@ use std::ops::Range;
 use std::sync::OnceLock;
 
 const SENTENCE_RULES: &[FnRule<WritingConfig>] = &[
-    FnRule::sentence("bare-reference", bare_reference),
-    FnRule::sentence("reference-without-label", reference_without_label),
     FnRule::sentence("long-sentence", long_sentence),
     FnRule::sentence("em-dash", em_dash),
     FnRule::sentence("arrow", arrow),
@@ -47,14 +45,12 @@ const PARAGRAPH_RULES: &[FnRule<WritingConfig>] = &[
 
 pub fn per_sentence(doc: &Doc, cfg: &WritingConfig, fast_only: bool, out: &mut Vec<Finding>) {
     let filler_rule = FillerRule::new(&cfg.filler);
-    let chat_local_rule = ChatLocalRule::new(&cfg.chat_local_phrases, &cfg.chat_local_labels);
     let mut rules: Vec<&dyn Rule<WritingConfig>> = SENTENCE_RULES
         .iter()
         .chain(PARAGRAPH_RULES)
         .map(|r| r as &dyn Rule<WritingConfig>)
         .collect();
     rules.push(&filler_rule);
-    rules.push(&chat_local_rule);
     out.extend(run_rules(doc, &rules, cfg, fast_only));
 }
 
@@ -66,10 +62,7 @@ pub fn rule_ids() -> Vec<&'static str> {
         .map(Rule::id)
         .chain([
             "filler",
-            "chat-local-reference",
             "heading-in-short-text",
-            "undefined-name",
-            "undefined-name-at-start",
             "unplaceable-reference",
             "recap-ending",
         ])
@@ -118,25 +111,6 @@ fn first_words(words: &[String], n: usize) -> String {
     words.iter().take(n).cloned().collect::<Vec<_>>().join(" ")
 }
 
-/// `#123` with no `owner/repo` in front of it.
-fn bare_reference(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = re(&RE, r"(?:^|[^\w/.-])(#\d+)\b");
-    let text = reduce_inline(&s.text);
-    re.captures_iter(&text)
-        .filter_map(|c| c.get(1).map(|g| g.as_str().to_string()))
-        .map(|m| {
-            finding(
-                s,
-                "bare-reference",
-                Level::Error,
-                format!("write the repository before the number, as in owner/repo{m}"),
-                &m,
-            )
-        })
-        .collect()
-}
-
 /// Replaces every byte inside a range in `ranges` with an ASCII space, one
 /// space per byte of the original character, so the result stays the same
 /// length and every other byte offset in `text` still lines up.
@@ -152,59 +126,6 @@ pub(super) fn mask_ranges(text: &str, ranges: &[Range<usize>]) -> String {
     out
 }
 
-/// `owner/repo#N` or `repo#N` must carry a bracketed description; a link is
-/// expected. Judged per occurrence: a reference matched once inside a link
-/// and again bare, in the same sentence, is linked only the first time.
-fn reference_without_label(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-    static REF: OnceLock<Regex> = OnceLock::new();
-    static LINK: OnceLock<Regex> = OnceLock::new();
-    static CODE: OnceLock<Regex> = OnceLock::new();
-    let ref_pattern = re(&REF, r"(?:[\w.-]+/)?[\w.-]+#\d+");
-    let link_pattern = re(&LINK, r"\[([^\]]*)\]\([^)]*\)");
-    let code_pattern = re(&CODE, r"`[^`]*`");
-
-    let raw = &s.text;
-    let code_ranges: Vec<Range<usize>> = code_pattern.find_iter(raw).map(|m| m.range()).collect();
-    let masked = mask_ranges(raw, &code_ranges);
-    let link_spans: Vec<Range<usize>> = link_pattern
-        .captures_iter(&masked)
-        .filter_map(|c| c.get(1))
-        .map(|g| g.range())
-        .collect();
-
-    ref_pattern
-        .find_iter(&masked)
-        .flat_map(|m| {
-            let reference = m.as_str().to_string();
-            let labelled = raw
-                .get(m.end()..)
-                .is_some_and(|rest| rest.trim_start().starts_with('('));
-            let linked = link_spans
-                .iter()
-                .any(|span| span.start <= m.start() && m.end() <= span.end);
-            let label = (!labelled).then(|| {
-                finding(
-                    s,
-                    "reference-without-label",
-                    Level::Error,
-                    format!("say what it is in brackets, as in {reference} (the subject)"),
-                    &reference,
-                )
-            });
-            let link = (!linked).then(|| {
-                finding(
-                    s,
-                    "reference-without-link",
-                    Level::Warning,
-                    "link the reference so the reader can open it".to_string(),
-                    &reference,
-                )
-            });
-            label.into_iter().chain(link)
-        })
-        .collect()
-}
-
 /// Builds `(?i)\b(?:a1|a2|...)\b` from a non-empty list of ready-made regex
 /// alternatives, or nothing at all for an empty one. An empty alternation,
 /// `(?:)`, matches a zero-width span at nearly every word boundary; that is
@@ -217,105 +138,6 @@ pub(super) fn word_boundary_alternation(alternatives: &[String]) -> Option<Regex
     }
     let pattern = format!(r"(?i)\b(?:{})\b", alternatives.join("|"));
     Some(Regex::new(&pattern).expect("word-boundary alternation pattern compiles"))
-}
-
-/// Whether a name follows a numbered label in `rest`, the text right after
-/// it. A colon, a comma, or an opening parenthesis, each followed by a
-/// word, counts; so does the word `the` on its own, followed by a word. A
-/// bare label with nothing but a full stop, or a word that is not `the`,
-/// does not.
-fn name_follows(rest: &str) -> bool {
-    let trimmed = rest.trim_start();
-    let Some(first) = trimmed.chars().next() else {
-        return false;
-    };
-    if first == ':' || first == ',' {
-        return trimmed[first.len_utf8()..]
-            .trim_start()
-            .starts_with(|c: char| c.is_alphabetic());
-    }
-    if first == '(' {
-        return trimmed[first.len_utf8()..].starts_with(|c: char| c.is_alphabetic());
-    }
-    let lower = trimmed.to_lowercase();
-    let Some(after_the) = lower.strip_prefix("the") else {
-        return false;
-    };
-    let word_boundary = after_the
-        .chars()
-        .next()
-        .is_none_or(|c| !c.is_alphanumeric());
-    word_boundary
-        && after_the
-            .trim_start()
-            .starts_with(|c: char| c.is_alphabetic())
-}
-
-/// Words that only mean something inside one conversation. Built from the
-/// resolved config's phrase and label lists, so it cannot be a static
-/// [`FnRule`]; it is a small [`Rule`] impl instead, constructed once per lint.
-struct ChatLocalRule {
-    /// `None` when the configured phrase list is empty: fixed phrases such
-    /// as "as discussed" carry no exception, unlike a numbered label.
-    phrases: Option<Regex>,
-    /// Matches any configured label, or the built-in `step`, followed by a
-    /// number. Never `None`: `step` is always in the alternation.
-    labelled: Regex,
-}
-
-impl ChatLocalRule {
-    fn new(phrases: &[String], labels: &[String]) -> Self {
-        let fixed: Vec<String> = phrases.iter().map(|p| regex::escape(p)).collect();
-        let mut label_words: Vec<String> = labels.iter().map(|l| regex::escape(l)).collect();
-        label_words.push("step".to_string());
-        let labelled_pattern = format!(r"(?i)\b((?:{})\s+\d+)\b", label_words.join("|"));
-        ChatLocalRule {
-            phrases: word_boundary_alternation(&fixed),
-            labelled: Regex::new(&labelled_pattern).expect("labelled pattern compiles"),
-        }
-    }
-}
-
-impl Rule<WritingConfig> for ChatLocalRule {
-    fn id(&self) -> &'static str {
-        "chat-local-reference"
-    }
-
-    fn scope(&self) -> osf_lint_core::Scope {
-        osf_lint_core::Scope::Sentence
-    }
-
-    fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-        let text = reduce_inline(&s.text);
-        let bare_labels = self.labelled.captures_iter(&text).filter_map(|c| {
-            let m = c.get(1)?;
-            let rest = text.get(m.end()..).unwrap_or("");
-            (!name_follows(rest)).then(|| m.as_str().to_string())
-        });
-        let phrase_matches: Vec<String> = self
-            .phrases
-            .as_ref()
-            .map(|re| {
-                re.find_iter(&text)
-                    .map(|m| m.as_str().to_string())
-                    .collect()
-            })
-            .unwrap_or_default();
-        phrase_matches
-            .into_iter()
-            .chain(bare_labels)
-            .map(|m| {
-                finding(
-                    s,
-                    "chat-local-reference",
-                    Level::Error,
-                    "name the thing itself; this reference only works inside one conversation"
-                        .to_string(),
-                    &m,
-                )
-            })
-            .collect()
-    }
 }
 
 fn long_sentence(s: &TextUnit, cfg: &WritingConfig) -> Vec<Finding> {
@@ -504,94 +326,6 @@ fn parenthetical(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
             )
         })
         .collect()
-}
-
-/// A capitalised name whose first use is on the repository's must-explain
-/// list, or merely looks like a name, with no description in that sentence
-/// or the next.
-///
-/// This starts from positive evidence rather than a list of exceptions
-/// subtracted from every capital letter in the text. A candidate earns a
-/// report one of two ways:
-///
-/// - it is on `cfg.must_explain_names`, the repository's own curated list
-///   of names worth explaining: a missing explanation is then certain, so
-///   this is an error, [`osf_lint_core::Evidence::Deterministic`] (the
-///   default a plain [`Finding`] already carries).
-/// - it merely looks like a name: an internal capital such as `GitHub` or
-///   `DuckDB`, a digit in one of its words, a domain-like suffix such as
-///   `.dev`, or a multi-word capitalised run repeated more than once in
-///   the document. None of these prove a name, only suggest one, so this
-///   is a warning, and it carries [`osf_lint_core::Evidence::Statistical`].
-///
-/// A capitalised word with neither kind of evidence, such as an ordinary
-/// word that only opens a sentence or a heading, is never reported: a bare
-/// capital letter proves nothing on its own, in any position.
-pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: &mut Vec<Finding>) {
-    let sentences = &doc.sentences;
-    let reduced: Vec<String> = sentences.iter().map(|s| reduce_inline(&s.text)).collect();
-    let is_known = |name: &str| is_known_name_run(known, name);
-    let all_candidates: Vec<(usize, bool, String)> = sentences
-        .iter()
-        .enumerate()
-        .flat_map(|(i, s)| {
-            candidate_names(s)
-                .into_iter()
-                .map(move |n| (i, s.in_table, n))
-        })
-        .collect();
-    // A multi-word run the document uses more than once is unlikely to be a
-    // one-off descriptive phrase; that repetition is itself evidence of a
-    // name, alongside an internal capital, a digit, or a domain suffix.
-    let mut run_counts: HashMap<String, usize> = HashMap::new();
-    for (_, _, name) in &all_candidates {
-        if name.contains(' ') {
-            *run_counts.entry(name.clone()).or_insert(0) += 1;
-        }
-    }
-    let described = |i: usize, name: &str| is_described(&reduced, i, name);
-    // A name used in a table and also in prose is judged from the prose:
-    // its table appearance carries no defining sentence around it, so
-    // dropping it here avoids reporting the same name from both places.
-    let prose_names: HashSet<String> = all_candidates
-        .iter()
-        .filter(|(_, in_table, _)| !in_table)
-        .map(|(_, _, name)| name.clone())
-        .collect();
-    let first_uses = all_candidates
-        .into_iter()
-        .filter(|(_, in_table, name)| !(*in_table && prose_names.contains(name)))
-        .scan(HashSet::new(), |seen, (i, _in_table, name)| {
-            Some(seen.insert(name.clone()).then_some((i, name)))
-        })
-        .flatten();
-    out.extend(first_uses.filter_map(|(i, name)| {
-        if is_known(&name) || described(i, &name) {
-            return None;
-        }
-        let s = sentences.get(i)?;
-        if cfg.must_explain_names.contains(&name) {
-            return Some(finding(
-                s,
-                "undefined-name",
-                Level::Error,
-                "this name is on the project's must-explain list; add one plain sentence \
-                 saying what it is"
-                    .to_string(),
-                &name,
-            ));
-        }
-        looks_like_a_name(&name, &run_counts).then(|| {
-            finding(
-                s,
-                "undefined-name-at-start",
-                Level::Warning,
-                "if this is a name, add one plain sentence saying what it is".to_string(),
-                &name,
-            )
-            .with_evidence(osf_lint_core::Evidence::Statistical)
-        })
-    }));
 }
 
 /// Whether `name` is on the known-names list itself, word by word, or by a

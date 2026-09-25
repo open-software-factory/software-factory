@@ -641,9 +641,10 @@ fn build_excluder(configured: &[String], no_exclude: bool) -> Result<exclude::Ex
 
 /// Turns a declared fixture's mismatch into findings: one error per rule
 /// id it promised but did not produce, one per rule id it produced but did
-/// not promise. Fixed at error, never run through `cfg.levels`: a config
-/// file must not be able to turn off the one check that catches a rule
-/// that silently stopped firing.
+/// not promise, and one per declared id that names a rule retired from the
+/// set entirely, naming its replacement. Fixed at error, never run through
+/// `cfg.levels`: a config file must not be able to turn off the one check
+/// that catches a rule that silently stopped firing.
 fn expectation_findings(mismatch: &lints::Mismatch) -> Vec<lints::Finding> {
     let missing = mismatch.missing.iter().map(|id| {
         lints::Finding::new(
@@ -663,7 +664,16 @@ fn expectation_findings(mismatch: &lints::Mismatch) -> Vec<lints::Finding> {
             id.clone(),
         )
     });
-    missing.chain(unexpected).collect()
+    let retired = mismatch.retired.iter().map(|(old, new)| {
+        lints::Finding::new(
+            "expectation-retired-rule",
+            lints::Level::Error,
+            1,
+            format!("'{old}' is gone; it was replaced by '{new}'"),
+            old.clone(),
+        )
+    });
+    missing.chain(unexpected).chain(retired).collect()
 }
 
 /// A warning that an `osf-expect` marker outside a `tests/fixtures` path
@@ -705,7 +715,7 @@ fn check_declaration(
     raw: &[lints::Finding],
     format: Format,
 ) -> Vec<lints::Finding> {
-    let mismatch = lints::check_expectation(expected, raw);
+    let mismatch = lints::check_expectation(expected, raw, lints::RETIRED_RULE_IDS);
     if mismatch.is_empty() {
         if format == Format::Human {
             let ids: Vec<&str> = expected.iter().map(String::as_str).collect();
@@ -1693,13 +1703,28 @@ mod tests {
     #[test]
     fn a_fixture_missing_a_declared_rule_fails() {
         let text =
-            format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\nsemicolon\nbare-reference\n-->\n");
+            format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\nsemicolon\nlong-sentence\n-->\n");
         let (findings, tally) = lint_it(FIXTURE_PATH, &text);
         assert_eq!(tally.declared, 1);
         assert_eq!(tally.errors, 1);
         let finding = findings.first().expect("one finding reported");
         assert_eq!(finding.rule, "expectation-missing");
+        assert_eq!(finding.excerpt, "long-sentence");
+    }
+
+    /// A declaration naming a rule retired along with the six old reference
+    /// and name rules is refused, and the message names its replacement.
+    #[test]
+    fn a_declaration_naming_a_retired_rule_names_its_replacement() {
+        let text =
+            format!("{TWO_RULE_TEXT}<!-- osf-expect\nem-dash\nsemicolon\nbare-reference\n-->\n");
+        let (findings, tally) = lint_it(FIXTURE_PATH, &text);
+        assert_eq!(tally.declared, 1);
+        assert_eq!(tally.errors, 1);
+        let finding = findings.first().expect("one finding reported");
+        assert_eq!(finding.rule, "expectation-retired-rule");
         assert_eq!(finding.excerpt, "bare-reference");
+        assert!(finding.message.contains("unplaceable-reference"));
     }
 
     #[test]

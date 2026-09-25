@@ -6,3 +6,7 @@ kind: number
 target: mechanism (b)
 reason: bracketed letter with no list item in the paragraph that defines it
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

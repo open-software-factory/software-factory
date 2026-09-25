@@ -6,3 +6,8 @@ kind: number
 target: task 4
 reason: two bare word-and-number labels with no repository, description, or link
 -->
+
+<!-- osf-expect
+numbers-in-prose
+unplaceable-reference
+-->

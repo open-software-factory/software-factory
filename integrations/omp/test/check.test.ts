@@ -49,9 +49,9 @@ test("a tool-only direct message falls back to the last real reply in the list",
 test("a refusal carries its reason", () => {
   const result = readResult({
     code: 0,
-    stdout: '{"decision":"block","reason":"message:1: error [bare-reference]"}',
+    stdout: '{"decision":"block","reason":"message:1: error [unplaceable-reference]"}',
   });
-  assert.deepEqual(result, { kind: "refused", reason: "message:1: error [bare-reference]" });
+  assert.deepEqual(result, { kind: "refused", reason: "message:1: error [unplaceable-reference]" });
 });
 
 test("a clean check passes", () => {
