@@ -351,6 +351,39 @@ pub fn run_osf_stdin(
     child.wait_with_output().expect("osf runs")
 }
 
+/// Spawns the compiled `osf` binary in `dir` without waiting for it, wiring
+/// its stdin, stdout and stderr as pipes. For a test that needs two runs to
+/// genuinely overlap in wall-clock time, pair this with [`write_stdin`]
+/// rather than [`run_osf_stdin`], which blocks until the child exits before
+/// the caller can even start a second one.
+pub fn spawn_osf_stdin(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    env: &[(&str, &str)],
+    args: &[&str],
+) -> std::process::Child {
+    osf_cmd(dir, home, env)
+        .args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("osf spawns")
+}
+
+/// Writes `stdin` to `child`'s own standard input and closes it, without
+/// waiting for the process to exit, so a caller can feed several
+/// already-spawned children before waiting on any of them.
+pub fn write_stdin(child: &mut std::process::Child, stdin: &str) {
+    use std::io::Write as _;
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(stdin.as_bytes())
+        .expect("stdin writes");
+}
+
 /// Builds a session-link-shaped string at run time for one agent, from the
 /// host and path the agent list holds apart. A scan rule fixture needs the
 /// real shape to prove the rule fires, but this repository's own `osf scan`

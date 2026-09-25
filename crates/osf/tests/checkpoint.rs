@@ -2,8 +2,8 @@
 
 mod common;
 use common::{
-    isolated_home, run_osf, run_osf_with_env, session_link, write_fake_moon,
-    write_fake_moon_report, BareRepo, TempDir, TempRepo,
+    isolated_home, run_osf, run_osf_with_env, session_link, spawn_osf_stdin, write_fake_moon,
+    write_fake_moon_report, write_stdin, BareRepo, TempDir, TempRepo,
 };
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
@@ -714,12 +714,12 @@ fn verify_stands_down_with_no_repository_under_a_non_english_locale() {
     );
 }
 
-/// Fixes-135 task 4: the fixed-path file list (mechanism (a)) is a task
-/// input, so moon's own cache now covers osf's checks. Moon hashes a wide
-/// content glob (such as `/**/*.md`) from every matching file on disk, not
-/// just the ones a given run's `--base` selected, so that alone cannot
-/// distinguish two runs with different `--base` values over an unchanged
-/// working tree; the checkpoint's own file list closes that gap. The same
+/// `OSF_FILES_HASH` is a task input, so moon's own cache now covers osf's
+/// checks. Moon hashes a wide content glob (such as `/**/*.md`) from every
+/// matching file on disk, not just the ones a given run's `--base`
+/// selected, so that alone cannot distinguish two runs with different
+/// `--base` values over an unchanged working tree; the checkpoint's own
+/// file list, carried through its hash, closes that gap. The same
 /// `--base` run twice is a cache hit the second time; the declared
 /// `outputs` entry restores the SARIF `clear_stale_sarif` deletes before
 /// every run, so a hit still reports the real finding count, not zero. A
@@ -744,7 +744,7 @@ fn moon_caches_a_checkpoint_task_by_its_file_list_and_restores_its_sarif_on_a_hi
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "tasks:\n  probe:\n    script: '{script}'\n    inputs: ['/**/*.md', '/.osf/in/pull-request.files']\n    outputs: ['/.osf/out/probe.sarif']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n"
+            "tasks:\n  probe:\n    script: '{script}'\n    inputs: ['/**/*.md', '$OSF_FILES_HASH']\n    outputs: ['/.osf/out/probe.sarif']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n"
         ),
     );
     let c0 = repo.commit("base");
@@ -832,6 +832,128 @@ fn a_wide_glob_task_excluding_moon_and_osf_out_still_caches_across_unchanged_run
     assert!(
         String::from_utf8_lossy(&run2.stdout).contains("cache hit"),
         "a wide-glob task must still cache-hit once moon's own state and osf's own SARIF output are excluded from its inputs: {run2:?}"
+    );
+}
+
+/// A failing task's own result must never be served from moon's cache: an
+/// agent that keeps failing the same check on an unchanged tree must keep
+/// seeing that failure, not a stale success (or a stale failure that skips
+/// re-running and hides a since-fixed problem). This task always fails, so
+/// two runs on an identical tree must both actually run and both report
+/// the failure and its one finding — never `cache hit`.
+#[test]
+fn a_failing_task_is_never_served_from_the_cache() {
+    let repo = TempRepo::new("cp-failing-not-cached");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    // Base64 of {"runs":[{"results":[{"ruleId":"probe-rule","level":"error","message":{"text":"probe finding"}}]}]}
+    let payload = "eyJydW5zIjpbeyJyZXN1bHRzIjpbeyJydWxlSWQiOiJwcm9iZS1ydWxlIiwibGV2ZWwiOiJlcnJvciIsIm1lc3NhZ2UiOnsidGV4dCI6InByb2JlIGZpbmRpbmcifX1dfV19";
+    let script = if cfg!(windows) {
+        format!(
+            "New-Item -ItemType Directory -Force .osf/out | Out-Null; [IO.File]::WriteAllText(\".osf/out/probe.sarif\", [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(\"{payload}\"))); exit 1"
+        )
+    } else {
+        format!("mkdir -p .osf/out && echo {payload} | base64 -d > .osf/out/probe.sarif && exit 1")
+    };
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "tasks:\n  probe:\n    script: '{script}'\n    inputs: ['/**/*.md']\n    outputs: ['/.osf/out/probe.sarif']\n    tags: [osf-pre-commit]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n"
+        ),
+    );
+    repo.write("a.md", "a\n");
+    repo.commit("base");
+    repo.write("a.md", "a2\n");
+    repo.stage("a.md");
+    let home = isolated_home("cp-failing-not-cached");
+
+    let run1 = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(run1.status.code(), Some(1), "{run1:?}");
+    let stdout1 = String::from_utf8_lossy(&run1.stdout);
+    assert!(stdout1.contains("failed"), "{run1:?}");
+    assert!(stdout1.contains("1 finding(s)"), "{run1:?}");
+
+    let run2 = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(
+        run2.status.code(),
+        Some(1),
+        "a failing task must keep failing, not fall through to a stale pass: {run2:?}"
+    );
+    let stdout2 = String::from_utf8_lossy(&run2.stdout);
+    assert!(stdout2.contains("failed"), "{run2:?}");
+    assert!(stdout2.contains("1 finding(s)"), "{run2:?}");
+    assert!(
+        !stdout2.contains("cache hit"),
+        "a failing task must never be served from the cache: {run2:?}"
+    );
+}
+
+/// Two overlapping runs of the same checkpoint must never share one list
+/// file, or one run's write or cleanup can corrupt the other's — the exact
+/// failure a fixed, checkpoint-shared list-file path had, and the reason
+/// each run's list file now carries a unique name again. This spawns two
+/// `osf verify --checkpoint hook` runs so their file reads genuinely
+/// overlap (each task sleeps mid-run before re-reading its own list), with
+/// two different file lists, and checks each run's own check output names
+/// only the one file it was given — never the other run's.
+#[test]
+fn two_overlapping_hook_runs_never_see_each_other_s_file_list() {
+    let repo = TempRepo::new("cp-concurrent-hook");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    let sleep_ms = 800;
+    let script = if cfg!(windows) {
+        format!(
+            "$seen = Get-Content -Raw $env:OSF_FILES_FROM; Start-Sleep -Milliseconds {sleep_ms}; if (-not (Test-Path $env:OSF_FILES_FROM)) {{ Set-Content -Path \"seen-$env:PROBE_MARKER.txt\" -Value DELETED-UNDER-US; exit 1 }}; $seen2 = Get-Content -Raw $env:OSF_FILES_FROM; Set-Content -Path \"seen-$env:PROBE_MARKER.txt\" -Value $seen -NoNewline; if ($seen -ne $seen2) {{ exit 1 }}"
+        )
+    } else {
+        format!(
+            "seen=$(cat \"$OSF_FILES_FROM\"); sleep {}; if [ ! -f \"$OSF_FILES_FROM\" ]; then echo DELETED-UNDER-US > \"seen-$PROBE_MARKER.txt\"; exit 1; fi; seen2=$(cat \"$OSF_FILES_FROM\"); printf '%s' \"$seen\" > \"seen-$PROBE_MARKER.txt\"; [ \"$seen\" = \"$seen2\" ]",
+            f64::from(sleep_ms) / 1000.0
+        )
+    };
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "tasks:\n  probe:\n    script: '{script}'\n    inputs: ['/**/*.md']\n    tags: [osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n"
+        ),
+    );
+    repo.commit("base");
+    let home = isolated_home("cp-concurrent-hook");
+
+    let mut child_a = spawn_osf_stdin(
+        &repo.dir,
+        &home,
+        &[("PROBE_MARKER", "A")],
+        &["verify", "--checkpoint", "hook", "--files-from-stdin"],
+    );
+    let mut child_b = spawn_osf_stdin(
+        &repo.dir,
+        &home,
+        &[("PROBE_MARKER", "B")],
+        &["verify", "--checkpoint", "hook", "--files-from-stdin"],
+    );
+    write_stdin(&mut child_a, "leak-a.md\n");
+    write_stdin(&mut child_b, "clean-b.md\n");
+    let out_a = child_a.wait_with_output().expect("run a finishes");
+    let out_b = child_b.wait_with_output().expect("run b finishes");
+
+    assert_eq!(out_a.status.code(), Some(0), "run a: {out_a:?}");
+    assert_eq!(out_b.status.code(), Some(0), "run b: {out_b:?}");
+
+    let seen_a = std::fs::read_to_string(repo.dir.join("seen-A.txt")).expect("run a's own file");
+    let seen_b = std::fs::read_to_string(repo.dir.join("seen-B.txt")).expect("run b's own file");
+    assert_eq!(
+        seen_a, "leak-a.md\n",
+        "run a must see only its own file list, never run b's: {out_a:?}"
+    );
+    assert_eq!(
+        seen_b, "clean-b.md\n",
+        "run b must see only its own file list, never run a's: {out_b:?}"
     );
 }
 

@@ -35,11 +35,11 @@ const ALLOWED: &[Allowed] = &[
     },
     Allowed {
         path: "src/hook.rs",
-        lines: Lines::Only(&[611, 630]),
+        lines: Lines::Only(&[619, 638]),
     },
     Allowed {
         path: "src/checkpoint.rs",
-        lines: Lines::Only(&[210]),
+        lines: Lines::Only(&[227]),
     },
     Allowed {
         path: "src/status.rs",

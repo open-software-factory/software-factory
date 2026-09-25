@@ -65,6 +65,15 @@ fn genesis_hash() -> String {
     "0".repeat(64)
 }
 
+/// The lower-case SHA-256 hex digest of `bytes`, for anything outside this
+/// module that needs a stable content fingerprint (the checkpoint runner's
+/// `OSF_FILES_HASH`).
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    to_hex(&hasher.finalize())
+}
+
 /// Lower-case hex of `bytes`.
 fn to_hex(bytes: &[u8]) -> String {
     let mut out = String::with_capacity(bytes.len() * 2);

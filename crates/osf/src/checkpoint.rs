@@ -200,41 +200,49 @@ fn partially_staged(root: &Path, staged: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// Writes `files`, one per line, to a fixed path inside the workspace, one
-/// per checkpoint (`.osf/in/<checkpoint>.files`), for `OSF_FILES_FROM`
-/// (ruling R7). Moon itself cannot pass a changed-file list to a task, so
-/// this is how each task's `osf check` learns it; a fixed path also lets a
-/// task declare the list as an input, so moon's own cache fingerprint
-/// covers it (fixes-135 task 4) — mechanism (a), kept over an env-var hash
-/// because moon 2.5.5 hashes this content even though `.osf/in/` is
-/// git-ignored (measured directly; see the task report). Ruling R21: this
-/// lives outside the journal's own state directory, so an unwritable state
-/// dir never blocks it, and the caller overwrites or deletes it every run.
-fn write_files_from(
-    root: &Path,
-    checkpoint: Checkpoint,
-    files: &[String],
-) -> Result<PathBuf, String> {
-    let dir = root.join(".osf").join("in");
-    std::fs::create_dir_all(&dir).map_err(|e| {
-        format!(
-            "cannot create the checkpoint file list dir {}: {e}",
-            dir.display()
-        )
-    })?;
-    let path = dir.join(format!("{}.files", checkpoint.label()));
+/// `files`' `OSF_FILES_FROM` content: one repository-relative path per
+/// line. Shared by [`write_files_from`], which writes it, and
+/// [`files_hash`], which fingerprints it for `OSF_FILES_HASH`.
+fn files_from_content(files: &[String]) -> String {
     let mut content = String::new();
     for file in files {
         content.push_str(file);
         content.push('\n');
     }
-    std::fs::write(&path, content).map_err(|e| {
+    content
+}
+
+/// Writes `files`, one per line, to a fresh file under the OS temp
+/// directory, for `OSF_FILES_FROM` (ruling R7). Moon itself cannot pass a
+/// changed-file list to a task, so this is how each task's `osf check`
+/// learns it. Ruling R21: this lives outside the journal's own state
+/// directory, so an unwritable state dir never blocks it, and the caller
+/// deletes it once moon has run, on every path. `run` makes the path
+/// unique to this one invocation: two overlapping runs of the same
+/// checkpoint — an agent writing two files in quick succession at the hook
+/// checkpoint, say — each get their own list, rather than one overwriting
+/// or deleting the other's file out from under it. A fixed, checkpoint-shared
+/// path was tried and reverted for exactly that race.
+fn write_files_from(run: &str, files: &[String]) -> Result<PathBuf, String> {
+    let path = std::env::temp_dir().join(format!("osf-checkpoint-files-{run}.txt"));
+    std::fs::write(&path, files_from_content(files)).map_err(|e| {
         format!(
             "cannot write the checkpoint file list {}: {e}",
             path.display()
         )
     })?;
     Ok(path)
+}
+
+/// The lower-case SHA-256 hex digest of `files`' `OSF_FILES_FROM` content,
+/// for `OSF_FILES_HASH`. The per-run `OSF_FILES_FROM` file itself is not
+/// something moon can see or safely share across overlapping runs, so each
+/// osf task instead declares `$OSF_FILES_HASH` as an input: the hash
+/// carries only a fingerprint of the list into moon's own cache, and
+/// changes no behaviour. The file list itself still reaches the check as
+/// `OSF_FILES_FROM` always has.
+fn files_hash(files: &[String]) -> String {
+    crate::journal::sha256_hex(files_from_content(files).as_bytes())
 }
 
 /// Best-effort removal of the `OSF_FILES_FROM` list `write_files_from`
@@ -655,7 +663,7 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
         std::process::id()
     );
 
-    let files_path = match write_files_from(req.root, req.checkpoint, &files) {
+    let files_path = match write_files_from(&run_id, &files) {
         Ok(p) => p,
         Err(e) => {
             error_findings.push(e);
@@ -698,6 +706,7 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
         "OSF_FILES_FROM".to_string(),
         files_path.to_string_lossy().into_owned(),
     ));
+    env.push(("OSF_FILES_HASH".to_string(), files_hash(&files)));
 
     Ok(Prepared {
         files,
@@ -1162,48 +1171,53 @@ mod tests {
         }
     }
 
-    /// Fixes-135 task 4: the file list moon's own tasks now declare as an
-    /// input lives at a fixed, per-checkpoint path inside the workspace, so
-    /// its content is part of a task's fingerprint. A second write for the
-    /// same checkpoint overwrites that same path rather than accumulating a
-    /// new file per run, and cleanup removes it on every path.
+    /// Two runs, even of the same checkpoint, each get their own
+    /// `OSF_FILES_FROM` file rather than sharing one fixed path — the race
+    /// a shared path had (one run's write or cleanup clobbering another's
+    /// file) is exactly what a unique-per-run name rules out. Cleanup
+    /// still removes the file on every path.
     #[test]
-    fn the_files_from_list_lives_at_a_fixed_workspace_path_per_checkpoint() {
-        let dir = TempDir::new("osf-checkpoint-test-files-from-fixed-path");
-        let path = write_files_from(&dir, Checkpoint::PreCommit, &["a.md".to_string()])
-            .expect("first write succeeds");
-        assert_eq!(path, dir.join(".osf").join("in").join("pre-commit.files"));
-        assert_eq!(std::fs::read_to_string(&path).expect("read"), "a.md\n");
-
-        let path2 = write_files_from(&dir, Checkpoint::PreCommit, &["b.md".to_string()])
-            .expect("second write succeeds");
-        assert_eq!(
-            path2, path,
-            "a second run overwrites the same file, not a new one"
+    fn two_runs_of_the_same_checkpoint_never_share_a_files_from_path() {
+        let run_a = "pre-commit-1000-111";
+        let run_b = "pre-commit-1000-222";
+        let path_a =
+            write_files_from(run_a, &["a.md".to_string()]).expect("first run's write succeeds");
+        let path_b =
+            write_files_from(run_b, &["b.md".to_string()]).expect("second run's write succeeds");
+        assert_ne!(
+            path_a, path_b,
+            "two overlapping runs must never share one list file"
         );
-        assert_eq!(std::fs::read_to_string(&path).expect("read"), "b.md\n");
+        assert_eq!(std::fs::read_to_string(&path_a).expect("read"), "a.md\n");
+        assert_eq!(std::fs::read_to_string(&path_b).expect("read"), "b.md\n");
 
-        cleanup_files_from(&path);
+        cleanup_files_from(&path_a);
+        assert!(!path_a.exists(), "cleanup must remove run a's own file");
         assert!(
-            !path.exists(),
-            "cleanup must remove the list file every run"
+            path_b.exists(),
+            "run a's cleanup must never delete run b's still-live file"
         );
+        cleanup_files_from(&path_b);
     }
 
-    /// Two checkpoints running against the same workspace must not clobber
-    /// each other's file list: each checkpoint gets its own path.
+    /// `OSF_FILES_HASH` is a stable fingerprint of the same content
+    /// `OSF_FILES_FROM` carries, so the same file list always hashes the
+    /// same, and a different one never collides by accident in this
+    /// test's small inputs.
     #[test]
-    fn two_checkpoints_get_two_separate_files_from_paths() {
-        let dir = TempDir::new("osf-checkpoint-test-files-from-separate");
-        let pre_commit = write_files_from(&dir, Checkpoint::PreCommit, &["a.md".to_string()])
-            .expect("pre-commit write succeeds");
-        let pre_push = write_files_from(&dir, Checkpoint::PrePush, &["b.md".to_string()])
-            .expect("pre-push write succeeds");
-        assert_ne!(pre_commit, pre_push);
-        assert_eq!(
-            std::fs::read_to_string(&pre_commit).expect("read"),
-            "a.md\n"
+    fn the_files_hash_is_stable_for_the_same_list_and_differs_for_a_different_one() {
+        let a = vec!["a.md".to_string()];
+        let b = vec!["a.md".to_string(), "b.md".to_string()];
+        assert_eq!(files_hash(&a), files_hash(&a), "same list, same hash");
+        assert_ne!(
+            files_hash(&a),
+            files_hash(&b),
+            "different list, different hash"
         );
-        assert_eq!(std::fs::read_to_string(&pre_push).expect("read"), "b.md\n");
+        assert_eq!(
+            files_hash(&a).len(),
+            64,
+            "a SHA-256 hex digest is 64 hex characters"
+        );
     }
 }
