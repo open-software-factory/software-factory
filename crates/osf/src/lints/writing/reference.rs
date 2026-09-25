@@ -159,12 +159,13 @@ fn simple_quote_spans(
     spans
 }
 
-/// Pairs of `open_ch ... close_ch`, opening only away from a word and closing only against one, so `don't`, `it's` and `teams'` stay plain words.
+/// A same-sentence, six-word-or-fewer `open_ch ... close_ch` pair with no other single-quote mark inside, so `don't`, `it's`, `teams'` and a wide-spanning pair of apostrophes never mask real text.
 fn paired_quote_spans(
     text: &str,
     open_ch: char,
     close_ch: char,
 ) -> Vec<(Range<usize>, Range<usize>)> {
+    let sentences = sentence_spans(text);
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let is_word = |idx: usize| chars.get(idx).is_some_and(|&(_, c)| c.is_alphanumeric());
     let mut spans = Vec::new();
@@ -184,15 +185,39 @@ fn paired_quote_spans(
             }
         }
         if let Some((j, close_start, close_char)) = close_at {
-            spans.push((
-                start..close_start + close_char.len_utf8(),
-                content_start..close_start,
-            ));
+            let content = text.get(content_start..close_start).unwrap_or("");
+            let safe_to_mask = same_sentence(&sentences, start, close_start)
+                && content.split_whitespace().count() <= 6
+                && !content.chars().any(is_single_quote_mark);
+            if safe_to_mask {
+                spans.push((
+                    start..close_start + close_char.len_utf8(),
+                    content_start..close_start,
+                ));
+            }
             i = j;
         }
         i += 1;
     }
     spans
+}
+
+/// The byte range of every sentence `segment::parse` finds in `text`.
+fn sentence_spans(text: &str) -> Vec<Range<usize>> {
+    segment::parse(text)
+        .sentences
+        .into_iter()
+        .map(|s| s.span)
+        .collect()
+}
+
+/// Whether `a` and `b` fall inside the same one of `sentences`.
+fn same_sentence(sentences: &[Range<usize>], a: usize, b: usize) -> bool {
+    sentences.iter().any(|s| s.contains(&a) && s.contains(&b))
+}
+
+fn is_single_quote_mark(c: char) -> bool {
+    matches!(c, '\'' | '\u{2018}' | '\u{2019}')
 }
 
 /// Blanks every quoted or backticked span so its content is never matched as a number, phrase or time.
@@ -247,10 +272,12 @@ fn number_candidates(text: &str, known: &KnownNames) -> Vec<Candidate> {
 
 /// Whether `word` matches a known name regardless of case, so `windows 11` is excluded like `Windows 11`.
 fn is_known_name(known: &KnownNames, word: &str) -> bool {
-    let mut title = word.to_lowercase();
-    if let Some(first) = title.get_mut(0..1) {
-        first.make_ascii_uppercase();
-    }
+    let lower = word.to_lowercase();
+    let mut chars = lower.chars();
+    let title = match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    };
     known.contains(word) || known.contains(&title) || known.contains(&word.to_uppercase())
 }
 
@@ -594,6 +621,14 @@ mod tests {
         .all(|k| *k != Kind::Number));
     }
 
+    /// A byte-slicing title-case would panic or silently miss a multi-byte first letter; char-based case mapping does not.
+    #[test]
+    fn is_known_name_title_cases_a_multi_byte_first_letter() {
+        let known = load_known_names(&["\u{c9}clair".to_string()], None)
+            .expect("known names with a multi-byte entry load");
+        assert!(is_known_name(&known, "\u{e9}clair"));
+    }
+
     #[test]
     fn number_excludes_a_year() {
         assert!(
@@ -792,6 +827,44 @@ mod tests {
         ));
         assert!(has(
             "The teams' issue 31 is still open.",
+            Kind::Number,
+            "issue 31"
+        ));
+    }
+
+    /// Two apostrophes far apart, one opening a decade and one closing a plural possessive, must not pair up and mask everything between them.
+    #[test]
+    fn a_decade_apostrophe_and_a_plural_possessive_never_pair_up() {
+        assert!(has(
+            "The '90s had issue 31 fixed, and the teams' report doesn't mention it.",
+            Kind::Number,
+            "issue 31"
+        ));
+    }
+
+    /// A single-quote mark inside the span, as in 'n' inside a longer quote, rules out that pairing rather than widening it.
+    #[test]
+    fn a_span_with_an_inner_single_quote_mark_is_never_masked() {
+        assert!(has(
+            "That was 'rock 'n' roll' to us, and issue 31 shipped fine.",
+            Kind::Number,
+            "issue 31"
+        ));
+    }
+
+    #[test]
+    fn a_single_quote_that_never_closes_masks_nothing() {
+        assert!(has(
+            "The 'end of the story never closes, but issue 31 still ships.",
+            Kind::Number,
+            "issue 31"
+        ));
+    }
+
+    #[test]
+    fn a_single_quoted_span_of_more_than_six_words_is_never_masked() {
+        assert!(has(
+            "She called it 'a phrase about issue 31 that runs on for entirely too long here' today.",
             Kind::Number,
             "issue 31"
         ));
