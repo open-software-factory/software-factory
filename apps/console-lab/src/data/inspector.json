@@ -1,0 +1,40 @@
+{
+  "title": "service-auth#5 · Go-live: harden Keycloak availability — single 2GB Lightsai…",
+  "summary": "Go-live blocker (operational) — verified against AWS + repo on 2026-06-18",
+  "fields": [
+    {
+      "label": "status",
+      "value": "Backlog"
+    },
+    {
+      "label": "priority",
+      "value": "P0"
+    },
+    {
+      "label": "repo",
+      "value": "service-auth"
+    },
+    {
+      "label": "milestone",
+      "value": "Go-Live"
+    }
+  ],
+  "evidence": [
+    {
+      "id": "service-auth#5",
+      "text": "opened on github",
+      "state": "idle"
+    },
+    {
+      "id": "labels",
+      "text": "bug",
+      "state": "idle"
+    }
+  ],
+  "actions": [
+    {
+      "id": "open",
+      "label": "Open on GitHub"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "PF-2261",
+  "title": "Irreversible production step armed without authorization — scope paused",
+  "raisedAt": "14:58:41",
+  "what": "DEPLOY-prod armed migration step 7/7 (billing.backfill_v3 — destructive, no rollback path), auto-triggered by SF-138 “Usage billing” clearing its promotion gates.",
+  "why": "Deterministic policy match — POL-04 · irreversible action executing without required human authorization. Raised automatically, not by model judgement. State snapshot #PF-2261 frozen at trigger: states, events and triggering evidence.",
+  "scope": [
+    { "label": "target: prod", "hot": true },
+    { "label": "service: billing-api", "hot": true },
+    { "label": "dataset: 1.2M rows" },
+    { "label": "downstream: invoicing jobs" },
+    { "label": "rollback: unavailable" }
+  ],
+  "paused": [
+    "DEPLOY-prod · production deploy — held at the safe boundary",
+    "SF-138 · Usage billing — promotion withheld"
+  ],
+  "pausedExpanded": [
+    "GATE-CI + platform pipeline (SF-142, SF-147) — containment expanded by operator"
+  ],
+  "running": [
+    "11 unrelated work items executing normally",
+    "Diagnostics, gates and evidence collection on non-prod paths",
+    "Flight recorder tails — readable throughout the pause"
+  ],
+  "evidence": [
+    { "id": "rec", "text": "Flight recorder — promotion chain", "meta": "phase → event → raw", "state": "fail" },
+    { "id": "snap", "text": "State snapshot #PF-2261", "meta": "read-only", "state": "blocked" },
+    { "id": "policy", "text": "Policy POL-04 definition", "meta": "governance", "state": "idle" }
+  ],
+  "playbook": {
+    "id": "PB-07",
+    "result": "PB-07 executed — promotion token revoked, SF-138 returned to GATING, deploy credentials rotated. Scope verified stable; a resume decision is still required."
+  },
+  "abortResult": "SF-138 promotion withdrawn · migration step disarmed. The pause stays in force until resumed with a recorded justification.",
+  "justificationHint": "e.g. Token revoked under PB-07; SF-138 re-gated; prod path verified clean before resume."
+}

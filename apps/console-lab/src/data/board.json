@@ -1,0 +1,122 @@
+{
+  "title": "Board",
+  "tag": "silveroak-apps · project 2",
+  "columns": [
+    {
+      "name": "Backlog",
+      "items": [
+        {
+          "id": "service-auth#5",
+          "title": "Go-live: harden Keycloak availability — single 2GB Lightsail VM, no monit…",
+          "who": "P0 · Go-Live · bug",
+          "state": "idle"
+        },
+        {
+          "id": "infra-aws-bootstrap#10",
+          "title": "Ops alerting: no CloudWatch/Lightsail alarm reaches a human — build Pusho…",
+          "who": "P0",
+          "state": "idle"
+        },
+        {
+          "id": "service-wallet-transaction-importer#90",
+          "title": "fairness: prevent head-of-line blocking when one big wallet hogs the impo…",
+          "who": "P1",
+          "state": "idle"
+        },
+        {
+          "id": "service-portfolio-api#87",
+          "title": "data-driven token-alias mechanism (replace static TokenAliasResolver dict)",
+          "who": "P1",
+          "state": "idle"
+        },
+        {
+          "id": "service-wallet-transaction-importer#98",
+          "title": "feat: cap wallet imports to MaxTransactionsPerConnection at Covalent boun…",
+          "who": "P1",
+          "state": "idle"
+        }
+      ]
+    },
+    {
+      "name": "Ready",
+      "items": [
+        {
+          "id": "all-about-money-ui#319",
+          "title": "Prod Wiredash credentials are invalid (401) - feedback is silently broken…",
+          "who": "P0",
+          "state": "active"
+        }
+      ]
+    },
+    {
+      "name": "In progress",
+      "items": [
+        {
+          "id": "all-about-money-ui#357",
+          "title": "Portfolio investment distribution",
+          "who": "P1 · ado-import",
+          "state": "active"
+        },
+        {
+          "id": "service-exchange-api-transaction-importer#121",
+          "title": "Automatically import transactions from (centralised) exchanges",
+          "who": "P1 · ado-import",
+          "state": "active"
+        },
+        {
+          "id": "service-wallet-transaction-importer#183",
+          "title": "Automatically import transactions from crypto wallets",
+          "who": "P1 · ado-import",
+          "state": "active"
+        },
+        {
+          "id": "service-auth#23",
+          "title": "Login, user auth, profile, subscriptions and licensing",
+          "who": "P1 · ado-import",
+          "state": "active"
+        },
+        {
+          "id": "service-market-sentiment#8",
+          "title": "Market Analysis - News, Social and Sentiment analysis Pages",
+          "who": "P1 · ado-import",
+          "state": "active"
+        }
+      ]
+    },
+    {
+      "name": "Done",
+      "items": [
+        {
+          "id": "service-wallet-transaction-importer#92",
+          "title": "bypass: wallet importer deletes every SQS message even on failure, losing…",
+          "who": "P0 · Go-Live",
+          "state": "ok"
+        },
+        {
+          "id": "service-portfolio-api#89",
+          "title": "MATIC holders see $0 in portfolio post-POL rebrand",
+          "who": "P0 · Go-Live · bug",
+          "state": "ok"
+        },
+        {
+          "id": "service-portfolio-api#91",
+          "title": "Location lookups failing with GSI mismatch, creating duplicate wallet rows",
+          "who": "P0 · Go-Live",
+          "state": "ok"
+        },
+        {
+          "id": "service-wallet-transaction-importer#96",
+          "title": "Wallet importer drops outbound native AVAX value from swap-call internal…",
+          "who": "P0 · Go-Live",
+          "state": "ok"
+        },
+        {
+          "id": "all-about-money-ui#185",
+          "title": "Auth re-login loading shimmer has no timeout/escape (stuck 'Sign In' gray…",
+          "who": "P0 · Go-Live",
+          "state": "ok"
+        }
+      ]
+    }
+  ]
+}

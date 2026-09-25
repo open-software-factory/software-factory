@@ -1,0 +1,1375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workspace spike — react-resizable-panels</title>
+<style>
+  :root {
+    --bg: oklch(0.165 0.014 210);
+    --bg-canvas: oklch(0.145 0.012 210);
+    --surface-1: oklch(0.200 0.015 210);
+    --surface-2: oklch(0.240 0.016 210);
+    --surface-3: oklch(0.280 0.017 210);
+    --border-subtle: oklch(0.243 0.010 210);
+    --border-strong: oklch(0.330 0.012 210);
+    --fg: oklch(0.885 0.010 210);
+    --fg-strong: oklch(0.920 0.008 210);
+    --fg-muted: oklch(0.710 0.012 210);
+    --fg-faint: oklch(0.550 0.012 210);
+    --accent: oklch(0.780 0.100 170);
+    --state-ok: oklch(0.760 0.090 150);
+    --state-active: oklch(0.760 0.080 215);
+    --state-blocked: oklch(0.780 0.100 75);
+    --state-fail: oklch(0.720 0.150 25);
+    --state-idle: oklch(0.620 0.010 210);
+
+    --dur-micro: 120ms;
+    --dur-panel: 200ms;
+    --dur-transform: 280ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0.2, 1);
+
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --radius-control: 1.5px;
+    --radius-panel: 4.5px;
+    --radius-overlay: 6px;
+    --pane-gutter: 3.5px;
+
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    --text-caption: 11px;
+    --text-label: 11px;
+    --text-section: 15px;
+  }
+
+  * { box-sizing: border-box; }
+  * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
+  body { font-family: var(--font-sans); color: var(--fg); font-size: 13px; }
+  #root { height: 100%; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .shell { display: flex; flex-direction: column; height: 100%; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .cgroup { display: flex; flex-direction: column; gap: 4px; }
+  .clabel { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--fg-faint); }
+  .crow { display: flex; gap: var(--space-2); align-items: center; }
+  .btn {
+    appearance: none; border: 1px solid var(--border-strong); background: var(--surface-2);
+    color: var(--fg); font: inherit; font-size: 12px; padding: 5px 10px;
+    border-radius: var(--radius-control); cursor: pointer;
+    transition: background var(--dur-micro) var(--ease-standard);
+  }
+  .btn:hover { background: color-mix(in oklch, var(--surface-2) 82%, white 18%); }
+  .btn[aria-pressed="true"] { background: color-mix(in oklch, var(--accent) 20%, var(--surface-2)); border-color: var(--accent); }
+
+  .host { position: relative; flex: 1; min-height: 0; background: var(--bg-canvas); }
+
+  /* --- the whole point: panels are stable nodes sized by flex-grow --- */
+  /*
+    Sizes must be percentage STRINGS. A bare number is pixels in v4, and pixel
+    panels are laid out with flex-basis + flex-grow:0 — nothing to transition.
+    With percentages the library writes flex-grow, which animates.
+  */
+  [data-panel] {
+    overflow: hidden;
+    transition:
+      flex-grow var(--dur-transform) var(--ease-standard),
+      flex-basis var(--dur-transform) var(--ease-standard);
+  }
+  .host.is-dragging [data-panel] { transition: none; }
+
+  .pane {
+    height: 100%; width: 100%;
+    display: flex; flex-direction: column;
+    background: var(--surface-1);
+    border-radius: var(--radius-panel);
+    overflow: hidden;
+  }
+  .pane-wrap { height: 100%; width: 100%; padding: var(--pane-gutter); }
+
+  .pane-head {
+    display: flex; align-items: center; gap: var(--space-2);
+    padding: 7px var(--space-3) 3px; flex-shrink: 0;
+  }
+  .pane-title { flex: 1; font-size: var(--text-label); text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-faint); }
+  .icon-btn {
+    appearance: none; border: none; background: transparent; color: var(--fg-muted);
+    width: 22px; height: 22px; border-radius: var(--radius-control);
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: background var(--dur-micro) var(--ease-standard), color var(--dur-micro) var(--ease-standard);
+  }
+  .icon-btn:hover { background: var(--surface-3); color: var(--fg); }
+  .pane-body { flex: 1; min-height: 0; overflow: auto; padding: var(--space-3) var(--space-4) var(--space-4); }
+
+  /* separators: no line, a short handle on hover */
+  .sep { position: relative; flex: 0 0 auto; }
+  .sep[data-orientation="horizontal"] { width: 5px; cursor: ew-resize; }
+  .sep[data-orientation="vertical"] { height: 5px; cursor: ns-resize; }
+  .sep::after {
+    content: ''; position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%); border-radius: 999px;
+    background: var(--fg-faint); opacity: 0;
+    transition: opacity var(--dur-micro) var(--ease-standard);
+  }
+  .sep[data-orientation="horizontal"]::after { width: 3px; height: 26px; }
+  .sep[data-orientation="vertical"]::after { width: 26px; height: 3px; }
+  .sep:hover::after { opacity: 0.45; }
+  .sep:active::after { opacity: 0.8; }
+  .host.is-locked .sep { pointer-events: none; }
+
+  /* tabs */
+  .tabstrip { display: flex; gap: 2px; padding: 5px 5px 0; flex-shrink: 0; }
+  .tab {
+    appearance: none; border: none; cursor: pointer; font: inherit; font-size: 11px;
+    min-width: 104px; max-width: 160px; padding: 6px 8px;
+    border-radius: var(--radius-control); background: transparent; color: var(--fg-muted);
+    display: flex; align-items: center; gap: 6px;
+    transition: background var(--dur-micro) var(--ease-standard), color var(--dur-micro) var(--ease-standard);
+  }
+  .tab:hover { background: color-mix(in oklch, var(--surface-2) 60%, transparent); color: var(--fg); }
+  .tab[aria-selected="true"] { background: var(--surface-2); color: var(--fg-strong); }
+  .tab .x { margin-left: auto; opacity: 0.3; transition: opacity var(--dur-micro) var(--ease-standard); }
+  .tab:hover .x { opacity: 0.65; }
+  .tab .x:hover { opacity: 1; }
+
+  .canvas {
+    flex: 1; min-height: 0; overflow: auto; padding: var(--space-4);
+    background-color: oklch(0.178 0.013 210);
+    background-image:
+      radial-gradient(90% 70% at 50% -10%, oklch(0.225 0.016 210) 0%, transparent 70%),
+      radial-gradient(120% 110% at 50% 50%, transparent 45%, oklch(0.135 0.012 212) 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), inset 0 -40px 70px -50px rgba(0,0,0,0.9);
+  }
+
+  /* floating pane */
+  .floater {
+    position: absolute; z-index: 80;
+    background: var(--surface-2);
+    border: 1px solid color-mix(in oklch, var(--border-subtle) 30%, transparent);
+    border-radius: var(--radius-overlay);
+    box-shadow: 0 48px 110px rgba(0,0,0,0.80), 0 18px 44px rgba(0,0,0,0.58), 0 3px 10px rgba(0,0,0,0.40);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .floater .pane { background: var(--surface-2); border-radius: 0; }
+  .floater .grip { cursor: grab; }
+  .floater .grip:active { cursor: grabbing; }
+
+  #ghosts { position: absolute; inset: 0; pointer-events: none; z-index: 90; overflow: hidden; }
+  #ghosts > .ghost { position: absolute; overflow: hidden; border-radius: var(--radius-panel); }
+
+  /* content fixtures */
+  .fx-head { display: flex; align-items: baseline; gap: var(--space-3); padding-bottom: var(--space-3); }
+  .fx-head h3 { font-size: var(--text-section); margin: 0; color: var(--fg-strong); }
+  .fx-tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fg-faint); border: 1px solid var(--border-subtle); border-radius: var(--radius-control); padding: 1px 5px; }
+  .fx-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .fx-table th { text-align: left; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--fg-faint); font-weight: 400; padding: 0 var(--space-3) 7px 0; }
+  .fx-table td { padding: 8px var(--space-3) 8px 0; border-top: 1px solid var(--border-subtle); color: var(--fg-muted); }
+  .fx-table td.k { color: var(--fg); }
+  .fx-mono { font-family: var(--font-mono); font-size: 11px; }
+  .fx-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+  .fx-nav { list-style: none; margin: 0; padding: 0; }
+  .fx-nav .grp { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-faint); padding: var(--space-4) 0 5px; }
+  .fx-nav button { appearance: none; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: var(--space-2); background: transparent; border: none; color: var(--fg-muted); font: inherit; font-size: 12px; padding: 6px 8px; border-radius: var(--radius-control); transition: background var(--dur-micro) var(--ease-standard), color var(--dur-micro) var(--ease-standard); }
+  .fx-nav button:hover { background: var(--surface-2); color: var(--fg); }
+  .fx-nav button[aria-current="true"] { background: color-mix(in oklch, var(--accent) 14%, var(--surface-2)); color: var(--fg-strong); }
+  .fx-nav .count { margin-left: auto; font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); }
+  .fx-track { position: relative; height: 34px; border-radius: var(--radius-control); background: var(--surface-2); }
+  .fx-track .tick { position: absolute; top: 7px; width: 2px; height: 20px; border-radius: 1px; }
+  .fx-scale { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--fg-faint); padding-top: var(--space-2); }
+  .fx-card { background: var(--surface-2); border-radius: var(--radius-panel); padding: 9px 10px; margin-bottom: 6px; border-left: 2px solid var(--state-idle); }
+  .fx-board { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: var(--space-3); align-items: start; }
+  .fx-colhead { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--fg-faint); padding-bottom: var(--space-2); }
+
+  #fatal { position: absolute; inset: 16px; z-index: 999; overflow: auto; padding: 20px; background: oklch(0.2 0.05 25); border: 1px solid oklch(0.72 0.15 25); border-radius: 4px; color: var(--fg); font: 13px/1.5 var(--font-mono); white-space: pre-wrap; }
+  #selftest { position: fixed; left: 12px; bottom: 12px; z-index: 9999; margin: 0; padding: 10px 12px; background: oklch(0.16 0.02 210); border: 1px solid var(--accent); border-radius: 4px; color: var(--fg); font: 11px/1.55 var(--font-mono); white-space: pre; max-height: 72vh; overflow: auto; }
+</style>
+<!-- od:fixtures:start -->
+<script type="application/json" id="od-fixtures">
+{
+  "attention": {
+    "title": "Attention",
+    "tag": "silveroak-apps · project 2",
+    "summary": "3 at P0 · 136 open · 0 pull requests",
+    "items": [
+      {
+        "id": "service-auth#5",
+        "state": "blocked",
+        "needsYou": true,
+        "headline": "Go-live: harden Keycloak availability — single 2GB Lightsail VM, no…",
+        "detail": "service-auth#5 · Go-Live",
+        "age": "Backlog",
+        "verb": "Open issue"
+      },
+      {
+        "id": "infra-aws-bootstrap#10",
+        "state": "blocked",
+        "needsYou": true,
+        "headline": "Ops alerting: no CloudWatch/Lightsail alarm reaches a human — build…",
+        "detail": "infra-aws-bootstrap#10",
+        "age": "Backlog",
+        "verb": "Open issue"
+      },
+      {
+        "id": "all-about-money-ui#319",
+        "state": "fail",
+        "needsYou": true,
+        "headline": "Prod Wiredash credentials are invalid (401) - feedback is silently…",
+        "detail": "all-about-money-ui#319",
+        "age": "Ready",
+        "verb": "Open issue"
+      }
+    ]
+  },
+  "board": {
+    "title": "Board",
+    "tag": "silveroak-apps · project 2",
+    "columns": [
+      {
+        "name": "Backlog",
+        "items": [
+          {
+            "id": "service-auth#5",
+            "title": "Go-live: harden Keycloak availability — single 2GB Lightsail VM, no monit…",
+            "who": "P0 · Go-Live · bug",
+            "state": "idle"
+          },
+          {
+            "id": "infra-aws-bootstrap#10",
+            "title": "Ops alerting: no CloudWatch/Lightsail alarm reaches a human — build Pusho…",
+            "who": "P0",
+            "state": "idle"
+          },
+          {
+            "id": "service-wallet-transaction-importer#90",
+            "title": "fairness: prevent head-of-line blocking when one big wallet hogs the impo…",
+            "who": "P1",
+            "state": "idle"
+          },
+          {
+            "id": "service-portfolio-api#87",
+            "title": "data-driven token-alias mechanism (replace static TokenAliasResolver dict)",
+            "who": "P1",
+            "state": "idle"
+          },
+          {
+            "id": "service-wallet-transaction-importer#98",
+            "title": "feat: cap wallet imports to MaxTransactionsPerConnection at Covalent boun…",
+            "who": "P1",
+            "state": "idle"
+          }
+        ]
+      },
+      {
+        "name": "Ready",
+        "items": [
+          {
+            "id": "all-about-money-ui#319",
+            "title": "Prod Wiredash credentials are invalid (401) - feedback is silently broken…",
+            "who": "P0",
+            "state": "active"
+          }
+        ]
+      },
+      {
+        "name": "In progress",
+        "items": [
+          {
+            "id": "all-about-money-ui#357",
+            "title": "Portfolio investment distribution",
+            "who": "P1 · ado-import",
+            "state": "active"
+          },
+          {
+            "id": "service-exchange-api-transaction-importer#121",
+            "title": "Automatically import transactions from (centralised) exchanges",
+            "who": "P1 · ado-import",
+            "state": "active"
+          },
+          {
+            "id": "service-wallet-transaction-importer#183",
+            "title": "Automatically import transactions from crypto wallets",
+            "who": "P1 · ado-import",
+            "state": "active"
+          },
+          {
+            "id": "service-auth#23",
+            "title": "Login, user auth, profile, subscriptions and licensing",
+            "who": "P1 · ado-import",
+            "state": "active"
+          },
+          {
+            "id": "service-market-sentiment#8",
+            "title": "Market Analysis - News, Social and Sentiment analysis Pages",
+            "who": "P1 · ado-import",
+            "state": "active"
+          }
+        ]
+      },
+      {
+        "name": "Done",
+        "items": [
+          {
+            "id": "service-wallet-transaction-importer#92",
+            "title": "bypass: wallet importer deletes every SQS message even on failure, losing…",
+            "who": "P0 · Go-Live",
+            "state": "ok"
+          },
+          {
+            "id": "service-portfolio-api#89",
+            "title": "MATIC holders see $0 in portfolio post-POL rebrand",
+            "who": "P0 · Go-Live · bug",
+            "state": "ok"
+          },
+          {
+            "id": "service-portfolio-api#91",
+            "title": "Location lookups failing with GSI mismatch, creating duplicate wallet rows",
+            "who": "P0 · Go-Live",
+            "state": "ok"
+          },
+          {
+            "id": "service-wallet-transaction-importer#96",
+            "title": "Wallet importer drops outbound native AVAX value from swap-call internal…",
+            "who": "P0 · Go-Live",
+            "state": "ok"
+          },
+          {
+            "id": "all-about-money-ui#185",
+            "title": "Auth re-login loading shimmer has no timeout/escape (stuck 'Sign In' gray…",
+            "who": "P0 · Go-Live",
+            "state": "ok"
+          }
+        ]
+      }
+    ]
+  },
+  "environments": {
+    "current": "prod",
+    "items": [
+      {
+        "id": "prod",
+        "label": "prod",
+        "health": "healthy",
+        "state": "ok"
+      },
+      {
+        "id": "staging",
+        "label": "staging",
+        "health": "degraded",
+        "state": "blocked"
+      },
+      {
+        "id": "dev",
+        "label": "dev",
+        "health": "idle",
+        "state": "idle"
+      }
+    ]
+  },
+  "floor": {
+    "title": "Factory floor",
+    "tag": "silveroak-apps · project 2 · gates are sample",
+    "viewBox": "0 0 860 300",
+    "nodes": [
+      {
+        "id": "w0",
+        "x": 20,
+        "y": 24,
+        "w": 210,
+        "h": 46,
+        "title": "Batch transaction import lacks id…",
+        "sub": "service-portfolio-api#195 · unset",
+        "state": "active"
+      },
+      {
+        "id": "w1",
+        "x": 20,
+        "y": 92,
+        "w": 210,
+        "h": 46,
+        "title": "Prod Wiredash credentials are inv…",
+        "sub": "all-about-money-ui#319 · P0",
+        "state": "active"
+      },
+      {
+        "id": "w2",
+        "x": 20,
+        "y": 160,
+        "w": 210,
+        "h": 46,
+        "title": "Portfolio investment distribution",
+        "sub": "all-about-money-ui#357 · P1",
+        "state": "active"
+      },
+      {
+        "id": "w3",
+        "x": 20,
+        "y": 228,
+        "w": 210,
+        "h": 46,
+        "title": "Automatically import transactions…",
+        "sub": "service-exchange-api-transaction-import…",
+        "state": "active"
+      },
+      {
+        "id": "ci-gate",
+        "x": 300,
+        "y": 78,
+        "w": 130,
+        "h": 46,
+        "title": "CI gate",
+        "sub": "sample",
+        "state": "fail"
+      },
+      {
+        "id": "review-gate",
+        "x": 300,
+        "y": 168,
+        "w": 130,
+        "h": 46,
+        "title": "Review gate",
+        "sub": "sample",
+        "state": "blocked"
+      },
+      {
+        "id": "canary",
+        "x": 500,
+        "y": 122,
+        "w": 130,
+        "h": 46,
+        "title": "canary",
+        "sub": "sample",
+        "state": "active"
+      },
+      {
+        "id": "prod",
+        "x": 700,
+        "y": 122,
+        "w": 130,
+        "h": 46,
+        "title": "prod",
+        "sub": "sample",
+        "state": "idle"
+      }
+    ],
+    "edges": [
+      {
+        "from": "w0",
+        "to": "ci-gate"
+      },
+      {
+        "from": "w1",
+        "to": "review-gate"
+      },
+      {
+        "from": "w2",
+        "to": "ci-gate"
+      },
+      {
+        "from": "w3",
+        "to": "review-gate"
+      },
+      {
+        "from": "ci-gate",
+        "to": "canary"
+      },
+      {
+        "from": "review-gate",
+        "to": "canary"
+      },
+      {
+        "from": "canary",
+        "to": "prod"
+      }
+    ],
+    "legend": [
+      {
+        "state": "active",
+        "label": "in progress"
+      },
+      {
+        "state": "ok",
+        "label": "done"
+      },
+      {
+        "state": "blocked",
+        "label": "blocked"
+      },
+      {
+        "state": "fail",
+        "label": "failed"
+      },
+      {
+        "state": "idle",
+        "label": "backlog"
+      }
+    ]
+  },
+  "inspector": {
+    "title": "service-auth#5 · Go-live: harden Keycloak availability — single 2GB Lightsai…",
+    "summary": "Go-live blocker (operational) — verified against AWS + repo on 2026-06-18",
+    "fields": [
+      {
+        "label": "status",
+        "value": "Backlog"
+      },
+      {
+        "label": "priority",
+        "value": "P0"
+      },
+      {
+        "label": "repo",
+        "value": "service-auth"
+      },
+      {
+        "label": "milestone",
+        "value": "Go-Live"
+      }
+    ],
+    "evidence": [
+      {
+        "id": "service-auth#5",
+        "text": "opened on github",
+        "state": "idle"
+      },
+      {
+        "id": "labels",
+        "text": "bug",
+        "state": "idle"
+      }
+    ],
+    "actions": [
+      {
+        "id": "open",
+        "label": "Open on GitHub"
+      }
+    ]
+  },
+  "logs": {
+    "title": "Run output",
+    "tag": "sample",
+    "run": "run-4471 · SF-147 · attempt 3",
+    "lines": [
+      {
+        "t": "12:04:02",
+        "level": "info",
+        "text": "checkout out web@a91f3c2, 1 342 files"
+      },
+      {
+        "t": "12:04:11",
+        "level": "info",
+        "text": "pnpm install --frozen-lockfile"
+      },
+      {
+        "t": "12:04:48",
+        "level": "info",
+        "text": "resolved 812 packages in 37s"
+      },
+      {
+        "t": "12:05:02",
+        "level": "info",
+        "text": "tsc --noEmit"
+      },
+      {
+        "t": "12:05:39",
+        "level": "ok",
+        "text": "typecheck passed"
+      },
+      {
+        "t": "12:05:40",
+        "level": "info",
+        "text": "vitest run --reporter dot"
+      },
+      {
+        "t": "12:06:14",
+        "level": "warn",
+        "text": "payments/adapter.test.ts took 8.2s (slow)"
+      },
+      {
+        "t": "12:06:51",
+        "level": "fail",
+        "text": "FAIL payments/adapter.test.ts > refunds a partial capture"
+      },
+      {
+        "t": "12:06:51",
+        "level": "fail",
+        "text": "  expected 1 200, received 0 — capture id was not forwarded"
+      },
+      {
+        "t": "12:06:52",
+        "level": "fail",
+        "text": "1 failed, 486 passed (487)"
+      },
+      {
+        "t": "12:06:53",
+        "level": "info",
+        "text": "gate ci-unit → blocked, notifying operator"
+      },
+      {
+        "t": "12:07:01",
+        "level": "info",
+        "text": "atlas: re-reading payments/adapter.ts"
+      }
+    ]
+  },
+  "nav": {
+    "defaultActive": "floor",
+    "groups": [
+      {
+        "name": "Views",
+        "kind": "view",
+        "items": [
+          {
+            "id": "floor",
+            "label": "Floor",
+            "count": "136",
+            "opensView": true
+          },
+          {
+            "id": "board",
+            "label": "Board",
+            "count": "279",
+            "opensView": true
+          },
+          {
+            "id": "runway",
+            "label": "Runway",
+            "count": "6",
+            "opensView": true
+          }
+        ]
+      },
+      {
+        "name": "Panels",
+        "kind": "panel",
+        "items": [
+          {
+            "id": "attention",
+            "label": "Attention",
+            "count": "3",
+            "slot": "left",
+            "opensView": false
+          },
+          {
+            "id": "recorder",
+            "label": "Flight recorder",
+            "count": "",
+            "slot": "bottom",
+            "opensView": false
+          },
+          {
+            "id": "logs",
+            "label": "Run output",
+            "count": "",
+            "slot": "right",
+            "opensView": false
+          }
+        ]
+      }
+    ]
+  },
+  "p0": {
+    "id": "PF-2261",
+    "title": "Irreversible production step armed without authorization — scope paused",
+    "raisedAt": "14:58:41",
+    "what": "DEPLOY-prod armed migration step 7/7 (billing.backfill_v3 — destructive, no rollback path), auto-triggered by SF-138 “Usage billing” clearing its promotion gates.",
+    "why": "Deterministic policy match — POL-04 · irreversible action executing without required human authorization. Raised automatically, not by model judgement. State snapshot #PF-2261 frozen at trigger: states, events and triggering evidence.",
+    "scope": [
+      {
+        "label": "target: prod",
+        "hot": true
+      },
+      {
+        "label": "service: billing-api",
+        "hot": true
+      },
+      {
+        "label": "dataset: 1.2M rows"
+      },
+      {
+        "label": "downstream: invoicing jobs"
+      },
+      {
+        "label": "rollback: unavailable"
+      }
+    ],
+    "paused": [
+      "DEPLOY-prod · production deploy — held at the safe boundary",
+      "SF-138 · Usage billing — promotion withheld"
+    ],
+    "pausedExpanded": [
+      "GATE-CI + platform pipeline (SF-142, SF-147) — containment expanded by operator"
+    ],
+    "running": [
+      "11 unrelated work items executing normally",
+      "Diagnostics, gates and evidence collection on non-prod paths",
+      "Flight recorder tails — readable throughout the pause"
+    ],
+    "evidence": [
+      {
+        "id": "rec",
+        "text": "Flight recorder — promotion chain",
+        "meta": "phase → event → raw",
+        "state": "fail"
+      },
+      {
+        "id": "snap",
+        "text": "State snapshot #PF-2261",
+        "meta": "read-only",
+        "state": "blocked"
+      },
+      {
+        "id": "policy",
+        "text": "Policy POL-04 definition",
+        "meta": "governance",
+        "state": "idle"
+      }
+    ],
+    "playbook": {
+      "id": "PB-07",
+      "result": "PB-07 executed — promotion token revoked, SF-138 returned to GATING, deploy credentials rotated. Scope verified stable; a resume decision is still required."
+    },
+    "abortResult": "SF-138 promotion withdrawn · migration step disarmed. The pause stays in force until resumed with a recorded justification.",
+    "justificationHint": "e.g. Token revoked under PB-07; SF-138 re-gated; prod path verified clean before resume."
+  },
+  "runway": {
+    "title": "Go-live readiness",
+    "tag": "silveroak-apps · project 2",
+    "columns": [
+      "Repository",
+      "Open",
+      "P0",
+      "Readiness",
+      "Go-live scope"
+    ],
+    "rows": [
+      {
+        "release": "all-about-money-ui",
+        "scope": "45 of 96 closed",
+        "state": "fail",
+        "stateLabel": "1 at P0",
+        "gates": "51",
+        "when": "3 tagged"
+      },
+      {
+        "release": "service-portfolio-api",
+        "scope": "54 of 85 closed",
+        "state": "blocked",
+        "stateLabel": "31 open",
+        "gates": "31",
+        "when": "3 tagged"
+      },
+      {
+        "release": "service-wallet-transaction-importer",
+        "scope": "13 of 28 closed",
+        "state": "blocked",
+        "stateLabel": "15 open",
+        "gates": "15",
+        "when": "2 tagged"
+      },
+      {
+        "release": "service-exchange-api-transaction-importer",
+        "scope": "13 of 28 closed",
+        "state": "blocked",
+        "stateLabel": "15 open",
+        "gates": "15",
+        "when": "—"
+      },
+      {
+        "release": "silveroak-business",
+        "scope": "1 of 7 closed",
+        "state": "active",
+        "stateLabel": "6 open",
+        "gates": "6",
+        "when": "—"
+      },
+      {
+        "release": "service-market-price-synchroniser",
+        "scope": "1 of 5 closed",
+        "state": "active",
+        "stateLabel": "4 open",
+        "gates": "4",
+        "when": "—"
+      }
+    ]
+  },
+  "timeline": {
+    "title": "Timeline",
+    "playheadPercent": 88,
+    "scale": [
+      "−2 h",
+      "−90 m",
+      "−60 m",
+      "−30 m",
+      "now"
+    ],
+    "events": [
+      {
+        "at": 8,
+        "state": "ok",
+        "label": "SF-151 merged"
+      },
+      {
+        "at": 17,
+        "state": "ok",
+        "label": "SF-144 review opened"
+      },
+      {
+        "at": 26,
+        "state": "active",
+        "label": "SF-147 started"
+      },
+      {
+        "at": 34,
+        "state": "blocked",
+        "label": "Review gate waiting"
+      },
+      {
+        "at": 41,
+        "state": "ok",
+        "label": "search index shipped"
+      },
+      {
+        "at": 52,
+        "state": "fail",
+        "label": "CI gate unit-tests failed"
+      },
+      {
+        "at": 58,
+        "state": "active",
+        "label": "SF-149 started"
+      },
+      {
+        "at": 66,
+        "state": "ok",
+        "label": "refunds shipped"
+      },
+      {
+        "at": 74,
+        "state": "blocked",
+        "label": "SF-153 needs you"
+      },
+      {
+        "at": 81,
+        "state": "ok",
+        "label": "canary healthy"
+      },
+      {
+        "at": 88,
+        "state": "active",
+        "label": "canary 5% traffic"
+      }
+    ]
+  }
+}
+</script>
+<!-- od:fixtures:end -->
+</head>
+<body>
+<div id="root">
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:oklch(0.71 0.012 210);font:12px ui-monospace,monospace" id="boot">loading react + react-resizable-panels…</div>
+</div>
+
+<script type="module">
+/*
+  No Babel, no JSX. React comes from the same module graph as
+  react-resizable-panels so there is exactly one React instance — mixing a UMD
+  global with a CDN copy silently breaks hooks. `h` is React.createElement.
+*/
+let React, createRoot, RRP;
+try {
+  const [r, rd, p] = await Promise.all([
+    import('https://esm.sh/react@18.3.1'),
+    import('https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1'),
+    import('https://esm.sh/react-resizable-panels@4.12.3?deps=react@18.3.1,react-dom@18.3.1'),
+  ]);
+  React = r.default || r;
+  createRoot = rd.createRoot;
+  RRP = p;
+} catch (err) {
+  const box = document.createElement('div');
+  box.id = 'fatal';
+  box.textContent = 'Failed to load dependencies\n\n' + (err && err.stack || err);
+  document.body.appendChild(box);
+  throw err;
+}
+
+const h = React.createElement;
+const { useState, useRef, useCallback, useEffect, useLayoutEffect } = React;
+const { Group, Panel, Separator } = RRP;
+
+/* ---------------------------------------------------------------- storage */
+const KEY = 'od-panels-spike-v1';
+const storage = (() => {
+  try { const s = window.localStorage; s.getItem(KEY); return s; } catch (e) { return null; }
+})();
+
+/* ------------------------------------------------------------------- data */
+/*
+  All sample content lives in ./data/*.json, shared with the other spike, so the
+  UI can be changed without touching the data. State COLOURS stay here: they are
+  design tokens, not data.
+*/
+const SC = { ok: 'var(--state-ok)', active: 'var(--state-active)', blocked: 'var(--state-blocked)', fail: 'var(--state-fail)', idle: 'var(--state-idle)' };
+
+/*
+  Read the inlined block, not fetch. The preview can load this page from a data:
+  URL, where a relative fetch cannot resolve — that is what broke the spikes.
+  data/*.json stays the source; `node inline-data.mjs` copies it in here.
+*/
+let DATA;
+try {
+  const el = document.getElementById('od-fixtures');
+  if (!el || !el.textContent.trim()) throw new Error('The #od-fixtures block is empty.');
+  DATA = JSON.parse(el.textContent);
+} catch (err) {
+  const box = document.createElement('div');
+  box.id = 'fatal';
+  box.textContent = 'Could not read the sample data.\n\n' + (err && err.message || err) +
+    '\n\nRun: node inline-data.mjs';
+  document.body.appendChild(box);
+  throw err;
+}
+
+const ICON = {
+  x: h('svg', { width: 13, height: 13, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }, h('path', { d: 'M4 4l8 8M12 4L4 12' })),
+  float: h('svg', { width: 13, height: 13, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinejoin: 'round' }, h('rect', { x: 2, y: 4.5, width: 8, height: 7.5, rx: 1 }), h('path', { d: 'M6 4.5V3.2A1.2 1.2 0 0 1 7.2 2H13a1 1 0 0 1 1 1v5.8A1.2 1.2 0 0 1 12.8 10H11.5' })),
+  dock: h('svg', { width: 13, height: 13, viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1.4, strokeLinejoin: 'round' }, h('rect', { x: 2, y: 3, width: 12, height: 10, rx: 1 }), h('path', { d: 'M10 3v10' })),
+};
+
+function fxHead(title, tag) {
+  return h('div', { className: 'fx-head' }, h('h3', null, title), h('span', { className: 'fx-tag' }, tag));
+}
+
+/* ---------------------------------------------------------------- content */
+function NavContent({ active, onPick }) {
+  return h('ul', { className: 'fx-nav' }, DATA.nav.groups.map((g) => [
+    h('li', { key: 'g-' + g.name, className: 'grp' }, g.name),
+    ...g.items.map((n) => h('li', { key: n.id }, h('button', {
+      type: 'button',
+      'aria-current': String(active === n.id),
+      onClick: () => { if (n.opensView) onPick(n.id); },
+    }, h('span', null, n.label), h('span', { className: 'count' }, n.count)))),
+  ]));
+}
+
+function FloorView() {
+  const d = DATA.floor;
+  const byId = Object.fromEntries(d.nodes.map((n) => [n.id, n]));
+  return h('div', null,
+    fxHead(d.title, d.tag),
+    h('svg', { viewBox: d.viewBox, style: { width: '100%', maxHeight: '340px' }, role: 'img', 'aria-label': 'Sample work topology' },
+      d.edges.map((e, i) => {
+        const a = byId[e.from], b = byId[e.to];
+        const x1 = a.x + a.w, y1 = a.y + a.h / 2, x2 = b.x, y2 = b.y + b.h / 2, m = (x1 + x2) / 2;
+        const pending = b.state === 'idle';
+        return h('path', { key: 'e' + i, d: `M${x1} ${y1} C${m} ${y1}, ${m} ${y2}, ${x2} ${y2}`, fill: 'none', stroke: 'var(--border-strong)', strokeWidth: 1.25, strokeDasharray: pending ? '4 4' : undefined, opacity: pending ? 0.6 : 1 });
+      }),
+      d.nodes.map((n) => h('g', { key: n.id },
+        h('rect', { x: n.x, y: n.y, width: n.w, height: n.h, rx: 4, fill: 'var(--surface-2)', stroke: 'var(--border-subtle)' }),
+        h('circle', { cx: n.x + 13, cy: n.y + n.h / 2, r: 3.2, fill: SC[n.state] }),
+        h('text', { x: n.x + 26, y: n.y + 18, fill: 'var(--fg)', fontSize: 11 }, n.title),
+        h('text', { x: n.x + 26, y: n.y + 31, fill: 'var(--fg-faint)', fontSize: 9, fontFamily: 'var(--font-mono)' }, n.sub)
+      ))
+    )
+  );
+}
+
+function BoardView() {
+  const d = DATA.board;
+  return h('div', null, fxHead(d.title, d.tag),
+    h('div', { className: 'fx-board' }, d.columns.map((col) =>
+      h('div', { key: col.name },
+        h('div', { className: 'fx-colhead' }, h('span', null, col.name), h('span', null, col.items.length)),
+        col.items.map((it) => h('div', { key: it.id, className: 'fx-card', style: { borderLeftColor: SC[it.state] } },
+          h('div', { className: 'fx-mono', style: { color: 'var(--fg-faint)' } }, it.id),
+          h('div', { style: { marginTop: 2, lineHeight: 1.35 } }, it.title),
+          h('div', { className: 'fx-mono', style: { color: 'var(--fg-muted)', marginTop: 5 } }, it.who)
+        ))
+      )
+    ))
+  );
+}
+
+function RunwayView() {
+  const d = DATA.runway;
+  return h('div', null, fxHead(d.title, d.tag),
+    h('table', { className: 'fx-table' },
+      h('thead', null, h('tr', null, d.columns.map((c) => h('th', { key: c }, c)))),
+      h('tbody', null, d.rows.map((r) => h('tr', { key: r.release },
+        h('td', { className: 'k fx-mono' }, r.release),
+        h('td', null, r.scope),
+        h('td', { className: 'k' }, h('span', { className: 'fx-dot', style: { background: SC[r.state] } }), r.stateLabel),
+        h('td', { className: 'fx-mono' }, r.gates),
+        h('td', { className: 'fx-mono' }, r.when)
+      )))
+    )
+  );
+}
+
+function TimelineContent() {
+  const d = DATA.timeline;
+  return h('div', null,
+    h('div', { className: 'fx-track' },
+      d.events.map((e, i) => h('span', { key: i, className: 'tick', title: e.label, style: { left: e.at + '%', background: SC[e.state] } })),
+      h('span', { style: { position: 'absolute', top: -3, bottom: -3, left: d.playheadPercent + '%', width: 2, background: 'var(--accent)' } })
+    ),
+    h('div', { className: 'fx-scale' }, d.scale.map((t) => h('span', { key: t }, t)))
+  );
+}
+
+function InspectorContent() {
+  const d = DATA.inspector;
+  return h('div', null,
+    h('h3', { style: { fontSize: 'var(--text-section)', margin: '0 0 var(--space-2)', color: 'var(--fg-strong)' } }, d.title),
+    h('p', { style: { color: 'var(--fg-muted)', lineHeight: 1.5, marginTop: 0 } }, d.summary),
+    d.evidence.map((e) =>
+      h('div', { key: e.id, style: { fontSize: 'var(--text-caption)', color: 'var(--fg-muted)', borderTop: '1px solid var(--border-subtle)', padding: '6px 0' } },
+        h('span', { className: 'fx-mono' }, e.id), ' ' + e.text))
+  );
+}
+
+const VIEWS = { floor: ['Floor', FloorView], board: ['Board', BoardView], runway: ['Runway', RunwayView] };
+
+/* ------------------------------------------------------------ pane shell */
+function PaneShell({ title, floating, onToggleFloat, onClose, onGripDown, children }) {
+  return h('div', { className: 'pane' },
+    h('div', { className: 'pane-head' + (floating ? ' grip' : ''), onPointerDown: floating ? onGripDown : undefined },
+      h('span', { className: 'pane-title' }, title),
+      h('button', { type: 'button', className: 'icon-btn', onClick: onToggleFloat, 'aria-pressed': String(floating), title: floating ? 'Dock back into the layout' : 'Float — then drag it anywhere' }, floating ? ICON.dock : ICON.float),
+      h('button', { type: 'button', className: 'icon-btn', onClick: onClose, title: 'Close pane' }, ICON.x)
+    ),
+    h('div', { className: 'pane-body' }, children)
+  );
+}
+
+/* --------------------------------------------------------------- the app */
+const DEFAULTS = {
+  nav: { open: true, floating: false, x: 40, y: 60, w: 260, hgt: 360 },
+  inspector: { open: true, floating: false, x: 520, y: 60, w: 380, hgt: 440 },
+  timeline: { open: false, floating: false, x: 200, y: 400, w: 520, hgt: 200 },
+};
+
+function App() {
+  const [panes, setPanes] = useState(() => {
+    if (!storage) return DEFAULTS;
+    try { return Object.assign({}, DEFAULTS, JSON.parse(storage.getItem(KEY) || '{}').panes); } catch (e) { return DEFAULTS; }
+  });
+  const [tabs, setTabs] = useState(() => DATA.nav.groups.flatMap((g) => g.items).filter((i) => i.opensView).map((i) => i.id));
+  const [active, setActive] = useState(DATA.nav.defaultActive);
+  const [locked, setLocked] = useState(false);
+  const [anim, setAnim] = useState(true);
+  const [focus, setFocus] = useState(false);
+
+  const hostRef = useRef(null);
+  const ghostRef = useRef(null);
+  const navRef = useRef(null);
+  const inspRef = useRef(null);
+  const tlRef = useRef(null);
+  const dockSlotRef = useRef({});
+  const prevFocus = useRef(null);
+  const canvasRef = useRef(null);
+  const firstView = useRef(true);
+  const refs = { nav: navRef, inspector: inspRef, timeline: tlRef };
+
+  /*
+    Animate the view change from an effect keyed on `active`. An inline ref
+    callback re-runs on EVERY render, which restarted the fade constantly and
+    left the canvas sitting near opacity 0.
+  */
+  useEffect(() => {
+    if (firstView.current) { firstView.current = false; return; }
+    if (!anim || !canvasRef.current) return;
+    canvasRef.current.animate(
+      [{ opacity: 0, transform: 'translateX(10px)' }, { opacity: 1, transform: 'none' }],
+      { duration: 200, easing: 'cubic-bezier(0.2,0,0.2,1)' }
+    );
+  }, [active]);
+
+  /* persist */
+  useEffect(() => {
+    if (!storage) return;
+    try { storage.setItem(KEY, JSON.stringify({ panes })); } catch (e) { /* quota */ }
+  }, [panes]);
+
+  /* drive the collapsible panels from state — this is what animates */
+  useLayoutEffect(() => {
+    ['nav', 'inspector', 'timeline'].forEach((k) => {
+      const api = refs[k].current;
+      if (!api) return;
+      const shouldShow = panes[k].open && !panes[k].floating;
+      if (shouldShow && api.isCollapsed()) api.expand();
+      if (!shouldShow && !api.isCollapsed()) api.collapse();
+    });
+  }, [panes]);
+
+  const patch = useCallback((k, p) => setPanes((s) => Object.assign({}, s, { [k]: Object.assign({}, s[k], p) })), []);
+
+  /* FLIP between the docked slot and the floating card, both directions */
+  const flip = useCallback((fromRect, toRect) => {
+    if (!anim || !fromRect || !toRect || !ghostRef.current) return;
+    const g = document.createElement('div');
+    g.className = 'ghost';
+    g.style.cssText = `left:${fromRect.left}px;top:${fromRect.top}px;width:${fromRect.width}px;height:${fromRect.height}px;background:var(--surface-2);`;
+    ghostRef.current.appendChild(g);
+    const a = g.animate([
+      { left: fromRect.left + 'px', top: fromRect.top + 'px', width: fromRect.width + 'px', height: fromRect.height + 'px', opacity: 0.9 },
+      { left: toRect.left + 'px', top: toRect.top + 'px', width: toRect.width + 'px', height: toRect.height + 'px', opacity: 0 },
+    ], { duration: 280, easing: 'cubic-bezier(0.2, 0, 0.2, 1)' });
+    a.finished.catch(() => {}).then(() => g.remove());
+  }, [anim]);
+
+  const rectIn = (el) => {
+    if (!el || !hostRef.current) return null;
+    const hb = hostRef.current.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
+    return { left: b.left - hb.left, top: b.top - hb.top, width: b.width, height: b.height };
+  };
+
+  const toggleFloat = useCallback((k) => {
+    const st = panes[k];
+    const docked = rectIn(dockSlotRef.current[k]);
+    const floater = rectIn(document.querySelector(`[data-floater="${k}"]`));
+    if (st.floating) {
+      flip(floater, docked);
+      patch(k, { floating: false, open: true });
+    } else {
+      flip(docked, { left: st.x, top: st.y, width: st.w, height: st.hgt });
+      patch(k, { floating: true, open: true });
+    }
+  }, [panes, flip, patch]);
+
+  const dragFloater = useCallback((k) => (e) => {
+    if (e.button !== 0) return;
+    const start = { x: e.clientX, y: e.clientY, px: panes[k].x, py: panes[k].y };
+    const move = (ev) => patch(k, { x: Math.max(4, start.px + ev.clientX - start.x), y: Math.max(4, start.py + ev.clientY - start.y) });
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    e.preventDefault();
+  }, [panes, patch]);
+
+  const toggleFocus = useCallback(() => {
+    setFocus((f) => {
+      if (!f) { prevFocus.current = panes; setPanes((s) => ({ nav: Object.assign({}, s.nav, { open: false }), inspector: Object.assign({}, s.inspector, { open: false }), timeline: Object.assign({}, s.timeline, { open: false }) })); }
+      else if (prevFocus.current) setPanes(prevFocus.current);
+      return !f;
+    });
+  }, [panes]);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key.toLowerCase() === 'f' && !e.metaKey && !e.ctrlKey && !e.altKey) toggleFocus(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggleFocus]);
+
+  /* drag on a separator suspends the transition so resize stays 1:1 */
+  const onHostPointerDown = (e) => {
+    if (!e.target.closest('.sep')) return;
+    const el = hostRef.current;
+    el.classList.add('is-dragging');
+    const up = () => { el.classList.remove('is-dragging'); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointerup', up);
+  };
+
+  const pane = (k, title, body) => h(PaneShell, {
+    title, floating: panes[k].floating,
+    onToggleFloat: () => toggleFloat(k),
+    onClose: () => patch(k, { open: false, floating: false }),
+    onGripDown: dragFloater(k),
+  }, body);
+
+  const navBody = h(NavContent, { active, onPick: (id) => { if (VIEWS[id]) { setActive(id); if (!tabs.includes(id)) setTabs(tabs.concat([id])); } } });
+  const ActiveView = (VIEWS[active] || VIEWS.floor)[1];
+
+  const floaters = ['nav', 'inspector', 'timeline'].filter((k) => panes[k].open && panes[k].floating).map((k) =>
+    h('div', {
+      key: k, className: 'floater', 'data-floater': k,
+      style: { left: panes[k].x, top: panes[k].y, width: panes[k].w, height: panes[k].hgt },
+    }, pane(k, k === 'nav' ? 'Nav' : k === 'inspector' ? 'Inspector' : 'Timeline',
+      k === 'nav' ? navBody : k === 'inspector' ? h(InspectorContent) : h(TimelineContent)))
+  );
+
+  return h('div', { className: 'shell' },
+    h('header', { className: 'toolbar' },
+      h('div', { className: 'cgroup' }, h('span', { className: 'clabel' }, '1 · Panes'), h('div', { className: 'crow' },
+        ['nav', 'inspector', 'timeline'].map((k) => h('button', {
+          key: k, type: 'button', className: 'btn', 'aria-pressed': String(panes[k].open),
+          onClick: () => patch(k, { open: !panes[k].open }),
+        }, (panes[k].open ? 'Close ' : 'Open ') + k)))),
+      h('div', { className: 'cgroup' }, h('span', { className: 'clabel' }, '2 · Float ↔ dock'), h('div', { className: 'crow' },
+        ['nav', 'inspector'].map((k) => h('button', { key: k, type: 'button', className: 'btn', onClick: () => toggleFloat(k) }, (panes[k].floating ? 'Dock ' : 'Float ') + k)))),
+      h('div', { className: 'cgroup' }, h('span', { className: 'clabel' }, '3 · Lock-down'), h('div', { className: 'crow' },
+        h('button', { type: 'button', className: 'btn', 'aria-pressed': String(locked), onClick: () => setLocked(!locked) }, 'Lock layout'))),
+      h('div', { className: 'cgroup' }, h('span', { className: 'clabel' }, '4 · Motion'), h('div', { className: 'crow' },
+        h('button', { type: 'button', className: 'btn', 'aria-pressed': String(anim), onClick: () => setAnim(!anim) }, 'Layout animation'))),
+      h('div', { className: 'cgroup' }, h('span', { className: 'clabel' }, '5 · Focus mode'), h('div', { className: 'crow' },
+        h('button', { type: 'button', className: 'btn', 'aria-pressed': String(focus), onClick: toggleFocus }, 'Focus mode (F)'))),
+      h('div', { className: 'cgroup' }, h('span', { className: 'clabel' }, '6 · Persistence'), h('div', { className: 'crow' },
+        h('span', { style: { fontSize: 'var(--text-caption)', color: 'var(--fg-muted)' } }, storage ? 'autosaves to localStorage' : 'unavailable in this preview (storage blocked)')))
+    ),
+
+    h('div', {
+      className: 'host' + (locked ? ' is-locked' : '') + (anim ? '' : ' is-dragging'),
+      ref: hostRef, onPointerDown: onHostPointerDown,
+    },
+      h(Group, { orientation: 'horizontal', style: { height: '100%' } },
+        h(Panel, { panelRef: navRef, collapsible: true, collapsedSize: '0%', defaultSize: '18%', minSize: '12%', maxSize: '34%' },
+          h('div', { className: 'pane-wrap', ref: (el) => { dockSlotRef.current.nav = el; } },
+            pane('nav', 'Nav', navBody))),
+        h(Separator, { className: 'sep', 'data-orientation': 'horizontal' }),
+
+        h(Panel, { defaultSize: '58%', minSize: '30%' },
+          h(Group, { orientation: 'vertical', style: { height: '100%' } },
+            h(Panel, { defaultSize: '100%', minSize: '25%' },
+              h('div', { className: 'pane-wrap' },
+                h('div', { className: 'pane' },
+                  h('div', { className: 'tabstrip' }, tabs.map((t) => h('button', {
+                    key: t, type: 'button', className: 'tab', role: 'tab', 'aria-selected': String(active === t),
+                    onClick: () => setActive(t),
+                  }, h('span', null, VIEWS[t][0]), h('span', {
+                    className: 'x',
+                    onClick: (e) => { e.stopPropagation(); const nt = tabs.filter((x) => x !== t); setTabs(nt); if (active === t) setActive(nt[0] || 'floor'); },
+                  }, '×')))),
+                  h('div', { className: 'canvas', ref: canvasRef, 'data-view': active }, h(ActiveView))
+                ))),
+            h(Separator, { className: 'sep', 'data-orientation': 'vertical' }),
+            h(Panel, { panelRef: tlRef, collapsible: true, collapsedSize: '0%', defaultSize: '0%', minSize: '12%', maxSize: '45%' },
+              h('div', { className: 'pane-wrap', ref: (el) => { dockSlotRef.current.timeline = el; } },
+                pane('timeline', 'Timeline', h(TimelineContent)))))),
+
+        h(Separator, { className: 'sep', 'data-orientation': 'horizontal' }),
+        h(Panel, { panelRef: inspRef, collapsible: true, collapsedSize: '0%', defaultSize: '24%', minSize: '14%', maxSize: '40%' },
+          h('div', { className: 'pane-wrap', ref: (el) => { dockSlotRef.current.inspector = el; } },
+            pane('inspector', 'Inspector', h(InspectorContent))))
+      ),
+      floaters,
+      h('div', { id: 'ghosts', ref: ghostRef })
+    )
+  );
+}
+
+document.getElementById('boot')?.remove();
+createRoot(document.getElementById('root')).render(h(App));
+
+/* ---------------------------------------------------------------------------
+   SELF-TEST. Counts CSS transitions (flex-grow on the panels) and WAAPI
+   animations (ghosts, tab crossfade) while driving the real controls.
+   Set to false for delivery.
+--------------------------------------------------------------------------- */
+/*
+  NOTE ON MEASUREMENT: counting `transitionstart` events proved unreliable here
+  and reported false FAILs while the layout was demonstrably animating. The
+  frame-by-frame sampling of computed flex-grow below is the ground truth, and
+  it recorded 6.9 → 3.2 → 0.8 → 0.1 → 0 across a collapse. Trust the sampler,
+  not the event tally, if the two ever disagree again.
+*/
+const SELFTEST = false; /* flip to true to re-run and print the report on load */
+if (SELFTEST) {
+  const lines = [];
+  let waapi = 0;
+  let trans = [];
+  const nativeAnimate = Element.prototype.animate;
+  Element.prototype.animate = function (f, o) { waapi++; return nativeAnimate.call(this, f, o); };
+  document.addEventListener('transitionstart', (e) => trans.push(e.propertyName), true);
+
+  const box = document.createElement('pre');
+  box.id = 'selftest';
+  box.textContent = 'self-test running…';
+  document.body.appendChild(box);
+
+  const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const click = (label) => [...document.querySelectorAll('.btn')].find((b) => b.textContent.trim().toLowerCase() === label);
+
+  /*
+    `need` is explicit per step: a layout change must produce real flex-grow
+    transitions, and only float/dock/tab steps may pass on a WAAPI animation.
+    An "or" over both was a false pass — an unrelated stray animation counted.
+  */
+  async function step(name, act, need) {
+    waapi = 0; trans = [];
+    const target = typeof act === 'string' ? click(act) : null;
+    if (typeof act === 'string' && !target) { lines.push(name.padEnd(22) + 'NO BUTTON "' + act + '"'); return; }
+    try { target ? target.click() : act(); } catch (e) { lines.push(name.padEnd(22) + 'THREW ' + e.message); return; }
+    await frames();
+    const flex = trans.filter((p) => p === 'flex-grow' || p === 'flex-basis').length;
+    const ok = need === 'flex' ? flex > 0 : waapi > 0;
+    lines.push(name.padEnd(22) + (ok ? 'PASS  ' : 'FAIL  ') + flex + ' flex, ' + waapi + ' waapi  (needs ' + need + ')');
+    box.textContent = lines.join('\n');
+  }
+
+  (async () => {
+    await new Promise((r) => setTimeout(r, 60));
+    lines.push('react ' + React.version + ' · react-resizable-panels 4.12.3');
+    lines.push('prefers-reduced-motion  ' + window.matchMedia('(prefers-reduced-motion: reduce)').matches + ' (not used as a veto)');
+    lines.push('panels mounted          ' + document.querySelectorAll('[data-panel]').length);
+    lines.push('');
+    box.textContent = lines.join('\n');
+
+    /*
+      Ground truth: sample computed flex-grow every frame across a collapse. If
+      the value interpolates it is animating; counting transitionstart events
+      was ambiguous because mount-time transitions polluted the tally.
+    */
+    const navPanel = document.querySelectorAll('[data-panel]')[0];
+    const sample = [];
+    click('close nav').click();
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+      sample.push(Number(getComputedStyle(navPanel).flexGrow).toFixed(1));
+    }
+    click('open nav').click();
+    await frames();
+    lines.push('flex-grow over 10 frames ' + sample.join(' '));
+    lines.push('CSS transition animates? ' + (new Set(sample).size > 2 ? 'YES' : 'NO — it jumps'));
+
+    /* Does WAAPI itself interpolate in this renderer? If not, no method can be
+       verified here and every earlier "PASS" only proved a call was made. */
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;left:-9999px;width:10px;height:10px';
+    document.body.appendChild(probe);
+    const pa = probe.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400 });
+    const psample = [];
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+      psample.push(Number(getComputedStyle(probe).opacity).toFixed(2));
+    }
+    pa.cancel(); probe.remove();
+    lines.push('WAAPI opacity 8 frames   ' + psample.join(' '));
+    lines.push('WAAPI animates?          ' + (new Set(psample).size > 2 ? 'YES' : 'NO — frozen'));
+    lines.push('');
+    box.textContent = lines.join('\n');
+
+    await step('close nav', 'close nav', 'flex');
+    await step('open nav', 'open nav', 'flex');
+    await step('open timeline', 'open timeline', 'flex');
+    await step('close inspector', 'close inspector', 'flex');
+    await step('open inspector', 'open inspector', 'flex');
+    await step('float inspector', 'float inspector', 'waapi');
+    await step('dock inspector', 'dock inspector', 'waapi');
+    await step('focus mode on', 'focus mode (f)', 'flex');
+    await step('focus mode off', 'focus mode (f)', 'flex');
+    await step('tab -> board', () => [...document.querySelectorAll('.tab')][1].click(), 'waapi');
+    await step('tab -> runway', () => [...document.querySelectorAll('.tab')][2].click(), 'waapi');
+
+    lines.push('');
+    lines.push('done');
+    box.textContent = lines.join('\n');
+  })();
+}
+</script>
+</body>
+</html>

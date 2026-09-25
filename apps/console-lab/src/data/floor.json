@@ -1,0 +1,139 @@
+{
+  "title": "Factory floor",
+  "tag": "silveroak-apps · project 2 · gates are sample",
+  "viewBox": "0 0 860 300",
+  "nodes": [
+    {
+      "id": "w0",
+      "x": 20,
+      "y": 24,
+      "w": 210,
+      "h": 46,
+      "title": "Batch transaction import lacks id…",
+      "sub": "service-portfolio-api#195 · unset",
+      "state": "active"
+    },
+    {
+      "id": "w1",
+      "x": 20,
+      "y": 92,
+      "w": 210,
+      "h": 46,
+      "title": "Prod Wiredash credentials are inv…",
+      "sub": "all-about-money-ui#319 · P0",
+      "state": "active"
+    },
+    {
+      "id": "w2",
+      "x": 20,
+      "y": 160,
+      "w": 210,
+      "h": 46,
+      "title": "Portfolio investment distribution",
+      "sub": "all-about-money-ui#357 · P1",
+      "state": "active"
+    },
+    {
+      "id": "w3",
+      "x": 20,
+      "y": 228,
+      "w": 210,
+      "h": 46,
+      "title": "Automatically import transactions…",
+      "sub": "service-exchange-api-transaction-import…",
+      "state": "active"
+    },
+    {
+      "id": "ci-gate",
+      "x": 300,
+      "y": 78,
+      "w": 130,
+      "h": 46,
+      "title": "CI gate",
+      "sub": "sample",
+      "state": "fail"
+    },
+    {
+      "id": "review-gate",
+      "x": 300,
+      "y": 168,
+      "w": 130,
+      "h": 46,
+      "title": "Review gate",
+      "sub": "sample",
+      "state": "blocked"
+    },
+    {
+      "id": "canary",
+      "x": 500,
+      "y": 122,
+      "w": 130,
+      "h": 46,
+      "title": "canary",
+      "sub": "sample",
+      "state": "active"
+    },
+    {
+      "id": "prod",
+      "x": 700,
+      "y": 122,
+      "w": 130,
+      "h": 46,
+      "title": "prod",
+      "sub": "sample",
+      "state": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "from": "w0",
+      "to": "ci-gate"
+    },
+    {
+      "from": "w1",
+      "to": "review-gate"
+    },
+    {
+      "from": "w2",
+      "to": "ci-gate"
+    },
+    {
+      "from": "w3",
+      "to": "review-gate"
+    },
+    {
+      "from": "ci-gate",
+      "to": "canary"
+    },
+    {
+      "from": "review-gate",
+      "to": "canary"
+    },
+    {
+      "from": "canary",
+      "to": "prod"
+    }
+  ],
+  "legend": [
+    {
+      "state": "active",
+      "label": "in progress"
+    },
+    {
+      "state": "ok",
+      "label": "done"
+    },
+    {
+      "state": "blocked",
+      "label": "blocked"
+    },
+    {
+      "state": "fail",
+      "label": "failed"
+    },
+    {
+      "state": "idle",
+      "label": "backlog"
+    }
+  ]
+}

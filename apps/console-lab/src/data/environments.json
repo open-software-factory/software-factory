@@ -1,0 +1,8 @@
+{
+  "current": "prod",
+  "items": [
+    { "id": "prod", "label": "prod", "health": "healthy", "state": "ok" },
+    { "id": "staging", "label": "staging", "health": "degraded", "state": "blocked" },
+    { "id": "dev", "label": "dev", "health": "idle", "state": "idle" }
+  ]
+}

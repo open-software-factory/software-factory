@@ -1,0 +1,17 @@
+{
+  "name": "@open-software-factory/console-model",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Placement model for the operator console shell: slots, panes, nav sections, geometry and persistence. No React, no DOM.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./storage-browser": "./src/storage.browser.ts"
+  },
+  "scripts": {
+    "test": "node --test --test-timeout=40000 test/*.test.ts"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

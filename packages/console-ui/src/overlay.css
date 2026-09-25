@@ -1,0 +1,117 @@
+/* Shared surface styling; all colours come from the existing token layer. */
+.od-overlay-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 950;
+  display: flex;
+  background: var(--scrim);
+  isolation: isolate;
+}
+.od-overlay-align-center { align-items: center; justify-content: center; padding: var(--space-4); }
+.od-overlay-align-right { justify-content: flex-end; }
+/* Non-modal: no scrim, nothing between the operator and the content. The
+   wrapper lets pointer events through; only the panel catches them. */
+.od-overlay-float {
+  position: absolute;
+  inset: 0;
+  z-index: 940;
+  display: flex;
+  pointer-events: none;
+}
+.od-overlay-float > .od-overlay-panel { pointer-events: auto; }
+/* Content-tall, not stage-tall: a card that can be moved, not a second pane. */
+.od-overlay-float.od-overlay-align-right { justify-content: flex-end; align-items: flex-start; padding: 3.25rem var(--space-3) var(--space-3); }
+.od-overlay-float .od-overlay-right { width: min(23.75rem, 100%); height: auto; max-height: 100%; border-radius: var(--r-overlay); border: 1px solid var(--border-strong); }
+/* Narrow viewports: the float becomes a bottom sheet, full width, no drag. */
+.od-overlay-float.od-overlay-align-bottom { align-items: flex-end; justify-content: stretch; padding: 3.25rem 0 0; }
+.od-overlay-float .od-overlay-bottom { width: 100%; max-height: 60%; border-radius: var(--r-overlay) var(--r-overlay) 0 0; border: 1px solid var(--border-strong); border-bottom: 0; }
+.od-overlay-float .od-overlay-dialog > .pane-head[data-drag] { cursor: grab; user-select: none; touch-action: none; }
+.od-overlay-float .od-overlay-dialog > .pane-head[data-drag="on"] { cursor: grabbing; }
+.od-overlay-float .od-overlay-dialog > .pane-head { gap: 2px; }
+.od-overlay-float .od-overlay-dialog > .pane-head .pane-title { flex: 1; }
+.od-overlay-align-top { align-items: flex-start; justify-content: center; padding: clamp(1.5rem, 9vh, 6rem) var(--space-4) var(--space-4); }
+.od-overlay-panel {
+  position: relative;
+  min-width: 0;
+  background: var(--surface-1);
+  color: var(--fg);
+  box-shadow: 0 24px 80px var(--shadow-ambient);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.od-overlay-left, .od-overlay-right { width: min(17.75rem, 100%); height: 100%; }
+.od-overlay-center { width: min(30rem, 100%); border-radius: var(--r-overlay); }
+.od-overlay-center.od-overlay-wide { width: min(40rem, 100%); }
+.od-overlay-top { width: min(37.5rem, 100%); max-height: min(70vh, 35rem); border-radius: var(--r-overlay); border: 1px solid var(--border-subtle); }
+.od-overlay-dialog { min-height: 0; display: flex; flex: 1; flex-direction: column; outline-offset: -2px; }
+.od-overlay-dialog > .pane-head { min-height: 3.25rem; flex-shrink: 0; padding-inline: var(--space-3); }
+.od-overlay-dialog .pane-title { font-size: var(--t-body); }
+.od-overlay-dialog .overlay-close {
+  width: 2.75rem; height: 2.75rem; flex: 0 0 2.75rem;
+  border: 1px solid transparent; border-radius: var(--r-control);
+  display: grid; place-items: center; cursor: pointer;
+  background: transparent; color: var(--fg);
+}
+.od-overlay-dialog .overlay-close:hover { background: var(--surface-2); color: var(--fg-strong); }
+.od-overlay-dialog .overlay-close:active { background: var(--surface-2); color: var(--fg-strong); border-color: var(--border-strong); }
+.od-overlay-body { min-height: 0; overflow: auto; overscroll-behavior: contain; flex: 1; }
+.od-overlay-body .nav button { min-height: 2.75rem; font-size: var(--t-body); color: var(--fg); }
+.od-overlay-body .nav button:hover { background: var(--surface-2); color: var(--fg-strong); }
+.od-overlay-body .nav button:active { background: var(--surface-2); color: var(--fg-strong); box-shadow: inset 0 0 0 1px var(--border-strong); }
+.od-overlay-body .nav .txt { overflow-wrap: anywhere; }
+.od-overlay-dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Anchored popovers and menus. React Aria sets data-entering / data-exiting
+   and waits for the animation, so the exit is real, not a snap. */
+.od-popover { background: var(--surface-1); color: var(--fg); border: 1px solid var(--border-strong); border-radius: var(--r-overlay); box-shadow: 0 12px 40px var(--shadow-ambient); min-width: 13.75rem; max-width: 21.25rem; outline: none; }
+.od-popover[data-entering] { animation: od-pop-in var(--dur-panel) var(--ease); }
+.od-popover[data-exiting] { animation: od-pop-out var(--dur-panel) var(--ease) forwards; }
+.od-popover[data-placement="top"] { --od-pop-shift: 0.375rem; }
+.od-popover[data-placement="bottom"] { --od-pop-shift: -0.375rem; }
+@keyframes od-pop-in { from { opacity: 0; transform: translateY(var(--od-pop-shift, -0.375rem)); } }
+@keyframes od-pop-out { to { opacity: 0; transform: translateY(var(--od-pop-shift, -0.375rem)); } }
+.od-popover-dialog { padding: var(--space-2); outline: none; }
+.od-popover-head { font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-faint); padding: 0.375rem 0.625rem 0.25rem; }
+.od-menu { display: flex; flex-direction: column; gap: 1px; padding: var(--space-2); outline: none; }
+.od-menu-item { display: flex; align-items: center; gap: var(--space-2); min-height: 2.25rem; padding: 0.375rem 0.625rem; border-radius: var(--r-control); color: var(--fg); font-size: var(--t-body); cursor: pointer; outline: none; }
+.od-menu-item[data-hovered], .od-menu-item[data-focused] { background: color-mix(in oklch, var(--accent) 14%, var(--surface-2)); color: var(--fg-strong); }
+.od-menu-item[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: -2px; }
+.od-menu-item[data-pressed] { background: color-mix(in oklch, var(--accent) 22%, var(--surface-2)); }
+.od-menu-mark { width: 0.875rem; flex: 0 0 0.875rem; font-size: var(--t-cap); color: var(--accent); visibility: hidden; }
+.od-menu-item[data-selected] .od-menu-mark { visibility: visible; }
+.od-menu-dot { display: inline-block; width: 0.4375rem; height: 0.4375rem; border-radius: 50%; flex: 0 0 0.4375rem; }
+.od-menu-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.od-menu-hint { font-family: var(--font-mono); font-size: var(--t-cap); color: var(--fg-muted); }
+.od-menu-item[data-focused] .od-menu-hint { color: var(--fg); }
+/* Plain rows inside a popover dialog (the attention list). */
+.od-popover .od-row { display: flex; align-items: flex-start; gap: var(--space-2); width: 100%; text-align: left; min-height: 2.75rem; padding: 0.5rem 0.625rem; border: 0; border-radius: var(--r-control); background: transparent; color: var(--fg); font: inherit; font-size: var(--t-body); cursor: pointer; }
+.od-popover .od-row:hover { background: color-mix(in oklch, var(--accent) 14%, var(--surface-2)); color: var(--fg-strong); }
+.od-popover .od-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.od-popover .od-row .od-row-sub { display: block; font-family: var(--font-mono); font-size: var(--t-cap); color: var(--fg-muted); margin-top: 2px; }
+
+/* Command palette: field on top, ranked list, one-line key legend. */
+.od-palette-field { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); min-height: 3.25rem; flex-shrink: 0; border-bottom: 1px solid var(--border-subtle); }
+.od-palette-glyph { font-family: var(--font-mono); font-size: var(--t-section); color: var(--fg-muted); }
+.od-palette-input { flex: 1; min-width: 0; height: 2.75rem; border: 0; background: transparent; color: var(--fg-strong); font: inherit; font-size: var(--t-section); outline: none; }
+.od-palette-input::placeholder { color: var(--fg-muted); }
+/* The field is the focus indicator: its rule and glyph take the accent. A ring
+   around a full-width input inside a dialog is a box inside a box. */
+.od-overlay-dialog .od-palette-input:focus-visible { outline: none; }
+.od-palette-field:focus-within { border-bottom-color: var(--accent); }
+.od-palette-field:focus-within .od-palette-glyph { color: var(--accent); }
+.od-palette-input::-webkit-search-cancel-button, .od-palette-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+.od-palette-list { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: var(--space-2); outline: none; }
+.od-palette-group { display: block; }
+.od-palette-group + .od-palette-group { margin-top: var(--space-2); }
+.od-palette-heading { font-family: var(--font-mono); font-size: 0.625rem; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-faint); padding: var(--space-2) 0.625rem 0.25rem; }
+.od-palette-row { display: flex; align-items: center; gap: var(--space-3); min-height: 2.75rem; padding: 0.375rem 0.625rem; border-radius: var(--r-control); color: var(--fg); font-size: var(--t-body); cursor: pointer; outline: none; }
+.od-palette-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.od-palette-hint { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--t-cap); color: var(--fg-muted); }
+.od-palette-row[data-hovered], .od-palette-row[data-focused] { background: color-mix(in oklch, var(--accent) 14%, var(--surface-2)); color: var(--fg-strong); }
+.od-palette-row[data-focused] .od-palette-hint { color: var(--fg); }
+/* The virtual cursor is the filled row; no second ring on top of it. */
+.od-palette-row[data-pressed] { background: color-mix(in oklch, var(--accent) 22%, var(--surface-2)); }
+.od-palette-empty { padding: var(--space-4); text-align: center; color: var(--fg-muted); font-size: var(--t-body); }
+.od-palette-foot { display: flex; gap: var(--space-3); padding: var(--space-2) var(--space-3); flex-shrink: 0; border-top: 1px solid var(--border-subtle); font-family: var(--font-mono); font-size: var(--t-cap); color: var(--fg-muted); }
+.od-palette-foot kbd { font: inherit; color: var(--fg); background: var(--surface-2); border: 1px solid var(--border-subtle); border-radius: var(--r-control); padding: 1px 0.3125rem; }
