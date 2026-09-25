@@ -3,7 +3,7 @@
 mod common;
 use common::{
     isolated_home, run_osf, run_osf_with_env, session_link, spawn_osf_stdin, write_fake_moon,
-    write_fake_moon_report, write_stdin, BareRepo, TempDir, TempRepo,
+    write_fake_moon_report, write_stdin, yaml_single_quoted, BareRepo, TempDir, TempRepo,
 };
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
@@ -257,10 +257,11 @@ fn a_suppressed_error_is_excluded_from_the_count_and_the_refusal_text() {
     } else {
         format!("mkdir -p .osf/out && echo {payload} | base64 -d > .osf/out/boom.sarif && exit 1")
     };
+    let escaped_script = yaml_single_quoted(&script);
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "tasks:\n  boom:\n    script: '{script}'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n"
+            "tasks:\n  boom:\n    script: '{escaped_script}'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n"
         ),
     );
     let base = repo.commit("base");
@@ -298,14 +299,15 @@ fn a_failed_task_s_stdout_and_stderr_are_both_printed() {
     // PowerShell has no `1>&2` redirection (the operator is reserved); a
     // POSIX shell has no `[Console]::Error.WriteLine`.
     let script = if cfg!(windows) {
-        "Write-Output ''OSF_STDOUT_MARKER_7f3a1''; 1..100 | ForEach-Object { [Console]::Error.WriteLine(\"filler line $_\") }; exit 1"
+        "Write-Output 'OSF_STDOUT_MARKER_7f3a1'; 1..100 | ForEach-Object { [Console]::Error.WriteLine(\"filler line $_\") }; exit 1"
     } else {
         "echo OSF_STDOUT_MARKER_7f3a1; for i in $(seq 1 100); do echo \"filler line $i\" 1>&2; done; exit 1"
     };
+    let escaped_script = yaml_single_quoted(script);
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "tasks:\n  boom:\n    script: '{script}'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n"
+            "tasks:\n  boom:\n    script: '{escaped_script}'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n"
         ),
     );
     let base = repo.commit("base");
@@ -741,10 +743,11 @@ fn moon_caches_a_checkpoint_task_by_its_file_list_and_restores_its_sarif_on_a_hi
     } else {
         format!("mkdir -p .osf/out && echo {payload} | base64 -d > .osf/out/probe.sarif")
     };
+    let escaped_script = yaml_single_quoted(&script);
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "tasks:\n  probe:\n    script: '{script}'\n    inputs: ['/**/*.md', '$OSF_FILES_HASH']\n    outputs: ['/.osf/out/probe.sarif']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n"
+            "tasks:\n  probe:\n    script: '{escaped_script}'\n    inputs: ['/**/*.md', '$OSF_FILES_HASH']\n    outputs: ['/.osf/out/probe.sarif']\n    tags: [osf-pull-request]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n"
         ),
     );
     let c0 = repo.commit("base");
@@ -857,10 +860,11 @@ fn a_failing_task_is_never_served_from_the_cache() {
     } else {
         format!("mkdir -p .osf/out && echo {payload} | base64 -d > .osf/out/probe.sarif && exit 1")
     };
+    let escaped_script = yaml_single_quoted(&script);
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "tasks:\n  probe:\n    script: '{script}'\n    inputs: ['/**/*.md']\n    outputs: ['/.osf/out/probe.sarif']\n    tags: [osf-pre-commit]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n"
+            "tasks:\n  probe:\n    script: '{escaped_script}'\n    inputs: ['/**/*.md']\n    outputs: ['/.osf/out/probe.sarif']\n    tags: [osf-pre-commit]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n"
         ),
     );
     repo.write("a.md", "a\n");
@@ -916,10 +920,11 @@ fn two_overlapping_hook_runs_never_see_each_other_s_file_list() {
             f64::from(sleep_ms) / 1000.0
         )
     };
+    let escaped_script = yaml_single_quoted(&script);
     repo.write(
         ".osf/moon.yml",
         &format!(
-            "tasks:\n  probe:\n    script: '{script}'\n    inputs: ['/**/*.md']\n    tags: [osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n"
+            "tasks:\n  probe:\n    script: '{escaped_script}'\n    inputs: ['/**/*.md']\n    tags: [osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n"
         ),
     );
     repo.commit("base");
@@ -979,5 +984,18 @@ fn a_run_report_with_no_task_at_all_is_could_not_run() {
     assert!(
         String::from_utf8_lossy(&out.stderr).contains("no task"),
         "{out:?}"
+    );
+}
+
+/// A script containing a shell-quoted argument must survive being embedded
+/// in a single-quoted YAML scalar: YAML represents one literal quote there
+/// as two, so the helper must double every quote in the script, not just
+/// the outermost pair.
+#[test]
+fn yaml_single_quoted_doubles_every_embedded_quote() {
+    let script = "echo 'hello world' && test \"$X\" = 'value'";
+    assert_eq!(
+        yaml_single_quoted(script),
+        "echo ''hello world'' && test \"$X\" = ''value''"
     );
 }

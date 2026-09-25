@@ -385,6 +385,14 @@ pub fn write_stdin(child: &mut std::process::Child, stdin: &str) {
         .expect("stdin writes");
 }
 
+/// Escapes a script for embedding inside a single-quoted YAML scalar
+/// (`script: '{script}'`). YAML ends such a scalar at the first quote it
+/// sees; a literal quote inside the value must be written as two, so this
+/// doubles each one.
+pub fn yaml_single_quoted(script: &str) -> String {
+    script.replace('\'', "''")
+}
+
 /// Builds a session-link-shaped string at run time for one agent, from the
 /// host and path the agent list holds apart. A scan rule fixture needs the
 /// real shape to prove the rule fires, but this repository's own `osf scan`
