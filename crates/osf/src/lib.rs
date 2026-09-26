@@ -10,6 +10,7 @@ pub mod config;
 pub mod exclude;
 mod git;
 pub use git::{scrub_git_env, scrub_git_env_for_dir};
+pub mod githooks;
 pub mod hook;
 pub mod journal;
 pub mod lints;

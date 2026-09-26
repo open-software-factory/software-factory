@@ -1,6 +1,7 @@
 use osf::status::GhClient;
 use osf::{
-    check, checkpoint, config, exclude, hook, journal, lints, review, risk, scan, status, verify,
+    check, checkpoint, config, exclude, githooks, hook, journal, lints, review, risk, scan, status,
+    verify,
 };
 
 use clap::parser::ValueSource;
@@ -115,6 +116,25 @@ enum Command {
         #[command(subcommand)]
         action: ReviewAction,
     },
+    /// Manage this repository's local git hooks.
+    Hooks {
+        #[command(subcommand)]
+        action: HooksAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum HooksAction {
+    /// Write osf's own hook scripts and point this repository at them.
+    Install(HooksInstallArgs),
+}
+
+#[derive(Args)]
+struct HooksInstallArgs {
+    /// Report whether this repository's hooks point at osf's own folder,
+    /// instead of installing anything. Exits non-zero when they do not.
+    #[arg(long)]
+    check: bool,
 }
 
 #[derive(Args)]
@@ -533,6 +553,66 @@ fn main() -> ExitCode {
         Command::Review {
             action: ReviewAction::Post(args),
         } => review_post_cmd(args),
+        Command::Hooks {
+            action: HooksAction::Install(args),
+        } => hooks_install_cmd(args),
+    }
+}
+
+fn hooks_install_cmd(args: &HooksInstallArgs) -> ExitCode {
+    let dir = Path::new(".");
+    if args.check {
+        return hooks_check_cmd(dir);
+    }
+    match githooks::install(dir) {
+        Ok(report) => {
+            let names: Vec<&str> = report
+                .scripts
+                .iter()
+                .filter_map(|p| p.file_name().and_then(|n| n.to_str()))
+                .collect();
+            println!(
+                "osf hooks install: wrote {} to {}",
+                names.join(", "),
+                report.hooks_dir.display()
+            );
+            println!(
+                "osf hooks install: set core.hooksPath to {} in {}",
+                report.hooks_dir.display(),
+                report.repo_root.display()
+            );
+            match &report.osf_on_path {
+                Some(path) => {
+                    println!("osf hooks install: osf is on PATH at {}", path.display());
+                }
+                None => eprintln!(
+                    "osf hooks install: warning: osf is not on PATH; the hook scripts call \
+                     \"osf\", which will fail until it is"
+                ),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn hooks_check_cmd(dir: &Path) -> ExitCode {
+    match githooks::check(dir) {
+        Ok(status) => {
+            println!("osf hooks install --check: {}", status.message());
+            if status.is_installed() {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
     }
 }
 

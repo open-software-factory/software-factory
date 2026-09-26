@@ -396,6 +396,58 @@ pub fn unstaged_files(dir: &Path) -> Result<Vec<String>, GitError> {
     run(dir, &["diff", "--name-only", "-z"]).map(|raw| split_nul(&raw))
 }
 
+/// One key's value from `dir`'s own local git config, never the global or
+/// system config. `Ok(None)` when the key is not set there at all.
+///
+/// # Errors
+/// Returns an error only when git itself cannot run or fails for a reason
+/// other than the key being unset.
+pub fn config_get_local(dir: &Path, key: &str) -> Result<Option<String>, GitError> {
+    let mut command = Command::new("git");
+    command
+        .current_dir(dir)
+        .args(["config", "--local", "--get", key]);
+    scrub_git_env_for_dir(&mut command, dir);
+    let output = command
+        .output()
+        .map_err(|e| GitError(format!("cannot run git: {e}")))?;
+    if output.status.success() {
+        let text = String::from_utf8_lossy(&output.stdout);
+        return Ok(Some(text.trim().to_string()));
+    }
+    if output.status.code() == Some(1) {
+        return Ok(None);
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Err(GitError(format!(
+        "git config --get {key} failed: {}",
+        stderr.trim()
+    )))
+}
+
+/// Sets `key` to `value` in `dir`'s own local git config.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir` or the write fails.
+pub fn config_set_local(dir: &Path, key: &str, value: &str) -> Result<(), GitError> {
+    let mut command = Command::new("git");
+    command
+        .current_dir(dir)
+        .args(["config", "--local", key, value]);
+    scrub_git_env_for_dir(&mut command, dir);
+    let output = command
+        .output()
+        .map_err(|e| GitError(format!("cannot run git: {e}")))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    Err(GitError(format!(
+        "git config {key} {value} failed: {}",
+        stderr.trim()
+    )))
+}
+
 /// Every path that differs between `rev` and the working tree plus index,
 /// added, modified, deleted or renamed alike. Unlike [`changed_files`],
 /// nothing is filtered out: a deleted path still names a changed path.
@@ -510,6 +562,29 @@ mod tests {
     }
 
     /// A plain non-repository directory answers `Ok(None)`.
+    /// An unset key reads back as `None`, never an error.
+    #[test]
+    fn config_get_local_reports_an_unset_key_as_none() {
+        let dir = TempDir::new("osf-git-test-config-unset");
+        init_repo(&dir, false);
+        assert_eq!(
+            config_get_local(&dir, "core.hooksPath").expect("git runs"),
+            None
+        );
+    }
+
+    /// A value set with `config_set_local` reads back through `config_get_local`.
+    #[test]
+    fn config_set_local_is_read_back_by_config_get_local() {
+        let dir = TempDir::new("osf-git-test-config-roundtrip");
+        init_repo(&dir, false);
+        config_set_local(&dir, "core.hooksPath", "/somewhere/githooks").expect("set");
+        assert_eq!(
+            config_get_local(&dir, "core.hooksPath").expect("git runs"),
+            Some("/somewhere/githooks".to_string())
+        );
+    }
+
     #[test]
     fn a_plain_directory_has_no_repo_root() {
         let dir = TempDir::new("osf-git-test-no-repo");

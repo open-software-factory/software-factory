@@ -114,12 +114,16 @@ fn risk_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     assert_eq!(before, after, "the sentinel's config changed");
 }
 
-/// A `.osf/hooks/pre-push` script that execs the built `osf` binary.
-fn write_pre_push_hook(dir: &Path) {
+/// A pre-push hook script in a folder outside the repository, the way
+/// `osf hooks install` places one, that execs the built `osf` binary.
+/// Returns the folder so the caller can point `core.hooksPath` at it and
+/// remove it once the test is done.
+fn write_pre_push_hook(name: &str) -> PathBuf {
     let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
-    std::fs::create_dir_all(dir.join(".osf").join("hooks")).expect("hooks dir creates");
+    let hooks_dir = unique_dir(&format!("osf-git-env-pre-push-hooks-{name}"));
+    std::fs::create_dir_all(&hooks_dir).expect("hooks dir creates");
     let script = format!("#!/bin/sh\nexec \"{bin}\" verify --checkpoint pre-push\n");
-    let hook = dir.join(".osf").join("hooks").join("pre-push");
+    let hook = hooks_dir.join("pre-push");
     std::fs::write(&hook, script).expect("hook writes");
     #[cfg(unix)]
     {
@@ -130,6 +134,7 @@ fn write_pre_push_hook(dir: &Path) {
         perms.set_mode(0o755);
         std::fs::set_permissions(&hook, perms).expect("hook chmod");
     }
+    hooks_dir
 }
 
 /// A git command in `dir`, with every inherited `GIT_*` variable scrubbed
@@ -177,8 +182,15 @@ fn a_real_pre_push_hook_run_touches_neither_the_sentinel_nor_the_clone() {
     assert!(clone.status.success(), "clone failed: {clone:?}");
     assert_eq!(core_bare(&clone_dir), "false", "the clone is bare already");
 
-    write_pre_push_hook(&clone_dir);
-    let hooks_path = git_in(&clone_dir, &["config", "core.hooksPath", ".osf/hooks"]);
+    let hooks_dir = write_pre_push_hook("clone");
+    let hooks_path = git_in(
+        &clone_dir,
+        &[
+            "config",
+            "core.hooksPath",
+            hooks_dir.to_str().expect("utf8 path"),
+        ],
+    );
     assert!(hooks_path.status.success(), "core.hooksPath set failed");
 
     let bare_dir = unique_dir("osf-git-env-hook-bare.git");
@@ -224,14 +236,19 @@ fn a_real_pre_push_hook_run_touches_neither_the_sentinel_nor_the_clone() {
 
     let _ = std::fs::remove_dir_all(&clone_dir);
     let _ = std::fs::remove_dir_all(&bare_dir);
+    let _ = std::fs::remove_dir_all(&hooks_dir);
 }
 
-/// A `.osf/hooks/pre-commit` script that execs the built `osf` binary.
-fn write_pre_commit_hook(dir: &Path) {
+/// A pre-commit hook script in a folder outside the repository, the way
+/// `osf hooks install` places one, that execs the built `osf` binary.
+/// Returns the folder so the caller can point `core.hooksPath` at it and
+/// remove it once the test is done.
+fn write_pre_commit_hook(name: &str) -> PathBuf {
     let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
-    std::fs::create_dir_all(dir.join(".osf").join("hooks")).expect("hooks dir creates");
+    let hooks_dir = unique_dir(&format!("osf-git-env-pre-commit-hooks-{name}"));
+    std::fs::create_dir_all(&hooks_dir).expect("hooks dir creates");
     let script = format!("#!/bin/sh\nexec \"{bin}\" verify --checkpoint pre-commit\n");
-    let hook = dir.join(".osf").join("hooks").join("pre-commit");
+    let hook = hooks_dir.join("pre-commit");
     std::fs::write(&hook, script).expect("hook writes");
     #[cfg(unix)]
     {
@@ -242,6 +259,7 @@ fn write_pre_commit_hook(dir: &Path) {
         perms.set_mode(0o755);
         std::fs::set_permissions(&hook, perms).expect("hook chmod");
     }
+    hooks_dir
 }
 
 /// A throwaway repository with one moon task, `command`, tagged for
@@ -283,8 +301,15 @@ fn a_secret_only_in_the_dash_a_change_is_caught_and_the_commit_is_refused() {
     repo.write("notes.md", "base\n");
     repo.commit("base");
 
-    write_pre_commit_hook(&repo.dir);
-    let hooks_path = git_in(&repo.dir, &["config", "core.hooksPath", ".osf/hooks"]);
+    let hooks_dir = write_pre_commit_hook("secret");
+    let hooks_path = git_in(
+        &repo.dir,
+        &[
+            "config",
+            "core.hooksPath",
+            hooks_dir.to_str().expect("utf8 path"),
+        ],
+    );
     assert!(hooks_path.status.success(), "core.hooksPath set failed");
 
     // Staged, secret-free: the real index holds this.
@@ -308,6 +333,8 @@ fn a_secret_only_in_the_dash_a_change_is_caught_and_the_commit_is_refused() {
         "1",
         "a refused commit must not add a second one"
     );
+
+    let _ = std::fs::remove_dir_all(&hooks_dir);
 }
 
 /// The whole pre-push checkpoint (writing, general and staged
@@ -332,8 +359,15 @@ fn the_whole_pre_push_checkpoint_passes_through_a_real_dry_run_push() {
     repo.commit("base");
     repo.track_origin_main();
 
-    write_pre_push_hook(&repo.dir);
-    let hooks_path = git_in(&repo.dir, &["config", "core.hooksPath", ".osf/hooks"]);
+    let hooks_dir = write_pre_push_hook("whole-checkpoint");
+    let hooks_path = git_in(
+        &repo.dir,
+        &[
+            "config",
+            "core.hooksPath",
+            hooks_dir.to_str().expect("utf8 path"),
+        ],
+    );
     assert!(hooks_path.status.success(), "core.hooksPath set failed");
 
     repo.write(
@@ -372,6 +406,7 @@ fn the_whole_pre_push_checkpoint_passes_through_a_real_dry_run_push() {
     );
 
     let _ = std::fs::remove_dir_all(&bare_dir);
+    let _ = std::fs::remove_dir_all(&hooks_dir);
 }
 
 /// Item 2: a hook run from a linked worktree gets a real, non-empty
@@ -411,8 +446,15 @@ fn a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository
         String::from_utf8_lossy(&worktree_add.stderr)
     );
 
-    write_pre_push_hook(&worktree_dir);
-    let hooks_path = git_in(&worktree_dir, &["config", "core.hooksPath", ".osf/hooks"]);
+    let hooks_dir = write_pre_push_hook("linked-worktree");
+    let hooks_path = git_in(
+        &worktree_dir,
+        &[
+            "config",
+            "core.hooksPath",
+            hooks_dir.to_str().expect("utf8 path"),
+        ],
+    );
     assert!(hooks_path.status.success(), "core.hooksPath set failed");
 
     std::fs::write(
@@ -469,4 +511,5 @@ fn a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository
 
     let _ = std::fs::remove_dir_all(&worktree_dir);
     let _ = std::fs::remove_dir_all(&bare_dir);
+    let _ = std::fs::remove_dir_all(&hooks_dir);
 }

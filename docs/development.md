@@ -94,13 +94,25 @@ machine running Windows, macOS, or Linux, install it by hand:
    `moon` binary (`moon.exe` on Windows) from it onto a folder on your
    `PATH`.
 3. Check the version: `moon --version` must print `2.5.5`.
-4. In your clone of this repository, run:
+4. Run `osf hooks install` (below) once in your clone.
 
-   ```sh
-   git config core.hooksPath .osf/hooks
-   ```
+## Install the local git hooks
 
-That folder already exists in this repository, at `.osf/hooks`.
+Outside the development container, run this once per clone:
+
+```sh
+osf hooks install
+```
+
+It writes the hook scripts osf owns to a folder next to its own state,
+outside this repository, and points this repository's own git config at
+that folder. It is safe to run again; nothing changes the second time.
+Check the setting at any time with `osf hooks install --check`, which
+exits non-zero when this repository's hooks do not point at that folder.
+
+Inside the development container, skip this: the container forces its own
+hooks path on every git call, so a repository's own `core.hooksPath` has no
+effect there.
 
 ## Lint a file right after your agent writes it
 
