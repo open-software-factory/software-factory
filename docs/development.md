@@ -54,14 +54,88 @@ Every hook is a thin call to `osf`, so the same commands work outside a
 hook:
 
 ```sh
-osf verify --stage pre-commit
-osf verify --stage pre-push
+osf verify --checkpoint pre-commit
+osf verify --checkpoint pre-push
 osf lint writing path/to/file.md
 ```
 
-Add `--format human` for readable output in a script or a non-interactive
-shell. Run `osf explain <rule-id>` for the full text of one rule, using
-the rule id shown in a finding, for example `osf explain long-sentence`.
+`osf verify` prints its own plain-text summary. It has no `--format`
+flag. `osf lint writing` accepts `--format human` for readable output
+in a script or a non-interactive shell. Run `osf explain <rule-id>` for
+the full text of one rule, using the rule id shown in a finding, for
+example `osf explain long-sentence`.
+
+`osf` removes every `MOON_*` variable it inherits. It does this before
+it starts its own moon process. A nested checkpoint run then never
+reads an outer one's workspace by mistake.
+
+`osf verify` reads two variables of its own, and sets two more for
+each task moon runs. Moon cannot tell a task which tag selected it.
+Which checkpoint is running instead reaches each task through its own
+`--checkpoint <name>` flag:
+
+| Variable | Read or set | Holds |
+|---|---|---|
+| `OSF_STATE_DIR` | Read | Where the journal lives |
+| `OSF_MOON` | Read | A moon binary other than the one on `PATH` |
+| `OSF_FILES_FROM` | Set | A file with one path to check per line |
+| `OSF_BASE` | Set | The commit the checkpoint compares against |
+
+## Install moon on the host
+
+The container image already has moon. Outside the container, on a host
+machine running Windows, macOS, or Linux, install it by hand:
+
+1. Open the release page for the pinned version:
+   `https://github.com/moonrepo/moon/releases/tag/v2.5.5`.
+2. Download the archive for your platform. For example, use
+   `moon_cli-x86_64-pc-windows-msvc.zip` on Windows, or
+   `moon_cli-aarch64-apple-darwin.tar.xz` on an Arm Mac. Extract the
+   `moon` binary (`moon.exe` on Windows) from it onto a folder on your
+   `PATH`.
+3. Check the version: `moon --version` must print `2.5.5`.
+4. Run `osf hooks install` (below) once in your clone.
+
+## Install the local git hooks
+
+Outside the development container, run this once per clone:
+
+```sh
+osf hooks install
+```
+
+It writes the hook scripts osf owns to a folder next to its own state,
+outside this repository, and points this repository's own git config at
+that folder. It is safe to run again; nothing changes the second time.
+Check the setting at any time with `osf hooks install --check`, which
+exits non-zero when this repository's hooks do not point at that folder.
+
+Inside the development container, skip this: the container forces its own
+hooks path on every git call, so a repository's own `core.hooksPath` has no
+effect there.
+
+## Lint a file right after your agent writes it
+
+`osf hook post-tool` runs the hook checkpoint on one file, right after a
+tool writes it and before anyone commits it. It reads the tool event from
+standard input and finds the written path there. It reports an error on
+the agent's next turn.
+
+Add this entry to your coding agent's settings file, alongside `Stop` and
+`UserPromptSubmit`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [ { "type": "command", "command": "osf hook post-tool" } ]
+      }
+    ]
+  }
+}
+```
 
 ## The git wrapper, and its limit
 

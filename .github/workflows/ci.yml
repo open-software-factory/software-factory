@@ -165,6 +165,10 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Install moon
+        if: steps.detect.outputs.present == 'true'
+        uses: ./.github/actions/install-moon
+
       - name: Test
         if: steps.detect.outputs.present == 'true'
         run: cargo test --workspace
@@ -242,3 +246,65 @@ jobs:
           name: writing-lint-findings
           path: osf.sarif
           if-no-files-found: ignore
+
+  checkpoint:
+    name: checkpoint
+    # github.base_ref only exists on pull_request events, so this job only runs there.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Install the toolchain components
+        run: |
+          set -euo pipefail
+          rustup component add clippy rustfmt
+
+      - name: Cache the build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Install moon
+        uses: ./.github/actions/install-moon
+
+      - name: Build the tool
+        run: |
+          set -euo pipefail
+          cargo build --release --bin osf
+
+      - name: Put osf on PATH
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_WORKSPACE}/target/release" >> "$GITHUB_PATH"
+
+      - name: Set the state directory
+        run: |
+          set -euo pipefail
+          echo "OSF_STATE_DIR=${RUNNER_TEMP}/osf-state" >> "$GITHUB_ENV"
+
+      - name: Run the pull-request checkpoint
+        env:
+          OSF_CONFIG: osf.toml
+          OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "${{ github.base_ref }}"
+          osf verify --checkpoint pull-request --base "origin/${{ github.base_ref }}"
+
+      - name: Keep the checkpoint evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: checkpoint-evidence
+          path: |
+            ${{ env.OSF_STATE_DIR }}/buffer
+            .osf/out
+          if-no-files-found: error

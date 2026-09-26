@@ -1,2 +1,2 @@
 #!/bin/sh
-exec /opt/factory/bin/osf verify --stage pre-push --format human
+exec /opt/factory/bin/osf verify --checkpoint pre-push

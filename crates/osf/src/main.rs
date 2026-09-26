@@ -1,5 +1,8 @@
 use osf::status::GhClient;
-use osf::{config, exclude, hook, lints, review, risk, scan, status, verify};
+use osf::{
+    check, checkpoint, config, exclude, githooks, hook, journal, lints, review, risk, scan, status,
+    verify,
+};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -97,6 +100,8 @@ enum Command {
     },
     /// Find text that must never reach a public repository.
     Scan(ScanArgs),
+    /// Run one check `osf verify` also runs, on its own file list.
+    Check(CheckArgs),
     /// Run every check one gate needs, in one entry point every gate calls.
     Verify(VerifyArgs),
     /// Report the blast radius of a change: low, normal, or high, with the reasons.
@@ -111,6 +116,25 @@ enum Command {
         #[command(subcommand)]
         action: ReviewAction,
     },
+    /// Manage this repository's local git hooks.
+    Hooks {
+        #[command(subcommand)]
+        action: HooksAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum HooksAction {
+    /// Write osf's own hook scripts and point this repository at them.
+    Install(HooksInstallArgs),
+}
+
+#[derive(Args)]
+struct HooksInstallArgs {
+    /// Report whether this repository's hooks point at osf's own folder,
+    /// instead of installing anything. Exits non-zero when they do not.
+    #[arg(long)]
+    check: bool,
 }
 
 #[derive(Args)]
@@ -278,6 +302,29 @@ struct ScanArgs {
     gate: bool,
 }
 
+#[derive(Args)]
+struct CheckArgs {
+    /// Which check to run: scan, scan-staged, lint-writing, lint-skill, or scan-commits.
+    #[arg(value_enum)]
+    name: check::CheckName,
+    /// Which checkpoint is calling: hook, pre-commit, pre-push, pull-request, or schedule. Required.
+    #[arg(long, value_enum)]
+    checkpoint: Option<checkpoint::Checkpoint>,
+    /// What to diff commits against, for `scan-commits`. Else `OSF_BASE`, else the default branch.
+    #[arg(long)]
+    base: Option<String>,
+    /// Ignores a suppression marker and uses the compiled exclude list, the
+    /// same way `--gate` already does for `osf verify`.
+    #[arg(long)]
+    gate: bool,
+    /// Write the findings as SARIF 2.1.0 to this path, creating parent folders.
+    #[arg(long = "sarif-out")]
+    sarif_out: Option<PathBuf>,
+    /// Files to check. Else one repository-relative path per line in the
+    /// file named by `OSF_FILES_FROM`. Else nothing to check.
+    files: Vec<String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum StageArg {
     PreCommit,
@@ -285,54 +332,37 @@ enum StageArg {
     Ci,
 }
 
-impl From<StageArg> for verify::Stage {
+impl From<StageArg> for checkpoint::Checkpoint {
     fn from(value: StageArg) -> Self {
         match value {
-            StageArg::PreCommit => verify::Stage::PreCommit,
-            StageArg::PrePush => verify::Stage::PrePush,
-            StageArg::Ci => verify::Stage::Ci,
-        }
-    }
-}
-
-impl StageArg {
-    const fn label(self) -> &'static str {
-        match self {
-            StageArg::PreCommit => "pre-commit",
-            StageArg::PrePush => "pre-push",
-            StageArg::Ci => "ci",
+            StageArg::PreCommit => checkpoint::Checkpoint::PreCommit,
+            StageArg::PrePush => checkpoint::Checkpoint::PrePush,
+            StageArg::Ci => checkpoint::Checkpoint::PullRequest,
         }
     }
 }
 
 #[derive(Args)]
 struct VerifyArgs {
-    /// Which gate is calling: pre-commit, pre-push, or continuous integration.
+    /// Which checkpoint is calling: hook, pre-commit, pre-push, pull-request, or schedule.
+    #[arg(long, value_enum, conflicts_with = "stage")]
+    checkpoint: Option<checkpoint::Checkpoint>,
+    /// Deprecated alias for `--checkpoint`: pre-commit, pre-push, or ci (mapped to pull-request).
     #[arg(long, value_enum)]
-    stage: StageArg,
+    stage: Option<StageArg>,
     /// What to diff changed files against. Defaults to the repository's default branch.
     #[arg(long)]
     base: Option<String>,
-    /// A file holding the commit message, for the pre-commit stage.
+    /// Reads the hook checkpoint's file list from standard input, one repository-relative path per line.
     #[arg(long)]
-    message_file: Option<PathBuf>,
-    /// How to print findings: human, sarif, or json.
-    #[arg(long, value_enum)]
-    format: Option<Format>,
-    /// A path pattern to skip, on top of the configured list. Repeatable.
-    /// For a person running the tool by hand; a gate run does not accept it.
-    #[arg(long = "exclude", conflicts_with = "gate")]
-    exclude: Vec<String>,
-    /// Ignore the exclude list entirely and check everything. For a person
-    /// running the tool by hand; a gate run does not accept it.
-    #[arg(long, conflicts_with = "gate")]
-    no_exclude: bool,
-    /// Runs as a gate over a change that has not yet been approved: the exclude
-    /// list is the compiled defaults only, never the config file or the
-    /// environment, so that change cannot loosen this check by editing its
-    /// own configuration.
+    files_from_stdin: bool,
+    /// How long to let moon run before it is killed, in seconds. No limit when absent.
     #[arg(long)]
-    gate: bool,
+    timeout_secs: Option<u64>,
+    /// Extra positional arguments a git hook passes (pre-push's remote name and URL), swallowed so a real hook call is never refused.
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    #[allow(dead_code)]
+    hook_args: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -427,6 +457,19 @@ enum HookEvent {
     Stop(StopArgs),
     /// The user submitted a new prompt: deliver any advice stored from the last turn.
     Prompt,
+    /// A tool wrote a file: run the hook checkpoint on it, refuse it on errors.
+    PostTool(PostToolArgs),
+}
+
+#[derive(Args)]
+struct PostToolArgs {
+    /// How long to let the hook checkpoint run before it reports skipped, in seconds.
+    #[arg(long, default_value_t = 45)]
+    timeout_secs: u64,
+    /// How to report a refusal: `exit-code` or `decision-json`. Guessed from
+    /// the event's key spelling when not given.
+    #[arg(long, value_enum)]
+    answer: Option<hook::Answer>,
 }
 
 #[derive(Args)]
@@ -488,12 +531,19 @@ fn main() -> ExitCode {
         Command::Hook {
             event: HookEvent::Prompt,
         } => hook::prompt(),
+        Command::Hook {
+            event: HookEvent::PostTool(args),
+        } => hook::post_tool(
+            std::time::Duration::from_secs(args.timeout_secs),
+            args.answer,
+        ),
         Command::Config {
             action: ConfigAction::Show,
         } => config_show(cli.config.as_deref()),
         Command::Explain { rule_id } => explain(rule_id),
         Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
-        Command::Verify(args) => verify_cmd(args, cli.config.as_deref()),
+        Command::Check(args) => check_cmd(args, cli.config.as_deref()),
+        Command::Verify(args) => verify_cmd(args),
         Command::Risk(args) => risk_cmd(args),
         Command::Status {
             action: StatusAction::Render(args),
@@ -507,6 +557,66 @@ fn main() -> ExitCode {
         Command::Review {
             action: ReviewAction::Post(args),
         } => review_post_cmd(args),
+        Command::Hooks {
+            action: HooksAction::Install(args),
+        } => hooks_install_cmd(args),
+    }
+}
+
+fn hooks_install_cmd(args: &HooksInstallArgs) -> ExitCode {
+    let dir = Path::new(".");
+    if args.check {
+        return hooks_check_cmd(dir);
+    }
+    match githooks::install(dir) {
+        Ok(report) => {
+            let names: Vec<&str> = report
+                .scripts
+                .iter()
+                .filter_map(|p| p.file_name().and_then(|n| n.to_str()))
+                .collect();
+            println!(
+                "osf hooks install: wrote {} to {}",
+                names.join(", "),
+                report.hooks_dir.display()
+            );
+            println!(
+                "osf hooks install: set core.hooksPath to {} in {}",
+                report.hooks_dir.display(),
+                report.repo_root.display()
+            );
+            match &report.osf_on_path {
+                Some(path) => {
+                    println!("osf hooks install: osf is on PATH at {}", path.display());
+                }
+                None => eprintln!(
+                    "osf hooks install: warning: osf is not on PATH; the hook scripts call \
+                     \"osf\", which will fail until it is"
+                ),
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn hooks_check_cmd(dir: &Path) -> ExitCode {
+    match githooks::check(dir) {
+        Ok(status) => {
+            println!("osf hooks install --check: {}", status.message());
+            if status.is_installed() {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::from(1)
+            }
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
     }
 }
 
@@ -793,19 +903,158 @@ fn lint_one(
     finish_lint_one(name, text, findings, args, format, tally)
 }
 
-fn print_sarif(sarif_files: &[(String, Vec<lints::Finding>)]) -> Result<(), ExitCode> {
+fn render_sarif(sarif_files: &[(String, Vec<lints::Finding>)]) -> Result<String, ExitCode> {
     let tool = osf_lint_core::ToolInfo {
         name: "osf",
         version: env!("CARGO_PKG_VERSION"),
         information_uri: INFORMATION_URI,
     };
     let report = osf_lint_core::to_sarif(sarif_files, &tool);
-    let text = serde_json::to_string_pretty(&report).map_err(|e| {
+    serde_json::to_string_pretty(&report).map_err(|e| {
         eprintln!("osf: cannot render sarif: {e}");
         ExitCode::from(2)
-    })?;
+    })
+}
+
+fn print_sarif(sarif_files: &[(String, Vec<lints::Finding>)]) -> Result<(), ExitCode> {
+    let text = render_sarif(sarif_files)?;
     println!("{text}");
     Ok(())
+}
+
+/// Writes `sarif_files` as SARIF 2.1.0 to `path`, creating its parent
+/// folders first, so a checkpoint task can point `--sarif-out` anywhere.
+fn write_sarif_out(
+    path: &Path,
+    sarif_files: &[(String, Vec<lints::Finding>)],
+) -> Result<(), ExitCode> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                eprintln!("osf: cannot create {}: {e}", parent.display());
+                ExitCode::from(2)
+            })?;
+        }
+    }
+    let text = render_sarif(sarif_files)?;
+    std::fs::write(path, text).map_err(|e| {
+        eprintln!("osf: cannot write {}: {e}", path.display());
+        ExitCode::from(2)
+    })
+}
+
+/// The files a check runs over: `FILES` when given, else every non-blank
+/// line in the file named by `OSF_FILES_FROM`, else none. A backslash path
+/// is normalised to the forward-slash, repository-relative form every
+/// other path in this tool already uses.
+fn resolve_check_files(cli_files: &[String]) -> Result<Vec<String>, ExitCode> {
+    if !cli_files.is_empty() {
+        return Ok(cli_files.iter().map(|p| p.replace('\\', "/")).collect());
+    }
+    let Some(list_path) = std::env::var_os("OSF_FILES_FROM") else {
+        return Ok(Vec::new());
+    };
+    let text = std::fs::read_to_string(&list_path).map_err(|e| {
+        eprintln!(
+            "osf: cannot read {}: {e}",
+            PathBuf::from(&list_path).display()
+        );
+        ExitCode::from(2)
+    })?;
+    Ok(text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(|l| l.replace('\\', "/"))
+        .collect())
+}
+
+/// `--checkpoint` is missing: exits 2, naming every value it accepts, so a
+/// broken moon task fails loudly instead of silently reading the wrong
+/// checkpoint's content.
+fn missing_checkpoint_exit() -> ExitCode {
+    let values: Vec<&str> = checkpoint::Checkpoint::value_variants()
+        .iter()
+        .map(|c| c.label())
+        .collect();
+    eprintln!("osf check: --checkpoint is required: {}", values.join(", "));
+    ExitCode::from(2)
+}
+
+fn check_cmd(args: &CheckArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
+    let Some(checkpoint) = args.checkpoint else {
+        return missing_checkpoint_exit();
+    };
+    let loaded = match config::load(config_flag, &[], &[], args.gate) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let excluder = match exclude::Excluder::build(&loaded.config.exclude) {
+        Ok(e) => e,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let files = match resolve_check_files(&args.files) {
+        Ok(f) => f,
+        Err(code) => return code,
+    };
+    let name = args.name.label();
+    if args.name != check::CheckName::ScanCommits && files.is_empty() {
+        println!("osf check {name}: nothing to check");
+        if let Some(path) = &args.sarif_out {
+            if let Err(code) = write_sarif_out(path, &[]) {
+                return code;
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+    let base = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok());
+    let opts = verify::Options {
+        dir: Path::new("."),
+        base,
+        message_file: None,
+        config: &loaded.config,
+        excluder: &excluder,
+        checkpoint,
+    };
+    let findings = match check::run_check(args.name, &opts, &files, args.gate) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let mut errors = 0usize;
+    let mut warnings = 0usize;
+    let mut infos = 0usize;
+    let mut sarif_files: Vec<(String, Vec<lints::Finding>)> = Vec::new();
+    for (path, finding) in &findings {
+        if finding.suppressed.is_none() {
+            println!("{}", finding.render(path, finding.level));
+            match finding.level {
+                lints::Level::Error => errors += 1,
+                lints::Level::Warning => warnings += 1,
+                lints::Level::Info => infos += 1,
+            }
+        }
+        sarif_files.push((path.clone(), vec![finding.clone()]));
+    }
+    println!("osf check {name}: {errors} error(s), {warnings} warning(s), {infos} info");
+    if let Some(path) = &args.sarif_out {
+        if let Err(code) = write_sarif_out(path, &sarif_files) {
+            return code;
+        }
+    }
+    if errors > 0 {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    }
 }
 
 fn lint_writing(
@@ -1076,68 +1325,91 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
     }
 }
 
-fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
-    let loaded = match config::load(config_flag, &[], &args.exclude, args.gate) {
-        Ok(l) => l,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
-    let excluder = match build_excluder(&loaded.config.exclude, args.no_exclude) {
-        Ok(e) => e,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
-    let opts = verify::Options {
-        dir: Path::new("."),
-        base: args.base.clone(),
-        message_file: args.message_file.as_deref(),
-        config: &loaded.config,
-        excluder: &excluder,
-    };
-    let report = match verify::run(args.stage.into(), &opts) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
+/// `--checkpoint` when given, else `--stage` mapped onto it. One of the two
+/// is required.
+fn resolve_checkpoint(args: &VerifyArgs) -> Result<checkpoint::Checkpoint, ExitCode> {
+    if let Some(c) = args.checkpoint {
+        return Ok(c);
+    }
+    if let Some(stage) = args.stage {
+        return Ok(stage.into());
+    }
+    eprintln!("osf verify: needs --checkpoint or --stage");
+    Err(ExitCode::from(2))
+}
 
-    let format = resolve_format(args.format, false);
-    match format {
-        Format::Human => {
-            for (check, name, f) in report.findings() {
-                if f.suppressed.is_none() {
-                    println!("{}", f.render(&format!("{check}: {name}"), f.level));
-                }
-            }
-            print!("{}", report.render_summary(args.stage.label()));
+/// The hook checkpoint's file list, one repository-relative path per line
+/// on standard input, normalised to forward slashes.
+fn read_hook_files() -> Result<Vec<String>, ExitCode> {
+    let mut text = String::new();
+    std::io::stdin().read_to_string(&mut text).map_err(|e| {
+        eprintln!("osf verify: cannot read standard input: {e}");
+        ExitCode::from(2)
+    })?;
+    Ok(text
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .map(|l| l.replace('\\', "/"))
+        .collect())
+}
+
+fn verify_cmd(args: &VerifyArgs) -> ExitCode {
+    match checkpoint::detect_adoption(Path::new(".")) {
+        checkpoint::Adoption::Adopted(_) => {}
+        checkpoint::Adoption::NotAdopted(path, reason) => {
+            println!("osf verify: not adopted at {}: {reason}", path.display());
+            return ExitCode::SUCCESS;
         }
-        Format::Json => {
-            for (check, name, f) in report.findings() {
-                if f.suppressed.is_none() {
-                    println!("{}", f.to_json(&format!("{check}: {name}"), f.level));
-                }
-            }
+        checkpoint::Adoption::AdoptedButBroken(root, missing) => {
+            eprintln!(
+                "osf verify: osf.toml at {} asks for osf, but {missing} is missing",
+                root.display()
+            );
+            return ExitCode::from(2);
         }
-        Format::Sarif => {
-            let sarif_files: Vec<(String, Vec<lints::Finding>)> = report
-                .findings()
-                .map(|(check, name, f)| (format!("{check}: {name}"), vec![f.clone()]))
-                .collect();
-            if let Err(code) = print_sarif(&sarif_files) {
-                return code;
-            }
+        checkpoint::Adoption::CouldNotRun(reason) => {
+            eprintln!("osf verify: {reason}");
+            return ExitCode::from(2);
         }
     }
-    if report.total_errors() > 0 {
-        ExitCode::from(1)
+    let checkpoint = match resolve_checkpoint(args) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
+    let files = if checkpoint == checkpoint::Checkpoint::Hook && args.files_from_stdin {
+        match read_hook_files() {
+            Ok(f) => Some(f),
+            Err(code) => return code,
+        }
     } else {
-        ExitCode::SUCCESS
+        None
+    };
+    let state_dir = match journal::state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let req = checkpoint::Request {
+        root: Path::new("."),
+        checkpoint,
+        base: args.base.clone(),
+        files,
+        timeout: args.timeout_secs.map(std::time::Duration::from_secs),
+    };
+    let summary = checkpoint::run(&req, &state_dir);
+    for line in &summary.lines {
+        println!("{line}");
     }
+    for finding in &summary.error_findings {
+        eprintln!("osf verify: {finding}");
+    }
+    if let Some(err) = &summary.journal_error {
+        eprintln!("osf verify: {err}");
+    }
+    ExitCode::from(checkpoint::exit_code(&summary, checkpoint))
 }
 
 fn risk_cmd(args: &RiskArgs) -> ExitCode {
@@ -1357,8 +1629,10 @@ fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
 /// # Errors
 /// Returns an error when git cannot run or exits non-zero.
 fn git_fetch(remote: &str, ref_name: &str) -> Result<(), String> {
-    let output = std::process::Command::new("git")
-        .args(["fetch", remote, ref_name])
+    let mut command = std::process::Command::new("git");
+    command.args(["fetch", remote, ref_name]);
+    osf::scrub_git_env_for_dir(&mut command, Path::new("."));
+    let output = command
         .output()
         .map_err(|e| format!("cannot run git: {e}"))?;
     if !output.status.success() {

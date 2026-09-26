@@ -1,0 +1,128 @@
+language: rust
+fileGroups:
+  # Every git-ignored build or dependency folder in this repository, kept
+  # out of every wide-glob osf check task below: moon's glob-based input
+  # hashing does not read .gitignore, so left unexcluded these would put
+  # moon's own churning cache state, a multi-gigabyte target/ directory, or
+  # an installed node_modules/ into a check's own cache fingerprint — each
+  # one unstable on every run, defeating the cache outright.
+  # `tests/gitignore_scan_excludes.rs` reads every .gitignore in this
+  # repository and fails when a directory here is missing, and fails
+  # naming any wide-glob task below that does not reference this group.
+  ignored-dirs:
+    - '!/.moon/**'
+    - '!/target/**'
+    - '!/target-linux/**'
+    - '!/.osf/out/**'
+    - '!/.superpowers/**'
+    - '!/.worktrees/**'
+    - '!/docs/temp-context/**'
+    - '!/docs/research/source/archive/**'
+    - '!/docs/superpowers/**'
+    - '!/integrations/dsh/dist/**'
+    - '!/integrations/dsh/node_modules/**'
+    - '!/integrations/omp/dist/**'
+    - '!/integrations/omp/node_modules/**'
+    - '!/integrations/opencode/dist/**'
+    - '!/integrations/opencode/node_modules/**'
+tasks:
+  scan-staged:
+    command: 'osf check scan-staged --checkpoint pre-commit --sarif-out .osf/out/scan-staged.sarif'
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/scan-staged.sarif']
+    tags: [osf-pre-commit, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  scan-hook:
+    command: 'osf check scan --checkpoint hook --sarif-out .osf/out/scan-hook.sarif'
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/scan-hook.sarif']
+    tags: [osf-hook, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  scan-pre-push:
+    command: 'osf check scan --checkpoint pre-push --sarif-out .osf/out/scan-pre-push.sarif'
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/scan-pre-push.sarif']
+    tags: [osf-pre-push, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  scan-gate:
+    command: 'osf check scan --checkpoint pull-request --gate --sarif-out .osf/out/scan-gate.sarif'
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/scan-gate.sarif']
+    tags: [osf-pull-request, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  scan-commits:
+    command: 'osf check scan-commits --checkpoint pre-push --sarif-out .osf/out/scan-commits.sarif'
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/scan-commits.sarif']
+    tags: [osf-pre-push, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  scan-commits-gate:
+    command: 'osf check scan-commits --checkpoint pull-request --gate --sarif-out .osf/out/scan-commits-gate.sarif'
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/scan-commits-gate.sarif']
+    tags: [osf-pull-request, osf-slot-secrets]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  lint-writing-hook:
+    command: 'osf check lint-writing --checkpoint hook --sarif-out .osf/out/lint-writing-hook.sarif'
+    inputs: ['/**/*.md', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/lint-writing-hook.sarif']
+    tags: [osf-hook, osf-slot-writing]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  lint-writing-pre-push:
+    command: 'osf check lint-writing --checkpoint pre-push --sarif-out .osf/out/lint-writing-pre-push.sarif'
+    inputs: ['/**/*.md', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/lint-writing-pre-push.sarif']
+    tags: [osf-pre-push, osf-slot-writing]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  lint-writing-gate:
+    command: 'osf check lint-writing --checkpoint pull-request --gate --sarif-out .osf/out/lint-writing-gate.sarif'
+    inputs: ['/**/*.md', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/lint-writing-gate.sarif']
+    tags: [osf-pull-request, osf-slot-writing]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  lint-skill-hook:
+    command: 'osf check lint-skill --checkpoint hook --sarif-out .osf/out/lint-skill-hook.sarif'
+    inputs: ['/**/SKILL.md', '/**/skills/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/lint-skill-hook.sarif']
+    tags: [osf-hook, osf-slot-skill]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  lint-skill-pre-push:
+    command: 'osf check lint-skill --checkpoint pre-push --sarif-out .osf/out/lint-skill-pre-push.sarif'
+    inputs: ['/**/SKILL.md', '/**/skills/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/lint-skill-pre-push.sarif']
+    tags: [osf-pre-push, osf-slot-skill]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  lint-skill-gate:
+    command: 'osf check lint-skill --checkpoint pull-request --gate --sarif-out .osf/out/lint-skill-gate.sarif'
+    inputs: ['/**/SKILL.md', '/**/skills/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/lint-skill-gate.sarif']
+    tags: [osf-pull-request, osf-slot-skill]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  fmt:
+    command: 'cargo fmt --all --check'
+    inputs: ['/**/*.rs']
+    tags: [osf-pre-commit, osf-pull-request, osf-slot-format]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  clippy:
+    command: 'cargo clippy --workspace --all-targets -- -D warnings'
+    inputs: ['/**/*.rs', '/Cargo.toml', '/Cargo.lock', '/crates/*/Cargo.toml']
+    tags: [osf-pre-push, osf-pull-request, osf-slot-lint]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  test:
+    command: 'cargo test --workspace'
+    inputs: ['/**/*.rs', '/Cargo.toml', '/Cargo.lock', '/crates/*/Cargo.toml', '/crates/*/tests/fixtures/**/*']
+    deps: ['~:clippy']
+    tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
+    options: { runFromWorkspaceRoot: true, shell: false }
+  # A few osf tests each start a nested `cargo test` of their own, to check
+  # a checkpoint stays hermetic under an inherited GIT_DIR. Run alongside
+  # `test`'s own default-concurrency run, that doubles those tests' own
+  # concurrent moon/git subprocess load and fails at random. `--ignored`
+  # marks them for this task alone, and `--test-threads=1` keeps them from
+  # doubling up on each other here too.
+  test-nested:
+    command: 'cargo test -p osf -- --ignored --test-threads=1'
+    inputs: ['/**/*.rs', '/Cargo.toml', '/Cargo.lock', '/crates/*/Cargo.toml', '/crates/*/tests/fixtures/**/*']
+    deps: ['~:test']
+    tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
+    options: { runFromWorkspaceRoot: true, shell: false }
