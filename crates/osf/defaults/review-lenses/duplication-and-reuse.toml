@@ -4,7 +4,7 @@ weight = 0.7
 runs = "always-at-high-tier"
 
 [trigger]
-signals = ["repeated-logic", "new-helper"]
+signals = ["repeated-logic"]
 
 [[criteria]]
 id = "reuses-existing"

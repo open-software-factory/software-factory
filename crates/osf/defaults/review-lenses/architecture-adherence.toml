@@ -6,7 +6,6 @@ context = ["diff", "architecture-docs"]
 
 [trigger]
 paths = ["**/mod.rs", "**/lib.rs", "Cargo.toml", "**/*.csproj"]
-signals = ["new-module", "new-dependency"]
 
 [[criteria]]
 id = "module-boundaries"

@@ -4,7 +4,7 @@ weight = 0.8
 runs = "triggered"
 
 [trigger]
-paths = ["**/*thread*", "**/*async*", "**/*lock*"]
+paths = ["**/*thread*", "**/*async*"]
 signals = ["concurrency"]
 
 [[criteria]]

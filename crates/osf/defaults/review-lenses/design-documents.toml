@@ -6,7 +6,6 @@ context = ["diff", "decision-records"]
 
 [trigger]
 paths = ["docs/architecture/**"]
-signals = ["new-decision-record"]
 
 [[criteria]]
 id = "matches-the-decision"

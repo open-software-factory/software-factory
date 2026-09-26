@@ -5,7 +5,6 @@ runs = "triggered"
 
 [trigger]
 paths = ["Cargo.toml", "Cargo.lock", "package.json", "package-lock.json", "go.mod", "requirements.txt"]
-signals = ["dependency delta"]
 
 [[criteria]]
 id = "licence-compatible"

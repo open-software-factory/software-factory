@@ -219,3 +219,99 @@ fn the_same_change_gives_the_same_report_across_runs_and_locales() {
     let c_locale = run_risk_json(&repo.dir, &home, &[("LC_ALL", "C")]);
     assert_eq!(default_locale, c_locale);
 }
+
+// C4 negative test: a lockfile-only change never earns "concurrency",
+// even though a real Cargo.lock entry can name a crate containing one of
+// the concurrency words.
+#[test]
+fn a_lockfile_change_earns_no_concurrency_signal() {
+    let repo = base_repo("lockfile-no-concurrency");
+    repo.write(
+        "Cargo.lock",
+        "[[package]]\nname = \"tokio\"\nversion = \"1.0\"\n",
+    );
+    repo.commit("add a lockfile");
+    repo.track_origin_main();
+    repo.write(
+        "Cargo.lock",
+        "[[package]]\nname = \"tokio\"\nversion = \"1.0\"\n\n[[package]]\nname = \"async-trait\"\nversion = \"0.1\"\n",
+    );
+    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    assert!(!report.signals().contains(&"concurrency".to_string()));
+}
+
+#[test]
+fn a_mutex_in_a_source_file_earns_the_concurrency_signal() {
+    let repo = base_repo("mutex-earns-concurrency");
+    repo.write("src/worker.c", "int worker(void) { return 0; }\n");
+    repo.commit("base worker");
+    repo.track_origin_main();
+    repo.write(
+        "src/worker.c",
+        "int worker(void) { Mutex guard = mutex_new(); return 0; }\n",
+    );
+    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    assert!(report.signals().contains(&"concurrency".to_string()));
+}
+
+// C4 negative test: two README.md files, same base name, whose added
+// content does not match, never earn "repeated-logic".
+#[test]
+fn two_readme_files_with_different_content_earn_no_repeated_logic_signal() {
+    let repo = base_repo("two-readmes-no-repeat");
+    repo.write("docs/a/README.md", "orig a\n");
+    repo.write("docs/b/README.md", "orig b\n");
+    repo.commit("add two readmes");
+    repo.track_origin_main();
+    repo.write(
+        "docs/a/README.md",
+        "orig a\nunique alpha one\nunique alpha two\nunique alpha three\nunique alpha four\nunique alpha five\n",
+    );
+    repo.write(
+        "docs/b/README.md",
+        "orig b\nunique beta one\nunique beta two\nunique beta three\nunique beta four\nunique beta five\n",
+    );
+    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    assert!(!report.signals().contains(&"repeated-logic".to_string()));
+}
+
+#[test]
+fn two_files_sharing_an_added_block_earn_the_repeated_logic_signal() {
+    let repo = base_repo("shared-block-earns-repeated-logic");
+    repo.write("src/a.c", "int a(void) { return 0; }\n");
+    repo.write("src/b.c", "int b(void) { return 0; }\n");
+    repo.commit("base a and b");
+    repo.track_origin_main();
+    let block =
+        "step_one();\nstep_two();\nstep_three();\nstep_four();\nstep_five();\nstep_six();\n";
+    repo.write("src/a.c", &format!("int a(void) {{ return 0; }}\n{block}"));
+    repo.write("src/b.c", &format!("int b(void) {{ return 0; }}\n{block}"));
+    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    assert!(report.signals().contains(&"repeated-logic".to_string()));
+}
+
+// C4 negative test: a `pub(crate)` item is not a public-surface change.
+#[test]
+fn a_pub_crate_item_is_not_a_public_surface() {
+    let repo = base_repo("pub-crate-not-public-surface");
+    repo.write("src/lib.rs", "fn existing() {}\n");
+    repo.commit("base lib.rs");
+    repo.track_origin_main();
+    repo.write(
+        "src/lib.rs",
+        "fn existing() {}\npub(crate) fn helper() {}\n",
+    );
+    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    assert!(!report.signals().contains(&"public surface".to_string()));
+}
+
+#[test]
+fn a_new_pub_fn_earns_the_public_surface_signal() {
+    let repo = base_repo("new-pub-fn-earns-public-surface");
+    repo.write("src/lib.rs", "fn existing() {}\n");
+    repo.commit("base lib.rs");
+    repo.track_origin_main();
+    repo.write("src/lib.rs", "fn existing() {}\npub fn new_helper() {}\n");
+    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    assert!(report.signals().contains(&"public surface".to_string()));
+}

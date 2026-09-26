@@ -5,7 +5,6 @@ runs = "triggered"
 
 [trigger]
 paths = ["**/retry/**", "**/*circuit*"]
-signals = ["external-call", "timeout"]
 
 [[criteria]]
 id = "handles-dependency-failure"
