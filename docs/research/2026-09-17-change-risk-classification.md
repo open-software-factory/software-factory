@@ -38,9 +38,9 @@ Just-in-time defect prediction is the field that scores a single commit for defe
 
 **Normalised size.** Raw lines changed barely predicts defects. Nagappan and Ball showed in 2005 that churn relative to file size, prior churn and time span predicted fault-prone binaries with 89 percent accuracy on a large operating system.
 
-**Fourteen standard features.** Kamei and colleagues defined them in 2013, in five families, which are size, diffusion, purpose, history and experience. Their models on six open-source projects reached an area under the curve of 0.70 to 0.78. Under effort-aware evaluation, bugs found per line inspected, the models found about 35 percent of bugs while inspecting 20 percent of changed lines.
+**Fourteen standard features.** Kamei and colleagues defined them in 2013, in five families, which are size, diffusion, purpose, history and experience. Their models on six open-source projects reached an area under the curve of 0.70 to 0.78. Under effort-aware evaluation, bugs found per line inspected, the models found about 35 percent of bugs while about 20 percent of changed lines were inspected.
 
-**A one-feature baseline held.** Zeng and colleagues showed in 2021 that a logistic regression on lines added alone matched or beat two deep-learning models. The test used a dataset eight times larger than the original, and the baseline trained tens of thousands of times faster. Pornprasit and Tantithamthavorn showed the same year that one deep model's reported gains came partly from a data leak. Fixing the leak cut its score by roughly 40 percent.
+**A one-feature baseline held.** Zeng and colleagues showed in 2021 that a logistic regression on lines added alone matched or beat two deep-learning models. The test used a dataset eight times larger than the original, and the baseline trained tens of thousands of times faster. Pornprasit and Tantithamthavorn showed the same year that one deep model's reported gains came partly from a data leak. Fixing the leak cut its score by about 40 percent.
 
 **Patterns drift.** McIntosh and Kamei tracked models over years of project history in 2018. The features that predicted risk shifted, and a model trained once degraded. Rolling retraining on recent data kept accuracy up.
 
@@ -61,12 +61,12 @@ The published systems split into two kinds. Review-time systems read the change 
 | Organisation | Signal | What it gates | Reported outcome |
 | --- | --- | --- | --- |
 | Google, engineering book | change size and type | reviewer count and review depth; a 200-line target | small changes review faster and roll back safer |
-| Google, reliability books | canary error rate and latency against a live control group | canary size, duration, go or no-go | roughly 70 percent of outages come from changes to a live system |
+| Google, reliability books | canary error rate and latency against a live control group | canary size, duration, go or no-go | about 70 percent of outages come from changes to a live system |
 | Meta, test selection | history of test outcomes and flakiness | which tests run per change | about half the test cost, over 99.9 percent of breaking changes still caught |
 | Meta, deployment system | health checks on system, call and business metrics; a dependency graph walk | automatic revert; cancels a release built on a bad shared library | about 14 percent of executables cancelled; 41 percent false positives on large services |
 | Microsoft, rollout judge | fault logs and telemetry correlated to a rollout in time and place | automatic no-go | 92 percent precision, 100 percent recall on data-plane rollouts |
 | Amazon, deployment guide | one-box stage, bake time, aggregate alarms | whether a pipeline advances | not stated |
-| Slack | fleet metrics watched up to 10 percent rollout | automatic rollback within 10 minutes | 90 percent fewer customer-impact hours in a year |
+| Slack | fleet metrics watched up to 10 percent rollout | automatic rollback under 10 minutes | 90 percent fewer customer-impact hours in a year |
 | Netflix and Google, open canary judge | per-metric statistical test at 98 percent confidence | pass, marginal, or fail | a monitoring gap reads as a failure |
 
 Google, Meta, Microsoft, Amazon, Slack and Netflix are the large software companies whose published systems fill the table. Patterns across them:
@@ -76,7 +76,7 @@ Google, Meta, Microsoft, Amazon, Slack and Netflix are the large software compan
 - Every system admits false positives and keeps a person or a slower check behind it.
 - A safety gate is software too. One published outage came from a bug in the tool meant to stop the bad change.
 
-## 5. Facts a program can read from a change set today
+## 5. Facts a program can read from a change set right now
 
 An inventory of deterministic tools, grouped by the fact they report. Every tool listed runs offline unless marked. Maturity was checked in September 2026.
 
@@ -117,7 +117,7 @@ An inventory of deterministic tools, grouped by the fact they report. Every tool
 
 **Products.** Eleven review products were checked. Most emit findings with a severity. Two emit a priority or risk label. Two can run fully outside the vendor's cloud. None publishes a dataset, a ground truth, or a third-party replication for its accuracy claims. Treat every vendor accuracy figure as marketing until one does.
 
-**Research.** A 2026 paper from Meta built a diff risk score from a model's attention over the diff, then mapped it to lines and hunks. Its top two flagged hunks held 54 percent of the risky lines while covering 26 percent of the changed code. [reported: arXiv 2607.02782, unverified by this author] A 2023 paper, arXiv 2308.11148, showed small fine-tuned models matching dedicated review models at under 7 billion parameters.
+**Research.** A 2026 paper from Meta built a diff risk score from a model's attention over the diff, then mapped it to lines and hunks. Its top two flagged hunks accounted for 54 percent of the risky lines while making up about 26 percent of the changed code. [reported: arXiv 2607.02782, unverified by this author] A 2023 paper, arXiv 2308.11148, showed small fine-tuned models matching dedicated review models at under 7 billion parameters.
 
 **Small local classifiers.** Few-shot sentence-embedding classifiers of 110 to 355 million parameters matched a large model trained on 3,000 examples with 8 examples per class. [reported: SetFit] Fine-tuned code encoders reach a macro F1 near 0.74 on binary change classification. [reported: arXiv 2605.01596] A retrieval approach that labels a commit by similarity to past commits ran up to 112 times faster than the learned models. [reported: arXiv 2210.02435] A pure-Rust inference path exists. A 150-million-parameter zero-shot classifier loaded through the candle crate and cached offline is enough for a first local layer.
 
@@ -125,7 +125,7 @@ An inventory of deterministic tools, grouped by the fact they report. Every tool
 
 **Reproducibility has a limit.** Temperature zero reduces but does not remove randomness. Batch size, kernel choice and floating-point ordering differ across hardware, so the same weights can answer differently on two machines. [reported: arXiv 2308.02828; 2604.27006; 2604.22411] A pinned weight hash controls one variable. The report must record the hash, the hardware class and the runtime version, and a golden set must run on the reference machine.
 
-**Calibration.** Two public change-level datasets exist, one of 106,674 labelled commits and one of 213,000 files. A repository can label its own history: a change is risky if it was later reverted, hot-fixed, or linked to an incident. One study reached 86 percent accuracy from one project's history alone. [reported: arXiv 2411.05230] No source states a precision bar for auto-merge. That number is a local policy. No source covered drift monitoring, so it must be built by re-running the labelled set on a schedule.
+**Calibration.** Two public change-level datasets exist, one of 106,674 labelled commits and one of 213,000 files. A repository can label its own history: a change is risky if it was later reverted, hot-fixed, or linked to an incident. One study reached about 86 percent accuracy from one project's history alone. [reported: arXiv 2411.05230] No source states a precision bar for auto-merge. That number is a local policy. No source covered drift monitoring, so it must be built by re-running the labelled set on a schedule.
 
 **A floor the model cannot lower.** No published policy was found where rules set a minimum tier and a model may only raise it. It is a sound pattern. It is not yet a proven practice.
 
@@ -156,7 +156,7 @@ Those questions, joined with the signals the deterministic floor already reads, 
 The design in open-software-factory/software-factory#31 (risk classification) has three layers: a deterministic floor, a local model, and a combination rule. The research supports the shape and changes the content.
 
 - **Report reach as its own numbers.** Files, symbols, modules, dependents from the build graph, and consumers from the contract detectors. Reach is a fact and belongs in every report, whatever the tier.
-- **Report hazard as categories.** Take them from the table above. Each category is a small reader per ecosystem, and each carries the sign-off flag from the standards.
+- **Report hazard as categories.** Take them from the hazard-categories table. Each category is a small reader per ecosystem, and each carries the sign-off flag from the standards.
 - **Estimate severity separately.** From the hazard weight, the reach, the traffic share where telemetry exists, and whether the change can be undone. Report it with its evidence grade. It sets the mitigation: which tests run, how small the first rollout is, and who signs.
 - **Add the validated likelihood features.** Lines added, churn relative to file size, files and subsystems touched, prior fixes to the same lines, author familiarity, ownership share, tests present. Start with lines added as the baseline the model must beat.
 - **Give the model context.** Treat it as a second opinion. A call-graph slice around the change, the repository map, and the reach and hazard facts. The model returns a tier, a confidence, a rationale, and the axes it thinks are needed. The floor cannot be lowered.
@@ -175,16 +175,16 @@ The design in open-software-factory/software-factory#31 (risk classification) ha
 
 ## 10. References
 
-Every source the sections above draw on, with a link the reader can open. Preprints are on arXiv, the open preprint server. A source the survey reported but this author did not open is marked as such.
+Every source this document draws on has a link the reader can open. Preprints are on arXiv, the open preprint server. A source the survey reported but this author did not open is marked as such.
 
-### Research literature, section 3
+### Research literature
 
-- Mockus and Weiss 2000, "Predicting risk of software changes", Bell Labs Technical Journal 5(2). [PDF](http://mockus.us/papers/bltj13.pdf), [DOI](https://doi.org/10.1002/bltj.2229)
+- Mockus and Weiss 2000, "Predicting risk of software changes", Bell Labs Technical Journal. [PDF](http://mockus.us/papers/bltj13.pdf), [DOI](https://doi.org/10.1002/bltj.2229)
 - Nagappan and Ball 2005, "Use of relative code churn measures to predict system defect density", ICSE. [Publisher page](https://www.microsoft.com/en-us/research/publication/use-of-relative-code-churn-measures-to-predict-system-defect-density/)
 - Nagappan, Murphy and Basili 2008, "The influence of organizational structure on software quality", ICSE. [DOI](https://doi.org/10.1145/1368088.1368160)
 - Bird, Nagappan, Murphy, Gall and Devanbu 2011, "Don't touch my code! Examining the effects of ownership on software quality", FSE. [Publisher page](https://www.microsoft.com/en-us/research/publication/dont-touch-my-code-examining-the-effects-of-ownership-on-software-quality/)
-- Kamei, Shihab, Adams, Hassan, Mockus, Sinha and Ubayashi 2013, "A large-scale empirical study of just-in-time quality assurance", IEEE Transactions on Software Engineering 39(6). [DOI](https://doi.org/10.1109/TSE.2012.70), [author PDF](https://posl.ait.kyushu-u.ac.jp/~kamei/publications/Kamei_TSE2013.pdf)
-- McIntosh and Kamei 2018, "Are fix-inducing changes a moving target? A longitudinal case study of just-in-time defect prediction", IEEE Transactions on Software Engineering 44(5). [DOI](https://doi.org/10.1109/TSE.2017.2693980)
+- Kamei, Shihab, Adams, Hassan, Mockus, Sinha and Ubayashi 2013, "A large-scale empirical study of just-in-time quality assurance", IEEE Transactions on Software Engineering. [DOI](https://doi.org/10.1109/TSE.2012.70), [author PDF](https://posl.ait.kyushu-u.ac.jp/~kamei/publications/Kamei_TSE2013.pdf)
+- McIntosh and Kamei 2018, "Are fix-inducing changes a moving target? A longitudinal case study of just-in-time defect prediction", IEEE Transactions on Software Engineering. [DOI](https://doi.org/10.1109/TSE.2017.2693980)
 - Hoang, Dam, Kamei, Lo and Ubayashi 2019, "DeepJIT: an end-to-end deep learning framework for just-in-time defect prediction", MSR. [DOI](https://doi.org/10.1109/MSR.2019.00016)
 - Hoang, Kang, Lo and Lawall 2020, "CC2Vec: distributed representations of code changes", ICSE. [arXiv 2003.05620](https://arxiv.org/abs/2003.05620)
 - Zeng, Zhang, Zhang and Zhang 2021, "Deep just-in-time defect prediction: how far are we?", ISSTA. [DOI](https://doi.org/10.1145/3460319.3464819)
@@ -198,7 +198,7 @@ Every source the sections above draw on, with a link the reader can open. Prepri
 - Cerny et al. 2025 and Lercher et al. 2023, on change impact across microservices. [arXiv 2501.11778](https://arxiv.org/abs/2501.11778), [arXiv 2311.08175](https://arxiv.org/abs/2311.08175)
 - 2025 industrial study on slice-based review context, reported by the survey. [arXiv 2505.17928](https://arxiv.org/abs/2505.17928)
 
-### Organisations and operations, section 4
+### Organisations and operations
 
 - Winters, Manshreck and Wright, "Software Engineering at Google", the code review chapter. [Online text](https://abseil.io/resources/swe-book/html/ch09.html)
 - Beyer et al., "Site Reliability Engineering", the introduction and the release engineering chapter. [Introduction](https://sre.google/sre-book/introduction/), [Release engineering](https://sre.google/sre-book/release-engineering/)
@@ -216,7 +216,7 @@ Every source the sections above draw on, with a link the reader can open. Prepri
 - DORA, the four key metrics guide and the 2024 Accelerate State of DevOps report. [Guide](https://dora.dev/guides/dora-metrics-four-keys/), [Reports](https://dora.dev/research/)
 - AWS Well-Architected Framework, the reliability pillar. [Documentation](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/welcome.html)
 
-### Deterministic tools, section 5
+### Deterministic tools
 
 - Structure and reach: [GumTree](https://github.com/GumTreeDiff/gumtree), [difftastic](https://github.com/Wilfred/difftastic), [tree-sitter](https://github.com/tree-sitter/tree-sitter), [Bazel](https://bazel.build/), [Nx](https://github.com/nrwl/nx), [moon](https://github.com/moonrepo/moon), [Turborepo](https://github.com/vercel/turborepo), [Pants](https://github.com/pantsbuild/pants)
 - Public contracts: [cargo-semver-checks](https://github.com/obi1kenobi/cargo-semver-checks), [japicmp](https://github.com/siom79/japicmp), [revapi](https://github.com/revapi/revapi), [.NET package validation](https://learn.microsoft.com/en-us/dotnet/fundamentals/apicompat/package-validation/overview), [API Extractor](https://github.com/microsoft/rushstack), [apidiff](https://pkg.go.dev/golang.org/x/exp/cmd/apidiff), [griffe](https://github.com/mkdocstrings/griffe), [dart_apitool](https://github.com/bmw-tech/dart_apitool), [binary-compatibility-validator](https://github.com/Kotlin/binary-compatibility-validator), [buf](https://github.com/bufbuild/buf), [oasdiff](https://github.com/oasdiff/oasdiff), [GraphQL Inspector](https://github.com/graphql-hive/graphql-inspector), [Pact](https://docs.pact.io/)
@@ -227,7 +227,7 @@ Every source the sections above draw on, with a link the reader can open. Prepri
 - Sensitive content: [gitleaks](https://github.com/gitleaks/gitleaks), [trufflehog](https://github.com/trufflesecurity/trufflehog), [Presidio](https://github.com/microsoft/presidio), [osv-scanner](https://github.com/google/osv-scanner), [cargo-deny](https://github.com/EmbarkStudios/cargo-deny)
 - Churn: [code-maat](https://github.com/adamtornhill/code-maat)
 
-### Models, section 6
+### Models
 
 - Products checked: [CodeRabbit](https://www.coderabbit.ai/blog/coderabbit-triage), [PR-Agent](https://github.com/qodo-ai/pr-agent), [Greptile](https://www.greptile.com), [Bito](https://bito.ai/ai-code-review-agent/), [Ellipsis](https://www.ellipsis.dev/), [Sourcery](https://sourcery.ai/), [GitHub Copilot code review](https://docs.github.com/en/copilot/using-github-copilot/code-review/using-copilot-code-review), [GitLab Duo](https://docs.gitlab.com/user/duo_agent_platform/), [Atlassian Rovo](https://www.atlassian.com/software/rovo), [Cursor Bugbot](https://cursor.com/bugbot), [Graphite](https://graphite.com/features/reviewer)
 - Diff risk score from attention, 2026, reported by the survey and not opened by this author. [arXiv 2607.02782](https://arxiv.org/abs/2607.02782)
@@ -241,7 +241,7 @@ Every source the sections above draw on, with a link the reader can open. Prepri
 - Own-history labelling study, reported by the survey. [arXiv 2411.05230](https://arxiv.org/abs/2411.05230)
 - Local inference runtimes: [llama.cpp](https://github.com/ggml-org/llama.cpp), [Ollama](https://ollama.com/library/llama3.2), [candle](https://github.com/huggingface/candle)
 
-### Standards and rules, section 7
+### Standards and rules
 
 - Safety: [ISO 26262](https://en.wikipedia.org/wiki/ISO_26262), [DO-178C](https://en.wikipedia.org/wiki/DO-178C), [IEC 62304](https://en.wikipedia.org/wiki/IEC_62304), [FDA guidance on software changes to a marketed device](https://www.fda.gov/media/99785/download)
 - Finance and payment: [SEC release 33-8238 on SOX section 404](https://www.sec.gov/rule-release/33-8238), [COBIT](https://www.isaca.org/resources/cobit), [PCI DSS document library](https://www.pcisecuritystandards.org/document_library/)

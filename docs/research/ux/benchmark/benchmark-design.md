@@ -48,7 +48,7 @@ The calibration validates the benchmark rather than declaring a final winner. If
 
 ### Stage 2: promotion
 
-After sufficient Stage 1 evidence, select the strongest workflow and strongest product direction independently. The promotion pass:
+After sufficient frozen-evaluation evidence, select the strongest workflow and strongest product direction independently. The promotion pass:
 
 - applies the direction to a higher-scale Factory Floor with additional overlays and concurrent workstreams;
 - expands the Flight Recorder across incident response and ordinary feature delivery;

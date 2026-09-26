@@ -214,7 +214,7 @@ The user should be able to select unusual populations, compare cohorts, pivot by
 
 Example investigations:
 
-- Why did review rework rise this week?
+- Why did review rework rise recently?
 - Which prompts produce the most escaped defects?
 - Which skills correlate with shorter successful runs?
 - Does Model A outperform Model B for Rust but not TypeScript?

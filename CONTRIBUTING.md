@@ -96,7 +96,7 @@ Do one of these two. The first is enough for most contributors.
 Accept once. It covers every change you send afterwards.
 
 If you write code as part of a job, your employer may own what you write.
-Check before you accept, because clause 4 of the agreement asks you to state
+Check before you accept, because [clause 4](CLA.md) of the agreement asks you to state
 that you have the right to grant the licence.
 
 ## Licence
