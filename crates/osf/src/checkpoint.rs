@@ -458,7 +458,7 @@ fn findings_from_sarif(
                 .collect();
             (count, None, error_lines, word)
         }
-        SarifOutcome::Missing if status == TaskStatus::Failed => {
+        SarifOutcome::Missing if status == TaskStatus::Failed || status == TaskStatus::NotRun => {
             let reason = format!("no findings file: {}", sarif_rel_label(target));
             (0, Some(reason), Vec::new(), "findings unknown".to_string())
         }
@@ -479,15 +479,21 @@ fn task_line(root: &Path, task: &moon::TaskOutcome) -> TaskLine {
     let result = match task.status {
         TaskStatus::Passed => CheckResult::Passed,
         TaskStatus::Failed => CheckResult::Failed,
-        TaskStatus::Skipped => CheckResult::Skipped,
+        TaskStatus::Skipped | TaskStatus::NotRun => CheckResult::Skipped,
     };
-    let (findings_count, reason, findings, findings_word) =
+    let (findings_count, sarif_reason, findings, findings_word) =
         findings_from_sarif(root, &task.target, task.status);
+    // Moon's own reason — why it failed a task, or which sibling's
+    // failure stopped it before this one ran — always wins over a
+    // SARIF-file-shaped reason: it names the real cause, not just the
+    // absence of a file that was never going to be written.
+    let reason = task.reason.clone().or(sarif_reason);
     let cache = if task.cached { "hit" } else { "miss" };
     let word = match task.status {
         TaskStatus::Passed => "passed",
         TaskStatus::Failed => "failed",
         TaskStatus::Skipped => "skipped",
+        TaskStatus::NotRun => "not run",
     };
     let line = format!(
         "{}: {word} ({findings_word}, {}ms, cache {cache})",
@@ -1046,6 +1052,7 @@ mod tests {
             duration_ms: 1,
             cached: false,
             invalid,
+            reason: None,
         }
     }
 
@@ -1220,5 +1227,52 @@ mod tests {
             64,
             "a SHA-256 hex digest is 64 hex characters"
         );
+    }
+
+    /// A task moon's own action failed (exited 0 but left a declared
+    /// output missing, say) is reported failed with moon's own reason, not
+    /// a generic "no findings file" reason and not passed.
+    #[test]
+    fn a_task_moon_failed_is_reported_failed_with_moons_own_reason() {
+        let root = TempDir::new("osf-checkpoint-task-line-failed");
+        let outcome = TaskOutcome {
+            target: "osf:review".to_string(),
+            status: TaskStatus::Failed,
+            duration_ms: 76,
+            cached: false,
+            invalid: false,
+            reason: Some(
+                "Task osf:review defines outputs but after being ran, either none or not all \
+                 of them exist."
+                    .to_string(),
+            ),
+        };
+        let line = task_line(&root, &outcome);
+        assert_eq!(line.result, CheckResult::Failed);
+        assert!(line.line.contains("failed"), "{}", line.line);
+        let reason = line.reason.expect("a reason");
+        assert!(reason.contains("defines outputs"), "{reason}");
+    }
+
+    /// A sibling moon never started because an earlier task in the same
+    /// run failed is reported not run, naming that task — never a failure
+    /// with no reason.
+    #[test]
+    fn a_sibling_moon_never_started_is_reported_not_run_with_a_named_reason() {
+        let root = TempDir::new("osf-checkpoint-task-line-not-run");
+        let outcome = TaskOutcome {
+            target: "osf:scan-commits".to_string(),
+            status: TaskStatus::NotRun,
+            duration_ms: 0,
+            cached: false,
+            invalid: false,
+            reason: Some("moon stopped the run after osf:review failed".to_string()),
+        };
+        let line = task_line(&root, &outcome);
+        assert_eq!(line.result, CheckResult::Skipped);
+        assert!(line.line.contains("not run"), "{}", line.line);
+        assert!(!line.line.contains("failed"), "{}", line.line);
+        let reason = line.reason.expect("a reason");
+        assert!(reason.contains("osf:review"), "{reason}");
     }
 }
