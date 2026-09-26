@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -15,6 +16,8 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub enum Payload {
     Verification(Verification),
     CheckpointComplete(CheckpointComplete),
+    ReviewAnswer(ReviewAnswer),
+    ReviewDecision(ReviewDecision),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -46,6 +49,35 @@ pub struct CheckpointComplete {
     pub commit: Option<String>,
     pub result: CheckResult,
     pub checks: u32,
+}
+
+/// One reviewer's outcome for one lens: its own scores and findings, or the
+/// reason it counts as missing.
+///
+/// `transcript` is a path or nothing, never a prompt or a raw answer: the
+/// journal carries no secret text, and a prompt is already redacted by
+/// `review_context` before any reviewer ever sees it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ReviewAnswer {
+    pub lens: String,
+    pub reviewer: String,
+    pub family: String,
+    pub result: String,
+    pub scores: BTreeMap<String, f64>,
+    pub findings_kept: u32,
+    pub findings_dropped: u32,
+    pub transcript: Option<String>,
+    pub reason: Option<String>,
+}
+
+/// The whole review's verdict, with each lens's own outcome alongside the
+/// weighted score that decided it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ReviewDecision {
+    pub verdict: String,
+    pub lenses: Vec<(String, String)>,
+    pub score: f64,
+    pub threshold: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
