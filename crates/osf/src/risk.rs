@@ -55,9 +55,17 @@ pub struct Report {
     pub lines: usize,
     pub base: String,
     pub head: String,
+    signal_list: Vec<String>,
 }
 
 impl Report {
+    /// The review-lens trigger signals this change earns, by the same exact
+    /// strings a lens's `[trigger] signals` names, in a fixed order.
+    #[must_use]
+    pub fn signals(&self) -> Vec<String> {
+        self.signal_list.clone()
+    }
+
     #[must_use]
     pub fn render_human(&self) -> String {
         use std::fmt::Write as _;
@@ -67,6 +75,9 @@ impl Report {
         }
         for axis in &self.axes_add {
             writeln!(out, "axis-add: {}", axis.as_str()).expect("writing to a string never fails");
+        }
+        for signal in &self.signal_list {
+            writeln!(out, "signal: {signal}").expect("writing to a string never fails");
         }
         writeln!(out, "files: {}", self.files).expect("writing to a string never fails");
         writeln!(out, "lines: {}", self.lines).expect("writing to a string never fails");
@@ -81,6 +92,7 @@ impl Report {
             "tier": self.tier.as_str(),
             "reasons": self.reasons,
             "axes_add": self.axes_add.iter().map(|a| a.as_str()).collect::<Vec<_>>(),
+            "signals": self.signal_list,
             "files": self.files,
             "lines": self.lines,
             "base": self.base,
@@ -124,6 +136,25 @@ const TEST_FILES: &str = r"(^|/)(tests?|spec|specs|__tests__|test_data|fixtures)
 const UI_PATTERN: &str = r"\.(dart|tsx|jsx|vue|svelte|xaml|razor|html|css|scss)$|(^|/)(screens?|widgets?|pages?|views?|components?)/";
 const DOCS_PATTERN: &str = r"^docs/|(^|/)(adr|decisions|design)/.*\.md$";
 const DEPS_PATTERN: &str = r"(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|packages\.lock\.json|Directory\.Packages\.props|.*\.csproj|build\.gradle(\.kts)?|gradle\.lockfile|libs\.versions\.toml|pubspec\.(yaml|lock)|pyproject\.toml|uv\.lock|requirements[^/]*\.txt|Cargo\.(toml|lock)|go\.(mod|sum))$";
+
+/// A path that spends money to run: infrastructure-as-code.
+const COST_PATTERN: &str = r"\.(tf|bicep)$|(^|/)infra/";
+/// A path that draws a module or crate boundary.
+const MODULE_PATTERN: &str = r"(^|/)(mod|lib)\.rs$";
+/// A manifest that names a project's own dependencies.
+const MANIFEST_PATTERN: &str = r"(^|/)Cargo\.toml$|\.csproj$";
+/// A path where a change reaches a caller outside this codebase.
+const INTERFACE_PATTERN: &str = r"(^|/)api/|\.proto$|(^|/)openapi/|\.graphql$";
+/// A query file, whose cost scales with the data it reads.
+const PERFORMANCE_VOLUME_PATTERN: &str = r"\.sql$";
+/// A benchmark or a loop: a path a request runs through often.
+const PERFORMANCE_TRAFFIC_PATTERN: &str = r"(^|/)benches?/|loop";
+/// A path naming a thread, an async task or a lock.
+const CONCURRENCY_PATTERN: &str = r"thread|async|lock";
+/// A path naming a retry or a circuit breaker: a call to something outside this process.
+const RELIABILITY_PATTERN: &str = r"(^|/)retry/|circuit";
+/// A path under a shared helper or utility directory.
+const HELPER_PATTERN: &str = r"(^|/)(helpers?|utils?)/";
 
 /// Compiles a pattern this module owns: a bug that stops it compiling is
 /// caught by the test suite, never by a person running the command.
@@ -337,6 +368,80 @@ fn axes_for(files: &[&str]) -> Vec<Axis> {
     axes
 }
 
+/// Whether two changed files share a base name, the cheap sign of logic
+/// copied from one file into another rather than reused.
+fn repeated_logic(files: &[&str]) -> bool {
+    let mut names: Vec<&str> = files
+        .iter()
+        .map(|f| f.rsplit('/').next().unwrap_or(f))
+        .collect();
+    names.sort_unstable();
+    names.windows(2).any(|pair| pair.first() == pair.get(1))
+}
+
+/// The review-lens trigger signals a change earns, in a fixed order,
+/// whatever tier it landed on: the counterpart to [`axes_for`], but naming
+/// the exact strings a lens's `[trigger] signals` list matches against,
+/// rather than the three built-in axes.
+fn signals_for(files: &[&str], untracked: &[String]) -> Vec<String> {
+    let ui = built_in(UI_PATTERN);
+    let deps = built_in(DEPS_PATTERN);
+    let docs = built_in(DOCS_PATTERN);
+    let cost = built_in(COST_PATTERN);
+    let module = built_in(MODULE_PATTERN);
+    let manifest = built_in(MANIFEST_PATTERN);
+    let interface = built_in(INTERFACE_PATTERN);
+    let perf_volume = built_in(PERFORMANCE_VOLUME_PATTERN);
+    let perf_traffic = built_in(PERFORMANCE_TRAFFIC_PATTERN);
+    let concurrency = built_in(CONCURRENCY_PATTERN);
+    let reliability = built_in(RELIABILITY_PATTERN);
+    let helper = built_in(HELPER_PATTERN);
+
+    let mut signals = Vec::new();
+    let mut add = |earned: bool, name: &str| {
+        if earned {
+            signals.push(name.to_string());
+        }
+    };
+
+    add(files.iter().any(|f| ui.is_match(f)), "user-visible change");
+    add(files.iter().any(|f| deps.is_match(f)), "dependency delta");
+    add(
+        files.iter().any(|f| docs.is_match(f)),
+        "new-decision-record",
+    );
+    add(files.iter().any(|f| cost.is_match(f)), "cost");
+    add(files.iter().any(|f| module.is_match(f)), "new-module");
+    add(files.iter().any(|f| manifest.is_match(f)), "new-dependency");
+    add(
+        files.iter().any(|f| interface.is_match(f)),
+        "public surface",
+    );
+    add(
+        files.iter().any(|f| interface.is_match(f)),
+        "external interface",
+    );
+    add(
+        files.iter().any(|f| perf_volume.is_match(f)),
+        "performance and data volume",
+    );
+    add(
+        files.iter().any(|f| perf_traffic.is_match(f)),
+        "high-traffic path",
+    );
+    add(files.iter().any(|f| concurrency.is_match(f)), "concurrency");
+    add(
+        files.iter().any(|f| reliability.is_match(f)),
+        "external-call",
+    );
+    add(files.iter().any(|f| reliability.is_match(f)), "timeout");
+    add(files.iter().any(|f| helper.is_match(f)), "new-helper");
+    add(!untracked.is_empty(), "new-file");
+    add(repeated_logic(files), "repeated-logic");
+
+    signals
+}
+
 /// Assesses the blast radius of the change between `base` and the working
 /// tree in `dir`: every commit since their merge base, plus anything
 /// uncommitted, plus anything untracked.
@@ -366,6 +471,7 @@ pub fn assess(dir: &Path, base: &str) -> Result<Report, String> {
     let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
     let (tier, reasons) = tier_for(&file_refs, files.len(), line_count, &high);
     let axes_add = axes_for(&file_refs);
+    let signal_list = signals_for(&file_refs, &untracked);
 
     Ok(Report {
         tier,
@@ -375,6 +481,7 @@ pub fn assess(dir: &Path, base: &str) -> Result<Report, String> {
         lines: line_count,
         base: base.to_string(),
         head,
+        signal_list,
     })
 }
 
@@ -398,5 +505,60 @@ mod tests {
     fn sum_numstat_skips_binary_markers() {
         let raw = vec!["3\t2\ta.txt".to_string(), "-\t-\tbinary.png".to_string()];
         assert_eq!(sum_numstat(&raw), 5);
+    }
+
+    #[test]
+    fn an_unrelated_file_earns_no_signal() {
+        assert!(signals_for(&["README.md"], &[]).is_empty());
+    }
+
+    #[test]
+    fn two_files_sharing_a_name_earn_the_repeated_logic_signal() {
+        let signals = signals_for(&["src/a/parser.rs", "src/b/parser.rs"], &[]);
+        assert!(
+            signals.contains(&"repeated-logic".to_string()),
+            "{signals:?}"
+        );
+    }
+
+    #[test]
+    fn an_untracked_file_earns_the_new_file_signal() {
+        let untracked = vec!["src/new.rs".to_string()];
+        let signals = signals_for(&["src/new.rs"], &untracked);
+        assert!(signals.contains(&"new-file".to_string()), "{signals:?}");
+    }
+
+    #[test]
+    fn every_triggered_lens_signal_can_be_emitted_by_signals_for() {
+        let root = crate::test_support::TempDir::new("osf-risk-signals-catalogue");
+        let catalogue = crate::lenses::load(&root, None).expect("loads");
+        let files = vec![
+            "lib/screens/home.dart",
+            "package.json",
+            "docs/architecture/0001-decision.md",
+            "infra/main.tf",
+            "crates/osf/src/mod.rs",
+            "Cargo.toml",
+            "src/api/handlers.rs",
+            "reports/query.sql",
+            "benches/bench_loop.rs",
+            "src/worker/thread_pool.rs",
+            "src/net/retry/backoff.rs",
+            "src/utils/format.rs",
+            "src/a/parser.rs",
+            "src/b/parser.rs",
+        ];
+        let untracked = vec!["new/file.rs".to_string()];
+        let emitted = signals_for(&files, &untracked);
+
+        for lens in &catalogue.lenses {
+            for signal in &lens.trigger.signals {
+                assert!(
+                    emitted.contains(signal),
+                    "{} names the trigger signal '{signal}', which risk::signals_for never emits",
+                    lens.name
+                );
+            }
+        }
     }
 }

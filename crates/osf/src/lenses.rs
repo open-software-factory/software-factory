@@ -1,5 +1,6 @@
 //! The review lens catalogue: the shipped lenses, the organisation's, and the repository's `.osf/review-lenses/`, one lens per area a reviewer judges.
 
+use crate::risk;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -227,6 +228,96 @@ fn forward_slash(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+/// One lens selected for a change, and the rule that selected it.
+pub struct Selected<'a> {
+    pub lens: &'a Lens,
+    pub reason: String,
+}
+
+/// How far a lens's context reaches beyond the diff, set by the change's tier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Depth {
+    Diff,
+    DiffAndCallers,
+    Module,
+}
+
+/// The context depth a tier earns: a low-tier change reviews the diff
+/// alone, a normal one adds the diff's callers, a high one adds every file
+/// in each changed file's own module.
+#[must_use]
+pub fn depth(tier: risk::Tier) -> Depth {
+    match tier {
+        risk::Tier::Low => Depth::Diff,
+        risk::Tier::Normal => Depth::DiffAndCallers,
+        risk::Tier::High => Depth::Module,
+    }
+}
+
+/// The lenses a change selects, in catalogue order, each paired with the
+/// rule that selected it.
+///
+/// A lens is selected when it runs on every change; when it runs on every
+/// change at the high tier and the tier is high; when a changed path
+/// matches one of its trigger globs; or when a signal the change earned
+/// matches one of its trigger signals.
+#[must_use]
+pub fn select<'a>(
+    catalogue: &'a Catalogue,
+    changed: &[String],
+    signals: &[String],
+    tier: risk::Tier,
+) -> Vec<Selected<'a>> {
+    catalogue
+        .lenses
+        .iter()
+        .filter_map(|lens| {
+            selection_reason(lens, changed, signals, tier).map(|reason| Selected { lens, reason })
+        })
+        .collect()
+}
+
+/// Why `lens` is selected for this change, or `None` when nothing about it selects the lens.
+fn selection_reason(
+    lens: &Lens,
+    changed: &[String],
+    signals: &[String],
+    tier: risk::Tier,
+) -> Option<String> {
+    if lens.runs == Runs::Always {
+        return Some("runs on every change".to_string());
+    }
+    if lens.runs == Runs::AlwaysAtHighTier && tier == risk::Tier::High {
+        return Some("runs on every change at the high tier".to_string());
+    }
+    if let Some(pattern) = matching_path(&lens.trigger.paths, changed) {
+        return Some(format!("path trigger: {pattern}"));
+    }
+    if let Some(signal) = matching_signal(&lens.trigger.signals, signals) {
+        return Some(format!("signal trigger: {signal}"));
+    }
+    None
+}
+
+/// The first trigger glob among `patterns` that matches a path in `changed`, if any.
+fn matching_path<'a>(patterns: &'a [String], changed: &[String]) -> Option<&'a str> {
+    patterns.iter().find_map(|pattern| {
+        let matcher = globset::Glob::new(pattern).ok()?.compile_matcher();
+        changed
+            .iter()
+            .any(|path| matcher.is_match(path.replace('\\', "/")))
+            .then_some(pattern.as_str())
+    })
+}
+
+/// The first trigger signal among `trigger_signals` that the change also earned, if any.
+fn matching_signal<'a>(trigger_signals: &'a [String], earned: &[String]) -> Option<&'a str> {
+    trigger_signals
+        .iter()
+        .find(|signal| earned.contains(*signal))
+        .map(String::as_str)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -357,5 +448,106 @@ mod tests {
             .find(|(name, _)| name == "health-data")
             .map(|(_, source)| source.as_str());
         assert_eq!(org_source, Some("health-data.toml"));
+    }
+
+    #[test]
+    fn an_untriggered_change_still_runs_the_six_must_run_lenses() {
+        let root = temp_root("select-none");
+        let c = load(&root, None).expect("loads");
+        let s = select(&c, &["assets/logo.png".to_string()], &[], risk::Tier::Low);
+        let names: Vec<&str> = s.iter().map(|x| x.lens.name.as_str()).collect();
+        assert_eq!(names.len(), 6, "{names:?}");
+        assert!(names.contains(&"privacy-and-data-protection"));
+    }
+
+    #[test]
+    fn a_low_tier_change_to_a_migration_runs_the_data_migration_lens_by_trigger() {
+        let root = temp_root("select-migration");
+        let c = load(&root, None).expect("loads");
+        let s = select(
+            &c,
+            &["migrations/0003_add_column.sql".to_string()],
+            &["stored-data".to_string()],
+            risk::Tier::Low,
+        );
+        assert!(s
+            .iter()
+            .any(|x| x.lens.name == "data-migration-and-compatibility"));
+    }
+
+    #[test]
+    fn the_high_tier_adds_architecture_and_duplication() {
+        let root = temp_root("select-high");
+        let c = load(&root, None).expect("loads");
+        let s = select(&c, &["README.md".to_string()], &[], risk::Tier::High);
+        assert!(s.iter().any(|x| x.lens.name == "architecture-adherence"));
+        assert!(s.iter().any(|x| x.lens.name == "duplication-and-reuse"));
+    }
+
+    #[test]
+    fn architecture_and_duplication_do_not_run_at_low_tier_without_a_trigger() {
+        let root = temp_root("select-low-no-trigger");
+        let c = load(&root, None).expect("loads");
+        let s = select(&c, &["README.md".to_string()], &[], risk::Tier::Low);
+        assert!(!s.iter().any(|x| x.lens.name == "architecture-adherence"));
+        assert!(!s.iter().any(|x| x.lens.name == "duplication-and-reuse"));
+    }
+
+    #[test]
+    fn architecture_and_duplication_run_at_low_tier_when_triggered() {
+        let root = temp_root("select-low-triggered");
+        let c = load(&root, None).expect("loads");
+        let s = select(
+            &c,
+            &["crates/osf/src/lib.rs".to_string()],
+            &["repeated-logic".to_string()],
+            risk::Tier::Low,
+        );
+        assert!(
+            s.iter().any(|x| x.lens.name == "architecture-adherence"),
+            "lib.rs should path-trigger architecture-adherence"
+        );
+        assert!(
+            s.iter().any(|x| x.lens.name == "duplication-and-reuse"),
+            "the repeated-logic signal should trigger duplication-and-reuse"
+        );
+    }
+
+    #[test]
+    fn depth_follows_the_tier() {
+        assert_eq!(depth(risk::Tier::Low), Depth::Diff);
+        assert_eq!(depth(risk::Tier::Normal), Depth::DiffAndCallers);
+        assert_eq!(depth(risk::Tier::High), Depth::Module);
+    }
+
+    #[test]
+    fn an_interface_source_file_selects_internationalisation() {
+        let root = temp_root("select-i18n");
+        let c = load(&root, None).expect("loads");
+        let s = select(
+            &c,
+            &["lib/screens/checkout.dart".to_string()],
+            &[],
+            risk::Tier::Low,
+        );
+        assert!(s.iter().any(|x| x.lens.name == "internationalisation"));
+    }
+
+    #[test]
+    fn accessibility_and_user_visible_change_select_independently() {
+        let root = temp_root("select-independent");
+        let c = load(&root, None).expect("loads");
+
+        let html_only = select(&c, &["app/widget.html".to_string()], &[], risk::Tier::Low);
+        assert!(html_only.iter().any(|x| x.lens.name == "accessibility"));
+        assert!(!html_only
+            .iter()
+            .any(|x| x.lens.name == "user-visible-change"));
+
+        let ui_dir_only = select(&c, &["app/ui/logo.png".to_string()], &[], risk::Tier::Low);
+        assert!(ui_dir_only
+            .iter()
+            .any(|x| x.lens.name == "user-visible-change"));
+        assert!(!ui_dir_only.iter().any(|x| x.lens.name == "accessibility"));
     }
 }
