@@ -8,7 +8,10 @@
 //! for that lens, and the run moves on to the next roster entry;
 //! could-not-run never passes. Nothing journalled here carries a prompt or
 //! a raw answer: `review_context` has already redacted the prompt, and
-//! `transcript` is a path or nothing, never the text itself.
+//! `transcript` is a path or nothing, never the text itself. A verified
+//! finding's own quote and body are reviewer-written text too, so both are
+//! redacted the same way before they ever leave this module, whether they
+//! end up in SARIF, a printed line, or a later posted review.
 
 use crate::answer::AnswerFinding;
 use crate::journal::{Journal, Payload, ReviewAnswer, ReviewDecision};
@@ -260,7 +263,13 @@ fn attempt_reviewer(
             let checked = quotes::check(root, answer);
             let findings_kept = as_u32(checked.kept.findings().len());
             let findings_dropped = as_u32(checked.dropped.len());
-            let kept = checked.kept.findings().to_vec();
+            let kept = checked
+                .kept
+                .findings()
+                .iter()
+                .cloned()
+                .map(|finding| redact_finding(root, finding))
+                .collect();
             Attempt {
                 lens_answer: LensAnswer {
                     reviewer: reviewer.name.clone(),
@@ -299,6 +308,33 @@ fn attempt_reviewer(
             kept: Vec::new(),
         },
     }
+}
+
+/// `finding`, with its quote and body redacted the same way
+/// [`review_context::build`] redacts a prompt: a verified quote is real
+/// text the reviewer copied out of the repository, and a finding's body is
+/// the reviewer's own unverified prose, so neither is trusted just because
+/// the finding survived quote verification.
+///
+/// Falls back to a fixed placeholder, never the original text, if the
+/// redaction rules themselves cannot be built; in practice this never
+/// happens here, because [`review_context::build`] already built them once
+/// for this same lens before any reviewer was ever asked.
+fn redact_finding(root: &Path, finding: AnswerFinding) -> AnswerFinding {
+    AnswerFinding {
+        quote: redact_reviewer_text(root, &finding.quote),
+        body: redact_reviewer_text(root, &finding.body),
+        ..finding
+    }
+}
+
+/// `text`, redacted through [`review_context::redact_secrets`], the same
+/// function a reviewer's own prompt is redacted through.
+fn redact_reviewer_text(root: &Path, text: &str) -> String {
+    review_context::redact_secrets(root, text).map_or_else(
+        |_| "[could not verify this text is safe to show]".to_string(),
+        |(redacted, _)| redacted,
+    )
 }
 
 /// The full prompt sent to a reviewer for `lens`: its own questions and

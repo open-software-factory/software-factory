@@ -603,11 +603,16 @@ fn scan_config(root: &Path) -> ScanConfig {
 /// name, a secret shape, or a private-key line) has its whole line
 /// replaced; every other rule replaces only the text it matched.
 ///
+/// Crate-visible so every other place a reviewer's own text leaves osf (a
+/// verified finding's quote and body, a printed line, a later posted
+/// review) redacts it the same way a prompt is redacted here, through this
+/// one function.
+///
 /// # Errors
 /// Returns an error if a configured denylist pattern or session link prefix
 /// is not valid: a context this module cannot trust to be scanned must
 /// never be sent unredacted instead.
-fn redact_secrets(root: &Path, text: &str) -> Result<(String, usize), String> {
+pub(crate) fn redact_secrets(root: &Path, text: &str) -> Result<(String, usize), String> {
     let cfg = scan_config(root);
     let rules = crate::scan::Rules::build(root, &cfg)?;
     let findings = rules.scan_text(text, osf_lint_core::Context::Document);

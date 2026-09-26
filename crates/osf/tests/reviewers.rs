@@ -285,6 +285,36 @@ fn a_codex_style_plain_answer_needs_no_envelope_pointer() {
     });
 }
 
+/// A 1 MB prompt is well over an OS pipe's own buffer, so the write blocks
+/// until something drains it or closes the pipe. This harness never reads
+/// its own stdin and (with no sleep configured) runs to completion at
+/// once, closing its end of the pipe while the write is still blocked: the
+/// write then fails with a broken-pipe error every time, by the pipe's own
+/// buffering, not by chance of scheduling. That failure alone used to be
+/// treated as could-not-run even though the harness answered correctly;
+/// under real load, the same failure could also happen with a small
+/// prompt, whenever the harness happened to exit before the write started.
+#[test]
+fn a_harness_that_never_reads_a_large_prompt_and_exits_at_once_is_still_answered() {
+    let answer_path = fixture("valid.json");
+    let big_prompt = "x".repeat(1024 * 1024);
+    serial(&[("OSF_FAKE_ANSWER", &answer_path)], || {
+        let workdir = TempDir::new("osf-reviewers-broken-pipe-answered");
+        let outcome = run_one(
+            &fake_reviewer(),
+            &big_prompt,
+            &test_lens(),
+            &workdir,
+            Duration::from_secs(10),
+        );
+        match outcome {
+            Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
+            Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+            Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+        }
+    });
+}
+
 /// Claude Code's real shape with `--output-format json` and `--json-schema`:
 /// the schema-matching answer is nested under the envelope's own
 /// `structured_output` field, alongside session metadata and cost.

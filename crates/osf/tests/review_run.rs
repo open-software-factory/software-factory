@@ -508,6 +508,45 @@ fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
 }
 
 #[test]
+fn a_secret_in_a_verified_findings_body_is_redacted_in_sarif() {
+    let secret = common::fake_provider_key("sk-");
+    let payload = serde_json::json!({
+        "lens": "correctness",
+        "scores": {"c1": 0.9, "c2": 0.9},
+        "findings": [{
+            "path": "src/lib.rs",
+            "line": 2,
+            "quote": "fn broken() {}",
+            "severity": "minor",
+            "action": "justify",
+            "body": secret
+        }]
+    })
+    .to_string();
+    let payloads = TempDir::new("review-run-secret-body-payload");
+    let answer_path = write_answer_file(&payloads, "answer.json", &payload);
+    let osf_toml = roster_entry_toml("fake-a", "family-a", &answer_path, true);
+    let repo = review_repo("secret-body", &osf_toml);
+    let home = common::isolated_home("review-run-secret-body");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+    let sarif = std::fs::read_to_string(&sarif_out).expect("sarif file reads");
+    assert!(sarif.contains("redacted"), "{sarif}");
+}
+
+#[test]
 fn a_secret_as_the_answers_lens_field_never_reaches_the_journal_or_output() {
     let secret = common::fake_provider_key("sk-");
     let payload = serde_json::json!({

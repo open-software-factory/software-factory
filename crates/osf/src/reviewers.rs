@@ -265,7 +265,13 @@ fn run_child(
         }
     };
 
-    let stdin_result = stdin_writer.map(|h| {
+    // Joined so the writer thread always finishes cleanly, but never
+    // inspected: a harness that exits before reading the whole prompt (or
+    // never reads it at all, the way this crate's own fake harness does)
+    // closes its end of the pipe under it, and a broken-pipe write error
+    // from that is not a sign the harness failed. Its own exit status,
+    // checked below, is the only thing that decides that.
+    let _stdin_result = stdin_writer.map(|h| {
         h.join()
             .unwrap_or_else(|_| Err(std::io::Error::other("the stdin writer thread panicked")))
     });
@@ -279,13 +285,6 @@ fn run_child(
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
     cleanup();
-
-    if let Some(Err(e)) = stdin_result {
-        return Err(format!(
-            "cannot write to reviewer '{}' stdin: {e}",
-            reviewer.name
-        ));
-    }
 
     if !status.success() {
         let code = status
