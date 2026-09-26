@@ -630,6 +630,9 @@ mod tests {
     /// resolves to `dir` from anywhere under it.
     fn init_repo(dir: &Path) {
         let status = std::process::Command::new("git")
+            // A container or a machine may set core.hooksPath system-wide;
+            // this repository is throwaway and must never run real hooks.
+            .env("GIT_CONFIG_NOSYSTEM", "1")
             .arg("init")
             .arg("--quiet")
             .arg(dir)

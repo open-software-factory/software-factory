@@ -2,11 +2,12 @@
 # Honest git wrapper.
 #
 # This is a speed bump, not a seal. It refuses --no-verify and -n on
-# "git commit", and --no-verify on "git push", then explains why. It also
-# refuses a "-c" that sets core.hooksPath, core.fsmonitor, or core.editor,
-# because each of those can run an arbitrary command as part of a commit,
-# checked and confirmed in docs/development.md. It does nothing else that
-# git's own settings cannot already do without it.
+# "git commit", --no-verify on "git push", and every known route to a
+# caller-chosen hooks path, then explains why. It also refuses a "-c"
+# that sets core.hooksPath, core.fsmonitor, or core.editor, because each
+# of those can run an arbitrary command as part of a commit, checked and
+# confirmed in docs/development.md. It does nothing else that git's own
+# settings cannot already do without it.
 #
 # One thing defeats this wrapper, and it cannot stop it: calling the real
 # git binary at its full path, /usr/bin/git.
@@ -20,6 +21,17 @@
 # See docs/development.md.
 
 REAL_GIT="/usr/bin/git"
+HOOKS_DIR="/opt/factory/githooks"
+
+# The workspace mount's root. Overridable with OSF_WORKSPACE_ROOT so a
+# container started with a different bind mount (a wider host folder that
+# holds several worktrees, say) still gets the forced hooks path under
+# it; the default matches devcontainer.json's own workspaceFolder.
+WORKSPACE_ROOT="${OSF_WORKSPACE_ROOT:-/workspace}"
+resolved_root=$(cd "$WORKSPACE_ROOT" 2>/dev/null && pwd -P)
+if [ -n "$resolved_root" ]; then
+  WORKSPACE_ROOT="$resolved_root"
+fi
 
 refuse() {
   flag="$1"
@@ -40,25 +52,54 @@ refuse_option() {
 
 refuse_config() {
   key="$1"
-  echo "git: refused. '-c $key=...' is not allowed for one call." >&2
+  source="$2"
+  echo "git: refused. '$source' sets '$key', which this wrapper does not allow." >&2
   echo "This wrapper blocks core.hooksPath, core.fsmonitor, and core.editor" >&2
   echo "here, because each can run an arbitrary command as part of a commit." >&2
-  echo "Other -c values, such as user.email, are not blocked. See docs/development.md." >&2
+  echo "Other config values, such as user.email, are not blocked. See docs/development.md." >&2
   exit 1
 }
 
-# Checks a "-c" value ("name=value" or a bare "name") against the small
-# set of keys this wrapper does not allow to be set for one call. Git
-# treats a config key's section and name as case-insensitive, so this
-# compares in lower case.
+refuse_env() {
+  name="$1"
+  echo "git: refused. The environment variable '$name' is set." >&2
+  echo "This wrapper blocks the git config environment overrides" >&2
+  echo "(GIT_CONFIG_COUNT, GIT_CONFIG_KEY_*, GIT_CONFIG_VALUE_*," >&2
+  echo "GIT_CONFIG_PARAMETERS, GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM)," >&2
+  echo "because each can set core.hooksPath the same way '-c' can." >&2
+  echo "Unset it and run the command again. See docs/development.md." >&2
+  exit 1
+}
+
+# Checks a "-c" or "--config-env" value ("name=value" or a bare "name")
+# against the small set of keys this wrapper does not allow to be set for
+# one call. Git treats a config key's section and name as
+# case-insensitive, so this compares in lower case.
 check_config_value() {
   key="${1%%=*}"
   key_lc=$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')
+  source="$2"
   case "$key_lc" in
     core.hookspath | core.fsmonitor | core.editor)
-      refuse_config "$key"
+      refuse_config "$key" "$source"
       ;;
   esac
+}
+
+# Refuses every git config environment override this wrapper does not
+# allow, run once before anything else: unlike "-c", these are set on
+# the process environment, so no amount of argument parsing finds them.
+check_config_env_overrides() {
+  [ -n "${GIT_CONFIG_COUNT+x}" ] && refuse_env GIT_CONFIG_COUNT
+  [ -n "${GIT_CONFIG_PARAMETERS+x}" ] && refuse_env GIT_CONFIG_PARAMETERS
+  [ -n "${GIT_CONFIG_GLOBAL+x}" ] && refuse_env GIT_CONFIG_GLOBAL
+  [ -n "${GIT_CONFIG_SYSTEM+x}" ] && refuse_env GIT_CONFIG_SYSTEM
+  for name in $(env | LC_ALL=C sed -n 's/^\(GIT_CONFIG_KEY_[0-9A-Za-z_]*\)=.*/\1/p'); do
+    refuse_env "$name"
+  done
+  for name in $(env | LC_ALL=C sed -n 's/^\(GIT_CONFIG_VALUE_[0-9A-Za-z_]*\)=.*/\1/p'); do
+    refuse_env "$name"
+  done
 }
 
 # Git accepts its own options before the subcommand (commit, push, and so
@@ -73,8 +114,19 @@ find_subcommand() {
         if [ "$#" -lt 2 ]; then
           refuse_option "$1"
         fi
-        check_config_value "$2"
+        check_config_value "$2" "-c $2"
         shift 2
+        ;;
+      --config-env)
+        if [ "$#" -lt 2 ]; then
+          refuse_option "$1"
+        fi
+        check_config_value "$2" "--config-env $2"
+        shift 2
+        ;;
+      --config-env=*)
+        check_config_value "${1#--config-env=}" "$1"
+        shift
         ;;
       -C)
         if [ "$#" -lt 2 ]; then
@@ -91,7 +143,7 @@ find_subcommand() {
       --git-dir=* | --work-tree=* | --namespace=* | --exec-path=*)
         shift
         ;;
-      --exec-path | --no-pager | --paginate | -p | -P | --bare | --literal-pathspecs)
+      --exec-path | --html-path | --version | --help | --no-pager | --paginate | -p | -P | --bare | --literal-pathspecs)
         shift
         ;;
       --)
@@ -113,6 +165,36 @@ find_subcommand() {
   SUB=""
 }
 
+# Where this git call starts looking for a repository, tracking each "-C"
+# the same way git chains them: relative to the previous one, not to
+# $PWD. Called only after find_subcommand has already validated that
+# every "-C" here has a value, so it does not repeat that check.
+resolve_target_dir() {
+  dir="$PWD"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -C)
+        dir=$(cd "$dir/$2" 2>/dev/null && pwd -P) || dir="$dir/$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  printf '%s\n' "$dir"
+}
+
+# True when "$1" is $WORKSPACE_ROOT or a path under it.
+in_workspace() {
+  case "$1" in
+    "$WORKSPACE_ROOT" | "$WORKSPACE_ROOT"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+check_config_env_overrides
+
 SUB=""
 find_subcommand "$@"
 
@@ -132,5 +214,13 @@ case "$SUB" in
     done
     ;;
 esac
+
+# Forces the container's hooks for every repository under the workspace
+# mount; a repository outside it, such as a test's own scratch repository
+# under /tmp, is left alone, so osf's own tests keep working unchanged.
+TARGET_DIR=$(resolve_target_dir "$@")
+if in_workspace "$TARGET_DIR"; then
+  exec "$REAL_GIT" -c "core.hooksPath=$HOOKS_DIR" "$@"
+fi
 
 exec "$REAL_GIT" "$@"
