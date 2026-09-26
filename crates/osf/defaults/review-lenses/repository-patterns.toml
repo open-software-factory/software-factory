@@ -1,0 +1,21 @@
+name = "repository-patterns"
+summary = "Whether the change follows the conventions this repository already uses for its own kind of code."
+weight = 0.5
+runs = "triggered"
+
+[trigger]
+paths = ["**/*.rs", "**/*.py", "**/*.ts", "**/*.go", "**/*.cs"]
+signals = ["new-file"]
+
+[[criteria]]
+id = "follows-existing-pattern"
+question = "Does the change follow the naming, layout and error-handling pattern its neighbouring files already use?"
+
+[[criteria]]
+id = "no-new-pattern-without-reason"
+question = "When the change introduces a new pattern, is there a stated reason the existing one did not fit?"
+
+[severity_guide]
+blocker = "The change breaks a pattern the rest of the repository depends on, such as its error type."
+major = "The change introduces an unexplained new pattern where an existing one would have fit."
+minor = "A small stylistic inconsistency with no effect on how the code works."

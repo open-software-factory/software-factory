@@ -13,6 +13,7 @@ pub use git::{scrub_git_env, scrub_git_env_for_dir};
 pub mod githooks;
 pub mod hook;
 pub mod journal;
+pub mod lenses;
 pub mod lints;
 pub mod moon;
 pub mod repository;

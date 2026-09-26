@@ -1,0 +1,21 @@
+name = "internationalisation"
+summary = "Whether user-facing text and formatting work outside the one locale it was written in."
+weight = 0.5
+runs = "triggered"
+
+[trigger]
+paths = ["**/*.arb", "**/locales/**", "**/*.po", "**/*.resx"]
+signals = ["user-facing-text"]
+
+[[criteria]]
+id = "no-hardcoded-text"
+question = "Is every new piece of user-facing text pulled from the translation files instead of hardcoded?"
+
+[[criteria]]
+id = "locale-safe-formatting"
+question = "Does the change format numbers, dates and currency through a locale-aware call, not a fixed pattern?"
+
+[severity_guide]
+blocker = "User-facing text is hardcoded in one language, or a date or number breaks in another locale."
+major = "Text is translated, but a format such as a date or currency is not locale-aware."
+minor = "A translation key is added but its wording could be clearer for translators."

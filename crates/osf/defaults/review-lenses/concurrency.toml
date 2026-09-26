@@ -1,0 +1,21 @@
+name = "concurrency"
+summary = "Whether the change stays correct when more than one thread or task touches its state."
+weight = 0.8
+runs = "triggered"
+
+[trigger]
+paths = ["**/*thread*", "**/*async*", "**/*lock*"]
+signals = ["shared-state", "concurrency"]
+
+[[criteria]]
+id = "shared-state-guarded"
+question = "Is every piece of state the change shares across threads or tasks guarded against a race?"
+
+[[criteria]]
+id = "no-new-deadlock-risk"
+question = "Does the change avoid acquiring locks in an order that could deadlock against existing code?"
+
+[severity_guide]
+blocker = "A race condition that can corrupt data or deadlock the process under real load."
+major = "A race condition that is unlikely, but the code gives no reason to trust that."
+minor = "A concurrency risk with a narrow window and low real-world impact."

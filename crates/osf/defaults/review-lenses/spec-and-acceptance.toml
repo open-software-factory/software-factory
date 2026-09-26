@@ -1,0 +1,18 @@
+name = "spec-and-acceptance"
+summary = "Whether the change does what its work item asked, and meets its acceptance criteria."
+weight = 1.0
+runs = "always"
+context = ["diff", "work-item", "acceptance-criteria"]
+
+[[criteria]]
+id = "matches-the-ask"
+question = "Does the change do what the work item's description asks for, no more and no less?"
+
+[[criteria]]
+id = "meets-acceptance"
+question = "Does the change satisfy every item under the work item's acceptance criteria?"
+
+[severity_guide]
+blocker = "The change does not do what the work item asked, or fails an acceptance criterion."
+major = "The change meets the ask but skips a stated edge case or a secondary criterion."
+minor = "The change meets the ask, with a small gap the work item did not state clearly."

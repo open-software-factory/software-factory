@@ -1,0 +1,18 @@
+name = "security"
+summary = "Whether the change opens a way in for an attacker, at any entry point it touches."
+weight = 1.0
+runs = "always"
+context = ["diff", "entry-points"]
+
+[[criteria]]
+id = "input-handling"
+question = "Is every input from outside the process validated or escaped before it is trusted?"
+
+[[criteria]]
+id = "access-control"
+question = "Does the change keep every existing access check in place, and add one where a new entry point needs it?"
+
+[severity_guide]
+blocker = "An attacker can read, write or run something they should not, through this change."
+major = "A weaker check that narrows an attacker's path without opening it fully."
+minor = "A defensive gap with no realistic path to exploit today."

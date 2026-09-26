@@ -1,0 +1,21 @@
+name = "cost"
+summary = "Whether the change adds infrastructure or usage cost out of proportion to its value."
+weight = 0.5
+runs = "triggered"
+
+[trigger]
+paths = ["**/*.tf", "**/infra/**", "**/*.bicep"]
+signals = ["new-infra-resource"]
+
+[[criteria]]
+id = "cost-proportionate"
+question = "Is the infrastructure or usage cost the change adds proportionate to the value it delivers?"
+
+[[criteria]]
+id = "cost-bounded"
+question = "Does the change avoid an unbounded cost, such as a resource that scales with an attacker's input?"
+
+[severity_guide]
+blocker = "An unbounded cost that an outside party could drive up at will."
+major = "A bounded but sizeable cost increase with no stated justification."
+minor = "A small cost increase in line with the feature's value."

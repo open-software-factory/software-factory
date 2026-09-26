@@ -1,0 +1,22 @@
+name = "architecture-adherence"
+summary = "Whether the change keeps to the module boundaries and decisions this repository has already made."
+weight = 0.8
+runs = "always-at-high-tier"
+context = ["diff", "architecture-docs"]
+
+[trigger]
+paths = ["**/mod.rs", "**/lib.rs", "Cargo.toml", "**/*.csproj"]
+signals = ["new-module", "new-dependency"]
+
+[[criteria]]
+id = "module-boundaries"
+question = "Does the change respect the boundaries between modules that the architecture documents describe?"
+
+[[criteria]]
+id = "decision-consistency"
+question = "Does the change agree with the accepted decision records that cover its area?"
+
+[severity_guide]
+blocker = "The change contradicts an accepted decision record or breaks a stated module boundary."
+major = "The change blurs a boundary or decision without breaking it outright."
+minor = "A small drift from the documented architecture with no functional effect."

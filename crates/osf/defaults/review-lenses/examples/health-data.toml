@@ -1,0 +1,21 @@
+name = "health-data"
+summary = "Whether a change that touches health information keeps it private and correctly attributed."
+weight = 1.0
+runs = "triggered"
+
+[trigger]
+paths = ["**/*health*", "**/*medical*", "**/*diagnosis*"]
+signals = ["health-data"]
+
+[[criteria]]
+id = "kept-private"
+question = "Does the change keep health data out of a log, a message, or a party that has no need for it?"
+
+[[criteria]]
+id = "correctly-attributed"
+question = "Is every piece of health data kept linked to the one person it describes, with no mix-up across records?"
+
+[severity_guide]
+blocker = "Health data reaches a log, a third party, or gets attributed to the wrong person."
+major = "Health data stays private but is harder to trace back to its source than it should be."
+minor = "A privacy concern with no health data actually exposed today."
