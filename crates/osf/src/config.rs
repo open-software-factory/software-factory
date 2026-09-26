@@ -66,8 +66,6 @@ pub struct WritingConfig {
     pub filler: Vec<String>,
     /// Phrases that only work inside one conversation.
     pub chat_local_phrases: Vec<String>,
-    /// Words that, followed by a number, only work inside one conversation.
-    pub chat_local_labels: Vec<String>,
     /// Names that need no description on first use, on top of the built-in ones.
     pub known_names: Vec<String>,
     /// Names this repository has decided are worth explaining on first use,
@@ -136,8 +134,6 @@ pub const DEFAULT_CHAT_LOCAL_PHRASES: &[&str] = &[
     "in my last message",
 ];
 
-pub const DEFAULT_CHAT_LOCAL_LABELS: &[&str] = &["phase", "item", "option", "part", "point"];
-
 impl Default for WritingConfig {
     fn default() -> Self {
         WritingConfig {
@@ -147,7 +143,6 @@ impl Default for WritingConfig {
             short_text_words: 500,
             filler: strings(DEFAULT_FILLER),
             chat_local_phrases: strings(DEFAULT_CHAT_LOCAL_PHRASES),
-            chat_local_labels: strings(DEFAULT_CHAT_LOCAL_LABELS),
             known_names: Vec::new(),
             must_explain_names: Vec::new(),
             levels: BTreeMap::new(),
@@ -279,11 +274,6 @@ const ENV_FIELDS: &[EnvField] = &[
     EnvField {
         var: "OSF_WRITING_CHAT_LOCAL_PHRASES",
         path: &["writing", "chat_local_phrases"],
-        parse: parse_list,
-    },
-    EnvField {
-        var: "OSF_WRITING_CHAT_LOCAL_LABELS",
-        path: &["writing", "chat_local_labels"],
         parse: parse_list,
     },
     EnvField {
@@ -468,7 +458,8 @@ pub fn load(
     }
 
     let (mut config, mut tree, mut sources): (Config, toml::Value, BTreeMap<String, Layer>) =
-        layered.finish()?;
+        layered.finish().map_err(removed_chat_local_labels_key)?;
+    reject_retired_levels(&config.writing.levels)?;
     if !extra_exclude.is_empty() {
         config.exclude.extend(extra_exclude.iter().cloned());
         set_exclude_tree(&mut tree, &config.exclude);
@@ -480,6 +471,41 @@ pub fn load(
         sources,
         file,
     })
+}
+
+/// `writing.chat_local_labels` was removed along with `chat-local-reference`.
+/// `deny_unknown_fields` already refuses it; this rewrites that message so
+/// it says the key is gone and names its replacements, instead of just
+/// listing every field that remains.
+fn removed_chat_local_labels_key(err: ConfigError) -> ConfigError {
+    let message = err.to_string();
+    if message.contains("chat_local_labels") {
+        ConfigError::new(format!(
+            "the config key 'writing.chat_local_labels' is gone; use \
+             'writing.chat_local_phrases' and 'writing.must_explain_names' instead ({message})"
+        ))
+    } else {
+        err
+    }
+}
+
+/// A `writing.levels` entry keyed by a rule id retired along with the six
+/// old reference and name rules is an error naming `unplaceable-reference`,
+/// the id that replaced all of them, rather than a silent no-op: nothing
+/// reads that key any more, so a level set on it would otherwise vanish
+/// without a trace.
+///
+/// # Errors
+/// Returns an error naming the retired key and its replacement.
+fn reject_retired_levels(levels: &BTreeMap<String, LevelSetting>) -> Result<(), ConfigError> {
+    for (old, new) in crate::lints::RETIRED_RULE_IDS {
+        if levels.contains_key(*old) {
+            return Err(ConfigError::new(format!(
+                "the rule '{old}' is gone; use 'writing.levels.{new}' instead"
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// The config a gate run always gets: the compiled defaults, with nothing
@@ -500,7 +526,7 @@ pub fn load(
 /// reports. `must_explain_names` cannot: its compiled default is empty, so
 /// it starts at the least strict setting already, and every name the
 /// repository's own file adds to it can only turn on one more
-/// `undefined-name` error, never turn one off. Reading it here from a file
+/// `unplaceable-reference` error, never turn one off. Reading it here from a file
 /// this change could itself have edited is therefore safe: a change that
 /// deletes an entry only pulls that name back down to the same empty floor
 /// every other repository already gates on, and a change that adds one can
@@ -690,6 +716,44 @@ mod tests {
         let message = err.to_string();
         assert!(message.contains("max_sentance_words"), "{message}");
         assert!(message.contains("max_sentence_words"), "{message}");
+    }
+
+    /// `writing.chat_local_labels` was removed along with `chat-local-reference`;
+    /// a config file that still sets it must say the key is gone, not just
+    /// list every field that remains.
+    #[test]
+    fn a_config_file_setting_the_removed_chat_local_labels_key_says_it_is_gone() {
+        let dir = std::env::temp_dir().join("osf-config-test-removed-key");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "[writing]\nchat_local_labels = [\"phase\"]\n").expect("file writes");
+        let err = serial(&[], || load(Some(&path), &[], &[], false))
+            .expect_err("the removed key is refused");
+        let message = err.to_string();
+        assert!(message.contains("chat_local_labels"), "{message}");
+        assert!(message.contains("is gone"), "{message}");
+        assert!(message.contains("chat_local_phrases"), "{message}");
+        assert!(message.contains("must_explain_names"), "{message}");
+    }
+
+    /// A `writing.levels` entry naming one of the six retired reference and
+    /// name rules is an error naming `unplaceable-reference`, the rule that
+    /// replaced them, rather than a silent no-op.
+    #[test]
+    fn a_level_override_naming_a_retired_rule_names_its_replacement() {
+        let dir = std::env::temp_dir().join("osf-config-test-retired-level");
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("config.toml");
+        std::fs::write(
+            &path,
+            "[writing.levels]\nundefined-name-at-start = \"off\"\n",
+        )
+        .expect("file writes");
+        let err = serial(&[], || load(Some(&path), &[], &[], false))
+            .expect_err("a retired rule id in writing.levels is refused");
+        let message = err.to_string();
+        assert!(message.contains("undefined-name-at-start"), "{message}");
+        assert!(message.contains("unplaceable-reference"), "{message}");
     }
 
     #[test]
@@ -1021,13 +1085,14 @@ mod tests {
     }
 
     /// The exact case the adversarial review proved: a config file that
-    /// turns `bare-reference` off must not reach a gate run.
+    /// turns `unplaceable-reference` off must not reach a gate run.
     #[test]
     fn gate_ignores_a_file_level_override() {
         let dir = std::env::temp_dir().join("osf-config-test-gate-levels");
         std::fs::create_dir_all(&dir).expect("temp dir creates");
         let path = dir.join("config.toml");
-        std::fs::write(&path, "[writing.levels]\nbare-reference = \"off\"\n").expect("file writes");
+        std::fs::write(&path, "[writing.levels]\nunplaceable-reference = \"off\"\n")
+            .expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
         assert!(
             loaded.config.writing.levels.is_empty(),
@@ -1112,7 +1177,7 @@ mod tests {
             );
             let mut levels = toml::value::Table::new();
             levels.insert(
-                "bare-reference".to_string(),
+                "unplaceable-reference".to_string(),
                 toml::Value::String("off".to_string()),
             );
             writing.insert("levels".to_string(), toml::Value::Table(levels));
@@ -1141,7 +1206,6 @@ mod tests {
                 ("OSF_WRITING_SHORT_TEXT_WORDS", "1"),
                 ("OSF_WRITING_FILLER", "poisoned"),
                 ("OSF_WRITING_CHAT_LOCAL_PHRASES", "poisoned"),
-                ("OSF_WRITING_CHAT_LOCAL_LABELS", "poisoned"),
                 ("OSF_WRITING_KNOWN_NAMES", "Poisoned"),
                 // Proves the exemption reads the file, not the environment:
                 // if this leaked through, the assertion below would see it.

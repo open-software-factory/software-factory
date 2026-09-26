@@ -11,7 +11,7 @@ These are architectural questions to resolve through implementation and research
 - How are reusable skills/capabilities discovered and described?
 - How does a workflow reference capabilities without binding to one agent implementation?
 - Can existing systems such as Superpowers be consumed directly, adapted, or treated as a reference implementation?
-- What is the right boundary between “workflow” and “orchestration”?
+- What is the right boundary between workflow and orchestration?
 
 ## Execution model
 - What is the durable unit: WorkItem, Run, Execution, Task, Step, Attempt, Session?
@@ -35,7 +35,7 @@ See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-archit
 
 ## Sandboxes, execution platforms and compute
 - How does an organisation or a team adopt the factory from nothing, and does that differ between the factory as its own repository and the factory vendored into one repository?
-- The sandbox is a provider (decision 0002) and a container is the default. What interface is stable across a container, a virtual machine and the sandbox types that follow?
+- The sandbox is a provider ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)) and a container is the default. What interface is stable across a container, a virtual machine and the sandbox types that follow?
 - The execution platform is a separate provider. What interface is stable across a local machine, a server, a cloud and a rented virtual machine?
 - How do Windows/macOS/Linux and x64/ARM64 capabilities enter scheduling?
 - Where does remote caching belong: factory concern, build-system concern, or provider capability?

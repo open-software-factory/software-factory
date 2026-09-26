@@ -228,7 +228,7 @@ This supports the factory-floor and drill-down UX without asking OSF to become t
 
 ## Adoption stages
 
-### Stage 1 Canonical local verification
+### Stage 1: Canonical local verification
 
 - Pin moon.
 - Define representative tasks.
@@ -236,26 +236,26 @@ This supports the factory-floor and drill-down UX without asking OSF to become t
 - Capture exit status and structured reports.
 - Keep agents on native commands.
 
-### Stage 2 Affected execution and evidence
+### Stage 2: Affected execution and evidence
 
 - Enable affected selection for appropriate gates.
 - Persist normalised task-level evidence.
 - Integrate action topology into OSF observability.
 - Validate clean-run equivalence periodically.
 
-### Stage 3 Shared caching
+### Stage 3: Shared caching
 
 - Add a REAPI-compatible remote cache when measurement justifies it.
 - Establish cache trust, retention and isolation policies.
 - Measure time and infrastructure savings.
 
-### Stage 4 Stronger local execution
+### Stage 4: Stronger local execution
 
 - Introduce controlled environments or sandboxing for selected gates.
 - Make execution-strength policy explicit.
 - Verify cross-platform behaviour.
 
-### Stage 5 Remote execution
+### Stage 5: Remote execution
 
 - Adopt only after actions are accurately declared and remoteable.
 - Use REAPI and retain backend neutrality.

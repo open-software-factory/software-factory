@@ -351,7 +351,7 @@ fn declared_fixture_findings(
             })
             .collect();
     }
-    let mismatch = lints::check_expectation(expected, raw);
+    let mismatch = lints::check_expectation(expected, raw, lints::RETIRED_RULE_IDS);
     if mismatch.is_empty() {
         return Vec::new();
     }
@@ -373,7 +373,16 @@ fn declared_fixture_findings(
             id,
         )
     });
-    missing.chain(unexpected).collect()
+    let retired = mismatch.retired.into_iter().map(|(old, new)| {
+        Finding::new(
+            "expectation-retired-rule",
+            Level::Error,
+            1,
+            format!("'{old}' is gone; it was replaced by '{new}'"),
+            old,
+        )
+    });
+    missing.chain(unexpected).chain(retired).collect()
 }
 
 fn lint_changed_skill_folders(opts: &Options, changed: &[String]) -> Result<CheckOutcome, String> {

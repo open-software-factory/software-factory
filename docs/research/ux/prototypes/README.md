@@ -2,7 +2,7 @@
 
 Status: visual reference only
 
-Date: captured 21 and 23 August 2026
+Date: captured between 21 and 23 August 2026
 
 These are screenshots of four working React prototypes of the operator console. Coding agents built them from the frozen UX vision, design principles and one incident scenario. Each prototype was a few thousand lines and passed the full deterministic gate set. The code is not kept. The screenshots are kept as reference for the visual direction and for the failure modes described in [`../agent-built-ui-lessons.md`](../agent-built-ui-lessons.md).
 

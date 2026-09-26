@@ -46,9 +46,9 @@ Both runs use the same model, reasoning level, starter commit, fixture, viewport
 
 The calibration validates the benchmark rather than declaring a final winner. If the protocol proves discriminating and fair, run the other shortlisted workflows in comparable batches. Claude Code and Claude Design are not part of the first calibration. Kimi K3 experiments remain deferred until access is available.
 
-### Stage 2: promotion
+### Stage 2: scale promotion
 
-After sufficient Stage 1 evidence, select the strongest workflow and strongest product direction independently. The promotion pass:
+After sufficient frozen-evaluation evidence, select the strongest workflow and strongest product direction independently. The promotion pass:
 
 - applies the direction to a higher-scale Factory Floor with additional overlays and concurrent workstreams;
 - expands the Flight Recorder across incident response and ordinary feature delivery;

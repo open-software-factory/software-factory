@@ -35,7 +35,7 @@ One version string per release covers every artifact. Tags follow the moving-tag
 
 ### Where the core runs, and how it is protected
 
-The core runs inside whatever sandbox the adopter uses, on whatever platform that sandbox runs on. Decision 0002 treats both as providers. The factory ships a container on the local platform as the default pair. A virtual machine is another sandbox, and a server or a cloud is another platform. The rules below hold in every combination.
+The core runs inside whatever sandbox the adopter uses, on whatever platform that sandbox runs on. [Decision 0002](0002-provider-neutral-process-boundaries.md) treats both as providers. The factory ships a container on the local platform as the default pair. A virtual machine is another sandbox, and a server or a cloud is another platform. The rules below hold in every combination.
 
 The binary installs read-only and owned by root, under a checksum wrapper that verifies the installed files and the git hooks path before every hook runs. The same binary runs in continuous integration under the workflow's own token, which no agent holds, and branch protection requires that run. Local execution raises the bar against an agent that reads and works around a check. The continuous-integration run is the authority.
 

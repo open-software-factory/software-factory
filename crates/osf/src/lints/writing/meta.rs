@@ -8,7 +8,7 @@
 //! says plainly that the limit comes from a secondary summary and is
 //! unverified.
 
-use osf_lint_core::{Class, Context, Exception, Group, Level, Remediation};
+use osf_lint_core::{Class, Context, Evidence, Exception, Group, Level, Remediation};
 
 pub struct RuleMeta {
     pub id: &'static str,
@@ -22,11 +22,12 @@ pub struct RuleMeta {
 
 impl RuleMeta {
     /// The level and remediation for this rule in `context`, from the
-    /// class-and-group matrix, the [`Exception`] above, and nothing else;
-    /// a caller's own config may still override the level afterwards.
+    /// class-and-group matrix, the [`Exception`] above, `evidence`, and
+    /// nothing else; a caller's own config may still override the level
+    /// afterwards.
     #[must_use]
-    pub fn resolve(&self, context: Context) -> (Level, Remediation) {
-        osf_lint_core::resolve(self.class, self.group, context, self.exception)
+    pub fn resolve(&self, context: Context, evidence: Evidence) -> (Level, Remediation) {
+        osf_lint_core::resolve(self.class, self.group, context, self.exception, evidence)
     }
 }
 
@@ -55,138 +56,35 @@ macro_rules! rule_meta {
 
 pub const RULE_META: &[RuleMeta] = &[
     rule_meta!(
-        "bare-reference",
+        "unplaceable-reference",
         House,
         Comprehension,
         "house",
         "### What it does\n\
-         Flags `#123` written with no `owner/repo` in front of it.\n\
+         Flags a number, a phrase, a time, or a name that a reader elsewhere \
+         in the paragraph could not resolve. A number is placed by a \
+         bracketed description, a link, or the repository named in the same \
+         sentence. A file path or a list item can place it too, for a \
+         file's own number or a bracketed letter. A time is placed by an \
+         absolute date in the paragraph. A name is placed by the \
+         known-names list or a sentence that says what it is. A quoted \
+         term is also placed by an example marker, such as \"such as\" or \
+         \"for example\". A phrase such as `as discussed` is never placed. \
+         Using one is always a finding.\n\
          ### Why it is bad\n\
-         A reader outside this one repository cannot open a bare number. They \
-         do not know which project it points to.\n\
+         A reader who was not in the room, or who reads the text later, \
+         cannot resolve the reference on their own. The document must carry \
+         enough to stand on its own.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: Fixed in #125 today.\n\
-         Good: Fixed in [open-software-factory/software-factory#125 (the login \
-         crash)](https://example.com/125) today."
-    ),
-    rule_meta!(
-        "reference-without-label",
-        House,
-        Comprehension,
-        "house",
-        "### What it does\n\
-         Flags `open-software-factory/software-factory#123` (or `repo#123`) with no bracketed description \
-         straight after it.\n\
-         ### Why it is bad\n\
-         A bare reference number tells the reader nothing about what it is. \
-         They must go and look it up before they can follow the text.\n\
-         ### Class\n\
-         house: our own taste, no external standard requires this shape.\n\
-         ### Citation\n\
-         house\n\
-         ### Example\n\
-         Bad: The fix landed in open-software-factory/software-factory#125 today.\n\
-         Good: The fix landed in [open-software-factory/software-factory#125 \
-         (the login crash)](https://example.com/125) today."
-    ),
-    rule_meta!(
-        "reference-without-link",
-        House,
-        Style,
-        "house",
-        "### What it does\n\
-         Flags a labelled `open-software-factory/software-factory#123 (the thing)` reference that is not \
-         wrapped in a Markdown link. Always a warning, in every context: a \
-         labelled reference is already resolvable without the link.\n\
-         ### Why it is bad\n\
-         The reader cannot click through. They must open a browser tab and \
-         search for the reference by hand.\n\
-         ### Class\n\
-         house: our own taste, no external standard requires this shape.\n\
-         ### Citation\n\
-         house\n\
-         ### Example\n\
-         Bad: open-software-factory/software-factory#125 (the login crash) is now fixed.\n\
-         Good: [open-software-factory/software-factory#125 (the login crash)](https://example.com/125) is now fixed.",
-        Exception::FixedLevel(Level::Warning)
-    ),
-    rule_meta!(
-        "chat-local-reference",
-        House,
-        Comprehension,
-        "house",
-        "### What it does\n\
-         Flags a phrase or a numbered label that only makes sense inside \
-         one conversation, such as `as discussed` or a bare `Phase 2`. \
-         A label passes when a name follows it in the same sentence, after \
-         a colon, a comma, an opening parenthesis, or the word `the`.\n\
-         ### Why it is bad\n\
-         A reader who was not in that conversation cannot resolve the \
-         reference. The document must stand on its own.\n\
-         ### Class\n\
-         house: our own taste, no external standard requires this shape.\n\
-         ### Citation\n\
-         house\n\
-         ### Example\n\
-         Bad: Ship Phase 2 next.\n\
-         Good: Ship Phase 2, the design work, next.\n\
+         Bad: Ship Milestone 3 next.\n\
+         Good: Ship [Milestone 3](https://example.com/milestones/3) next.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."
-    ),
-    rule_meta!(
-        "undefined-name",
-        House,
-        Comprehension,
-        "house",
-        "### What it does\n\
-         Flags a capitalised name on the repository's own curated \
-         must-explain list, on its first use. It fires when neither that \
-         sentence nor the next one explains what it is. The list lives in \
-         `writing.must_explain_names`, in the config file.\n\
-         ### Why it is bad\n\
-         A reader who does not already know the name cannot follow the rest \
-         of the text. The must-explain list names, one by one, the terms \
-         this repository has decided are worth that certainty.\n\
-         ### Class\n\
-         house: our own taste, no external standard requires this shape.\n\
-         ### Citation\n\
-         house\n\
-         ### Example\n\
-         Bad: Use Vale for this.\n\
-         Good: Use Vale, a prose checker, for this."
-    ),
-    rule_meta!(
-        "undefined-name-at-start",
-        House,
-        Style,
-        "house",
-        "### What it does\n\
-         The weaker twin of undefined-name, for a name not on the \
-         must-explain list. Fires when a capitalised word or run merely \
-         looks like a name. That evidence is an internal capital such as \
-         `GitHub` or `DuckDB`, or a digit in one of its words. It also \
-         fires from a domain-like suffix such as `.dev`, or from a \
-         multi-word run repeated more than once in the document. None of \
-         these prove a name on its own. A bare capital letter with none of \
-         them, such as a word that only opens a sentence, is never \
-         reported at all.\n\
-         ### Why it is bad\n\
-         Same reason as undefined-name, but the evidence only suggests a \
-         name rather than confirming one. It warns instead of erring, and \
-         the finding carries statistical evidence rather than \
-         deterministic evidence.\n\
-         ### Class\n\
-         house: our own taste, no external standard requires this shape.\n\
-         ### Citation\n\
-         house\n\
-         ### Example\n\
-         Bad: DuckDB runs fast.\n\
-         Good: DuckDB, an embedded database, runs fast."
     ),
     rule_meta!(
         "long-sentence",
@@ -242,8 +140,8 @@ pub const RULE_META: &[RuleMeta] = &[
         "### What it does\n\
          Flags an arrow character or `->` or `=>` in prose text.\n\
          ### Why it is bad\n\
-         The reader must guess whether the arrow means \"becomes\", \"leads \
-         to\", \"maps to\", or something else. A plain verb says which one.\n\
+         The reader must guess whether the arrow means becomes, leads to, \
+         maps to, or something else. A plain verb says which one.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
@@ -307,7 +205,7 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: It ran 12 axes over 3 rounds in 41 minutes.\n\
-         Good: It ran 12 axes. See the table for the round count and the time."
+         Good: It ran a full sweep of axes. See the table for the round count and the time."
     ),
     rule_meta!(
         "bold-sentence",
@@ -344,8 +242,8 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: The fix (which took three days because the failure only showed \
-         up under load) shipped today.\n\
-         Good: The fix shipped today. It took three days, because the \
+         up under load) shipped now.\n\
+         Good: The fix shipped now. It took three days, because the \
          failure only showed up under load."
     ),
     rule_meta!(
@@ -668,8 +566,8 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: The fix was small. The risk was low. It shipped today.\n\
-         Good: The fix was small, the risk was low, and it shipped today.\n\
+         Bad: The fix was small. The risk was low. It shipped now.\n\
+         Good: The fix was small, the risk was low, and it shipped now.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."
@@ -690,9 +588,9 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: The fix shipped today, highlighting the value of a second \
+         Bad: The fix shipped now, highlighting the value of a second \
          reviewer.\n\
-         Good: The fix shipped today. A second reviewer caught the bug.\n\
+         Good: The fix shipped now. A second reviewer caught the bug.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."

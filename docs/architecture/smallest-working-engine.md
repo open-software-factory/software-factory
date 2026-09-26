@@ -18,11 +18,11 @@ The engine takes one ready work item and returns one pull request that is verifi
 | Report | The engine opens the pull request, writes the status block, and links the run's evidence. | The state change to in review, and the run-complete event carrying the journal's head hash. |
 | Hand over | The work item waits for a person, or the engine loops once more on the review's must-fix findings. | Attention raised when the item needs a person. |
 
-The policy is decision 0003 as written. A change with no declared test command is held. A shrinking test count is a finding. A suppression added in the change is a finding. A check that could not run is recorded as a failure to run, and no such record counts as a pass. Merging stays with a person in this slice.
+The policy is [decision 0003](decisions/0003-deterministic-verification-is-authoritative.md) as written. A change with no declared test command is held. A shrinking test count is a finding. A suppression added in the change is a finding. A check that could not run is recorded as a failure to run, and no such record counts as a pass. Merging stays with a person in this slice.
 
 ## What stays outside
 
-These are named so that the engine is judged on the job above and on nothing else.
+These are named so that the engine is judged on the smallest-working-engine job and on nothing else.
 
 | Outside | Why it waits |
 |---|---|
@@ -31,12 +31,12 @@ These are named so that the engine is judged on the job above and on nothing els
 | Merging without a person | The gate that allows it needs the calibration the risk-classification work describes. |
 | The console's own features beyond reading the journal | The console is a projection of the journal. The first job produces the journal and the queries; the first console view reads them and is its own work. |
 | Cost accounting beyond what the harness reports per run | Money and tokens are recorded when the harness gives them. Attribution across runs is meta-loop work. |
-| The agent-host protocol gateway | Decision 0004 keeps it at an edge. The first job correlates a harness session by its identifier and nothing more. |
+| The agent-host protocol gateway | [Decision 0004](decisions/0004-protocol-independent-core-with-ahp-acp-edges.md) keeps it at an edge. The first job correlates a harness session by its identifier and nothing more. |
 | Canonical verification through moon | moon is a build task runner. The execution design adopts it for lifecycle checkpoints. The first job uses `osf verify` as it exists, and the verifier runner is the one place moon plugs in later. |
 
 ## Components
 
-The engine is a core with providers at its edges, per decision 0002. Each row names the first implementation and whether it is core or a provider.
+The engine is a core with providers at its edges, per [decision 0002](decisions/0002-provider-neutral-process-boundaries.md). Each row names the first implementation and whether it is core or a provider.
 
 | Component | Responsibility | First implementation | Kind |
 |---|---|---|---|
@@ -46,7 +46,7 @@ The engine is a core with providers at its edges, per decision 0002. Each row na
 | Verifier runner | Run the repository's deterministic checks and turn each into a verifier-run event and findings. | `osf verify`, with ecosystem detection. | Core |
 | Reviewer | Run one review round by a harness of a different model family and post the findings. | `osf review`, extended to record a review-run event. | Core, over a harness adapter |
 | Forge adapter | Branch, pull request, status block, review comments, check status. | GitHub through the API, from the existing status and review code. | Provider |
-| Policy | Read the run's evidence and decide: advance, hold, or raise attention. | The rules of decision 0003 and the risk tier from `osf risk`. | Core |
+| Policy | Read the run's evidence and decide: advance, hold, or raise attention. | The rules of [decision 0003](decisions/0003-deterministic-verification-is-authoritative.md) and the risk tier from `osf risk`. | Core |
 | Journal | Append every event to the run's journal, hash-chained, and validate every event against the schema. | JSON Lines under the state directory, per [decision 0009](decisions/0009-journal-store-and-sinks.md). | Core |
 | Sink | Copy a completed run's journal to where other runs and the console can read it. | The local sink: the state directory itself. The forge-native sink follows. | Provider |
 | Projections and queries | Compute the work item's state, the attention list and the recorder from the journal, on read, for the command line and the console. | `osf work`, `osf run` and `osf attention` subcommands. | Core |
@@ -58,7 +58,7 @@ The engine is a core with providers at its edges, per decision 0002. Each row na
 | Work item reference | Provider-qualified identifier, `github:owner/repo#N`, with title, body, repository, dependencies and the ready mark. | Tracker adapter | Everything. It is the durable unit's name. |
 | Run identifier | One identifier per run, with the actor and the work item. | Journal | Harness, verifier runner, reviewer, forge adapter, policy. |
 | Change | Branch name and head commit. | Harness adapter | Verifier runner, reviewer, forge adapter. |
-| Event envelope | Decision 0005's envelope: schema version, event type, run, work item, change, actor, timestamp, cost, payload, previous hash. | Every component, through the journal | Policy, projections, sink, console. |
+| Event envelope | [Decision 0005](decisions/0005-the-factory-domain-model.md)'s envelope: schema version, event type, run, work item, change, actor, timestamp, cost, payload, previous hash. | Every component, through the journal | Policy, projections, sink, console. |
 | Findings | SARIF for a located finding. A test result on its own path. | Verifier runner, reviewer | Policy, forge adapter, projections. |
 | Verdict | Advance, hold with a reason, or attention with a cause. | Policy | Forge adapter, tracker adapter, projections. |
 | Recap | A short text: what the run did, what it found, what it needs. | Projections | Tracker adapter, forge adapter, console. |
@@ -67,7 +67,7 @@ The event schema is the first contract written, before any component, and it liv
 
 ## The work item lifecycle in this slice
 
-The states are decision 0005's. This slice uses the ones the job reaches.
+The states are [decision 0005](decisions/0005-the-factory-domain-model.md)'s. This slice uses the ones the job reaches.
 
 | State | Entered when |
 |---|---|
@@ -90,14 +90,14 @@ The engine writes the recap to the work item as a comment when the run ends, so 
 
 ## The five vocabulary questions, answered on paper
 
-The [draft vocabulary](draft-factory-vocabulary.md) left five questions for this engine. Each is answered here against decision 0005 and this design. Each answer is confirmed or amended against real runs by the work item that names the event vocabulary once the engine runs.
+The [draft vocabulary](draft-factory-vocabulary.md) left five questions for this engine. Each is answered here against [decision 0005](decisions/0005-the-factory-domain-model.md) and this design. Each answer is confirmed or amended against real runs by the work item that names the event vocabulary once the engine runs.
 
 | Question | Answer |
 |---|---|
 | Does the durable unit map onto work item, agent session, check, deployment and event, or does it need attempt or run? | The durable unit is the work item, which is the tracker's issue. A run is one execution by one actor. A retry is another run that names the run it retries. An agent session is the harness's own identifier, recorded on the run and never a factory entity. A check is a verifier run. A deployment is outside this slice. |
 | Is attention an entity the engine owns, or a projection the console derives? | Both halves are true and neither is an entity store. The engine emits an attention event when a policy or a state change needs a person. The attention list is a projection of those events and the blocked states. There is no hand-maintained attention table. |
 | Is the catalog and state split still natural when state comes from a real provider? | The split is retired. The journal is the state. What the draft called catalog is what the tracker and the forge say at run start, and the run-started event records it. A snapshot is the projection of events up to a moment, so it holds no future by construction. |
-| Do trace links need a relation vocabulary this small, or a richer one? | The seven edges of decision 0005 are the vocabulary: executes, depends on, blocks, produces, verifies, deploys to, traced from. The draft's five map onto them: informs is traced from, implements is produces, verifies is verifies, deploys is deploys to, and observes waits for production evidence. A richer vocabulary is added when an edge is needed that these cannot express. |
+| Do trace links need a relation vocabulary this small, or a richer one? | The seven edges of [decision 0005](decisions/0005-the-factory-domain-model.md) are the vocabulary: executes, depends on, blocks, produces, verifies, deploys to, traced from. The draft's five map onto them: informs is traced from, implements is produces, verifies is verifies, deploys is deploys to, and observes waits for production evidence. A richer vocabulary is added when an edge is needed that these cannot express. |
 | Do the six availability values survive contact with real disconnects and partial data? | They leave the engine and stay in the console. The engine exposes the journal's freshness: the time of the last event and whether the sink can be read. The console derives ready, loading, stale, disconnected and empty from that, and streaming from a live run. |
 
 ## Decisions this design settles

@@ -37,7 +37,7 @@ block from the pull request's live state. It reads the pull request's own
 checks, its review state, and a fresh risk assessment against its base
 branch. It reads `Problem` and `Approach` back out of the block already
 in the description. A description with no block is left alone, and the
-command says so and exits 0. To start a block on such a pull request, pass
+command says so and exits clean. To start a block on such a pull request, pass
 `--problem` and `--approach` once, or run `osf status apply`. Refresh compares the new block against the one already
 there, byte for byte. It writes nothing when they match, and prints `osf
 status refresh: unchanged`. When they differ, it writes the new block and
@@ -86,7 +86,7 @@ needs to translate.
 Two refusals are also on offer and they are not interchangeable. An agent
 reading the exit code ignores standard output, and an agent reading standard
 output treats exit code 2 as the check crashing. The command guesses from the
-key spelling, which is right for every agent above. An adapter that builds the
+key spelling, which is right for every one of these agents. An adapter that builds the
 event itself should not rely on the guess: pass `--answer exit-code` or
 `--answer decision-json` and the guess is skipped.
 
@@ -144,20 +144,19 @@ known_names = ["Vale", "Tauri"]
 must_explain_names = ["Linear", "Canny"]  # errors, even under --gate; see below
 filler = ["delve", "leverage"]            # replaces the built-in list
 chat_local_phrases = ["as discussed"]     # replaces the built-in list
-chat_local_labels = ["phase", "item"]     # "phase 2" and the like
 
 [writing.levels]            # error, warning, or off, keyed by rule id
 semicolon = "off"
-reference-without-link = "error"
+unplaceable-reference = "error"
 ```
 
-Today, `known_names` and `writing.levels` change what `osf lint writing` and
+Right now, only `known_names` and `writing.levels` change what `osf lint writing` and
 `osf hook stop` report. The other fields are resolved and shown by
 `osf config show`; wiring them into each rule's own check is later work.
 
 `must_explain_names` is read from the file even under `--gate`, unlike
-every other setting here: it can only add `undefined-name` errors, never
-remove one, so a change cannot use it to loosen its own gate.
+every other setting here: it can only add `unplaceable-reference` errors,
+never remove one, so a change cannot use it to loosen its own gate.
 
 Every environment variable maps to one field:
 
@@ -169,7 +168,6 @@ Every environment variable maps to one field:
 | `OSF_WRITING_SHORT_TEXT_WORDS` | `writing.short_text_words` |
 | `OSF_WRITING_FILLER` | `writing.filler` (comma-separated, replaces the list) |
 | `OSF_WRITING_CHAT_LOCAL_PHRASES` | `writing.chat_local_phrases` (comma-separated) |
-| `OSF_WRITING_CHAT_LOCAL_LABELS` | `writing.chat_local_labels` (comma-separated) |
 | `OSF_WRITING_KNOWN_NAMES` | `writing.known_names` (comma-separated) |
 | `OSF_WRITING_MUST_EXPLAIN_NAMES` | `writing.must_explain_names` (comma-separated) |
 
