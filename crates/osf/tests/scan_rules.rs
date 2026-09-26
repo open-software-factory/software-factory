@@ -12,9 +12,11 @@
 mod common;
 
 use common::{
-    agent_state_path, coauthor_trailer, file_url, foreign_reference, home_path, mac_home_path,
-    network_share_path, public_config, public_repo, root_home_path, session_link, session_link_for,
-    windows_forward_path, windows_user_path, wsl_user_path, TempRepo,
+    agent_state_path, coauthor_trailer, fake_cloud_key_id, fake_forge_token, fake_gitlab_token,
+    fake_pem_key_block, fake_provider_key, fake_secret_assignment, fake_slack_token, file_url,
+    foreign_reference, home_path, mac_home_path, network_share_path, public_config, public_repo,
+    root_home_path, session_link, session_link_for, windows_forward_path, windows_user_path,
+    wsl_user_path, TempRepo,
 };
 use osf::agents::{self, AGENTS};
 use osf::config::ScanConfig;
@@ -35,6 +37,28 @@ fn rules() -> (TempRepo, Rules) {
 
 fn rule_ids(findings: &[Finding]) -> Vec<&'static str> {
     findings.iter().map(|f| f.rule).collect()
+}
+
+/// A `NAME_SUFFIX = "value"` assignment with an explicit value, built at
+/// run time for the same reason as [`fake_secret_assignment`]: the source
+/// line here holds only the template, never a name and a value joined.
+fn secret_assignment(suffix: &str, value: &str) -> String {
+    format!("API_{suffix} = \"{value}\"")
+}
+
+/// The AWS docs example access key id, built at run time for the same
+/// reason as [`fake_cloud_key_id`].
+fn aws_example_access_key_id() -> String {
+    let prefix = "AKIA";
+    let body = "IOSFODNN7EXAMPLE";
+    format!("{prefix}{body}")
+}
+
+/// The AWS docs example secret access key, built at run time for the same
+/// reason as [`fake_cloud_key_id`].
+fn aws_example_secret_access_key() -> String {
+    let parts = ["wJalrXUtnFEMI", "K7MDENG", "bPxRfiCYEXAMPLEKEY"];
+    parts.join("/")
 }
 
 // --- session links: one case per agent that has them -------------------
@@ -463,6 +487,163 @@ fn a_normal_commit_message_has_no_coauthor_finding() {
     assert!(rule_ids(&found).is_empty());
 }
 
+// --- secrets ----------------------------------------------------------------
+
+#[test]
+fn a_cloud_access_key_id_fires_scan_secret_with_no_excerpt() {
+    let (_repo, rules) = rules();
+    let text = format!("export AWS_ACCESS_KEY_ID={}\n", fake_cloud_key_id());
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-secret"]);
+    assert_eq!(found.first().expect("one finding").excerpt, "");
+}
+
+#[test]
+fn a_github_forge_token_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = format!("GITHUB_TOKEN={}\n", fake_forge_token("ghp_"));
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-secret"]);
+}
+
+#[test]
+fn a_gitlab_forge_token_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = format!("token: {}\n", fake_gitlab_token());
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-secret"]);
+}
+
+#[test]
+fn a_provider_key_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = format!("api_key = {}\n", fake_provider_key("sk-"));
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-secret"]);
+}
+
+#[test]
+fn an_anthropic_shaped_key_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = format!("ANTHROPIC_API_KEY={}\n", fake_provider_key("sk-ant-"));
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-secret"]);
+}
+
+#[test]
+fn a_slack_token_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = format!("slack_token = \"{}\"\n", fake_slack_token());
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-secret"]);
+}
+
+#[test]
+fn a_pem_private_key_block_fires_scan_secret_on_every_line() {
+    let (_repo, rules) = rules();
+    let block = fake_pem_key_block();
+    let line_count = block.lines().count();
+    let text = format!("before\n{block}\nafter\n");
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(found.len(), line_count, "{found:?}");
+    assert!(rule_ids(&found).iter().all(|id| *id == "scan-secret"));
+    assert_eq!(found.first().expect("first line").line, 2);
+}
+
+#[test]
+fn a_key_token_secret_or_password_assignment_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    for suffix in ["KEY", "TOKEN", "SECRET", "PASSWORD"] {
+        let text = format!("{}\n", fake_secret_assignment(suffix));
+        let found = rules.scan_text(&text, Context::Document);
+        assert_eq!(rule_ids(&found), vec!["scan-secret"], "{suffix}");
+    }
+}
+
+// --- placeholder and documentation values --------------------------------
+
+#[test]
+fn the_aws_docs_example_access_key_id_does_not_fire_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = format!("export AWS_ACCESS_KEY_ID={}\n", aws_example_access_key_id());
+    let found = rules.scan_text(&text, Context::Document);
+    assert!(rule_ids(&found).is_empty(), "{found:?}");
+}
+
+#[test]
+fn the_aws_docs_example_secret_access_key_does_not_fire_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = format!(
+        "{}\n",
+        secret_assignment("KEY", &aws_example_secret_access_key())
+    );
+    let found = rules.scan_text(&text, Context::Document);
+    assert!(rule_ids(&found).is_empty(), "{found:?}");
+}
+
+#[test]
+fn well_known_placeholder_assignment_values_do_not_fire_scan_secret() {
+    let (_repo, rules) = rules();
+    for value in [
+        "changeme",
+        "password",
+        "placeholder",
+        "xxxxxxxx",
+        "your_api_key_here",
+        "YOUR-TOKEN-HERE",
+    ] {
+        let text = format!("{}\n", secret_assignment("TOKEN", value));
+        let found = rules.scan_text(&text, Context::Document);
+        assert!(rule_ids(&found).is_empty(), "{value}: {found:?}");
+    }
+}
+
+/// A value that merely starts with a placeholder word, rather than being
+/// exactly that word, is not a placeholder: it still fires.
+#[test]
+fn a_value_that_only_starts_with_a_placeholder_word_still_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    let near_miss = format!("{}-{}", "changeme", "9f8a7b6c5d4e");
+    let text = format!("{}\n", secret_assignment("SECRET", &near_miss));
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-secret"], "{found:?}");
+}
+
+#[test]
+fn a_lower_case_key_named_variable_does_not_fire_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = "cache_key = \"a-perfectly-normal-lookup-key\"\nsort_key = \"created_at\"\n";
+    let found = rules.scan_text(text, Context::Document);
+    assert!(rule_ids(&found).is_empty(), "{found:?}");
+}
+
+#[test]
+fn a_word_that_merely_ends_in_key_does_not_fire_scan_secret() {
+    let (_repo, rules) = rules();
+    let text = "MONKEY = \"a perfectly normal animal, not a secret\"\n";
+    let found = rules.scan_text(text, Context::Document);
+    assert!(rule_ids(&found).is_empty(), "{found:?}");
+}
+
+#[test]
+fn the_secret_text_never_appears_in_any_output_format() {
+    let (_repo, rules) = rules();
+    let secret = fake_forge_token("ghp_");
+    let text = format!("token={secret}\n");
+    let found = rules.scan_text(&text, Context::Document);
+    assert_eq!(rule_ids(&found), vec!["scan-secret"]);
+    let sarif = osf_lint_core::to_sarif(
+        &[("f".to_string(), found)],
+        &osf_lint_core::ToolInfo {
+            name: "osf",
+            version: "0.0.0",
+            information_uri: "https://example.com",
+        },
+    );
+    let sarif_text = serde_json::to_string(&sarif).expect("sarif serialises");
+    assert!(!sarif_text.contains(&secret), "{sarif_text}");
+}
+
 // --- the rules as a set ---------------------------------------------------
 
 const ALL_RULES: &[&str] = &[
@@ -471,6 +652,7 @@ const ALL_RULES: &[&str] = &[
     "scan-coauthor-trailer",
     "scan-local-path",
     "scan-foreign-reference",
+    "scan-secret",
     "scan-denied-name",
 ];
 
@@ -524,11 +706,12 @@ fn every_finding_is_an_error_and_points_at_explain() {
         first.session_paths.first().expect("a session place"),
     );
     let text = format!(
-        "See {} and {} and Secret and {} and {} and\n{}\n",
+        "See {} and {} and Secret and {} and {} and {} and\n{}\n",
         session_link("1"),
         foreign_reference("other", "repo", 1),
         windows_user_path("pat"),
         agent_state_path(first_dir, first_place),
+        fake_cloud_key_id(),
         coauthor_trailer("X", "x@example.com")
     );
     let found = rules.scan_text(&text, Context::Commit);

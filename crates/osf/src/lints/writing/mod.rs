@@ -42,7 +42,12 @@ pub fn lint_writing(
     let mut findings = if no_suppress {
         findings
     } else {
-        osf_lint_core::apply_suppressions(text, findings, &rules::rule_ids())
+        osf_lint_core::apply_suppressions(
+            text,
+            findings,
+            &crate::lints::all_rule_ids(),
+            &rules::rule_ids(),
+        )
     };
     osf_lint_core::sort_findings(&mut findings);
     add_explain_pointers(&mut findings);
@@ -78,6 +83,14 @@ mod tests {
     use crate::lints::{
         is_fixture_path, is_scan_rule, load_known_names, Evidence, Level, Remediation,
     };
+
+    /// Builds an `osf-<directive>` marker at run time: `osf scan` reads its
+    /// own tracked source for markers too, so the shape must never sit
+    /// whole in this file.
+    fn marker(directive: &str, rest: &str) -> String {
+        let open = ["<!--", "osf-"].join(" ");
+        format!("{open}{directive}{rest} -->")
+    }
 
     fn lint(text: &str) -> Vec<Finding> {
         lint_writing(
@@ -721,7 +734,11 @@ mod tests {
 
     #[test]
     fn a_suppressed_line_is_kept_but_marked() {
-        let f = lint("Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n");
+        let t = format!(
+            "Fixed in #125 today. {}\n",
+            marker("disable-line", " bare-reference -- tracked")
+        );
+        let f = lint(&t);
         // The marker's own `-->` and ` -- ` must not lint as an arrow or an em dash.
         assert_eq!(f.len(), 1, "{f:?}");
         let bare = f
@@ -734,9 +751,12 @@ mod tests {
     #[test]
     fn no_suppress_ignores_every_marker() {
         let known = load_known_names(&[], None).expect("built-in names load");
-        let text = "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n";
+        let text = format!(
+            "Fixed in #125 today. {}\n",
+            marker("disable-line", " bare-reference -- tracked")
+        );
         let f = lint_writing(
-            text,
+            &text,
             &known,
             &WritingConfig::default(),
             Context::Transcript,

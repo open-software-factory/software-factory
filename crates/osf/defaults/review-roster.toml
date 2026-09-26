@@ -1,0 +1,72 @@
+# The shipped reviewer roster: one coding-agent harness per row, run
+# headless with osf's own lens prompt and answer schema. Every entry ships
+# disabled; a repository's own osf.toml turns one on once its harness is
+# installed and logged in.
+#
+# osf never holds a model provider's key. Each harness reads its own
+# credentials (a subscription login, or its own API key environment
+# variable) the way it already does outside osf.
+#
+# The prompt is always sent on the harness's own standard input; a harness
+# whose command line needs the prompt as a file instead can use the
+# `{prompt_file}` token in its own `command`.
+
+[[reviewer]]
+name = "codex"
+harness = "codex"
+family = "openai"
+# No --json: that flag turns stdout into a JSON Lines event stream. With
+# --output-schema alone, codex exec still writes the final, schema-matching
+# message straight to stdout, so no envelope pointer is needed.
+command = ["codex", "exec"]
+schema_flag = "--output-schema"
+schema_as = "path"
+enabled = false
+
+[[reviewer]]
+name = "claude-code"
+harness = "claude"
+family = "anthropic"
+# --json-schema only takes effect together with --output-format json; the
+# schema-matching answer then comes back under the envelope's own
+# structured_output field, not as the whole output.
+command = ["claude", "--print", "--output-format", "json"]
+schema_flag = "--json-schema"
+schema_as = "inline"
+answer_pointer = "/structured_output"
+enabled = false
+
+[[reviewer]]
+name = "dsh"
+harness = "dsh"
+family = "deepseek"
+command = ["dsh", "--profile", "headless"]
+enabled = false
+
+[[reviewer]]
+name = "opencode-glm"
+harness = "opencode"
+family = "glm"
+command = ["opencode", "run", "--format", "json", "--model", "zhipuai/glm"]
+enabled = false
+
+[[reviewer]]
+name = "opencode-kimi"
+harness = "opencode"
+family = "kimi"
+command = ["opencode", "run", "--format", "json", "--model", "moonshotai/kimi"]
+enabled = false
+
+[[reviewer]]
+name = "opencode-qwen"
+harness = "opencode"
+family = "qwen"
+command = ["opencode", "run", "--format", "json", "--model", "alibaba/qwen"]
+enabled = false
+
+[[reviewer]]
+name = "opencode-mimo"
+harness = "opencode"
+family = "mimo"
+command = ["opencode", "run", "--format", "json", "--model", "xiaomi/mimo"]
+enabled = false

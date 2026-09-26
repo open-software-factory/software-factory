@@ -2,7 +2,10 @@
 //! run on its own over an explicit file list instead of a computed diff.
 
 mod common;
-use common::{isolated_home, run_osf, run_osf_with_env, session_link, TempRepo};
+use common::{
+    fake_secret_assignment, isolated_home, run_osf, run_osf_with_env, session_link,
+    suppress_marker, TempRepo,
+};
 
 /// The length of a SARIF report's first run's `results` array, read without
 /// the panicking index operator this workspace's clippy settings deny.
@@ -156,7 +159,10 @@ fn check_lint_writing_gate_ignores_a_suppression_marker() {
     let repo = TempRepo::new("check-gate");
     repo.write(
         "n.md",
-        "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n",
+        &format!(
+            "Fixed in #125 today. {}\n",
+            suppress_marker("disable-line", "bare-reference", Some("tracked"))
+        ),
     );
     repo.commit("suppressed");
     let home = isolated_home("check-gate");
@@ -176,6 +182,140 @@ fn check_lint_writing_gate_ignores_a_suppression_marker() {
             "pull-request",
             "--gate",
             "n.md",
+        ],
+    );
+    assert_eq!(gated.status.code(), Some(1), "{gated:?}");
+}
+
+/// A suppression marker on a `scan` finding works the same way it does for
+/// `lint-writing`: `osf-disable-line <rule> -- <reason>` on the offending
+/// line drops the exit code to 0.
+#[test]
+fn check_scan_honours_a_suppression_marker_with_a_reason() {
+    let repo = TempRepo::new("check-scan-suppress");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("TOKEN"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.commit("add a suppressed secret");
+    let home = isolated_home("check-scan-suppress");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "pre-push", "config.txt"],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+}
+
+/// The same marker with no reason after `--` does not suppress: the finding
+/// still fails the check.
+#[test]
+fn check_scan_ignores_a_suppression_marker_with_no_reason() {
+    let repo = TempRepo::new("check-scan-suppress-no-reason");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("SECRET"),
+            suppress_marker("disable-line", "scan-secret", None)
+        ),
+    );
+    repo.commit("add an unreasoned marker");
+    let home = isolated_home("check-scan-suppress-no-reason");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "pre-push", "config.txt"],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+}
+
+/// `--gate` ignores a suppression marker for `scan`, the same as it already
+/// does for `lint-writing`: a secret with a reasoned marker must not pass
+/// the pull-request gate just because the change under review added the
+/// marker itself.
+#[test]
+fn check_scan_gate_ignores_a_suppression_marker() {
+    let repo = TempRepo::new("check-scan-gate");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("TOKEN"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.commit("add a suppressed secret");
+    let home = isolated_home("check-scan-gate");
+    let plain = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan",
+            "--checkpoint",
+            "pull-request",
+            "config.txt",
+        ],
+    );
+    assert_eq!(plain.status.code(), Some(0), "{plain:?}");
+    let gated = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan",
+            "--checkpoint",
+            "pull-request",
+            "--gate",
+            "config.txt",
+        ],
+    );
+    assert_eq!(gated.status.code(), Some(1), "{gated:?}");
+}
+
+/// The same gate behaviour for `scan-staged`.
+#[test]
+fn check_scan_staged_gate_ignores_a_suppression_marker() {
+    let repo = TempRepo::new("check-scan-staged-gate");
+    repo.write("config.txt", "Clean for now.\n");
+    repo.commit("clean");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("SECRET"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.stage("config.txt");
+    let home = isolated_home("check-scan-staged-gate");
+    let plain = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "config.txt",
+        ],
+    );
+    assert_eq!(plain.status.code(), Some(0), "{plain:?}");
+    let gated = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "--gate",
+            "config.txt",
         ],
     );
     assert_eq!(gated.status.code(), Some(1), "{gated:?}");

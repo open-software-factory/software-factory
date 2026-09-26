@@ -1,7 +1,7 @@
 use osf::status::GhClient;
 use osf::{
-    check, checkpoint, config, exclude, githooks, hook, journal, lints, review, risk, scan, status,
-    verify,
+    answer, check, checkpoint, config, exclude, githooks, hook, journal, lints, reducer, review,
+    review_run, reviewers, risk, scan, status, verify,
 };
 
 use clap::parser::ValueSource;
@@ -253,6 +253,29 @@ enum ReviewAction {
     /// a fallback comment when the reviewer and the author share one
     /// GitHub identity.
     Post(ReviewPostArgs),
+    /// Review a change through its selected lenses, and journal each
+    /// answer and the decision.
+    Run(ReviewRunArgs),
+}
+
+#[derive(Args)]
+struct ReviewRunArgs {
+    /// What to diff the change against. Falls back to the `OSF_BASE`
+    /// environment variable, the checkpoint runner's own base, when omitted.
+    #[arg(long)]
+    base: Option<String>,
+    /// A file holding the work item body, for a lens that needs one.
+    #[arg(long = "work-item")]
+    work_item: Option<PathBuf>,
+    /// Write the kept findings as SARIF to this path.
+    #[arg(long = "sarif-out")]
+    sarif_out: Option<PathBuf>,
+    /// Runs only when the roster has at least one enabled reviewer. With
+    /// none enabled, prints one line and exits 0 without opening the
+    /// journal, so the moon review task skips cleanly on a checkout with no
+    /// reviewer configured instead of failing its checkpoint.
+    #[arg(long = "if-enabled")]
+    if_enabled: bool,
 }
 
 #[derive(Args)]
@@ -300,6 +323,10 @@ struct ScanArgs {
     /// own configuration.
     #[arg(long)]
     gate: bool,
+    /// Ignore every osf-disable marker and report everything. Continuous
+    /// integration uses this.
+    #[arg(long)]
+    no_suppress: bool,
 }
 
 #[derive(Args)]
@@ -557,6 +584,9 @@ fn main() -> ExitCode {
         Command::Review {
             action: ReviewAction::Post(args),
         } => review_post_cmd(args),
+        Command::Review {
+            action: ReviewAction::Run(args),
+        } => review_run_cmd(args),
         Command::Hooks {
             action: HooksAction::Install(args),
         } => hooks_install_cmd(args),
@@ -1268,7 +1298,7 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
             }
         }
     } else {
-        match scan::scan_paths(dir, &args.paths, &rules, &excluder) {
+        match scan::scan_paths(dir, &args.paths, &rules, &excluder, args.no_suppress) {
             Ok(outcome) => {
                 tally.excluded = outcome.excluded;
                 outcome.files
@@ -1410,6 +1440,103 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
         eprintln!("osf verify: {err}");
     }
     ExitCode::from(checkpoint::exit_code(&summary, checkpoint))
+}
+
+fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
+    let root = Path::new(".");
+    if args.if_enabled {
+        match reviewers::roster(root) {
+            Ok(roster) if roster.iter().any(|r| r.enabled) => {}
+            Ok(_) => {
+                println!("review: slot off, no reviewer enabled");
+                if let Some(path) = &args.sarif_out {
+                    if let Err(code) = write_sarif_out(path, &[]) {
+                        return code;
+                    }
+                }
+                return ExitCode::from(0);
+            }
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    let Some(base) = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok()) else {
+        eprintln!("osf review run: a base is required: pass --base or set OSF_BASE");
+        return ExitCode::from(2);
+    };
+    let state_dir = match journal::state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let req = review_run::Request {
+        root,
+        base: &base,
+        work_item: args.work_item.as_deref(),
+    };
+    let outcome = match review_run::run(&req, &state_dir) {
+        Ok(outcome) => outcome,
+        Err(e) => {
+            eprintln!("osf review run: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    for line in &outcome.lines {
+        println!("{line}");
+    }
+    if let Some(err) = &outcome.journal_error {
+        eprintln!("osf review run: {err}");
+    }
+    if let Some(path) = &args.sarif_out {
+        let sarif_files = review_sarif_files(&outcome.findings);
+        if let Err(code) = write_sarif_out(path, &sarif_files) {
+            return code;
+        }
+    }
+    ExitCode::from(match outcome.verdict {
+        reducer::Verdict::Pass => 0,
+        reducer::Verdict::Fail => 1,
+        reducer::Verdict::CouldNotRun => 2,
+    })
+}
+
+/// A review run's kept findings, grouped by file, as SARIF-ready findings.
+/// A lens name is a fixed, bounded vocabulary, exactly the case
+/// `osf_lint_core::intern` exists for, so it stands in as the rule id.
+fn review_sarif_files(findings: &[review_run::KeptFinding]) -> Vec<(String, Vec<lints::Finding>)> {
+    let mut by_path: Vec<(String, Vec<lints::Finding>)> = Vec::new();
+    for kept in findings {
+        let rule = osf_lint_core::intern(&kept.lens);
+        let level = match kept.finding.severity {
+            answer::Severity::Blocker => lints::Level::Error,
+            answer::Severity::Major => lints::Level::Warning,
+            answer::Severity::Minor => lints::Level::Info,
+        };
+        let line = usize::try_from(kept.finding.line).unwrap_or(usize::MAX);
+        let finding = lints::Finding {
+            rule,
+            level,
+            line,
+            message: kept.finding.body.clone(),
+            excerpt: kept.finding.quote.clone(),
+            source: rule,
+            evidence: lints::Evidence::Statistical,
+            remediation: lints::Remediation::default(),
+            suppressed: None,
+        };
+        match by_path
+            .iter_mut()
+            .find(|(path, _)| *path == kept.finding.path)
+        {
+            Some((_, list)) => list.push(finding),
+            None => by_path.push((kept.finding.path.clone(), vec![finding])),
+        }
+    }
+    by_path
 }
 
 fn risk_cmd(args: &RiskArgs) -> ExitCode {

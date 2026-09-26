@@ -1,0 +1,20 @@
+name = "user-visible-change"
+summary = "Whether a change a user can see was actually meant to be seen, and reads clearly."
+weight = 0.6
+runs = "triggered"
+
+[trigger]
+paths = ["**/ui/**", "**/*.dart", "**/*.tsx", "**/screens/**"]
+
+[[criteria]]
+id = "intentional"
+question = "Does every user-visible change match what the change was meant to do, with nothing left over?"
+
+[[criteria]]
+id = "reads-clearly"
+question = "Would a user understand the changed text or layout without needing to ask what it means?"
+
+[severity_guide]
+blocker = "A user-visible change that was not intended, such as debug text or a broken layout."
+major = "An intended change that reads unclearly or inconsistently with the rest of the screen."
+minor = "A small wording or spacing issue with no effect on understanding."

@@ -1,0 +1,20 @@
+name = "accessibility"
+summary = "Whether a changed screen or view works for someone using assistive technology."
+weight = 0.6
+runs = "triggered"
+
+[trigger]
+paths = ["**/*.dart", "**/*.tsx", "**/*.jsx", "**/*.html"]
+
+[[criteria]]
+id = "labelled"
+question = "Does every new interactive element carry a label a screen reader can announce?"
+
+[[criteria]]
+id = "keyboard-and-contrast"
+question = "Can the change be used with a keyboard alone, with enough colour contrast to read?"
+
+[severity_guide]
+blocker = "A new interactive element that a screen reader or a keyboard-only user cannot use at all."
+major = "An element that is usable, but harder to use than the rest of the screen."
+minor = "A small accessibility gap with a clear, low-cost fix."

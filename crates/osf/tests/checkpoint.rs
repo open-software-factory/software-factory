@@ -2,8 +2,9 @@
 
 mod common;
 use common::{
-    isolated_home, run_osf, run_osf_with_env, session_link, spawn_osf_stdin, write_fake_moon,
-    write_fake_moon_report, write_stdin, yaml_single_quoted, BareRepo, TempDir, TempRepo,
+    isolated_home, run_osf, run_osf_with_env, session_link, spawn_osf_stdin, suppress_marker,
+    write_fake_moon, write_fake_moon_report, write_stdin, yaml_single_quoted, BareRepo, TempDir,
+    TempRepo,
 };
 
 fn state(home: &std::path::Path) -> std::path::PathBuf {
@@ -395,7 +396,10 @@ fn the_pull_request_checkpoint_ignores_a_suppression_marker_and_the_exclude_list
     let base = repo.commit("base");
     repo.write(
         "notes.md",
-        "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n",
+        &format!(
+            "Fixed in #125 today. {}\n",
+            suppress_marker("disable-line", "bare-reference", Some("tracked"))
+        ),
     );
     repo.commit("dirty");
     let home = isolated_home("cp-gate-ignores");

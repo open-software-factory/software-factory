@@ -468,6 +468,35 @@ pub fn diff_numstat(dir: &Path, rev: &str) -> Result<Vec<String>, GitError> {
     run_text(dir, &["diff", "--numstat", rev]).map(|t| t.lines().map(str::to_string).collect())
 }
 
+/// One `(status, path)` pair per changed path against `rev`: the status
+/// letter git reports (`A`, `M`, `D`, `R100`, ...), reduced to its first
+/// character, and, for a rename or copy, the new path.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `rev` does not resolve.
+pub fn diff_name_status(dir: &Path, rev: &str) -> Result<Vec<(char, String)>, GitError> {
+    let text = run_text(dir, &["diff", "--name-status", rev])?;
+    Ok(text
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.splitn(2, '\t');
+            let status = fields.next()?.chars().next()?;
+            let rest = fields.next()?;
+            let path = rest.rsplit('\t').next().unwrap_or(rest);
+            Some((status, path.to_string()))
+        })
+        .collect())
+}
+
+/// The unified diff against `rev`, with no context lines, so every line
+/// after a hunk header is either an addition or a deletion.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `rev` does not resolve.
+pub fn diff_patch(dir: &Path, rev: &str) -> Result<String, GitError> {
+    run_text(dir, &["diff", "--no-color", "--unified=0", rev])
+}
+
 /// Every path git neither tracks nor ignores.
 ///
 /// # Errors

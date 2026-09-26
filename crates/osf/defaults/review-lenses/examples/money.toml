@@ -1,0 +1,21 @@
+name = "money"
+summary = "Whether a change that touches money keeps every amount and currency correct and auditable."
+weight = 1.0
+runs = "triggered"
+
+[trigger]
+paths = ["**/*price*", "**/*payment*", "**/*ledger*"]
+signals = ["money-amount"]
+
+[[criteria]]
+id = "correct-currency-and-rounding"
+question = "Does every amount carry its currency, and round the same way everywhere it is compared or summed?"
+
+[[criteria]]
+id = "auditable"
+question = "Can every change to a stored amount be traced to the transaction that caused it?"
+
+[severity_guide]
+blocker = "An amount is miscalculated, double-counted, or loses its currency somewhere in the change."
+major = "An amount is correct today but not auditable, or rounds inconsistently in one place."
+minor = "A display-only formatting issue with no effect on a stored or compared amount."

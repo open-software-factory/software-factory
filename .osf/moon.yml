@@ -126,3 +126,10 @@ tasks:
     deps: ['~:test']
     tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
     options: { runFromWorkspaceRoot: true, shell: false }
+  # With no reviewer enabled in osf.toml this is skipped; with one enabled, could-not-run fails.
+  review:
+    command: 'osf review run --if-enabled --sarif-out .osf/out/review.sarif'
+    inputs: ['/**/*.rs', '/**/*.md', '/.osf/review-lenses/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/review.sarif']
+    tags: [osf-pre-push, osf-pull-request, osf-slot-review]
+    options: { runFromWorkspaceRoot: true, shell: false }

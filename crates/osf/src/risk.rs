@@ -55,9 +55,17 @@ pub struct Report {
     pub lines: usize,
     pub base: String,
     pub head: String,
+    signal_list: Vec<String>,
 }
 
 impl Report {
+    /// The review-lens trigger signals this change earns, by the same exact
+    /// strings a lens's `[trigger] signals` names, in a fixed order.
+    #[must_use]
+    pub fn signals(&self) -> Vec<String> {
+        self.signal_list.clone()
+    }
+
     #[must_use]
     pub fn render_human(&self) -> String {
         use std::fmt::Write as _;
@@ -67,6 +75,9 @@ impl Report {
         }
         for axis in &self.axes_add {
             writeln!(out, "axis-add: {}", axis.as_str()).expect("writing to a string never fails");
+        }
+        for signal in &self.signal_list {
+            writeln!(out, "signal: {signal}").expect("writing to a string never fails");
         }
         writeln!(out, "files: {}", self.files).expect("writing to a string never fails");
         writeln!(out, "lines: {}", self.lines).expect("writing to a string never fails");
@@ -81,6 +92,7 @@ impl Report {
             "tier": self.tier.as_str(),
             "reasons": self.reasons,
             "axes_add": self.axes_add.iter().map(|a| a.as_str()).collect::<Vec<_>>(),
+            "signals": self.signal_list,
             "files": self.files,
             "lines": self.lines,
             "base": self.base,
@@ -124,6 +136,17 @@ const TEST_FILES: &str = r"(^|/)(tests?|spec|specs|__tests__|test_data|fixtures)
 const UI_PATTERN: &str = r"\.(dart|tsx|jsx|vue|svelte|xaml|razor|html|css|scss)$|(^|/)(screens?|widgets?|pages?|views?|components?)/";
 const DOCS_PATTERN: &str = r"^docs/|(^|/)(adr|decisions|design)/.*\.md$";
 const DEPS_PATTERN: &str = r"(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|packages\.lock\.json|Directory\.Packages\.props|.*\.csproj|build\.gradle(\.kts)?|gradle\.lockfile|libs\.versions\.toml|pubspec\.(yaml|lock)|pyproject\.toml|uv\.lock|requirements[^/]*\.txt|Cargo\.(toml|lock)|go\.(mod|sum))$";
+
+/// A dependency lockfile: content matches here are never a concurrency signal, since a lockfile's own text (a crate or package name) routinely contains a concurrency word with no bearing on this change.
+const LOCKFILE_PATTERN: &str = r"(^|/)(Cargo\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Gemfile\.lock|poetry\.lock|composer\.lock|Pipfile\.lock)$";
+/// A changed line that touches concurrency primitives, checked against real diff content, never a path.
+const CONCURRENCY_CONTENT_PATTERN: &str = r"\b(thread|async|mutex|rwlock|atomic)";
+/// A Rust item exported outside its own crate: `pub(crate)` never matches, since no whitespace follows `pub` there.
+const RUST_PUBLIC_ITEM_PATTERN: &str = r"^\s*pub\s+(fn|struct|enum|trait)\b";
+/// A TypeScript export declaration.
+const TS_EXPORT_PATTERN: &str = r"^\s*export\s+(function|class|interface|const|enum)\b";
+/// A clap-derived CLI flag: cheap to check alongside the Rust public-item pattern.
+const CLI_FLAG_PATTERN: &str = r"#\[arg\(|#\[command\(";
 
 /// Compiles a pattern this module owns: a bug that stops it compiling is
 /// caught by the test suite, never by a person running the command.
@@ -337,6 +360,249 @@ fn axes_for(files: &[&str]) -> Vec<Axis> {
     axes
 }
 
+/// One changed file's status and diff content, the raw material every
+/// content-based signal reads instead of the file's path.
+struct FileDiff {
+    path: String,
+    added: bool,
+    added_hunks: Vec<Vec<String>>,
+    removed_lines: Vec<String>,
+}
+
+/// Parses one `git diff --unified=0` patch into `hunks` (added lines, kept
+/// grouped by hunk so a contiguous block stays intact) and `removed` (every
+/// deleted line, path order not significant), both keyed by path.
+fn merge_patch(
+    patch: &str,
+    hunks: &mut std::collections::BTreeMap<String, Vec<Vec<String>>>,
+    removed: &mut std::collections::BTreeMap<String, Vec<String>>,
+) {
+    let mut current: Option<String> = None;
+    for line in patch.lines() {
+        if let Some(path) = line.strip_prefix("+++ b/") {
+            current = Some(path.to_string());
+            continue;
+        }
+        if line.starts_with("+++ ") || line.starts_with("--- ") {
+            continue;
+        }
+        if line.starts_with("@@") {
+            if let Some(path) = &current {
+                hunks.entry(path.clone()).or_default().push(Vec::new());
+            }
+            continue;
+        }
+        if let Some(text) = line.strip_prefix('+') {
+            if let Some(path) = &current {
+                if let Some(hunk) = hunks.get_mut(path).and_then(|h| h.last_mut()) {
+                    hunk.push(text.to_string());
+                }
+            }
+            continue;
+        }
+        if let Some(text) = line.strip_prefix('-') {
+            if let Some(path) = &current {
+                removed
+                    .entry(path.clone())
+                    .or_default()
+                    .push(text.to_string());
+            }
+        }
+    }
+}
+
+/// Every changed file's status and diff content: the merge-base range, the
+/// uncommitted diff against `HEAD`, and every untracked file's own content
+/// counted as one added hunk, the same three scopes [`changed_files`] and
+/// [`changed_lines`] already read.
+fn collect_diffs(
+    dir: &Path,
+    base: &str,
+    files: &BTreeSet<String>,
+    untracked: &[String],
+) -> Result<Vec<FileDiff>, String> {
+    let merge_base_range = format!("{base}...HEAD");
+    let mut added_status: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for source in [merge_base_range.as_str(), "HEAD"] {
+        for (status, path) in
+            crate::git::diff_name_status(dir, source).map_err(|e| e.to_string())?
+        {
+            if status == 'A' {
+                added_status.insert(path);
+            }
+        }
+    }
+    for path in untracked {
+        added_status.insert(path.clone());
+    }
+
+    let mut hunks: std::collections::BTreeMap<String, Vec<Vec<String>>> =
+        std::collections::BTreeMap::new();
+    let mut removed: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
+    for source in [merge_base_range.as_str(), "HEAD"] {
+        let patch = crate::git::diff_patch(dir, source).map_err(|e| e.to_string())?;
+        merge_patch(&patch, &mut hunks, &mut removed);
+    }
+    for path in untracked {
+        let full = crate::git::to_local_path(dir, path);
+        if let Ok(text) = std::fs::read_to_string(&full) {
+            hunks
+                .entry(path.clone())
+                .or_default()
+                .push(text.lines().map(str::to_string).collect());
+        }
+    }
+
+    Ok(files
+        .iter()
+        .map(|path| FileDiff {
+            path: path.clone(),
+            added: added_status.contains(path),
+            added_hunks: hunks.remove(path).unwrap_or_default(),
+            removed_lines: removed.remove(path).unwrap_or_default(),
+        })
+        .collect())
+}
+
+/// Whether `line`, from `path`, adds or removes an item outside this
+/// project's own crate or module: a Rust `pub fn`/`struct`/`enum`/`trait`
+/// (never `pub(crate)`, which has no space before its parenthesis), a
+/// TypeScript `export`, or a clap CLI flag attribute.
+fn line_is_public_surface(path: &str, line: &str) -> bool {
+    let extension = Path::new(path)
+        .extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .unwrap_or_default();
+    if extension.eq_ignore_ascii_case("rs") {
+        return built_in(RUST_PUBLIC_ITEM_PATTERN).is_match(line)
+            || built_in(CLI_FLAG_PATTERN).is_match(line);
+    }
+    if extension.eq_ignore_ascii_case("ts") || extension.eq_ignore_ascii_case("tsx") {
+        return built_in(TS_EXPORT_PATTERN).is_match(line);
+    }
+    false
+}
+
+/// Whether the change adds or removes an exported item, read from the
+/// diff's own content rather than which files it touched.
+fn public_surface_changed(diffs: &[FileDiff]) -> bool {
+    diffs.iter().any(|d| {
+        d.added_hunks
+            .iter()
+            .flatten()
+            .chain(&d.removed_lines)
+            .any(|line| line_is_public_surface(&d.path, line))
+    })
+}
+
+/// Whether a changed line, outside a lockfile, touches a concurrency
+/// primitive: a lockfile's own text routinely names a crate or package
+/// containing one of these words with no bearing on this change.
+fn concurrency_changed(diffs: &[FileDiff]) -> bool {
+    let lockfile = built_in(LOCKFILE_PATTERN);
+    let keyword = built_in(CONCURRENCY_CONTENT_PATTERN);
+    diffs.iter().any(|d| {
+        !lockfile.is_match(&d.path)
+            && (d
+                .added_hunks
+                .iter()
+                .flatten()
+                .any(|line| keyword.is_match(line))
+                || d.removed_lines.iter().any(|line| keyword.is_match(line)))
+    })
+}
+
+/// One added hunk's lines, trimmed and rejoined, so two hunks that differ
+/// only in indentation still compare equal.
+fn normalise_block(lines: &[String]) -> String {
+    lines
+        .iter()
+        .map(|l| l.trim())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Whether two different files each added a near-identical block of at
+/// least six lines: the diff content itself, never a shared file name.
+fn repeated_logic(diffs: &[FileDiff]) -> bool {
+    let mut seen: std::collections::HashMap<String, &str> = std::collections::HashMap::new();
+    for diff in diffs {
+        for hunk in &diff.added_hunks {
+            if hunk.len() < 6 {
+                continue;
+            }
+            let key = normalise_block(hunk);
+            if key.trim().is_empty() {
+                continue;
+            }
+            match seen.get(&key) {
+                Some(&other) if other != diff.path => return true,
+                Some(_) => {}
+                None => {
+                    seen.insert(key, &diff.path);
+                }
+            }
+        }
+    }
+    false
+}
+
+/// The `[review] hot_paths` glob list from `root`'s own `osf.toml`, empty
+/// when the file, the table or the key is missing or malformed: a
+/// high-traffic path needs telemetry a diff cannot supply on its own, so
+/// with nothing configured, this signal never fires.
+fn hot_paths(root: &Path) -> Vec<String> {
+    let Ok(text) = std::fs::read_to_string(root.join("osf.toml")) else {
+        return Vec::new();
+    };
+    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
+        return Vec::new();
+    };
+    value
+        .get("review")
+        .and_then(|t| t.get("hot_paths"))
+        .and_then(toml::Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|v| v.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Whether any changed path matches one of `hot_paths`'s own globs.
+fn matches_any_hot_path(hot_paths: &[String], diffs: &[FileDiff]) -> bool {
+    hot_paths.iter().any(|pattern| {
+        globset::Glob::new(pattern).is_ok_and(|glob| {
+            let matcher = glob.compile_matcher();
+            diffs.iter().any(|d| matcher.is_match(&d.path))
+        })
+    })
+}
+
+/// The review-lens trigger signals a change earns, in a fixed order,
+/// whatever tier it landed on: each one reads the diff's content or an
+/// explicit configuration, never only a changed path, since a path glob is
+/// already what a lens's own `[trigger] paths` checks.
+fn signals_for(diffs: &[FileDiff], hot_paths: &[String]) -> Vec<String> {
+    let mut signals = Vec::new();
+    let mut add = |earned: bool, name: &str| {
+        if earned {
+            signals.push(name.to_string());
+        }
+    };
+
+    add(public_surface_changed(diffs), "public surface");
+    add(concurrency_changed(diffs), "concurrency");
+    add(diffs.iter().any(|d| d.added), "new-file");
+    add(repeated_logic(diffs), "repeated-logic");
+    add(matches_any_hot_path(hot_paths, diffs), "high-traffic path");
+
+    signals
+}
+
 /// Assesses the blast radius of the change between `base` and the working
 /// tree in `dir`: every commit since their merge base, plus anything
 /// uncommitted, plus anything untracked.
@@ -366,6 +632,8 @@ pub fn assess(dir: &Path, base: &str) -> Result<Report, String> {
     let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
     let (tier, reasons) = tier_for(&file_refs, files.len(), line_count, &high);
     let axes_add = axes_for(&file_refs);
+    let diffs = collect_diffs(dir, base, &files, &untracked)?;
+    let signal_list = signals_for(&diffs, &hot_paths(&root));
 
     Ok(Report {
         tier,
@@ -375,12 +643,33 @@ pub fn assess(dir: &Path, base: &str) -> Result<Report, String> {
         lines: line_count,
         base: base.to_string(),
         head,
+        signal_list,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Builds one `FileDiff` tersely: each element of `added_hunks` is one
+    /// hunk's added lines, kept as separate `Vec`s the way real hunk
+    /// boundaries would.
+    fn fd(
+        path: &str,
+        added: bool,
+        added_hunks: Vec<Vec<&str>>,
+        removed_lines: Vec<&str>,
+    ) -> FileDiff {
+        FileDiff {
+            path: path.to_string(),
+            added,
+            added_hunks: added_hunks
+                .into_iter()
+                .map(|h| h.into_iter().map(str::to_string).collect())
+                .collect(),
+            removed_lines: removed_lines.into_iter().map(str::to_string).collect(),
+        }
+    }
 
     #[test]
     fn shorten_keeps_five_and_counts_the_rest() {
@@ -398,5 +687,207 @@ mod tests {
     fn sum_numstat_skips_binary_markers() {
         let raw = vec!["3\t2\ta.txt".to_string(), "-\t-\tbinary.png".to_string()];
         assert_eq!(sum_numstat(&raw), 5);
+    }
+
+    #[test]
+    fn an_unrelated_change_earns_no_signal() {
+        let diffs = vec![fd(
+            "README.md",
+            false,
+            vec![vec!["Some plain prose."]],
+            vec![],
+        )];
+        assert!(signals_for(&diffs, &[]).is_empty());
+    }
+
+    // C4 negative test: a lockfile-only change never earns "concurrency",
+    // even though its own text names a crate containing a concurrency word.
+    #[test]
+    fn a_lockfile_change_earns_no_concurrency_signal() {
+        let diffs = vec![fd(
+            "Cargo.lock",
+            false,
+            vec![vec!["name = \"async-trait\"", "version = \"0.1.0\""]],
+            vec![],
+        )];
+        assert!(!concurrency_changed(&diffs));
+        assert!(!signals_for(&diffs, &[]).contains(&"concurrency".to_string()));
+    }
+
+    #[test]
+    fn a_concurrency_keyword_in_a_source_file_earns_the_concurrency_signal() {
+        let diffs = vec![fd(
+            "src/worker.rs",
+            false,
+            vec![vec!["let guard = Mutex::new(0);"]],
+            vec![],
+        )];
+        assert!(concurrency_changed(&diffs));
+    }
+
+    // C4 negative test: two README.md files sharing a name, but not their
+    // added content, never earn "repeated-logic".
+    #[test]
+    fn two_readme_files_with_different_content_earn_no_repeated_logic_signal() {
+        let diffs = vec![
+            fd(
+                "docs/a/README.md",
+                false,
+                vec![vec![
+                    "line one a",
+                    "line two a",
+                    "line three a",
+                    "line four a",
+                    "line five a",
+                    "line six a",
+                ]],
+                vec![],
+            ),
+            fd(
+                "docs/b/README.md",
+                false,
+                vec![vec![
+                    "line one b",
+                    "line two b",
+                    "line three b",
+                    "line four b",
+                    "line five b",
+                    "line six b",
+                ]],
+                vec![],
+            ),
+        ];
+        assert!(!repeated_logic(&diffs));
+    }
+
+    #[test]
+    fn two_files_sharing_a_near_identical_added_block_earn_repeated_logic() {
+        let block = vec![
+            "fn helper() {",
+            "    step_one();",
+            "    step_two();",
+            "    step_three();",
+            "    step_four();",
+            "}",
+        ];
+        let diffs = vec![
+            fd("src/a.rs", false, vec![block.clone()], vec![]),
+            fd("src/b.rs", false, vec![block], vec![]),
+        ];
+        assert!(repeated_logic(&diffs));
+    }
+
+    // C4 negative test: a `pub(crate)` item, which has no space before its
+    // parenthesis, is not a public-surface change.
+    #[test]
+    fn a_pub_crate_item_is_not_a_public_surface() {
+        let diffs = vec![fd(
+            "src/lib.rs",
+            false,
+            vec![vec!["pub(crate) fn helper() {}"]],
+            vec![],
+        )];
+        assert!(!public_surface_changed(&diffs));
+    }
+
+    #[test]
+    fn a_new_pub_fn_is_a_public_surface() {
+        let diffs = vec![fd(
+            "src/lib.rs",
+            false,
+            vec![vec!["pub fn helper() {}"]],
+            vec![],
+        )];
+        assert!(public_surface_changed(&diffs));
+    }
+
+    #[test]
+    fn a_removed_pub_fn_is_also_a_public_surface() {
+        let diffs = vec![fd(
+            "src/lib.rs",
+            false,
+            vec![],
+            vec!["pub fn old_helper() {}"],
+        )];
+        assert!(public_surface_changed(&diffs));
+    }
+
+    #[test]
+    fn a_typescript_export_is_a_public_surface() {
+        let diffs = vec![fd(
+            "web/api.ts",
+            false,
+            vec![vec!["export function fetchUser() {}"]],
+            vec![],
+        )];
+        assert!(public_surface_changed(&diffs));
+    }
+
+    #[test]
+    fn an_added_file_earns_the_new_file_signal() {
+        let diffs = vec![fd("src/new.rs", true, vec![], vec![])];
+        assert!(signals_for(&diffs, &[]).contains(&"new-file".to_string()));
+    }
+
+    #[test]
+    fn a_modified_file_alone_earns_no_new_file_signal() {
+        let diffs = vec![fd(
+            "src/existing.rs",
+            false,
+            vec![vec!["let x = 1;"]],
+            vec![],
+        )];
+        assert!(!signals_for(&diffs, &[]).contains(&"new-file".to_string()));
+    }
+
+    #[test]
+    fn high_traffic_path_only_fires_when_configured() {
+        let diffs = vec![fd("src/hot/handler.rs", false, vec![], vec![])];
+        assert!(!matches_any_hot_path(&[], &diffs));
+        assert!(matches_any_hot_path(&["**/hot/**".to_string()], &diffs));
+    }
+
+    #[test]
+    fn every_triggered_lens_signal_can_be_emitted_by_signals_for() {
+        let root = crate::test_support::TempDir::new("osf-risk-signals-catalogue");
+        let catalogue = crate::lenses::load(&root, None).expect("loads");
+        let block = vec![
+            "fn helper() {",
+            "    step_one();",
+            "    step_two();",
+            "    step_three();",
+            "    step_four();",
+            "}",
+        ];
+        let diffs = vec![
+            fd(
+                "src/api.rs",
+                false,
+                vec![vec!["pub fn new_endpoint() {}"]],
+                vec![],
+            ),
+            fd(
+                "src/worker.rs",
+                false,
+                vec![vec!["let lock = Mutex::new(0);"]],
+                vec![],
+            ),
+            fd("src/new.rs", true, vec![], vec![]),
+            fd("src/a.rs", false, vec![block.clone()], vec![]),
+            fd("src/b.rs", false, vec![block], vec![]),
+            fd("src/hot/handler.rs", false, vec![], vec![]),
+        ];
+        let hot = vec!["**/hot/**".to_string()];
+        let emitted = signals_for(&diffs, &hot);
+
+        for lens in &catalogue.lenses {
+            for signal in &lens.trigger.signals {
+                assert!(
+                    emitted.contains(signal),
+                    "{} names the trigger signal '{signal}', which risk::signals_for never emits",
+                    lens.name
+                );
+            }
+        }
     }
 }

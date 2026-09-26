@@ -215,6 +215,67 @@ pub struct ScanConfig {
     pub levels: BTreeMap<String, LevelSetting>,
 }
 
+/// The pass threshold `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_THRESHOLD: f64 = 0.7;
+
+/// The per-reviewer timeout, in seconds, `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 300;
+
+/// The `[review]` section of a repository's own `osf.toml`: the reviewer
+/// roster overrides, the pass threshold, the per-reviewer timeout, and an
+/// optional per-run cost ceiling.
+///
+/// Kept out of the layered [`Config`]/[`Layered`] system deliberately: a
+/// fractional `threshold` cannot honour `Config`'s `Eq` derive the way
+/// every other field does, and a roster override replaces a reviewer by
+/// name (see [`crate::reviewers::roster`]) rather than merging field by
+/// field the way the rest of this file's settings do.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct ReviewConfig {
+    /// Reviewers that replace a shipped one of the same name, or add a new one.
+    pub roster: Vec<crate::reviewers::Reviewer>,
+    /// The weighted lens score a review must clear to pass.
+    pub threshold: f64,
+    /// How long one reviewer call may run before it is killed and counted could-not-run.
+    pub timeout_seconds: u64,
+    /// An optional ceiling on what one review run may spend.
+    pub cost_ceiling: Option<f64>,
+}
+
+impl Default for ReviewConfig {
+    fn default() -> Self {
+        ReviewConfig {
+            roster: Vec::new(),
+            threshold: DEFAULT_REVIEW_THRESHOLD,
+            timeout_seconds: DEFAULT_REVIEW_TIMEOUT_SECS,
+            cost_ceiling: None,
+        }
+    }
+}
+
+/// Reads the `[review]` table of `<root>/osf.toml`, or
+/// [`ReviewConfig::default`] when the file, or the table, is absent.
+///
+/// # Errors
+/// Returns an error when the file is not valid TOML, or its `[review]`
+/// table does not match [`ReviewConfig`]'s shape.
+pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(ReviewConfig::default());
+    };
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    let Some(review) = value.get("review") else {
+        return Ok(ReviewConfig::default());
+    };
+    review
+        .clone()
+        .try_into()
+        .map_err(|e| ConfigError::new(format!("{}: [review]: {e}", path.display())))
+}
+
 /// One field the environment can set, and how to parse it into a TOML value.
 struct EnvField {
     var: &'static str,
@@ -1214,5 +1275,71 @@ mod tests {
         let err = serial(&[], || load(Some(&path), &[], &[], false))
             .expect_err("an unknown key is refused");
         assert!(err.to_string().contains("overview_max_paragraph"));
+    }
+
+    #[test]
+    fn review_config_defaults_when_osf_toml_is_absent() {
+        let dir = TempDir::new("osf-config-test-review-defaults");
+        let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert!(loaded.roster.is_empty());
+        assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+        assert_eq!(loaded.cost_ceiling, None);
+    }
+
+    #[test]
+    fn review_config_reads_threshold_and_cost_ceiling() {
+        let dir = TempDir::new("osf-config-test-review-fields");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nthreshold = 0.85\ncost_ceiling = 2.5\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert!((loaded.threshold - 0.85).abs() < f64::EPSILON);
+        assert_eq!(loaded.cost_ceiling, Some(2.5));
+    }
+
+    #[test]
+    fn review_config_defaults_the_timeout_to_three_hundred_seconds() {
+        let dir = TempDir::new("osf-config-test-review-timeout-default");
+        let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert_eq!(loaded.timeout_seconds, DEFAULT_REVIEW_TIMEOUT_SECS);
+        assert_eq!(loaded.timeout_seconds, 300);
+    }
+
+    #[test]
+    fn review_config_reads_a_configured_timeout() {
+        let dir = TempDir::new("osf-config-test-review-timeout-configured");
+        std::fs::write(dir.join("osf.toml"), "[review]\ntimeout_seconds = 45\n")
+            .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert_eq!(loaded.timeout_seconds, 45);
+    }
+
+    #[test]
+    fn review_config_with_no_review_table_still_gives_the_defaults() {
+        let dir = TempDir::new("osf-config-test-review-no-table");
+        std::fs::write(dir.join("osf.toml"), "[writing]\nmax_sentence_words = 30\n")
+            .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn a_malformed_review_table_is_refused_naming_the_field() {
+        let dir = TempDir::new("osf-config-test-review-malformed-type");
+        std::fs::write(dir.join("osf.toml"), "[review]\nthreshold = \"high\"\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("a string threshold is refused");
+        assert!(err.to_string().contains("threshold"), "{err}");
+    }
+
+    #[test]
+    fn an_unknown_review_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-review-unknown-field");
+        std::fs::write(dir.join("osf.toml"), "[review]\nthreshhold = 0.9\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("threshhold"), "{err}");
     }
 }

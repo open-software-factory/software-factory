@@ -1,0 +1,20 @@
+name = "duplication-and-reuse"
+summary = "Whether the change reuses what already exists instead of writing a new copy of it."
+weight = 0.7
+runs = "always-at-high-tier"
+
+[trigger]
+signals = ["repeated-logic"]
+
+[[criteria]]
+id = "reuses-existing"
+question = "Does the change call an existing function or module instead of restating its logic?"
+
+[[criteria]]
+id = "no-new-duplicate"
+question = "Does the change avoid adding a second implementation of something the repository already has?"
+
+[severity_guide]
+blocker = "The change copies working logic wholesale instead of reusing or extracting it."
+major = "The change duplicates a smaller piece of logic that already exists elsewhere."
+minor = "A near-duplicate with small enough differences that reuse was a judgement call."

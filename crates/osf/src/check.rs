@@ -5,7 +5,7 @@
 use crate::lints::{self, Context};
 use crate::verify::Options;
 use clap::ValueEnum;
-use osf_lint_core::{Finding, Level};
+use osf_lint_core::{apply_suppressions, Finding, Level};
 use std::path::Path;
 
 /// One check `osf verify` runs today, exposed on its own.
@@ -34,8 +34,8 @@ impl CheckName {
 
 /// Runs one named check over `files`. `scan-commits` ignores `files` and
 /// reads `opts.base`, falling back to the default branch. `gate` ignores a
-/// suppression marker for `lint-writing`, the same as `--gate` already does
-/// for the checks `osf verify` runs.
+/// suppression marker for `lint-writing`, `scan` and `scan-staged`, the
+/// same as `--gate` already does for every other check `osf verify` runs.
 ///
 /// # Errors
 /// Returns an error when git could not run, a named file does not exist or
@@ -49,11 +49,11 @@ pub fn run_check(
     match name {
         CheckName::Scan => {
             ensure_files_exist(opts.dir, files)?;
-            scan_files(opts, files, false)
+            scan_files(opts, files, false, gate)
         }
         CheckName::ScanStaged => {
             ensure_staged_files_exist(opts.dir, files)?;
-            scan_files(opts, files, true)
+            scan_files(opts, files, true, gate)
         }
         CheckName::LintWriting => {
             ensure_files_exist(opts.dir, files)?;
@@ -135,6 +135,7 @@ fn scan_files(
     opts: &Options,
     files: &[String],
     staged: bool,
+    gate: bool,
 ) -> Result<Vec<(String, Finding)>, String> {
     if files.is_empty() {
         return Ok(Vec::new());
@@ -152,12 +153,18 @@ fn scan_files(
             continue;
         }
         let text = String::from_utf8_lossy(&bytes);
-        findings.extend(
-            rules
-                .scan_text(&text, Context::Document)
-                .into_iter()
-                .map(|f| (path.clone(), f)),
-        );
+        let file_findings = rules.scan_text(&text, Context::Document);
+        let file_findings = if gate {
+            file_findings
+        } else {
+            apply_suppressions(
+                &text,
+                file_findings,
+                &crate::lints::all_rule_ids(),
+                &crate::scan::rule_ids(),
+            )
+        };
+        findings.extend(file_findings.into_iter().map(|f| (path.clone(), f)));
     }
     Ok(findings)
 }
@@ -296,6 +303,8 @@ fn lint_skill_files(opts: &Options, files: &[String]) -> Result<Vec<(String, Fin
     Ok(findings)
 }
 
+/// A commit message has no file to carry a suppression marker, so a finding
+/// here is never suppressible.
 fn scan_commits(opts: &Options) -> Result<Vec<(String, Finding)>, String> {
     let base = match &opts.base {
         Some(b) => b.clone(),
