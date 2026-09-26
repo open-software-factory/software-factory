@@ -558,7 +558,7 @@ pub fn foreign_reference(owner: &str, repo: &str, number: u32) -> String {
 /// flag the literal shape sitting in this file.
 pub fn fake_cloud_key_id() -> String {
     let prefix = "AKIA";
-    let body = "IOSFODNN7EXAMPLE";
+    let body = "9F8E7D6C5B4A3210";
     format!("{prefix}{body}")
 }
 

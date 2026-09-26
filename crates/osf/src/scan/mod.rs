@@ -402,9 +402,41 @@ fn secret_shape_pattern() -> &'static Regex {
             r"|\bsk-ant-[A-Za-z0-9_\-]{20,}\b",
             r"|\bsk-[A-Za-z0-9]{20,}\b",
             r"|\bxox[baprs]-[A-Za-z0-9\-]{10,}\b",
-            r#"|\b(?:[A-Z][A-Z0-9]*_)*(?:KEY|TOKEN|SECRET|PASSWORD)\b\s*[:=]\s*(?:'[^'\s]{8,}'|"[^"\s]{8,}")"#,
+            r#"|\b(?:[A-Z][A-Z0-9]*_)*(?:KEY|TOKEN|SECRET|PASSWORD)\b\s*[:=]\s*(?:'([^'\s]{8,})'|"([^"\s]{8,})")"#,
         ),
     )
+}
+
+/// Exact values seen only in documentation and examples, never in a real
+/// credential: AWS's own docs example access key id, and its matching
+/// example secret access key.
+const KNOWN_PLACEHOLDER_LITERALS: &[&str] = &[
+    "AKIAIOSFODNN7EXAMPLE",
+    "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+];
+
+/// A `KEY`/`TOKEN`/`SECRET`/`PASSWORD` assignment value that only documents
+/// or templates a secret, never holds one, matched whole and
+/// case-insensitively so a real value merely starting or ending with one of
+/// these words still fires.
+fn placeholder_value_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    re(
+        &RE,
+        r"(?i)^(?:changeme|password|example|placeholder|dummy|test|x+|your[_-].*[_-]here)$",
+    )
+}
+
+/// Whether a secret-shaped match is a known placeholder rather than a real
+/// secret: `whole` is the full match, `value` is the quoted value when the
+/// match came from the assignment shape.
+fn is_known_placeholder(whole: &str, value: Option<&str>) -> bool {
+    if KNOWN_PLACEHOLDER_LITERALS.contains(&whole) {
+        return true;
+    }
+    value.is_some_and(|v| {
+        KNOWN_PLACEHOLDER_LITERALS.contains(&v) || placeholder_value_pattern().is_match(v)
+    })
 }
 
 /// A PEM private-key block, its `BEGIN`/`END` lines and everything between
@@ -423,11 +455,17 @@ fn pem_key_pattern() -> &'static Regex {
 
 /// Never records the matched text: the same reason `scan-denied-name`
 /// does not. A line this fires on is not something a reader needs to see
-/// repeated back to them to know it must go.
+/// repeated back to them to know it must go. A line where every match is a
+/// known placeholder is not flagged at all.
 fn secret_line_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
     let pattern = secret_shape_pattern();
     for (line, content) in lines(text) {
-        if pattern.is_match(content) {
+        let real = pattern.captures_iter(content).any(|caps| {
+            let whole = caps.get(0).map_or("", |m| m.as_str());
+            let value = caps.get(1).or_else(|| caps.get(2)).map(|m| m.as_str());
+            !is_known_placeholder(whole, value)
+        });
+        if real {
             out.push(finding(
                 "scan-secret",
                 line,
