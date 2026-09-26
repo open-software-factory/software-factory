@@ -6,3 +6,7 @@ kind: number
 target: Tier 1
 reason: a neighbouring reference to the same word no longer places this one; each reference still needs its own description
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->

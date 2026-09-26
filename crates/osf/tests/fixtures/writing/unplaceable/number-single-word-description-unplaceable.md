@@ -6,3 +6,7 @@ kind: number
 target: Phase 2
 reason: a single word after a colon is never a real description; a rule with no word list cannot tell it from a filler word
 -->
+
+<!-- osf-expect
+unplaceable-reference
+-->
