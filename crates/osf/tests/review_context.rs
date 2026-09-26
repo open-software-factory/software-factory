@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::TempRepo;
+use common::{fake_forge_token, TempRepo};
 use osf::lenses::{ContextInput, Criterion, Depth, Lens, Runs, SeverityGuide, Trigger};
 use osf::review_context::{build, Sources};
 
@@ -350,4 +350,169 @@ fn a_very_large_diff_is_capped_with_a_marker_naming_what_was_left_out() {
     let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
     assert!(ctx.len() < huge.len(), "{}", ctx.len());
     assert!(ctx.contains("truncated"), "{ctx}");
+}
+
+#[test]
+fn a_built_in_secret_shape_is_redacted_with_no_configuration_at_all() {
+    let repo = TempRepo::new("redact-built-in-secret");
+    repo.write("src/config.rs", "// nothing sensitive yet\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    let secret = fake_forge_token("ghp_");
+    repo.write("src/config.rs", &format!("let leaked = \"{secret}\";\n"));
+    repo.commit("accidentally add a real-shaped token");
+    let lens = lens_with(vec![ContextInput::Diff]);
+    let sources = Sources {
+        root: &repo.dir,
+        base: "origin/main",
+        work_item: None,
+    };
+    let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
+    assert!(!ctx.contains(&secret), "{ctx}");
+    assert!(ctx.contains("redacted by scan-secret"), "{ctx}");
+}
+
+#[test]
+fn a_huge_diff_is_cut_but_the_spec_and_acceptance_work_item_survives_whole() {
+    use std::fmt::Write as _;
+    let repo = TempRepo::new("size-cap-work-item-survives");
+    repo.write("src/big.rs", "// base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+
+    let mut huge = String::new();
+    while huge.len() < 780_000 {
+        let _ = writeln!(huge, "// a line of a very large diff, repeated on purpose");
+    }
+    repo.write("src/big.rs", &huge);
+    repo.commit("a very large change");
+
+    let work_item = repo.dir.join("issue.md");
+    let marker = "the exact thing this test looks for is present";
+    std::fs::write(
+        &work_item,
+        format!("# A work item\n\n## Done when\n- {marker}\n"),
+    )
+    .expect("work item writes");
+
+    let catalogue = osf::lenses::load(&repo.dir, None).expect("loads");
+    let lens = catalogue
+        .lenses
+        .iter()
+        .find(|l| l.name == "spec-and-acceptance")
+        .expect("spec-and-acceptance is shipped");
+
+    let sources = Sources {
+        root: &repo.dir,
+        base: "origin/main",
+        work_item: Some(&work_item),
+    };
+    let ctx = build(lens, Depth::Diff, &sources).expect("builds");
+    assert!(ctx.contains(marker), "{ctx}");
+    assert!(ctx.contains("truncated"), "{ctx}");
+    assert!(ctx.len() < huge.len());
+}
+
+#[test]
+fn a_work_item_bigger_than_the_cap_alone_is_could_not_run() {
+    use std::fmt::Write as _;
+    let repo = TempRepo::new("size-cap-required-too-big");
+    repo.write("README.md", "base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+
+    let work_item = repo.dir.join("issue.md");
+    let mut body = String::from("# A work item\n\n## Done when\n");
+    while body.len() < 70_000 {
+        let _ = writeln!(
+            body,
+            "- another acceptance line, padding this out on purpose"
+        );
+    }
+    std::fs::write(&work_item, &body).expect("work item writes");
+
+    let lens = lens_with(vec![
+        ContextInput::WorkItem,
+        ContextInput::AcceptanceCriteria,
+    ]);
+    let sources = Sources {
+        root: &repo.dir,
+        base: "origin/main",
+        work_item: Some(&work_item),
+    };
+    let err = build(&lens, Depth::Diff, &sources).expect_err("must fail");
+    assert!(
+        err.contains("work-item") || err.contains("acceptance-criteria"),
+        "{err}"
+    );
+    assert!(err.contains("cap"), "{err}");
+}
+
+#[test]
+fn a_typescript_caller_is_found_for_entry_points() {
+    let repo = TempRepo::new("entry-points-typescript");
+    repo.write(
+        "src/service.ts",
+        "export function chargeCard() { return true; }\n",
+    );
+    repo.write(
+        "src/caller.ts",
+        "import { chargeCard } from './service';\nfunction run() { chargeCard(); }\n",
+    );
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write(
+        "src/service.ts",
+        "export function chargeCard() { return false; }\n",
+    );
+    repo.commit("change the function body");
+    let lens = lens_with(vec![ContextInput::EntryPoints]);
+    let sources = Sources {
+        root: &repo.dir,
+        base: "origin/main",
+        work_item: None,
+    };
+    let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
+    assert!(ctx.contains("src/caller.ts"), "{ctx}");
+}
+
+#[test]
+fn a_python_caller_is_found_for_entry_points() {
+    let repo = TempRepo::new("entry-points-python");
+    repo.write("app/billing.py", "def charge_card(): return True\n");
+    repo.write(
+        "app/caller.py",
+        "from app.billing import charge_card\n\ndef run():\n    charge_card()\n",
+    );
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("app/billing.py", "def charge_card(): return False\n");
+    repo.commit("change the function body");
+    let lens = lens_with(vec![ContextInput::EntryPoints]);
+    let sources = Sources {
+        root: &repo.dir,
+        base: "origin/main",
+        work_item: None,
+    };
+    let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
+    assert!(ctx.contains("app/caller.py"), "{ctx}");
+}
+
+#[test]
+fn an_unknown_extension_states_the_caller_search_is_unavailable() {
+    let repo = TempRepo::new("entry-points-unknown-extension");
+    repo.write("script.rb", "def charge_card\n  true\nend\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("script.rb", "def charge_card\n  false\nend\n");
+    repo.commit("change the ruby method");
+    let lens = lens_with(vec![ContextInput::EntryPoints]);
+    let sources = Sources {
+        root: &repo.dir,
+        base: "origin/main",
+        work_item: None,
+    };
+    let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
+    assert!(ctx.contains("unavailable"), "{ctx}");
+    assert!(ctx.contains("rb"), "{ctx}");
 }

@@ -6,8 +6,14 @@
 //! named in the returned text is forward-slash and relative to the
 //! repository. Before the text is handed back, `osf scan`'s own rules run
 //! over it and redact any match, so a secret already in the repository
-//! never reaches a reviewer's prompt; the result is then capped in size,
-//! with a marker naming what was left out.
+//! never reaches a reviewer's prompt.
+//!
+//! The result is then capped in size. Every declared input other than the
+//! diff goes in first and whole: if those alone are over the cap, the lens
+//! is could-not-run, naming them, rather than silently losing part of a
+//! work item or a decision record. The diff's own widening (the extra
+//! files a depth adds) is dropped first when there is no room, then the
+//! diff's own tail is cut, always with a marker naming what was left out.
 
 use crate::config::ScanConfig;
 use crate::lenses::{ContextInput, Depth, Lens};
@@ -33,22 +39,88 @@ const MAX_CONTEXT_BYTES: usize = 60_000;
 
 /// Builds the context section of `lens`'s prompt at `depth`, from `sources`.
 ///
+/// Every declared input other than the diff is assembled whole and placed
+/// first; the diff, with whatever `depth` adds to it, follows. Only the
+/// diff side is ever cut to make room.
+///
 /// # Errors
 /// Names the declared input that could not be found: a missing work item
 /// file, a work item with no acceptance heading, a decision record the diff
-/// links to that does not exist, a missing `docs/architecture`, or no
-/// changed files against the base.
+/// links to that does not exist, a missing `docs/architecture`, no changed
+/// files against the base, or the declared inputs other than the diff
+/// alone being over the size cap.
 pub fn build(lens: &Lens, depth: Depth, sources: &Sources) -> Result<String, String> {
-    let mut sections = Vec::with_capacity(lens.context.len());
+    let mut required: Vec<(ContextInput, String)> = Vec::new();
+    let mut diff_parts: Option<(String, Option<String>)> = None;
     for input in &lens.context {
-        let section = section_for(*input, depth, sources)
-            .map_err(|reason| format!("{}: {reason}", input_name(*input)))?;
-        sections.push(section);
+        if matches!(input, ContextInput::Diff) {
+            diff_parts =
+                Some(diff_sections(sources, depth).map_err(|reason| format!("diff: {reason}"))?);
+        } else {
+            let section = required_section_for(*input, sources)
+                .map_err(|reason| format!("{}: {reason}", input_name(*input)))?;
+            required.push((*input, section));
+        }
     }
-    let joined = sections.join("\n\n");
-    let redacted =
-        redact_secrets(sources.root, &joined).map_err(|reason| format!("context: {reason}"))?;
-    Ok(cap(redacted))
+
+    let required_text = required
+        .iter()
+        .map(|(_, section)| section.as_str())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let (required_redacted, mut redactions) = redact_secrets(sources.root, &required_text)
+        .map_err(|reason| format!("context: {reason}"))?;
+    if required_redacted.len() > MAX_CONTEXT_BYTES {
+        let names: Vec<&str> = required
+            .iter()
+            .map(|(input, _)| input_name(*input))
+            .collect();
+        return Err(format!(
+            "{}: the required context alone is {} bytes, over the {MAX_CONTEXT_BYTES}-byte cap",
+            names.join(", "),
+            required_redacted.len()
+        ));
+    }
+
+    let mut whole = required_redacted;
+    if let Some((core, extra)) = diff_parts {
+        let (core_redacted, core_count) =
+            redact_secrets(sources.root, &core).map_err(|reason| format!("context: {reason}"))?;
+        redactions += core_count;
+        let extra_redacted = match extra {
+            Some(extra_text) => {
+                let (redacted, count) = redact_secrets(sources.root, &extra_text)
+                    .map_err(|reason| format!("context: {reason}"))?;
+                redactions += count;
+                Some(redacted)
+            }
+            None => None,
+        };
+
+        let separator_len = if whole.is_empty() { 0 } else { 2 };
+        let budget = MAX_CONTEXT_BYTES.saturating_sub(whole.len() + separator_len);
+        let mut diff_text = match &extra_redacted {
+            Some(extra) if !extra.is_empty() => format!("{core_redacted}\n\n{extra}"),
+            _ => core_redacted.clone(),
+        };
+        if diff_text.len() > budget {
+            diff_text = core_redacted;
+        }
+        if diff_text.len() > budget {
+            diff_text = truncate_to(diff_text, budget);
+        }
+
+        if !whole.is_empty() {
+            whole.push_str("\n\n");
+        }
+        whole.push_str(&diff_text);
+    }
+
+    whole = append_redaction_note(whole, redactions);
+    if whole.len() > MAX_CONTEXT_BYTES {
+        whole = truncate_to(whole, MAX_CONTEXT_BYTES);
+    }
+    Ok(whole)
 }
 
 /// The kebab-case name a declared input is known by, matching how a lens
@@ -64,9 +136,11 @@ fn input_name(input: ContextInput) -> &'static str {
     }
 }
 
-fn section_for(input: ContextInput, depth: Depth, sources: &Sources) -> Result<String, String> {
+/// One of the five declared inputs other than the diff itself: always
+/// assembled whole, never subject to the diff's own cutting rules.
+fn required_section_for(input: ContextInput, sources: &Sources) -> Result<String, String> {
     match input {
-        ContextInput::Diff => diff_section(sources, depth),
+        ContextInput::Diff => unreachable!("build only calls this for a non-diff input"),
         ContextInput::WorkItem => work_item_section(sources),
         ContextInput::AcceptanceCriteria => acceptance_criteria_section(sources),
         ContextInput::DecisionRecords => decision_records_section(sources),
@@ -82,7 +156,10 @@ fn forward_slash(path: &Path) -> String {
 
 // --- the diff, and its depth-widened neighbours ---------------------------
 
-fn diff_section(sources: &Sources, depth: Depth) -> Result<String, String> {
+/// The diff itself, and, separately, whatever `depth` adds beyond it: kept
+/// apart so [`build`] can drop the widening before ever cutting the diff's
+/// own tail.
+fn diff_sections(sources: &Sources, depth: Depth) -> Result<(String, Option<String>), String> {
     let changed =
         crate::git::changed_files(sources.root, sources.base).map_err(|e| e.to_string())?;
     if changed.is_empty() {
@@ -90,37 +167,114 @@ fn diff_section(sources: &Sources, depth: Depth) -> Result<String, String> {
     }
     let range = format!("{}...HEAD", sources.base);
     let patch = crate::git::diff_patch(sources.root, &range).map_err(|e| e.to_string())?;
-    let mut out = format!("## diff, base {}\n{patch}", sources.base);
+    let core = format!("## diff, base {}\n{patch}", sources.base);
 
-    match depth {
-        Depth::Diff => {}
+    let extra = match depth {
+        Depth::Diff => None,
         Depth::DiffAndCallers => {
             let symbols = changed_function_names(&patch);
             let callers = caller_files(sources.root, &symbols, &changed);
-            if !callers.is_empty() {
-                out.push_str("\n\n## files that name a changed symbol\n");
-                out.push_str(&render_files(sources.root, &callers));
-            }
+            (!callers.is_empty()).then(|| {
+                format!(
+                    "## files that name a changed symbol\n{}",
+                    render_files(sources.root, &callers)
+                )
+            })
         }
         Depth::Module => {
             let siblings = module_siblings(sources.root, &changed);
-            if !siblings.is_empty() {
-                out.push_str("\n\n## other files in the changed modules\n");
-                out.push_str(&render_files(sources.root, &siblings));
-            }
+            (!siblings.is_empty()).then(|| {
+                format!(
+                    "## other files in the changed modules\n{}",
+                    render_files(sources.root, &siblings)
+                )
+            })
         }
-    }
-    Ok(out)
+    };
+    Ok((core, extra))
 }
 
-/// Every function name a diff's added or removed lines mention, in the
-/// order first seen, each named once.
+/// One of the ecosystems this project can find a changed function or
+/// method in, each with its own declaration shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Language {
+    Rust,
+    CSharp,
+    Java,
+    TypeScriptOrJavaScript,
+    Python,
+    Go,
+}
+
+/// The language a file extension names, or `None` for an extension outside
+/// the six ecosystems this project covers: caller detection is unavailable
+/// there, and the entry-points section says so rather than reporting an
+/// empty search.
+fn language_for_extension(extension: &str) -> Option<Language> {
+    match extension.to_ascii_lowercase().as_str() {
+        "rs" => Some(Language::Rust),
+        "cs" => Some(Language::CSharp),
+        "java" => Some(Language::Java),
+        "ts" | "tsx" | "js" | "jsx" => Some(Language::TypeScriptOrJavaScript),
+        "py" => Some(Language::Python),
+        "go" => Some(Language::Go),
+        _ => None,
+    }
+}
+
+fn compiled(cell: &'static OnceLock<Regex>, pattern: &str) -> &'static Regex {
+    cell.get_or_init(|| Regex::new(pattern).expect("caller-detection pattern compiles"))
+}
+
+/// `language`'s own shape for a changed function or method declaration,
+/// with the changed function's or method's name as the first capture.
+fn function_pattern(language: Language) -> &'static Regex {
+    static RUST: OnceLock<Regex> = OnceLock::new();
+    static CSHARP: OnceLock<Regex> = OnceLock::new();
+    static JAVA: OnceLock<Regex> = OnceLock::new();
+    static TS_JS: OnceLock<Regex> = OnceLock::new();
+    static PYTHON: OnceLock<Regex> = OnceLock::new();
+    static GO: OnceLock<Regex> = OnceLock::new();
+    match language {
+        Language::Rust => compiled(&RUST, r"\bfn\s+(\w+)"),
+        Language::CSharp => compiled(
+            &CSHARP,
+            r"\b(?:public|private|protected|internal|static|virtual|override|async|sealed)\s+[\w<>\[\],.?]*\s+(\w+)\s*\([^()]*\)\s*(?:\{|=>|;)",
+        ),
+        Language::Java => compiled(
+            &JAVA,
+            r"\b(?:public|private|protected|static|final|synchronized|abstract|native)\s+[\w<>\[\],.\s]*?\b(\w+)\s*\([^()]*\)\s*(?:\{|throws\b|;)",
+        ),
+        Language::TypeScriptOrJavaScript => compiled(&TS_JS, r"\bfunction\s+(\w+)\s*\("),
+        Language::Python => compiled(&PYTHON, r"\bdef\s+(\w+)\s*\("),
+        Language::Go => compiled(&GO, r"\bfunc\s+(?:\([^)]*\)\s*)?(\w+)\s*\("),
+    }
+}
+
+/// Every function or method name a diff's added or removed lines mention,
+/// in the order first seen, each named once: read only from a changed
+/// file whose extension names one of the six covered ecosystems.
 fn changed_function_names(patch: &str) -> Vec<String> {
-    static PATTERN: OnceLock<Regex> = OnceLock::new();
-    let pattern =
-        PATTERN.get_or_init(|| Regex::new(r"^[+-].*\bfn\s+(\w+)").expect("pattern compiles"));
     let mut names: Vec<String> = Vec::new();
-    for captures in patch.lines().filter_map(|line| pattern.captures(line)) {
+    let mut current: Option<Language> = None;
+    for line in patch.lines() {
+        if let Some(path) = line.strip_prefix("+++ b/") {
+            current = Path::new(path)
+                .extension()
+                .and_then(|e| e.to_str())
+                .and_then(language_for_extension);
+            continue;
+        }
+        if line.starts_with("+++ ") || line.starts_with("--- ") || line.starts_with("@@") {
+            continue;
+        }
+        if !(line.starts_with('+') || line.starts_with('-')) {
+            continue;
+        }
+        let Some(language) = current else { continue };
+        let Some(captures) = function_pattern(language).captures(line) else {
+            continue;
+        };
         if let Some(name) = captures.get(1) {
             let name = name.as_str().to_string();
             if !names.contains(&name) {
@@ -129,6 +283,26 @@ fn changed_function_names(patch: &str) -> Vec<String> {
         }
     }
     names
+}
+
+/// The extensions among `changed` that name no covered ecosystem, once
+/// each, sorted: caller detection cannot run on these, and the caller must
+/// say so plainly rather than reporting an empty search.
+fn unsupported_extensions(changed: &[String]) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    for path in changed {
+        let Some(extension) = Path::new(path).extension().and_then(|e| e.to_str()) else {
+            continue;
+        };
+        if language_for_extension(extension).is_none() {
+            let extension = extension.to_ascii_lowercase();
+            if !found.contains(&extension) {
+                found.push(extension);
+            }
+        }
+    }
+    found.sort();
+    found
 }
 
 /// Every tracked file naming one of `symbols`, other than a path already in `exclude`.
@@ -374,19 +548,30 @@ fn architecture_docs_section(sources: &Sources) -> Result<String, String> {
 // --- entry points ------------------------------------------------------
 
 fn entry_points_section(sources: &Sources) -> Result<String, String> {
+    use std::fmt::Write as _;
     let changed =
         crate::git::changed_files(sources.root, sources.base).map_err(|e| e.to_string())?;
     let range = format!("{}...HEAD", sources.base);
     let patch = crate::git::diff_patch(sources.root, &range).map_err(|e| e.to_string())?;
     let symbols = changed_function_names(&patch);
     let callers = caller_files(sources.root, &symbols, &changed);
+    let unsupported = unsupported_extensions(&changed);
+
+    let mut out = String::from("## entry points\n");
     if callers.is_empty() {
-        return Ok("## entry points\n(no other file calls a changed function)".to_string());
+        out.push_str("(no other file calls a changed function)\n");
+    } else {
+        out.push_str(&render_files(sources.root, &callers));
     }
-    Ok(format!(
-        "## entry points\n{}",
-        render_files(sources.root, &callers)
-    ))
+    if !unsupported.is_empty() {
+        let names: Vec<&str> = unsupported.iter().map(String::as_str).collect();
+        let _ = writeln!(
+            out,
+            "(the caller search is unavailable for: {})",
+            names.join(", ")
+        );
+    }
+    Ok(out)
 }
 
 // --- redaction and the size cap --------------------------------------------
@@ -410,22 +595,24 @@ fn scan_config(root: &Path) -> ScanConfig {
 }
 
 /// `text`, with every match of `osf scan`'s own rules replaced by a marker
-/// naming the rule: the same rules that stop a secret, a session link or a
-/// local path reaching a public repository stop it reaching a reviewer's
-/// prompt first. A denylist match never even hands back its own excerpt, so
-/// its whole line is replaced; every other rule replaces only the text it
-/// matched.
+/// naming the rule, and how many lines were replaced. A built-in rule,
+/// `scan-secret`, covers well-known token shapes on its own, with no
+/// configuration needed; the same rules that stop a secret, a session
+/// link or a local path reaching a public repository stop it reaching a
+/// reviewer's prompt first. A match with no excerpt of its own (a denied
+/// name, a secret shape, or a private-key line) has its whole line
+/// replaced; every other rule replaces only the text it matched.
 ///
 /// # Errors
 /// Returns an error if a configured denylist pattern or session link prefix
 /// is not valid: a context this module cannot trust to be scanned must
 /// never be sent unredacted instead.
-fn redact_secrets(root: &Path, text: &str) -> Result<String, String> {
+fn redact_secrets(root: &Path, text: &str) -> Result<(String, usize), String> {
     let cfg = scan_config(root);
     let rules = crate::scan::Rules::build(root, &cfg)?;
     let findings = rules.scan_text(text, osf_lint_core::Context::Document);
     if findings.is_empty() {
-        return Ok(text.to_string());
+        return Ok((text.to_string(), 0));
     }
     let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
     for finding in &findings {
@@ -445,19 +632,28 @@ fn redact_secrets(root: &Path, text: &str) -> Result<String, String> {
             );
         }
     }
-    lines.push(format!(
-        "[{} line(s) redacted before this prompt was built]",
-        findings.len()
-    ));
-    Ok(lines.join("\n"))
+    Ok((lines.join("\n"), findings.len()))
 }
 
-/// `text`, cut to [`MAX_CONTEXT_BYTES`] with a marker naming how much was left out.
-fn cap(text: String) -> String {
-    if text.len() <= MAX_CONTEXT_BYTES {
+/// Appends a one-line note naming how many lines were redacted, or leaves
+/// `text` untouched when nothing was.
+fn append_redaction_note(mut text: String, count: usize) -> String {
+    use std::fmt::Write as _;
+    if count > 0 {
+        let _ = write!(
+            text,
+            "\n\n[{count} line(s) redacted before this prompt was built]"
+        );
+    }
+    text
+}
+
+/// `text`, cut to `limit` bytes with a marker naming how much was left out.
+fn truncate_to(text: String, limit: usize) -> String {
+    if text.len() <= limit {
         return text;
     }
-    let mut cut = MAX_CONTEXT_BYTES;
+    let mut cut = limit;
     while cut > 0 && !text.is_char_boundary(cut) {
         cut -= 1;
     }
@@ -466,7 +662,7 @@ fn cap(text: String) -> String {
     };
     let omitted = text.len() - cut;
     format!(
-        "{kept}\n\n[context truncated: {omitted} of {} bytes left out to stay under the {MAX_CONTEXT_BYTES}-byte cap]",
+        "{kept}\n\n[context truncated: {omitted} of {} bytes left out to stay under the {limit}-byte cap]",
         text.len()
     )
 }
@@ -506,10 +702,47 @@ mod tests {
 
     #[test]
     fn changed_function_names_reads_added_and_removed_lines() {
-        let patch = "+pub fn added_one() {}\n-fn removed_one() {}\n context line\n";
+        let patch =
+            "+++ b/src/lib.rs\n@@ -1,0 +1,2 @@\n+pub fn added_one() {}\n-fn removed_one() {}\n";
         let names = changed_function_names(patch);
         assert!(names.contains(&"added_one".to_string()));
         assert!(names.contains(&"removed_one".to_string()));
+    }
+
+    #[test]
+    fn changed_function_names_covers_every_target_ecosystem() {
+        let cases: [(&str, &str); 6] = [
+            ("src/lib.rs", "+pub fn added_one() {}\n"),
+            ("Program.cs", "+    public void DoThing() {\n"),
+            ("Main.java", "+    public void doThing() {\n"),
+            ("app.ts", "+export function fetchUser() {}\n"),
+            ("script.py", "+def compute_total():\n"),
+            ("main.go", "+func ComputeTotal() int {\n"),
+        ];
+        for (path, added_line) in cases {
+            let patch = format!("+++ b/{path}\n@@ -0,0 +1 @@\n{added_line}");
+            let names = changed_function_names(&patch);
+            assert!(!names.is_empty(), "{path}: {names:?}");
+        }
+    }
+
+    #[test]
+    fn changed_function_names_is_empty_for_an_unsupported_extension() {
+        let patch = "+++ b/notes.md\n@@ -0,0 +1 @@\n+# fn looks_like_code() {}\n";
+        assert!(changed_function_names(patch).is_empty());
+    }
+
+    #[test]
+    fn unsupported_extensions_names_only_the_uncovered_ones() {
+        let changed = vec![
+            "src/lib.rs".to_string(),
+            "notes.rb".to_string(),
+            "assets/logo.svg".to_string(),
+        ];
+        assert_eq!(
+            unsupported_extensions(&changed),
+            vec!["rb".to_string(), "svg".to_string()]
+        );
     }
 
     #[test]
@@ -534,18 +767,30 @@ mod tests {
     }
 
     #[test]
-    fn cap_leaves_short_text_untouched() {
+    fn truncate_to_leaves_short_text_untouched() {
         let text = "short".to_string();
-        assert_eq!(cap(text.clone()), text);
+        assert_eq!(truncate_to(text.clone(), 100), text);
     }
 
     #[test]
-    fn cap_truncates_long_text_and_says_how_much_was_left_out() {
-        let text = "x".repeat(MAX_CONTEXT_BYTES + 500);
-        let capped = cap(text);
-        assert!(capped.len() < MAX_CONTEXT_BYTES + 500);
+    fn truncate_to_cuts_long_text_and_says_how_much_was_left_out() {
+        let text = "x".repeat(600);
+        let capped = truncate_to(text, 100);
+        assert!(capped.len() < 600);
         assert!(capped.contains("truncated"));
         assert!(capped.contains("500"));
+    }
+
+    #[test]
+    fn append_redaction_note_is_a_no_op_at_zero() {
+        let text = "unchanged".to_string();
+        assert_eq!(append_redaction_note(text.clone(), 0), text);
+    }
+
+    #[test]
+    fn append_redaction_note_names_the_count() {
+        let text = append_redaction_note("body".to_string(), 3);
+        assert!(text.contains("3 line"), "{text}");
     }
 
     #[test]
