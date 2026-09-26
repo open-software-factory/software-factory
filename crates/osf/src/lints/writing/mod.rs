@@ -42,7 +42,12 @@ pub fn lint_writing(
     let mut findings = if no_suppress {
         findings
     } else {
-        osf_lint_core::apply_suppressions(text, findings, &rules::rule_ids())
+        osf_lint_core::apply_suppressions(
+            text,
+            findings,
+            &crate::lints::all_rule_ids(),
+            &rules::rule_ids(),
+        )
     };
     osf_lint_core::sort_findings(&mut findings);
     add_explain_pointers(&mut findings);

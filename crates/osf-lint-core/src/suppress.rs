@@ -62,6 +62,16 @@ impl Span {
                 .as_ref()
                 .is_none_or(|ids| ids.iter().any(|id| id == finding.rule))
     }
+
+    /// Whether this call owns this span: it names at least one rule this
+    /// call's own checker runs, or names none at all, the bare form, which
+    /// covers every rule. A checker that runs none of a span's named rules
+    /// cannot say whether that span ever matched anything.
+    fn owned_by(&self, owned_rules: &[&str]) -> bool {
+        self.rules
+            .as_ref()
+            .is_none_or(|ids| ids.iter().any(|id| owned_rules.contains(&id.as_str())))
+    }
 }
 
 fn marker_regex() -> &'static Regex {
@@ -270,14 +280,22 @@ fn unused_warning(span: &Span) -> Finding {
 }
 
 /// Apply every suppression marker in `source` to `findings`. A covered
-/// finding is kept, not dropped, with its reason recorded. The result also
+/// finding is kept, not dropped, with its reason recorded. `known_rules` is
+/// every rule id in the tool, for validating a marker's ids: raw text is
+/// often read by more than one checker, so a marker naming a rule from a
+/// different one is not unknown. `owned_rules` is this call's own checker's
+/// rules, and decides which markers this call can judge as unused: a
+/// marker naming only a rule this call does not run is invisible to it,
+/// neither suppressing anything nor reported unused, since this call
+/// cannot say whether that other checker ever matched it. The result also
 /// carries the suppression engine's own diagnostics: a marker with no
-/// reason, an unknown rule id, and a marker that matched nothing.
+/// reason, an unknown rule id, and an owned marker that matched nothing.
 #[must_use]
 pub fn apply_suppressions(
     source: &str,
     mut findings: Vec<Finding>,
     known_rules: &[&str],
+    owned_rules: &[&str],
 ) -> Vec<Finding> {
     let doc_lines = line_starts(source);
     let markers = scan_markers(source, &doc_lines);
@@ -293,7 +311,12 @@ pub fn apply_suppressions(
         finding.suppressed = reason;
     }
     findings.extend(diagnostics);
-    findings.extend(spans.iter().filter(|s| !s.used).map(unused_warning));
+    findings.extend(
+        spans
+            .iter()
+            .filter(|s| !s.used && s.owned_by(owned_rules))
+            .map(unused_warning),
+    );
     findings
 }
 
@@ -312,7 +335,9 @@ mod tests {
         format!("{open}{directive}{rest} -->")
     }
 
-    /// A probe finding, as if `bare-reference` had fired on `line`.
+    /// A probe finding, as if `bare-reference` had fired on `line`. This
+    /// call owns every rule in `RULES`, the same as `known_rules`, so it
+    /// behaves exactly as it did before ownership was tracked separately.
     fn run(source: &str, line: usize) -> Vec<Finding> {
         let finding = Finding::new(
             "bare-reference",
@@ -321,7 +346,7 @@ mod tests {
             "write the repository before the number".to_string(),
             "#125".to_string(),
         );
-        apply_suppressions(source, vec![finding], RULES)
+        apply_suppressions(source, vec![finding], RULES, RULES)
     }
 
     fn bare_reference(found: &[Finding]) -> &Finding {
@@ -445,5 +470,31 @@ mod tests {
         assert!(found
             .iter()
             .any(|f| f.rule == "suppression-unused" && f.level == Level::Warning));
+    }
+
+    #[test]
+    fn a_marker_naming_only_an_unowned_rule_is_not_reported_unused() {
+        let t = format!(
+            "One.\n{}\n",
+            marker("disable-line", " long-sentence -- tracked")
+        );
+        let found = apply_suppressions(&t, Vec::new(), RULES, &["bare-reference"]);
+        assert!(
+            found.iter().all(|f| f.rule != "suppression-unused"),
+            "{found:?}"
+        );
+    }
+
+    #[test]
+    fn a_marker_naming_an_owned_rule_is_still_reported_unused() {
+        let t = format!(
+            "One.\n{}\n",
+            marker("disable-line", " bare-reference -- tracked")
+        );
+        let found = apply_suppressions(&t, Vec::new(), RULES, &["bare-reference"]);
+        assert!(
+            found.iter().any(|f| f.rule == "suppression-unused"),
+            "{found:?}"
+        );
     }
 }

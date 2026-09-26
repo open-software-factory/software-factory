@@ -349,3 +349,47 @@ fn a_marker_for_a_different_rule_does_not_suppress_a_secret_finding() {
         .expect("scan-secret fires");
     assert!(secret.suppressed.is_none(), "{findings:?}");
 }
+
+/// A marker for a writing-lint rule, sitting in a file scan also reads,
+/// must not read as unused: scan does not run the writing lint, so it
+/// cannot say whether that marker ever matched anything.
+#[test]
+fn a_writing_only_marker_in_a_scanned_file_gives_zero_scan_findings() {
+    let repo = TempRepo::new("scan-ignores-a-writing-only-marker");
+    let text = format!(
+        "Nothing sensitive here. {}\n",
+        suppress_marker(
+            "disable-line",
+            "long-sentence",
+            Some("quoting a specification verbatim")
+        )
+    );
+    repo.write("notes.md", &text);
+    repo.commit("add a writing-only marker");
+
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let (_, findings) = found.files.first().expect("one file scanned");
+    assert!(findings.is_empty(), "{findings:?}");
+}
+
+/// A scan-secret marker that never matches a real finding is scan's own to
+/// judge, so it still warns as unused.
+#[test]
+fn an_unused_scan_secret_marker_still_warns() {
+    let repo = TempRepo::new("scan-unused-secret-marker-warns");
+    let text = format!(
+        "Nothing sensitive here. {}\n",
+        suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+    );
+    repo.write("notes.md", &text);
+    repo.commit("add an unused scan-secret marker");
+
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let (_, findings) = found.files.first().expect("one file scanned");
+    assert!(
+        findings
+            .iter()
+            .any(|f| f.rule == "suppression-unused" && f.excerpt == "scan-secret"),
+        "{findings:?}"
+    );
+}

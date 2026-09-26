@@ -706,7 +706,8 @@ pub fn scan_paths(
         }
         let text = String::from_utf8_lossy(&bytes);
         let findings = rules.scan_text(&text, Context::Document);
-        let findings = apply_suppressions(&text, findings, &crate::lints::all_rule_ids());
+        let findings =
+            apply_suppressions(&text, findings, &crate::lints::all_rule_ids(), &rule_ids());
         files.push((label, findings));
     }
     Ok(ScanOutcome {

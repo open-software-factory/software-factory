@@ -153,7 +153,12 @@ fn scan_files(
         }
         let text = String::from_utf8_lossy(&bytes);
         let file_findings = rules.scan_text(&text, Context::Document);
-        let file_findings = apply_suppressions(&text, file_findings, &crate::lints::all_rule_ids());
+        let file_findings = apply_suppressions(
+            &text,
+            file_findings,
+            &crate::lints::all_rule_ids(),
+            &crate::scan::rule_ids(),
+        );
         findings.extend(file_findings.into_iter().map(|f| (path.clone(), f)));
     }
     Ok(findings)
