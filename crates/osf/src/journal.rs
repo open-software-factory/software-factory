@@ -72,12 +72,16 @@ pub struct ReviewAnswer {
 
 /// The whole review's verdict, with each lens's own outcome alongside the
 /// weighted score that decided it.
+///
+/// `score` and `threshold` are `None` exactly when `verdict` is
+/// `"could-not-run"`: a could-not-run review was never scored against the
+/// threshold, so there is nothing genuine to report next to it.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ReviewDecision {
     pub verdict: String,
     pub lenses: Vec<(String, String)>,
-    pub score: f64,
-    pub threshold: f64,
+    pub score: Option<f64>,
+    pub threshold: Option<f64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

@@ -126,6 +126,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
     let verdict = reducer::decide(&decided, threshold);
     let score = weighted_score(&decided);
+    let reported_threshold = score.map(|_| threshold);
     let lens_summaries: Vec<(String, String)> = decided
         .iter()
         .map(|(lens, verdict)| (lens.name.clone(), verdict_label(verdict)))
@@ -139,17 +140,20 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
                 verdict: verdict_word(verdict).to_string(),
                 lenses: lens_summaries,
                 score,
-                threshold,
+                threshold: reported_threshold,
             }),
         ) {
             journal_error.get_or_insert(e);
         }
     }
 
-    lines.push(format!(
-        "verdict: {} (score {score:.2}, threshold {threshold:.2})",
-        verdict_word(verdict)
-    ));
+    lines.push(match score {
+        Some(score) => format!(
+            "verdict: {} (score {score:.2}, threshold {threshold:.2})",
+            verdict_word(verdict)
+        ),
+        None => format!("verdict: {}", verdict_word(verdict)),
+    });
 
     Ok(RunOutcome {
         verdict,
@@ -339,27 +343,31 @@ fn verdict_word(verdict: Verdict) -> &'static str {
     }
 }
 
-/// The weighted mean of every lens's own score, over the lenses that
-/// reached one (a could-not-run lens contributes neither a score nor a
-/// weight). Reported for the journal and the printed verdict even when the
-/// review as a whole could not run, so a could-not-run review still says
-/// how the lenses that did complete scored.
-fn weighted_score(lenses: &[(&Lens, LensVerdict)]) -> f64 {
+/// The weighted mean of every lens's own score, or `None` when any lens
+/// could not run: a could-not-run review was never actually scored against
+/// the threshold, so there is nothing genuine to report next to it.
+fn weighted_score(lenses: &[(&Lens, LensVerdict)]) -> Option<f64> {
+    if lenses
+        .iter()
+        .any(|(_, verdict)| matches!(verdict, LensVerdict::CouldNotRun(_)))
+    {
+        return None;
+    }
     let mut weighted_sum = 0.0;
     let mut weight_total = 0.0;
     for (lens, verdict) in lenses {
         let score = match verdict {
             LensVerdict::Pass { score } | LensVerdict::Fail { score, .. } => *score,
-            LensVerdict::CouldNotRun(_) => continue,
+            LensVerdict::CouldNotRun(_) => unreachable!("could-not-run lenses returned above"),
         };
         weighted_sum += lens.weight * score;
         weight_total += lens.weight;
     }
-    if weight_total > 0.0 {
+    Some(if weight_total > 0.0 {
         weighted_sum / weight_total
     } else {
         0.0
-    }
+    })
 }
 
 /// `n` as a `u32`, saturating rather than panicking on a count this module

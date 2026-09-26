@@ -203,6 +203,28 @@ fn journal_event_types(home: &Path) -> Vec<String> {
     types
 }
 
+/// The payload of the single `review-decision` event in the journal buffer
+/// under `home`.
+fn journal_review_decision(home: &Path) -> serde_json::Value {
+    let buffer_dir = home.join(".osf/state/buffer");
+    let entries = std::fs::read_dir(&buffer_dir).expect("journal buffer dir reads");
+    let mut found = None;
+    for entry in entries {
+        let entry = entry.expect("dir entry reads");
+        let text = std::fs::read_to_string(entry.path()).expect("journal buffer reads");
+        for line in text.lines() {
+            let value: serde_json::Value =
+                serde_json::from_str(line).expect("journal line is JSON");
+            if value.get("event_type").and_then(serde_json::Value::as_str)
+                == Some("review-decision")
+            {
+                found = value.get("payload").cloned();
+            }
+        }
+    }
+    found.expect("a review-decision event in the journal")
+}
+
 /// The whole content of every journal buffer file under `home`, concatenated.
 fn journal_text(home: &Path) -> String {
     let buffer_dir = home.join(".osf/state/buffer");
@@ -344,6 +366,28 @@ fn every_reviewer_disabled_cannot_run_and_names_no_reviewer() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("no reviewer"), "{stdout}");
+}
+
+#[test]
+fn a_could_not_run_verdict_reports_no_score_or_threshold() {
+    let repo = review_repo("could-not-run-no-score", "");
+    let home = common::isolated_home("review-run-could-not-run-no-score");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let verdict_line = stdout
+        .lines()
+        .find(|line| line.starts_with("verdict:"))
+        .expect("a verdict line is printed");
+    assert_eq!(verdict_line, "verdict: could-not-run", "{stdout}");
+    assert!(!verdict_line.contains("score"), "{verdict_line}");
+    let decision = journal_review_decision(&home);
+    assert_eq!(decision.get("score"), Some(&serde_json::Value::Null));
+    assert_eq!(decision.get("threshold"), Some(&serde_json::Value::Null));
 }
 
 #[test]
