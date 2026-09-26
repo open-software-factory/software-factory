@@ -171,6 +171,11 @@ a self-hosted runner inside the development container. That runner
 already has the coding-agent tools installed and logged in, the way a
 person's own machine does.
 
+The job runs only when the repository variable `OSF_REVIEW_RUNNER` is
+`true`. Set it once the runner is registered with the `osf-devcontainer`
+label. Until then, pull requests do not wait for a runner that does not
+exist.
+
 A repository secret can hold an API key for a cheaper reviewer, such as
 one of the `opencode` models. The job passes each key through as an
 environment variable. The reviewer's own tool reads it the way it already

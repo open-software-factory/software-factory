@@ -311,10 +311,9 @@ jobs:
 
   review:
     name: review
-    # A fork's pull request never runs on the self-hosted runner: this
-    # guard is true only when the pull request's own head repository is
-    # this repository, so a fork's code never reaches it.
+    # Fork code never reaches the self-hosted runner; the variable turns the job on once a runner exists.
     if: >-
+      vars.OSF_REVIEW_RUNNER == 'true' &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, osf-devcontainer]
@@ -337,9 +336,7 @@ jobs:
       - name: Build the tool
         run: cargo build --release --bin osf
 
-      # This runner's main harnesses are already logged in; these keys are
-      # only for an optional, cheaper reviewer. osf never reads a key
-      # itself, and a missing one just leaves that reviewer unable to answer.
+      # Optional keys for a cheap reviewer; the runner's tools are already logged in, and osf reads no key.
       - name: Run the pull-request review
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
