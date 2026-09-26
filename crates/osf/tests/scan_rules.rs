@@ -587,10 +587,7 @@ fn well_known_placeholder_assignment_values_do_not_fire_scan_secret() {
     for value in [
         "changeme",
         "password",
-        "example",
         "placeholder",
-        "dummy",
-        "test",
         "xxxxxxxx",
         "your_api_key_here",
         "YOUR-TOKEN-HERE",

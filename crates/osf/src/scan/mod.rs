@@ -423,7 +423,7 @@ fn placeholder_value_pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     re(
         &RE,
-        r"(?i)^(?:changeme|password|example|placeholder|dummy|test|x+|your[_-].*[_-]here)$",
+        r"(?i)^(?:changeme|password|placeholder|x+|your[_-].*[_-]here)$",
     )
 }
 
