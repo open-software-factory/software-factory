@@ -3,21 +3,24 @@
 //!
 //! Every rule here is order-independent: it sums or counts over the
 //! answers it is given, so the same answers in a different order give the
-//! same verdict.
+//! same verdict. A lens can only ever be scored from a [`VerifiedAnswer`],
+//! never a raw [`Answer`], so there is no way to hand this reducer a
+//! finding whose quote was never checked against the files.
 
-use crate::answer::{Action, Answer, Severity};
+use crate::answer::{Action, Severity};
 use crate::lenses::Lens;
+use crate::quotes::VerifiedAnswer;
 use std::collections::BTreeSet;
 
 /// How many distinct model families a lens needs among its answers before it can run at all.
 const REQUIRED_FAMILIES: usize = 2;
 
-/// One reviewer's outcome for one lens: its answer, when it gave one, or the reason it did not.
+/// One reviewer's outcome for one lens: its verified answer, when it gave one, or the reason it did not.
 #[derive(Debug, Clone)]
 pub struct LensAnswer {
     pub reviewer: String,
     pub family: String,
-    pub answer: Option<Answer>,
+    pub answer: Option<VerifiedAnswer>,
     pub reason: Option<String>,
 }
 
@@ -49,7 +52,7 @@ pub enum Verdict {
 /// scores.
 #[must_use]
 pub fn decide_lens(lens: &Lens, answers: &[LensAnswer]) -> LensVerdict {
-    let present: Vec<&Answer> = answers.iter().filter_map(|a| a.answer.as_ref()).collect();
+    let present: Vec<&VerifiedAnswer> = answers.iter().filter_map(|a| a.answer.as_ref()).collect();
     let families: BTreeSet<&str> = answers
         .iter()
         .filter(|a| a.answer.is_some())
@@ -62,7 +65,7 @@ pub fn decide_lens(lens: &Lens, answers: &[LensAnswer]) -> LensVerdict {
 
     let blockers = present
         .iter()
-        .flat_map(|answer| answer.findings.iter())
+        .flat_map(|answer| answer.findings().iter())
         .filter(|finding| {
             finding.severity == Severity::Blocker || finding.action == Action::MustFix
         })
@@ -88,7 +91,7 @@ fn quorum_reason(families: &BTreeSet<&str>) -> String {
 }
 
 /// The mean, over `answers`, of each answer's own mean criterion score for `lens`.
-fn mean_of_means(lens: &Lens, answers: &[&Answer]) -> f64 {
+fn mean_of_means(lens: &Lens, answers: &[&VerifiedAnswer]) -> f64 {
     if answers.is_empty() {
         return 0.0;
     }
@@ -97,14 +100,14 @@ fn mean_of_means(lens: &Lens, answers: &[&Answer]) -> f64 {
 }
 
 /// `answer`'s mean score over `lens`'s own criteria, a missing score counting as 0.
-fn mean_score(lens: &Lens, answer: &Answer) -> f64 {
+fn mean_score(lens: &Lens, answer: &VerifiedAnswer) -> f64 {
     if lens.criteria.is_empty() {
         return 0.0;
     }
     let sum: f64 = lens
         .criteria
         .iter()
-        .filter_map(|criterion| answer.scores.get(&criterion.id))
+        .filter_map(|criterion| answer.scores().get(&criterion.id))
         .sum();
     sum / as_f64(lens.criteria.len())
 }
@@ -120,7 +123,9 @@ fn as_f64(n: usize) -> f64 {
 /// [`Verdict::CouldNotRun`], whatever the others say: a could-not-run lens
 /// is never folded into a pass. Otherwise, any lens that failed, or a
 /// weighted mean of the lens scores (weighted by each lens's own `weight`)
-/// under `threshold`, is [`Verdict::Fail`]. Otherwise the review passes.
+/// under `threshold`, is [`Verdict::Fail`]. A weighted mean equal to
+/// `threshold` still passes, when nothing else fails. Otherwise the review
+/// passes.
 #[must_use]
 pub fn decide(lenses: &[(&Lens, LensVerdict)], threshold: f64) -> Verdict {
     if lenses
@@ -160,9 +165,11 @@ pub fn decide(lenses: &[(&Lens, LensVerdict)], threshold: f64) -> Verdict {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::answer::{Action, AnswerFinding, Severity};
+    use crate::answer::{Action, Answer, AnswerFinding, Severity};
     use crate::lenses::{Criterion, Runs, SeverityGuide, Trigger};
+    use crate::test_support::TempDir;
     use std::collections::BTreeMap;
+    use std::path::Path;
 
     fn test_lens() -> Lens {
         Lens {
@@ -190,18 +197,31 @@ mod tests {
         }
     }
 
-    fn scored_answer(lens: &Lens, c1: f64, c2: f64) -> Answer {
+    /// A verified answer with no findings, built through [`crate::quotes::check`] like any other, since it is the only way to get one.
+    fn scored(lens: &Lens, root: &Path, c1: f64, c2: f64) -> VerifiedAnswer {
+        verified(lens, root, c1, c2, Vec::new())
+    }
+
+    /// A verified answer carrying `findings`, built through [`crate::quotes::check`].
+    fn verified(
+        lens: &Lens,
+        root: &Path,
+        c1: f64,
+        c2: f64,
+        findings: Vec<AnswerFinding>,
+    ) -> VerifiedAnswer {
         let mut scores = BTreeMap::new();
         scores.insert("c1".to_string(), c1);
         scores.insert("c2".to_string(), c2);
-        Answer {
+        let answer = Answer {
             lens: lens.name.clone(),
             scores,
-            findings: Vec::new(),
-        }
+            findings,
+        };
+        crate::quotes::check(root, answer).kept
     }
 
-    fn answered(reviewer: &str, family: &str, answer: Answer) -> LensAnswer {
+    fn answered(reviewer: &str, family: &str, answer: VerifiedAnswer) -> LensAnswer {
         LensAnswer {
             reviewer: reviewer.to_string(),
             family: family.to_string(),
@@ -219,6 +239,7 @@ mod tests {
         }
     }
 
+    /// A blocker finding whose quote is exactly the whole third line of the file `verified`'s `root` must hold: `"fn broken"`.
     fn blocker_finding() -> AnswerFinding {
         AnswerFinding {
             path: "src/lib.rs".to_string(),
@@ -233,9 +254,10 @@ mod tests {
     #[test]
     fn one_family_only_is_could_not_run() {
         let lens = test_lens();
+        let root = TempDir::new("reducer-one-family");
         let answers = vec![
-            answered("codex", "openai", scored_answer(&lens, 0.9, 0.9)),
-            answered("dsh", "openai", scored_answer(&lens, 0.8, 0.8)),
+            answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
+            answered("dsh", "openai", scored(&lens, &root, 0.8, 0.8)),
         ];
         assert!(matches!(
             decide_lens(&lens, &answers),
@@ -259,11 +281,14 @@ mod tests {
     #[test]
     fn a_blocker_vetoes_whatever_the_scores() {
         let lens = test_lens();
-        let mut with_blocker = scored_answer(&lens, 1.0, 1.0);
-        with_blocker.findings.push(blocker_finding());
+        let root = TempDir::new("reducer-blocker");
+        std::fs::create_dir_all(root.join("src")).expect("dirs");
+        std::fs::write(root.join("src/lib.rs"), "one\ntwo\nfn broken\n").expect("write");
+
+        let with_blocker = verified(&lens, &root, 1.0, 1.0, vec![blocker_finding()]);
         let answers = vec![
             answered("codex", "openai", with_blocker),
-            answered("claude", "anthropic", scored_answer(&lens, 1.0, 1.0)),
+            answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
         ];
         match decide_lens(&lens, &answers) {
             LensVerdict::Fail { score, blockers } => {
@@ -275,11 +300,30 @@ mod tests {
     }
 
     #[test]
+    fn a_blocker_whose_quote_fails_verification_does_not_veto_the_lens() {
+        let lens = test_lens();
+        let root = TempDir::new("reducer-invented-blocker");
+        std::fs::create_dir_all(root.join("src")).expect("dirs");
+        std::fs::write(root.join("src/lib.rs"), "one\ntwo\nthree\n").expect("write");
+
+        let with_invented_blocker = verified(&lens, &root, 1.0, 1.0, vec![blocker_finding()]);
+        let answers = vec![
+            answered("codex", "openai", with_invented_blocker),
+            answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
+        ];
+        match decide_lens(&lens, &answers) {
+            LensVerdict::Pass { score } => assert!((score - 1.0).abs() < f64::EPSILON),
+            other => panic!("expected Pass, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn two_families_with_high_scores_and_no_blocker_pass() {
         let lens = test_lens();
+        let root = TempDir::new("reducer-pass");
         let answers = vec![
-            answered("codex", "openai", scored_answer(&lens, 0.9, 0.9)),
-            answered("claude", "anthropic", scored_answer(&lens, 1.0, 1.0)),
+            answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
+            answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
         ];
         match decide_lens(&lens, &answers) {
             LensVerdict::Pass { score } => assert!((score - 0.95).abs() < 1e-9, "{score}"),
@@ -290,18 +334,19 @@ mod tests {
     #[test]
     fn the_same_answers_in_a_different_order_give_the_same_lens_verdict() {
         let lens = test_lens();
+        let root = TempDir::new("reducer-order-independent");
         let forward = decide_lens(
             &lens,
             &[
-                answered("codex", "openai", scored_answer(&lens, 0.9, 0.7)),
-                answered("claude", "anthropic", scored_answer(&lens, 0.6, 0.8)),
+                answered("codex", "openai", scored(&lens, &root, 0.9, 0.7)),
+                answered("claude", "anthropic", scored(&lens, &root, 0.6, 0.8)),
             ],
         );
         let backward = decide_lens(
             &lens,
             &[
-                answered("claude", "anthropic", scored_answer(&lens, 0.6, 0.8)),
-                answered("codex", "openai", scored_answer(&lens, 0.9, 0.7)),
+                answered("claude", "anthropic", scored(&lens, &root, 0.6, 0.8)),
+                answered("codex", "openai", scored(&lens, &root, 0.9, 0.7)),
             ],
         );
         assert_eq!(forward, backward);
@@ -368,6 +413,14 @@ mod tests {
             (&lens_a, LensVerdict::Pass { score: 0.9 }),
             (&lens_b, LensVerdict::Pass { score: 0.8 }),
         ];
+        assert_eq!(decide(&lenses, 0.7), Verdict::Pass);
+    }
+
+    #[test]
+    fn a_weighted_score_exactly_at_the_threshold_passes() {
+        let mut lens_a = test_lens();
+        lens_a.weight = 1.0;
+        let lenses: Vec<(&Lens, LensVerdict)> = vec![(&lens_a, LensVerdict::Pass { score: 0.7 })];
         assert_eq!(decide(&lenses, 0.7), Verdict::Pass);
     }
 
