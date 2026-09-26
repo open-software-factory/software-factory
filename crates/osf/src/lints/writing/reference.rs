@@ -28,7 +28,8 @@ pub(super) const NON_LABEL_WORDS: &[&str] = &[
     "a", "an", "the", "at", "in", "on", "of", "by", "for", "with", "from", "since", "until",
     "during", "before", "after", "between", "about", "around", "near", "past", "over", "under",
     "than", "to", "is", "was", "were", "are", "and", "or", "but", "this", "that", "these", "those",
-    "it",
+    "it", "he", "she", "they", "we", "you", "him", "her", "them", "his", "its", "their", "your",
+    "my", "our",
 ];
 
 pub(super) const MONTHS: &[&str] = &[

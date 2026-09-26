@@ -238,7 +238,7 @@ The model shifts from review (human examining individual changes) to governance 
 | Architecture enforced by convention and culture        | Architecture enforced by automated rules with explicit documented exceptions |
 | Significant changes escalate to principal engineers    | Fitness function failures escalate to product engineers                      |
 
-See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md) for fitness-function implementation detail, in Phase 2: Design & Architecture. Phase 11: The Meta-Loop covers the same detail for its own loop.
+See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md), Phase 2: Design & Architecture and Phase 11: The Meta-Loop, for fitness-function implementation detail.
 
 ## 7. The meta-loop
 

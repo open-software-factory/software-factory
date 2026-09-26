@@ -486,7 +486,8 @@ fn containing_sentence(sentences: &[TextUnit], offset: usize) -> Option<&TextUni
 /// A number candidate is placed by a link around it, a bracketed
 /// description on a repository-qualified one, the repository named in the
 /// same sentence, a file path naming it, a bracketed letter with a list
-/// item that starts with it, or a consecutive run of the same word.
+/// item that starts with it, a consecutive run of the same word, or a
+/// bracket, colon or comma description right after it.
 fn number_is_placed(
     text: &str,
     candidate: &Candidate,
@@ -508,32 +509,83 @@ fn number_is_placed(
     }
     repo_named_in_same_sentence(candidate, local_sentences)
         || file_path_names_it(text, candidate)
-        || has_qualifying_description(candidate, local_sentences)
+        || has_qualifying_description(candidate, local_sentences, all_candidates)
         || has_consecutive_sibling(candidate, all_candidates)
 }
 
-/// A bracket or colon description right after a word-and-number candidate:
-/// no digit, and either two-plus plain words or one word that is not one of
-/// the filler words a label never uses, such as `it`.
-fn has_qualifying_description(candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
+/// A bracket description, a colon-introduced clause, or a comma then an
+/// article, right after a word-and-number candidate, bounded to its own
+/// clause so a second reference later in the sentence cannot poison it.
+fn has_qualifying_description(
+    candidate: &Candidate,
+    local_sentences: &[TextUnit],
+    all_candidates: &[&Candidate],
+) -> bool {
     let Some(sentence) = containing_sentence(local_sentences, candidate.range.start) else {
         return false;
     };
     let local_end = candidate.range.end.saturating_sub(sentence.span.start);
-    let rest = sentence.text.get(local_end..).unwrap_or("").trim_start();
-    let description = rest
-        .strip_prefix('(')
-        .and_then(|inner| inner.split_once(')').map(|(d, _)| d))
-        .or_else(|| rest.strip_prefix(':').map(str::trim_start));
-    description.is_some_and(|d| {
-        let words: Vec<&str> = d.split_whitespace().collect();
-        let Some(&first) = words.first() else {
-            return false;
-        };
-        !d.chars().any(|c| c.is_ascii_digit())
-            && (words.len() >= 2
-                || !reference::NON_LABEL_WORDS.contains(&first.to_lowercase().as_str()))
-    })
+    let bound = all_candidates
+        .iter()
+        .filter(|c| {
+            c.kind == Kind::Number
+                && c.range.start >= candidate.range.end
+                && c.range.start < sentence.span.end
+        })
+        .map(|c| c.range.start - sentence.span.start)
+        .min()
+        .unwrap_or(sentence.text.len());
+    let rest = sentence
+        .text
+        .get(local_end..bound.max(local_end))
+        .unwrap_or("")
+        .trim_start();
+
+    if let Some(inner) = rest.strip_prefix('(') {
+        return inner
+            .split_once(')')
+            .is_some_and(|(d, _)| description_is_real(d, 1));
+    }
+    if let Some(after_colon) = rest.strip_prefix(':') {
+        return description_is_real(clause(after_colon.trim_start()), 1);
+    }
+    if let Some(after_comma) = rest.strip_prefix(',') {
+        let after_comma = after_comma.trim_start();
+        return ["the ", "a ", "an "].iter().any(|article| {
+            after_comma
+                .strip_prefix(article)
+                .is_some_and(|d| description_is_real(clause(d), 2))
+        });
+    }
+    false
+}
+
+/// The text up to, but not including, the next comma, semicolon, full stop
+/// or closing bracket: a colon description can itself sit inside a bracket
+/// opened earlier in the sentence, such as `(Phase 1: specification)`.
+fn clause(s: &str) -> &str {
+    let end = s.find([',', ';', '.', ')']).unwrap_or(s.len());
+    &s[..end]
+}
+
+/// Whether `d` is a real description: no digit, and either two-plus plain
+/// words or, when `min_words` is one, a single alphabetic word that is not
+/// one of the filler words a label never uses, such as `it` or `the`. A
+/// pronoun and a code-like token such as `fixes-135` never qualify alone.
+fn description_is_real(d: &str, min_words: usize) -> bool {
+    let words: Vec<&str> = d.split_whitespace().collect();
+    let Some(&first) = words.first() else {
+        return false;
+    };
+    if d.chars().any(|c| c.is_ascii_digit()) {
+        return false;
+    }
+    if words.len() >= 2 {
+        return true;
+    }
+    min_words <= 1
+        && first.chars().all(|c| c.is_ascii_alphabetic())
+        && !reference::NON_LABEL_WORDS.contains(&first.to_lowercase().as_str())
 }
 
 /// Whether another number candidate in the paragraph shares this one's word
@@ -738,7 +790,8 @@ fn name_finding(paragraph: &TextUnit, candidate: &Candidate, cfg: &WritingConfig
                 candidate.text
             ),
             &candidate.text,
-        );
+        )
+        .with_evidence(osf_lint_core::Evidence::Statistical);
     }
     finding(
         paragraph,
@@ -1423,6 +1476,55 @@ mod unplaceable_reference_tests {
         find(text).iter().all(|f| f.excerpt != excerpt)
     }
 
+    /// U17: a quoted lowercase term is ambiguous between a used phrase and a
+    /// mentioned one, so its finding is advisory and never blocks, in every
+    /// context, the same as a weak-evidence name.
+    #[test]
+    fn a_quoted_term_finding_is_advisory_in_document_context() {
+        let cfg = WritingConfig::default();
+        let findings = super::super::lint_writing(
+            r#"The team coined "the done wave" with no definition anywhere."#,
+            &known(),
+            &cfg,
+            Context::Document,
+            false,
+            false,
+        );
+        let hit = findings
+            .iter()
+            .find(|f| f.excerpt == "the done wave")
+            .unwrap_or_else(|| panic!("expected a finding on the done wave: {findings:?}"));
+        assert_eq!(hit.level, Level::Warning, "{hit:?}");
+        assert_eq!(
+            hit.remediation,
+            osf_lint_core::Remediation::Advise,
+            "{hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_quoted_term_finding_is_advisory_in_a_chat_reply_too() {
+        let cfg = WritingConfig::default();
+        let findings = super::super::lint_writing(
+            r#"The team coined "the done wave" with no definition anywhere."#,
+            &known(),
+            &cfg,
+            Context::Transcript,
+            false,
+            false,
+        );
+        let hit = findings
+            .iter()
+            .find(|f| f.excerpt == "the done wave")
+            .unwrap_or_else(|| panic!("expected a finding on the done wave: {findings:?}"));
+        assert_eq!(hit.level, Level::Warning, "{hit:?}");
+        assert_eq!(
+            hit.remediation,
+            osf_lint_core::Remediation::Advise,
+            "{hit:?}"
+        );
+    }
+
     #[test]
     fn a_link_around_a_number_places_it() {
         let t = "The fix is in [Milestone 3](https://example.com/milestones/3) now.";
@@ -1496,6 +1598,66 @@ mod unplaceable_reference_tests {
         let t = "This follows decision 0001 and decision 0007 together.";
         assert!(!is_placed(t, "decision 0001"), "{:?}", find(t));
         assert!(!is_placed(t, "decision 0007"), "{:?}", find(t));
+    }
+
+    /// A second numbered reference's own digits, later in the same
+    /// sentence, must not poison the first one's colon description.
+    #[test]
+    fn a_second_numbered_reference_in_the_sentence_does_not_poison_a_colon_description() {
+        let t = "See Automated SPDLC / SDLC, Phase 2: Design & Architecture and Phase 11: The Meta-Loop, for fitness-function implementation detail.";
+        assert!(is_placed(t, "Phase 2"), "{:?}", find(t));
+        assert!(is_placed(t, "Phase 11"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_second_numbered_reference_in_a_shorter_sentence_does_not_poison_a_colon_description() {
+        let t = "See Automated SPDLC / SDLC, Phase 3: Implementation and Phase 6: Staging, for axe-core and WCAG testing detail.";
+        assert!(is_placed(t, "Phase 3"), "{:?}", find(t));
+        assert!(is_placed(t, "Phase 6"), "{:?}", find(t));
+    }
+
+    /// A comma then an article then at least two plain words places a
+    /// word-and-number candidate, restoring the retired rule's leniency.
+    #[test]
+    fn a_comma_then_the_and_two_words_places_a_word_and_number() {
+        let t = "Deploying fix 5, the parser change, cleared the queue.";
+        assert!(is_placed(t, "fix 5"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_comma_then_the_and_one_word_does_not_place_a_word_and_number() {
+        let t = "Deploying fix 5, the parser, cleared the queue.";
+        assert!(!is_placed(t, "fix 5"), "{:?}", find(t));
+    }
+
+    /// U19: a single pronoun or a single code-like token in a bracket never
+    /// counts as a real description, whatever else changes about the rule.
+    #[test]
+    fn a_pronoun_in_brackets_never_places_a_word_and_number() {
+        assert!(!is_placed(
+            "Deploying fix 5 (it) cleared the queue.",
+            "fix 5"
+        ));
+        assert!(!is_placed(
+            "Deploying fix 5 (them) cleared the queue.",
+            "fix 5"
+        ));
+    }
+
+    /// A colon description ending at an enclosing bracket's own close, not
+    /// one right after the candidate, still counts as a real description.
+    #[test]
+    fn a_colon_description_ending_at_an_enclosing_bracket_places_a_word_and_number() {
+        let t = "Spec quality gate (Phase 1: specification)";
+        assert!(is_placed(t, "Phase 1"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_code_like_token_in_brackets_never_places_a_word_and_number() {
+        assert!(!is_placed(
+            "Task 6 (fixes-135) is blocked until the release ships.",
+            "Task 6"
+        ));
     }
 
     #[test]

@@ -225,7 +225,7 @@ Build prototypes within the design system from the start to avoid rework. Design
 
 - New patterns: if the prototype introduces a pattern not in the design system, that is a decision to be made explicitly, documented, and the design system updated
 
-Accessibility verification continues into the engineering loop. See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md) for axe-core and WCAG testing detail, in Phase 3: Implementation. Phase 6: Staging covers the same detail for its own stage.
+Accessibility verification continues into the engineering loop. See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md), Phase 3: Implementation and Phase 6: Staging, for axe-core and WCAG testing detail.
 
 ## 4. Experiment design
 
