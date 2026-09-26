@@ -4,10 +4,10 @@ before answering.
 Here is a draft I considered and then rejected, just for my own notes:
 
 ```json
-{"lens": "correctness", "scores": {"c1": 0.1}, "findings": []}
+{"lens": "correctness", "scores": {"c1": 0.1, "c2": 0.1}, "findings": []}
 ```
 
-That draft was missing a criterion, so here is my real answer.
+That draft undersold it, so here is my real, final answer.
 
 ```json
 {

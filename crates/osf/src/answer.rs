@@ -1,13 +1,16 @@
 //! The review answer: the JSON Schema every reviewer answer must match, and
 //! the validation the schema alone cannot express.
 //!
-//! A harness's final message parses as JSON directly, or, when a model
-//! wraps it in prose, as the last fenced code block tagged `json` in it. A
+//! A harness's final message parses as JSON directly first. Failing that,
+//! every fenced code block in it is collected — backtick or tilde fences,
+//! tagged `json`, tagged with anything else, or untagged — and tried from
+//! last to first, keeping the first one that fully validates for the lens
+//! asked. This favours a model's real, final answer over an earlier
+//! example or a rejected draft it talked itself out of along the way. A
 //! JSON object embedded in unfenced prose, with no whole-message JSON and
-//! no fence, is rejected rather than extracted: picking a brace-delimited
-//! object out of free text risks matching a decoy a model prints while
-//! reasoning about the answer, and the two shapes accepted here are the
-//! ones a harness asked for a final JSON answer reliably produces.
+//! no fence at all, is rejected rather than extracted: picking a
+//! brace-delimited object out of free text risks matching a decoy a model
+//! prints while reasoning about the answer.
 
 use crate::lenses::Lens;
 use std::collections::BTreeMap;
@@ -24,7 +27,7 @@ pub struct Answer {
     pub findings: Vec<AnswerFinding>,
 }
 
-/// One finding a reviewer raised: the file, the line and the exact quoted text task 5 checks against the real file.
+/// One finding a reviewer raised, with the exact quoted text used to confirm it points at something real, not invented.
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct AnswerFinding {
     pub path: String,
@@ -66,46 +69,48 @@ fn validator() -> &'static jsonschema::Validator {
     })
 }
 
-/// The pattern that finds a fenced code block tagged `json`, compiled once for the process.
-fn fenced_json_pattern() -> &'static regex::Regex {
+/// The pattern that finds a backtick-fenced code block, any tag or none, compiled once for the process.
+fn backtick_fence_pattern() -> &'static regex::Regex {
     static CELL: OnceLock<regex::Regex> = OnceLock::new();
     CELL.get_or_init(|| {
-        regex::RegexBuilder::new(r"```json\s*\n(.*?)```")
+        regex::RegexBuilder::new(r"```[^\n]*\n(.*?)```")
             .dot_matches_new_line(true)
             .build()
-            .expect("fenced json block pattern compiles")
+            .expect("backtick fence pattern compiles")
     })
 }
 
-/// `raw` parsed whole as JSON, or, failing that, the last fenced `json` code block in it, parsed as JSON.
-fn extract_json(raw: &str) -> Result<serde_json::Value, String> {
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw.trim()) {
-        return Ok(value);
-    }
-    let last_block = fenced_json_pattern()
-        .captures_iter(raw)
-        .last()
-        .and_then(|captures| captures.get(1))
-        .map(|m| m.as_str().trim().to_string());
-    match last_block {
-        Some(block) => serde_json::from_str(&block)
-            .map_err(|e| format!("the fenced json block is not valid JSON: {e}")),
-        None => {
-            Err("the answer has no JSON object and no fenced json block to fall back to".into())
-        }
-    }
+/// The pattern that finds a tilde-fenced code block, any tag or none, compiled once for the process.
+fn tilde_fence_pattern() -> &'static regex::Regex {
+    static CELL: OnceLock<regex::Regex> = OnceLock::new();
+    CELL.get_or_init(|| {
+        regex::RegexBuilder::new(r"~~~[^\n]*\n(.*?)~~~")
+            .dot_matches_new_line(true)
+            .build()
+            .expect("tilde fence pattern compiles")
+    })
 }
 
-/// Parses `raw`, the final message of a reviewer harness, validates it
-/// against [`SCHEMA`], and checks the two things the schema cannot: the
-/// answer is for `lens`, and every one of the lens's criteria has a score.
-///
-/// # Errors
-/// Names the reason when `raw` carries no JSON, the JSON does not match
-/// the schema, the answer is for another lens, or a criterion has no score.
-pub fn extract_and_validate(raw: &str, lens: &Lens) -> Result<Answer, String> {
-    let value = extract_json(raw)?;
+/// Every fenced code block in `raw`, backtick or tilde, in the order each one starts.
+fn fenced_blocks(raw: &str) -> Vec<String> {
+    let mut found: Vec<(usize, String)> = Vec::new();
+    for pattern in [backtick_fence_pattern(), tilde_fence_pattern()] {
+        for captures in pattern.captures_iter(raw) {
+            let Some(whole) = captures.get(0) else {
+                continue;
+            };
+            let Some(content) = captures.get(1) else {
+                continue;
+            };
+            found.push((whole.start(), content.as_str().trim().to_string()));
+        }
+    }
+    found.sort_by_key(|(start, _)| *start);
+    found.into_iter().map(|(_, content)| content).collect()
+}
 
+/// `value` checked against [`SCHEMA`], then against the two things the schema cannot express: it is for `lens`, and every one of the lens's criteria has a score.
+fn validate_candidate(value: serde_json::Value, lens: &Lens) -> Result<Answer, String> {
     validator()
         .validate(&value)
         .map_err(|error| format!("{}: {error}", error.instance_path))?;
@@ -120,22 +125,90 @@ pub fn extract_and_validate(raw: &str, lens: &Lens) -> Result<Answer, String> {
         ));
     }
 
-    for criterion in &lens.criteria {
-        if !answer.scores.contains_key(&criterion.id) {
-            return Err(format!(
-                "the answer has no score for criterion \"{}\"",
-                criterion.id
-            ));
-        }
+    let missing: Vec<String> = lens
+        .criteria
+        .iter()
+        .map(|criterion| criterion.id.as_str())
+        .filter(|id| !answer.scores.contains_key(*id))
+        .map(|id| format!("\"{id}\""))
+        .collect();
+    if !missing.is_empty() {
+        let word = if missing.len() == 1 {
+            "criterion"
+        } else {
+            "criteria"
+        };
+        return Err(format!(
+            "the answer has no score for {word} {}",
+            missing.join(", ")
+        ));
     }
 
     Ok(answer)
+}
+
+/// One fenced block's outcome: the reviewer's answer, or why this block is not it.
+fn try_block(content: &str, lens: &Lens) -> Result<Answer, String> {
+    match serde_json::from_str::<serde_json::Value>(content) {
+        Ok(value @ serde_json::Value::Object(_)) => validate_candidate(value, lens),
+        Ok(_) => Err("is not a JSON object".to_string()),
+        Err(e) => Err(format!("is not valid JSON: {e}")),
+    }
+}
+
+/// Parses `raw`, the final message of a reviewer harness, validates it
+/// against [`SCHEMA`], and checks the two things the schema cannot: the
+/// answer is for `lens`, and every one of the lens's criteria has a score.
+///
+/// The whole message is tried as JSON first. Failing that, every fenced
+/// code block in it — backtick or tilde, any tag or none — is tried from
+/// last to first, keeping the first one that fully validates.
+///
+/// # Errors
+/// Names the reason when `raw` carries no JSON and no fenced code block,
+/// or when none of the candidates it holds validates: the JSON does not
+/// match the schema, the answer is for another lens, or a criterion has
+/// no score.
+pub fn extract_and_validate(raw: &str, lens: &Lens) -> Result<Answer, String> {
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw.trim()) {
+        return validate_candidate(value, lens);
+    }
+
+    let blocks = fenced_blocks(raw);
+    if blocks.is_empty() {
+        return Err(
+            "the answer has no JSON object and no fenced code block to fall back to".to_string(),
+        );
+    }
+
+    let mut reasons_last_to_first: Vec<String> = Vec::with_capacity(blocks.len());
+    for content in blocks.iter().rev() {
+        match try_block(content, lens) {
+            Ok(answer) => return Ok(answer),
+            Err(reason) => reasons_last_to_first.push(reason),
+        }
+    }
+    reasons_last_to_first.reverse();
+
+    let numbered: Vec<String> = reasons_last_to_first
+        .into_iter()
+        .enumerate()
+        .map(|(i, reason)| format!("block {}: {reason}", i + 1))
+        .collect();
+    let count = blocks.len();
+    let plural = if count == 1 { "" } else { "s" };
+    Err(format!(
+        "none of the {count} fenced code block{plural} in the answer validate for lens \"{}\": {}",
+        lens.name,
+        numbered.join("; ")
+    ))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::lenses::{Criterion, Runs, SeverityGuide, Trigger};
+    use crate::test_support::TempDir;
 
     fn test_lens() -> Lens {
         Lens {
@@ -163,6 +236,18 @@ mod tests {
         }
     }
 
+    /// The real shipped `correctness` lens, loaded the same way `osf review run` would.
+    fn shipped_correctness_lens() -> Lens {
+        let root = TempDir::new("osf-answer-shipped-correctness");
+        std::fs::create_dir_all(root.join(".osf/review-lenses")).expect("dirs");
+        let catalogue = crate::lenses::load(&root, None).expect("loads");
+        catalogue
+            .lenses
+            .into_iter()
+            .find(|l| l.name == "correctness")
+            .expect("correctness lens is shipped")
+    }
+
     #[test]
     fn a_valid_answer_parses() {
         let lens = test_lens();
@@ -185,13 +270,54 @@ mod tests {
     }
 
     #[test]
-    fn the_last_fenced_json_block_is_taken_from_prose() {
+    fn a_json_fence_after_reasoning_is_taken_over_an_earlier_rejected_draft() {
         let a = extract_and_validate(
             include_str!("../tests/fixtures/review/fenced.md"),
             &test_lens(),
         )
         .expect("the second, complete fenced block is used");
         assert_eq!(a.scores.get("c2").copied(), Some(0.9));
+    }
+
+    #[test]
+    fn an_untagged_fence_is_read() {
+        let a = extract_and_validate(
+            include_str!("../tests/fixtures/review/fenced-no-tag.md"),
+            &test_lens(),
+        )
+        .expect("an untagged fence still holds a JSON object");
+        assert_eq!(a.scores.get("c1").copied(), Some(0.7));
+    }
+
+    #[test]
+    fn a_tilde_fence_is_read() {
+        let a = extract_and_validate(
+            include_str!("../tests/fixtures/review/fenced-tilde.md"),
+            &test_lens(),
+        )
+        .expect("a tilde fence is read the same as a backtick fence");
+        assert_eq!(a.scores.get("c1").copied(), Some(0.85));
+    }
+
+    #[test]
+    fn a_trailing_comma_in_the_only_fence_is_rejected_and_named() {
+        let e = extract_and_validate(
+            include_str!("../tests/fixtures/review/fenced-trailing-comma.md"),
+            &test_lens(),
+        )
+        .expect_err("a trailing comma is not valid JSON");
+        assert!(e.contains('1'), "{e}");
+        assert!(e.contains("valid JSON"), "{e}");
+    }
+
+    #[test]
+    fn a_real_answer_followed_by_an_example_block_uses_the_real_answer() {
+        let a = extract_and_validate(
+            include_str!("../tests/fixtures/review/fenced-example-after.md"),
+            &test_lens(),
+        )
+        .expect("the first block, not the trailing example, validates for this lens");
+        assert_eq!(a.scores.get("c1").copied(), Some(0.72));
     }
 
     #[test]
@@ -223,6 +349,18 @@ mod tests {
         .expect_err("invalid");
         assert!(e.contains("criterion"), "{e}");
         assert!(e.contains("c2"), "{e}");
+    }
+
+    #[test]
+    fn every_missing_criterion_is_named_in_one_error() {
+        let lens = shipped_correctness_lens();
+        let e = extract_and_validate(
+            include_str!("../tests/fixtures/review/missing-two-criteria.json"),
+            &lens,
+        )
+        .expect_err("both of the shipped lens's criteria are missing");
+        assert!(e.contains("logic"), "{e}");
+        assert!(e.contains("error-handling"), "{e}");
     }
 
     #[test]
