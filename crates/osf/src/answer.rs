@@ -109,19 +109,39 @@ fn fenced_blocks(raw: &str) -> Vec<String> {
     found.into_iter().map(|(_, content)| content).collect()
 }
 
+/// The instance path plus a fixed, value-free description of why `error`
+/// failed, safe to journal or print: [`jsonschema::ValidationError::masked`]
+/// already replaces the failing value itself with a placeholder, but an
+/// unexpected-field error also names the field the reviewer chose, which is
+/// reviewer text too, so that case is reduced further to a bare category
+/// with no names at all.
+fn schema_error_reason(error: &jsonschema::ValidationError) -> String {
+    use jsonschema::error::ValidationErrorKind as Kind;
+    let detail = match &error.kind {
+        Kind::AdditionalProperties { .. } | Kind::UnevaluatedProperties { .. } => {
+            "an unexpected field".to_string()
+        }
+        _ => error.masked().to_string(),
+    };
+    format!(
+        "the answer does not match its schema at \"{}\": {detail}",
+        error.instance_path
+    )
+}
+
 /// `value` checked against [`SCHEMA`], then against the two things the schema cannot express: it is for `lens`, and every one of the lens's criteria has a score.
 fn validate_candidate(value: serde_json::Value, lens: &Lens) -> Result<Answer, String> {
     validator()
         .validate(&value)
-        .map_err(|error| format!("{}: {error}", error.instance_path))?;
+        .map_err(|error| schema_error_reason(&error))?;
 
     let answer: Answer = serde_json::from_value(value)
-        .map_err(|e| format!("the answer matched its schema but not its shape: {e}"))?;
+        .map_err(|_| "the answer matched its schema but not its shape".to_string())?;
 
     if answer.lens != lens.name {
         return Err(format!(
-            "the answer is for lens \"{}\", not \"{}\"",
-            answer.lens, lens.name
+            "the answer names another lens, not \"{}\"",
+            lens.name
         ));
     }
 
@@ -152,7 +172,11 @@ fn try_block(content: &str, lens: &Lens) -> Result<Answer, String> {
     match serde_json::from_str::<serde_json::Value>(content) {
         Ok(value @ serde_json::Value::Object(_)) => validate_candidate(value, lens),
         Ok(_) => Err("is not a JSON object".to_string()),
-        Err(e) => Err(format!("is not valid JSON: {e}")),
+        Err(e) => Err(format!(
+            "is not valid JSON at line {} column {}",
+            e.line(),
+            e.column()
+        )),
     }
 }
 

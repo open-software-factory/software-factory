@@ -164,12 +164,17 @@ fn extract_pointer(raw: &str, pointer: &str) -> Result<String, String> {
     if pointer.is_empty() {
         return Ok(raw.to_string());
     }
-    let envelope: serde_json::Value = serde_json::from_str(raw.trim())
-        .map_err(|e| format!("the answer envelope is not valid JSON: {e}"))?;
+    let envelope: serde_json::Value = serde_json::from_str(raw.trim()).map_err(|e| {
+        format!(
+            "the answer envelope is not valid JSON at line {} column {}",
+            e.line(),
+            e.column()
+        )
+    })?;
     let found = envelope
         .pointer(pointer)
         .ok_or_else(|| format!("the answer envelope has nothing at \"{pointer}\""))?;
-    serde_json::to_string(found).map_err(|e| format!("cannot read the value at \"{pointer}\": {e}"))
+    serde_json::to_string(found).map_err(|_| format!("cannot read the value at \"{pointer}\""))
 }
 
 /// One attempt at running `reviewer`'s harness to completion: its captured
@@ -267,7 +272,10 @@ fn run_child(
     let stdout_text = stdout_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
-    let stderr_text = stderr_reader
+    // Drained and joined so the reader thread always finishes cleanly, but
+    // never read: a reviewer's stderr is reviewer-controlled text, and this
+    // function's own errors are journalled, so it must never appear in one.
+    let _stderr_text = stderr_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
     cleanup();
@@ -284,9 +292,8 @@ fn run_child(
             .code()
             .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
         return Err(format!(
-            "reviewer '{}' exited with {code}: {}",
-            reviewer.name,
-            stderr_text.trim()
+            "reviewer '{}' exited with code {code}",
+            reviewer.name
         ));
     }
     Ok(stdout_text)

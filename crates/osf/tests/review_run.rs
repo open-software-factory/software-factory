@@ -14,7 +14,7 @@
 
 mod common;
 
-use common::TempRepo;
+use common::{TempDir, TempRepo};
 use std::path::Path;
 
 /// The lens names the shipped catalogue always runs, other than
@@ -131,10 +131,8 @@ fn fake_reviewer_command(answer_path: &str) -> Vec<String> {
     ]
 }
 
-/// One `[[review.roster]]` entry, as TOML, naming `answer_path`'s content
-/// as this reviewer's whole answer.
-fn roster_entry_toml(name: &str, family: &str, answer_path: &str, enabled: bool) -> String {
-    let command = fake_reviewer_command(answer_path);
+/// One `[[review.roster]]` entry, as TOML, with an arbitrary `command`.
+fn raw_roster_entry_toml(name: &str, family: &str, command: &[String], enabled: bool) -> String {
     let command_toml = command
         .iter()
         .map(|arg| format!("{arg:?}"))
@@ -148,6 +146,40 @@ fn roster_entry_toml(name: &str, family: &str, answer_path: &str, enabled: bool)
          command = [{command_toml}]\n\
          enabled = {enabled}\n\n"
     )
+}
+
+/// One `[[review.roster]]` entry, as TOML, naming `answer_path`'s content
+/// as this reviewer's whole answer.
+fn roster_entry_toml(name: &str, family: &str, answer_path: &str, enabled: bool) -> String {
+    raw_roster_entry_toml(name, family, &fake_reviewer_command(answer_path), enabled)
+}
+
+/// A reviewer whose harness writes `secret` to its own standard error and
+/// exits non-zero, standing in for a broken or hostile coding-agent tool.
+#[cfg(unix)]
+fn failing_reviewer_command(secret: &str) -> Vec<String> {
+    vec![
+        "sh".to_string(),
+        "-c".to_string(),
+        format!("echo '{secret}' 1>&2; exit 9"),
+    ]
+}
+
+#[cfg(windows)]
+fn failing_reviewer_command(secret: &str) -> Vec<String> {
+    vec![
+        "powershell".to_string(),
+        "-NoProfile".to_string(),
+        "-Command".to_string(),
+        format!("[Console]::Error.WriteLine('{secret}'); exit 9"),
+    ]
+}
+
+/// Writes `content` to `name` under `dir`, and returns its absolute path as a string.
+fn write_answer_file(dir: &TempDir, name: &str, content: &str) -> String {
+    let path = dir.join(name);
+    std::fs::write(&path, content).expect("answer fixture writes");
+    path.to_string_lossy().into_owned()
 }
 
 /// Every `event_type` value found in a journal buffer file's own lines.
@@ -169,6 +201,50 @@ fn journal_event_types(home: &Path) -> Vec<String> {
         }
     }
     types
+}
+
+/// The whole content of every journal buffer file under `home`, concatenated.
+fn journal_text(home: &Path) -> String {
+    let buffer_dir = home.join(".osf/state/buffer");
+    let mut text = String::new();
+    let Ok(entries) = std::fs::read_dir(&buffer_dir) else {
+        return text;
+    };
+    for entry in entries {
+        let entry = entry.expect("dir entry reads");
+        text.push_str(&std::fs::read_to_string(entry.path()).expect("journal buffer reads"));
+    }
+    text
+}
+
+/// Asserts `secret` is nowhere in `output`'s standard output or standard
+/// error, nor in any journal buffer file under `home`, nor (when given) in
+/// the file at `sarif_out`.
+fn assert_no_leak(
+    secret: &str,
+    output: &std::process::Output,
+    home: &Path,
+    sarif_out: Option<&Path>,
+) {
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stdout.contains(secret),
+        "stdout leaked the secret: {stdout}"
+    );
+    assert!(
+        !stderr.contains(secret),
+        "stderr leaked the secret: {stderr}"
+    );
+    let journal = journal_text(home);
+    assert!(
+        !journal.contains(secret),
+        "the journal leaked the secret: {journal}"
+    );
+    if let Some(path) = sarif_out {
+        let sarif = std::fs::read_to_string(path).expect("sarif file reads");
+        assert!(!sarif.contains(secret), "SARIF leaked the secret: {sarif}");
+    }
 }
 
 #[test]
@@ -297,4 +373,172 @@ fn a_bad_lens_file_cannot_configure_and_names_the_file() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("broken.toml"), "{stderr}");
+}
+
+#[test]
+fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
+    let secret = common::fake_provider_key("sk-");
+    let osf_toml = raw_roster_entry_toml(
+        "fake-a",
+        "family-a",
+        &failing_reviewer_command(&secret),
+        true,
+    );
+    let repo = review_repo("secret-stderr", &osf_toml);
+    let home = common::isolated_home("review-run-secret-stderr");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+}
+
+#[test]
+fn a_secret_as_the_answers_lens_field_never_reaches_the_journal_or_output() {
+    let secret = common::fake_provider_key("sk-");
+    let payload = serde_json::json!({
+        "lens": secret,
+        "scores": {"c1": 0.9, "c2": 0.9},
+        "findings": []
+    })
+    .to_string();
+    let payloads = TempDir::new("review-run-secret-lens-payload");
+    let answer_path = write_answer_file(&payloads, "answer.json", &payload);
+    let osf_toml = roster_entry_toml("fake-a", "family-a", &answer_path, true);
+    let repo = review_repo("secret-lens", &osf_toml);
+    let home = common::isolated_home("review-run-secret-lens");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+}
+
+#[test]
+fn a_secret_as_an_invalid_severity_value_never_reaches_the_journal_or_output() {
+    let secret = common::fake_provider_key("sk-");
+    let payload = serde_json::json!({
+        "lens": "correctness",
+        "scores": {"c1": 0.9, "c2": 0.9},
+        "findings": [{
+            "path": "src/lib.rs",
+            "line": 1,
+            "quote": "fn one() {}",
+            "severity": secret,
+            "action": "must-fix",
+            "body": "x"
+        }]
+    })
+    .to_string();
+    let payloads = TempDir::new("review-run-secret-severity-payload");
+    let answer_path = write_answer_file(&payloads, "answer.json", &payload);
+    let osf_toml = roster_entry_toml("fake-a", "family-a", &answer_path, true);
+    let repo = review_repo("secret-severity", &osf_toml);
+    let home = common::isolated_home("review-run-secret-severity");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+}
+
+#[test]
+fn a_secret_as_an_unexpected_extra_field_name_never_reaches_the_journal_or_output() {
+    let secret = common::fake_provider_key("sk-");
+    let mut payload = serde_json::json!({
+        "lens": "correctness",
+        "scores": {"c1": 0.9, "c2": 0.9},
+        "findings": []
+    });
+    payload
+        .as_object_mut()
+        .expect("payload is a JSON object")
+        .insert(secret.clone(), serde_json::json!(true));
+    let payloads = TempDir::new("review-run-secret-extra-field-payload");
+    let answer_path = write_answer_file(&payloads, "answer.json", &payload.to_string());
+    let osf_toml = roster_entry_toml("fake-a", "family-a", &answer_path, true);
+    let repo = review_repo("secret-extra-field", &osf_toml);
+    let home = common::isolated_home("review-run-secret-extra-field");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+}
+
+#[test]
+fn a_secret_as_an_unresolvable_findings_path_is_dropped_not_leaked() {
+    let secret = common::fake_provider_key("sk-");
+    let payload = serde_json::json!({
+        "lens": "correctness",
+        "scores": {"c1": 0.9, "c2": 0.9},
+        "findings": [{
+            "path": secret,
+            "line": 1,
+            "quote": "this quote cannot verify against a file that does not exist",
+            "severity": "minor",
+            "action": "justify",
+            "body": "x"
+        }]
+    })
+    .to_string();
+    let payloads = TempDir::new("review-run-secret-path-payload");
+    let answer_path = write_answer_file(&payloads, "answer.json", &payload);
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("fake-a", "family-a", &answer_path, true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("secret-path", &osf_toml);
+    let home = common::isolated_home("review-run-secret-path");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(&secret, &output, &home, Some(&sarif_out));
 }
