@@ -117,27 +117,20 @@ fn as_f64(n: usize) -> f64 {
     f64::from(u32::try_from(n).unwrap_or(u32::MAX))
 }
 
-/// Decides the whole review from every lens's verdict.
-///
-/// Any lens still could-not-run makes the whole review
-/// [`Verdict::CouldNotRun`], whatever the others say: a could-not-run lens
-/// is never folded into a pass. Otherwise, any lens that failed, or a
-/// weighted mean of the lens scores (weighted by each lens's own `weight`)
-/// under `threshold`, is [`Verdict::Fail`]. A weighted mean equal to
-/// `threshold` still passes, when nothing else fails. Otherwise the review
-/// passes.
+/// The weighted mean of every lens's own score, weighted by each lens's own
+/// `weight`, or `None` when any lens could not run: a could-not-run lens
+/// has no score to weigh in, and the review it belongs to was never
+/// actually scored against a threshold. The sole source of this formula;
+/// [`decide`] and a review run's own reporting both call it rather than
+/// each keeping their own copy.
 #[must_use]
-pub fn decide(lenses: &[(&Lens, LensVerdict)], threshold: f64) -> Verdict {
+pub fn weighted_mean(lenses: &[(&Lens, LensVerdict)]) -> Option<f64> {
     if lenses
         .iter()
         .any(|(_, verdict)| matches!(verdict, LensVerdict::CouldNotRun(_)))
     {
-        return Verdict::CouldNotRun;
+        return None;
     }
-
-    let any_fail = lenses
-        .iter()
-        .any(|(_, verdict)| matches!(verdict, LensVerdict::Fail { .. }));
 
     let mut weighted_sum = 0.0;
     let mut weight_total = 0.0;
@@ -149,13 +142,32 @@ pub fn decide(lenses: &[(&Lens, LensVerdict)], threshold: f64) -> Verdict {
         weighted_sum += lens.weight * score;
         weight_total += lens.weight;
     }
-    let weighted_mean = if weight_total > 0.0 {
+    Some(if weight_total > 0.0 {
         weighted_sum / weight_total
     } else {
         0.0
+    })
+}
+
+/// Decides the whole review from every lens's verdict.
+///
+/// Any lens still could-not-run makes the whole review
+/// [`Verdict::CouldNotRun`], whatever the others say: a could-not-run lens
+/// is never folded into a pass. Otherwise, any lens that failed, or
+/// [`weighted_mean`] of the lens scores under `threshold`, is
+/// [`Verdict::Fail`]. A weighted mean equal to `threshold` still passes,
+/// when nothing else fails. Otherwise the review passes.
+#[must_use]
+pub fn decide(lenses: &[(&Lens, LensVerdict)], threshold: f64) -> Verdict {
+    let Some(mean) = weighted_mean(lenses) else {
+        return Verdict::CouldNotRun;
     };
 
-    if any_fail || weighted_mean < threshold {
+    let any_fail = lenses
+        .iter()
+        .any(|(_, verdict)| matches!(verdict, LensVerdict::Fail { .. }));
+
+    if any_fail || mean < threshold {
         Verdict::Fail
     } else {
         Verdict::Pass
