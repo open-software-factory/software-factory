@@ -177,8 +177,10 @@ fn a_leak_in_a_session_link_fails_pre_commit() {
 }
 
 /// A task that failed and left no readable SARIF has unknown
-/// findings, never a silent zero. This fixture defines its own single
-/// task, tagged `osf-pre-push`, that fails without ever writing SARIF.
+/// findings, never a silent zero, and the reason recorded is moon's own
+/// explanation for the failure — not a generic note about the missing
+/// SARIF file. This fixture defines its own single task, tagged
+/// `osf-pre-push`, that fails without ever writing SARIF.
 #[test]
 fn a_failed_task_with_no_sarif_reports_unknown_findings() {
     let repo = TempRepo::new("cp-no-sarif");
@@ -225,7 +227,7 @@ fn a_failed_task_with_no_sarif_reports_unknown_findings() {
         .and_then(serde_json::Value::as_str)
         .expect("reason is a string");
     assert!(
-        reason.contains("no findings file: .osf/out/boom.sarif"),
+        reason.contains("osf:boom") && reason.contains("failed"),
         "{reason}"
     );
 }

@@ -39,6 +39,11 @@ pub struct TaskOutcome {
     pub cached: bool,
     /// True when moon's own raw state was `invalid`, never a genuine skip.
     pub invalid: bool,
+    /// Moon's own explanation: its action's own `error` text for a
+    /// [`TaskStatus::Failed`] task that has one (not every failure does —
+    /// a plain `exit 1` carries none), or which task's failure stopped the
+    /// run for a [`TaskStatus::NotRun`] one. `None` otherwise.
+    pub reason: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -46,6 +51,10 @@ pub enum TaskStatus {
     Passed,
     Failed,
     Skipped,
+    /// This target was part of the run moon was asked for, but moon never
+    /// started it and never gave it a state: a sibling's failure stopped
+    /// the run first.
+    NotRun,
 }
 
 pub enum Outcome {
@@ -383,13 +392,25 @@ fn parse_query_tasks(json: &str) -> Result<Vec<String>, String> {
     Ok(targets)
 }
 
-/// Parses moon's `runReport.json`, one [`TaskOutcome`] per entry in
-/// `context.targetStates`.
+/// Parses moon's `runReport.json`, one [`TaskOutcome`] per target moon was
+/// asked to run: every entry in `context.primaryTargets`, plus any target
+/// `context.targetStates` or the `actions` array names but `primaryTargets`
+/// does not (older reports this adapter's tests build by hand omit
+/// `primaryTargets` entirely, so those targets still surface).
+///
+/// A target's own `RunTask(...)` action, when moon ran one, is the
+/// authoritative source for its status: `context.targetStates[*].state` can
+/// still say "passed" for a task moon's action list marks `"failed"` with
+/// its own `error` text (moon reported exactly this after a task exited 0
+/// but left a declared output missing). A target with neither an action
+/// nor a `targetStates` entry never started at all — moon stopped the run
+/// before reaching it — and is reported as [`TaskStatus::NotRun`], naming
+/// whichever sibling's action failed.
 ///
 /// # Errors
-/// Returns an error when `json` is not valid JSON, is missing the
-/// `context.targetStates` object, or a task's status is not one this
-/// adapter recognises.
+/// Returns an error when `json` is not valid JSON, `context.targetStates`
+/// is missing or not an object, or a task's `targetStates` status is not
+/// one this adapter recognises.
 pub fn parse_report(json: &str) -> Result<Vec<TaskOutcome>, String> {
     let value: serde_json::Value =
         serde_json::from_str(json).map_err(|e| format!("run report is not JSON: {e}"))?;
@@ -397,45 +418,173 @@ pub fn parse_report(json: &str) -> Result<Vec<TaskOutcome>, String> {
         .pointer("/context/targetStates")
         .and_then(serde_json::Value::as_object)
         .ok_or("run report has no context.targetStates object")?;
+    let primary_targets = primary_targets(&value);
+    let actions = ActionIndex::build(&value);
+    let stopped_by = actions.failed_targets();
 
-    let mut durations = std::collections::HashMap::new();
-    let mut cached_targets = std::collections::HashSet::new();
-    if let Some(actions) = value.get("actions").and_then(serde_json::Value::as_array) {
-        for action in actions {
-            let Some(target) = action_target(action) else {
-                continue;
-            };
-            let ms = action
-                .get("duration")
-                .and_then(duration_ms)
-                .unwrap_or_default();
-            // `context.targetStates[*].state` says "passed" on a cache
-            // hit too; the action's own status is the only place "cached"
-            // appears.
-            if action.get("status").and_then(serde_json::Value::as_str) == Some("cached") {
-                cached_targets.insert(target.clone());
-            }
-            durations.insert(target, ms);
+    let mut tasks = Vec::new();
+    for target in ordered_targets(&primary_targets, target_states, &actions) {
+        tasks.push(task_outcome(target, &actions, target_states, &stopped_by)?);
+    }
+    Ok(tasks)
+}
+
+/// `context.primaryTargets`: the targets moon was actually asked to run,
+/// in the order it named them. Empty when the report has no such field —
+/// this adapter's hand-built test fixtures never include it.
+fn primary_targets(value: &serde_json::Value) -> Vec<String> {
+    value
+        .pointer("/context/primaryTargets")
+        .and_then(serde_json::Value::as_array)
+        .map(|targets| {
+            targets
+                .iter()
+                .filter_map(|t| t.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Every target named by `primary`, `target_states` or `actions`, each
+/// listed once, in that order: `primaryTargets` first since it is moon's
+/// own declaration of what it meant to run.
+fn ordered_targets(
+    primary: &[String],
+    target_states: &serde_json::Map<String, serde_json::Value>,
+    actions: &ActionIndex,
+) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut targets = Vec::new();
+    for target in primary
+        .iter()
+        .chain(target_states.keys())
+        .chain(actions.results.keys())
+    {
+        if seen.insert(target.clone()) {
+            targets.push(target.clone());
         }
     }
+    targets
+}
 
-    let mut tasks = Vec::with_capacity(target_states.len());
-    for (target, state) in target_states {
+/// One target's [`TaskOutcome`]: from its own `RunTask(...)` action when
+/// moon ran one (the ground truth for what happened, over
+/// `targetStates`' possibly stale view of it), else from `targetStates`,
+/// else [`TaskStatus::NotRun`] — moon never started it.
+fn task_outcome(
+    target: String,
+    actions: &ActionIndex,
+    target_states: &serde_json::Map<String, serde_json::Value>,
+    stopped_by: &[&str],
+) -> Result<TaskOutcome, String> {
+    if let Some((status, error)) = actions.results.get(&target) {
+        // Only a genuine `error` text from moon's own action becomes the
+        // reason here: a plain task failure (a script's own `exit 1`, say)
+        // carries none, and the caller's own SARIF-shaped reason already
+        // covers that case.
+        return Ok(TaskOutcome {
+            duration_ms: actions.duration_ms(&target),
+            cached: actions.cached.contains(&target),
+            invalid: false,
+            reason: error.clone(),
+            status: *status,
+            target,
+        });
+    }
+    if let Some(state) = target_states.get(&target) {
         let raw_status = state
             .get("state")
             .and_then(serde_json::Value::as_str)
             .ok_or_else(|| format!("task '{target}' has no state field"))?;
         let status = map_status(raw_status)
             .ok_or_else(|| format!("task '{target}' has an unrecognised status '{raw_status}'"))?;
-        tasks.push(TaskOutcome {
-            target: target.clone(),
-            status,
-            duration_ms: durations.get(target).copied().unwrap_or_default(),
-            cached: cached_targets.contains(target),
+        return Ok(TaskOutcome {
+            duration_ms: actions.duration_ms(&target),
+            cached: actions.cached.contains(&target),
             invalid: raw_status == "invalid",
+            reason: None,
+            status,
+            target,
         });
     }
-    Ok(tasks)
+    let reason = if stopped_by.is_empty() {
+        "moon never started this task".to_string()
+    } else {
+        format!(
+            "moon stopped the run after {} failed",
+            stopped_by.join(", ")
+        )
+    };
+    Ok(TaskOutcome {
+        duration_ms: 0,
+        cached: false,
+        invalid: false,
+        reason: Some(reason),
+        status: TaskStatus::NotRun,
+        target,
+    })
+}
+
+/// What the `actions` array says about each `RunTask(...)` target: its own
+/// duration, whether it was a cache hit, and — separately — its own
+/// status and, for a failure, its own error text.
+struct ActionIndex {
+    durations: std::collections::HashMap<String, u64>,
+    cached: std::collections::HashSet<String>,
+    results: std::collections::HashMap<String, (TaskStatus, Option<String>)>,
+}
+
+impl ActionIndex {
+    fn build(value: &serde_json::Value) -> Self {
+        let mut durations = std::collections::HashMap::new();
+        let mut cached = std::collections::HashSet::new();
+        let mut results = std::collections::HashMap::new();
+        if let Some(actions) = value.get("actions").and_then(serde_json::Value::as_array) {
+            for action in actions {
+                let Some(target) = action_target(action) else {
+                    continue;
+                };
+                let ms = action
+                    .get("duration")
+                    .and_then(duration_ms)
+                    .unwrap_or_default();
+                let raw_status = action.get("status").and_then(serde_json::Value::as_str);
+                // `context.targetStates[*].state` says "passed" on a cache
+                // hit too; the action's own status is the only place
+                // "cached" appears.
+                if raw_status == Some("cached") {
+                    cached.insert(target.clone());
+                }
+                durations.insert(target.clone(), ms);
+                if let Some(status) = raw_status.and_then(map_status) {
+                    let error = action
+                        .get("error")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string);
+                    results.insert(target, (status, error));
+                }
+            }
+        }
+        Self {
+            durations,
+            cached,
+            results,
+        }
+    }
+
+    fn duration_ms(&self, target: &str) -> u64 {
+        self.durations.get(target).copied().unwrap_or_default()
+    }
+
+    /// Every target whose own action failed: named in a sibling's
+    /// [`TaskStatus::NotRun`] reason as why it never started.
+    fn failed_targets(&self) -> Vec<&str> {
+        self.results
+            .iter()
+            .filter(|(_, (status, _))| *status == TaskStatus::Failed)
+            .map(|(target, _)| target.as_str())
+            .collect()
+    }
 }
 
 /// The target an `actions` entry's label names, such as `osf:probe` from
@@ -476,6 +625,8 @@ mod tests {
     const REPORT: &str = include_str!("../tests/fixtures/moon/run-report.json");
     const CACHED_REPORT: &str = include_str!("../tests/fixtures/moon/run-report-cached.json");
     const QUERY_TASKS: &str = include_str!("../tests/fixtures/moon/query-tasks.json");
+    const REVIEW_OUTPUT_MISSING_REPORT: &str =
+        include_str!("../tests/fixtures/moon/run-report-review-output-missing.json");
 
     #[test]
     fn the_captured_report_parses_into_one_outcome_per_task() {
@@ -542,6 +693,56 @@ mod tests {
         let task = tasks.first().expect("one task");
         assert_eq!(task.status, TaskStatus::Skipped);
         assert!(!task.invalid, "{task:?}");
+    }
+
+    /// A task that exits 0 but leaves a declared output missing is a
+    /// captured, real moon report: its `RunTask(...)` action's own status
+    /// is `"failed"` with moon's own `error` text, even though
+    /// `targetStates` still says `"passed"`. The action's status must win.
+    #[test]
+    fn a_task_moon_failed_for_a_missing_output_is_reported_failed_with_moons_reason() {
+        let tasks = parse_report(REVIEW_OUTPUT_MISSING_REPORT).expect("report parses");
+        let review = tasks
+            .iter()
+            .find(|t| t.target == "osf:review")
+            .expect("osf:review present");
+        assert_eq!(review.status, TaskStatus::Failed, "{review:?}");
+        let reason = review.reason.as_deref().expect("a reason");
+        assert!(reason.contains("defines outputs"), "{reason}");
+    }
+
+    /// The same report's other primary targets never got an action or a
+    /// `targetStates` entry at all: moon stopped the run after
+    /// `osf:review` failed, before it reached them. Each is `NotRun`, not
+    /// a failure with an empty reason.
+    #[test]
+    fn a_sibling_moon_never_started_is_reported_not_run_naming_the_task_that_stopped_it() {
+        let tasks = parse_report(REVIEW_OUTPUT_MISSING_REPORT).expect("report parses");
+        for target in ["osf:scan-commits", "osf:scan-pre-push", "osf:test"] {
+            let sibling = tasks
+                .iter()
+                .find(|t| t.target == target)
+                .unwrap_or_else(|| panic!("{target} present in {tasks:?}"));
+            assert_eq!(sibling.status, TaskStatus::NotRun, "{sibling:?}");
+            let reason = sibling.reason.as_deref().expect("a reason");
+            assert!(reason.contains("osf:review"), "{reason}");
+        }
+    }
+
+    /// `osf:clippy` and `osf:lint-writing-pre-push` both genuinely ran (as
+    /// cache hits) before moon stopped: they stay passed, unaffected by
+    /// `osf:review`'s failure.
+    #[test]
+    fn tasks_that_ran_before_the_stop_are_unaffected() {
+        let tasks = parse_report(REVIEW_OUTPUT_MISSING_REPORT).expect("report parses");
+        for target in ["osf:clippy", "osf:lint-writing-pre-push"] {
+            let task = tasks
+                .iter()
+                .find(|t| t.target == target)
+                .unwrap_or_else(|| panic!("{target} present in {tasks:?}"));
+            assert_eq!(task.status, TaskStatus::Passed, "{task:?}");
+            assert!(task.cached, "{task:?}");
+        }
     }
 
     #[test]
