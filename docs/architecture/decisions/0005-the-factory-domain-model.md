@@ -1,8 +1,8 @@
 # 0005: The factory domain model, events included
 
-Status: accepted
+Status: accepted. Amended by [decision 0019](0019-what-ready-means.md).
 
-Date: 2026-09-15.
+Date: 2026-09-15, amended 2026-09-26: the work item's flat lifecycle-states list below is superseded by the two-level Status and Step fields and the Draft, Proposed ready, Ready path in decision 0019.
 
 ## Context
 
@@ -16,7 +16,7 @@ The engine owns one domain model. Provider schemas are translated to it at the e
 
 | Entity | Holds |
 |---|---|
-| Work item | The durable unit. Lifecycle states: ready, in progress, verifying, in review, deploying, deployed, signed off, blocked, failed, recovering, and the explicit stops aborted, rolled back, paused. A blocked item names its cause: dependency, human, clarification, ambiguous, capacity. |
+| Work item | The durable unit. Lifecycle states: ready, in progress, verifying, in review, deploying, deployed, signed off, blocked, failed, recovering, and the explicit stops aborted, rolled back, paused. A blocked item names its cause: dependency, human, clarification, ambiguous, capacity. This flat list is superseded by the two-level Status and Step fields in [decision 0019](0019-what-ready-means.md). |
 | Run | One execution against a work item by one actor. An actor is a harness, a model and a model family, or a person. |
 | Verifier run | One deterministic check inside a run: command, tool version, environment, timing, exit status, and whether it ran at all. |
 | Review run | One judgment pass: harness, model family, round number, the scope it read. |

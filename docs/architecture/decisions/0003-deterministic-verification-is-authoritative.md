@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Date: 2026-08-16, amended 2026-09-15 with the vocabulary and the two rules below, before any verifier code existed. Amended 2026-09-23 with the word checkpoint, from [decision 0011](0011-the-check-is-the-unit.md).
+Date: 2026-08-16, amended 2026-09-15 with the vocabulary and the two rules below, before any verifier code existed. Amended 2026-09-23 with the word checkpoint, from [decision 0011](0011-the-check-is-the-unit.md). Amended 2026-09-26 to point at [decision 0018](0018-hook-enforcement-and-the-pinned-osf.md) for how the hook, pre-commit and pre-push checkpoints are enforced locally.
 
 ## Context
 
