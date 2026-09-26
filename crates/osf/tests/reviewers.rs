@@ -67,6 +67,7 @@ fn fake_reviewer() -> Reviewer {
         command: fake_harness_command(),
         schema_flag: None,
         schema_as: SchemaArg::default(),
+        answer_pointer: String::new(),
         enabled: true,
     }
 }
@@ -216,4 +217,95 @@ fn the_shipped_roster_has_no_gemini_and_every_entry_disabled() {
     let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
     assert!(r.iter().all(|x| !x.harness.contains("gemini")));
     assert!(r.iter().all(|x| !x.enabled));
+}
+
+/// A 1 MB prompt is well over an OS pipe's own buffer (64 KiB on Linux), so
+/// a harness that never reads its stdin would block a synchronous write
+/// forever. `run_one` must still be governed by `timeout` alone: the write
+/// runs on its own thread, and the harness is killed on schedule.
+#[test]
+fn a_large_prompt_to_a_harness_that_ignores_stdin_is_still_killed_at_its_timeout() {
+    let workdir = TempDir::new("osf-reviewers-large-stdin");
+    let answer_path = fixture("valid.json");
+    let big_prompt = "x".repeat(1024 * 1024);
+    let started = std::time::Instant::now();
+    serial(
+        &[
+            ("OSF_FAKE_ANSWER", &answer_path),
+            ("OSF_FAKE_SLEEP_SECS", "6"),
+        ],
+        || {
+            let outcome = run_one(
+                &fake_reviewer(),
+                &big_prompt,
+                &test_lens(),
+                &workdir,
+                Duration::from_secs(2),
+            );
+            match outcome {
+                Outcome::CouldNotRun(reason) => {
+                    assert!(reason.contains("timed out"), "{reason}");
+                }
+                Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
+                Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+            }
+        },
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(8),
+        "run_one took {:?}, the 2s timeout should have governed it, not the 1 MB stdin write",
+        started.elapsed()
+    );
+}
+
+/// codex's real shape with `--output-schema` and no `--json`: the final,
+/// schema-matching message goes straight to stdout, no envelope. This is
+/// `fake_reviewer`'s default (`answer_pointer` empty), the same shape
+/// `a_valid_answer_from_the_fake_harness_is_answered` already covers; named
+/// separately so it reads as codex's own case, not a coincidence.
+#[test]
+fn a_codex_style_plain_answer_needs_no_envelope_pointer() {
+    let answer_path = fixture("valid.json");
+    serial(&[("OSF_FAKE_ANSWER", &answer_path)], || {
+        let mut reviewer = fake_reviewer();
+        reviewer.answer_pointer = String::new();
+        let workdir = TempDir::new("osf-reviewers-codex-shape");
+        let outcome = run_one(
+            &reviewer,
+            "review this change",
+            &test_lens(),
+            &workdir,
+            Duration::from_secs(10),
+        );
+        match outcome {
+            Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
+            Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+            Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+        }
+    });
+}
+
+/// Claude Code's real shape with `--output-format json` and `--json-schema`:
+/// the schema-matching answer is nested under the envelope's own
+/// `structured_output` field, alongside session metadata and cost.
+#[test]
+fn a_claude_code_style_envelope_extracts_structured_output() {
+    let answer_path = fixture("claude-envelope.json");
+    serial(&[("OSF_FAKE_ANSWER", &answer_path)], || {
+        let mut reviewer = fake_reviewer();
+        reviewer.answer_pointer = "/structured_output".to_string();
+        let workdir = TempDir::new("osf-reviewers-claude-envelope");
+        let outcome = run_one(
+            &reviewer,
+            "review this change",
+            &test_lens(),
+            &workdir,
+            Duration::from_secs(10),
+        );
+        match outcome {
+            Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
+            Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+            Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+        }
+    });
 }

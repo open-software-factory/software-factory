@@ -15,7 +15,10 @@
 name = "codex"
 harness = "codex"
 family = "openai"
-command = ["codex", "exec", "--json"]
+# No --json: that flag turns stdout into a JSON Lines event stream. With
+# --output-schema alone, codex exec still writes the final, schema-matching
+# message straight to stdout, so no envelope pointer is needed.
+command = ["codex", "exec"]
 schema_flag = "--output-schema"
 schema_as = "path"
 enabled = false
@@ -24,9 +27,13 @@ enabled = false
 name = "claude-code"
 harness = "claude"
 family = "anthropic"
-command = ["claude", "--print", "--output-format", "text"]
+# --json-schema only takes effect together with --output-format json; the
+# schema-matching answer then comes back under the envelope's own
+# structured_output field, not as the whole output.
+command = ["claude", "--print", "--output-format", "json"]
 schema_flag = "--json-schema"
 schema_as = "inline"
+answer_pointer = "/structured_output"
 enabled = false
 
 [[reviewer]]

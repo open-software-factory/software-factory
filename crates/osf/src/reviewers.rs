@@ -51,6 +51,11 @@ pub struct Reviewer {
     /// How `schema_flag`'s value is given. Ignored when `schema_flag` is `None`.
     #[serde(default)]
     pub schema_as: SchemaArg,
+    /// A JSON pointer to the answer inside the harness's own output
+    /// envelope, such as `/structured_output`. Empty when the whole output
+    /// is the answer.
+    #[serde(default)]
+    pub answer_pointer: String,
     #[serde(default)]
     pub enabled: bool,
 }
@@ -126,12 +131,12 @@ pub fn run_one(
         Ok(text) => text,
         Err(reason) => return Outcome::CouldNotRun(reason),
     };
-    match answer::extract_and_validate(&raw, lens) {
+    match validate_stage(&raw, reviewer, lens) {
         Ok(answer) => Outcome::Answered(answer),
         Err(reason) => {
             let retry_prompt = format!("{prompt}\n\nThe previous answer was invalid: {reason}");
             match run_child(reviewer, &retry_prompt, workdir, timeout) {
-                Ok(raw) => match answer::extract_and_validate(&raw, lens) {
+                Ok(raw) => match validate_stage(&raw, reviewer, lens) {
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
                 },
@@ -139,6 +144,32 @@ pub fn run_one(
             }
         }
     }
+}
+
+/// `raw`'s answer text, pulled out of `reviewer.answer_pointer` when it
+/// names one, then validated against `lens`.
+fn validate_stage(raw: &str, reviewer: &Reviewer, lens: &Lens) -> Result<Answer, String> {
+    let text = extract_pointer(raw, &reviewer.answer_pointer)?;
+    answer::extract_and_validate(&text, lens)
+}
+
+/// `raw`, unchanged, when `pointer` is empty; otherwise the JSON value at
+/// `pointer` inside `raw`'s own envelope, re-serialised as text so
+/// [`answer::extract_and_validate`] can parse it the same way either path.
+///
+/// # Errors
+/// Names the pointer when `raw` is not valid JSON, or holds nothing at
+/// `pointer`.
+fn extract_pointer(raw: &str, pointer: &str) -> Result<String, String> {
+    if pointer.is_empty() {
+        return Ok(raw.to_string());
+    }
+    let envelope: serde_json::Value = serde_json::from_str(raw.trim())
+        .map_err(|e| format!("the answer envelope is not valid JSON: {e}"))?;
+    let found = envelope
+        .pointer(pointer)
+        .ok_or_else(|| format!("the answer envelope has nothing at \"{pointer}\""))?;
+    serde_json::to_string(found).map_err(|e| format!("cannot read the value at \"{pointer}\": {e}"))
 }
 
 /// One attempt at running `reviewer`'s harness to completion: its captured
@@ -181,10 +212,13 @@ fn run_child(
         }
     };
 
-    // Reader threads start before the stdin write, the same order
-    // `moon.rs` uses: a harness that echoes a large prompt back, or that
-    // simply writes a lot before reading its own stdin, could otherwise
-    // fill the stdout/stderr pipe buffers while nothing drains them.
+    // Every pipe is drained, and the prompt written, on its own thread,
+    // started before `wait_timeout` below: a harness that never reads its
+    // stdin, given a prompt bigger than the pipe's own buffer, would
+    // otherwise block a synchronous write forever, on the same thread that
+    // is supposed to be enforcing `timeout`. `wait_timeout` alone then
+    // governs the whole run; the writer unblocks (with an error) once the
+    // timeout branch below kills the child and its pipe closes.
     let stdout_reader = child
         .stdout
         .take()
@@ -193,10 +227,11 @@ fn run_child(
         .stderr
         .take()
         .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
-
-    if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(prompt.as_bytes());
-    }
+    let prompt_owned = prompt.to_string();
+    let stdin_writer = child
+        .stdin
+        .take()
+        .map(|mut stdin| std::thread::spawn(move || stdin.write_all(prompt_owned.as_bytes())));
 
     let status = match child.wait_timeout(timeout) {
         Ok(Some(status)) => status,
@@ -206,6 +241,7 @@ fn run_child(
             let _ = child.wait();
             let _ = stdout_reader.map(std::thread::JoinHandle::join);
             let _ = stderr_reader.map(std::thread::JoinHandle::join);
+            let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
             return Err(match killed {
                 Ok(()) => format!(
@@ -224,6 +260,10 @@ fn run_child(
         }
     };
 
+    let stdin_result = stdin_writer.map(|h| {
+        h.join()
+            .unwrap_or_else(|_| Err(std::io::Error::other("the stdin writer thread panicked")))
+    });
     let stdout_text = stdout_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
@@ -231,6 +271,13 @@ fn run_child(
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
     cleanup();
+
+    if let Some(Err(e)) = stdin_result {
+        return Err(format!(
+            "cannot write to reviewer '{}' stdin: {e}",
+            reviewer.name
+        ));
+    }
 
     if !status.success() {
         let code = status
@@ -303,6 +350,7 @@ mod tests {
             command: command.into_iter().map(str::to_string).collect(),
             schema_flag: None,
             schema_as: SchemaArg::default(),
+            answer_pointer: String::new(),
             enabled: false,
         }
     }
@@ -366,5 +414,34 @@ mod tests {
             Path::new("/tmp/schema.json"),
         );
         assert_eq!(args, vec!["fake", "--json-schema", answer::SCHEMA]);
+    }
+
+    #[test]
+    fn extract_pointer_returns_the_raw_text_when_no_pointer_is_set() {
+        assert_eq!(
+            extract_pointer("{\"a\":1}", "").expect("no pointer"),
+            "{\"a\":1}"
+        );
+    }
+
+    #[test]
+    fn extract_pointer_pulls_the_named_field_out_of_the_envelope() {
+        let envelope = r#"{"structured_output":{"lens":"x"},"other":1}"#;
+        let extracted = extract_pointer(envelope, "/structured_output").expect("pointer resolves");
+        assert_eq!(extracted, r#"{"lens":"x"}"#);
+    }
+
+    #[test]
+    fn extract_pointer_names_the_pointer_when_nothing_is_there() {
+        let e =
+            extract_pointer(r#"{"other":1}"#, "/structured_output").expect_err("missing pointer");
+        assert!(e.contains("/structured_output"), "{e}");
+    }
+
+    #[test]
+    fn extract_pointer_names_the_pointer_when_the_envelope_is_not_json() {
+        let e =
+            extract_pointer("not json at all", "/structured_output").expect_err("not JSON at all");
+        assert!(e.contains("JSON"), "{e}");
     }
 }

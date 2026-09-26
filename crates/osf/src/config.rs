@@ -1270,4 +1270,53 @@ mod tests {
             .expect_err("an unknown key is refused");
         assert!(err.to_string().contains("overview_max_paragraph"));
     }
+
+    #[test]
+    fn review_config_defaults_when_osf_toml_is_absent() {
+        let dir = TempDir::new("osf-config-test-review-defaults");
+        let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert!(loaded.roster.is_empty());
+        assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+        assert_eq!(loaded.cost_ceiling, None);
+    }
+
+    #[test]
+    fn review_config_reads_threshold_and_cost_ceiling() {
+        let dir = TempDir::new("osf-config-test-review-fields");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nthreshold = 0.85\ncost_ceiling = 2.5\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert!((loaded.threshold - 0.85).abs() < f64::EPSILON);
+        assert_eq!(loaded.cost_ceiling, Some(2.5));
+    }
+
+    #[test]
+    fn review_config_with_no_review_table_still_gives_the_defaults() {
+        let dir = TempDir::new("osf-config-test-review-no-table");
+        std::fs::write(dir.join("osf.toml"), "[writing]\nmax_sentence_words = 30\n")
+            .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn a_malformed_review_table_is_refused_naming_the_field() {
+        let dir = TempDir::new("osf-config-test-review-malformed-type");
+        std::fs::write(dir.join("osf.toml"), "[review]\nthreshold = \"high\"\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("a string threshold is refused");
+        assert!(err.to_string().contains("threshold"), "{err}");
+    }
+
+    #[test]
+    fn an_unknown_review_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-review-unknown-field");
+        std::fs::write(dir.join("osf.toml"), "[review]\nthreshhold = 0.9\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("threshhold"), "{err}");
+    }
 }
