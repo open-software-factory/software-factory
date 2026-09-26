@@ -78,7 +78,7 @@ jobs:
         env:
           OSF_CONFIG: osf.toml
           OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
-        run: ./target/release/osf scan --format human
+        run: ./target/release/osf scan --format human --no-suppress
 
       - name: Scan the commit messages this change adds
         if: github.event_name == 'pull_request'

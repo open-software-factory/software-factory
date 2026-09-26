@@ -32,7 +32,7 @@ fn scanning_with_no_paths_covers_every_tracked_file() {
     repo.write("clean.md", "Nothing to see here.\n");
     repo.commit("add fixtures");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     let with_findings: Vec<&(String, Vec<osf_lint_core::Finding>)> =
         found.files.iter().filter(|(_, f)| !f.is_empty()).collect();
     assert_eq!(with_findings.len(), 1, "{:?}", found.files);
@@ -47,7 +47,7 @@ fn a_binary_tracked_file_is_skipped_not_scanned() {
     std::fs::write(repo.dir.join("blob.bin"), [0u8, 1, 2, 3, b'C', b'o']).expect("binary writes");
     repo.commit("add a binary file");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     assert!(
         found.files.iter().all(|(_, f)| f.is_empty()),
         "a binary file must never be scanned as text: {:?}",
@@ -69,6 +69,7 @@ fn an_explicit_path_is_scanned_even_when_not_tracked() {
         std::slice::from_ref(&target),
         &rules(&repo),
         &no_exclude(),
+        false,
     )
     .expect("scan runs");
     assert_eq!(found.files.len(), 1);
@@ -278,7 +279,7 @@ fn a_secret_finding_with_a_line_marker_and_a_reason_is_suppressed() {
     repo.write("config.txt", &line);
     repo.commit("add a suppressed secret");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     let (_, findings) = found.files.first().expect("one file scanned");
     let secret = findings
         .iter()
@@ -298,7 +299,7 @@ fn a_secret_finding_is_suppressed_by_a_file_marker() {
     repo.write("config.txt", &text);
     repo.commit("add a file-suppressed secret");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     let (_, findings) = found.files.first().expect("one file scanned");
     let secret = findings
         .iter()
@@ -318,7 +319,7 @@ fn a_marker_with_no_reason_does_not_suppress_a_secret_finding() {
     repo.write("config.txt", &line);
     repo.commit("add an unreasoned marker");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     let (_, findings) = found.files.first().expect("one file scanned");
     let secret = findings
         .iter()
@@ -341,7 +342,7 @@ fn a_marker_for_a_different_rule_does_not_suppress_a_secret_finding() {
     repo.write("config.txt", &line);
     repo.commit("add a marker naming a different rule");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     let (_, findings) = found.files.first().expect("one file scanned");
     let secret = findings
         .iter()
@@ -367,7 +368,7 @@ fn a_writing_only_marker_in_a_scanned_file_gives_zero_scan_findings() {
     repo.write("notes.md", &text);
     repo.commit("add a writing-only marker");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     let (_, findings) = found.files.first().expect("one file scanned");
     assert!(findings.is_empty(), "{findings:?}");
 }
@@ -384,7 +385,7 @@ fn an_unused_scan_secret_marker_still_warns() {
     repo.write("notes.md", &text);
     repo.commit("add an unused scan-secret marker");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     let (_, findings) = found.files.first().expect("one file scanned");
     assert!(
         findings
@@ -392,4 +393,32 @@ fn an_unused_scan_secret_marker_still_warns() {
             .any(|f| f.rule == "suppression-unused" && f.excerpt == "scan-secret"),
         "{findings:?}"
     );
+}
+
+/// `--no-suppress` ignores a marker the same way it already does for
+/// `osf lint writing`: continuous integration's own secret scan must not be
+/// bypassable by a reasoned marker added alongside the secret.
+#[test]
+fn no_suppress_flag_ignores_a_reasoned_marker() {
+    let repo = TempRepo::new("scan-no-suppress");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("TOKEN"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.commit("add a suppressed secret");
+    let home = isolated_home("scan-no-suppress");
+
+    let plain = run_osf(&repo.dir, &home, &["scan", "--format", "json"]);
+    assert_eq!(plain.status.code(), Some(0), "{plain:?}");
+
+    let strict = run_osf(
+        &repo.dir,
+        &home,
+        &["scan", "--format", "json", "--no-suppress"],
+    );
+    assert_eq!(strict.status.code(), Some(1), "{strict:?}");
 }

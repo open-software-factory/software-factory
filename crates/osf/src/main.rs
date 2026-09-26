@@ -300,6 +300,10 @@ struct ScanArgs {
     /// own configuration.
     #[arg(long)]
     gate: bool,
+    /// Ignore every osf-disable marker and report everything. Continuous
+    /// integration uses this.
+    #[arg(long)]
+    no_suppress: bool,
 }
 
 #[derive(Args)]
@@ -1268,7 +1272,7 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
             }
         }
     } else {
-        match scan::scan_paths(dir, &args.paths, &rules, &excluder) {
+        match scan::scan_paths(dir, &args.paths, &rules, &excluder, args.no_suppress) {
             Ok(outcome) => {
                 tally.excluded = outcome.excluded;
                 outcome.files

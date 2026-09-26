@@ -681,7 +681,9 @@ fn resolve_scan_targets(dir: &Path, paths: &[PathBuf]) -> Result<Vec<(String, Pa
 
 /// Scans every target file, named relative to `dir` when it came from git,
 /// or as given on the command line otherwise. A binary file is skipped. A
-/// file matching `excluder` is never even read.
+/// file matching `excluder` is never even read. With `no_suppress`, every
+/// `osf-disable`-family marker is ignored, so every finding it would have
+/// silenced is reported; continuous integration runs with this set.
 ///
 /// # Errors
 /// Returns an error if git cannot run, or a named path cannot be read.
@@ -690,6 +692,7 @@ pub fn scan_paths(
     paths: &[PathBuf],
     rules: &Rules,
     excluder: &Excluder,
+    no_suppress: bool,
 ) -> Result<ScanOutcome, String> {
     let targets = resolve_scan_targets(dir, paths)?;
     let mut files = Vec::new();
@@ -706,8 +709,11 @@ pub fn scan_paths(
         }
         let text = String::from_utf8_lossy(&bytes);
         let findings = rules.scan_text(&text, Context::Document);
-        let findings =
-            apply_suppressions(&text, findings, &crate::lints::all_rule_ids(), &rule_ids());
+        let findings = if no_suppress {
+            findings
+        } else {
+            apply_suppressions(&text, findings, &crate::lints::all_rule_ids(), &rule_ids())
+        };
         files.push((label, findings));
     }
     Ok(ScanOutcome {
