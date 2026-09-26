@@ -239,7 +239,7 @@ fn function_pattern(language: Language) -> &'static Regex {
         Language::Rust => compiled(&RUST, r"\bfn\s+(\w+)"),
         Language::CSharp => compiled(
             &CSHARP,
-            r"\b(?:public|private|protected|internal|static|virtual|override|async|sealed)\s+[\w<>\[\],.?]*\s+(\w+)\s*\([^()]*\)\s*(?:\{|=>|;)",
+            r"\b(?:public|private|protected|internal|static|virtual|override|async|sealed)\s+(?:[\w<>\[\],.?]+\s+)?(\w+)\s*(?:<[^>]*>)?\s*\([^()]*\)\s*(?:\{|=>|;)",
         ),
         Language::Java => compiled(
             &JAVA,
@@ -730,6 +730,54 @@ mod tests {
     fn changed_function_names_is_empty_for_an_unsupported_extension() {
         let patch = "+++ b/notes.md\n@@ -0,0 +1 @@\n+# fn looks_like_code() {}\n";
         assert!(changed_function_names(patch).is_empty());
+    }
+
+    /// One case per C# declaration shape the caller must find, and one per
+    /// control-flow or call-site shape it must not mistake for one.
+    fn csharp_case(name: &str, line: &str) -> String {
+        format!("+++ b/{name}.cs\n@@ -0,0 +1 @@\n+    {line}\n")
+    }
+
+    #[test]
+    fn changed_function_names_finds_a_csharp_constructor() {
+        let patch = csharp_case("MyClass", "public MyClass(int x) {");
+        assert_eq!(changed_function_names(&patch), vec!["MyClass".to_string()]);
+    }
+
+    #[test]
+    fn changed_function_names_finds_a_csharp_method_with_method_level_generics() {
+        let patch = csharp_case("Service", "public Task<List<Foo>> GetItems<T>(int id) {");
+        assert_eq!(changed_function_names(&patch), vec!["GetItems".to_string()]);
+    }
+
+    #[test]
+    fn changed_function_names_finds_an_ordinary_csharp_method() {
+        let patch = csharp_case("Service", "public List<Foo> GetItems(int id) {");
+        assert_eq!(changed_function_names(&patch), vec!["GetItems".to_string()]);
+    }
+
+    #[test]
+    fn changed_function_names_finds_a_csharp_method_behind_an_attribute() {
+        let patch = csharp_case("Controller", "[HttpGet] public IActionResult Get(int id) {");
+        assert_eq!(changed_function_names(&patch), vec!["Get".to_string()]);
+    }
+
+    #[test]
+    fn changed_function_names_ignores_csharp_control_flow_and_call_sites() {
+        for line in [
+            "if (x) {",
+            "while (y)",
+            "using (var z = Open()) {",
+            "return Foo(1);",
+            "new Foo(1);",
+        ] {
+            let patch = csharp_case("Service", line);
+            assert!(
+                changed_function_names(&patch).is_empty(),
+                "{line}: {:?}",
+                changed_function_names(&patch)
+            );
+        }
     }
 
     #[test]
