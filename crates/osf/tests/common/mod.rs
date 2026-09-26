@@ -611,3 +611,17 @@ pub fn fake_secret_assignment(suffix: &str) -> String {
     let value = "abcd1234EFGH5678";
     format!("{name} = \"{value}\"")
 }
+
+/// A suppression marker, built at run time for the same reason as
+/// [`fake_cloud_key_id`]: `osf scan` reads its own tracked source text for
+/// markers too, so the shape must never sit whole in this file. `directive`
+/// is `disable-line`, `disable-next-line` or `disable-file`; `reason` of
+/// `None` omits the `-- <reason>` part, to build a marker that must not
+/// suppress anything.
+pub fn suppress_marker(directive: &str, rule: &str, reason: Option<&str>) -> String {
+    let open = ["<!--", "osf-"].join(" ");
+    match reason {
+        Some(reason) => format!("{open}{directive} {rule} -- {reason} -->"),
+        None => format!("{open}{directive} {rule} -->"),
+    }
+}

@@ -4,7 +4,10 @@
 
 mod common;
 
-use common::{coauthor_trailer, isolated_home, run_osf, session_link, windows_user_path, TempRepo};
+use common::{
+    coauthor_trailer, fake_secret_assignment, isolated_home, run_osf, session_link,
+    suppress_marker, windows_user_path, TempRepo,
+};
 use osf::config::ScanConfig;
 use osf::exclude::Excluder;
 use osf::scan::{scan_commits, scan_paths, Rules};
@@ -260,4 +263,89 @@ fn gate_ignores_a_config_files_exclude_list() {
         &["--config", "osf.toml", "scan", "--format", "json", "--gate"],
     );
     assert_eq!(with_gate.status.code(), Some(1), "{with_gate:?}");
+}
+
+// --- suppression markers over a scan finding ------------------------------
+
+#[test]
+fn a_secret_finding_with_a_line_marker_and_a_reason_is_suppressed() {
+    let repo = TempRepo::new("scan-suppress-secret-line");
+    let line = format!(
+        "{} {}\n",
+        fake_secret_assignment("TOKEN"),
+        suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+    );
+    repo.write("config.txt", &line);
+    repo.commit("add a suppressed secret");
+
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let (_, findings) = found.files.first().expect("one file scanned");
+    let secret = findings
+        .iter()
+        .find(|f| f.rule == "scan-secret")
+        .expect("scan-secret fires");
+    assert_eq!(secret.suppressed.as_deref(), Some("test fixture"));
+}
+
+#[test]
+fn a_secret_finding_is_suppressed_by_a_file_marker() {
+    let repo = TempRepo::new("scan-suppress-secret-file");
+    let text = format!(
+        "{}\n{}\n",
+        suppress_marker("disable-file", "scan-secret", Some("test fixture")),
+        fake_secret_assignment("KEY")
+    );
+    repo.write("config.txt", &text);
+    repo.commit("add a file-suppressed secret");
+
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let (_, findings) = found.files.first().expect("one file scanned");
+    let secret = findings
+        .iter()
+        .find(|f| f.rule == "scan-secret")
+        .expect("scan-secret fires");
+    assert!(secret.suppressed.is_some(), "{findings:?}");
+}
+
+#[test]
+fn a_marker_with_no_reason_does_not_suppress_a_secret_finding() {
+    let repo = TempRepo::new("scan-suppress-secret-no-reason");
+    let line = format!(
+        "{} {}\n",
+        fake_secret_assignment("SECRET"),
+        suppress_marker("disable-line", "scan-secret", None)
+    );
+    repo.write("config.txt", &line);
+    repo.commit("add an unreasoned marker");
+
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let (_, findings) = found.files.first().expect("one file scanned");
+    let secret = findings
+        .iter()
+        .find(|f| f.rule == "scan-secret")
+        .expect("scan-secret fires");
+    assert!(secret.suppressed.is_none(), "{findings:?}");
+    assert!(findings
+        .iter()
+        .any(|f| f.rule == "suppression-without-reason"));
+}
+
+#[test]
+fn a_marker_for_a_different_rule_does_not_suppress_a_secret_finding() {
+    let repo = TempRepo::new("scan-suppress-secret-other-rule");
+    let line = format!(
+        "{} {}\n",
+        fake_secret_assignment("PASSWORD"),
+        suppress_marker("disable-line", "scan-local-path", Some("test fixture"))
+    );
+    repo.write("config.txt", &line);
+    repo.commit("add a marker naming a different rule");
+
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let (_, findings) = found.files.first().expect("one file scanned");
+    let secret = findings
+        .iter()
+        .find(|f| f.rule == "scan-secret")
+        .expect("scan-secret fires");
+    assert!(secret.suppressed.is_none(), "{findings:?}");
 }

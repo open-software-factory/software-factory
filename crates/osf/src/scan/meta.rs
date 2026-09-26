@@ -222,3 +222,9 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
 pub fn rule_meta(id: &str) -> Option<&'static RuleMeta> {
     SCAN_RULE_META.iter().find(|r| r.id == id)
 }
+
+/// Every scan rule's id, for the suppression engine's known-rules list.
+#[must_use]
+pub fn rule_ids() -> Vec<&'static str> {
+    SCAN_RULE_META.iter().map(|r| r.id).collect()
+}

@@ -5,7 +5,7 @@
 use crate::lints::{self, Context};
 use crate::verify::Options;
 use clap::ValueEnum;
-use osf_lint_core::{Finding, Level};
+use osf_lint_core::{apply_suppressions, Finding, Level};
 use std::path::Path;
 
 /// One check `osf verify` runs today, exposed on its own.
@@ -152,12 +152,9 @@ fn scan_files(
             continue;
         }
         let text = String::from_utf8_lossy(&bytes);
-        findings.extend(
-            rules
-                .scan_text(&text, Context::Document)
-                .into_iter()
-                .map(|f| (path.clone(), f)),
-        );
+        let file_findings = rules.scan_text(&text, Context::Document);
+        let file_findings = apply_suppressions(&text, file_findings, &crate::lints::all_rule_ids());
+        findings.extend(file_findings.into_iter().map(|f| (path.clone(), f)));
     }
     Ok(findings)
 }
@@ -296,6 +293,8 @@ fn lint_skill_files(opts: &Options, files: &[String]) -> Result<Vec<(String, Fin
     Ok(findings)
 }
 
+/// A commit message has no file to carry a suppression marker, so a finding
+/// here is never suppressible.
 fn scan_commits(opts: &Options) -> Result<Vec<(String, Finding)>, String> {
     let base = match &opts.base {
         Some(b) => b.clone(),

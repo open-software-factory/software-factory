@@ -15,13 +15,13 @@
 
 mod meta;
 
-pub use meta::rule_meta;
+pub use meta::{rule_ids, rule_meta};
 
 use crate::agents::AGENTS;
 use crate::config::ScanConfig;
 use crate::exclude::Excluder;
 use crate::repository::{self, Repository};
-use osf_lint_core::{resolve, Context, Finding, Level};
+use osf_lint_core::{apply_suppressions, resolve, Context, Finding, Level};
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -668,6 +668,7 @@ pub fn scan_paths(
         }
         let text = String::from_utf8_lossy(&bytes);
         let findings = rules.scan_text(&text, Context::Document);
+        let findings = apply_suppressions(&text, findings, &crate::lints::all_rule_ids());
         files.push((label, findings));
     }
     Ok(ScanOutcome {
@@ -676,7 +677,9 @@ pub fn scan_paths(
     })
 }
 
-/// Scans every commit message in `range`, named by its commit hash.
+/// Scans every commit message in `range`, named by its commit hash. A
+/// commit message has no file to carry a suppression marker, so a finding
+/// here is never suppressible.
 ///
 /// # Errors
 /// Returns an error if git cannot run in `dir`, such as when `range` does not resolve.
