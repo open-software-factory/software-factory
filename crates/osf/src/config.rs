@@ -218,9 +218,12 @@ pub struct ScanConfig {
 /// The pass threshold `review_config` reports when `[review]` names none.
 pub const DEFAULT_REVIEW_THRESHOLD: f64 = 0.7;
 
+/// The per-reviewer timeout, in seconds, `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 300;
+
 /// The `[review]` section of a repository's own `osf.toml`: the reviewer
-/// roster overrides, the pass threshold, and an optional per-run cost
-/// ceiling.
+/// roster overrides, the pass threshold, the per-reviewer timeout, and an
+/// optional per-run cost ceiling.
 ///
 /// Kept out of the layered [`Config`]/[`Layered`] system deliberately: a
 /// fractional `threshold` cannot honour `Config`'s `Eq` derive the way
@@ -234,6 +237,8 @@ pub struct ReviewConfig {
     pub roster: Vec<crate::reviewers::Reviewer>,
     /// The weighted lens score a review must clear to pass.
     pub threshold: f64,
+    /// How long one reviewer call may run before it is killed and counted could-not-run.
+    pub timeout_seconds: u64,
     /// An optional ceiling on what one review run may spend.
     pub cost_ceiling: Option<f64>,
 }
@@ -243,6 +248,7 @@ impl Default for ReviewConfig {
         ReviewConfig {
             roster: Vec::new(),
             threshold: DEFAULT_REVIEW_THRESHOLD,
+            timeout_seconds: DEFAULT_REVIEW_TIMEOUT_SECS,
             cost_ceiling: None,
         }
     }
@@ -1291,6 +1297,23 @@ mod tests {
         let loaded = review_config(&dir).expect("review config loads");
         assert!((loaded.threshold - 0.85).abs() < f64::EPSILON);
         assert_eq!(loaded.cost_ceiling, Some(2.5));
+    }
+
+    #[test]
+    fn review_config_defaults_the_timeout_to_three_hundred_seconds() {
+        let dir = TempDir::new("osf-config-test-review-timeout-default");
+        let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert_eq!(loaded.timeout_seconds, DEFAULT_REVIEW_TIMEOUT_SECS);
+        assert_eq!(loaded.timeout_seconds, 300);
+    }
+
+    #[test]
+    fn review_config_reads_a_configured_timeout() {
+        let dir = TempDir::new("osf-config-test-review-timeout-configured");
+        std::fs::write(dir.join("osf.toml"), "[review]\ntimeout_seconds = 45\n")
+            .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert_eq!(loaded.timeout_seconds, 45);
     }
 
     #[test]

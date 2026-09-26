@@ -131,6 +131,36 @@ fn fake_reviewer_command(answer_path: &str) -> Vec<String> {
     ]
 }
 
+/// A reviewer whose harness sleeps for `sleep_secs` before answering, to
+/// prove a configured timeout, not just the default, governs how long it
+/// may run.
+#[cfg(unix)]
+fn slow_reviewer_command(answer_path: &str, sleep_secs: u64) -> Vec<String> {
+    vec![
+        "sh".to_string(),
+        "-c".to_string(),
+        format!(
+            "OSF_FAKE_ANSWER={answer_path} OSF_FAKE_SLEEP_SECS={sleep_secs} {}",
+            fixture("fake-harness.sh")
+        ),
+    ]
+}
+
+#[cfg(windows)]
+fn slow_reviewer_command(answer_path: &str, sleep_secs: u64) -> Vec<String> {
+    vec![
+        "powershell".to_string(),
+        "-NoProfile".to_string(),
+        "-ExecutionPolicy".to_string(),
+        "Bypass".to_string(),
+        "-Command".to_string(),
+        format!(
+            "$env:OSF_FAKE_ANSWER='{answer_path}'; $env:OSF_FAKE_SLEEP_SECS='{sleep_secs}'; & '{}'",
+            fixture("fake-harness.ps1")
+        ),
+    ]
+}
+
 /// One `[[review.roster]]` entry, as TOML, with an arbitrary `command`.
 fn raw_roster_entry_toml(name: &str, family: &str, command: &[String], enabled: bool) -> String {
     let command_toml = command
@@ -388,6 +418,37 @@ fn a_could_not_run_verdict_reports_no_score_or_threshold() {
     let decision = journal_review_decision(&home);
     assert_eq!(decision.get("score"), Some(&serde_json::Value::Null));
     assert_eq!(decision.get("threshold"), Some(&serde_json::Value::Null));
+}
+
+#[test]
+fn a_configured_timeout_governs_how_long_a_reviewer_may_run() {
+    let osf_toml = format!(
+        "[review]\ntimeout_seconds = 1\n\n{}",
+        raw_roster_entry_toml(
+            "fake-a",
+            "family-a",
+            &slow_reviewer_command(&fixture("valid.json"), 6),
+            true,
+        ),
+    );
+    let repo = review_repo("configured-timeout", &osf_toml);
+    let home = common::isolated_home("review-run-configured-timeout");
+    let started = std::time::Instant::now();
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        started.elapsed() < std::time::Duration::from_secs(5),
+        "took {:?}: the configured 1-second timeout should have governed \
+         this run, not the 300-second default; stdout: {}\nstderr: {}",
+        started.elapsed(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let journal = journal_text(&home);
+    assert!(journal.contains("timed out"), "{journal}");
 }
 
 #[test]

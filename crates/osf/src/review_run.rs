@@ -23,9 +23,6 @@ use std::fmt::Write as _;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// How long one reviewer call may run before it is killed and counted could-not-run.
-const REVIEWER_TIMEOUT: Duration = Duration::from_secs(300);
-
 /// How many distinct model families a lens needs among its answers before
 /// reviewers stop being tried for it, matching [`reducer::decide_lens`]'s
 /// own quorum.
@@ -81,9 +78,9 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
     let roster = reviewers::roster(req.root)?;
     let enabled: Vec<&Reviewer> = roster.iter().filter(|r| r.enabled).collect();
-    let threshold = config::review_config(req.root)
-        .map_err(|e| e.to_string())?
-        .threshold;
+    let review_config = config::review_config(req.root).map_err(|e| e.to_string())?;
+    let threshold = review_config.threshold;
+    let timeout = Duration::from_secs(review_config.timeout_seconds);
 
     let sources = Sources {
         root: req.root,
@@ -107,7 +104,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
     for selected_lens in &selected {
         let lens = selected_lens.lens;
-        let (verdict, attempts) = run_lens(req.root, lens, depth, &sources, &enabled);
+        let (verdict, attempts) = run_lens(req.root, lens, depth, &sources, &enabled, timeout);
         for attempt in attempts {
             if let Some(journal) = journal.as_mut() {
                 let event = attempt.into_event(&lens.name);
@@ -221,6 +218,7 @@ fn run_lens(
     depth: Depth,
     sources: &Sources,
     enabled: &[&Reviewer],
+    timeout: Duration,
 ) -> (LensVerdict, Vec<Attempt>) {
     let context = match review_context::build(lens, depth, sources) {
         Ok(context) => context,
@@ -234,7 +232,7 @@ fn run_lens(
         if families.len() >= QUORUM_FAMILIES {
             break;
         }
-        let attempt = attempt_reviewer(root, reviewer, &prompt, lens);
+        let attempt = attempt_reviewer(root, reviewer, &prompt, lens, timeout);
         if attempt.lens_answer.answer.is_some() {
             families.insert(attempt.lens_answer.family.clone());
         }
@@ -250,8 +248,14 @@ fn run_lens(
 /// both the journal and the reducer need: an answered reviewer's findings
 /// go through [`quotes::check`] first, so a lens can never be scored from a
 /// finding nothing has verified.
-fn attempt_reviewer(root: &Path, reviewer: &Reviewer, prompt: &str, lens: &Lens) -> Attempt {
-    match reviewers::run_one(reviewer, prompt, lens, root, REVIEWER_TIMEOUT) {
+fn attempt_reviewer(
+    root: &Path,
+    reviewer: &Reviewer,
+    prompt: &str,
+    lens: &Lens,
+    timeout: Duration,
+) -> Attempt {
+    match reviewers::run_one(reviewer, prompt, lens, root, timeout) {
         Outcome::Answered(answer) => {
             let checked = quotes::check(root, answer);
             let findings_kept = as_u32(checked.kept.findings().len());
