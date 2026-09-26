@@ -1,8 +1,8 @@
 Phase 2: Design. The rollout schedule confirms this stage before implementation begins.
 
 <!-- osf-unplaceable
-label: placeable
+label: unplaceable
 kind: number
 target: Phase 2
-reason: a single meaningful word after a colon is a real description, not a filler word
+reason: a single word after a colon is never a real description; a rule with no word list cannot tell it from a filler word
 -->

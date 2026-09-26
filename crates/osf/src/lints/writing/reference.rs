@@ -340,6 +340,9 @@ fn word_number_candidate(
     if number.as_str().contains('.') || looks_like_a_year(number.as_str()) {
         return None;
     }
+    if is_percent_quantity(text, number.end()) {
+        return None;
+    }
     let mut after = text.get(number.end()..).unwrap_or("").chars();
     if after.next() == Some('-') && after.next().is_some_and(|ch| ch.is_ascii_digit()) {
         return None;
@@ -361,6 +364,19 @@ fn looks_like_a_year(number: &str) -> bool {
         && number
             .parse::<u32>()
             .is_ok_and(|n| (1900..=2099).contains(&n))
+}
+
+/// Whether the text right after a number's end is a percent sign or the
+/// word "percent": a quantity, never a label, whatever word comes before it.
+fn is_percent_quantity(text: &str, number_end: usize) -> bool {
+    let after = text.get(number_end..).unwrap_or("");
+    if after.starts_with('%') {
+        return true;
+    }
+    after
+        .trim_start()
+        .strip_prefix("percent")
+        .is_some_and(|rest| !rest.starts_with(|c: char| c.is_alphanumeric()))
 }
 
 /// A word and a single letter or short number in brackets, such as `mechanism (b)`.
@@ -840,6 +856,34 @@ mod tests {
                 .iter()
                 .all(|k| *k != Kind::Number)
         );
+    }
+
+    /// A percent quantity is never a candidate, whatever word precedes it.
+    #[test]
+    fn number_excludes_a_percent_quantity() {
+        assert!(
+            kinds("The study reached 86 percent accuracy.", Context::Document)
+                .iter()
+                .all(|k| *k != Kind::Number)
+        );
+        assert!(kinds(
+            "Its top two flagged hunks held 54 percent of the risky lines.",
+            Context::Document
+        )
+        .iter()
+        .all(|k| *k != Kind::Number));
+        assert!(kinds(
+            "Fixing the leak cut its score by roughly 40 percent.",
+            Context::Document
+        )
+        .iter()
+        .all(|k| *k != Kind::Number));
+        assert!(kinds(
+            "The suite recovered 16% of previously failed tasks.",
+            Context::Document
+        )
+        .iter()
+        .all(|k| *k != Kind::Number));
     }
 
     #[test]

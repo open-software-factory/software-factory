@@ -238,7 +238,7 @@ Domain: Engineering. This phase addresses correctness, sustainability and securi
 
 - Cost estimate documented in the ADR
 
-### Phase 3: Implementation
+### Phase 3: Implementation and testability
 
 Domain: Engineering. This phase addresses correctness, quality, testability and observability in code.
 
@@ -443,22 +443,22 @@ These concerns apply throughout the lifecycle.
 
 | Dimension / Check   | What is Verified                                                                         | Trigger             | Frequency          |
 |-------------------------|----------------------------------------------------------------------------------------------|-------------------------|------------------------|
-| Phase 1: Requirements   | Privacy/data classification; compliance requirements; threat surface change identified       | On spec creation        | Every edit             |
-| Phase 2: Design         | Threat model (STRIDE); trust boundaries; OpenAPI security rules; data flow review            | On design creation      | Per design             |
-| Phase 3: Implementation | SAST (Semgrep + CodeQL); secrets detection (pre-commit); secure coding rules in linter       | Pre-commit + CI         | Every commit           |
-| Phase 5: CI             | SAST; SCA (CVE + supply chain); IaC scan; container scan; licence compliance; SBOM           | Every PR                | Every PR               |
-| Phase 6: Staging        | DAST (OWASP ZAP); security headers; TLS check; API security; pentest scripts                 | Every staging deploy    | Every deploy + nightly |
-| Phase 7: Production     | Security header re-verification; WAF rule review; progressive rollout with anomaly detection | Every production deploy | Every deploy           |
-| Phase 8: Operations     | Runtime security (Falco/eBPF); scheduled DAST; cloud posture (Prowler); certificate expiry   | Continuous + scheduled  | Continuous + weekly    |
+| Phase 1: the requirements stage   | Privacy/data classification; compliance requirements; threat surface change identified       | On spec creation        | Every edit             |
+| Phase 2: the design stage         | Threat model (STRIDE); trust boundaries; OpenAPI security rules; data flow review            | On design creation      | Per design             |
+| Phase 3: the implementation stage | SAST (Semgrep + CodeQL); secrets detection (pre-commit); secure coding rules in linter       | Pre-commit + CI         | Every commit           |
+| Phase 5: the CI stage             | SAST; SCA (CVE + supply chain); IaC scan; container scan; licence compliance; SBOM           | Every PR                | Every PR               |
+| Phase 6: the staging stage        | DAST (OWASP ZAP); security headers; TLS check; API security; pentest scripts                 | Every staging deploy    | Every deploy + nightly |
+| Phase 7: the production stage     | Security header re-verification; WAF rule review; progressive rollout with anomaly detection | Every production deploy | Every deploy           |
+| Phase 8: the operations stage     | Runtime security (Falco/eBPF); scheduled DAST; cloud posture (Prowler); certificate expiry   | Continuous + scheduled  | Continuous + weekly    |
 | Policy as Code          | OPA / Conftest: no root containers, encrypted buckets and no wildcard IAM, enforced in CI    | Every PR + every deploy | Every PR + deploy      |
 
 #### Observability as a design requirement
 
-- Logging, tracing, and metrics requirements defined in Phase 1 (specification)
+- Logging, tracing, and metrics requirements defined in Phase 1 (the specification stage)
 
-- SLI/SLO definitions written in Phase 2 (design), committed as configuration
+- SLI/SLO definitions written in Phase 2 (the design stage), committed as configuration
 
-- Observability implementation verified in Phase 3 (implementation), where CI checks that the required instrumentation is present
+- Observability implementation verified in Phase 3 (the implementation stage), where CI checks that the required instrumentation is present
 
 - Observability completeness verified post-deploy (signals actually flowing)
 
@@ -532,10 +532,10 @@ The complete traceability chain:
 | Artefact        | Links To                                              | Verified By                       |
 |---------------------|-----------------------------------------------------------|---------------------------------------|
 | Business goal / OKR | None                                                      | Product review                        |
-| Feature spec        | Business goal / OKR                                       | Spec quality gate (Phase 1: specification)           |
-| ADR                 | Feature spec; supersedes previous ADR if applicable       | Design review (Phase 2: design)               |
+| Feature spec        | Business goal / OKR                                       | Spec quality gate (Phase 1: the specification stage)           |
+| ADR                 | Feature spec; supersedes previous ADR if applicable       | Design review (Phase 2: the design stage)               |
 | OpenAPI spec        | Feature spec; ADR                                         | Spectral OWASP gate (Phase 5: CI pipeline)         |
-| Threat model        | Feature spec; ADR; OpenAPI spec                           | Security design review (Phase 2: design)      |
+| Threat model        | Feature spec; ADR; OpenAPI spec                           | Security design review (Phase 2: the design stage)      |
 | Code module         | ADR; feature spec (via acceptance criteria)               | SAST + design conformance (Phase 5: CI pipeline)   |
 | Tests               | Acceptance criteria from spec (explicit reference)        | Mutation testing + coverage (Phase 5: CI pipeline) |
 | PR                  | Feature spec; ADR; test results                           | PR traceability check (Phase 4: code review)       |
@@ -567,11 +567,11 @@ Not all phases are implemented simultaneously. Suggested sequencing by value and
 | Wave | Focus                                                                             | Rationale                                                                   |
 |----------|---------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
 | 1        | Phase 5 (CI pipeline): SAST, SCA, secrets, linting, type-checking at maximum strictness    | Highest ROI, entirely deterministic, no LLM dependency, immediate quality floor |
-| 2        | Phase 1 (specification): spec quality review. Phase 4 (code review): gates for size, description and traceability       | Addresses root cause (spec quality) and the PR bottleneck simultaneously        |
-| 3        | Phase 6 (staging): DAST, load testing, security headers. Phase 7 (production deployment): auto-rollback          | Closes the production safety gap; enables confident deployment                  |
+| 2        | Phase 1 (the specification stage): spec quality review. Phase 4 (code review): gates for size, description and traceability       | Addresses root cause (spec quality) and the PR bottleneck simultaneously        |
+| 3        | Phase 6 (the staging stage): DAST, load testing, security headers. Phase 7 (production deployment): auto-rollback          | Closes the production safety gap; enables confident deployment                  |
 | 4        | Phase 9 (feedback loops): incident → spec, finding → regression test, usage → discovery | Compound improvement: the system gets better automatically over time            |
 | 5        | Phase 11 (the meta-loop): gate calibration, tool review, LLM capability re-evaluation       | The process reviewing itself; only valuable once other phases are established   |
 
 ### 5.3 The spec-quality principle
 
-The input spec bounds the trustworthiness of downstream automation. As automation increases, spec quality matters more. Invest disproportionately in Phase 1 (specification) gates and keep specs as the source of truth.
+The input spec bounds the trustworthiness of downstream automation. As automation increases, spec quality matters more. Invest disproportionately in Phase 1 (the specification stage) gates and keep specs as the source of truth.

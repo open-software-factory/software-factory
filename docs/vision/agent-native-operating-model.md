@@ -116,7 +116,7 @@ Product decisions are probabilistic: evidence supports a belief about what users
 
 Automation in the product loop reduces the cost of evidence gathering and synthesis by making research faster, experiment analysis immediate and signal aggregation continuous. This allows more product-loop cycles per unit time. Humans still make the judgments between evidence and insight.
 
-See Automated SPDLC / SDLC, Phase 0: Discovery and Phase 1: Requirements & Specification, for tooling and verification detail.
+See Automated SPDLC / SDLC, Phase 0: Discovery and ideation, and Phase 1: Requirements & Specification, for tooling and verification detail.
 
 ## 4. The engineering loop
 
@@ -159,7 +159,7 @@ Exception-only human involvement is earned domain by domain as automation proves
 | Exception-only             | Human responds to escalations; system runs autonomously                        | Sustained low false-positive rate; tracked reliability metrics; rollback tested   |
 | Autonomous with monitoring | Human reviews the aggregate metrics and meta-loop output. Individual decisions go unreviewed | Mature, stable, monitored automation with demonstrated self-correction capability |
 
-See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md) for engineering-loop verification detail and gate specifications, in Phase 3 (implementation) through Phase 8 (operations).
+See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md) for engineering-loop verification detail and gate specifications, in Phase 3 (the implementation stage) through Phase 8 (the operations stage).
 
 ## 5. Human roles
 

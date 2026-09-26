@@ -486,8 +486,8 @@ fn containing_sentence(sentences: &[TextUnit], offset: usize) -> Option<&TextUni
 /// A number candidate is placed by a link around it, a bracketed
 /// description on a repository-qualified one, the repository named in the
 /// same sentence, a file path naming it, a bracketed letter with a list
-/// item that starts with it, a consecutive run of the same word, or a
-/// bracket, colon or comma description right after it.
+/// item that starts with it, or a bracket, colon or comma description
+/// right after it.
 fn number_is_placed(
     text: &str,
     candidate: &Candidate,
@@ -510,7 +510,6 @@ fn number_is_placed(
     repo_named_in_same_sentence(candidate, local_sentences)
         || file_path_names_it(text, candidate)
         || has_qualifying_description(candidate, local_sentences, all_candidates)
-        || has_consecutive_sibling(candidate, all_candidates)
 }
 
 /// A bracket description, a colon-introduced clause, or a comma then an
@@ -544,17 +543,17 @@ fn has_qualifying_description(
     if let Some(inner) = rest.strip_prefix('(') {
         return inner
             .split_once(')')
-            .is_some_and(|(d, _)| description_is_real(d, 1));
+            .is_some_and(|(d, _)| description_is_real(d));
     }
     if let Some(after_colon) = rest.strip_prefix(':') {
-        return description_is_real(clause(after_colon.trim_start()), 1);
+        return description_is_real(clause(after_colon.trim_start()));
     }
     if let Some(after_comma) = rest.strip_prefix(',') {
         let after_comma = after_comma.trim_start();
         return ["the ", "a ", "an "].iter().any(|article| {
             after_comma
                 .strip_prefix(article)
-                .is_some_and(|d| description_is_real(clause(d), 2))
+                .is_some_and(|d| description_is_real(clause(d)))
         });
     }
     false
@@ -562,57 +561,27 @@ fn has_qualifying_description(
 
 /// The text up to, but not including, the next comma, semicolon, full stop
 /// or closing bracket: a colon description can itself sit inside a bracket
-/// opened earlier in the sentence, such as `(Phase 1: specification)`.
+/// opened earlier in the sentence, such as `(Phase 1: the specification stage)`.
 fn clause(s: &str) -> &str {
     let end = s.find([',', ';', '.', ')']).unwrap_or(s.len());
     &s[..end]
 }
 
-/// Whether `d` is a real description: no digit, and either two-plus plain
-/// words or, when `min_words` is one, a single alphabetic word that is not
-/// one of the filler words a label never uses, such as `it` or `the`. A
-/// pronoun and a code-like token such as `fixes-135` never qualify alone.
-fn description_is_real(d: &str, min_words: usize) -> bool {
-    let words: Vec<&str> = d.split_whitespace().collect();
-    let Some(&first) = words.first() else {
-        return false;
-    };
-    if d.chars().any(|c| c.is_ascii_digit()) {
-        return false;
+/// Whether `d` is a real description: two or more plain words with no
+/// digit, once a trailing filler word such as "and" is dropped so it
+/// cannot pad a single real word up to the count on its own. A single
+/// word, whatever it is, never qualifies: a rule with no list of real
+/// words cannot tell "done" from "specification", so masking fails
+/// toward reporting rather than toward a guess.
+fn description_is_real(d: &str) -> bool {
+    let mut words: Vec<&str> = d.split_whitespace().collect();
+    while words
+        .last()
+        .is_some_and(|w| reference::NON_LABEL_WORDS.contains(&w.to_lowercase().as_str()))
+    {
+        words.pop();
     }
-    if words.len() >= 2 {
-        return true;
-    }
-    min_words <= 1
-        && first.chars().all(|c| c.is_ascii_alphabetic())
-        && !reference::NON_LABEL_WORDS.contains(&first.to_lowercase().as_str())
-}
-
-/// Whether another number candidate in the paragraph shares this one's word
-/// and sits exactly one number away, the shape of an inline enumeration
-/// such as "Tier 1, Tier 2 and Tier 3": the paragraph introduces the whole
-/// run together, rather than pointing elsewhere for any one member's sense.
-fn has_consecutive_sibling(candidate: &Candidate, all_candidates: &[&Candidate]) -> bool {
-    let Some((word, number)) = word_and_plain_number(&candidate.text) else {
-        return false;
-    };
-    all_candidates.iter().any(|other| {
-        other.kind == Kind::Number
-            && other.range != candidate.range
-            && word_and_plain_number(&other.text).is_some_and(|(other_word, other_number)| {
-                other_word.eq_ignore_ascii_case(word) && other_number.abs_diff(number) == 1
-            })
-    })
-}
-
-/// Splits a plain `word number` candidate's text, rejecting the hash and
-/// bracket shapes `number_is_placed` already handles on their own terms.
-fn word_and_plain_number(text: &str) -> Option<(&str, u32)> {
-    if text.contains('#') || text.contains('(') {
-        return None;
-    }
-    let (word, number) = text.rsplit_once(' ')?;
-    number.parse::<u32>().ok().map(|n| (word, n))
+    words.len() >= 2 && !words.iter().any(|w| w.chars().any(|c| c.is_ascii_digit()))
 }
 
 fn is_linked(text: &str, candidate: &Candidate) -> bool {
@@ -1502,6 +1471,29 @@ mod unplaceable_reference_tests {
         );
     }
 
+    /// U21: two references introduced next to each other in a chat reply
+    /// still each need their own placement; the consecutive-run exclusion
+    /// is gone.
+    #[test]
+    fn two_references_named_together_in_a_chat_reply_both_report() {
+        let cfg = WritingConfig::default();
+        let findings = super::super::lint_writing(
+            "Can you check fix 5, fix 6 before I merge?",
+            &known(),
+            &cfg,
+            Context::Transcript,
+            false,
+            false,
+        );
+        let excerpts: Vec<&str> = findings
+            .iter()
+            .filter(|f| f.rule == "unplaceable-reference")
+            .map(|f| f.excerpt.as_str())
+            .collect();
+        assert!(excerpts.contains(&"fix 5"), "{findings:?}");
+        assert!(excerpts.contains(&"fix 6"), "{findings:?}");
+    }
+
     #[test]
     fn a_quoted_term_finding_is_advisory_in_a_chat_reply_too() {
         let cfg = WritingConfig::default();
@@ -1561,36 +1553,38 @@ mod unplaceable_reference_tests {
         assert!(!is_placed(t, "fix 5"), "{:?}", find(t));
     }
 
-    /// A single meaningful word after a colon, such as a table cell reading
-    /// `Phase 1: Requirements`, is a real description, unlike a filler word
-    /// such as `it`.
+    /// U20: a single word after a colon or bracket never places a number,
+    /// however real the word looks. A rule with no list of real words
+    /// cannot tell "specification" from "done", so it must report both.
     #[test]
-    fn a_single_meaningful_word_after_a_colon_places_a_word_and_number() {
-        let t = "Phase 1: Requirements";
-        assert!(is_placed(t, "Phase 1"), "{:?}", find(t));
+    fn a_single_word_after_a_colon_never_places_a_word_and_number() {
+        let t = "Step 4: rerun";
+        assert!(!is_placed(t, "Step 4"), "{:?}", find(t));
     }
 
     #[test]
-    fn a_single_meaningful_word_in_brackets_places_a_word_and_number() {
-        let t = "The rollout covers Phase 2 (design) this quarter.";
-        assert!(is_placed(t, "Phase 2"), "{:?}", find(t));
+    fn a_single_word_in_brackets_never_places_a_word_and_number() {
+        assert!(
+            !is_placed("Round 2 (done) shipped on schedule.", "Round 2"),
+            "{:?}",
+            find("Round 2 (done) shipped on schedule.")
+        );
+        assert!(
+            !is_placed("Phase 3 (later) is still unscheduled.", "Phase 3"),
+            "{:?}",
+            find("Phase 3 (later) is still unscheduled.")
+        );
+        assert!(
+            !is_placed("Ruling 19 (approved) closes the question.", "Ruling 19"),
+            "{:?}",
+            find("Ruling 19 (approved) closes the question.")
+        );
     }
 
     #[test]
     fn a_single_filler_word_after_a_colon_does_not_place_a_word_and_number() {
         let t = "Stage 4: the";
         assert!(!is_placed(t, "Stage 4"), "{:?}", find(t));
-    }
-
-    /// Numbers introduced together as a consecutive run, such as three
-    /// tiers named in one paragraph, place one another: the paragraph is
-    /// enumerating them, not pointing elsewhere for their meaning.
-    #[test]
-    fn a_consecutive_run_of_the_same_word_places_every_member() {
-        let t = "The plan has Tier 1, Tier 2 and Tier 3, run in that order.";
-        assert!(is_placed(t, "Tier 1"), "{:?}", find(t));
-        assert!(is_placed(t, "Tier 2"), "{:?}", find(t));
-        assert!(is_placed(t, "Tier 3"), "{:?}", find(t));
     }
 
     #[test]
@@ -1609,11 +1603,23 @@ mod unplaceable_reference_tests {
         assert!(is_placed(t, "Phase 11"), "{:?}", find(t));
     }
 
+    /// A trailing conjunction such as "and", picked up only because the
+    /// description is bounded against a sibling reference, must not pad a
+    /// single real word up to the two-word count on its own.
     #[test]
-    fn a_second_numbered_reference_in_a_shorter_sentence_does_not_poison_a_colon_description() {
+    fn a_trailing_conjunction_does_not_pad_a_single_word_description() {
+        let t = "See SDLC, Phase 3: Implementation and Phase 6: Staging, for detail.";
+        assert!(!is_placed(t, "Phase 3"), "{:?}", find(t));
+        assert!(!is_placed(t, "Phase 6"), "{:?}", find(t));
+    }
+
+    /// A single-word colon description never places its number, even
+    /// bounded correctly against a sibling reference later in the sentence.
+    #[test]
+    fn a_single_word_colon_description_still_does_not_place_beside_a_sibling_reference() {
         let t = "See Automated SPDLC / SDLC, Phase 3: Implementation and Phase 6: Staging, for axe-core and WCAG testing detail.";
-        assert!(is_placed(t, "Phase 3"), "{:?}", find(t));
-        assert!(is_placed(t, "Phase 6"), "{:?}", find(t));
+        assert!(!is_placed(t, "Phase 3"), "{:?}", find(t));
+        assert!(!is_placed(t, "Phase 6"), "{:?}", find(t));
     }
 
     /// A comma then an article then at least two plain words places a
@@ -1630,8 +1636,9 @@ mod unplaceable_reference_tests {
         assert!(!is_placed(t, "fix 5"), "{:?}", find(t));
     }
 
-    /// U19: a single pronoun or a single code-like token in a bracket never
-    /// counts as a real description, whatever else changes about the rule.
+    /// U20: a pronoun or a code-like token in a bracket never places a
+    /// number, the same as any other single word now that the single-word
+    /// path is gone.
     #[test]
     fn a_pronoun_in_brackets_never_places_a_word_and_number() {
         assert!(!is_placed(
@@ -1645,10 +1652,11 @@ mod unplaceable_reference_tests {
     }
 
     /// A colon description ending at an enclosing bracket's own close, not
-    /// one right after the candidate, still counts as a real description.
+    /// one right after the candidate, still counts as a real description
+    /// once it has two or more plain words.
     #[test]
     fn a_colon_description_ending_at_an_enclosing_bracket_places_a_word_and_number() {
-        let t = "Spec quality gate (Phase 1: specification)";
+        let t = "Spec quality gate (Phase 1: the specification stage)";
         assert!(is_placed(t, "Phase 1"), "{:?}", find(t));
     }
 

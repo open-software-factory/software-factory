@@ -38,9 +38,9 @@ Just-in-time defect prediction is the field that scores a single commit for defe
 
 **Normalised size.** Raw lines changed barely predicts defects. Nagappan and Ball showed in 2005 that churn relative to file size, prior churn and time span predicted fault-prone binaries with 89 percent accuracy on a large operating system.
 
-**Fourteen standard features.** Kamei and colleagues defined them in 2013, in five families, which are size, diffusion, purpose, history and experience. Their models on six open-source projects reached an area under the curve of 0.70 to 0.78. Under effort-aware evaluation, bugs found per line inspected, the models found about 35 percent of bugs while about 20 percent of changed lines were inspected.
+**Fourteen standard features.** Kamei and colleagues defined them in 2013, in five families, which are size, diffusion, purpose, history and experience. Their models on six open-source projects reached an area under the curve of 0.70 to 0.78. Under effort-aware evaluation, bugs found per line inspected, the models found about 35 percent of bugs while inspecting 20 percent of changed lines.
 
-**A one-feature baseline held.** Zeng and colleagues showed in 2021 that a logistic regression on lines added alone matched or beat two deep-learning models. The test used a dataset eight times larger than the original, and the baseline trained tens of thousands of times faster. Pornprasit and Tantithamthavorn showed the same year that one deep model's reported gains came partly from a data leak. Fixing the leak cut its score by about 40 percent.
+**A one-feature baseline held.** Zeng and colleagues showed in 2021 that a logistic regression on lines added alone matched or beat two deep-learning models. The test used a dataset eight times larger than the original, and the baseline trained tens of thousands of times faster. Pornprasit and Tantithamthavorn showed the same year that one deep model's reported gains came partly from a data leak. Fixing the leak cut its score by roughly 40 percent.
 
 **Patterns drift.** McIntosh and Kamei tracked models over years of project history in 2018. The features that predicted risk shifted, and a model trained once degraded. Rolling retraining on recent data kept accuracy up.
 
@@ -61,7 +61,7 @@ The published systems split into two kinds. Review-time systems read the change 
 | Organisation | Signal | What it gates | Reported outcome |
 | --- | --- | --- | --- |
 | Google, engineering book | change size and type | reviewer count and review depth; a 200-line target | small changes review faster and roll back safer |
-| Google, reliability books | canary error rate and latency against a live control group | canary size, duration, go or no-go | about 70 percent of outages come from changes to a live system |
+| Google, reliability books | canary error rate and latency against a live control group | canary size, duration, go or no-go | roughly 70 percent of outages come from changes to a live system |
 | Meta, test selection | history of test outcomes and flakiness | which tests run per change | about half the test cost, over 99.9 percent of breaking changes still caught |
 | Meta, deployment system | health checks on system, call and business metrics; a dependency graph walk | automatic revert; cancels a release built on a bad shared library | about 14 percent of executables cancelled; 41 percent false positives on large services |
 | Microsoft, rollout judge | fault logs and telemetry correlated to a rollout in time and place | automatic no-go | 92 percent precision, 100 percent recall on data-plane rollouts |
@@ -117,7 +117,7 @@ An inventory of deterministic tools, grouped by the fact they report. Every tool
 
 **Products.** Eleven review products were checked. Most emit findings with a severity. Two emit a priority or risk label. Two can run fully outside the vendor's cloud. None publishes a dataset, a ground truth, or a third-party replication for its accuracy claims. Treat every vendor accuracy figure as marketing until one does.
 
-**Research.** A 2026 paper from Meta built a diff risk score from a model's attention over the diff, then mapped it to lines and hunks. Its top two flagged hunks accounted for 54 percent of the risky lines while making up about 26 percent of the changed code. [reported: arXiv 2607.02782, unverified by this author] A 2023 paper, arXiv 2308.11148, showed small fine-tuned models matching dedicated review models at under 7 billion parameters.
+**Research.** A 2026 paper from Meta built a diff risk score from a model's attention over the diff, then mapped it to lines and hunks. Its top two flagged hunks held 54 percent of the risky lines while covering 26 percent of the changed code. [reported: arXiv 2607.02782, unverified by this author] A 2023 paper, arXiv 2308.11148, showed small fine-tuned models matching dedicated review models at under 7 billion parameters.
 
 **Small local classifiers.** Few-shot sentence-embedding classifiers of 110 to 355 million parameters matched a large model trained on 3,000 examples with 8 examples per class. [reported: SetFit] Fine-tuned code encoders reach a macro F1 near 0.74 on binary change classification. [reported: arXiv 2605.01596] A retrieval approach that labels a commit by similarity to past commits ran up to 112 times faster than the learned models. [reported: arXiv 2210.02435] A pure-Rust inference path exists. A 150-million-parameter zero-shot classifier loaded through the candle crate and cached offline is enough for a first local layer.
 
@@ -125,7 +125,7 @@ An inventory of deterministic tools, grouped by the fact they report. Every tool
 
 **Reproducibility has a limit.** Temperature zero reduces but does not remove randomness. Batch size, kernel choice and floating-point ordering differ across hardware, so the same weights can answer differently on two machines. [reported: arXiv 2308.02828; 2604.27006; 2604.22411] A pinned weight hash controls one variable. The report must record the hash, the hardware class and the runtime version, and a golden set must run on the reference machine.
 
-**Calibration.** Two public change-level datasets exist, one of 106,674 labelled commits and one of 213,000 files. A repository can label its own history: a change is risky if it was later reverted, hot-fixed, or linked to an incident. One study reached about 86 percent accuracy from one project's history alone. [reported: arXiv 2411.05230] No source states a precision bar for auto-merge. That number is a local policy. No source covered drift monitoring, so it must be built by re-running the labelled set on a schedule.
+**Calibration.** Two public change-level datasets exist, one of 106,674 labelled commits and one of 213,000 files. A repository can label its own history: a change is risky if it was later reverted, hot-fixed, or linked to an incident. One study reached 86 percent accuracy from one project's history alone. [reported: arXiv 2411.05230] No source states a precision bar for auto-merge. That number is a local policy. No source covered drift monitoring, so it must be built by re-running the labelled set on a schedule.
 
 **A floor the model cannot lower.** No published policy was found where rules set a minimum tier and a model may only raise it. It is a sound pattern. It is not yet a proven practice.
 
