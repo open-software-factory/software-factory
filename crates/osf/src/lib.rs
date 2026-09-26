@@ -4,6 +4,7 @@
 //! runs, instead of shelling out to it.
 
 pub mod agents;
+pub mod answer;
 pub mod check;
 pub mod checkpoint;
 pub mod config;
