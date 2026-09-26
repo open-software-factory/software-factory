@@ -4,8 +4,7 @@ weight = 0.6
 runs = "triggered"
 
 [trigger]
-paths = ["**/*log*/**", "**/metrics/**"]
-signals = ["feature-flag"]
+paths = ["**/*log*/**", "**/metrics/**", ".github/workflows/**", "**/Dockerfile*", "**/charts/**", "**/Chart.yaml"]
 
 [[criteria]]
 id = "observable"

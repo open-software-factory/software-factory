@@ -5,7 +5,7 @@ runs = "triggered"
 
 [trigger]
 paths = ["**/*.sql", "**/benches/**", "**/*loop*"]
-signals = ["hot-path", "n-plus-one"]
+signals = ["high-traffic path", "performance and data volume"]
 
 [[criteria]]
 id = "no-added-complexity"

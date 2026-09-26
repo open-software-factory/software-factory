@@ -5,7 +5,7 @@ runs = "triggered"
 
 [trigger]
 paths = ["**/*thread*", "**/*async*", "**/*lock*"]
-signals = ["shared-state", "concurrency"]
+signals = ["concurrency"]
 
 [[criteria]]
 id = "shared-state-guarded"

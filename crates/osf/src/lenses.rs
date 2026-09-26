@@ -173,7 +173,8 @@ pub fn load(root: &Path, org_dir: Option<&Path>) -> Result<Catalogue, String> {
 
     if let Some(dir) = org_dir {
         for (path, lens) in read_toml_dir(dir)? {
-            upsert(&mut lenses, &mut sources, lens, forward_slash(&path));
+            let relative = path.strip_prefix(dir).unwrap_or(&path);
+            upsert(&mut lenses, &mut sources, lens, forward_slash(relative));
         }
     }
 
@@ -281,5 +282,80 @@ mod tests {
         let root = temp_root("examples");
         let c = load(&root, None).expect("loads");
         assert!(c.lenses.iter().all(|l| l.name != "money"));
+    }
+
+    #[test]
+    fn every_triggered_lens_has_at_least_one_trigger_path_or_signal() {
+        let root = temp_root("trigger-coverage");
+        let c = load(&root, None).expect("loads");
+        for lens in &c.lenses {
+            if matches!(lens.runs, Runs::Triggered | Runs::AlwaysAtHighTier) {
+                assert!(
+                    !lens.trigger.paths.is_empty() || !lens.trigger.signals.is_empty(),
+                    "{} has no trigger path or signal",
+                    lens.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn accessibility_and_user_visible_change_do_not_share_a_signal() {
+        let root = temp_root("no-shared-signal");
+        let c = load(&root, None).expect("loads");
+        let accessibility = c
+            .lenses
+            .iter()
+            .find(|l| l.name == "accessibility")
+            .expect("accessibility");
+        let user_visible = c
+            .lenses
+            .iter()
+            .find(|l| l.name == "user-visible-change")
+            .expect("user-visible-change");
+        for signal in &accessibility.trigger.signals {
+            assert!(
+                !user_visible.trigger.signals.contains(signal),
+                "both lenses trigger on {signal}"
+            );
+        }
+    }
+
+    #[test]
+    fn sources_are_forward_slash_paths_relative_to_their_own_root() {
+        let root = temp_root("sources");
+        std::fs::write(
+            root.join(".osf/review-lenses/money.toml"),
+            include_str!("../defaults/review-lenses/examples/money.toml"),
+        )
+        .expect("write");
+        let org = TempDir::new("osf-lenses-sources-org");
+        std::fs::write(
+            org.join("health-data.toml"),
+            include_str!("../defaults/review-lenses/examples/health-data.toml"),
+        )
+        .expect("write");
+        let c = load(&root, Some(&org)).expect("loads");
+
+        let shipped_source = c
+            .sources
+            .iter()
+            .find(|(name, _)| name == "correctness")
+            .map(|(_, source)| source.as_str());
+        assert_eq!(shipped_source, Some("shipped"));
+
+        let repo_source = c
+            .sources
+            .iter()
+            .find(|(name, _)| name == "money")
+            .map(|(_, source)| source.as_str());
+        assert_eq!(repo_source, Some(".osf/review-lenses/money.toml"));
+
+        let org_source = c
+            .sources
+            .iter()
+            .find(|(name, _)| name == "health-data")
+            .map(|(_, source)| source.as_str());
+        assert_eq!(org_source, Some("health-data.toml"));
     }
 }

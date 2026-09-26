@@ -5,7 +5,7 @@ runs = "triggered"
 
 [trigger]
 paths = ["**/api/**", "**/*.proto", "**/openapi/**", "**/*.graphql"]
-signals = ["public-api-change"]
+signals = ["public surface", "external interface"]
 
 [[criteria]]
 id = "backward-compatible"
