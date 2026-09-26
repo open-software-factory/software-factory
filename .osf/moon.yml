@@ -126,3 +126,15 @@ tasks:
     deps: ['~:test']
     tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
     options: { runFromWorkspaceRoot: true, shell: false }
+  # `--if-enabled` reads the roster `osf review run` itself already reads
+  # from `osf.toml`: with no reviewer enabled it prints one line and exits
+  # 0, so a checkout with none configured never fails this checkpoint. With
+  # at least one enabled, a genuine could-not-run (too few families, a
+  # timeout, a bad lens file) exits non-zero and fails it, same as any
+  # other task here.
+  review:
+    command: 'osf review run --if-enabled --sarif-out .osf/out/review.sarif'
+    inputs: ['/**/*.rs', '/**/*.md', '/.osf/review-lenses/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/review.sarif']
+    tags: [osf-pre-push, osf-pull-request, osf-slot-review]
+    options: { runFromWorkspaceRoot: true, shell: false }

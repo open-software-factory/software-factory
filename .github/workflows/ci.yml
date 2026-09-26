@@ -308,3 +308,54 @@ jobs:
             ${{ env.OSF_STATE_DIR }}/buffer
             .osf/out
           if-no-files-found: error
+
+  review:
+    name: review
+    # A fork's pull request never runs on the self-hosted runner: this
+    # guard is true only when the pull request's own head repository is
+    # this repository, so a fork's code never reaches it.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, osf-devcontainer]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Cache the build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build the tool
+        run: cargo build --release --bin osf
+
+      # This runner's main harnesses are already logged in; these keys are
+      # only for an optional, cheaper reviewer. osf never reads a key
+      # itself, and a missing one just leaves that reviewer unable to answer.
+      - name: Run the pull-request review
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "${{ github.base_ref }}"
+          ./target/release/osf review run \
+            --base "origin/${{ github.base_ref }}" \
+            --sarif-out review.sarif
+
+      - name: Keep the review findings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: review-findings
+          path: review.sarif
+          if-no-files-found: ignore

@@ -647,6 +647,75 @@ fn a_secret_as_an_unexpected_extra_field_name_never_reaches_the_journal_or_outpu
 }
 
 #[test]
+fn if_enabled_with_no_reviewer_enabled_exits_zero_and_opens_no_journal() {
+    let repo = review_repo("if-enabled-off", "");
+    let home = common::isolated_home("review-run-if-enabled-off");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--if-enabled", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("slot off"), "{stdout}");
+    assert!(
+        journal_event_types(&home).is_empty(),
+        "the off path must never open the journal"
+    );
+}
+
+#[test]
+fn if_enabled_with_a_reviewer_enabled_still_fails_on_could_not_run() {
+    let osf_toml = roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true);
+    let repo = review_repo("if-enabled-on-could-not-run", &osf_toml);
+    let home = common::isolated_home("review-run-if-enabled-on");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--if-enabled", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !journal_event_types(&home).is_empty(),
+        "the on path must still journal, even when it could not run"
+    );
+}
+
+#[test]
+fn omitting_base_falls_back_to_the_osf_base_environment_variable() {
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("base-from-env", &osf_toml);
+    let home = common::isolated_home("review-run-base-from-env");
+    let output = common::run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_BASE", "origin/main")],
+        &["review", "run"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn a_secret_as_an_unresolvable_findings_path_is_dropped_not_leaked() {
     let secret = common::fake_provider_key("sk-");
     let payload = serde_json::json!({

@@ -137,6 +137,55 @@ Add this entry to your coding agent's settings file, alongside `Stop` and
 }
 ```
 
+## Review at pre-push and the pull request
+
+A moon task named `review` runs `osf review run`. It is tagged so it runs
+at pre-push and at the pull request, alongside the other checks in this
+file.
+
+With no reviewer enabled, the task prints one line and exits clean. No
+review runs. With at least one reviewer enabled, a real review runs. A
+review that cannot finish fails the checkpoint, the same as any other
+task here.
+
+### Enable a reviewer
+
+A reviewer is a coding-agent tool, run headless, such as Claude Code or
+Codex. Every shipped reviewer starts disabled. Turn one on in this
+repository's `osf.toml`:
+
+```toml
+[[review.roster]]
+name = "claude-code"
+enabled = true
+```
+
+The name must match a reviewer this tool already ships, or a new entry
+this file adds in full. A reviewer needs its own tool installed and
+logged in on whatever machine runs it.
+
+### The pull-request review runs on its own runner
+
+The pull-request review runs as its own job in continuous integration, on
+a self-hosted runner inside the development container. That runner
+already has the coding-agent tools installed and logged in, the way a
+person's own machine does.
+
+A repository secret can hold an API key for a cheaper reviewer, such as
+one of the `opencode` models. The job passes each key through as an
+environment variable. The reviewer's own tool reads it the way it already
+does outside `osf`. `osf` never reads or holds a key itself. A missing
+secret leaves that one reviewer unable to answer. It does not fail the
+job by itself.
+
+### Fork pull requests skip the self-hosted review
+
+This job never runs a fork's code. It runs only when the pull request's
+own source repository is this repository. A fork's contributor cannot
+reach the self-hosted runner or a reviewer's login through a pull
+request. Every other check on a fork's pull request still runs, on a
+hosted runner, the same as before.
+
 ## The git wrapper, and its limit
 
 `/opt/factory/bin` comes before the real git on the container's path, and

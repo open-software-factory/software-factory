@@ -1,7 +1,7 @@
 use osf::status::GhClient;
 use osf::{
     answer, check, checkpoint, config, exclude, githooks, hook, journal, lints, reducer, review,
-    review_run, risk, scan, status, verify,
+    review_run, reviewers, risk, scan, status, verify,
 };
 
 use clap::parser::ValueSource;
@@ -260,15 +260,22 @@ enum ReviewAction {
 
 #[derive(Args)]
 struct ReviewRunArgs {
-    /// What to diff the change against.
+    /// What to diff the change against. Falls back to the `OSF_BASE`
+    /// environment variable, the checkpoint runner's own base, when omitted.
     #[arg(long)]
-    base: String,
+    base: Option<String>,
     /// A file holding the work item body, for a lens that needs one.
     #[arg(long = "work-item")]
     work_item: Option<PathBuf>,
     /// Write the kept findings as SARIF to this path.
     #[arg(long = "sarif-out")]
     sarif_out: Option<PathBuf>,
+    /// Runs only when the roster has at least one enabled reviewer. With
+    /// none enabled, prints one line and exits 0 without opening the
+    /// journal, so the moon review task skips cleanly on a checkout with no
+    /// reviewer configured instead of failing its checkpoint.
+    #[arg(long = "if-enabled")]
+    if_enabled: bool,
 }
 
 #[derive(Args)]
@@ -1436,6 +1443,24 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
 }
 
 fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
+    let root = Path::new(".");
+    if args.if_enabled {
+        match reviewers::roster(root) {
+            Ok(roster) if roster.iter().any(|r| r.enabled) => {}
+            Ok(_) => {
+                println!("review: slot off, no reviewer enabled");
+                return ExitCode::from(0);
+            }
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                return ExitCode::from(2);
+            }
+        }
+    }
+    let Some(base) = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok()) else {
+        eprintln!("osf review run: a base is required: pass --base or set OSF_BASE");
+        return ExitCode::from(2);
+    };
     let state_dir = match journal::state_dir() {
         Ok(d) => d,
         Err(e) => {
@@ -1444,8 +1469,8 @@ fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
         }
     };
     let req = review_run::Request {
-        root: Path::new("."),
-        base: &args.base,
+        root,
+        base: &base,
         work_item: args.work_item.as_deref(),
     };
     let outcome = match review_run::run(&req, &state_dir) {
