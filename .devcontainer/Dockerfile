@@ -137,6 +137,13 @@ RUN useradd --create-home --shell /bin/bash dev
 # binaries are still found via /usr/local/cargo/bin, already on PATH.
 ENV CARGO_HOME=/home/dev/.cargo
 
+# rustfmt and clippy, added to the image's own pinned toolchain (the base
+# image's default, not a newer one) before the toolchain is made
+# read-only below, since dev cannot run rustup afterwards.
+RUN rustup component add rustfmt clippy && \
+    rustfmt --version && \
+    cargo-clippy --version
+
 # The base image ships this toolchain group- and other-writable, on both
 # directories and many of the binaries and libraries themselves, so dev
 # could still replace or edit rustc or cargo in place. Strip only the
