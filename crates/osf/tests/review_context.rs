@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{fake_forge_token, TempRepo};
+use common::{fake_forge_token, suppress_marker, TempRepo};
 use osf::lenses::{ContextInput, Criterion, Depth, Lens, Runs, SeverityGuide, Trigger};
 use osf::review_context::{build, Sources};
 
@@ -361,6 +361,35 @@ fn a_built_in_secret_shape_is_redacted_with_no_configuration_at_all() {
     let secret = fake_forge_token("ghp_");
     repo.write("src/config.rs", &format!("let leaked = \"{secret}\";\n"));
     repo.commit("accidentally add a real-shaped token");
+    let lens = lens_with(vec![ContextInput::Diff]);
+    let sources = Sources {
+        root: &repo.dir,
+        base: "origin/main",
+        work_item: None,
+    };
+    let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
+    assert!(!ctx.contains(&secret), "{ctx}");
+    assert!(ctx.contains("redacted by scan-secret"), "{ctx}");
+}
+
+/// A suppression marker silences a finding for a human reading a check's
+/// output, never a secret heading into a reviewer's own prompt: redaction
+/// must never consult the marker at all.
+#[test]
+fn a_suppression_marker_never_stops_a_secret_from_being_redacted() {
+    let repo = TempRepo::new("redact-ignores-suppression-marker");
+    repo.write("src/config.rs", "// nothing sensitive yet\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    let secret = fake_forge_token("ghp_");
+    repo.write(
+        "src/config.rs",
+        &format!(
+            "let leaked = \"{secret}\"; {}\n",
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.commit("accidentally add a real-shaped token with a marker");
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,

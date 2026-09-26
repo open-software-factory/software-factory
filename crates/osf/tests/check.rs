@@ -234,6 +234,93 @@ fn check_scan_ignores_a_suppression_marker_with_no_reason() {
     assert_eq!(out.status.code(), Some(1), "{out:?}");
 }
 
+/// `--gate` ignores a suppression marker for `scan`, the same as it already
+/// does for `lint-writing`: a secret with a reasoned marker must not pass
+/// the pull-request gate just because the change under review added the
+/// marker itself.
+#[test]
+fn check_scan_gate_ignores_a_suppression_marker() {
+    let repo = TempRepo::new("check-scan-gate");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("TOKEN"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.commit("add a suppressed secret");
+    let home = isolated_home("check-scan-gate");
+    let plain = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan",
+            "--checkpoint",
+            "pull-request",
+            "config.txt",
+        ],
+    );
+    assert_eq!(plain.status.code(), Some(0), "{plain:?}");
+    let gated = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan",
+            "--checkpoint",
+            "pull-request",
+            "--gate",
+            "config.txt",
+        ],
+    );
+    assert_eq!(gated.status.code(), Some(1), "{gated:?}");
+}
+
+/// The same gate behaviour for `scan-staged`.
+#[test]
+fn check_scan_staged_gate_ignores_a_suppression_marker() {
+    let repo = TempRepo::new("check-scan-staged-gate");
+    repo.write("config.txt", "Clean for now.\n");
+    repo.commit("clean");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("SECRET"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.stage("config.txt");
+    let home = isolated_home("check-scan-staged-gate");
+    let plain = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "config.txt",
+        ],
+    );
+    assert_eq!(plain.status.code(), Some(0), "{plain:?}");
+    let gated = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "--gate",
+            "config.txt",
+        ],
+    );
+    assert_eq!(gated.status.code(), Some(1), "{gated:?}");
+}
+
 /// `scan-staged` reads the index, so a file staged then deleted from disk
 /// (the deletion itself not staged) is still there to check: existence for
 /// this check means present in the index, never the working tree.
