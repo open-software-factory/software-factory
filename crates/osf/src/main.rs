@@ -1449,6 +1449,11 @@ fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
             Ok(roster) if roster.iter().any(|r| r.enabled) => {}
             Ok(_) => {
                 println!("review: slot off, no reviewer enabled");
+                if let Some(path) = &args.sarif_out {
+                    if let Err(code) = write_sarif_out(path, &[]) {
+                        return code;
+                    }
+                }
                 return ExitCode::from(0);
             }
             Err(e) => {

@@ -669,6 +669,44 @@ fn if_enabled_with_no_reviewer_enabled_exits_zero_and_opens_no_journal() {
     );
 }
 
+/// The `--if-enabled` slot-off path still writes a valid, empty SARIF file
+/// when `--sarif-out` is given, the same way `osf check lint-writing` writes
+/// one when it has nothing to check: a moon task that declares this file as
+/// an output must find it there even when no reviewer ran.
+#[test]
+fn if_enabled_with_no_reviewer_enabled_still_writes_an_empty_sarif() {
+    let repo = review_repo("if-enabled-off-sarif", "");
+    let home = common::isolated_home("review-run-if-enabled-off-sarif");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--if-enabled",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let sarif_text = std::fs::read_to_string(&sarif_out).expect("sarif file was written");
+    let sarif: serde_json::Value =
+        serde_json::from_str(&sarif_text).expect("sarif file is valid JSON");
+    let results = sarif
+        .pointer("/runs/0/results")
+        .and_then(serde_json::Value::as_array)
+        .expect("a runs[0].results array");
+    assert!(results.is_empty(), "{sarif_text}");
+}
+
 #[test]
 fn if_enabled_with_a_reviewer_enabled_still_fails_on_could_not_run() {
     let osf_toml = roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true);
