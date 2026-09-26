@@ -215,6 +215,61 @@ pub struct ScanConfig {
     pub levels: BTreeMap<String, LevelSetting>,
 }
 
+/// The pass threshold `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_THRESHOLD: f64 = 0.7;
+
+/// The `[review]` section of a repository's own `osf.toml`: the reviewer
+/// roster overrides, the pass threshold, and an optional per-run cost
+/// ceiling.
+///
+/// Kept out of the layered [`Config`]/[`Layered`] system deliberately: a
+/// fractional `threshold` cannot honour `Config`'s `Eq` derive the way
+/// every other field does, and a roster override replaces a reviewer by
+/// name (see [`crate::reviewers::roster`]) rather than merging field by
+/// field the way the rest of this file's settings do.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct ReviewConfig {
+    /// Reviewers that replace a shipped one of the same name, or add a new one.
+    pub roster: Vec<crate::reviewers::Reviewer>,
+    /// The weighted lens score a review must clear to pass.
+    pub threshold: f64,
+    /// An optional ceiling on what one review run may spend.
+    pub cost_ceiling: Option<f64>,
+}
+
+impl Default for ReviewConfig {
+    fn default() -> Self {
+        ReviewConfig {
+            roster: Vec::new(),
+            threshold: DEFAULT_REVIEW_THRESHOLD,
+            cost_ceiling: None,
+        }
+    }
+}
+
+/// Reads the `[review]` table of `<root>/osf.toml`, or
+/// [`ReviewConfig::default`] when the file, or the table, is absent.
+///
+/// # Errors
+/// Returns an error when the file is not valid TOML, or its `[review]`
+/// table does not match [`ReviewConfig`]'s shape.
+pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(ReviewConfig::default());
+    };
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    let Some(review) = value.get("review") else {
+        return Ok(ReviewConfig::default());
+    };
+    review
+        .clone()
+        .try_into()
+        .map_err(|e| ConfigError::new(format!("{}: [review]: {e}", path.display())))
+}
+
 /// One field the environment can set, and how to parse it into a TOML value.
 struct EnvField {
     var: &'static str,

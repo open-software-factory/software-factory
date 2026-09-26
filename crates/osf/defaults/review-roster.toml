@@ -1,0 +1,65 @@
+# The shipped reviewer roster: one coding-agent harness per row, run
+# headless with osf's own lens prompt and answer schema. Every entry ships
+# disabled; a repository's own osf.toml turns one on once its harness is
+# installed and logged in.
+#
+# osf never holds a model provider's key. Each harness reads its own
+# credentials (a subscription login, or its own API key environment
+# variable) the way it already does outside osf.
+#
+# The prompt is always sent on the harness's own standard input; a harness
+# whose command line needs the prompt as a file instead can use the
+# `{prompt_file}` token in its own `command`.
+
+[[reviewer]]
+name = "codex"
+harness = "codex"
+family = "openai"
+command = ["codex", "exec", "--json"]
+schema_flag = "--output-schema"
+schema_as = "path"
+enabled = false
+
+[[reviewer]]
+name = "claude-code"
+harness = "claude"
+family = "anthropic"
+command = ["claude", "--print", "--output-format", "text"]
+schema_flag = "--json-schema"
+schema_as = "inline"
+enabled = false
+
+[[reviewer]]
+name = "dsh"
+harness = "dsh"
+family = "deepseek"
+command = ["dsh", "--profile", "headless"]
+enabled = false
+
+[[reviewer]]
+name = "opencode-glm"
+harness = "opencode"
+family = "glm"
+command = ["opencode", "run", "--format", "json", "--model", "zhipuai/glm"]
+enabled = false
+
+[[reviewer]]
+name = "opencode-kimi"
+harness = "opencode"
+family = "kimi"
+command = ["opencode", "run", "--format", "json", "--model", "moonshotai/kimi"]
+enabled = false
+
+[[reviewer]]
+name = "opencode-qwen"
+harness = "opencode"
+family = "qwen"
+command = ["opencode", "run", "--format", "json", "--model", "alibaba/qwen"]
+enabled = false
+
+[[reviewer]]
+name = "opencode-mimo"
+harness = "opencode"
+family = "mimo"
+command = ["opencode", "run", "--format", "json", "--model", "xiaomi/mimo"]
+enabled = false
