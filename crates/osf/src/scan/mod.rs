@@ -383,6 +383,83 @@ fn foreign_reference_findings(owner: &str, clause: &str, text: &str, out: &mut V
     }
 }
 
+// --- secrets ---------------------------------------------------------------
+
+/// Well-known cloud, forge and provider token shapes, and an assignment of
+/// a literal to an upper-snake-case name ending in `KEY`, `TOKEN`, `SECRET`
+/// or `PASSWORD`. The name shape is deliberately narrow: it excludes an
+/// ordinary lower-case identifier such as `cache_key` or `sort_key`, and a
+/// whole word that merely ends in one of these strings, such as `MONKEY`.
+fn secret_shape_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    re(
+        &RE,
+        concat!(
+            r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b",
+            r"|\bgh[pousr]_[A-Za-z0-9]{36,}\b",
+            r"|\bgithub_pat_[A-Za-z0-9_]{20,}\b",
+            r"|\bglpat-[A-Za-z0-9_\-]{20,}\b",
+            r"|\bsk-ant-[A-Za-z0-9_\-]{20,}\b",
+            r"|\bsk-[A-Za-z0-9]{20,}\b",
+            r"|\bxox[baprs]-[A-Za-z0-9\-]{10,}\b",
+            r#"|\b(?:[A-Z][A-Z0-9]*_)*(?:KEY|TOKEN|SECRET|PASSWORD)\b\s*[:=]\s*(?:'[^'\s]{8,}'|"[^"\s]{8,}")"#,
+        ),
+    )
+}
+
+/// A PEM private-key block, its `BEGIN`/`END` lines and everything between
+/// them, found over the whole text rather than one line at a time.
+fn pem_key_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        regex::RegexBuilder::new(
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+        )
+        .dot_matches_new_line(true)
+        .build()
+        .expect("PEM key pattern compiles")
+    })
+}
+
+/// Never records the matched text: the same reason `scan-denied-name`
+/// does not. A line this fires on is not something a reader needs to see
+/// repeated back to them to know it must go.
+fn secret_line_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
+    let pattern = secret_shape_pattern();
+    for (line, content) in lines(text) {
+        if pattern.is_match(content) {
+            out.push(finding(
+                "scan-secret",
+                line,
+                format!("text shaped like a real secret {clause}"),
+                "",
+            ));
+        }
+    }
+}
+
+/// One finding per line of a PEM private-key block, so a caller that
+/// redacts by line blanks the whole key, not only its `BEGIN` line.
+fn pem_key_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
+    for hit in pem_key_pattern().find_iter(text) {
+        let start_line = text
+            .bytes()
+            .take(hit.start())
+            .filter(|&b| b == b'\n')
+            .count()
+            + 1;
+        let span_lines = hit.as_str().matches('\n').count() + 1;
+        for offset in 0..span_lines {
+            out.push(finding(
+                "scan-secret",
+                start_line + offset,
+                format!("a private-key block {clause}"),
+                "",
+            ));
+        }
+    }
+}
+
 // --- the denylist ---------------------------------------------------------
 
 /// A compiled denylist: patterns that must never appear in the repository,
@@ -488,6 +565,8 @@ impl Rules {
         if let Some(owner) = &self.repository.owner {
             foreign_reference_findings(owner, clause, text, &mut out);
         }
+        secret_line_findings(clause, text, &mut out);
+        pem_key_findings(clause, text, &mut out);
         self.denylist.find(text, &mut out);
         resolve_and_explain(&mut out, context);
         osf_lint_core::sort_findings(&mut out);

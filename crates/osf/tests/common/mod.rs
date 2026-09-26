@@ -552,3 +552,62 @@ pub fn coauthor_trailer(name: &str, email: &str) -> String {
 pub fn foreign_reference(owner: &str, repo: &str, number: u32) -> String {
     format!("{owner}/{repo}#{number}")
 }
+
+/// A fake AWS-shaped access key id, built at run time for the same reason
+/// as [`session_link_for`]: this project's own `osf scan` would otherwise
+/// flag the literal shape sitting in this file.
+pub fn fake_cloud_key_id() -> String {
+    let prefix = "AKIA";
+    let body = "IOSFODNN7EXAMPLE";
+    format!("{prefix}{body}")
+}
+
+/// A fake forge personal-access token of the given prefix (`ghp_`, `gho_`,
+/// or a fine-grained `github_pat_`), built at run time for the same reason
+/// as [`fake_cloud_key_id`].
+pub fn fake_forge_token(prefix: &str) -> String {
+    let body = "0123456789abcdef0123456789abcdef0123456789";
+    format!("{prefix}{body}")
+}
+
+/// A fake GitLab personal-access token, built at run time for the same
+/// reason as [`fake_cloud_key_id`].
+pub fn fake_gitlab_token() -> String {
+    let prefix = "glpat-";
+    let body = "abcdefghijklmnopqrstuv12";
+    format!("{prefix}{body}")
+}
+
+/// A fake provider secret key of the given prefix (`sk-` or `sk-ant-`),
+/// built at run time for the same reason as [`fake_cloud_key_id`].
+pub fn fake_provider_key(prefix: &str) -> String {
+    let body = "abcdefghijklmnopqrstuvwxyzABCD0123456789";
+    format!("{prefix}{body}")
+}
+
+/// A fake Slack-shaped token, built at run time for the same reason as
+/// [`fake_cloud_key_id`].
+pub fn fake_slack_token() -> String {
+    let prefix = "xoxb-";
+    let body = "1234567890-1234567890-abcdefghijklmnopqrstuvwx";
+    format!("{prefix}{body}")
+}
+
+/// A fake PEM private-key block, built at run time for the same reason as
+/// [`fake_cloud_key_id`]: its `BEGIN`/`END` lines and body are assembled
+/// from separate pieces, so no source line here holds the full shape.
+pub fn fake_pem_key_block() -> String {
+    let begin = ["-----BEGIN", "RSA PRIVATE KEY-----"].join(" ");
+    let end = ["-----END", "RSA PRIVATE KEY-----"].join(" ");
+    let body = "MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\nKUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQ==";
+    format!("{begin}\n{body}\n{end}")
+}
+
+/// A fake `NAME_SUFFIX = "value"` secret-shaped assignment, built at run
+/// time for the same reason as [`fake_cloud_key_id`]: `suffix` is one of
+/// `KEY`, `TOKEN`, `SECRET` or `PASSWORD`.
+pub fn fake_secret_assignment(suffix: &str) -> String {
+    let name = format!("API_{suffix}");
+    let value = "abcd1234EFGH5678";
+    format!("{name} = \"{value}\"")
+}
