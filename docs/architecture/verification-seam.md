@@ -354,6 +354,7 @@ Each one records the options weighed and the option taken.
 | Suppressions | The factory marker and the native markers, each with a reason and an expiry where the form allows. |
 | The review check | Review lenses, the must-run set, adopter lenses, the reviewer roster, the answer schema and the reducer. |
 | Native default checks and gap checks | Native tools per slot, several tasks per slot, candidates and a default pick, gap checks tracked by an issue, qlty as a candidate. |
+| Hook enforcement and the pinned osf | A root-owned git wrapper forcing local hooks inside the container, a pinned osf version per repository run through a launcher, the base branch's osf as the authority in continuous integration, and a human approval for a weakened check. |
 
 ## Later
 
