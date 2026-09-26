@@ -18,6 +18,8 @@ pub mod lenses;
 pub mod lints;
 pub mod moon;
 pub mod process;
+pub mod quotes;
+pub mod reducer;
 pub mod repository;
 pub mod review;
 pub mod reviewers;
