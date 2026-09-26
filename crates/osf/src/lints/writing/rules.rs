@@ -708,16 +708,7 @@ fn has_mention_marker_in_sentence(local_sentences: &[TextUnit], start: usize) ->
 
 fn unplaced_finding(paragraph: &TextUnit, candidate: &Candidate, cfg: &WritingConfig) -> Finding {
     match candidate.kind {
-        Kind::Number => finding(
-            paragraph,
-            "unplaceable-reference",
-            Level::Error,
-            format!(
-                "say what {} points to: name the repository, add a bracketed description, or link it",
-                candidate.text
-            ),
-            &candidate.text,
-        ),
+        Kind::Number => number_finding(paragraph, candidate),
         Kind::Phrase => finding(
             paragraph,
             "unplaceable-reference",
@@ -735,6 +726,33 @@ fn unplaced_finding(paragraph: &TextUnit, candidate: &Candidate, cfg: &WritingCo
         ),
         Kind::Name => name_finding(paragraph, candidate, cfg),
     }
+}
+
+/// A word-and-bracket-letter candidate is placed by a list item, so it gets its own message.
+fn number_finding(paragraph: &TextUnit, candidate: &Candidate) -> Finding {
+    if let Some(letter) = bracket_letter(&candidate.text) {
+        let letter = letter.to_lowercase();
+        return finding(
+            paragraph,
+            "unplaceable-reference",
+            Level::Error,
+            format!(
+                "say what ({letter}) is, or add a list item starting with ({letter}) in the \
+                 same paragraph"
+            ),
+            &candidate.text,
+        );
+    }
+    finding(
+        paragraph,
+        "unplaceable-reference",
+        Level::Error,
+        format!(
+            "say what {} points to: name the repository, add a bracketed description, or link it",
+            candidate.text
+        ),
+        &candidate.text,
+    )
 }
 
 fn name_finding(paragraph: &TextUnit, candidate: &Candidate, cfg: &WritingConfig) -> Finding {
@@ -1551,6 +1569,20 @@ mod unplaceable_reference_tests {
     fn a_one_word_bracket_does_not_place_a_word_and_number() {
         let t = "Deploying fix 5 (it) cleared the queue.";
         assert!(!is_placed(t, "fix 5"), "{:?}", find(t));
+    }
+
+    /// A word-and-bracket-letter finding names the letter and a list item, not a repository.
+    #[test]
+    fn a_word_and_bracket_letter_with_no_list_item_gets_its_own_message() {
+        let t = "The outage traced back to mechanism (b), a race between two workers.";
+        let findings = find(t);
+        let hit = findings
+            .iter()
+            .find(|f| f.excerpt == "mechanism (b)")
+            .unwrap_or_else(|| panic!("expected a finding on mechanism (b): {findings:?}"));
+        assert!(hit.message.contains("(b)"), "{hit:?}");
+        assert!(hit.message.contains("list item"), "{hit:?}");
+        assert!(!hit.message.contains("name the repository"), "{hit:?}");
     }
 
     /// U20: a single word after a colon or bracket never places a number,

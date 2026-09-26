@@ -163,3 +163,21 @@ fn the_prompt_hook_never_names_a_deleted_rule_id() {
         );
     }
 }
+
+/// `osf explain` on a retired rule id must name the replacement, never the bare "no such rule" error.
+#[test]
+fn explaining_a_retired_rule_id_points_to_its_replacement() {
+    let repo = TempRepo::new("explain-retired");
+    let home = isolated_home("explain-retired");
+    for id in DELETED_RULE_IDS {
+        let out = run_osf(&repo.dir, &home, &["explain", id]);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert!(out.status.success(), "{id}: {out:?}");
+        assert!(
+            stdout.contains("unplaceable-reference"),
+            "{id}: stdout={stdout}"
+        );
+        assert!(!stderr.contains("no such rule"), "{id}: stderr={stderr}");
+    }
+}

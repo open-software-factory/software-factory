@@ -511,6 +511,16 @@ fn main() -> ExitCode {
 }
 
 fn explain(rule_id: &str) -> ExitCode {
+    if let Some((_, replacement)) = lints::RETIRED_RULE_IDS
+        .iter()
+        .find(|(old, _)| *old == rule_id)
+    {
+        println!(
+            "osf: '{rule_id}' is not a rule id any more; it was replaced by \
+             '{replacement}'. Run `osf explain {replacement}`."
+        );
+        return ExitCode::SUCCESS;
+    }
     let Some(meta) = lints::rule_meta(rule_id).or_else(|| scan::rule_meta(rule_id)) else {
         eprintln!("osf: no such rule: {rule_id}");
         return ExitCode::from(2);
