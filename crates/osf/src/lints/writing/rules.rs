@@ -412,6 +412,7 @@ pub fn unplaceable_reference(
                 &local.sentences,
                 &reduced,
                 known,
+                &candidates,
             );
             (!placed).then(|| unplaced_finding(paragraph, candidate, cfg))
         }));
@@ -462,9 +463,16 @@ fn is_placed(
     local_sentences: &[TextUnit],
     reduced: &[String],
     known: &KnownNames,
+    all_candidates: &[&Candidate],
 ) -> bool {
     match candidate.kind {
-        Kind::Number => number_is_placed(&paragraph.text, candidate, list_items, local_sentences),
+        Kind::Number => number_is_placed(
+            &paragraph.text,
+            candidate,
+            list_items,
+            local_sentences,
+            all_candidates,
+        ),
         Kind::Phrase => false,
         Kind::Time => has_absolute_date(&paragraph.text),
         Kind::Name => name_is_placed(candidate, local_sentences, reduced, known),
@@ -477,13 +485,14 @@ fn containing_sentence(sentences: &[TextUnit], offset: usize) -> Option<&TextUni
 
 /// A number candidate is placed by a link around it, a bracketed
 /// description on a repository-qualified one, the repository named in the
-/// same sentence, a file path naming it, or, for a bracketed letter, a list
-/// item that starts with that letter.
+/// same sentence, a file path naming it, a bracketed letter with a list
+/// item that starts with it, or a consecutive run of the same word.
 fn number_is_placed(
     text: &str,
     candidate: &Candidate,
     list_items: &[&TextUnit],
     local_sentences: &[TextUnit],
+    all_candidates: &[&Candidate],
 ) -> bool {
     if is_linked(text, candidate) {
         return true;
@@ -500,9 +509,12 @@ fn number_is_placed(
     repo_named_in_same_sentence(candidate, local_sentences)
         || file_path_names_it(text, candidate)
         || has_qualifying_description(candidate, local_sentences)
+        || has_consecutive_sibling(candidate, all_candidates)
 }
 
-/// A bracket or colon description right after a word-and-number candidate: two-plus plain words, no digit.
+/// A bracket or colon description right after a word-and-number candidate:
+/// no digit, and either two-plus plain words or one word that is not one of
+/// the filler words a label never uses, such as `it`.
 fn has_qualifying_description(candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
     let Some(sentence) = containing_sentence(local_sentences, candidate.range.start) else {
         return false;
@@ -514,8 +526,41 @@ fn has_qualifying_description(candidate: &Candidate, local_sentences: &[TextUnit
         .and_then(|inner| inner.split_once(')').map(|(d, _)| d))
         .or_else(|| rest.strip_prefix(':').map(str::trim_start));
     description.is_some_and(|d| {
-        d.split_whitespace().count() >= 2 && !d.chars().any(|c| c.is_ascii_digit())
+        let words: Vec<&str> = d.split_whitespace().collect();
+        let Some(&first) = words.first() else {
+            return false;
+        };
+        !d.chars().any(|c| c.is_ascii_digit())
+            && (words.len() >= 2
+                || !reference::NON_LABEL_WORDS.contains(&first.to_lowercase().as_str()))
     })
+}
+
+/// Whether another number candidate in the paragraph shares this one's word
+/// and sits exactly one number away, the shape of an inline enumeration
+/// such as "Tier 1, Tier 2 and Tier 3": the paragraph introduces the whole
+/// run together, rather than pointing elsewhere for any one member's sense.
+fn has_consecutive_sibling(candidate: &Candidate, all_candidates: &[&Candidate]) -> bool {
+    let Some((word, number)) = word_and_plain_number(&candidate.text) else {
+        return false;
+    };
+    all_candidates.iter().any(|other| {
+        other.kind == Kind::Number
+            && other.range != candidate.range
+            && word_and_plain_number(&other.text).is_some_and(|(other_word, other_number)| {
+                other_word.eq_ignore_ascii_case(word) && other_number.abs_diff(number) == 1
+            })
+    })
+}
+
+/// Splits a plain `word number` candidate's text, rejecting the hash and
+/// bracket shapes `number_is_placed` already handles on their own terms.
+fn word_and_plain_number(text: &str) -> Option<(&str, u32)> {
+    if text.contains('#') || text.contains('(') {
+        return None;
+    }
+    let (word, number) = text.rsplit_once(' ')?;
+    number.parse::<u32>().ok().map(|n| (word, n))
 }
 
 fn is_linked(text: &str, candidate: &Candidate) -> bool {
@@ -1412,6 +1457,45 @@ mod unplaceable_reference_tests {
     fn a_one_word_bracket_does_not_place_a_word_and_number() {
         let t = "Deploying fix 5 (it) cleared the queue.";
         assert!(!is_placed(t, "fix 5"), "{:?}", find(t));
+    }
+
+    /// A single meaningful word after a colon, such as a table cell reading
+    /// `Phase 1: Requirements`, is a real description, unlike a filler word
+    /// such as `it`.
+    #[test]
+    fn a_single_meaningful_word_after_a_colon_places_a_word_and_number() {
+        let t = "Phase 1: Requirements";
+        assert!(is_placed(t, "Phase 1"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_single_meaningful_word_in_brackets_places_a_word_and_number() {
+        let t = "The rollout covers Phase 2 (design) this quarter.";
+        assert!(is_placed(t, "Phase 2"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_single_filler_word_after_a_colon_does_not_place_a_word_and_number() {
+        let t = "Stage 4: the";
+        assert!(!is_placed(t, "Stage 4"), "{:?}", find(t));
+    }
+
+    /// Numbers introduced together as a consecutive run, such as three
+    /// tiers named in one paragraph, place one another: the paragraph is
+    /// enumerating them, not pointing elsewhere for their meaning.
+    #[test]
+    fn a_consecutive_run_of_the_same_word_places_every_member() {
+        let t = "The plan has Tier 1, Tier 2 and Tier 3, run in that order.";
+        assert!(is_placed(t, "Tier 1"), "{:?}", find(t));
+        assert!(is_placed(t, "Tier 2"), "{:?}", find(t));
+        assert!(is_placed(t, "Tier 3"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn two_numbers_of_the_same_word_that_are_not_adjacent_do_not_place_each_other() {
+        let t = "This follows decision 0001 and decision 0007 together.";
+        assert!(!is_placed(t, "decision 0001"), "{:?}", find(t));
+        assert!(!is_placed(t, "decision 0007"), "{:?}", find(t));
     }
 
     #[test]

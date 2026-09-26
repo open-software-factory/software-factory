@@ -24,10 +24,11 @@ pub struct Candidate {
 }
 
 /// Words that never label a referent, so a number after one is a quantity, a year, or a clock time.
-const NON_LABEL_WORDS: &[&str] = &[
+pub(super) const NON_LABEL_WORDS: &[&str] = &[
     "a", "an", "the", "at", "in", "on", "of", "by", "for", "with", "from", "since", "until",
-    "during", "before", "after", "about", "around", "near", "past", "over", "under", "than", "to",
-    "is", "was", "were", "are", "and", "or", "but", "this", "that", "these", "those", "it",
+    "during", "before", "after", "between", "about", "around", "near", "past", "over", "under",
+    "than", "to", "is", "was", "were", "are", "and", "or", "but", "this", "that", "these", "those",
+    "it",
 ];
 
 pub(super) const MONTHS: &[&str] = &[
@@ -130,20 +131,41 @@ fn keep_longest_per_kind(mut candidates: Vec<Candidate>) -> Vec<Candidate> {
 fn quoted_spans(text: &str, sentences: &[Range<usize>]) -> Vec<QuotedSpan> {
     static BACKTICK: OnceLock<Regex> = OnceLock::new();
 
+    let backtick_re = super::rules::re(&BACKTICK, r"`([^`]*)`");
+    let backtick_spans: Vec<QuotedSpan> = backtick_re
+        .captures_iter(text)
+        .filter_map(|c| {
+            Some(QuotedSpan {
+                open: c.get(0)?.range(),
+                content: c.get(1)?.range(),
+                kind: MentionKind::Backtick,
+            })
+        })
+        .collect();
+    let inside_code = |r: &Range<usize>| {
+        backtick_spans
+            .iter()
+            .any(|b| b.open.start <= r.start && r.end <= b.open.end)
+    };
+
     let mut spans = Vec::new();
     for (open_ch, close_ch) in [('"', '"'), ('\u{201C}', '\u{201D}')] {
-        spans.extend(simple_quote_spans(text, open_ch, close_ch).into_iter().map(
-            |(open, content)| QuotedSpan {
-                open,
-                content,
-                kind: MentionKind::DoubleQuote,
-            },
-        ));
+        spans.extend(
+            simple_quote_spans(text, open_ch, close_ch)
+                .into_iter()
+                .filter(|(open, _)| !inside_code(open))
+                .map(|(open, content)| QuotedSpan {
+                    open,
+                    content,
+                    kind: MentionKind::DoubleQuote,
+                }),
+        );
     }
     for (open_ch, close_ch) in [('\'', '\''), ('\u{2018}', '\u{2019}')] {
         spans.extend(
             paired_quote_spans(text, open_ch, close_ch, sentences)
                 .into_iter()
+                .filter(|(open, _)| !inside_code(open))
                 .map(|(open, content)| QuotedSpan {
                     open,
                     content,
@@ -151,14 +173,7 @@ fn quoted_spans(text: &str, sentences: &[Range<usize>]) -> Vec<QuotedSpan> {
                 }),
         );
     }
-    let backtick_re = super::rules::re(&BACKTICK, r"`([^`]*)`");
-    spans.extend(backtick_re.captures_iter(text).filter_map(|c| {
-        Some(QuotedSpan {
-            open: c.get(0)?.range(),
-            content: c.get(1)?.range(),
-            kind: MentionKind::Backtick,
-        })
-    }));
+    spans.extend(backtick_spans);
     spans
 }
 
@@ -299,11 +314,13 @@ fn case_variants(word: &str) -> [String; 3] {
     [word.to_string(), title, word.to_uppercase()]
 }
 
-/// Whether `word` is also a real name by `names::is_name_head`, not just a known word.
+/// Whether `word` is a real name for the number exclusion: any known name,
+/// built in or added by a project's known-names file, unless it is a
+/// generic word such as `Phase` that carries no such evidence on its own.
 fn is_known_name_head(known: &KnownNames, word: &str) -> bool {
     case_variants(word)
         .into_iter()
-        .any(|form| known.contains(&form) && super::names::is_name_head(&form))
+        .any(|form| known.contains(&form) && !super::names::is_generic_word(&form))
 }
 
 /// A word and a plain integer, unless it is a version, a range, a known name, or a month and day.
@@ -319,7 +336,7 @@ fn word_number_candidate(
     if NON_LABEL_WORDS.contains(&word_lower.as_str()) || MONTHS.contains(&word_lower.as_str()) {
         return None;
     }
-    if number.as_str().contains('.') {
+    if number.as_str().contains('.') || looks_like_a_year(number.as_str()) {
         return None;
     }
     let mut after = text.get(number.end()..).unwrap_or("").chars();
@@ -334,6 +351,15 @@ fn word_number_candidate(
         text: whole.as_str().to_string(),
         range: whole.range(),
     })
+}
+
+/// Whether `number` is a plain four-digit value in a plausible calendar-year
+/// range, the shape of a citation such as "Weiss 2000" or "Devanbu 2011".
+fn looks_like_a_year(number: &str) -> bool {
+    number.len() == 4
+        && number
+            .parse::<u32>()
+            .is_ok_and(|n| (1900..=2099).contains(&n))
 }
 
 /// A word and a single letter or short number in brackets, such as `mechanism (b)`.
@@ -597,9 +623,9 @@ mod tests {
     #[test]
     fn number_repo_qualified_hash() {
         assert!(has(
-            "The fix landed in acme/widgets#125 today.",
+            "The fix landed in open-software-factory/widgets#125 today.",
             Kind::Number,
-            "acme/widgets#125"
+            "open-software-factory/widgets#125"
         ));
     }
 
@@ -654,6 +680,20 @@ mod tests {
         .all(|k| *k != Kind::Number));
     }
 
+    /// A commit trailer names a model tier and a version, such as this project's own `Claude Sonnet 5`.
+    #[test]
+    fn number_excludes_a_model_name_followed_by_a_version() {
+        assert!(kinds(
+            "Code-Generator: Claude Sonnet 5 <noreply@anthropic.com>",
+            Context::Document
+        )
+        .iter()
+        .all(|k| *k != Kind::Number));
+        assert!(kinds("Reviewed by Claude Opus 5.", Context::Document)
+            .iter()
+            .all(|k| *k != Kind::Number));
+    }
+
     #[test]
     fn number_excludes_a_known_name_followed_by_a_number() {
         assert!(kinds(
@@ -670,6 +710,68 @@ mod tests {
         assert!(has("In Phase 2 we ship it.", Kind::Number, "Phase 2"));
         assert!(has("In Item 3 we ship it.", Kind::Number, "Item 3"));
         assert!(has("Do Step 4 next.", Kind::Number, "Step 4"));
+    }
+
+    /// A name from the project's known-names file excludes the number after it, the same as a built-in name.
+    #[test]
+    fn number_excludes_a_project_known_name_followed_by_a_number() {
+        let dir = std::env::temp_dir().join(format!(
+            "osf-reference-test-known-names-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("known-names.txt");
+        std::fs::write(&path, "Databricks\n").expect("known names file writes");
+        let with_file =
+            load_known_names(&[], Some(&path)).expect("known names with a project file load");
+
+        assert!(candidates(
+            &paragraph("Databricks 5 shipped."),
+            &WritingConfig::default(),
+            &with_file,
+            Context::Document,
+            &HashMap::new(),
+        )
+        .iter()
+        .all(|c| c.kind != Kind::Number));
+
+        assert!(candidates(
+            &paragraph("Databricks 5 shipped."),
+            &WritingConfig::default(),
+            &known(),
+            Context::Document,
+            &HashMap::new(),
+        )
+        .iter()
+        .any(|c| c.kind == Kind::Number && c.text == "Databricks 5"));
+
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
+    }
+
+    /// A generic word in the project's known-names file still does not exclude the number after it.
+    #[test]
+    fn number_does_not_exclude_a_generic_word_from_a_project_known_names_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "osf-reference-test-known-names-generic-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("known-names.txt");
+        std::fs::write(&path, "Phase\n").expect("known names file writes");
+        let with_file =
+            load_known_names(&[], Some(&path)).expect("known names with a project file load");
+
+        assert!(candidates(
+            &paragraph("In Phase 2 we ship it."),
+            &WritingConfig::default(),
+            &with_file,
+            Context::Document,
+            &HashMap::new(),
+        )
+        .iter()
+        .any(|c| c.kind == Kind::Number && c.text == "Phase 2"));
+
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
     }
 
     #[test]
@@ -692,8 +794,19 @@ mod tests {
             .any(|form| known.contains(form)));
     }
 
+    /// A citation's `Author YYYY` shape is a year, not a label, whatever the preceding word is.
     #[test]
-    fn number_excludes_a_year() {
+    fn number_excludes_a_word_followed_by_a_plausible_year() {
+        assert!(kinds(
+            "Weiss 2000 and Devanbu 2011 both found this.",
+            Context::Document
+        )
+        .iter()
+        .all(|k| *k != Kind::Number));
+    }
+
+    #[test]
+    fn number_still_excludes_a_year() {
         assert!(
             kinds("The report was published in 2026.", Context::Document)
                 .iter()
@@ -726,6 +839,16 @@ mod tests {
                 .iter()
                 .all(|k| *k != Kind::Number)
         );
+    }
+
+    #[test]
+    fn number_excludes_a_range_opened_by_between() {
+        assert!(kinds(
+            "Between 21 and 24 August 2026 four sessions ran.",
+            Context::Document
+        )
+        .iter()
+        .all(|k| *k != Kind::Number));
     }
 
     #[test]
@@ -1090,6 +1213,13 @@ mod tests {
         )
         .iter()
         .all(|k| *k != Kind::Name));
+    }
+
+    /// Double-quoted JSON keys inside a backtick code span are code, not a mention, so they never become name candidates.
+    #[test]
+    fn name_excludes_a_double_quoted_span_nested_inside_backticks() {
+        let t = r#"That hook returns `{"decision":"block","reason":"why"}` to the caller."#;
+        assert!(kinds(t, Context::Document).iter().all(|k| *k != Kind::Name));
     }
 
     #[test]
