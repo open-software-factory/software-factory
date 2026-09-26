@@ -234,7 +234,7 @@ The tool renders a small set of files from the TOML defaults and the repository'
 | Generated file | Holds |
 | --- | --- |
 | `.osf/moon.yml` | The factory's moon project with its tagged tasks. |
-| `.osf/hooks/pre-commit`, `.osf/hooks/pre-push` | The git hooks. The sandbox points git's hooks path here. |
+| Local git hooks | Not generated into the repository: osf owns them outside it, written by `osf hooks install`. Inside the development container, the container forces its own hooks path instead. |
 | The factory's pull-request workflow | Runs the tasks tagged for the pull-request checkpoint and uploads their results. |
 | The aggregation workflow | Runs after every workflow on the commit finishes and posts the one required check. |
 | The scheduled workflow | Runs the tasks tagged for each cadence. |

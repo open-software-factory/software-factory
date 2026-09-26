@@ -266,6 +266,46 @@ pub fn isolated_home(name: &str) -> IsolatedHome {
     IsolatedHome(dir)
 }
 
+/// `PATH`, with the freshly built `osf` binary's own folder prepended, so an
+/// installed hook script that calls bare `osf` (the way `osf hooks install`
+/// writes one) resolves to this test run's binary ahead of any other `osf`
+/// already on the machine.
+pub fn path_with_osf_first() -> std::ffi::OsString {
+    let bin_dir = std::path::Path::new(env!("CARGO_BIN_EXE_osf"))
+        .parent()
+        .expect("the built binary has a parent folder")
+        .to_path_buf();
+    let ambient = std::env::var_os("PATH").unwrap_or_default();
+    std::env::join_paths(std::iter::once(bin_dir).chain(std::env::split_paths(&ambient)))
+        .expect("PATH joins")
+}
+
+/// A real git command in `dir`, with `home` standing in for
+/// `HOME`/`USERPROFILE` and [`path_with_osf_first`] on `PATH`, so a git
+/// operation that triggers an installed hook script resolves bare `osf` to
+/// this test run's binary and reads this test's own isolated state, not the
+/// real machine's. Every inherited `GIT_*`, `OSF_*` and `MOON_*` variable is
+/// scrubbed first.
+pub fn git_with_hook_env(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    args: &[&str],
+) -> std::process::Output {
+    let mut command = Command::new("git");
+    command.current_dir(dir).args(args);
+    osf::scrub_git_env(&mut command);
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") {
+            command.env_remove(key);
+        }
+    }
+    command
+        .env("PATH", path_with_osf_first())
+        .env("HOME", home)
+        .env("USERPROFILE", home);
+    command.output().expect("git runs")
+}
+
 /// Runs the compiled `osf` binary in `dir`, with `home` standing in for
 /// `HOME`/`USERPROFILE` so it never reads this machine's real config.
 pub fn run_osf(

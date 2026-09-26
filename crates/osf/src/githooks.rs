@@ -30,6 +30,7 @@ struct HookScript {
     body: &'static str,
 }
 
+// pre-commit takes no arguments; commit-msg's "$1" is its one true argument; pre-push forwards "$@", git's remote name and URL.
 const SCRIPTS: &[HookScript] = &[
     HookScript {
         name: "pre-commit",
@@ -41,7 +42,7 @@ const SCRIPTS: &[HookScript] = &[
     },
     HookScript {
         name: "pre-push",
-        body: "#!/bin/sh\nexec osf verify --checkpoint pre-push\n",
+        body: "#!/bin/sh\nexec osf verify --checkpoint pre-push \"$@\"\n",
     },
 ];
 
@@ -216,7 +217,7 @@ mod tests {
         assert!(names_retired_tracked_hooks("./.osf/hooks"));
         assert!(names_retired_tracked_hooks(".osf/hooks/"));
         assert!(names_retired_tracked_hooks(".osf\\hooks"));
-        assert!(!names_retired_tracked_hooks("/home/me/.osf/githooks"));
+        assert!(!names_retired_tracked_hooks("/somewhere/.osf/githooks"));
         assert!(!names_retired_tracked_hooks(".osf/hooksomething"));
     }
 
@@ -230,7 +231,7 @@ mod tests {
             .message()
             .contains("elsewhere"));
         assert!(
-            CheckStatus::Installed(PathBuf::from("/home/me/.osf/githooks"))
+            CheckStatus::Installed(PathBuf::from("/somewhere/.osf/githooks"))
                 .message()
                 .contains("githooks")
         );

@@ -359,6 +359,10 @@ struct VerifyArgs {
     /// How long to let moon run before it is killed, in seconds. No limit when absent.
     #[arg(long)]
     timeout_secs: Option<u64>,
+    /// Extra positional arguments a git hook passes (pre-push's remote name and URL), swallowed so a real hook call is never refused.
+    #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+    #[allow(dead_code)]
+    hook_args: Vec<String>,
 }
 
 #[derive(Subcommand)]

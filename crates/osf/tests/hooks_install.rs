@@ -3,7 +3,7 @@
 //! shell gets the same checks a coding agent's own hook event does.
 
 mod common;
-use common::{isolated_home, run_osf_with_env, TempRepo};
+use common::{git_with_hook_env, isolated_home, run_osf_with_env, unique_dir, TempRepo};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -158,49 +158,110 @@ fn a_real_git_commit_runs_the_pre_commit_checkpoint() {
         String::from_utf8_lossy(&install.stderr)
     );
 
-    let bin_dir = Path::new(env!("CARGO_BIN_EXE_osf"))
-        .parent()
-        .expect("binary has a parent folder")
-        .to_path_buf();
-    let ambient_path = std::env::var_os("PATH").unwrap_or_default();
-    let path_with_osf_first =
-        std::env::join_paths(std::iter::once(bin_dir).chain(std::env::split_paths(&ambient_path)))
-            .expect("PATH joins");
-
     repo.write("README.md", "a clean repository\nwith one more line\n");
-    let mut commit = Command::new("git");
-    commit
-        .current_dir(&repo.dir)
-        .args(["commit", "-a", "-m", "a clean follow-up commit"])
-        .env("PATH", &path_with_osf_first)
-        .env("HOME", &*home)
-        .env("USERPROFILE", &*home);
-    osf::scrub_git_env(&mut commit);
-    for (key, _) in std::env::vars() {
-        if key.starts_with("OSF_") || key.starts_with("MOON_") {
-            commit.env_remove(key);
-        }
-    }
-    let output = commit.output().expect("git commit runs");
+    let output = git_with_hook_env(
+        &repo.dir,
+        &home,
+        &["commit", "-a", "-m", "a clean follow-up commit"],
+    );
     assert!(
         output.status.success(),
         "git commit failed: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
+    assert!(
+        journal_has_run_prefixed("pre-commit-", &home),
+        "expected a pre-commit checkpoint journal entry"
+    );
+}
+
+/// Whether any journal buffer file under `home`'s state directory belongs to
+/// a run whose id starts with `prefix`: proof a checkpoint actually ran,
+/// rather than guessing at a check's own findings.
+fn journal_has_run_prefixed(prefix: &str, home: &Path) -> bool {
     let buffer_dir = home.join(".osf").join("state").join("buffer");
-    let ran_pre_commit = std::fs::read_dir(&buffer_dir)
+    std::fs::read_dir(&buffer_dir)
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", buffer_dir.display()))
         .any(|entry| {
             entry
                 .expect("dir entry reads")
                 .file_name()
                 .to_string_lossy()
-                .starts_with("pre-commit-")
-        });
+                .starts_with(prefix)
+        })
+}
+
+/// A real `git push`, once `osf hooks install` has run, invokes the
+/// pre-push checkpoint: proven the same way as the pre-commit test, by the
+/// journal entry it writes.
+#[test]
+fn a_real_git_push_runs_the_pre_push_checkpoint() {
+    let home = isolated_home("hooks-install-push");
+    let repo = TempRepo::with_moon_workspace("hooks-install-push");
+    repo.write("README.md", "a clean repository\n");
+    repo.commit("base");
+    repo.track_origin_main();
+
+    let install = run_osf_with_env(&repo.dir, &home, &[], &["hooks", "install"]);
     assert!(
-        ran_pre_commit,
-        "expected a pre-commit checkpoint journal entry under {}",
-        buffer_dir.display()
+        install.status.success(),
+        "osf hooks install failed: {}",
+        String::from_utf8_lossy(&install.stderr)
+    );
+
+    repo.write("README.md", "a clean repository\nwith one more line\n");
+    repo.commit("a clean follow-up commit");
+
+    let bare_dir = unique_dir("osf-hooks-install-push-bare.git");
+    let mut bare_init = Command::new("git");
+    bare_init.args(["init", "-q", "--bare"]).arg(&bare_dir);
+    osf::scrub_git_env(&mut bare_init);
+    assert!(
+        bare_init.status().expect("git init runs").success(),
+        "bare remote init failed"
+    );
+    repo.git(&[
+        "remote",
+        "add",
+        "scratch",
+        bare_dir.to_str().expect("utf8 path"),
+    ]);
+
+    let push = git_with_hook_env(&repo.dir, &home, &["push", "scratch", "main"]);
+    assert!(
+        push.status.success(),
+        "git push failed: {}",
+        String::from_utf8_lossy(&push.stderr)
+    );
+
+    assert!(
+        journal_has_run_prefixed("pre-push-", &home),
+        "expected a pre-push checkpoint journal entry"
+    );
+
+    let _ = std::fs::remove_dir_all(&bare_dir);
+}
+
+/// A global `core.hooksPath`, with nothing set locally in the repository
+/// itself, must not satisfy `--check`: this project reads only the
+/// repository's own choice, never one inherited from the user's global
+/// config, so a stray global setting can never make `--check` lie.
+#[test]
+fn check_ignores_a_global_hooks_path_with_no_local_setting() {
+    let home = isolated_home("hooks-install-global-only");
+    std::fs::write(
+        home.join(".gitconfig"),
+        "[core]\n\thooksPath = /somewhere/global-only-hooks\n",
+    )
+    .expect(".gitconfig writes");
+    let repo = TempRepo::new("hooks-install-global-only");
+
+    let check = run_osf_with_env(&repo.dir, &home, &[], &["hooks", "install", "--check"]);
+    assert!(!check.status.success());
+    let stdout = String::from_utf8_lossy(&check.stdout);
+    assert!(
+        stdout.contains("core.hooksPath is not set"),
+        "expected a not-set message, got: {stdout}"
     );
 }
