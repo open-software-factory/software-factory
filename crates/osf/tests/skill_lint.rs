@@ -141,9 +141,9 @@ fn an_unpinned_scoped_package_is_caught_alongside_every_other_unpinned_install()
     assert!(flagged.iter().any(|e| e.contains(":latest")));
 }
 
-/// Change 1: a skill file is structured text, expected to have headings,
-/// same as a document. `good-skill` carries a `##` heading and must still
-/// report nothing at all, including no heading finding.
+/// A skill file is structured text, expected to have headings, same as a
+/// document. `good-skill` carries a `##` heading and must still report
+/// nothing at all, including no heading finding.
 #[test]
 fn a_skill_with_headings_is_not_flagged_for_the_heading() {
     let findings = lint(&fixture("good-skill"));
@@ -151,9 +151,9 @@ fn a_skill_with_headings_is_not_flagged_for_the_heading() {
     assert!(findings.is_empty(), "expected no findings, got: {rules:?}");
 }
 
-/// Change 2: the writing lint runs over the body, and a finding's line
-/// must point at the real line in `SKILL.md`, not a line relative to the
-/// body, even past a folded description spanning several lines.
+/// The writing lint runs over the body, and a finding's line must point at
+/// the real line in `SKILL.md`, not a line relative to the body, even past
+/// a folded description spanning several lines.
 #[test]
 fn a_long_sentence_in_the_body_is_reported_at_the_real_line() {
     let findings = lint(&fixture("long-sentence-in-body"));

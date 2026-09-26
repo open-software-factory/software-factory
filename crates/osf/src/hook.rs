@@ -611,7 +611,7 @@ mod tests {
         f
     }
 
-    /// Change 3: an advise finding must not block the stop hook.
+    /// An advise finding must not block the stop hook.
     #[test]
     fn an_advise_only_batch_does_not_block() {
         let findings = vec![
@@ -656,7 +656,7 @@ mod tests {
         );
     }
 
-    /// Change 3: an advise finding's advice survives to `osf hook prompt`.
+    /// An advise finding's advice survives to `osf hook prompt`.
     #[test]
     fn advice_survives_to_the_next_prompt() {
         let session = "test-session-advice-survives";

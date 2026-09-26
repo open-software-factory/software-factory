@@ -323,8 +323,8 @@ mod tests {
         assert_eq!(rules_of(t), vec!["long-sentence"]);
     }
 
-    /// Change 1: a limit set in a config file must change what a rule
-    /// reports, not just what `osf config show` prints.
+    /// A limit set in a config file must change what a rule reports, not
+    /// just what `osf config show` prints.
     #[test]
     fn a_configured_sentence_limit_changes_what_long_sentence_reports() {
         let t = "one two three four five six seven eight nine ten.";
@@ -411,8 +411,8 @@ mod tests {
         );
     }
 
-    /// Change 4: only a whole sentence in bold fires, not a long bold span
-    /// inside an otherwise plain sentence.
+    /// Only a whole sentence in bold fires, not a long bold span inside an
+    /// otherwise plain sentence.
     #[test]
     fn bold_sentence_only_fires_on_a_whole_bolded_sentence() {
         assert_eq!(
