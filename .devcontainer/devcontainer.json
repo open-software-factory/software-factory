@@ -4,6 +4,8 @@
     "dockerfile": "Dockerfile",
     "context": ".."
   },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace",
   "remoteUser": "dev",
-  "postCreateCommand": "osf --version && moon --version && node --version && pnpm --version && git config --show-origin core.hooksPath"
+  "postCreateCommand": "osf --version && moon --version && node --version && pnpm --version && (git config --show-origin core.hooksPath || echo 'core.hooksPath: none set locally; the git wrapper forces /opt/factory/githooks under the workspace')"
 }

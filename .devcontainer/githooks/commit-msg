@@ -1,2 +1,3 @@
 #!/bin/sh
+# git commit gives this hook the commit message file's path as $1.
 exec /opt/factory/bin/osf lint writing --context commit --format human "$1"

@@ -10,6 +10,11 @@ ARG GIT_TOWN_VERSION=23.0.3
 # git-town, moon and Node download for the two common processor architectures.
 ARG TARGETARCH
 
+# The one folder the git wrapper treats as "the workspace": devcontainer.json
+# binds the repository here, and OSF_WORKSPACE_ROOT (below) is how the
+# wrapper reads the same value, so the two files never name it separately.
+ARG WORKSPACE_ROOT=/workspace
+
 # moon, pinned to the version the checkpoint runner needs. Checksums are the
 # official SHA-256 published next to each release asset.
 ARG MOON_VERSION=2.5.5
@@ -116,11 +121,13 @@ RUN chown root:root /opt/factory/githooks /opt/factory/githooks/pre-commit \
     chmod 0555 /opt/factory/githooks/pre-commit /opt/factory/githooks/commit-msg \
       /opt/factory/githooks/pre-push
 
-# core.hooksPath goes in the SYSTEM git config (/etc/gitconfig), not the
-# repository's or the user's own config. The container user cannot repoint
-# it, because it does not own that file.
-RUN git config --system core.hooksPath /opt/factory/githooks
-
+# The git wrapper forces this hooks path itself, on the command line, for
+# every git call under the workspace (see the wrapper's own comments and
+# docs/development.md); no system-wide core.hooksPath is set here. A
+# system-wide setting would apply to every repository with no local
+# override of its own, including a test's own scratch repository under
+# /tmp, which is exactly what this wrapper is built to avoid.
+#
 # The git wrapper: refuses --no-verify and -n on commit, and --no-verify
 # on push, then calls the real git. Root-owned and read-only for the same
 # reason as osf above. docs/development.md states plainly what it cannot do.
@@ -152,5 +159,16 @@ RUN find /usr/local/cargo /usr/local/rustup -perm /022 -exec chmod go-w {} +
 
 ENV PATH="/opt/factory/bin:${PATH}"
 
+# Read by the git wrapper (.devcontainer/git-wrapper) to decide whether a
+# repository sits under the workspace mount; overridable at "docker run"
+# for a container started with a different bind mount.
+ENV OSF_WORKSPACE_ROOT="${WORKSPACE_ROOT}"
+
+# Proves the git wrapper's refusals and the forced hooks path at build
+# time, so a broken wrapper fails the build instead of shipping quietly.
+# See .devcontainer/tests/git-wrapper.sh.
+COPY .devcontainer/tests/git-wrapper.sh /tmp/git-wrapper-test.sh
+RUN sh /tmp/git-wrapper-test.sh && rm -f /tmp/git-wrapper-test.sh
+
 USER dev
-WORKDIR /workspace
+WORKDIR ${WORKSPACE_ROOT}
