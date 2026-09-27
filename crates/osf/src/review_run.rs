@@ -95,6 +95,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
     let sources = Sources {
         root: req.root,
+        config_root: req.config_root,
         base: req.base,
         work_item: req.work_item,
     };
@@ -115,7 +116,15 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
     for selected_lens in &selected {
         let lens = selected_lens.lens;
-        let (verdict, attempts) = run_lens(req.root, lens, depth, &sources, &enabled, timeout);
+        let (verdict, attempts) = run_lens(
+            req.root,
+            req.config_root,
+            lens,
+            depth,
+            &sources,
+            &enabled,
+            timeout,
+        );
         for attempt in attempts {
             if let Some(journal) = journal.as_mut() {
                 let event = attempt.into_event(&lens.name);
@@ -225,6 +234,7 @@ impl Attempt {
 /// with no reviewer ever asked.
 fn run_lens(
     root: &Path,
+    config_root: &Path,
     lens: &Lens,
     depth: Depth,
     sources: &Sources,
@@ -243,7 +253,7 @@ fn run_lens(
         if families.len() >= QUORUM_FAMILIES {
             break;
         }
-        let attempt = attempt_reviewer(root, reviewer, &prompt, lens, timeout);
+        let attempt = attempt_reviewer(root, config_root, reviewer, &prompt, lens, timeout);
         if attempt.lens_answer.answer.is_some() {
             families.insert(attempt.lens_answer.family.clone());
         }
@@ -261,6 +271,7 @@ fn run_lens(
 /// finding nothing has verified.
 fn attempt_reviewer(
     root: &Path,
+    config_root: &Path,
     reviewer: &Reviewer,
     prompt: &str,
     lens: &Lens,
@@ -276,7 +287,7 @@ fn attempt_reviewer(
                 .findings()
                 .iter()
                 .cloned()
-                .map(|finding| redact_finding(root, finding))
+                .map(|finding| redact_finding(root, config_root, finding))
                 .collect();
             Attempt {
                 lens_answer: LensAnswer {
@@ -328,18 +339,18 @@ fn attempt_reviewer(
 /// redaction rules themselves cannot be built; in practice this never
 /// happens here, because [`review_context::build`] already built them once
 /// for this same lens before any reviewer was ever asked.
-fn redact_finding(root: &Path, finding: AnswerFinding) -> AnswerFinding {
+fn redact_finding(root: &Path, config_root: &Path, finding: AnswerFinding) -> AnswerFinding {
     AnswerFinding {
-        quote: redact_reviewer_text(root, &finding.quote),
-        body: redact_reviewer_text(root, &finding.body),
+        quote: redact_reviewer_text(root, config_root, &finding.quote),
+        body: redact_reviewer_text(root, config_root, &finding.body),
         ..finding
     }
 }
 
 /// `text`, redacted through [`review_context::redact_secrets`], the same
 /// function a reviewer's own prompt is redacted through.
-fn redact_reviewer_text(root: &Path, text: &str) -> String {
-    review_context::redact_secrets(root, text).map_or_else(
+fn redact_reviewer_text(root: &Path, config_root: &Path, text: &str) -> String {
+    review_context::redact_secrets(root, config_root, text).map_or_else(
         |_| "[could not verify this text is safe to show]".to_string(),
         |(redacted, _)| redacted,
     )

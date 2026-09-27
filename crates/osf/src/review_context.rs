@@ -22,10 +22,17 @@ use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 /// Where a lens's context comes from: the repository, the base it diffs
-/// against, and the work item file the caller saved, if any.
+/// against, the work item file the caller saved, if any, and where the
+/// trusted `[scan]` redaction settings are read from.
 #[derive(Debug, Clone, Copy)]
 pub struct Sources<'a> {
     pub root: &'a Path,
+    /// Where `redact_secrets` reads the `[scan]` table of `osf.toml` from.
+    /// A pull request must not be able to turn off `scan-secret`, or any
+    /// other scan rule, and have that loosen what a reviewer's prompt gets
+    /// to see. Defaults to `root` when the caller has no separate trusted
+    /// tree.
+    pub config_root: &'a Path,
     pub base: &'a str,
     pub work_item: Option<&'a Path>,
 }
@@ -68,8 +75,9 @@ pub fn build(lens: &Lens, depth: Depth, sources: &Sources) -> Result<String, Str
         .map(|(_, section)| section.as_str())
         .collect::<Vec<_>>()
         .join("\n\n");
-    let (required_redacted, mut redactions) = redact_secrets(sources.root, &required_text)
-        .map_err(|reason| format!("context: {reason}"))?;
+    let (required_redacted, mut redactions) =
+        redact_secrets(sources.root, sources.config_root, &required_text)
+            .map_err(|reason| format!("context: {reason}"))?;
     if required_redacted.len() > MAX_CONTEXT_BYTES {
         let names: Vec<&str> = required
             .iter()
@@ -84,13 +92,14 @@ pub fn build(lens: &Lens, depth: Depth, sources: &Sources) -> Result<String, Str
 
     let mut whole = required_redacted;
     if let Some((core, extra)) = diff_parts {
-        let (core_redacted, core_count) =
-            redact_secrets(sources.root, &core).map_err(|reason| format!("context: {reason}"))?;
+        let (core_redacted, core_count) = redact_secrets(sources.root, sources.config_root, &core)
+            .map_err(|reason| format!("context: {reason}"))?;
         redactions += core_count;
         let extra_redacted = match extra {
             Some(extra_text) => {
-                let (redacted, count) = redact_secrets(sources.root, &extra_text)
-                    .map_err(|reason| format!("context: {reason}"))?;
+                let (redacted, count) =
+                    redact_secrets(sources.root, sources.config_root, &extra_text)
+                        .map_err(|reason| format!("context: {reason}"))?;
                 redactions += count;
                 Some(redacted)
             }
@@ -576,12 +585,12 @@ fn entry_points_section(sources: &Sources) -> Result<String, String> {
 
 // --- redaction and the size cap --------------------------------------------
 
-/// The `[scan]` table of `root`'s own `osf.toml`, or the compiled defaults
-/// when the file, the table, or a field in it is missing or malformed: a
-/// lens's context is always redacted, whether or not a repository has
-/// configured anything extra for it to catch.
-fn scan_config(root: &Path) -> ScanConfig {
-    let Ok(text) = std::fs::read_to_string(root.join("osf.toml")) else {
+/// The `[scan]` table of `config_root`'s own `osf.toml`, or the compiled
+/// defaults when the file, the table, or a field in it is missing or
+/// malformed: a lens's context is always redacted, whether or not a
+/// repository has configured anything extra for it to catch.
+fn scan_config(config_root: &Path) -> ScanConfig {
+    let Ok(text) = std::fs::read_to_string(config_root.join("osf.toml")) else {
         return ScanConfig::default();
     };
     let Ok(value) = toml::from_str::<toml::Value>(&text) else {
@@ -608,12 +617,23 @@ fn scan_config(root: &Path) -> ScanConfig {
 /// review) redacts it the same way a prompt is redacted here, through this
 /// one function.
 ///
+/// The `[scan]` settings themselves come from `config_root`, never `root`:
+/// a pull request under review must not be able to turn a rule off in its
+/// own `osf.toml` and have that loosen what a reviewer's prompt gets to
+/// see. `root` still names the repository the rules run against, for a
+/// rule such as `scan-foreign-reference` that reads the repository's own
+/// git remote when `config_root` names no owner.
+///
 /// # Errors
 /// Returns an error if a configured denylist pattern or session link prefix
 /// is not valid: a context this module cannot trust to be scanned must
 /// never be sent unredacted instead.
-pub(crate) fn redact_secrets(root: &Path, text: &str) -> Result<(String, usize), String> {
-    let cfg = scan_config(root);
+pub(crate) fn redact_secrets(
+    root: &Path,
+    config_root: &Path,
+    text: &str,
+) -> Result<(String, usize), String> {
+    let cfg = scan_config(config_root);
     let rules = crate::scan::Rules::build(root, &cfg)?;
     let findings = rules.scan_text(text, osf_lint_core::Context::Document);
     if findings.is_empty() {

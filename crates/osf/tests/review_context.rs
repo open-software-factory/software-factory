@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{fake_forge_token, suppress_marker, TempRepo};
+use common::{fake_forge_token, suppress_marker, TempDir, TempRepo};
 use osf::lenses::{ContextInput, Criterion, Depth, Lens, Runs, SeverityGuide, Trigger};
 use osf::review_context::{build, Sources};
 
@@ -54,6 +54,7 @@ fn a_lens_with_no_work_item_file_fails_naming_work_item() {
     ]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -79,6 +80,7 @@ fn a_work_item_with_no_acceptance_heading_fails_naming_acceptance_criteria() {
     ]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: Some(&work_item),
     };
@@ -101,6 +103,7 @@ fn a_work_item_with_an_acceptance_heading_is_read() {
     let lens = lens_with(vec![ContextInput::AcceptanceCriteria]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: Some(&work_item),
     };
@@ -115,6 +118,7 @@ fn diff_depth_includes_only_the_diff() {
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -142,6 +146,7 @@ fn module_depth_includes_a_sibling_file() {
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -165,6 +170,7 @@ fn diff_and_callers_depth_includes_a_file_that_calls_a_changed_function() {
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -184,6 +190,7 @@ fn entry_points_input_includes_a_caller_regardless_of_depth() {
     let lens = lens_with(vec![ContextInput::EntryPoints]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -205,6 +212,7 @@ fn a_diff_that_references_a_missing_decision_record_fails_naming_decision_record
     let lens = lens_with(vec![ContextInput::DecisionRecords]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -218,6 +226,7 @@ fn a_diff_that_touches_no_decision_record_is_not_an_error() {
     let lens = lens_with(vec![ContextInput::DecisionRecords]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -239,6 +248,7 @@ fn a_diff_that_touches_an_existing_decision_record_includes_its_content() {
     let lens = lens_with(vec![ContextInput::DecisionRecords]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -252,6 +262,7 @@ fn no_architecture_docs_directory_fails_naming_architecture_docs() {
     let lens = lens_with(vec![ContextInput::ArchitectureDocs]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -274,6 +285,7 @@ fn architecture_docs_present_are_included() {
     let lens = lens_with(vec![ContextInput::ArchitectureDocs]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -296,6 +308,7 @@ fn every_rendered_path_is_forward_slash() {
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -320,6 +333,7 @@ fn a_fake_secret_in_a_changed_file_is_redacted_and_never_reaches_the_context() {
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -344,6 +358,7 @@ fn a_very_large_diff_is_capped_with_a_marker_naming_what_was_left_out() {
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -364,6 +379,7 @@ fn a_built_in_secret_shape_is_redacted_with_no_configuration_at_all() {
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -393,6 +409,7 @@ fn a_suppression_marker_never_stops_a_secret_from_being_redacted() {
     let lens = lens_with(vec![ContextInput::Diff]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -433,6 +450,7 @@ fn a_huge_diff_is_cut_but_the_spec_and_acceptance_work_item_survives_whole() {
 
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: Some(&work_item),
     };
@@ -466,6 +484,7 @@ fn a_work_item_bigger_than_the_cap_alone_is_could_not_run() {
     ]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: Some(&work_item),
     };
@@ -498,6 +517,7 @@ fn a_typescript_caller_is_found_for_entry_points() {
     let lens = lens_with(vec![ContextInput::EntryPoints]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -520,6 +540,7 @@ fn a_python_caller_is_found_for_entry_points() {
     let lens = lens_with(vec![ContextInput::EntryPoints]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
@@ -538,10 +559,72 @@ fn an_unknown_extension_states_the_caller_search_is_unavailable() {
     let lens = lens_with(vec![ContextInput::EntryPoints]);
     let sources = Sources {
         root: &repo.dir,
+        config_root: &repo.dir,
         base: "origin/main",
         work_item: None,
     };
     let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
     assert!(ctx.contains("unavailable"), "{ctx}");
     assert!(ctx.contains("rb"), "{ctx}");
+}
+
+/// A pull request's own `osf.toml` cannot loosen redaction by naming the
+/// `[scan]` table there: this repository's own attempt to turn off
+/// `scan-secret` has no effect, because `redact_secrets` reads `[scan]`
+/// from `config_root`, never from `root`.
+#[test]
+fn a_pull_requests_own_osf_toml_cannot_turn_off_scan_secret() {
+    let repo = TempRepo::new("redact-scan-secret-off-in-pr");
+    repo.write("osf.toml", "[scan.levels]\nscan-secret = \"off\"\n");
+    repo.write("src/config.rs", "// nothing sensitive yet\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    let secret = fake_forge_token("ghp_");
+    repo.write("src/config.rs", &format!("let leaked = \"{secret}\";\n"));
+    repo.commit("accidentally add a real-shaped token");
+    let config_root = TempDir::new("redact-scan-secret-off-in-pr-base");
+    let lens = lens_with(vec![ContextInput::Diff]);
+    let sources = Sources {
+        root: &repo.dir,
+        config_root: &config_root,
+        base: "origin/main",
+        work_item: None,
+    };
+    let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
+    assert!(!ctx.contains(&secret), "{ctx}");
+    assert!(ctx.contains("redacted by scan-secret"), "{ctx}");
+}
+
+/// The same property for a setting that genuinely changes what redaction
+/// catches: `project_owner`. A pull request that names its own reference's
+/// owner as the project owner would make that reference read as its own,
+/// not foreign, and escape redaction, if its own `osf.toml` governed. It
+/// does not, because `config_root`'s `project_owner` is what `redact_secrets`
+/// actually uses.
+#[test]
+fn a_pull_requests_own_project_owner_cannot_hide_a_foreign_reference() {
+    let repo = TempRepo::new("redact-project-owner-in-pr");
+    repo.write("osf.toml", "[scan]\nproject_owner = \"evil-org\"\n");
+    repo.write("NOTES.md", "nothing here yet\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    let reference = common::foreign_reference("evil-org", "other-repo", 42);
+    repo.write("NOTES.md", &format!("see {reference} for context\n"));
+    repo.commit("add a reference that names its own configured owner");
+    let config_root = TempDir::new("redact-project-owner-in-pr-base");
+    std::fs::write(
+        config_root.join("osf.toml"),
+        "[scan]\nproject_owner = \"the-real-owner\"\n",
+    )
+    .expect("base osf.toml writes");
+    let lens = lens_with(vec![ContextInput::Diff]);
+    let sources = Sources {
+        root: &repo.dir,
+        config_root: &config_root,
+        base: "origin/main",
+        work_item: None,
+    };
+    let ctx = build(&lens, Depth::Diff, &sources).expect("builds");
+    assert!(!ctx.contains(&reference), "{ctx}");
+    assert!(ctx.contains("redacted by scan-foreign-reference"), "{ctx}");
 }
