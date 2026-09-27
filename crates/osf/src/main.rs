@@ -283,6 +283,12 @@ struct ReviewRunArgs {
     /// review, as before this flag existed.
     #[arg(long = "config-root")]
     config_root: Option<PathBuf>,
+    /// Post the kept findings to a pull request as one review, reusing `osf
+    /// review post`'s own posting machinery. Named `owner/repo#N`. The
+    /// command's exit code still reports the verdict, not whether the post
+    /// succeeded.
+    #[arg(long = "post-to")]
+    post_to: Option<String>,
 }
 
 #[derive(Args)]
@@ -1509,11 +1515,146 @@ fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
             return code;
         }
     }
+    if let Some(post_to) = &args.post_to {
+        post_run_outcome(&outcome, post_to);
+    }
     ExitCode::from(match outcome.verdict {
         reducer::Verdict::Pass => 0,
         reducer::Verdict::Fail => 1,
         reducer::Verdict::CouldNotRun => 2,
     })
+}
+
+/// Splits `--post-to`'s `owner/repo#N` into the repository and the pull
+/// request number.
+///
+/// # Errors
+/// Names the reason when there is no `#`, the number after it does not
+/// parse, or the repository half is empty.
+fn parse_post_to(raw: &str) -> Result<(String, u64), String> {
+    let (repo, number) = raw
+        .rsplit_once('#')
+        .ok_or_else(|| format!("{raw:?} is not owner/repo#N"))?;
+    if repo.is_empty() {
+        return Err(format!("{raw:?} names no repository before '#'"));
+    }
+    let pr = number
+        .parse::<u64>()
+        .map_err(|e| format!("{raw:?}: the pull request number: {e}"))?;
+    Ok((repo.to_string(), pr))
+}
+
+/// `finding`'s severity, as `osf review post` and the review answer schema
+/// both spell it.
+fn severity_str(severity: answer::Severity) -> &'static str {
+    match severity {
+        answer::Severity::Blocker => "blocker",
+        answer::Severity::Major => "major",
+        answer::Severity::Minor => "minor",
+    }
+}
+
+/// `finding`'s action, as `osf review post`'s own block list spells it.
+fn action_str(action: answer::Action) -> &'static str {
+    match action {
+        answer::Action::MustFix => "must-fix",
+        answer::Action::ShouldFix => "should-fix",
+        answer::Action::MaybeFix => "maybe-fix",
+        answer::Action::Justify => "justify",
+        answer::Action::Defer => "defer",
+        answer::Action::Dismiss => "dismiss",
+    }
+}
+
+/// A run's kept findings, as `review::Finding`s `osf review post`'s own
+/// planning already knows how to turn into inline comments. Each finding's
+/// id is its lens name and its place within that lens, one-based, since a
+/// review run names no id of its own.
+fn review_findings_for_post(findings: &[review_run::KeptFinding]) -> Vec<review::Finding> {
+    let mut per_lens: std::collections::BTreeMap<&str, u32> = std::collections::BTreeMap::new();
+    findings
+        .iter()
+        .map(|kept| {
+            let n = per_lens.entry(kept.lens.as_str()).or_insert(0);
+            *n += 1;
+            review::Finding {
+                id: format!("{}-{n}", kept.lens),
+                path: kept.finding.path.clone(),
+                line: Some(kept.finding.line),
+                severity: severity_str(kept.finding.severity).to_string(),
+                action: action_str(kept.finding.action).to_string(),
+                body: kept.finding.body.clone(),
+            }
+        })
+        .collect()
+}
+
+/// The review's summary body for a posted review: one line per lens, then
+/// the run's own verdict line, exactly as printed to standard output.
+fn review_run_summary(outcome: &review_run::RunOutcome) -> String {
+    format!("osf review run\n\n{}", outcome.lines.join("\n"))
+}
+
+/// `--post-to`'s whole job: build the findings and the summary from
+/// `outcome`, then post through the same [`post_plan`] `osf review post`
+/// uses. A problem here is printed and never changes `osf review run`'s own
+/// exit code, which reports the verdict, not whether the post succeeded.
+fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) {
+    let (repo, pr) = match parse_post_to(post_to) {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            return;
+        }
+    };
+    let findings = review_findings_for_post(&outcome.findings);
+    let summary = review_run_summary(outcome);
+    let block_on = resolve_block_on(None);
+    let plan = match review::plan_review(&findings, &summary, &block_on) {
+        Ok(plan) => plan,
+        Err(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            return;
+        }
+    };
+    let head_sha = match review::fetch_head_sha(&repo, pr) {
+        Ok(sha) => sha,
+        Err(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            return;
+        }
+    };
+    match post_plan(&repo, pr, &plan, &head_sha) {
+        review::Outcome::Reviewed {
+            verdict,
+            n_inline,
+            id,
+            state,
+            url,
+        } => {
+            println!("posted review {id}: {state}, {url}");
+            println!(
+                "osf review run --post-to: {} with {n_inline} inline comment(s) on {repo}#{pr}",
+                verdict.as_event()
+            );
+        }
+        review::Outcome::FallbackComment {
+            verdict,
+            n_inline,
+            id,
+            state,
+            url,
+        } => {
+            println!("posted comment {id}: {state}, {url}");
+            println!(
+                "osf review run --post-to: COMMENT (advisory {}) with {n_inline} inline \
+                 comment(s) on {repo}#{pr}",
+                verdict.as_event()
+            );
+        }
+        review::Outcome::Rejected(e) => eprintln!("osf review run --post-to: {e}"),
+        review::Outcome::PostFailed(e) => eprintln!("osf review run --post-to: {e}"),
+    }
 }
 
 /// A review run's kept findings, grouped by file, as SARIF-ready findings.

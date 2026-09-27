@@ -15,7 +15,7 @@
 mod common;
 
 use common::{TempDir, TempRepo};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The lens names the shipped catalogue always runs, other than
 /// `correctness`, which these tests redefine as their one active lens
@@ -591,6 +591,138 @@ fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+/// A fake `gh`, standing in for the real one so `--post-to` can be tested
+/// with no network: `pr view` answers a fixed head commit, and `api -X
+/// POST` answers success or one of the failures `osf review post` already
+/// knows how to react to, chosen by the `FAKE_GH_MODE` environment
+/// variable a test sets on the child.
+#[cfg(unix)]
+fn write_fake_gh(dir: &Path, head_sha: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    let path = dir.join("gh");
+    let script = format!(
+        "#!/bin/sh\n\
+         case \"$1 $2\" in\n\
+         \x20\x20'pr view') echo '{{\"headRefOid\":\"{head_sha}\"}}' ;;\n\
+         \x20\x20'api -X')\n\
+         \x20\x20\x20\x20cat > /dev/null\n\
+         \x20\x20\x20\x20if [ \"$FAKE_GH_MODE\" = 'refuse' ]; then\n\
+         \x20\x20\x20\x20\x20\x20echo 'gh: Review cannot be requested on your own pull \
+         request (HTTP 422)' 1>&2\n\
+         \x20\x20\x20\x20\x20\x20exit 1\n\
+         \x20\x20\x20\x20fi\n\
+         \x20\x20\x20\x20if [ \"$FAKE_GH_MODE\" = 'boom' ]; then\n\
+         \x20\x20\x20\x20\x20\x20echo 'gh: some other failure (HTTP 500)' 1>&2\n\
+         \x20\x20\x20\x20\x20\x20exit 1\n\
+         \x20\x20\x20\x20fi\n\
+         \x20\x20\x20\x20echo '{{\"id\":1,\"state\":\"CHANGES_REQUESTED\",\"html_url\":\
+         \"https://example.invalid/1\"}}'\n\
+         \x20\x20\x20\x20;;\n\
+         \x20\x20*) exit 1 ;;\n\
+         esac\n"
+    );
+    std::fs::write(&path, script).expect("fake gh writes");
+    let mut perms = std::fs::metadata(&path)
+        .expect("fake gh metadata")
+        .permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&path, perms).expect("fake gh chmod");
+    dir.to_path_buf()
+}
+
+/// `PATH`, with `dir` prepended, so a spawned `osf` resolves `gh` to the
+/// fake in `dir` before any real `gh` on this machine, while still finding
+/// git and everything else on the ambient `PATH`.
+#[cfg(unix)]
+fn path_with_dir_first(dir: &Path) -> String {
+    let ambient = std::env::var("PATH").unwrap_or_default();
+    format!("{}:{ambient}", dir.display())
+}
+
+/// `--post-to` posts the kept findings by reusing `osf review post`'s own
+/// machinery: a blocker finding still fails the run's own exit code, and
+/// the fake `gh` records that a review landed with the right verdict.
+#[test]
+#[cfg(unix)]
+fn post_to_posts_kept_findings_reusing_review_post_machinery() {
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("post-to-blocker", &osf_toml);
+    let home = common::isolated_home("review-run-post-to-blocker");
+    let gh_holder = TempDir::new("review-run-post-to-blocker-gh");
+    let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    let path = path_with_dir_first(&gh_dir);
+    let output = common::run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("PATH", &path)],
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--post-to",
+            "open-software-factory/widgets#7",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "a blocker finding still fails the run's own exit code; stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("posted review 1: CHANGES_REQUESTED"),
+        "{stdout}"
+    );
+    assert!(stdout.contains("REQUEST_CHANGES"), "{stdout}");
+}
+
+/// The run's own exit code reports the verdict, not whether the post
+/// succeeded: a blocker finding still exits 1 even when the fake `gh`
+/// fails the post outright.
+#[test]
+#[cfg(unix)]
+fn post_to_failing_never_changes_the_runs_own_exit_code() {
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("post-to-boom", &osf_toml);
+    let home = common::isolated_home("review-run-post-to-boom");
+    let gh_holder = TempDir::new("review-run-post-to-boom-gh");
+    let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    let path = path_with_dir_first(&gh_dir);
+    let output = common::run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("PATH", &path), ("FAKE_GH_MODE", "boom")],
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--post-to",
+            "open-software-factory/widgets#7",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("some other failure"), "{stderr}");
 }
 
 #[test]
