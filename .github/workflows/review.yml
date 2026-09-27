@@ -35,17 +35,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Cache the base build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            base/target
-          key: cargo-review-${{ runner.os }}-${{ hashFiles('base/Cargo.lock') }}
-          restore-keys: cargo-review-${{ runner.os }}-
-
-      - name: Build osf from the base branch only
+      - name: Build osf from the base branch only, with no cache
         working-directory: base
         run: cargo build --release --bin osf
 
@@ -106,17 +96,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Cache the base build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            base/target
-          key: cargo-review-${{ runner.os }}-${{ hashFiles('base/Cargo.lock') }}
-          restore-keys: cargo-review-${{ runner.os }}-
-
-      - name: Build osf from the base branch only
+      - name: Build osf from the base branch only, with no cache
         working-directory: base
         run: cargo build --release --bin osf
 
