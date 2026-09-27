@@ -1,0 +1,156 @@
+name: review
+
+# pull_request_target always runs this file from the base branch, so a
+# pull request cannot change the job that judges it.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: review
+    # A same-repository pull request runs with no environment gate.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
+    steps:
+      - name: Check out the base branch, the only code this job runs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: base
+          fetch-depth: 0
+
+      - name: Check out the pull request's head, as data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: pr
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Cache the base build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            base/target
+          key: cargo-review-${{ runner.os }}-${{ hashFiles('base/Cargo.lock') }}
+          restore-keys: cargo-review-${{ runner.os }}-
+
+      - name: Build osf from the base branch only
+        working-directory: base
+        run: cargo build --release --bin osf
+
+      - name: Mint the verifier's own token
+        id: verifier-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          app-id: ${{ vars.VERIFIER_APP_ID }}
+          private-key: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+          permission-contents: read
+
+      - name: Fetch the base commit into the pull request's own checkout
+        run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
+
+      # Reviewer API keys, if any, are the adopter's own secrets; osf reads none of them.
+      - name: Run the review, reading the pull request's tree as data
+        working-directory: pr
+        env:
+          GH_TOKEN: ${{ steps.verifier-token.outputs.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: >-
+          ${{ github.workspace }}/base/target/release/osf review run
+          --base ${{ github.event.pull_request.base.sha }}
+          --config-root ${{ github.workspace }}/base
+          --sarif-out ${{ github.workspace }}/review.sarif
+          --post-to ${{ github.repository }}#${{ github.event.pull_request.number }}
+
+      - name: Keep the review findings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: review-findings
+          path: review.sarif
+          if-no-files-found: ignore
+
+  review-fork:
+    name: review (fork)
+    # A fork's pull request runs only once a maintainer approves this environment.
+    if: github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
+    environment: fork-review
+    steps:
+      - name: Check out the base branch, the only code this job runs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: base
+          fetch-depth: 0
+
+      - name: Check out the pull request's head, as data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: pr
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Cache the base build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            base/target
+          key: cargo-review-${{ runner.os }}-${{ hashFiles('base/Cargo.lock') }}
+          restore-keys: cargo-review-${{ runner.os }}-
+
+      - name: Build osf from the base branch only
+        working-directory: base
+        run: cargo build --release --bin osf
+
+      - name: Mint the verifier's own token
+        id: verifier-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          app-id: ${{ vars.VERIFIER_APP_ID }}
+          private-key: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+          permission-contents: read
+
+      - name: Fetch the base commit into the pull request's own checkout
+        run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
+
+      # Reviewer API keys, if any, are the adopter's own secrets; osf reads none of them.
+      - name: Run the review, reading the pull request's tree as data
+        working-directory: pr
+        env:
+          GH_TOKEN: ${{ steps.verifier-token.outputs.token }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: >-
+          ${{ github.workspace }}/base/target/release/osf review run
+          --base ${{ github.event.pull_request.base.sha }}
+          --config-root ${{ github.workspace }}/base
+          --sarif-out ${{ github.workspace }}/review.sarif
+          --post-to ${{ github.repository }}#${{ github.event.pull_request.number }}
+
+      - name: Keep the review findings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: review-findings
+          path: review.sarif
+          if-no-files-found: ignore
