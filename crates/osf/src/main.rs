@@ -289,6 +289,12 @@ struct ReviewRunArgs {
     /// succeeded.
     #[arg(long = "post-to")]
     post_to: Option<String>,
+    /// Never fail on the review's own verdict: still prints the verdict and
+    /// writes SARIF, but always exits 0. For a checkpoint that only warns,
+    /// such as pre-push, where the exit code cannot be trusted to gate
+    /// anything.
+    #[arg(long = "warn-only")]
+    warn_only: bool,
 }
 
 #[derive(Args)]
@@ -1455,7 +1461,11 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
     ExitCode::from(checkpoint::exit_code(&summary, checkpoint))
 }
 
-fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
+/// `osf review run`'s own exit code, ignoring `--warn-only`: 0 pass, 1 fail,
+/// 2 could-not-run or misconfigured. Kept separate from [`review_run_cmd`]
+/// so `--warn-only` has one place to override the result, rather than a
+/// forced zero threaded through every early return below.
+fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
     let root = Path::new(".");
     let config_root = args
         .config_root
@@ -1467,27 +1477,27 @@ fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
             Ok(_) => {
                 println!("review: slot off, no reviewer enabled");
                 if let Some(path) = &args.sarif_out {
-                    if let Err(code) = write_sarif_out(path, &[]) {
-                        return code;
+                    if write_sarif_out(path, &[]).is_err() {
+                        return 2;
                     }
                 }
-                return ExitCode::from(0);
+                return 0;
             }
             Err(e) => {
                 eprintln!("osf review run: {e}");
-                return ExitCode::from(2);
+                return 2;
             }
         }
     }
     let Some(base) = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok()) else {
         eprintln!("osf review run: a base is required: pass --base or set OSF_BASE");
-        return ExitCode::from(2);
+        return 2;
     };
     let state_dir = match journal::state_dir() {
         Ok(d) => d,
         Err(e) => {
             eprintln!("osf: {e}");
-            return ExitCode::from(2);
+            return 2;
         }
     };
     let req = review_run::Request {
@@ -1500,7 +1510,7 @@ fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
         Ok(outcome) => outcome,
         Err(e) => {
             eprintln!("osf review run: {e}");
-            return ExitCode::from(2);
+            return 2;
         }
     };
     for line in &outcome.lines {
@@ -1511,18 +1521,23 @@ fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
     }
     if let Some(path) = &args.sarif_out {
         let sarif_files = review_sarif_files(&outcome.findings);
-        if let Err(code) = write_sarif_out(path, &sarif_files) {
-            return code;
+        if write_sarif_out(path, &sarif_files).is_err() {
+            return 2;
         }
     }
     if let Some(post_to) = &args.post_to {
         post_run_outcome(&outcome, post_to);
     }
-    ExitCode::from(match outcome.verdict {
+    match outcome.verdict {
         reducer::Verdict::Pass => 0,
         reducer::Verdict::Fail => 1,
         reducer::Verdict::CouldNotRun => 2,
-    })
+    }
+}
+
+fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
+    let code = review_run_exit_code(args);
+    ExitCode::from(if args.warn_only { 0 } else { code })
 }
 
 /// Splits `--post-to`'s `owner/repo#N` into the repository and the pull

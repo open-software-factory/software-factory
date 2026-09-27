@@ -593,6 +593,50 @@ fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
     );
 }
 
+/// `--warn-only` still runs the review and still prints the verdict, but
+/// the process always exits 0, whatever that verdict is.
+#[test]
+fn warn_only_prints_the_verdict_but_never_fails() {
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("warn-only-blocker", &osf_toml);
+    let home = common::isolated_home("review-run-warn-only-blocker");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main", "--warn-only"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("verdict: fail"), "{stdout}");
+}
+
+/// `--warn-only` also swallows a could-not-run verdict, the same as a fail.
+#[test]
+fn warn_only_never_fails_on_could_not_run_either() {
+    let repo = review_repo("warn-only-could-not-run", "");
+    let home = common::isolated_home("review-run-warn-only-could-not-run");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main", "--warn-only"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 /// A fake `gh`, standing in for the real one so `--post-to` can be tested
 /// with no network: `pr view` answers a fixed head commit, and `api -X
 /// POST` answers success or one of the failures `osf review post` already
