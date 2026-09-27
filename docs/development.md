@@ -139,17 +139,45 @@ Add this entry to your coding agent's settings file, alongside `Stop` and
 
 ## Review at pre-push and the pull request
 
-A moon task named `review` runs `osf review run`. It is tagged so it runs
-at pre-push and at the pull request, alongside the other checks in this
-file.
+A moon task named `review` runs `osf review run` at pre-push. It prints
+the verdict, and the push always continues. Pre-push runs inside your
+own workspace, so you could change its result there. The real gate is a
+separate job.
 
-With no reviewer enabled, the task prints one line and exits clean. No
-review runs. With at least one reviewer enabled, a real review runs. A
-review that cannot finish fails the checkpoint, the same as any other
-task here.
+GitHub always reads a `pull_request_target` workflow from the base
+branch. That is why `.github/workflows/review.yml` is the real gate, and
+a pull request cannot change what this job does.
 
-A review runs only where the factory itself runs, inside the development
-container. Continuous integration does not run a reviewer.
+The job builds the `osf` tool from the base branch only. It reads the
+pull request's files as data: the diff, the changed files, and whatever
+a lens asks for. It never builds, installs, or runs anything from the
+pull request.
+
+The job also reads the lens catalogue from the base branch. It reads the
+`[review]` settings from the base branch too, including the roster, the
+threshold, the timeout, and the cost ceiling. A pull request cannot turn
+off a lens or lower the threshold to pass its own review.
+
+Findings that survive verification are posted on the pull request as one
+review, with a comment on each finding's own line. A must-fix finding
+fails the job. A review that could not run fails the job too, and every
+other outcome passes.
+
+A fork's pull request runs the same job, but only inside a GitHub
+environment named `fork-review`. A repository admin must create this
+environment and add required reviewers to it. Until then, a fork's
+pull request waits there, and the job never runs with a secret.
+
+### Settings this repository controls
+
+- `vars.OSF_REVIEW_RUNS_ON`: the runner label the review job uses.
+  Defaults to `ubuntu-latest`.
+- `vars.VERIFIER_APP_ID` and `secrets.VERIFIER_APP_PRIVATE_KEY`: the
+  GitHub App the job mints a short-lived token from, to post the review.
+- A reviewer's own API key, such as `secrets.ANTHROPIC_API_KEY`: named by
+  you, read by that reviewer's own tool. `osf` itself reads none of them.
+- Branch protection: require the `review` check, and require every
+  conversation resolved, so a person still looks at each finding.
 
 ### Enable a reviewer
 
