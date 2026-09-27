@@ -276,6 +276,13 @@ struct ReviewRunArgs {
     /// reviewer configured instead of failing its checkpoint.
     #[arg(long = "if-enabled")]
     if_enabled: bool,
+    /// Where the lens catalogue and the `[review]` table of `osf.toml` are
+    /// read from, instead of the repository under review. Point this at a
+    /// base tree so a pull request cannot weaken its own review by editing
+    /// a lens or lowering the threshold. Defaults to the repository under
+    /// review, as before this flag existed.
+    #[arg(long = "config-root")]
+    config_root: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -1444,8 +1451,12 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
 
 fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
     let root = Path::new(".");
+    let config_root = args
+        .config_root
+        .clone()
+        .unwrap_or_else(|| root.to_path_buf());
     if args.if_enabled {
-        match reviewers::roster(root) {
+        match reviewers::roster(&config_root) {
             Ok(roster) if roster.iter().any(|r| r.enabled) => {}
             Ok(_) => {
                 println!("review: slot off, no reviewer enabled");
@@ -1475,6 +1486,7 @@ fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
     };
     let req = review_run::Request {
         root,
+        config_root: &config_root,
         base: &base,
         work_item: args.work_item.as_deref(),
     };

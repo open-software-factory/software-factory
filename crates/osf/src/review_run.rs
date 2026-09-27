@@ -34,10 +34,18 @@ const QUORUM_FAMILIES: usize = 2;
 const ACTOR: &str = "osf";
 
 /// What one run of `osf review run` needs: the repository, what to diff
-/// against, and the work item file the caller saved, if any.
+/// against, the work item file the caller saved, if any, and where the
+/// trusted configuration lives.
 #[derive(Debug, Clone, Copy)]
 pub struct Request<'a> {
     pub root: &'a Path,
+    /// Where the lens catalogue and the `[review]` table of `osf.toml`
+    /// (roster, threshold, timeout, cost ceiling) are read from. A pull
+    /// request under review must not be able to weaken its own review by
+    /// editing a lens or lowering the threshold, so this is the base tree
+    /// when the caller passes one, never `root` in that case. Defaults to
+    /// `root` when the caller has no separate trusted tree.
+    pub config_root: &'a Path,
     pub base: &'a str,
     pub work_item: Option<&'a Path>,
 }
@@ -72,16 +80,16 @@ pub struct RunOutcome {
 /// to blame, so the caller reports could-not-configure rather than
 /// picking one lens to fail.
 pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
-    let catalogue = lenses::load(req.root, None)?;
+    let catalogue = lenses::load(req.config_root, None)?;
     let report = risk::assess(req.root, req.base)?;
     let changed = git::changed_files(req.root, req.base).map_err(|e| e.to_string())?;
     let signals = report.signals();
     let selected = lenses::select(&catalogue, &changed, &signals, report.tier);
     let depth = lenses::depth(report.tier);
 
-    let roster = reviewers::roster(req.root)?;
+    let roster = reviewers::roster(req.config_root)?;
     let enabled: Vec<&Reviewer> = roster.iter().filter(|r| r.enabled).collect();
-    let review_config = config::review_config(req.root).map_err(|e| e.to_string())?;
+    let review_config = config::review_config(req.config_root).map_err(|e| e.to_string())?;
     let threshold = review_config.threshold;
     let timeout = Duration::from_secs(review_config.timeout_seconds);
 

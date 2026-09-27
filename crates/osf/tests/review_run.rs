@@ -67,15 +67,29 @@ const ACTIVE_LENS_TOML: &str = "name = \"correctness\"\n\
     major = \"a wrong behaviour a user can hit\"\n\
     minor = \"a small nit\"\n";
 
-/// Writes the lens overrides described at the top of this file.
-fn write_lens_overrides(repo: &TempRepo) {
-    repo.write(".osf/review-lenses/correctness.toml", ACTIVE_LENS_TOML);
+/// Writes the lens overrides described at the top of this file, under
+/// `dir` directly rather than through a [`TempRepo`], so a plain trusted
+/// config directory (no git repository of its own) can hold them too.
+fn write_lens_overrides_to(dir: &Path) {
+    let write = |rel: &str, content: &str| {
+        let full = dir.join(rel);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).expect("fixture parent dir creates");
+        }
+        std::fs::write(&full, content).expect("fixture file writes");
+    };
+    write(".osf/review-lenses/correctness.toml", ACTIVE_LENS_TOML);
     for name in OTHER_ALWAYS_LENS_NAMES {
-        repo.write(
+        write(
             &format!(".osf/review-lenses/{name}.toml"),
             &disabled_lens_toml(name),
         );
     }
+}
+
+/// Writes the lens overrides described at the top of this file.
+fn write_lens_overrides(repo: &TempRepo) {
+    write_lens_overrides_to(&repo.dir);
 }
 
 /// A repository with the lens overrides and `osf.toml` committed as part
@@ -505,6 +519,78 @@ fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
         ],
     );
     assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+}
+
+/// `--config-root` names the trusted tree: the lens catalogue and the
+/// `[review]` table (roster, threshold, timeout, cost ceiling) come from
+/// there, never from the repository under review. A pull request that
+/// lowers its own threshold to zero and swaps in a harmless roster must
+/// still fail, because the base tree's own high threshold and its
+/// blocker-returning roster are what actually run.
+#[test]
+fn a_pull_request_tree_cannot_loosen_review_via_its_own_config_root() {
+    let config_root = TempDir::new("review-run-config-root-base");
+    write_lens_overrides_to(&config_root);
+    let base_osf_toml = format!(
+        "[review]\nthreshold = 0.9\n\n{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    std::fs::write(config_root.join("osf.toml"), base_osf_toml).expect("base osf.toml writes");
+
+    // The reviewed tree carries its own low threshold and a roster that
+    // would only ever answer clean. If either of these were read instead
+    // of the base tree's, the review would pass.
+    let pr_osf_toml = format!(
+        "[review]\nthreshold = 0.0\n\n{}",
+        roster_entry_toml("fake-only", "family-only", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("config-root-pr-tree", &pr_osf_toml);
+    let home = common::isolated_home("review-run-config-root");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--config-root",
+            &config_root.to_string_lossy(),
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "the pull request's own lowered threshold and harmless roster must have no effect \
+         when --config-root points at the base tree; stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// With no `--config-root`, the reviewed repository's own `osf.toml` still
+/// governs, exactly as before this flag existed.
+#[test]
+fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
+    let osf_toml = format!(
+        "[review]\nthreshold = 0.0\n\n{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("no-config-root", &osf_toml);
+    let home = common::isolated_home("review-run-no-config-root");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
