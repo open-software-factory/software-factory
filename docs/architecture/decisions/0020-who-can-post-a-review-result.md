@@ -27,7 +27,7 @@ This record settles who can post a review result the factory trusts, and how the
 | Option | What it meant | Outcome |
 |---|---|---|
 | Repository secrets in CI, a mounted read-only key in the container | A CI job mints a short-lived, narrowly scoped token. The container mounts only the builder's key, and the builder app cannot write a check with it. | Taken. |
-| A host-side process that mints keys | A process on one machine hands out tokens on request. | Set aside. It needs a process that always runs, and the factory has none. |
+| A host-side process that mints tokens | A process on one machine hands out tokens on request. | Set aside. It needs a process that always runs, and the factory has none. |
 | Each sandbox holds its own role's key | A review sandbox would carry the verifier's key directly. | Set aside. The container split above already covers the builder; the verifier key never needs to enter an agent's workspace at all. |
 | An operating-system secret store | Keys held in a platform credential store instead of repository secrets and a mount. | Set aside for now. It can follow later behind the same split. |
 
@@ -43,7 +43,7 @@ This record settles who can post a review result the factory trusts, and how the
 
 | Option | What it meant | Outcome |
 |---|---|---|
-| CI workflows, using the code host's own runners | The develop step and the review step are both CI jobs, using the same container image. | Taken. |
+| CI workflows, on the runners the adopter chooses | The develop step and the review step are both CI jobs, using the same container image. | Taken. |
 | A dedicated verifier machine, or a second user in the builder's container | A fixed place, separate from the builder, always available to run a review. | Set aside. Both assume a factory location that does not exist. |
 
 **What counts toward merging.**
@@ -82,7 +82,7 @@ This record settles who can post a review result the factory trusts, and how the
 
 ### 1. A builder agent must not be able to force a passing result
 
-No builder agent can produce a passing result unless a real review passed on that exact commit. This guard targets an agent inside the pipeline. A person with admin rights can already turn off branch protection some other way, so guarding against people adds little. The target is a deliberate attempt to force a pass. An accidental gap is a separate problem, one the ordinary checks already catch.
+No builder agent can produce a passing result unless a real review passed on that exact commit. This guard targets an agent inside the pipeline. A person with admin rights can already turn off branch protection some other way, so guarding against people adds little. The target is a deliberate attempt to force a pass.
 
 ### 2. Keys are split by where the work runs
 
@@ -90,7 +90,7 @@ In CI, private keys live in repository secrets. A job mints a short-lived token,
 
 ### 3. The review job runs from the base branch
 
-The review job is defined in a workflow that always runs the base branch's own file. It checks out no pull request code to run, and it holds any key it needs in repository secrets. GitHub posts a job's pass or fail as a check under its own identity, so no app needs permission to write checks directly. An ordinary pull-request workflow would run the file from the pull request's own branch instead, and the builder app holds permission to write workflow files. A pull request from the builder could otherwise change the review job to always pass. Running the job from the base branch closes that gap. The job that judges a pull request is always one that was already reviewed and merged into the base branch.
+The review job is defined in a workflow that always runs the base branch's own file. It checks out no pull request code to run, and it holds any key it needs in repository secrets. GitHub posts a job's pass or fail as a check under its own identity, so no app needs permission to write checks directly. An ordinary pull-request workflow would run the file from the pull request's own branch instead, and the builder app holds permission to write workflow files. A pull request from the builder could otherwise change the review job to always pass. Running the job from the base branch closes that gap. The job that judges a pull request is always one that was already reviewed and merged into the base branch. For the same reason, the review reads its lenses and its review settings, such as the roster and the pass threshold, from the base branch. A pull request cannot weaken its own review by editing them.
 
 ### 4. The factory has no server, so reviews run as CI workflows
 
