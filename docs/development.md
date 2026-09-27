@@ -148,6 +148,9 @@ review runs. With at least one reviewer enabled, a real review runs. A
 review that cannot finish fails the checkpoint, the same as any other
 task here.
 
+A review runs only where the factory itself runs, inside the development
+container. Continuous integration does not run a reviewer.
+
 ### Enable a reviewer
 
 A reviewer is a coding-agent tool, run headless, such as Claude Code or
@@ -162,34 +165,8 @@ enabled = true
 
 The name must match a reviewer this tool already ships, or a new entry
 this file adds in full. A reviewer needs its own tool installed and
-logged in on whatever machine runs it.
-
-### The pull-request review runs on its own runner
-
-The pull-request review runs as its own job in continuous integration, on
-a self-hosted runner inside the development container. That runner
-already has the coding-agent tools installed and logged in, the way a
-person's own machine does.
-
-The job runs only when the repository variable `OSF_REVIEW_RUNNER` is
-`true`. Set it once the runner is registered with the `osf-devcontainer`
-label. Until then, pull requests do not wait for a runner that does not
-exist.
-
-A repository secret can hold an API key for a cheaper reviewer, such as
-one of the `opencode` models. The job passes each key through as an
-environment variable. The reviewer's own tool reads it the way it already
-does outside `osf`. `osf` never reads or holds a key itself. A missing
-secret leaves that one reviewer unable to answer. It does not fail the
-job by itself.
-
-### Fork pull requests skip the self-hosted review
-
-This job never runs a fork's code. It runs only when the pull request's
-own source repository is this repository. A fork's contributor cannot
-reach the self-hosted runner or a reviewer's login through a pull
-request. Every other check on a fork's pull request still runs, on a
-hosted runner, the same as before.
+logged in inside the development container, the same as it would on a
+person's own machine.
 
 ## The git wrapper, and its limit
 
