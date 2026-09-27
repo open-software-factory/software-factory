@@ -605,13 +605,15 @@ fn signals_for(diffs: &[FileDiff], hot_paths: &[String]) -> Vec<String> {
 
 /// Assesses the blast radius of the change between `base` and the working
 /// tree in `dir`: every commit since their merge base, plus anything
-/// uncommitted, plus anything untracked.
+/// uncommitted, plus anything untracked. `[review] hot_paths` is read from
+/// `config_root`'s own `osf.toml`, never `dir`'s: a pull request must not be
+/// able to narrow that list and lower the tier its own change earns.
 ///
 /// # Errors
 /// Returns an error if `base` does not resolve to a commit, if git cannot
 /// run, if the repository's high-path file cannot be read or holds an
 /// invalid pattern, or if there is no changed file to report on at all.
-pub fn assess(dir: &Path, base: &str) -> Result<Report, String> {
+pub fn assess(dir: &Path, config_root: &Path, base: &str) -> Result<Report, String> {
     if !crate::git::commit_exists(dir, base) {
         return Err(format!("base '{base}' does not resolve"));
     }
@@ -633,7 +635,7 @@ pub fn assess(dir: &Path, base: &str) -> Result<Report, String> {
     let (tier, reasons) = tier_for(&file_refs, files.len(), line_count, &high);
     let axes_add = axes_for(&file_refs);
     let diffs = collect_diffs(dir, base, &files, &untracked)?;
-    let signal_list = signals_for(&diffs, &hot_paths(&root));
+    let signal_list = signals_for(&diffs, &hot_paths(config_root));
 
     Ok(Report {
         tier,

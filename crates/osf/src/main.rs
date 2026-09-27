@@ -1714,7 +1714,7 @@ fn risk_cmd(args: &RiskArgs) -> ExitCode {
         return ExitCode::from(2);
     }
     let dir = Path::new(".");
-    let report = match risk::assess(dir, &args.base) {
+    let report = match risk::assess(dir, dir, &args.base) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("osf risk: {e}");
@@ -2042,7 +2042,7 @@ fn status_refresh_run(
         return Ok(ExitCode::SUCCESS);
     };
     let base = status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
-    let report = risk::assess(Path::new("."), &base).map_err(|e| {
+    let report = risk::assess(Path::new("."), Path::new("."), &base).map_err(|e| {
         eprintln!("osf risk: {e}");
         ExitCode::from(2)
     })?;

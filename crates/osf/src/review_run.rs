@@ -81,7 +81,7 @@ pub struct RunOutcome {
 /// picking one lens to fail.
 pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     let catalogue = lenses::load(req.config_root, None)?;
-    let report = risk::assess(req.root, req.base)?;
+    let report = risk::assess(req.root, req.config_root, req.base)?;
     let changed = git::changed_files(req.root, req.base).map_err(|e| e.to_string())?;
     let signals = report.signals();
     let selected = lenses::select(&catalogue, &changed, &signals, report.tier);

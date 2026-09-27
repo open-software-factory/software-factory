@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{isolated_home, TempRepo};
+use common::{isolated_home, TempDir, TempRepo};
 use osf::risk::{assess, Axis, Tier};
 use std::path::Path;
 use std::process::Command;
@@ -29,7 +29,7 @@ fn axis_names(report: &osf::risk::Report) -> Vec<&'static str> {
 fn docs_only() {
     let repo = base_repo("docs-only");
     repo.write("README.md", "base\nmore\n");
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Low);
     assert!(axis_names(&report).is_empty(), "{report:?}");
 }
@@ -38,7 +38,7 @@ fn docs_only() {
 fn a_large_design_doc_is_still_docs_only_and_adds_the_documents_axis() {
     let repo = base_repo("large-design-doc");
     repo.write_lines("docs/design/thing.md", 200);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Low);
     assert_eq!(axis_names(&report), vec!["documents-design-adrs"]);
 }
@@ -48,7 +48,7 @@ fn tests_only() {
     let repo = base_repo("tests-only");
     repo.write_lines("tests/app_test.c", 300);
     repo.write_lines("src/app.spec.js", 300);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Low);
     assert!(axis_names(&report).is_empty(), "{report:?}");
 }
@@ -58,7 +58,7 @@ fn two_files_sixty_lines() {
     let repo = base_repo("two-files-sixty-lines");
     repo.write_lines("src/a.c", 30);
     repo.write_lines("src/b.c", 30);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Low);
     assert!(axis_names(&report).is_empty(), "{report:?}");
 }
@@ -69,7 +69,7 @@ fn three_files_one_hundred_twenty_lines() {
     repo.write_lines("src/a.c", 50);
     repo.write_lines("src/b.c", 50);
     repo.write_lines("src/c.c", 20);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Normal);
     assert!(axis_names(&report).is_empty(), "{report:?}");
 }
@@ -79,7 +79,7 @@ fn agent_files_count_as_code_not_docs() {
     let repo = base_repo("agent-files-are-code");
     repo.write_lines(".agents/rules/x.md", 40);
     repo.write_lines(".agents/skills/y/SKILL.md", 50);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Normal);
     assert!(axis_names(&report).is_empty(), "{report:?}");
 }
@@ -88,7 +88,7 @@ fn agent_files_count_as_code_not_docs() {
 fn an_auth_path_is_high() {
     let repo = base_repo("auth-path");
     repo.write_lines("src/auth/login.c", 10);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::High);
 }
 
@@ -96,7 +96,7 @@ fn an_auth_path_is_high() {
 fn a_migration_is_high() {
     let repo = base_repo("migration");
     repo.write_lines("db/migrations/001.sql", 10);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::High);
 }
 
@@ -104,7 +104,7 @@ fn a_migration_is_high() {
 fn a_workflow_file_is_high() {
     let repo = base_repo("workflow-file");
     repo.write_lines(".github/workflows/ci.yml", 10);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::High);
 }
 
@@ -112,7 +112,7 @@ fn a_workflow_file_is_high() {
 fn over_six_hundred_lines_is_high() {
     let repo = base_repo("over-600-lines");
     repo.write_lines("src/big.c", 700);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::High);
 }
 
@@ -122,7 +122,7 @@ fn over_twelve_files_is_high() {
     for i in 1..=13 {
         repo.write_lines(&format!("src/f{i}.c"), 2);
     }
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::High);
 }
 
@@ -130,7 +130,7 @@ fn over_twelve_files_is_high() {
 fn a_screen_adds_the_ui_axis() {
     let repo = base_repo("screen-adds-ui-axis");
     repo.write_lines("lib/screens/home.dart", 40);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Low);
     assert_eq!(axis_names(&report), vec!["ui-proof-accessibility"]);
 }
@@ -141,7 +141,7 @@ fn a_manifest_adds_the_dependency_axis() {
     repo.write_lines("pubspec.yaml", 10);
     repo.write_lines("src/x.c", 100);
     repo.write_lines("src/y.c", 100);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Normal);
     assert_eq!(axis_names(&report), vec!["dependency-licence-supply-chain"]);
 }
@@ -151,7 +151,7 @@ fn a_committed_change_counts() {
     let repo = base_repo("committed-change-counts");
     repo.write("src/app.c", "int main(){}\nx\n");
     repo.git(&["commit", "-q", "-am", "tweak"]);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Low);
 }
 
@@ -165,7 +165,7 @@ fn a_repo_added_high_path_is_high() {
     repo.track_origin_main();
 
     repo.write_lines("src/money/calc.c", 10);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::High);
 }
 
@@ -179,7 +179,7 @@ fn a_comments_only_risk_paths_file_adds_nothing() {
     repo.track_origin_main();
 
     repo.write_lines("src/a.c", 10);
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert_eq!(report.tier, Tier::Low);
 }
 
@@ -210,8 +210,8 @@ fn the_same_change_gives_the_same_report_across_runs_and_locales() {
     repo.write_lines("src/b.c", 50);
     repo.write_lines("src/c.c", 20);
 
-    let first = assess(&repo.dir, "origin/main").expect("assess runs");
-    let second = assess(&repo.dir, "origin/main").expect("assess runs again");
+    let first = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
+    let second = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs again");
     assert_eq!(first.to_json(), second.to_json());
 
     let home = isolated_home("risk-determinism");
@@ -236,7 +236,7 @@ fn a_lockfile_change_earns_no_concurrency_signal() {
         "Cargo.lock",
         "[[package]]\nname = \"tokio\"\nversion = \"1.0\"\n\n[[package]]\nname = \"async-trait\"\nversion = \"0.1\"\n",
     );
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert!(!report.signals().contains(&"concurrency".to_string()));
 }
 
@@ -250,7 +250,7 @@ fn a_mutex_in_a_source_file_earns_the_concurrency_signal() {
         "src/worker.c",
         "int worker(void) { Mutex guard = mutex_new(); return 0; }\n",
     );
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert!(report.signals().contains(&"concurrency".to_string()));
 }
 
@@ -271,7 +271,7 @@ fn two_readme_files_with_different_content_earn_no_repeated_logic_signal() {
         "docs/b/README.md",
         "orig b\nunique beta one\nunique beta two\nunique beta three\nunique beta four\nunique beta five\n",
     );
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert!(!report.signals().contains(&"repeated-logic".to_string()));
 }
 
@@ -286,7 +286,7 @@ fn two_files_sharing_an_added_block_earn_the_repeated_logic_signal() {
         "step_one();\nstep_two();\nstep_three();\nstep_four();\nstep_five();\nstep_six();\n";
     repo.write("src/a.c", &format!("int a(void) {{ return 0; }}\n{block}"));
     repo.write("src/b.c", &format!("int b(void) {{ return 0; }}\n{block}"));
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert!(report.signals().contains(&"repeated-logic".to_string()));
 }
 
@@ -301,7 +301,7 @@ fn a_pub_crate_item_is_not_a_public_surface() {
         "src/lib.rs",
         "fn existing() {}\npub(crate) fn helper() {}\n",
     );
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert!(!report.signals().contains(&"public surface".to_string()));
 }
 
@@ -312,6 +312,45 @@ fn a_new_pub_fn_earns_the_public_surface_signal() {
     repo.commit("base lib.rs");
     repo.track_origin_main();
     repo.write("src/lib.rs", "fn existing() {}\npub fn new_helper() {}\n");
-    let report = assess(&repo.dir, "origin/main").expect("assess runs");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
     assert!(report.signals().contains(&"public surface".to_string()));
+}
+
+/// `[review] hot_paths` comes from `config_root`, not the reviewed
+/// repository: a pull request that empties its own `hot_paths` list must
+/// not lose the high-traffic-path signal a base tree's own list still
+/// earns for the same changed file.
+#[test]
+fn hot_paths_come_from_the_config_root_not_the_reviewed_repository() {
+    let repo = base_repo("hot-paths-config-root");
+    repo.write("osf.toml", "[review]\nhot_paths = []\n");
+    repo.commit("the reviewed repository narrows its own hot_paths to nothing");
+    repo.write("README.md", "base\nmore\n");
+    let config_root = TempDir::new("hot-paths-config-root-base");
+    std::fs::write(
+        config_root.join("osf.toml"),
+        "[review]\nhot_paths = [\"README.md\"]\n",
+    )
+    .expect("base osf.toml writes");
+    let report = assess(&repo.dir, &config_root, "origin/main").expect("assess runs");
+    assert!(
+        report.signals().contains(&"high-traffic path".to_string()),
+        "{report:?}"
+    );
+}
+
+/// With no separate trusted tree, `hot_paths` still comes from the
+/// reviewed repository's own `osf.toml`, exactly as before this parameter
+/// existed.
+#[test]
+fn hot_paths_still_read_the_reviewed_repository_when_config_root_is_the_same_dir() {
+    let repo = base_repo("hot-paths-no-config-root");
+    repo.write("osf.toml", "[review]\nhot_paths = [\"README.md\"]\n");
+    repo.commit("the reviewed repository names its own hot_paths");
+    repo.write("README.md", "base\nmore\n");
+    let report = assess(&repo.dir, &repo.dir, "origin/main").expect("assess runs");
+    assert!(
+        report.signals().contains(&"high-traffic path".to_string()),
+        "{report:?}"
+    );
 }
