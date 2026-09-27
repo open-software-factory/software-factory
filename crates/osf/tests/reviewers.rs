@@ -118,6 +118,50 @@ fn a_valid_answer_from_the_fake_harness_is_answered() {
     });
 }
 
+/// A reviewer's own harness never sees the tokens `osf` itself uses to post
+/// a review: `GH_TOKEN`, `GITHUB_TOKEN`, and `GH_ENTERPRISE_TOKEN` are all
+/// unset in the child's environment, even when they are set on `osf`'s own
+/// process, the way the verifier token is in the review workflow.
+#[test]
+fn a_reviewer_child_never_inherits_a_github_token() {
+    let workdir = TempDir::new("osf-reviewers-no-token-leak");
+    let capture_path = workdir.join("env-capture.txt");
+    let capture_str = capture_path.to_string_lossy().into_owned();
+    let answer_path = fixture("valid.json");
+    serial(
+        &[
+            ("OSF_FAKE_ANSWER", &answer_path),
+            ("OSF_FAKE_ENV_CAPTURE", &capture_str),
+            ("GH_TOKEN", "verifier-token-must-never-reach-a-reviewer"),
+            ("GITHUB_TOKEN", "default-token-must-never-reach-a-reviewer"),
+            (
+                "GH_ENTERPRISE_TOKEN",
+                "enterprise-token-must-never-reach-a-reviewer",
+            ),
+        ],
+        || {
+            let outcome = run_one(
+                &fake_reviewer(),
+                "review this change",
+                &test_lens(),
+                &workdir,
+                Duration::from_secs(10),
+            );
+            match outcome {
+                Outcome::Answered(_) => {}
+                Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+                Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+            }
+        },
+    );
+    let captured =
+        std::fs::read_to_string(&capture_path).expect("the fake harness's env capture writes");
+    assert_eq!(
+        captured, "GH_TOKEN=\nGITHUB_TOKEN=\nGH_ENTERPRISE_TOKEN=\n",
+        "{captured}"
+    );
+}
+
 #[test]
 fn an_invalid_answer_is_retried_once_then_reported_invalid() {
     let workdir = TempDir::new("osf-reviewers-invalid");

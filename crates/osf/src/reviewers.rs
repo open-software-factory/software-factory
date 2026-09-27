@@ -203,6 +203,11 @@ fn run_child(
     command
         .args(rest)
         .current_dir(workdir)
+        // osf keeps these for posting; a reviewer's own model key, a
+        // different variable, still reaches the harness untouched.
+        .env_remove("GH_TOKEN")
+        .env_remove("GITHUB_TOKEN")
+        .env_remove("GH_ENTERPRISE_TOKEN")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
