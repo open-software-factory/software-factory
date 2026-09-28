@@ -84,11 +84,16 @@ impl TempRepo {
         repo
     }
 
+    /// Runs `git` in this repository, with [`path_with_osf_first`] on
+    /// `PATH` so an installed hook that execs bare `osf` resolves to this
+    /// test run's own built binary, not whatever the machine running the
+    /// test does or does not have installed.
     pub fn git(&self, args: &[&str]) -> String {
         let mut command = Command::new("git");
         command.current_dir(&self.dir).args(args);
         osf::scrub_git_env(&mut command);
         scrub_osf_and_moon_env(&mut command);
+        command.env("PATH", path_with_osf_first());
         let output = command.output().expect("git runs");
         assert!(
             output.status.success(),
