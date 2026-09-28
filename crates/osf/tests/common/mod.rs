@@ -7,6 +7,23 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Removes every inherited `OSF_*` and `MOON_*` variable from `command`:
+/// this repository's own checkpoint sets some of them (`OSF_CONFIG`,
+/// `OSF_DENYLIST`, `OSF_STATE_DIR`, and various `MOON_*` names) on `cargo
+/// test`, which every process it spawns inherits. A `git` command run
+/// against a throwaway repository can trigger a real hook that execs the
+/// built `osf` binary, which would otherwise resolve a config path or task
+/// state relative to the wrong directory. Every helper here that can end up
+/// running a real git hook calls this, the same way [`osf::scrub_git_env`]
+/// clears `GIT_*`.
+pub fn scrub_osf_and_moon_env(command: &mut Command) {
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") {
+            command.env_remove(key);
+        }
+    }
+}
+
 /// A folder name unique to this process and this call, so two processes (or
 /// two calls in one process) building a directory from the same `name` never
 /// share one.
@@ -71,6 +88,7 @@ impl TempRepo {
         let mut command = Command::new("git");
         command.current_dir(&self.dir).args(args);
         osf::scrub_git_env(&mut command);
+        scrub_osf_and_moon_env(&mut command);
         let output = command.output().expect("git runs");
         assert!(
             output.status.success(),
@@ -294,11 +312,7 @@ pub fn git_with_hook_env(
     let mut command = Command::new("git");
     command.current_dir(dir).args(args);
     osf::scrub_git_env(&mut command);
-    for (key, _) in std::env::vars() {
-        if key.starts_with("OSF_") || key.starts_with("MOON_") {
-            command.env_remove(key);
-        }
-    }
+    scrub_osf_and_moon_env(&mut command);
     command
         .env("PATH", path_with_osf_first())
         .env("HOME", home)
