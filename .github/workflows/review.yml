@@ -24,11 +24,13 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
     environment: review
-    # This image is public, so no registry login step is needed here.
-    container: ghcr.io/open-software-factory/devcontainer:main
+    permissions:
+      contents: read
+      packages: read
     steps:
-      # Limits this job's own network reach; see docs/development.md for
-      # what it does and does not cover once the job also runs in a container.
+      # Blocks this job's own outbound network to the hosts below; runs
+      # directly on the runner (no job-level container), so this actually
+      # covers every step's own network calls, including from docker run.
       - name: Restrict this job's outbound network access
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -46,6 +48,9 @@ jobs:
             api.openai.com:443
             api.anthropic.com:443
             api.deepseek.com:443
+
+      - name: Log in to ghcr.io to pull the devcontainer image
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Check out the base branch, the only code this job runs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -108,11 +113,13 @@ jobs:
     if: github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
     environment: fork-review
-    # This image is public, so no registry login step is needed here.
-    container: ghcr.io/open-software-factory/devcontainer:main
+    permissions:
+      contents: read
+      packages: read
     steps:
-      # Limits this job's own network reach; see docs/development.md for
-      # what it does and does not cover once the job also runs in a container.
+      # Blocks this job's own outbound network to the hosts below; runs
+      # directly on the runner (no job-level container), so this actually
+      # covers every step's own network calls, including from docker run.
       - name: Restrict this job's outbound network access
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -130,6 +137,9 @@ jobs:
             api.openai.com:443
             api.anthropic.com:443
             api.deepseek.com:443
+
+      - name: Log in to ghcr.io to pull the devcontainer image
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Check out the base branch, the only code this job runs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
