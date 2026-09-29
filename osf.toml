@@ -27,3 +27,44 @@ repository_visibility = "public"
 #   - Intercom: a support and feedback tool, docs/vision/product-lifecycle.md:426.
 #   - Zendesk: a support and feedback tool, docs/vision/product-lifecycle.md:426.
 must_explain_names = ["Linear", "Canny", "Figma", "Jira", "Intercom", "Zendesk"]
+
+[review]
+# A roster entry replaces a shipped one of the same name in full, so
+# enabling a shipped reviewer still means repeating its whole shape
+# here, not just its name and `enabled`. See crates/osf/src/reviewers.rs
+# and crates/osf/defaults/review-roster.toml for the shipped shape each
+# entry below copies, and docs/development.md for the reviewer table.
+
+# codex reads its key from OPENAI_API_KEY (or CODEX_API_KEY), the same
+# variable the review workflow already sets for this job.
+[[review.roster]]
+name = "codex"
+harness = "codex"
+family = "openai"
+command = ["codex", "exec"]
+schema_flag = "--output-schema"
+schema_as = "path"
+enabled = true
+
+# claude reads its key from ANTHROPIC_API_KEY, the same variable the
+# review workflow already sets for this job.
+[[review.roster]]
+name = "claude-code"
+harness = "claude"
+family = "anthropic"
+command = ["claude", "--print", "--output-format", "json"]
+schema_flag = "--json-schema"
+schema_as = "inline"
+answer_pointer = "/structured_output"
+enabled = true
+
+# dsh reads its key from DEEPSEEK_API_KEY. Its headless profile takes
+# the task as a command-line argument, not on standard input, so this
+# entry reads the prompt file itself and passes its contents as that
+# argument, through a small shell wrapper.
+[[review.roster]]
+name = "dsh"
+harness = "dsh"
+family = "deepseek"
+command = ["sh", "-c", 'exec dsh --profile headless "$(cat "$1")"', "sh", "{prompt_file}"]
+enabled = true

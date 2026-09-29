@@ -514,9 +514,16 @@ pub fn load(
     let mut file = None;
     if let Some(p) = &path {
         if let Some(text) = osf_lint_core::read_config_file(p, explicit)? {
-            let value: toml::Value = toml::from_str(&text).map_err(|e| {
+            let mut value: toml::Value = toml::from_str(&text).map_err(|e| {
                 ConfigError::new(format!("config {} is not valid: {e}", p.display()))
             })?;
+            // `[review]` is this same file's own table, read separately by
+            // `review_config`, and deliberately kept out of this struct
+            // (see `ReviewConfig`'s own doc comment). Drop it here so its
+            // presence never trips this struct's `deny_unknown_fields`.
+            if let Some(table) = value.as_table_mut() {
+                table.remove("review");
+            }
             layered.merge_document(&value, Layer::File);
             file = Some(p.clone());
         }
@@ -1341,5 +1348,31 @@ mod tests {
             .expect("osf.toml writes");
         let err = review_config(&dir).expect_err("an unknown key is refused");
         assert!(err.to_string().contains("threshhold"), "{err}");
+    }
+
+    /// `[review]` is this same `osf.toml`, read separately by
+    /// `review_config`, never by this module's own `Config`. A repository
+    /// that enables a reviewer this way must still load its `[writing]`,
+    /// `[scan]`, and `[skill]` settings, the same as one with no `[review]`
+    /// table at all.
+    #[test]
+    fn a_review_table_with_a_roster_entry_does_not_stop_the_rest_of_the_file_loading() {
+        let dir = TempDir::new("osf-config-test-review-alongside-writing");
+        let path = dir.join("osf.toml");
+        std::fs::write(
+            &path,
+            "[writing]\nmax_sentence_words = 30\n\n\
+             [review]\n\n\
+             [[review.roster]]\n\
+             name = \"codex\"\n\
+             harness = \"codex\"\n\
+             family = \"openai\"\n\
+             command = [\"codex\", \"exec\"]\n\
+             enabled = true\n",
+        )
+        .expect("osf.toml writes");
+        let loaded =
+            serial(&[], || load(Some(&path), &[], &[], false)).expect("file with [review] loads");
+        assert_eq!(loaded.config.writing.max_sentence_words, 30);
     }
 }

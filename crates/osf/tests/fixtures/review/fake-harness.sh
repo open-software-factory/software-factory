@@ -1,4 +1,11 @@
 #!/bin/sh
+if [ -n "${OSF_FAKE_REQUIRE_ENV:-}" ]; then
+    eval "osf_fake_required_value=\${${OSF_FAKE_REQUIRE_ENV}:-}"
+    if [ -z "$osf_fake_required_value" ]; then
+        echo "fake harness: ${OSF_FAKE_REQUIRE_ENV} is not set" 1>&2
+        exit 1
+    fi
+fi
 if [ -n "${OSF_FAKE_HARNESS_LOG:-}" ]; then
     echo run >> "$OSF_FAKE_HARNESS_LOG"
 fi

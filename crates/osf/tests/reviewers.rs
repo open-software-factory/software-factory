@@ -211,6 +211,40 @@ fn a_harness_that_cannot_start_is_could_not_run() {
     assert!(matches!(outcome, Outcome::CouldNotRun(_)));
 }
 
+/// A real reviewer tool reads its own API key from a variable such as
+/// `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `DEEPSEEK_API_KEY`, and exits
+/// non-zero when that variable is missing, rather than hanging on an
+/// interactive login prompt. `OSF_FAKE_REQUIRE_ENV` names a variable the
+/// fake harness checks the same way, standing in for that missing-key
+/// case: `run_one` must report it as could-not-run for this reviewer, and
+/// never as answered or invalid, so a run over several reviewers moves on
+/// to the next one instead of stalling.
+#[test]
+fn a_reviewer_whose_required_key_is_missing_is_could_not_run() {
+    let answer_path = fixture("valid.json");
+    serial(
+        &[
+            ("OSF_FAKE_ANSWER", &answer_path),
+            ("OSF_FAKE_REQUIRE_ENV", "OSF_FAKE_REVIEWER_API_KEY"),
+        ],
+        || {
+            let workdir = TempDir::new("osf-reviewers-missing-key");
+            let outcome = run_one(
+                &fake_reviewer(),
+                "review this change",
+                &test_lens(),
+                &workdir,
+                Duration::from_secs(10),
+            );
+            match outcome {
+                Outcome::CouldNotRun(_) => {}
+                Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
+                Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+            }
+        },
+    );
+}
+
 /// A reviewer whose harness hangs past its timeout is killed through the
 /// shared tree-kill helper `moon.rs` also uses, and counts as could-not-run
 /// rather than hanging the review forever. The fake harness sleeps well

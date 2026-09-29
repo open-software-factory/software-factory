@@ -1,3 +1,10 @@
+if ($env:OSF_FAKE_REQUIRE_ENV) {
+    $requiredValue = [Environment]::GetEnvironmentVariable($env:OSF_FAKE_REQUIRE_ENV)
+    if ([string]::IsNullOrEmpty($requiredValue)) {
+        [Console]::Error.WriteLine("fake harness: $($env:OSF_FAKE_REQUIRE_ENV) is not set")
+        exit 1
+    }
+}
 if ($env:OSF_FAKE_HARNESS_LOG) {
     Add-Content -Path $env:OSF_FAKE_HARNESS_LOG -Value "run"
 }
