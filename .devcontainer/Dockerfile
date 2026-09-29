@@ -29,6 +29,13 @@ ARG NODE_SHA256_ARM64=a44aeb94849a299b22df10b9e622ec2f605c2183501bc40590705131de
 # pnpm, must match this repo's root package.json "packageManager" field.
 ARG PNPM_VERSION=10.14.0
 
+# Reviewer CLIs, each pinned to one exact npm version so a rebuild in a
+# month installs the same tool a reviewer just tested against.
+ARG CODEX_VERSION=0.154.0
+ARG CLAUDE_CODE_VERSION=2.1.284
+ARG DSH_VERSION=0.1.5-rc.1
+ARG OPENCODE_VERSION=2.0.7
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git \
       ca-certificates \
@@ -95,6 +102,19 @@ RUN corepack enable && \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
     chmod -R a+rX "${COREPACK_HOME}" && \
     pnpm --version
+
+# Reviewer CLIs, installed as global npm packages into this same Node
+# install. That install is already root-owned and already on PATH, so no
+# separate prefix or lock-down step is needed for these either.
+RUN npm install -g \
+      @openai/codex@${CODEX_VERSION} \
+      @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
+      @deepseek-ai/dsh@${DSH_VERSION} \
+      @opencode/cli@${OPENCODE_VERSION} && \
+    codex --version && \
+    claude --version && \
+    dsh --version && \
+    opencode --version
 
 # Build osf from this workspace. The build directory sits outside
 # /workspace, the path the running container later bind-mounts the repo
@@ -171,4 +191,10 @@ COPY .devcontainer/tests/git-wrapper.sh /tmp/git-wrapper-test.sh
 RUN sh /tmp/git-wrapper-test.sh && rm -f /tmp/git-wrapper-test.sh
 
 USER dev
+
+# Proves each reviewer CLI runs for the dev user, not just for root.
+# See .devcontainer/tests/reviewer-tools.sh.
+COPY --chown=dev:dev .devcontainer/tests/reviewer-tools.sh /tmp/reviewer-tools-test.sh
+RUN sh /tmp/reviewer-tools-test.sh && rm -f /tmp/reviewer-tools-test.sh
+
 WORKDIR ${WORKSPACE_ROOT}
