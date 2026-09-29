@@ -163,31 +163,78 @@ review, with a comment on each finding's own line. A must-fix finding
 fails the job. A review that could not run fails the job too, and every
 other outcome passes.
 
-A fork's pull request runs the same job, but only inside a GitHub
-environment named `fork-review`. A repository admin must create this
-environment and add required reviewers to it. Until then, a fork's
-pull request waits there, and the job never runs with a secret.
+Both jobs read their secrets and variables through a GitHub
+environment. A same-repository pull request uses `review`. A fork's
+pull request uses `fork-review`. A repository admin must create both.
+Each one needs a deployment branch policy that allows only `main`.
+This stops a pull request branch from widening its own review.
+`fork-review` also needs required reviewers. A fork's pull request
+then waits there until a maintainer lets it through. Each environment
+holds its own copy of every secret and variable this table names.
+Setting one on the repository itself, with no environment, does not
+reach either job.
 
-### Settings this repository controls
+| Environment | Required setting | What it is for |
+|---|---|---|
+| `review`, `fork-review` | Deployment branches: `main` only | Stops a pull request branch from widening its own review |
+| `fork-review` | Required reviewers | Holds a fork's pull request until a maintainer approves the run |
+| `review`, `fork-review` | `vars.OSF_REVIEW_RUNS_ON` | The runner label the review job uses; defaults to `ubuntu-latest` |
+| `review`, `fork-review` | `vars.VERIFIER_APP_ID`, `secrets.VERIFIER_APP_PRIVATE_KEY` | The GitHub App the job mints a short-lived token from, to post the review |
+| `review`, `fork-review` | `secrets.OPENAI_API_KEY`, `secrets.ANTHROPIC_API_KEY`, `secrets.DEEPSEEK_API_KEY` | A reviewer's own key; `osf` itself reads none of them |
 
-- `vars.OSF_REVIEW_RUNS_ON`: the runner label the review job uses.
-  Defaults to `ubuntu-latest`.
-- `vars.VERIFIER_APP_ID` and `secrets.VERIFIER_APP_PRIVATE_KEY`: the
-  GitHub App the job mints a short-lived token from, to post the review.
-- A reviewer's own API key, such as `secrets.ANTHROPIC_API_KEY`: named by
-  you, read by that reviewer's own tool. `osf` itself reads none of them.
-- Branch protection: require the `review` check, and require every
-  conversation resolved, so a person still looks at each finding.
+Branch protection still needs its own setting, outside either
+environment. Require the `review` check. Require every conversation
+resolved too, so a person still looks at each finding.
+
+Use a dedicated key for each reviewer. Do not reuse a key from
+somewhere else. Give each one a low monthly spending cap on the
+provider's own site. A leaked or misbehaving reviewer key then costs
+little to replace. Its cap also limits what a runaway review run can
+spend before anyone notices.
+
+### The container image
+
+Both jobs run in `ghcr.io/open-software-factory/devcontainer:main`.
+This is the same image the development container in this repository
+builds from. It already carries a pinned Rust toolchain, moon, and
+every reviewer tool a roster entry can enable. The job still builds
+`osf` itself from the checked-out base branch. Only where that build
+runs has changed. The image is public. No registry login step is
+needed to pull it.
+
+### Outbound network access
+
+Both jobs run `step-security/harden-runner` as their first step. Its
+policy sets `egress-policy` to `block`, with an explicit list of the
+hosts a review needs. That list names GitHub, the crates.io registry,
+the container registry, and the three reviewer APIs this file also
+names.
+
+This step-security/harden-runner action has one documented gap that
+matters here. It needs sudo access on the runner's own virtual machine
+to work. A job that runs entirely inside a container has no such
+access, for any of its own steps. Both review jobs already run
+entirely inside the image named above. This step therefore adds no
+real enforcement over what a reviewer tool does on the network today.
+It is still added and configured the same way. It then takes over on
+its own, the moment either job stops running fully inside a container.
 
 ### Enable a reviewer
 
-A reviewer is a coding-agent tool, run headless, such as Claude Code or
-Codex. Every shipped reviewer starts disabled. Turn one on in this
+A reviewer is a coding-agent tool, run headless, such as Codex or
+Claude Code. Every shipped reviewer starts disabled. A roster entry
+replaces a shipped one of the same name as a whole entry. Turning one
+on therefore means repeating its whole shape here, in this
 repository's `osf.toml`:
 
 ```toml
 [[review.roster]]
-name = "claude-code"
+name = "codex"
+harness = "codex"
+family = "openai"
+command = ["codex", "exec"]
+schema_flag = "--output-schema"
+schema_as = "path"
 enabled = true
 ```
 
@@ -195,6 +242,26 @@ The name must match a reviewer this tool already ships, or a new entry
 this file adds in full. A reviewer needs its own tool installed and
 logged in inside the development container, the same as it would on a
 person's own machine.
+
+| Reviewer name | Tool | Reads its key from |
+|---|---|---|
+| `codex` | Codex | `OPENAI_API_KEY` (or `CODEX_API_KEY`) |
+| `claude-code` | Claude Code | `ANTHROPIC_API_KEY` |
+| `dsh` | DeepSeek Harness | `DEEPSEEK_API_KEY` |
+
+`osf` never reads or holds any of these keys itself. Each tool reads
+its own key, the same way it would outside `osf`. A reviewer whose key
+is missing exits on its own. `osf` then counts that reviewer as
+could-not-run, and tries the next one. The review as a whole never
+stalls on one missing key.
+
+DeepSeek Harness needs one adjustment the other two do not need. Its
+headless profile takes the task as a command-line argument. It never
+reads one from standard input. The `dsh` entry above wraps the call in
+a small shell script instead: `sh -c 'exec dsh --profile headless
+"$(cat "$1")"' sh {prompt_file}`. That script reads the prompt file
+`osf` already writes. It then passes that file's text as the argument
+DeepSeek Harness expects.
 
 ## The git wrapper, and its limit
 
