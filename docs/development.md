@@ -194,13 +194,24 @@ spend before anyone notices.
 
 ### The container image
 
-Both jobs run in `ghcr.io/open-software-factory/devcontainer:main`.
-This is the same image the development container in this repository
-builds from. It already carries a pinned Rust toolchain, moon, and
-every reviewer tool a roster entry can enable. The job still builds
-`osf` itself from the checked-out base branch. Only where that build
-runs has changed. The image is public. No registry login step is
-needed to pull it.
+Each job now runs directly on the runner. It logs in to `ghcr.io`
+with its own token first. That login works whether the image behind
+it stays public or turns private later. Both jobs pull the same image,
+`ghcr.io/open-software-factory/devcontainer:main`. This is the same
+image the development container in this repository builds from. It
+already carries a pinned Rust toolchain, moon, and every reviewer
+tool a roster entry can enable.
+
+Both the build step and the review step run through `docker run`
+against that image. Each run gets its own fresh, disposable container.
+The build step mounts `base` read-write. `cargo build` writes its own
+output there. The review step mounts `base` read-write again, for the
+`osf` binary the build step just wrote there. It also mounts `pr`
+read-only. The pull request's tree is only ever data this job reads.
+A third mount, `out`, holds the SARIF file and the review's own
+journal and state, both written through `OSF_STATE_DIR`. Only four
+environment variables cross into either container: the verifier's
+token, and the three reviewer keys named below.
 
 ### Outbound network access
 
@@ -210,14 +221,12 @@ hosts a review needs. That list names GitHub, the crates.io registry,
 the container registry, and the three reviewer APIs this file also
 names.
 
-This step-security/harden-runner action has one documented gap that
-matters here. It needs sudo access on the runner's own virtual machine
-to work. A job that runs entirely inside a container has no such
-access, for any of its own steps. Both review jobs already run
-entirely inside the image named above. This step therefore adds no
-real enforcement over what a reviewer tool does on the network today.
-It is still added and configured the same way. It then takes over on
-its own, the moment either job stops running fully inside a container.
+This step-security/harden-runner action needs sudo access on the
+runner's own virtual machine to enforce that policy. A job-level
+container would leave none of its own steps that access. This is one
+reason each job now runs directly on the runner instead, using
+`docker run` only for the build and the review. Every step then falls
+under that one policy. So does the traffic each docker container makes.
 
 ### Enable a reviewer
 

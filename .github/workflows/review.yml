@@ -68,8 +68,12 @@ jobs:
           persist-credentials: false
 
       - name: Build osf from the base branch only, with no cache
-        working-directory: base
-        run: cargo build --release --bin osf
+        run: >-
+          docker run --rm
+          -v "${{ github.workspace }}/base:/base"
+          -w /base
+          ghcr.io/open-software-factory/devcontainer:main
+          cargo build --release --bin osf
 
       - name: Mint the verifier's own token
         id: verifier-token
@@ -83,19 +87,35 @@ jobs:
       - name: Fetch the base commit into the pull request's own checkout
         run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
 
+      - name: Make a writable folder for the review's own output
+        run: mkdir -p "${{ github.workspace }}/out"
+
       # Reviewer API keys, if any, are the adopter's own secrets; osf reads none of them.
+      # `pr` is mounted read-only: the pull request's tree is data, never a
+      # place this job writes to. `base` stays writable, the same mount the
+      # build step above already wrote `target/release/osf` into.
       - name: Run the review, reading the pull request's tree as data
-        working-directory: pr
         env:
           GH_TOKEN: ${{ steps.verifier-token.outputs.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: >-
-          ${{ github.workspace }}/base/target/release/osf review run
+          docker run --rm
+          -v "${{ github.workspace }}/base:/base"
+          -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/out:/out"
+          -w /pr
+          -e GH_TOKEN
+          -e OPENAI_API_KEY
+          -e ANTHROPIC_API_KEY
+          -e DEEPSEEK_API_KEY
+          -e OSF_STATE_DIR=/out/state
+          ghcr.io/open-software-factory/devcontainer:main
+          /base/target/release/osf review run
           --base ${{ github.event.pull_request.base.sha }}
-          --config-root ${{ github.workspace }}/base
-          --sarif-out ${{ github.workspace }}/review.sarif
+          --config-root /base
+          --sarif-out /out/review.sarif
           --post-to ${{ github.repository }}#${{ github.event.pull_request.number }}
 
       - name: Keep the review findings
@@ -103,7 +123,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: review-findings
-          path: review.sarif
+          path: out/review.sarif
           if-no-files-found: ignore
 
   review-fork:
@@ -157,8 +177,12 @@ jobs:
           persist-credentials: false
 
       - name: Build osf from the base branch only, with no cache
-        working-directory: base
-        run: cargo build --release --bin osf
+        run: >-
+          docker run --rm
+          -v "${{ github.workspace }}/base:/base"
+          -w /base
+          ghcr.io/open-software-factory/devcontainer:main
+          cargo build --release --bin osf
 
       - name: Mint the verifier's own token
         id: verifier-token
@@ -172,19 +196,35 @@ jobs:
       - name: Fetch the base commit into the pull request's own checkout
         run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
 
+      - name: Make a writable folder for the review's own output
+        run: mkdir -p "${{ github.workspace }}/out"
+
       # Reviewer API keys, if any, are the adopter's own secrets; osf reads none of them.
+      # `pr` is mounted read-only: the pull request's tree is data, never a
+      # place this job writes to. `base` stays writable, the same mount the
+      # build step above already wrote `target/release/osf` into.
       - name: Run the review, reading the pull request's tree as data
-        working-directory: pr
         env:
           GH_TOKEN: ${{ steps.verifier-token.outputs.token }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: >-
-          ${{ github.workspace }}/base/target/release/osf review run
+          docker run --rm
+          -v "${{ github.workspace }}/base:/base"
+          -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/out:/out"
+          -w /pr
+          -e GH_TOKEN
+          -e OPENAI_API_KEY
+          -e ANTHROPIC_API_KEY
+          -e DEEPSEEK_API_KEY
+          -e OSF_STATE_DIR=/out/state
+          ghcr.io/open-software-factory/devcontainer:main
+          /base/target/release/osf review run
           --base ${{ github.event.pull_request.base.sha }}
-          --config-root ${{ github.workspace }}/base
-          --sarif-out ${{ github.workspace }}/review.sarif
+          --config-root /base
+          --sarif-out /out/review.sarif
           --post-to ${{ github.repository }}#${{ github.event.pull_request.number }}
 
       - name: Keep the review findings
@@ -192,5 +232,5 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: review-findings
-          path: review.sarif
+          path: out/review.sarif
           if-no-files-found: ignore
