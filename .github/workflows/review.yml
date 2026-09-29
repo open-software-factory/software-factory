@@ -16,9 +16,14 @@ concurrency:
 jobs:
   review:
     name: review
-    # A same-repository pull request runs with no environment gate.
+    # A same-repository pull request still runs its review job on a
+    # workflow the pull request cannot change (pull_request_target), but
+    # the job itself can read every repository secret. The `review`
+    # environment holds the secrets this job reads, and only main can
+    # deploy to it, so a branch cannot widen what a review run can see.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
+    environment: review
     steps:
       - name: Check out the base branch, the only code this job runs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -76,7 +81,8 @@ jobs:
 
   review-fork:
     name: review (fork)
-    # A fork's pull request runs only once a maintainer approves this environment.
+    # A fork's pull request runs only once a maintainer approves this
+    # environment, and only main can deploy to it, the same as `review`.
     if: github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
     environment: fork-review
