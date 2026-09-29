@@ -24,6 +24,8 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
     environment: review
+    # This image is public, so no registry login step is needed here.
+    container: ghcr.io/open-software-factory/devcontainer:main
     steps:
       - name: Check out the base branch, the only code this job runs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -86,6 +88,8 @@ jobs:
     if: github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
     environment: fork-review
+    # This image is public, so no registry login step is needed here.
+    container: ghcr.io/open-software-factory/devcontainer:main
     steps:
       - name: Check out the base branch, the only code this job runs
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
