@@ -98,7 +98,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     let threshold = review_config.threshold;
     let timeout = Duration::from_secs(review_config.timeout_seconds);
 
-    let builder_families = detect_builder_families(req, &review_config)?;
+    let (builder_families, skip_families) = detect_builder_families(req, &review_config)?;
 
     let sources = Sources {
         root: req.root,
@@ -123,15 +123,8 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
     for selected_lens in &selected {
         let lens = selected_lens.lens;
-        let (verdict, attempts) = run_lens(
-            req.root,
-            req.config_root,
-            lens,
-            depth,
-            &sources,
-            &enabled,
-            timeout,
-        );
+        let (verdict, attempts) =
+            run_lens(lens, depth, &sources, &enabled, &skip_families, timeout);
         for attempt in attempts {
             if let Some(journal) = journal.as_mut() {
                 let event = attempt.into_event(&lens.name);
@@ -188,25 +181,30 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     })
 }
 
-/// The builder families for `req`'s own reviewed range: `req.builder_family_overrides`
-/// verbatim, sorted and deduplicated, when the caller named at least one
-/// with `--builder-family`; otherwise every commit's own `Code-Generator:`
-/// trailer in the range, mapped through `osf.toml`'s own aliases and the
-/// shipped table. See [`builder::detect`].
+/// The builder families for `req`'s own reviewed range (see
+/// [`builder::detect`]), and the subset of them a roster entry is left out
+/// for: every detected family other than [`builder::UNKNOWN`], which names
+/// no real family to leave a reviewer out for.
 ///
 /// # Errors
 /// Returns an error when git cannot read the reviewed range's own commits.
 fn detect_builder_families(
     req: &Request,
     review_config: &config::ReviewConfig,
-) -> Result<Vec<String>, String> {
+) -> Result<(Vec<String>, BTreeSet<String>), String> {
     let range = format!("{}..HEAD", req.base);
-    builder::detect(
+    let families = builder::detect(
         req.root,
         &range,
         &review_config.builder_family_aliases,
         req.builder_family_overrides,
-    )
+    )?;
+    let skip: BTreeSet<String> = families
+        .iter()
+        .filter(|family| family.as_str() != builder::UNKNOWN)
+        .cloned()
+        .collect();
+    Ok((families, skip))
 }
 
 /// One reviewer's attempt at answering for one lens, kept just long enough
@@ -258,16 +256,18 @@ impl Attempt {
 }
 
 /// Builds `lens`'s context, then runs enabled reviewers over it in roster
-/// order until two families have answered or the roster runs out. A
-/// context failure makes the whole lens could-not-run, naming the reason,
-/// with no reviewer ever asked.
+/// order until two non-builder families have answered or the roster runs
+/// out. A reviewer whose family is in `skip_families` (the families that
+/// built this change; see [`builder::detect`]) is never run: it is not an
+/// independent second opinion on its own change. A context failure makes
+/// the whole lens could-not-run, naming the reason, with no reviewer ever
+/// asked.
 fn run_lens(
-    root: &Path,
-    config_root: &Path,
     lens: &Lens,
     depth: Depth,
     sources: &Sources,
     enabled: &[&Reviewer],
+    skip_families: &BTreeSet<String>,
     timeout: Duration,
 ) -> (LensVerdict, Vec<Attempt>) {
     let context = match review_context::build(lens, depth, sources) {
@@ -282,7 +282,18 @@ fn run_lens(
         if families.len() >= QUORUM_FAMILIES {
             break;
         }
-        let attempt = attempt_reviewer(root, config_root, reviewer, &prompt, lens, timeout);
+        if skip_families.contains(&reviewer.family) {
+            attempts.push(skipped_attempt(reviewer));
+            continue;
+        }
+        let attempt = attempt_reviewer(
+            sources.root,
+            sources.config_root,
+            reviewer,
+            &prompt,
+            lens,
+            timeout,
+        );
         if attempt.lens_answer.answer.is_some() {
             families.insert(attempt.lens_answer.family.clone());
         }
@@ -290,8 +301,54 @@ fn run_lens(
     }
 
     let lens_answers: Vec<LensAnswer> = attempts.iter().map(|a| a.lens_answer.clone()).collect();
-    let verdict = reducer::decide_lens(lens, &lens_answers);
+    let verdict = name_builder_exclusion(
+        reducer::decide_lens(lens, &lens_answers),
+        skip_families,
+        &attempts,
+    );
     (verdict, attempts)
+}
+
+/// The attempt recorded for a reviewer never run because its family built
+/// this change: no harness call, no finding, its `answer` left `None` so
+/// [`reducer::decide_lens`] counts it as missing rather than a family that
+/// answered.
+fn skipped_attempt(reviewer: &Reviewer) -> Attempt {
+    Attempt {
+        lens_answer: LensAnswer {
+            reviewer: reviewer.name.clone(),
+            family: reviewer.family.clone(),
+            answer: None,
+            reason: Some(format!("the builder's own family ({})", reviewer.family)),
+        },
+        result: "skipped",
+        findings_kept: 0,
+        findings_dropped: 0,
+        kept: Vec::new(),
+    }
+}
+
+/// `verdict`, with its could-not-run reason naming `skip_families` when at
+/// least one reviewer was left out of `attempts` for building this change:
+/// a reader seeing too few families answer should learn why, not just that
+/// it happened. Every other verdict, and a could-not-run one with no
+/// builder-family skip behind it, passes through unchanged.
+fn name_builder_exclusion(
+    verdict: LensVerdict,
+    skip_families: &BTreeSet<String>,
+    attempts: &[Attempt],
+) -> LensVerdict {
+    let any_skipped = attempts.iter().any(|a| a.result == "skipped");
+    match verdict {
+        LensVerdict::CouldNotRun(reason) if any_skipped && !skip_families.is_empty() => {
+            let names: Vec<&str> = skip_families.iter().map(String::as_str).collect();
+            LensVerdict::CouldNotRun(format!(
+                "{reason}; the builder's own family is left out: {}",
+                names.join(", ")
+            ))
+        }
+        other => other,
+    }
 }
 
 /// Runs one reviewer for one lens, and turns its outcome into the shape

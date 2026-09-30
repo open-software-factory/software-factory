@@ -112,6 +112,24 @@ fn review_repo(name: &str, osf_toml: &str) -> TempRepo {
     repo
 }
 
+/// The same as [`review_repo`], except the reviewed commit carries a
+/// `Code-Generator:` trailer naming `trailer_model`, so `osf review run`
+/// detects a builder family for it.
+fn review_repo_built_by(name: &str, osf_toml: &str, trailer_model: &str) -> TempRepo {
+    let repo = TempRepo::new(name);
+    write_lens_overrides(&repo);
+    repo.write("osf.toml", osf_toml);
+    repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
+    repo.write("README.md", "base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("README.md", "base\nplus a change to review\n");
+    repo.commit(&format!(
+        "a small change to review\n\nCode-Generator: {trailer_model} <noreply@example.com>\n"
+    ));
+    repo
+}
+
 /// The fake harness, invoked with `answer_path`'s content wired to its own
 /// `OSF_FAKE_ANSWER`, as a single command line so each roster entry can
 /// carry its own canned answer independently of process-wide environment
@@ -525,6 +543,74 @@ fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
 /// `anthropic` this change's builder family. With codex (openai),
 /// claude-code (anthropic) and dsh (deepseek) all enabled, claude-code is
 /// left out and the other two still answer and reach quorum.
+#[test]
+fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pass() {
+    let osf_toml = format!(
+        "{}{}{}",
+        roster_entry_toml("codex", "openai", &fixture("valid.json"), true),
+        roster_entry_toml("claude-code", "anthropic", &fixture("valid.json"), true),
+        roster_entry_toml("dsh", "deepseek", &fixture("valid.json"), true),
+    );
+    let repo = review_repo_built_by("builder-family-skip", &osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-builder-family-skip");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let types = journal_event_types(&home);
+    assert_eq!(
+        types.iter().filter(|t| *t == "review-answer").count(),
+        3,
+        "one review-answer event per roster entry, including the skipped one: {types:?}"
+    );
+    let decision = journal_review_decision(&home);
+    let builder_families: Vec<&str> = decision
+        .get("builder_families")
+        .and_then(serde_json::Value::as_array)
+        .expect("builder_families is an array")
+        .iter()
+        .map(|v| v.as_str().expect("a family name"))
+        .collect();
+    assert_eq!(builder_families, vec!["anthropic"]);
+}
+
+/// With only codex (openai) and claude-code (anthropic) enabled, and the
+/// change built by Claude, claude-code is left out and only one family
+/// (openai) is left to answer: too few for quorum, could-not-run, and the
+/// reason names the builder family that was left out.
+#[test]
+fn fewer_than_two_non_builder_families_is_could_not_run_naming_the_builder_family() {
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("codex", "openai", &fixture("valid.json"), true),
+        roster_entry_toml("claude-code", "anthropic", &fixture("valid.json"), true),
+    );
+    let repo = review_repo_built_by("builder-family-could-not-run", &osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-builder-family-could-not-run");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("builder"), "{stdout}");
+    assert!(stdout.contains("anthropic"), "{stdout}");
+}
+
 /// No `Code-Generator:` trailer at all on the reviewed commit records the
 /// builder family as `unknown`, and every enabled reviewer still runs, the
 /// same as before this module knew about builder families at all.
