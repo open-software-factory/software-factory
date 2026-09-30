@@ -62,6 +62,9 @@ pub struct ReviewAnswer {
     pub lens: String,
     pub reviewer: String,
     pub family: String,
+    /// The model the reviewer's harness was pinned to, when its roster
+    /// entry named one. `None` when the harness ran with its own default.
+    pub model: Option<String>,
     pub result: String,
     pub scores: BTreeMap<String, f64>,
     pub findings_kept: u32,

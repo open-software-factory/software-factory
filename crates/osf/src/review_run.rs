@@ -211,6 +211,9 @@ fn detect_builder_families(
 /// to build both the journal event and the reducer's own input from it.
 struct Attempt {
     lens_answer: LensAnswer,
+    /// The model the reviewer's roster entry pinned, if any, carried
+    /// through to the journal untouched by anything this module decides.
+    model: Option<String>,
     result: &'static str,
     findings_kept: u32,
     findings_dropped: u32,
@@ -232,6 +235,7 @@ impl Attempt {
             lens: lens.to_string(),
             reviewer: self.lens_answer.reviewer,
             family: self.lens_answer.family,
+            model: self.model,
             result: self.result.to_string(),
             scores,
             findings_kept: self.findings_kept,
@@ -321,6 +325,7 @@ fn skipped_attempt(reviewer: &Reviewer) -> Attempt {
             answer: None,
             reason: Some(format!("the builder's own family ({})", reviewer.family)),
         },
+        model: reviewer.model.clone(),
         result: "skipped",
         findings_kept: 0,
         findings_dropped: 0,
@@ -382,6 +387,7 @@ fn attempt_reviewer(
                     answer: Some(checked.kept),
                     reason: None,
                 },
+                model: reviewer.model.clone(),
                 result: "answered",
                 findings_kept,
                 findings_dropped,
@@ -395,6 +401,7 @@ fn attempt_reviewer(
                 answer: None,
                 reason: Some(reason),
             },
+            model: reviewer.model.clone(),
             result: "invalid",
             findings_kept: 0,
             findings_dropped: 0,
@@ -407,6 +414,7 @@ fn attempt_reviewer(
                 answer: None,
                 reason: Some(reason),
             },
+            model: reviewer.model.clone(),
             result: "could-not-run",
             findings_kept: 0,
             findings_dropped: 0,

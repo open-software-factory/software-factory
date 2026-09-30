@@ -68,6 +68,8 @@ fn fake_reviewer() -> Reviewer {
         schema_flag: None,
         schema_as: SchemaArg::default(),
         answer_pointer: String::new(),
+        model: None,
+        model_flag: None,
         enabled: true,
     }
 }

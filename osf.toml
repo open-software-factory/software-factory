@@ -37,6 +37,8 @@ must_explain_names = ["Linear", "Canny", "Figma", "Jira", "Intercom", "Zendesk"]
 
 # codex reads its key from OPENAI_API_KEY (or CODEX_API_KEY), the same
 # variable the review workflow already sets for this job.
+# model is left unset: codex uses its own default model. Pin one with
+# model = "<model-id>" (codex exec's own --model/-m flag).
 [[review.roster]]
 name = "codex"
 harness = "codex"
@@ -44,10 +46,13 @@ family = "openai"
 command = ["codex", "exec"]
 schema_flag = "--output-schema"
 schema_as = "path"
+model_flag = "--model"
 enabled = true
 
 # claude reads its key from ANTHROPIC_API_KEY, the same variable the
 # review workflow already sets for this job.
+# model is left unset: claude uses its own default model. Pin one with
+# model = "<model-id>" (claude's own --model flag).
 [[review.roster]]
 name = "claude-code"
 harness = "claude"
@@ -56,12 +61,15 @@ command = ["claude", "--print", "--output-format", "json"]
 schema_flag = "--json-schema"
 schema_as = "inline"
 answer_pointer = "/structured_output"
+model_flag = "--model"
 enabled = true
 
 # dsh reads its key from DEEPSEEK_API_KEY. Its headless profile takes
 # the task as a command-line argument, not on standard input, so this
 # entry reads the prompt file itself and passes its contents as that
 # argument, through a small shell wrapper.
+# model is left unset: DeepSeek Harness's headless profile has no model
+# flag of its own, so it always answers with its profile's own model.
 [[review.roster]]
 name = "dsh"
 harness = "dsh"

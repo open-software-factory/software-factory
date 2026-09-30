@@ -56,6 +56,15 @@ pub struct Reviewer {
     /// is the answer.
     #[serde(default)]
     pub answer_pointer: String,
+    /// The model this reviewer's harness should use, when pinned. Left
+    /// unset, the harness falls back to its own default model.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// The flag that introduces `model`'s value on the harness's own
+    /// command line, such as `"--model"` or `"-m"`. Ignored when `model` is
+    /// `None`.
+    #[serde(default)]
+    pub model_flag: Option<String>,
     #[serde(default)]
     pub enabled: bool,
 }
@@ -304,7 +313,8 @@ fn run_child(
 }
 
 /// `reviewer.command`, with `{prompt_file}` replaced by `prompt_file`'s
-/// path, and `schema_flag`/its value appended when the reviewer declares one.
+/// path, `schema_flag`/its value appended when the reviewer declares one,
+/// and `model_flag`/`model` appended when both are set.
 fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Vec<String> {
     let prompt_path = prompt_file.to_string_lossy().into_owned();
     let mut args: Vec<String> = reviewer
@@ -324,6 +334,10 @@ fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Ve
             SchemaArg::Path => schema_file.to_string_lossy().into_owned(),
             SchemaArg::Inline => answer::SCHEMA.to_string(),
         });
+    }
+    if let (Some(flag), Some(model)) = (&reviewer.model_flag, &reviewer.model) {
+        args.push(flag.clone());
+        args.push(model.clone());
     }
     args
 }
@@ -362,6 +376,8 @@ mod tests {
             schema_flag: None,
             schema_as: SchemaArg::default(),
             answer_pointer: String::new(),
+            model: None,
+            model_flag: None,
             enabled: false,
         }
     }
@@ -412,6 +428,31 @@ mod tests {
             args,
             vec!["fake", "/tmp/prompt.txt", "--schema", "/tmp/schema.json"]
         );
+    }
+
+    #[test]
+    fn build_args_appends_the_model_flag_and_value_when_both_are_set() {
+        let mut r = reviewer("fake", vec!["fake"]);
+        r.model_flag = Some("--model".to_string());
+        r.model = Some("claude-sonnet-5".to_string());
+        let args = build_args(
+            &r,
+            Path::new("/tmp/prompt.txt"),
+            Path::new("/tmp/schema.json"),
+        );
+        assert_eq!(args, vec!["fake", "--model", "claude-sonnet-5"]);
+    }
+
+    #[test]
+    fn build_args_omits_the_model_flag_when_no_model_is_set() {
+        let mut r = reviewer("fake", vec!["fake"]);
+        r.model_flag = Some("--model".to_string());
+        let args = build_args(
+            &r,
+            Path::new("/tmp/prompt.txt"),
+            Path::new("/tmp/schema.json"),
+        );
+        assert_eq!(args, vec!["fake"]);
     }
 
     #[test]
