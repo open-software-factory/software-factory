@@ -29,6 +29,13 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 - Workflow skills: prefer composition/reuse over re-implementation.
 - Compute: local and remote runners, several operating systems and processor architectures, and eventually caching are expected concerns but are not reasons to bloat the first kernel.
 
+## Branches
+
+- Start a new stack with `git town hack <name>`. Add to the stack you are on with `git town append <name>`.
+- If a branch's parent was never recorded this way, record it once with `git town set-parent`.
+- After a change lands lower in a stack, run `git town sync` to bring every branch above it up to date.
+- Never force-push a branch someone else is working on.
+
 ## Before coding
 
 1. Read the three documents in [`docs/vision/`](docs/vision/).
