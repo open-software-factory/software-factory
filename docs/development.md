@@ -179,7 +179,7 @@ create it. Set up this short list, then the check is live.
 - Branch protection that requires the `review` job. Require every
   conversation resolved too, so a person still looks at each finding.
 
-A fork's pull request runs a separate job, named `review (fork)`. It
+A fork's pull request runs a separate job, also named `review`. It
 fails on purpose, with one line explaining why, unless the repository
 variable `OSF_REVIEW_FORKS` is `true` and the `fork-review` environment
 is also set up. This is why: GitHub creates a missing environment on

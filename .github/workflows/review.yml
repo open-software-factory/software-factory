@@ -127,7 +127,7 @@ jobs:
           if-no-files-found: ignore
 
   review-fork-disabled:
-    name: review (fork)
+    name: review
     # GitHub creates a missing environment on demand, with no protection
     # at all. Gating on the `fork-review` environment alone would let an
     # adopter who never set it up run a fork's pull request anyway, with
@@ -152,7 +152,7 @@ jobs:
           exit 1
 
   review-fork:
-    name: review (fork)
+    name: review
     # A fork's pull request runs only once an adopter turns this on with
     # the OSF_REVIEW_FORKS variable, and only once a maintainer approves
     # the `fork-review` environment, the same as `review` does for `main`.
