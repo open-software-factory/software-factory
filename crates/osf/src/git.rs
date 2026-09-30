@@ -97,6 +97,20 @@ pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
     .map(|raw| split_nul(&raw))
 }
 
+/// Paths that differ between `base` and `head`, whatever they are: added,
+/// modified, deleted, or renamed as one path gone and another appearing.
+/// Unlike [`changed_files`], this takes both sides explicitly and diffs
+/// them directly, with no three-dot merge-base and no assumption that
+/// `HEAD` is one of the two points being compared.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` or
+/// `head` does not resolve.
+pub fn diff_name_only_between(dir: &Path, base: &str, head: &str) -> Result<Vec<String>, GitError> {
+    run_text(dir, &["diff", "--name-only", base, head])
+        .map(|t| t.lines().map(str::to_string).collect())
+}
+
 /// Paths that differ between `base` and `HEAD`: added, copied, modified or renamed.
 ///
 /// # Errors

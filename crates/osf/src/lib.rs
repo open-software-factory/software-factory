@@ -16,4 +16,5 @@ pub mod risk;
 pub mod scan;
 pub mod section;
 pub mod status;
+pub mod test_summary;
 pub mod verify;

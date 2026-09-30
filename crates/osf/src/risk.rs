@@ -120,7 +120,10 @@ fn code_dirs_pattern() -> String {
     format!("^({dirs})/")
 }
 const DOC_FILES: &str = r"\.(md|txt|rst|adoc)$|^docs/";
-const TEST_FILES: &str = r"(^|/)(tests?|spec|specs|__tests__|test_data|fixtures)/|[._-](test|tests|spec)\.[a-z]+$|_test\.go$|Tests?\.cs$|Test\.java$|Tests?\.kt$|_test\.dart$";
+/// A path that looks like a test file in any language, by name or
+/// location. Shared with [`crate::test_summary`], so the Rust test summary
+/// names a non-Rust test file the same way this module already treats one.
+pub(crate) const TEST_FILES: &str = r"(^|/)(tests?|spec|specs|__tests__|test_data|fixtures)/|[._-](test|tests|spec)\.[a-z]+$|_test\.go$|Tests?\.cs$|Test\.java$|Tests?\.kt$|_test\.dart$";
 const UI_PATTERN: &str = r"\.(dart|tsx|jsx|vue|svelte|xaml|razor|html|css|scss)$|(^|/)(screens?|widgets?|pages?|views?|components?)/";
 const DOCS_PATTERN: &str = r"^docs/|(^|/)(adr|decisions|design)/.*\.md$";
 const DEPS_PATTERN: &str = r"(^|/)(package(-lock)?\.json|pnpm-lock\.yaml|yarn\.lock|packages\.lock\.json|Directory\.Packages\.props|.*\.csproj|build\.gradle(\.kts)?|gradle\.lockfile|libs\.versions\.toml|pubspec\.(yaml|lock)|pyproject\.toml|uv\.lock|requirements[^/]*\.txt|Cargo\.(toml|lock)|go\.(mod|sum))$";

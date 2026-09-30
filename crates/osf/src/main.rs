@@ -1,5 +1,8 @@
 use osf::status::GhClient;
-use osf::{assets, config, exclude, git, hook, lints, review, risk, scan, section, status, verify};
+use osf::{
+    assets, config, exclude, git, hook, lints, review, risk, scan, section, status, test_summary,
+    verify,
+};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -210,6 +213,20 @@ enum StatusAction {
     /// Recompute the status block from the pull request's current state and
     /// write it back only when it changed.
     Refresh(StatusRefreshArgs),
+    /// Print the Rust test summary alone: the same tests-added-changed-
+    /// removed report the block carries, for a person or another tool to
+    /// read without going through a pull request at all.
+    Tests(StatusTestsArgs),
+}
+
+#[derive(Args)]
+struct StatusTestsArgs {
+    /// What to diff against: a remote-tracking ref or any commit-ish.
+    #[arg(long, default_value = "origin/main")]
+    base: String,
+    /// The other side of the diff.
+    #[arg(long, default_value = "HEAD")]
+    head: String,
 }
 
 #[derive(Args)]
@@ -589,6 +606,9 @@ fn main() -> ExitCode {
         Command::Status {
             action: StatusAction::Refresh(args),
         } => status_refresh_cmd(args),
+        Command::Status {
+            action: StatusAction::Tests(args),
+        } => status_tests_cmd(args),
         Command::Review {
             action: ReviewAction::Post(args),
         } => review_post_cmd(args),
@@ -1292,6 +1312,7 @@ fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
         problem: &args.problem,
         approach: &args.approach,
         review_json: &review_text,
+        tests: None,
     };
     match status::render(&input) {
         Ok(block) => {
@@ -1366,6 +1387,19 @@ fn print_dry_run(args: &ReviewPostArgs, plan: &review::Plan, head_sha: &str) -> 
         }
         Err(e) => {
             eprintln!("osf: cannot render the review as JSON: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn status_tests_cmd(args: &StatusTestsArgs) -> ExitCode {
+    match test_summary::summarize(Path::new("."), &args.base, &args.head) {
+        Ok(summary) => {
+            println!("{}", test_summary::render(&summary));
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
             ExitCode::from(2)
         }
     }
@@ -1574,6 +1608,11 @@ fn status_refresh_run(
     let gates = status_refresh_gates(client, &args.repo, &args.pr, args.checks_json.as_ref())?;
     let review_text =
         status_refresh_review(client, &args.repo, &args.pr, args.review_json.as_ref())?;
+    let tests_summary = test_summary::summarize(Path::new("."), &base, "HEAD").map_err(|e| {
+        eprintln!("osf: {e}");
+        ExitCode::from(2)
+    })?;
+    let tests_text = test_summary::render(&tests_summary);
 
     let input = status::RenderInput {
         tier_json: &tier_text,
@@ -1581,6 +1620,7 @@ fn status_refresh_run(
         problem: &problem,
         approach: &approach,
         review_json: &review_text,
+        tests: Some(&tests_text),
     };
     let block = status::render(&input).map_err(to_exit)?;
     let unchanged = status::is_unchanged(&pr_info.body, &block).map_err(to_exit)?;

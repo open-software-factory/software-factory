@@ -33,6 +33,7 @@ fn base_input<'a>(gates: &'a str, review_json: &'a str) -> RenderInput<'a> {
         problem: "The problem.",
         approach: "The approach.",
         review_json,
+        tests: None,
     }
 }
 
@@ -152,6 +153,7 @@ fn review_json_that_is_not_json_at_all_is_refused() {
         problem: "p",
         approach: "a",
         review_json: "",
+        tests: None,
     };
     assert!(status::render(&input).is_err());
 }
@@ -164,6 +166,7 @@ fn review_json_with_a_non_object_review_is_refused() {
         problem: "p",
         approach: "a",
         review_json: r#"{"reviews":[1]}"#,
+        tests: None,
     };
     let err = status::render(&input).expect_err("a non-object review is refused");
     assert!(format!("{err}").contains("shape"), "{err}");
@@ -198,6 +201,28 @@ fn render_gives_byte_identical_output_on_the_same_inputs() {
     let first = status::render(&input).expect("first render succeeds");
     let second = status::render(&input).expect("second render succeeds");
     assert_eq!(first.as_bytes(), second.as_bytes());
+}
+
+#[test]
+fn with_no_tests_summary_the_block_is_unchanged_from_before_it_existed() {
+    let review = advisory_two_rounds_review();
+    let input = base_input("build: passed", &review);
+    let block = status::render(&input).expect("render succeeds");
+    assert!(block.contains("**Approach**: The approach.\n<!-- factory:status:end -->"));
+    assert!(!block.contains("**Tests**"));
+}
+
+#[test]
+fn a_given_tests_summary_lands_between_approach_and_the_end_marker() {
+    let review = advisory_two_rounds_review();
+    let input = RenderInput {
+        tests: Some("**Tests**: 1 added, 0 changed, 0 removed"),
+        ..base_input("build: passed", &review)
+    };
+    let block = status::render(&input).expect("render succeeds");
+    assert!(block.contains(
+        "**Approach**: The approach.\n\n**Tests**: 1 added, 0 changed, 0 removed\n<!-- factory:status:end -->"
+    ));
 }
 
 const BODY_WITH_BLOCK: &str = "<!-- factory:status:begin -->\n| | |\n|---|---|\n| **Ready** | blocked by review: pending |\n| **Risk** | low \u{2014} old reasons |\n<!-- factory:status:end -->\n\n## What changed and why\n\nBody text that must not change.\n\n## Issue\n\nCloses open-software-factory/software-factory#1, the thing.\n";
@@ -501,6 +526,7 @@ fn gates_from_checks_json_of_an_empty_array_reads_as_no_checks_reported_yet() {
         problem: "p",
         approach: "a",
         review_json: &review,
+        tests: None,
     };
     let block = status::render(&input).expect("render succeeds");
     assert_eq!(

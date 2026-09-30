@@ -44,6 +44,11 @@ pub struct RenderInput<'a> {
     pub problem: &'a str,
     pub approach: &'a str,
     pub review_json: &'a str,
+    /// The Rust test summary, already rendered by
+    /// [`crate::test_summary::render`], or `None` to leave it out: this
+    /// module stays a pure function of its inputs and never builds one
+    /// itself.
+    pub tests: Option<&'a str>,
 }
 
 /// Renders the status block. Ready is `yes` only when every gate passed,
@@ -65,6 +70,10 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
     let review = parse_review(input.review_json)?;
     let (review_line, ready) = review_and_ready(&gates, &review);
     let verified = gates.verified_text();
+    let tests_section = input
+        .tests
+        .map(|tests| format!("\n{tests}\n"))
+        .unwrap_or_default();
 
     Ok(format!(
         "{BEGIN}\n\
@@ -77,6 +86,7 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
          \n\
          **Problem**: {problem}\n\
          **Approach**: {approach}\n\
+         {tests_section}\
          {END}\n",
         problem = input.problem,
         approach = input.approach,
