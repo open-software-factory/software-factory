@@ -179,6 +179,12 @@ fn is_readable(text: &str) -> bool {
     text.chars().any(char::is_alphanumeric)
 }
 
+/// What [`describe`] returns when neither the doc comment nor the name
+/// reads as anything. An added test still has to say which test it is
+/// without showing the raw name, so [`render`] adds the file when it
+/// meets this exact text.
+const NO_DESCRIPTION: &str = "no description";
+
 /// The one-line description for a test: its doc comment when it has one
 /// and the doc comment reads as something; otherwise its name turned into
 /// words, when that reads as something; otherwise a plain admission that
@@ -193,7 +199,7 @@ fn describe(doc_lines: &[String], fn_name: &str) -> String {
     if is_readable(&from_name) {
         return from_name;
     }
-    "no description".to_string()
+    NO_DESCRIPTION.to_string()
 }
 
 /// Walks one list of siblings (a file's top level, or one module's body),
@@ -405,8 +411,11 @@ pub fn summarize(dir: &Path, base: &str, head: &str) -> Result<Summary, TestSumm
 
 /// Renders a [`Summary`] as the Markdown this build puts in the status
 /// block, and what `osf status tests` prints on its own: the totals, then
-/// one group per file, each with its removed tests first, then its added
-/// tests, then its changed tests named by description alone.
+/// one group per file, each with its removed tests first, by name and
+/// description, then its added and changed tests by description alone.
+/// Only a removed test is ever named: issue #15 shows the raw identifier
+/// nowhere else. An added test with no readable description still says
+/// which one it is, by naming the file instead of the test.
 #[must_use]
 pub fn render(summary: &Summary) -> String {
     let mut out = String::new();
@@ -439,8 +448,13 @@ pub fn render(summary: &Summary) -> String {
                         .expect("writing to a string never fails");
                 }
                 for test in added {
-                    writeln!(out, "  - added `{}`: {}", test.name, test.description)
-                        .expect("writing to a string never fails");
+                    if test.description == NO_DESCRIPTION {
+                        writeln!(out, "  - added: no description (in {})", group.file)
+                            .expect("writing to a string never fails");
+                    } else {
+                        writeln!(out, "  - added: {}", test.description)
+                            .expect("writing to a string never fails");
+                    }
                 }
                 for test in changed {
                     writeln!(out, "  - changed: {}", test.description)
@@ -524,5 +538,41 @@ mod tests {
     fn looks_like_a_test_file_matches_common_test_layouts() {
         assert!(looks_like_a_test_file("service/tests/test_thing.py"));
         assert!(!looks_like_a_test_file("service/src/thing.py"));
+    }
+
+    fn one_added_test_group(name: &str, description: &str) -> Summary {
+        Summary {
+            added: 1,
+            changed: 0,
+            removed: 0,
+            groups: vec![Group {
+                crate_name: "osf".to_string(),
+                file: "crates/osf/src/thing.rs".to_string(),
+                body: GroupBody::Tests {
+                    removed: Vec::new(),
+                    added: vec![TestEntry {
+                        name: name.to_string(),
+                        description: description.to_string(),
+                    }],
+                    changed: Vec::new(),
+                },
+            }],
+        }
+    }
+
+    #[test]
+    fn render_writes_an_added_test_by_description_alone() {
+        let summary = one_added_test_group("an_added_test", "an added test");
+        let text = render(&summary);
+        assert!(text.contains("- added: an added test"));
+        assert!(!text.contains("an_added_test"), "{text}");
+    }
+
+    #[test]
+    fn render_names_the_file_when_an_added_test_has_no_description() {
+        let summary = one_added_test_group("___", NO_DESCRIPTION);
+        let text = render(&summary);
+        assert!(text.contains("added: no description (in crates/osf/src/thing.rs)"));
+        assert!(!text.contains('_'), "{text}");
     }
 }

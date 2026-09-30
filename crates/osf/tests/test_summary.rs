@@ -241,9 +241,24 @@ fn render_lists_removed_then_added_then_changed_by_description_alone() {
     let text = render(&summary);
     assert!(text.starts_with("**Tests**: 1 added, 1 changed, 1 removed"));
     let removed_at = text.find("removed `a_removed_test`").expect("removed line");
-    let added_at = text.find("added `an_added_test`").expect("added line");
+    let added_at = text.find("added: an added test").expect("added line");
     let changed_at = text.find("changed: a kept test").expect("changed line");
     assert!(removed_at < added_at, "{text}");
     assert!(added_at < changed_at, "{text}");
+    assert!(!text.contains("an_added_test"), "{text}");
     assert!(!text.contains("changed: `a_kept_test`"), "{text}");
+}
+
+#[test]
+fn an_added_test_with_no_readable_description_names_the_file_instead_of_the_test() {
+    let repo = base_repo("added-no-description");
+    repo.write("crates/osf/src/thing.rs", "\n");
+    let base = repo.commit("base");
+    repo.write("crates/osf/src/thing.rs", "#[test]\nfn ___() {}\n");
+    let head = repo.commit("head");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    let text = render(&summary);
+    assert!(text.contains("added: no description (in crates/osf/src/thing.rs)"));
+    assert!(!text.contains("___"), "{text}");
 }

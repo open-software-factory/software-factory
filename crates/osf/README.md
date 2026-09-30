@@ -73,9 +73,13 @@ block is started".
 
 The summary is grouped by crate and by file, each with its own added,
 changed, and removed counts. Under a group, the removed tests come
-first, since a removal is the change a reviewer most needs to see. The
-added tests come next, each by name and description. A changed test is
-listed by its description alone, since what it checks has not changed.
+first, each by name and description, since a removal is the change a
+reviewer most needs to see. The added tests come next, by description
+alone. The changed tests follow, also by description alone, since what a
+changed test checks has not changed. A removed test is the only one
+ever named: nowhere else does the summary show a test's raw identifier.
+When an added test has no readable description at all, its line names
+the file instead of the test.
 
 A file the grammar cannot read is listed as unparsed. A non-Rust file
 that looks like a test file is named as not yet supported instead. It
