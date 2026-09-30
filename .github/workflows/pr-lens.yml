@@ -128,12 +128,8 @@ jobs:
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
         run: git fetch origin "refs/pull/${{ github.event.pull_request.number }}/head"
 
-      - name: Set up Node
-        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-
+      # ubuntu-latest ships Node 22, which meets pr-lens 0.11.0's engines
+      # field (>=20.11), so no setup-node step downloads anything here.
       - name: Analyze the diff
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
         env:
