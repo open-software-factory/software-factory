@@ -69,6 +69,9 @@ jobs:
             github.com:443
             api.github.com:443
             registry.npmjs.org:443
+            index.crates.io:443
+            static.crates.io:443
+            crates.io:443
             ${{ steps.provider.outputs.host }}
 
       - name: List the changed files
@@ -106,8 +109,10 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # Runs for both the note path and the diagram path below, so the
-      # script the note step needs is on disk either way.
+      # Runs for both the note path and the diagram path below, so osf, the
+      # tool both steps need, is built either way. Built from the base
+      # branch, not the pull request's own tree: this checkout never runs
+      # the pull request's own code, only its diff, fetched as data below.
       - name: Check out the pull request's base branch
         if: steps.files.outputs.docs_only == 'false'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -118,6 +123,21 @@ jobs:
           # find a job token sitting in .git/config while it does.
           persist-credentials: false
 
+      - name: Cache the build
+        if: steps.files.outputs.docs_only == 'false'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build osf
+        if: steps.files.outputs.docs_only == 'false'
+        run: cargo build --release --bin osf
+
       - name: Write a note in place of a diagram
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'false'
         env:
@@ -125,7 +145,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "pr-lens has no model key: add the review environment and a ${{ steps.provider.outputs.key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
-          python3 .github/scripts/set-pr-section.py "${{ github.event.pull_request.number }}" pr-lens "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
 
       - name: Fetch the pull request's head, as data only
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
@@ -166,9 +186,13 @@ jobs:
         id: publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: bash .github/scripts/pr-lens-publish.sh
+        run: |
+          set -euo pipefail
+          url="$(./target/release/osf assets publish \
+            --branch pr-lens \
+            --path "pr/${{ github.event.pull_request.number }}/${{ github.event.pull_request.head.sha }}" \
+            --dir "${RUNNER_TEMP}/pr-lens/assets")"
+          echo "assets-url=${url}" >> "$GITHUB_OUTPUT"
 
       - name: Write the diagram section
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
@@ -181,4 +205,4 @@ jobs:
             --manifest "${RUNNER_TEMP}/pr-lens/assets/manifest.json" \
             --asset-base-url "${{ steps.publish.outputs.assets-url }}" \
             --out "${RUNNER_TEMP}/section.md"
-          python3 .github/scripts/set-pr-section.py "${{ github.event.pull_request.number }}" pr-lens "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"

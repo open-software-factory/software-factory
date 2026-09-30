@@ -1,6 +1,8 @@
 ---
 name: show-me
 description: Use this skill when the user wants a concise visual instead of a wall of prose, such as pseudocode, a call tree, a component tree, a file tree, a Mermaid diagram, or a diff over one of those.
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2026 HumanLayer
 ---
 
 Pick the smallest view that makes the point clear. Put one short line of text next to each visual. Do not add a long explanation.

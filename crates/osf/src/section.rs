@@ -8,8 +8,10 @@
 //! metacharacter needs no escaping and cannot change what counts as a
 //! match.
 
+use regex::{Regex, RegexBuilder};
 use std::fmt;
 use std::process::Command;
+use std::sync::OnceLock;
 
 /// A section write could not be planned or could not reach the pull
 /// request. Distinct from the write running and finding nothing to change.
@@ -68,6 +70,27 @@ fn find_all(haystack: &str, needle: &str) -> Vec<usize> {
     positions
 }
 
+fn picture_link_pattern() -> &'static Regex {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
+    PATTERN.get_or_init(|| {
+        RegexBuilder::new(r"<a\b[^>]*>\s*(<picture\b[^>]*>.*?</picture>)\s*</a>")
+            .dot_matches_new_line(true)
+            .build()
+            .expect("fixed pattern compiles")
+    })
+}
+
+/// Removes an `<a ...>` element whose only content, aside from
+/// whitespace, is one `<picture>...</picture>`, keeping the `<picture>`
+/// itself. A `<picture>` wrapped in a link always shows its light-mode
+/// `<img>` fallback, even in dark mode, the way GitHub renders a pull
+/// request description; the same `<picture>` on its own switches source
+/// correctly. A link that wraps anything else, and a picture with no link
+/// around it, are left exactly as they were.
+fn unwrap_picture_links(content: &str) -> std::borrow::Cow<'_, str> {
+    picture_link_pattern().replace_all(content, "$1")
+}
+
 /// Puts `content` into `body` as the section named `name`: replacing the
 /// text between the two markers when both are there exactly once, or
 /// appending a new section at the end when neither marker is there.
@@ -86,7 +109,8 @@ fn find_all(haystack: &str, needle: &str) -> Vec<usize> {
 /// markers are there but the end marker comes first.
 pub fn apply(body: &str, name: &str, content: &str) -> Result<String, SectionError> {
     let (start, end) = markers(name);
-    let trimmed = content.trim();
+    let unwrapped = unwrap_picture_links(content);
+    let trimmed = unwrapped.trim();
     let section = format!("{start}\n{trimmed}\n{end}");
 
     let starts = find_all(body, &start);
@@ -310,5 +334,58 @@ mod tests {
         let once = apply(body, "outline", "the outline").expect("first apply");
         let twice = apply(&once, "outline", "the outline").expect("second apply");
         assert_eq!(once, twice);
+    }
+
+    #[test]
+    fn a_wrapped_picture_is_unwrapped() {
+        let content = r#"<a href="dark.svg"><picture><source media="(prefers-color-scheme: dark)" srcset="dark.svg"><img src="light.svg"></picture></a>"#;
+        let out = unwrap_picture_links(content);
+        assert_eq!(
+            out,
+            r#"<picture><source media="(prefers-color-scheme: dark)" srcset="dark.svg"><img src="light.svg"></picture>"#
+        );
+    }
+
+    #[test]
+    fn two_wrapped_pictures_are_both_unwrapped() {
+        let content = r#"<a href="a.svg"><picture><img src="a.svg"></picture></a> and <a href="b.svg"><picture><img src="b.svg"></picture></a>"#;
+        let out = unwrap_picture_links(content);
+        assert_eq!(
+            out,
+            r#"<picture><img src="a.svg"></picture> and <picture><img src="b.svg"></picture>"#
+        );
+    }
+
+    #[test]
+    fn a_link_with_other_content_stays() {
+        let content =
+            r#"<a href="a.svg">see the diagram <picture><img src="a.svg"></picture> above</a>"#;
+        let out = unwrap_picture_links(content);
+        assert_eq!(out, content);
+    }
+
+    #[test]
+    fn a_picture_without_a_link_is_unchanged() {
+        let content = r#"<picture><source srcset="dark.svg"><img src="light.svg"></picture>"#;
+        let out = unwrap_picture_links(content);
+        assert_eq!(out, content);
+    }
+
+    #[test]
+    fn a_wrapped_picture_may_have_whitespace_around_it_inside_the_link() {
+        let content = "<a href=\"a.svg\">\n  <picture><img src=\"a.svg\"></picture>\n</a>";
+        let out = unwrap_picture_links(content);
+        assert_eq!(out, r#"<picture><img src="a.svg"></picture>"#);
+    }
+
+    #[test]
+    fn unwrapping_a_picture_link_in_the_content_never_touches_text_outside_the_section() {
+        let body = "Header text with an <a href=\"x.svg\">unrelated link</a>.\n\n<!-- osf:pr-lens:start -->\nold\n<!-- osf:pr-lens:end -->\n\nFooter.\n";
+        let content = r#"<a href="a.svg"><picture><img src="a.svg"></picture></a>"#;
+        let out = apply(body, "pr-lens", content).expect("replaces");
+        assert!(out.starts_with("Header text with an <a href=\"x.svg\">unrelated link</a>.\n\n"));
+        assert!(out.ends_with("\n\nFooter.\n"));
+        assert!(out.contains("<picture><img src=\"a.svg\"></picture>"));
+        assert!(!out.contains("<a href=\"a.svg\">"));
     }
 }
