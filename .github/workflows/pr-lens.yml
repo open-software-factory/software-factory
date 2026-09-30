@@ -80,6 +80,15 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Runs for both the note path and the diagram path below, so the
+      # script the note step needs is on disk either way.
+      - name: Check out the pull request's base branch
+        if: steps.files.outputs.docs_only == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+
       - name: Write a note in place of a diagram
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'false'
         env:
@@ -88,13 +97,6 @@ jobs:
           set -euo pipefail
           echo "pr-lens has no model key: add the review environment and a ${{ steps.key.outputs.key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
           python3 .github/scripts/set-pr-section.py "${{ github.event.pull_request.number }}" pr-lens "${RUNNER_TEMP}/section.md"
-
-      - name: Check out the pull request's base branch
-        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.event.pull_request.base.ref }}
-          fetch-depth: 0
 
       - name: Fetch the pull request's head, as data only
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
