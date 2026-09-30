@@ -3,7 +3,7 @@
   "kind": "render-manifest",
   "graph": {
     "headSha": "183e8963f5b66a95d70684ef6f870fc38fdf9457",
-    "contentHash": "3912e387b73099ff984191f71f2af977"
+    "contentHash": "29170cc2d46a0a3fc77ae4e3e0341175"
   },
   "renderer": {
     "name": "@coldtea/pr-lens-renderer",

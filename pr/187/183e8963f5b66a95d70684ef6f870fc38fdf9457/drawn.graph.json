@@ -2,7 +2,7 @@
   "schemaVersion": "0.2.0",
   "kind": "graph",
   "title": "osf CLI replaces the two review-aid scripts",
-  "summary": "The pr-lens workflow, and the pr-outline and show-me skills, used to edit a pull request description through two ad hoc scripts: .github/scripts/pr-lens-publish.sh and .github/scripts/set-pr-section.py. Both are gone. osf assets publish now pushes rendered SVGs to the orphan pr-lens branch, and osf pr section write now replaces one marked section of a description. osf pr section write also strips a link that wraps nothing but one <picture>, before it saves a section, because GitHub always renders a linked picture in light mode even in dark mode.",
+  "summary": "The pr-lens workflow, and the pr-outline and show-me skills, used to edit a pull request description through two ad hoc scripts, one in Bash and one in Python. Both are retired. osf assets publish now pushes rendered SVGs to the orphan pr-lens branch, and osf pr section write now replaces one marked section of a description. osf pr section write also strips a link that wraps nothing but one <picture>, before it saves a section, because GitHub always renders a linked picture in light mode even in dark mode.",
   "lenses": [
     "architecture",
     "data-flow"
