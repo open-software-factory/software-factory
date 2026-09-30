@@ -12,12 +12,14 @@ the rules, because the rules are compiled in.
 | `osf hook stop` | Reads a coding agent's Stop event from standard input and lints the final message. Stop is the event an agent sends when it wants to end its turn. The command refuses the stop when the message has errors, and also when it could not check the message at all (bad input, no message in the event, or no known-names list to check against). The agent gets the findings, or the reason it could not be checked, and rewrites. After two refusals in one turn the message goes through. |
 | `osf hook prompt` | Reads a coding agent's prompt-submitted event from standard input and prints context for the new turn: a one-line reminder of the writing shapes a model slips into most, then any style advice the last stop check stored for that session. The advice holds the last turn only, at most twenty lines, and is cleared once printed. |
 | `osf status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
+| `osf status tests --base <ref> --head <ref>` | Prints the Rust test summary on its own, without a pull request. See "The Rust test summary" below. |
 
 ## The status block
 
 `osf status` manages the block at the top of a pull request description.
 The block says whether a change is ready to merge. It sits between two
-HTML comment markers and has six rows.
+HTML comment markers and has six rows, plus the Rust test summary
+described below.
 
 | Row | Meaning |
 |---|---|
@@ -33,15 +35,57 @@ apply` puts a rendered block into a description. It goes between the
 markers if they are there, or at the top if they are not.
 
 `osf status refresh --repo <owner/name> --pr <number>` recomputes the
-block from the pull request's live state. It reads the pull request's own
-checks, its review state, and a fresh risk assessment against its base
-branch. It reads `Problem` and `Approach` back out of the block already
-in the description. A description with no block is left alone, and the
-command says so and exits 0. To start a block on such a pull request, pass
-`--problem` and `--approach` once, or run `osf status apply`. Refresh compares the new block against the one already
-there, byte for byte. It writes nothing when they match, and prints `osf
-status refresh: unchanged`. When they differ, it writes the new block and
+block from the pull request's live state. It reads the pull request's
+own checks and review state. It reruns the risk assessment against the
+base branch. It rebuilds the Rust test summary between that base and
+`HEAD`.
+
+`Problem` and `Approach` come back out of the block already in the
+description, when there is one. A description with no block yet gets
+one started. `Problem` and `Approach` come from `--problem` and
+`--approach` when given. Without them, a placeholder fills the row
+instead. Either way, the first refresh on a pull request leaves it with
+a block to edit.
+
+Refresh compares the new block against the one already there, byte for
+byte. It writes nothing when they match, and prints `osf status
+refresh: unchanged`. When they differ, it writes the new block and
 prints `osf status refresh: updated`.
+
+## The Rust test summary
+
+The block's Problem and Approach are followed by a summary of the Rust
+tests the change added, changed, or removed. It comes from parsing the
+base and head versions of each changed `.rs` file with the tree-sitter
+Rust grammar. It never builds or runs the change's code. So the summary
+cannot be wrong about what actually compiled, and code that fails to
+compile cannot fool it.
+
+A test is any function carrying `#[test]`, `#[tokio::test]`, or another
+attribute whose path ends in `test`. This includes one inside a
+`#[cfg(test)]` module. Two tests are the same test when their module
+path plus function name match. A match with a different source text is
+a changed test, not an added one plus a removed one. Its one-line
+description is its `///` doc comment when it has one. Without a doc
+comment, the description comes from its name, split on underscores and
+turned into words: `a_missing_block_is_started` reads as "a missing
+block is started".
+
+The summary is grouped by crate and by file, each with its own added,
+changed, and removed counts. Under a group, the removed tests come
+first, since a removal is the change a reviewer most needs to see. The
+added tests come next, each by name and description. A changed test is
+listed by its description alone, since what it checks has not changed.
+
+A file the grammar cannot read is listed as unparsed. A non-Rust file
+that looks like a test file is named as not yet supported instead. It
+points at
+[open-software-factory/software-factory#188 (test summaries for other languages)](https://github.com/open-software-factory/software-factory/issues/188).
+A file under `tests/fixtures` is never scanned for tests at all.
+
+`osf status tests --base <ref> --head <ref>` prints this summary on its
+own, using the same code `osf status refresh` calls to put it in the
+block.
 
 ## The status block workflow
 
