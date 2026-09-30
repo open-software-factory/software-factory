@@ -13,5 +13,6 @@ pub mod repository;
 pub mod review;
 pub mod risk;
 pub mod scan;
+pub mod section;
 pub mod status;
 pub mod verify;

@@ -1,5 +1,5 @@
 use osf::status::GhClient;
-use osf::{config, exclude, hook, lints, review, risk, scan, status, verify};
+use osf::{config, exclude, hook, lints, review, risk, scan, section, status, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -111,6 +111,45 @@ enum Command {
         #[command(subcommand)]
         action: ReviewAction,
     },
+    /// Read or change a pull request's description.
+    Pr {
+        #[command(subcommand)]
+        action: PrAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum PrAction {
+    /// Work with one marked section of a pull request description.
+    Section {
+        #[command(subcommand)]
+        action: SectionAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum SectionAction {
+    /// Replace one marked section of a pull request description, or
+    /// append it when the markers are not there yet.
+    Write(SectionWriteArgs),
+}
+
+#[derive(Args)]
+struct SectionWriteArgs {
+    /// The pull request number.
+    #[arg(long)]
+    pr: u64,
+    /// The section's name: the markers are `<!-- osf:<name>:start -->` and
+    /// `<!-- osf:<name>:end -->`.
+    #[arg(long)]
+    name: String,
+    /// Path to a file holding the section's content, in Markdown.
+    #[arg(long)]
+    file: PathBuf,
+    /// The repository, as `owner/name`. Left to `gh`'s own detection of the
+    /// current repository when not given.
+    #[arg(long)]
+    repo: Option<String>,
 }
 
 #[derive(Args)]
@@ -507,6 +546,12 @@ fn main() -> ExitCode {
         Command::Review {
             action: ReviewAction::Post(args),
         } => review_post_cmd(args),
+        Command::Pr {
+            action:
+                PrAction::Section {
+                    action: SectionAction::Write(args),
+                },
+        } => pr_section_write_cmd(args),
     }
 }
 
@@ -1606,6 +1651,44 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
     }
     let outcome = post_plan(&args.repo, args.pr, &plan, &head_sha);
     report_outcome(outcome, args, &head_sha)
+}
+
+fn pr_section_write_cmd(args: &SectionWriteArgs) -> ExitCode {
+    let content = match std::fs::read_to_string(&args.file) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("osf: cannot read {}: {e}", args.file.display());
+            return ExitCode::from(2);
+        }
+    };
+    let repo = args.repo.as_deref();
+    let body = match section::fetch_body(repo, args.pr) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let new_body = match section::apply(&body, &args.name, &content) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    match section::write_body(repo, args.pr, &new_body) {
+        Ok(()) => {
+            println!(
+                "osf pr section write: wrote '{}' on pull request #{}",
+                args.name, args.pr
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
 }
 
 #[cfg(test)]
