@@ -12,6 +12,8 @@ the rules, because the rules are compiled in.
 | `osf hook stop` | Reads a coding agent's Stop event from standard input and lints the final message. Stop is the event an agent sends when it wants to end its turn. The command refuses the stop when the message has errors, and also when it could not check the message at all (bad input, no message in the event, or no known-names list to check against). The agent gets the findings, or the reason it could not be checked, and rewrites. After two refusals in one turn the message goes through. |
 | `osf hook prompt` | Reads a coding agent's prompt-submitted event from standard input and prints context for the new turn: a one-line reminder of the writing shapes a model slips into most, then any style advice the last stop check stored for that session. The advice holds the last turn only, at most twenty lines, and is cleared once printed. |
 | `osf status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
+| `osf pr section write --pr <number> --name <name> --file <path>` | Replaces the text between `<!-- osf:<name>:start -->` and `<!-- osf:<name>:end -->` in a pull request description with the file's content, or appends the section when the markers are not there yet. Reads and writes the description through `gh`. |
+| `osf assets publish --branch <branch> --path <prefix> --dir <folder>` | Pushes every file in `<folder>` to `<prefix>` on `<branch>`, in a temporary clone, creating the branch as an orphan the first time. Prints the raw content web address for what landed. Retries when a push loses a race with another run. |
 
 ## The status block
 
