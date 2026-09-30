@@ -126,11 +126,37 @@ jobs:
           path: out/review.sarif
           if-no-files-found: ignore
 
+  review-fork-disabled:
+    name: review (fork)
+    # GitHub creates a missing environment on demand, with no protection
+    # at all. Gating on the `fork-review` environment alone would let an
+    # adopter who never set it up run a fork's pull request anyway, with
+    # whatever secrets that auto-created environment inherits. This job
+    # instead requires an explicit repository variable, and fails loudly
+    # rather than skipping, so a fork's pull request cannot pass this
+    # check by leaving fork review unconfigured.
+    if: github.event.pull_request.head.repo.full_name != github.repository && vars.OSF_REVIEW_FORKS != 'true'
+    runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
+    permissions: {}
+    steps:
+      # Blocks this job's own outbound network access; there is nothing
+      # this job needs to reach, so every endpoint stays blocked.
+      - name: Restrict this job's outbound network access
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+
+      - name: Fail because fork review is not enabled
+        run: |
+          echo "review: could-not-run, fork review is not enabled (set OSF_REVIEW_FORKS to true and protect the fork-review environment)"
+          exit 1
+
   review-fork:
     name: review (fork)
-    # A fork's pull request runs only once a maintainer approves this
-    # environment, and only main can deploy to it, the same as `review`.
-    if: github.event.pull_request.head.repo.full_name != github.repository
+    # A fork's pull request runs only once an adopter turns this on with
+    # the OSF_REVIEW_FORKS variable, and only once a maintainer approves
+    # the `fork-review` environment, the same as `review` does for `main`.
+    if: github.event.pull_request.head.repo.full_name != github.repository && vars.OSF_REVIEW_FORKS == 'true'
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
     environment: fork-review
     permissions:
