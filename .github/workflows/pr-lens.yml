@@ -18,9 +18,7 @@ concurrency:
 
 env:
   CLI_VERSION: 0.11.0
-  PR_LENS_PROVIDER: ${{ vars.PR_LENS_PROVIDER || 'gemini' }}
-  PR_LENS_MODEL: ${{ vars.PR_LENS_MODEL }}
-  PR_LENS_BASE_URL: ${{ vars.PR_LENS_BASE_URL }}
+  PR_LENS_PROVIDER: ${{ vars.PR_LENS_PROVIDER || 'deepseek' }}
 
 jobs:
   diagram:
@@ -28,6 +26,41 @@ jobs:
     runs-on: ubuntu-latest
     environment: review # the model key, when an adopter sets one, lives here
     steps:
+      # One place mapping a provider name to the CLI flags it needs and
+      # the host the runner must be allowed to reach. Add a provider here,
+      # nowhere else.
+      - name: Resolve the model provider
+        id: provider
+        run: |
+          set -euo pipefail
+          case "${PR_LENS_PROVIDER}" in
+            deepseek)
+              echo "cli_provider=openai-compatible" >> "$GITHUB_OUTPUT"
+              echo "base_url=https://api.deepseek.com" >> "$GITHUB_OUTPUT"
+              echo "default_model=deepseek-chat" >> "$GITHUB_OUTPUT"
+              echo "key_var=DEEPSEEK_API_KEY" >> "$GITHUB_OUTPUT"
+              echo "host=api.deepseek.com:443" >> "$GITHUB_OUTPUT"
+              ;;
+            openai)
+              echo "cli_provider=openai" >> "$GITHUB_OUTPUT"
+              echo "base_url=" >> "$GITHUB_OUTPUT"
+              echo "default_model=" >> "$GITHUB_OUTPUT"
+              echo "key_var=OPENAI_API_KEY" >> "$GITHUB_OUTPUT"
+              echo "host=api.openai.com:443" >> "$GITHUB_OUTPUT"
+              ;;
+            anthropic)
+              echo "cli_provider=openai-compatible" >> "$GITHUB_OUTPUT"
+              echo "base_url=https://api.anthropic.com/v1" >> "$GITHUB_OUTPUT"
+              echo "default_model=claude-sonnet-4-5" >> "$GITHUB_OUTPUT"
+              echo "key_var=ANTHROPIC_API_KEY" >> "$GITHUB_OUTPUT"
+              echo "host=api.anthropic.com:443" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::PR_LENS_PROVIDER is '${PR_LENS_PROVIDER}'; supported values are deepseek, openai, anthropic."
+              exit 1
+              ;;
+          esac
+
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -36,9 +69,7 @@ jobs:
             github.com:443
             api.github.com:443
             registry.npmjs.org:443
-            ${{ env.PR_LENS_PROVIDER == 'openai' && 'api.openai.com:443' ||
-                (env.PR_LENS_PROVIDER == 'openai-compatible' && vars.PR_LENS_BASE_URL_HOST) ||
-                'generativelanguage.googleapis.com:443' }}
+            ${{ steps.provider.outputs.host }}
 
       - name: List the changed files
         id: files
@@ -62,18 +93,13 @@ jobs:
         if: steps.files.outputs.docs_only == 'false'
         id: key
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           set -euo pipefail
-          if [ "${PR_LENS_PROVIDER}" = "gemini" ]; then
-            KEY="${GEMINI_API_KEY}"
-            KEY_VAR=GEMINI_API_KEY
-          else
-            KEY="${OPENAI_API_KEY}"
-            KEY_VAR=OPENAI_API_KEY
-          fi
-          echo "key_var=${KEY_VAR}" >> "$GITHUB_OUTPUT"
+          KEY_VAR="${{ steps.provider.outputs.key_var }}"
+          KEY="${!KEY_VAR:-}"
           if [ -z "${KEY}" ]; then
             echo "present=false" >> "$GITHUB_OUTPUT"
           else
@@ -95,7 +121,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          echo "pr-lens has no model key: add the review environment and a ${{ steps.key.outputs.key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
+          echo "pr-lens has no model key: add the review environment and a ${{ steps.provider.outputs.key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
           python3 .github/scripts/set-pr-section.py "${{ github.event.pull_request.number }}" pr-lens "${RUNNER_TEMP}/section.md"
 
       - name: Fetch the pull request's head, as data only
@@ -111,18 +137,23 @@ jobs:
       - name: Analyze the diff
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLI_PROVIDER: ${{ steps.provider.outputs.cli_provider }}
+          KEY_VAR: ${{ steps.provider.outputs.key_var }}
+          BASE_URL: ${{ steps.provider.outputs.base_url }}
+          MODEL: ${{ vars.PR_LENS_MODEL || steps.provider.outputs.default_model }}
         run: |
           set -euo pipefail
           npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
             --base "${{ github.event.pull_request.base.sha }}" \
             --head "${{ github.event.pull_request.head.sha }}" \
             --pr "${{ github.event.pull_request.number }}" \
-            --provider "${PR_LENS_PROVIDER}" \
-            --api-key-env "${{ steps.key.outputs.key_var }}" \
-            ${PR_LENS_MODEL:+--model "${PR_LENS_MODEL}"} \
-            ${PR_LENS_BASE_URL:+--base-url "${PR_LENS_BASE_URL}"} \
+            --provider "${CLI_PROVIDER}" \
+            --api-key-env "${KEY_VAR}" \
+            ${MODEL:+--model "${MODEL}"} \
+            ${BASE_URL:+--base-url "${BASE_URL}"} \
             --out "${RUNNER_TEMP}/pr-lens/graph.json"
 
       - name: Render the diagrams
