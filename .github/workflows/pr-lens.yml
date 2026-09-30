@@ -114,6 +114,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.ref }}
           fetch-depth: 0
+          # npx runs a third-party package later in this job; it must not
+          # find a job token sitting in .git/config while it does.
+          persist-credentials: false
 
       - name: Write a note in place of a diagram
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'false'
