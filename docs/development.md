@@ -163,34 +163,47 @@ review, with a comment on each finding's own line. A must-fix finding
 fails the job. A review that could not run fails the job too, and every
 other outcome passes.
 
-Both jobs read their secrets and variables through a GitHub
-environment. A same-repository pull request uses `review`. A fork's
-pull request uses `fork-review`. A repository admin must create both.
-Each one needs a deployment branch policy that allows only `main`.
-This stops a pull request branch from widening its own review.
-`fork-review` also needs required reviewers. A fork's pull request
-then waits there until a maintainer lets it through. Each environment
-holds its own copy of every secret and variable this table names.
-Setting one on the repository itself, with no environment, does not
-reach either job.
+A same-repository pull request's job reads its secrets and variables
+through a GitHub environment named `review`. A repository admin must
+create it. Set up this short list, then the check is live.
 
-| Environment | Required setting | What it is for |
-|---|---|---|
-| `review`, `fork-review` | Deployment branches: `main` only | Stops a pull request branch from widening its own review |
-| `fork-review` | Required reviewers | Holds a fork's pull request until a maintainer approves the run |
-| `review`, `fork-review` | `vars.OSF_REVIEW_RUNS_ON` | The runner label the review job uses; defaults to `ubuntu-latest` |
-| `review`, `fork-review` | `vars.VERIFIER_APP_ID`, `secrets.VERIFIER_APP_PRIVATE_KEY` | The GitHub App the job mints a short-lived token from, to post the review |
-| `review`, `fork-review` | `secrets.OPENAI_API_KEY`, `secrets.ANTHROPIC_API_KEY`, `secrets.DEEPSEEK_API_KEY` | A reviewer's own key; `osf` itself reads none of them |
+### Required setup
 
-Branch protection still needs its own setting, outside either
-environment. Require the `review` check. Require every conversation
-resolved too, so a person still looks at each finding.
+- The verifier app. Set `vars.VERIFIER_APP_ID` and
+  `secrets.VERIFIER_APP_PRIVATE_KEY` in the `review` environment. The
+  job mints a short-lived token from this app, to post the review.
+- The `review` environment itself, holding at least two of these three
+  keys: `secrets.OPENAI_API_KEY`, `secrets.ANTHROPIC_API_KEY`,
+  `secrets.DEEPSEEK_API_KEY`. Each key belongs to one reviewer. `osf`
+  itself reads none of them.
+- Branch protection that requires the `review` job. Require every
+  conversation resolved too, so a person still looks at each finding.
 
-Use a dedicated key for each reviewer. Do not reuse a key from
-somewhere else. Give each one a low monthly spending cap on the
-provider's own site. A leaked or misbehaving reviewer key then costs
-little to replace. Its cap also limits what a runaway review run can
-spend before anyone notices.
+A fork's pull request runs a separate job, named `review (fork)`. It
+fails on purpose, with one line explaining why, unless the repository
+variable `OSF_REVIEW_FORKS` is `true` and the `fork-review` environment
+is also set up. This is why: GitHub creates a missing environment on
+demand, with no protection at all. Without this off switch, a fork's
+pull request could run with the model keys before anyone set up
+`fork-review` at all. Turning it on is one of the recommendations
+below.
+
+### Recommended
+
+- Limit the `review` environment's deployment branches to `main` only.
+  This stops a pull request branch from widening its own review.
+- Use a dedicated key for each reviewer, separate from any other use.
+  Give each one a low monthly spending cap on the provider's own site.
+  A leaked or misbehaving key then costs little to replace, and its
+  cap limits what a runaway review run can spend before anyone
+  notices.
+- Remove the builder app's `actions_variables: write` permission. The
+  review job only ever reads variables.
+- Turn on fork review. Set the repository variable `OSF_REVIEW_FORKS`
+  to `true`. Create a `fork-review` environment, with its own copy of
+  the required settings above, its deployment branches also limited to
+  `main`, and required reviewers. A fork's pull request then waits
+  there until a maintainer approves the run.
 
 ### The container image
 
