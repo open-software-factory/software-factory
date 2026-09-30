@@ -1,0 +1,152 @@
+name: pr-lens
+
+# Draws a pr-lens diagram of a code change into the pull request
+# description. Runs from the base branch, per decision 0020, since it
+# holds a model API key; it never checks out or runs the pull request's
+# own code, only its diff, fetched as data.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write # push the rendered SVGs to the orphan pr-lens branch
+  pull-requests: write # rewrite the pr-lens section of the description
+
+concurrency:
+  group: pr-lens-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  CLI_VERSION: 0.11.0
+  PR_LENS_PROVIDER: ${{ vars.PR_LENS_PROVIDER || 'gemini' }}
+  PR_LENS_MODEL: ${{ vars.PR_LENS_MODEL }}
+  PR_LENS_BASE_URL: ${{ vars.PR_LENS_BASE_URL }}
+
+jobs:
+  diagram:
+    name: pr-lens
+    runs-on: ubuntu-latest
+    environment: review # the model key, when an adopter sets one, lives here
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            registry.npmjs.org:443
+            ${{ env.PR_LENS_PROVIDER == 'openai' && 'api.openai.com:443' ||
+                (env.PR_LENS_PROVIDER == 'openai-compatible' && vars.PR_LENS_BASE_URL_HOST) ||
+                'generativelanguage.googleapis.com:443' }}
+
+      - name: List the changed files
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename' > "${RUNNER_TEMP}/changed-files.txt"
+          if grep -qvE '(\.md$|^docs/)' "${RUNNER_TEMP}/changed-files.txt"; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip a documentation-only pull request
+        if: steps.files.outputs.docs_only == 'true'
+        run: echo "::notice::every changed file is documentation; no diagram section is written."
+
+      - name: Check the environment holds a model key
+        if: steps.files.outputs.docs_only == 'false'
+        id: key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "${PR_LENS_PROVIDER}" = "gemini" ]; then
+            KEY="${GEMINI_API_KEY}"
+            KEY_VAR=GEMINI_API_KEY
+          else
+            KEY="${OPENAI_API_KEY}"
+            KEY_VAR=OPENAI_API_KEY
+          fi
+          echo "key_var=${KEY_VAR}" >> "$GITHUB_OUTPUT"
+          if [ -z "${KEY}" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write a note in place of a diagram
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "pr-lens has no model key: add the review environment and a ${{ steps.key.outputs.key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
+          python3 .github/scripts/set-pr-section.py "${{ github.event.pull_request.number }}" pr-lens "${RUNNER_TEMP}/section.md"
+
+      - name: Check out the pull request's base branch
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+
+      - name: Fetch the pull request's head, as data only
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        run: git fetch origin "refs/pull/${{ github.event.pull_request.number }}/head"
+
+      - name: Set up Node
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Analyze the diff
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --pr "${{ github.event.pull_request.number }}" \
+            --provider "${PR_LENS_PROVIDER}" \
+            --api-key-env "${{ steps.key.outputs.key_var }}" \
+            ${PR_LENS_MODEL:+--model "${PR_LENS_MODEL}"} \
+            ${PR_LENS_BASE_URL:+--base-url "${PR_LENS_BASE_URL}"} \
+            --out "${RUNNER_TEMP}/pr-lens/graph.json"
+
+      - name: Render the diagrams
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        run: |
+          npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" render "${RUNNER_TEMP}/pr-lens/graph.json" \
+            --out "${RUNNER_TEMP}/pr-lens/assets"
+
+      - name: Publish the SVGs to the pr-lens branch
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/scripts/pr-lens-publish.sh
+
+      - name: Write the diagram section
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" comment \
+            --graph "${RUNNER_TEMP}/pr-lens/assets/drawn.graph.json" \
+            --manifest "${RUNNER_TEMP}/pr-lens/assets/manifest.json" \
+            --asset-base-url "${{ steps.publish.outputs.assets-url }}" \
+            --out "${RUNNER_TEMP}/section.md"
+          python3 .github/scripts/set-pr-section.py "${{ github.event.pull_request.number }}" pr-lens "${RUNNER_TEMP}/section.md"
