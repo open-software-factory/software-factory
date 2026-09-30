@@ -265,6 +265,11 @@ struct StatusApplyArgs {
 /// treats its own still-running check as a gate to report on.
 const STATUS_CHECK_NAME: &str = "status block";
 
+/// `Problem` and `Approach` text a fresh block starts with when neither
+/// `--problem` nor `--approach` was given: a refresh should never sit idle
+/// waiting for a person to run `osf status apply` by hand.
+const NOT_FILLED_IN: &str = "not filled in yet";
+
 #[derive(Args)]
 struct StatusRefreshArgs {
     /// The repository, as `owner/name`.
@@ -277,12 +282,16 @@ struct StatusRefreshArgs {
     /// `origin/<the pull request's base branch>`, fetched first.
     #[arg(long)]
     base: Option<String>,
-    /// One sentence describing the problem. Required only when the
-    /// description carries no status block yet.
+    /// One sentence describing the problem. Used to start the block when
+    /// the description has none yet; ignored once a block exists. Left
+    /// out, a fresh block starts with a placeholder instead of waiting for
+    /// a person to run `osf status apply` first.
     #[arg(long)]
     problem: Option<String>,
-    /// One sentence describing the approach. Required only when the
-    /// description carries no status block yet.
+    /// One sentence describing the approach. Used to start the block when
+    /// the description has none yet; ignored once a block exists. Left
+    /// out, a fresh block starts with a placeholder instead of waiting for
+    /// a person to run `osf status apply` first.
     #[arg(long)]
     approach: Option<String>,
     /// A file holding `gh pr checks --json name,state,bucket` output,
@@ -1457,20 +1466,25 @@ fn git_fetch(remote: &str, ref_name: &str) -> Result<(), String> {
 }
 
 /// `Problem` and `Approach` for a refresh: read back from the description's
-/// own block when it has one, else from `--problem`/`--approach`. With
-/// neither, there is nothing to refresh, and that is `None`, never an
-/// error: a pull request opts into the block by applying it once.
+/// own block when it has one; from `--problem`/`--approach` when given and
+/// there is no block yet; or, with neither, [`NOT_FILLED_IN`], so the first
+/// refresh always starts the block instead of waiting for a person to run
+/// `osf status apply` by hand.
 fn status_refresh_problem_approach(
     body: &str,
     problem: Option<&String>,
     approach: Option<&String>,
-) -> Result<Option<(String, String)>, ExitCode> {
+) -> Result<(String, String), ExitCode> {
     match status::extract_problem_approach(body) {
-        Ok(Some((p, a))) => Ok(Some((p, a))),
-        Ok(None) => match (problem, approach) {
-            (Some(p), Some(a)) => Ok(Some((p.clone(), a.clone()))),
-            _ => Ok(None),
-        },
+        Ok(Some((p, a))) => Ok((p, a)),
+        Ok(None) => Ok((
+            problem
+                .cloned()
+                .unwrap_or_else(|| NOT_FILLED_IN.to_string()),
+            approach
+                .cloned()
+                .unwrap_or_else(|| NOT_FILLED_IN.to_string()),
+        )),
         Err(e) => {
             eprintln!("osf: {e}");
             Err(ExitCode::from(2))
@@ -1546,17 +1560,11 @@ fn status_refresh_run(
     let pr_info_text = client.view_pr_info(&args.repo, &args.pr).map_err(to_exit)?;
     let pr_info = status::parse_pr_info(&pr_info_text).map_err(to_exit)?;
 
-    let Some((problem, approach)) = status_refresh_problem_approach(
+    let (problem, approach) = status_refresh_problem_approach(
         &pr_info.body,
         args.problem.as_ref(),
         args.approach.as_ref(),
-    )?
-    else {
-        println!(
-            "osf status refresh: no status block in the description, so nothing to refresh; run `osf status apply` once to start one"
-        );
-        return Ok(ExitCode::SUCCESS);
-    };
+    )?;
     let base = status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
     let report = risk::assess(Path::new("."), &base).map_err(|e| {
         eprintln!("osf risk: {e}");
@@ -1801,13 +1809,38 @@ mod tests {
         "A thing — another thing. It ran fine; it passed the whole suite.\n";
 
     #[test]
-    fn a_refresh_with_no_block_and_no_flags_has_nothing_to_do() {
-        let none = status_refresh_problem_approach("just a description\n", None, None);
-        assert!(matches!(none, Ok(None)));
+    fn a_missing_block_is_started_with_a_placeholder_when_no_flags_are_given() {
+        let started = status_refresh_problem_approach("just a description\n", None, None)
+            .expect("never fails");
+        assert_eq!(
+            started,
+            (NOT_FILLED_IN.to_string(), NOT_FILLED_IN.to_string())
+        );
+    }
+
+    #[test]
+    fn a_missing_block_is_started_from_the_given_flags_when_present() {
         let p = "the problem".to_string();
         let a = "the approach".to_string();
-        let some = status_refresh_problem_approach("just a description\n", Some(&p), Some(&a));
-        assert_eq!(some.ok().flatten(), Some((p, a)));
+        let started = status_refresh_problem_approach("just a description\n", Some(&p), Some(&a))
+            .expect("never fails");
+        assert_eq!(started, (p, a));
+    }
+
+    #[test]
+    fn an_existing_block_ignores_the_flags_and_keeps_its_own_text() {
+        let body = "<!-- factory:status:begin -->\n**Problem**: existing problem\n**Approach**: existing approach\n<!-- factory:status:end -->\n";
+        let flag_p = "ignored".to_string();
+        let flag_a = "ignored too".to_string();
+        let kept = status_refresh_problem_approach(body, Some(&flag_p), Some(&flag_a))
+            .expect("never fails");
+        assert_eq!(
+            kept,
+            (
+                "existing problem".to_string(),
+                "existing approach".to_string()
+            )
+        );
     }
 
     fn writing_args() -> WritingArgs {
