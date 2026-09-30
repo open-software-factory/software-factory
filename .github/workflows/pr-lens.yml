@@ -51,7 +51,7 @@ jobs:
             anthropic)
               echo "cli_provider=openai-compatible" >> "$GITHUB_OUTPUT"
               echo "base_url=https://api.anthropic.com/v1" >> "$GITHUB_OUTPUT"
-              echo "default_model=claude-sonnet-4-5" >> "$GITHUB_OUTPUT"
+              echo "default_model=claude-sonnet-5" >> "$GITHUB_OUTPUT"
               echo "key_var=ANTHROPIC_API_KEY" >> "$GITHUB_OUTPUT"
               echo "host=api.anthropic.com:443" >> "$GITHUB_OUTPUT"
               ;;
