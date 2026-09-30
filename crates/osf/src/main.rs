@@ -1,5 +1,5 @@
 use osf::status::GhClient;
-use osf::{config, exclude, hook, lints, review, risk, scan, status, verify};
+use osf::{assets, config, exclude, git, hook, lints, review, risk, scan, section, status, verify};
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
@@ -111,6 +111,82 @@ enum Command {
         #[command(subcommand)]
         action: ReviewAction,
     },
+    /// Read or change a pull request's description.
+    Pr {
+        #[command(subcommand)]
+        action: PrAction,
+    },
+    /// Publish built files to a data branch.
+    Assets {
+        #[command(subcommand)]
+        action: AssetsAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum AssetsAction {
+    /// Push a folder's files to a path on a branch, creating the branch as
+    /// an orphan the first time, and print the raw content web address.
+    Publish(AssetsPublishArgs),
+}
+
+#[derive(Args)]
+struct AssetsPublishArgs {
+    /// The branch to publish to, created as an orphan if it does not exist.
+    #[arg(long)]
+    branch: String,
+    /// The path prefix within that branch the folder's files land under.
+    #[arg(long)]
+    path: String,
+    /// The local folder whose files (not subfolders) are published.
+    #[arg(long)]
+    dir: PathBuf,
+    /// The repository, as `owner/name`. Read from the current directory's
+    /// `origin` remote when not given.
+    #[arg(long)]
+    repo: Option<String>,
+    /// Push to this remote instead of the repository's own origin, with no
+    /// GitHub authentication. For a test against a local repository.
+    #[arg(long, hide = true)]
+    remote: Option<String>,
+    /// How many times to retry the publish when it loses a race with
+    /// another run pushing to the same branch.
+    #[arg(long, default_value_t = 5)]
+    max_attempts: u32,
+}
+
+#[derive(Subcommand)]
+enum PrAction {
+    /// Work with one marked section of a pull request description.
+    Section {
+        #[command(subcommand)]
+        action: SectionAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum SectionAction {
+    /// Replace one marked section of a pull request description, or
+    /// append it when the markers are not there yet.
+    Write(SectionWriteArgs),
+}
+
+#[derive(Args)]
+struct SectionWriteArgs {
+    /// The pull request number.
+    #[arg(long)]
+    pr: u64,
+    /// The section's name: the markers are `<!-- osf:<name>:start -->` and
+    /// `<!-- osf:<name>:end -->`.
+    #[arg(long)]
+    name: String,
+    /// Path to a file holding the section's content, in Markdown.
+    #[arg(long)]
+    file: PathBuf,
+    /// The repository, as `owner/name`. Left to `gh`'s own detection of the
+    /// current repository when not given.
+    #[arg(long)]
+    repo: Option<String>,
 }
 
 #[derive(Args)]
@@ -507,6 +583,15 @@ fn main() -> ExitCode {
         Command::Review {
             action: ReviewAction::Post(args),
         } => review_post_cmd(args),
+        Command::Pr {
+            action:
+                PrAction::Section {
+                    action: SectionAction::Write(args),
+                },
+        } => pr_section_write_cmd(args),
+        Command::Assets {
+            action: AssetsAction::Publish(args),
+        } => assets_publish_cmd(args),
     }
 }
 
@@ -1606,6 +1691,104 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
     }
     let outcome = post_plan(&args.repo, args.pr, &plan, &head_sha);
     report_outcome(outcome, args, &head_sha)
+}
+
+fn pr_section_write_cmd(args: &SectionWriteArgs) -> ExitCode {
+    let content = match std::fs::read_to_string(&args.file) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("osf: cannot read {}: {e}", args.file.display());
+            return ExitCode::from(2);
+        }
+    };
+    let repo = args.repo.as_deref();
+    let body = match section::fetch_body(repo, args.pr) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let new_body = match section::apply(&body, &args.name, &content) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    match section::write_body(repo, args.pr, &new_body) {
+        Ok(()) => {
+            println!(
+                "osf pr section write: wrote '{}' on pull request #{}",
+                args.name, args.pr
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// The remote to clone from and push to, and the `owner/name` label for the
+/// printed raw content address: `--repo` and `--remote` verbatim when
+/// given, else both read from the current directory's `origin` remote.
+fn resolve_assets_target(
+    repo: Option<&str>,
+    remote: Option<&str>,
+) -> Result<(String, String), String> {
+    if let (Some(repo), Some(remote)) = (repo, remote) {
+        return Ok((repo.to_string(), remote.to_string()));
+    }
+    let origin = git::remote(Path::new("."))
+        .map_err(|e| format!("cannot read the origin remote to fill in --repo or --remote: {e}"))?;
+    let resolved_repo = repo.map_or_else(
+        || format!("{}/{}", origin.owner, origin.name),
+        str::to_string,
+    );
+    let resolved_remote = remote.map_or_else(
+        || {
+            format!(
+                "https://{}/{}/{}.git",
+                origin.host, origin.owner, origin.name
+            )
+        },
+        str::to_string,
+    );
+    Ok((resolved_repo, resolved_remote))
+}
+
+fn assets_publish_cmd(args: &AssetsPublishArgs) -> ExitCode {
+    let (repo, remote) = match resolve_assets_target(args.repo.as_deref(), args.remote.as_deref()) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let token = std::env::var("GITHUB_TOKEN")
+        .ok()
+        .or_else(|| std::env::var("GH_TOKEN").ok());
+    let publish_args = assets::PublishArgs {
+        remote: &remote,
+        repo: &repo,
+        branch: &args.branch,
+        path: &args.path,
+        dir: &args.dir,
+        token: token.as_deref(),
+        max_attempts: args.max_attempts,
+    };
+    match assets::publish(&publish_args) {
+        Ok(url) => {
+            println!("{url}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(1)
+        }
+    }
 }
 
 #[cfg(test)]
