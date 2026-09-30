@@ -45,6 +45,12 @@ A suppression with no reason is itself an error. Suppressions are reported and
 counted, and the checks that run on a pull request ignore them, so nothing is
 hidden from review.
 
+## Pull requests from a fork
+
+A pull request from a fork still gets every check. Its status block
+prints in the job summary instead of the description, which a
+maintainer fills in with a push or after merge.
+
 ## Review aids on a pull request
 
 A pull request that changes code gets a pr-lens diagram and a change
