@@ -1,0 +1,538 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "title": "osf CLI replaces the two review-aid scripts",
+  "summary": "The pr-lens workflow, and the pr-outline and show-me skills, used to edit a pull request description through two ad hoc scripts: .github/scripts/pr-lens-publish.sh and .github/scripts/set-pr-section.py. Both are gone. osf assets publish now pushes rendered SVGs to the orphan pr-lens branch, and osf pr section write now replaces one marked section of a description. osf pr section write also strips a link that wraps nothing but one <picture>, before it saves a section, because GitHub always renders a linked picture in light mode even in dark mode.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "25f7376bce5c1939ec1c93b22f4152db4c805e42",
+      "ref": "main"
+    },
+    "head": {
+      "sha": "183e8963f5b66a95d70684ef6f870fc38fdf9457",
+      "ref": "feat/review-aids"
+    },
+    "pullRequest": {
+      "number": 187,
+      "title": "feat: review aids on every pull request",
+      "url": "https://github.com/open-software-factory/software-factory/pull/187"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workflows",
+      "label": "GitHub Actions workflows",
+      "order": 0
+    },
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1
+    },
+    {
+      "id": "written-to",
+      "label": "Written to",
+      "order": 2
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pr-lens-workflow",
+      "label": "pr-lens",
+      "kind": "job",
+      "delta": "added",
+      "lane": "workflows",
+      "subtitle": ".github/workflows/pr-lens.yml",
+      "summary": "Draws a pr-lens diagram of a code change and writes it into the pull request description.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 1,
+          "endLine": 208
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-town-workflow",
+      "label": "git-town",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflows",
+      "subtitle": ".github/workflows/git-town.yml",
+      "summary": "Posts the stack view on a pull request; now skips the write on a fork pull request, which only gets a read-only token.",
+      "files": [
+        {
+          "path": ".github/workflows/git-town.yml",
+          "startLine": 19,
+          "endLine": 35
+        }
+      ],
+      "badges": [
+        "skip on fork"
+      ]
+    },
+    {
+      "id": "status-block-workflow",
+      "label": "status-block",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflows",
+      "subtitle": ".github/workflows/status-block.yml",
+      "summary": "Writes the status block into a pull request description; now renders it read-only on a fork pull request instead of failing.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml",
+          "startLine": 38,
+          "endLine": 117
+        }
+      ],
+      "badges": [
+        "read-only on fork"
+      ]
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "crates/osf/src/main.rs",
+      "summary": "Wires the two new subcommands, pr section write and assets publish, into the osf binary.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 127,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "section-write",
+      "label": "osf pr section write",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "group": "crates/osf/src",
+      "subtitle": "crates/osf/src/section.rs",
+      "summary": "Replaces one marked section of a pull request description, or appends it. Also strips a link that wraps nothing but one <picture>, so a diagram keeps its dark-mode source.",
+      "files": [
+        {
+          "path": "crates/osf/src/section.rs",
+          "startLine": 73,
+          "endLine": 124
+        }
+      ],
+      "badges": [
+        "unwraps linked <picture>"
+      ]
+    },
+    {
+      "id": "assets-publish",
+      "label": "osf assets publish",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "group": "crates/osf/src",
+      "subtitle": "crates/osf/src/assets.rs",
+      "summary": "Pushes a folder's files to a path on a branch, creating the branch as an orphan the first time, and prints the raw content web address.",
+      "files": [
+        {
+          "path": "crates/osf/src/assets.rs",
+          "startLine": 1,
+          "endLine": 368
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-publish-script",
+      "label": "pr-lens-publish.sh",
+      "kind": "other",
+      "delta": "removed",
+      "lane": "cli",
+      "subtitle": ".github/scripts/pr-lens-publish.sh (removed)",
+      "summary": "The shell script osf assets publish replaces.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "set-pr-section-script",
+      "label": "set-pr-section.py",
+      "kind": "other",
+      "delta": "removed",
+      "lane": "cli",
+      "subtitle": ".github/scripts/set-pr-section.py (removed)",
+      "summary": "The Python script osf pr section write replaces.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pr-description",
+      "label": "Pull request description",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "written-to",
+      "summary": "The outline, pr-lens and status-block marked sections a reviewer reads.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-branch",
+      "label": "pr-lens branch",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "written-to",
+      "summary": "An orphan branch holding rendered SVGs, one path per pull request and commit.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-lens-to-assets-publish",
+      "from": "pr-lens-workflow",
+      "to": "assets-publish",
+      "kind": "call",
+      "delta": "added",
+      "label": "osf assets publish",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "assets-publish-to-branch",
+      "from": "assets-publish",
+      "to": "pr-lens-branch",
+      "kind": "data",
+      "delta": "added",
+      "label": "push rendered SVGs",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "pr-lens-to-section-write",
+      "from": "pr-lens-workflow",
+      "to": "section-write",
+      "kind": "call",
+      "delta": "added",
+      "label": "osf pr section write --name pr-lens",
+      "emphasis": "hero",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "section-write-to-description",
+      "from": "section-write",
+      "to": "pr-description",
+      "kind": "data",
+      "delta": "added",
+      "label": "replace marked section",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cli-to-section-write",
+      "from": "osf-cli",
+      "to": "section-write",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "subcommand",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cli-to-assets-publish",
+      "from": "osf-cli",
+      "to": "assets-publish",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "subcommand",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "status-block-to-description",
+      "from": "status-block-workflow",
+      "to": "pr-description",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "status block",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "assets-publish-replaces-script",
+      "from": "assets-publish",
+      "to": "pr-lens-publish-script",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "replaces",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "section-write-replaces-script",
+      "from": "section-write",
+      "to": "set-pr-section-script",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "replaces",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "writing-a-review-aid-section",
+      "title": "Writing a review-aid section",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "pr-lens-workflow"
+        },
+        {
+          "node": "assets-publish"
+        },
+        {
+          "node": "pr-lens-branch"
+        },
+        {
+          "node": "section-write"
+        },
+        {
+          "node": "pr-description"
+        }
+      ],
+      "messages": [
+        {
+          "id": "publish-assets",
+          "from": "pr-lens-workflow",
+          "to": "assets-publish",
+          "label": "osf assets publish --branch pr-lens --dir <svgs>",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "push-svgs",
+          "from": "assets-publish",
+          "to": "pr-lens-branch",
+          "label": "push files, orphan branch",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "assets-url",
+          "from": "pr-lens-branch",
+          "to": "assets-publish",
+          "label": "raw content URL",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "write-section",
+          "from": "pr-lens-workflow",
+          "to": "section-write",
+          "label": "osf pr section write --name pr-lens --file section.md",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "save-section",
+          "from": "section-write",
+          "to": "pr-description",
+          "label": "replace <!-- osf:pr-lens:start/end -->",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 18,
+    "additions": 1788,
+    "deletions": 3,
+    "chips": [
+      {
+        "label": "New osf subcommands",
+        "value": "2",
+        "tone": "added"
+      },
+      {
+        "label": "Scripts retired",
+        "value": "2",
+        "tone": "removed"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "review-aids-cli",
+      "title": "How a review aid reaches the description",
+      "lens": "architecture",
+      "summary": "Every path that writes into a pull request description now goes through the osf CLI, not a script.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "picture-unwrap-fix",
+          "title": "The picture-unwrap fix",
+          "lens": "architecture",
+          "summary": "osf pr section write now strips a link around a lone <picture>, so a pr-lens diagram keeps its dark-mode source instead of always rendering light.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "section-write",
+              "pr-description"
+            ],
+            "edges": [
+              "section-write-to-description"
+            ],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "scripts-retired",
+          "title": "The two scripts this replaces",
+          "lens": "architecture",
+          "summary": "Both retired scripts, kept visible so a reviewer can confirm nothing else called them.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "pr-lens-publish-script",
+              "set-pr-section-script",
+              "assets-publish",
+              "section-write"
+            ],
+            "edges": [
+              "assets-publish-replaces-script",
+              "section-write-replaces-script"
+            ],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "fork-safe-workflows",
+          "title": "Fork pull requests get a read-only path",
+          "lens": "architecture",
+          "summary": "git-town and status-block skip or downgrade their write when the pull request comes from a fork, since a fork's token cannot push.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "git-town-workflow",
+              "status-block-workflow",
+              "pr-description"
+            ],
+            "edges": [
+              "status-block-to-description"
+            ],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "writing-a-review-aid-section",
+      "title": "Writing a review-aid section",
+      "lens": "data-flow",
+      "summary": "How the pr-lens workflow turns a rendered diagram into a saved section, through the two new osf commands.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "writing-a-review-aid-section"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "two-scripts-become-two-commands",
+        "heading": "Two scripts become two osf commands",
+        "body": "osf pr section write and osf assets publish replace pr-lens-publish.sh and set-pr-section.py.",
+        "stage": {
+          "kind": "view",
+          "view": "scripts-retired"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "picture-unwrap-fixes-dark-mode",
+        "heading": "A linked picture now keeps its dark-mode source",
+        "body": "GitHub always shows a picture's light fallback when a link wraps it; osf pr section write strips that link before saving.",
+        "stage": {
+          "kind": "view",
+          "view": "picture-unwrap-fix"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "svgs-still-flow-through-assets-publish",
+        "heading": "SVGs still flow through osf assets publish",
+        "body": "Rendered diagrams still land on the orphan pr-lens branch, now pushed by a Rust command instead of a shell script.",
+        "stage": {
+          "kind": "flow",
+          "flow": "writing-a-review-aid-section"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "publish-assets",
+            "push-svgs"
+          ]
+        }
+      }
+    ]
+  }
+}

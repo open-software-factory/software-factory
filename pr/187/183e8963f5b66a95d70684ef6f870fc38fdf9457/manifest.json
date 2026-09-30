@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "183e8963f5b66a95d70684ef6f870fc38fdf9457",
+    "contentHash": "3912e387b73099ff984191f71f2af977"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.1"
+  },
+  "assets": [
+    {
+      "id": "review-aids-cli-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-aids-cli",
+      "mediaType": "image/svg+xml",
+      "contentHash": "51546dc17ab26b8b340f145e4f00f511",
+      "bytes": 19301,
+      "width": 1284,
+      "height": 522,
+      "animated": false,
+      "path": "review-aids-cli-light-51546dc17ab26b8b340f145e4f00f511.svg"
+    },
+    {
+      "id": "review-aids-cli-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-aids-cli",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2e1c28b0999384ed796c696e832516aa",
+      "bytes": 19545,
+      "width": 1284,
+      "height": 522,
+      "animated": false,
+      "path": "review-aids-cli-dark-2e1c28b0999384ed796c696e832516aa.svg"
+    },
+    {
+      "id": "picture-unwrap-fix-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "picture-unwrap-fix",
+      "mediaType": "image/svg+xml",
+      "contentHash": "19cea496682398f97b7e4217bf9da68a",
+      "bytes": 5776,
+      "width": 860,
+      "height": 294,
+      "animated": false,
+      "path": "picture-unwrap-fix-light-19cea496682398f97b7e4217bf9da68a.svg"
+    },
+    {
+      "id": "picture-unwrap-fix-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "picture-unwrap-fix",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b230a3d69e786c9b053b9c8188f3c11c",
+      "bytes": 5836,
+      "width": 860,
+      "height": 294,
+      "animated": false,
+      "path": "picture-unwrap-fix-dark-b230a3d69e786c9b053b9c8188f3c11c.svg"
+    },
+    {
+      "id": "scripts-retired-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scripts-retired",
+      "mediaType": "image/svg+xml",
+      "contentHash": "42a5d5572ec0b80ed7a4d482a9b58b89",
+      "bytes": 8182,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "scripts-retired-light-42a5d5572ec0b80ed7a4d482a9b58b89.svg"
+    },
+    {
+      "id": "scripts-retired-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scripts-retired",
+      "mediaType": "image/svg+xml",
+      "contentHash": "58ed40b5cbf7584fa834087881755d3d",
+      "bytes": 8273,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "scripts-retired-dark-58ed40b5cbf7584fa834087881755d3d.svg"
+    },
+    {
+      "id": "fork-safe-workflows-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "fork-safe-workflows",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5d5714041b2290b9162b86b5278f11e1",
+      "bytes": 6927,
+      "width": 860,
+      "height": 294,
+      "animated": false,
+      "path": "fork-safe-workflows-light-5d5714041b2290b9162b86b5278f11e1.svg"
+    },
+    {
+      "id": "fork-safe-workflows-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "fork-safe-workflows",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f427c57c0a52becaa4d8b0dff0643b1e",
+      "bytes": 7011,
+      "width": 860,
+      "height": 294,
+      "animated": false,
+      "path": "fork-safe-workflows-dark-f427c57c0a52becaa4d8b0dff0643b1e.svg"
+    },
+    {
+      "id": "writing-a-review-aid-section-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "writing-a-review-aid-section",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5038159cdd1b556bb44b14c6fb51db07",
+      "bytes": 12964,
+      "width": 1526,
+      "height": 337,
+      "animated": true,
+      "path": "writing-a-review-aid-section-light-5038159cdd1b556bb44b14c6fb51db07.svg"
+    },
+    {
+      "id": "writing-a-review-aid-section-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "writing-a-review-aid-section",
+      "mediaType": "image/svg+xml",
+      "contentHash": "75a7c34498b7528b806397251526c4de",
+      "bytes": 13123,
+      "width": 1526,
+      "height": 337,
+      "animated": true,
+      "path": "writing-a-review-aid-section-dark-75a7c34498b7528b806397251526c4de.svg"
+    }
+  ]
+}
