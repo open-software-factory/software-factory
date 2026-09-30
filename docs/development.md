@@ -265,11 +265,16 @@ this file adds in full. A reviewer needs its own tool installed and
 logged in inside the development container, the same as it would on a
 person's own machine.
 
-| Reviewer name | Tool | Reads its key from |
-|---|---|---|
-| `codex` | Codex | `OPENAI_API_KEY` (or `CODEX_API_KEY`) |
-| `claude-code` | Claude Code | `ANTHROPIC_API_KEY` |
-| `dsh` | DeepSeek Harness | `DEEPSEEK_API_KEY` |
+This repository's own `osf.toml` names each entry after its own model
+family. Decision 0016 needs the family to differ from the builder's
+own family.
+
+| Reviewer name | Family | Harness | Model | Reads its key from |
+|---|---|---|---|---|
+| `openai` | OpenAI | Codex | its own default | `OPENAI_API_KEY` (or `CODEX_API_KEY`) |
+| `deepseek` | DeepSeek | DeepSeek Harness | its own default | `DEEPSEEK_API_KEY` |
+| `anthropic` | Anthropic | Claude Code | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` |
+| `qwen` | Qwen | opencode | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` |
 
 `osf` never reads or holds any of these keys itself. Each tool reads
 its own key, the same way it would outside `osf`. A reviewer whose key
@@ -277,13 +282,17 @@ is missing exits on its own. `osf` then counts that reviewer as
 could-not-run, and tries the next one. The review as a whole never
 stalls on one missing key.
 
-DeepSeek Harness needs one adjustment the other two do not need. Its
+`CLAUDE_CODE_OAUTH_TOKEN` comes from `claude setup-token`, run once
+against the owner's own Claude subscription. Claude Code reads it the
+same way it would outside `osf`, and talks to Anthropic directly.
+
+DeepSeek Harness needs one adjustment the other three do not need. Its
 headless profile takes the task as a command-line argument. It never
-reads one from standard input. The `dsh` entry above wraps the call in
-a small shell script instead: `sh -c 'exec dsh --profile headless
-"$(cat "$1")"' sh {prompt_file}`. That script reads the prompt file
-`osf` already writes. It then passes that file's text as the argument
-DeepSeek Harness expects.
+reads one from standard input. The `deepseek` entry above wraps the
+call in a small shell script instead: `sh -c 'exec dsh --profile
+headless "$(cat "$1")"' sh {prompt_file}`. That script reads the
+prompt file `osf` already writes. It then passes that file's text as
+the argument DeepSeek Harness expects.
 
 ### The builder's own family is left out
 

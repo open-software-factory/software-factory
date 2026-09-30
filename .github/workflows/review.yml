@@ -48,6 +48,7 @@ jobs:
             api.openai.com:443
             api.anthropic.com:443
             api.deepseek.com:443
+            openrouter.ai:443
 
       - name: Log in to ghcr.io to pull the devcontainer image
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -100,6 +101,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/base:/base"
@@ -110,6 +113,8 @@ jobs:
           -e OPENAI_API_KEY
           -e ANTHROPIC_API_KEY
           -e DEEPSEEK_API_KEY
+          -e CLAUDE_CODE_OAUTH_TOKEN
+          -e OPENROUTER_API_KEY
           -e OSF_STATE_DIR=/out/state
           ghcr.io/open-software-factory/devcontainer:main
           /base/target/release/osf review run
@@ -183,6 +188,7 @@ jobs:
             api.openai.com:443
             api.anthropic.com:443
             api.deepseek.com:443
+            openrouter.ai:443
 
       - name: Log in to ghcr.io to pull the devcontainer image
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -235,6 +241,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/base:/base"
@@ -245,6 +253,8 @@ jobs:
           -e OPENAI_API_KEY
           -e ANTHROPIC_API_KEY
           -e DEEPSEEK_API_KEY
+          -e CLAUDE_CODE_OAUTH_TOKEN
+          -e OPENROUTER_API_KEY
           -e OSF_STATE_DIR=/out/state
           ghcr.io/open-software-factory/devcontainer:main
           /base/target/release/osf review run

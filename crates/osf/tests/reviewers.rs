@@ -419,3 +419,41 @@ fn a_claude_code_style_envelope_extracts_structured_output() {
         }
     });
 }
+
+/// This repository's own `osf.toml` roster, one entry per family, named
+/// after the family rather than the harness (the owner's own rule: the
+/// family is what must differ from the builder, not how a reviewer reaches
+/// its model).
+#[test]
+fn this_repositorys_osf_toml_roster_is_named_by_family_in_order() {
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
+    let enabled_names: Vec<&str> = loaded
+        .iter()
+        .filter(|r| r.enabled)
+        .map(|r| r.name.as_str())
+        .collect();
+    assert_eq!(
+        enabled_names,
+        vec!["openai", "deepseek", "anthropic", "qwen"],
+        "{loaded:?}"
+    );
+}
+
+/// A Claude-built range's own family (`anthropic`, from its
+/// `Code-Generator:` trailer) matches this repository's own `anthropic`
+/// roster entry, so `run_lens`'s own `skip_families.contains` check would
+/// leave that entry out for such a change.
+#[test]
+fn a_claude_built_range_names_the_same_family_as_this_repositorys_anthropic_entry() {
+    let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
+    let anthropic = loaded
+        .iter()
+        .find(|r| r.name == "anthropic" && r.enabled)
+        .expect("an enabled anthropic entry");
+    let review_config =
+        osf::config::review_config(&repo_root).expect("this repository's review config loads");
+    let family = osf::builder::family_of("Claude Sonnet 5", &review_config.builder_family_aliases);
+    assert_eq!(family, anthropic.family);
+}
