@@ -285,6 +285,54 @@ a small shell script instead: `sh -c 'exec dsh --profile headless
 `osf` already writes. It then passes that file's text as the argument
 DeepSeek Harness expects.
 
+### The builder's own family is left out
+
+A reviewer from the same family as the change's own builder is not an
+independent second opinion. `osf review run` finds the builder's
+family before it runs any reviewer.
+
+It reads every commit in the reviewed range. It looks for each
+commit's own `Code-Generator:` trailer. It maps the model name in that
+trailer to a family, through a small table this tool ships. A
+repository's own `osf.toml` can add more names to that table, under
+`[review] builder_family_aliases`. The `--builder-family` flag skips
+this reading and names the family directly; pass it more than once for
+more than one family.
+
+A roster entry whose family matches does not run for this change. The
+review's decision still names every family it found, so a person
+reading the result can see why a reviewer sat out. When no trailer
+names a known family, `osf` records `unknown` and runs the roster the
+way it always did: nothing is left out.
+
+Too few other families can then mean the review could-not-run.
+`decide_lens` still needs answers from two families to score a lens.
+When leaving out the builder's family drops it below two, the lens
+could-not-run, and its reason names the family that was left out.
+
+### Pin a reviewer's model
+
+A roster entry can name the model its harness should use, and the
+flag that passes it:
+
+```toml
+[[review.roster]]
+name = "codex"
+harness = "codex"
+family = "openai"
+command = ["codex", "exec"]
+schema_flag = "--output-schema"
+schema_as = "path"
+model_flag = "--model"
+model = "o4-mini"
+enabled = true
+```
+
+`osf` passes `model_flag` and `model` on the harness's own command
+line only when both are set. Leaving `model` unset lets the harness
+use its own default model. Each reviewer's own answer, on the journal,
+records the model it actually ran with.
+
 ## The git wrapper, and its limit
 
 `/opt/factory/bin` comes before the real git on the container's path, and
