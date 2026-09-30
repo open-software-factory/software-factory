@@ -1,11 +1,11 @@
-//! Integration tests for `osf status tests`: a throwaway git repository
+//! Integration tests for `osf changeset tests`: a throwaway git repository
 //! with a base and a head commit, and the test summary read by parsing
 //! both, never by building or running either one.
 
 mod common;
 
 use common::TempRepo;
-use osf::test_summary::{render, summarize, GroupBody};
+use osf::changeset_tests::{render, summarize, GroupBody};
 
 fn base_repo(name: &str) -> TempRepo {
     TempRepo::new(name)

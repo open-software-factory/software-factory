@@ -1,4 +1,4 @@
-//! `osf status`: the block at the top of a pull request description that
+//! `osf pr status`: the block at the top of a pull request description that
 //! says whether the change is ready to merge. Rendering is a pure function
 //! of its inputs, so the same inputs always give the same bytes; applying
 //! replaces the block between two markers, or adds it at the top, without
@@ -45,7 +45,7 @@ pub struct RenderInput<'a> {
     pub approach: &'a str,
     pub review_json: &'a str,
     /// The Rust test summary, already rendered by
-    /// [`crate::test_summary::render`], or `None` to leave it out: this
+    /// [`crate::changeset_tests::render`], or `None` to leave it out: this
     /// module stays a pure function of its inputs and never builds one
     /// itself.
     pub tests: Option<&'a str>,
@@ -614,7 +614,7 @@ pub fn parse_pr_info(text: &str) -> Result<PrInfo, StatusError> {
     })
 }
 
-/// What [`apply`] and `osf status refresh` need from GitHub: reading a
+/// What [`apply`] and `osf pr status refresh` need from GitHub: reading a
 /// pull request's description and metadata, its checks, its review state,
 /// and writing a new description back. A trait so a test can supply a fake
 /// instead of shelling out to `gh`.

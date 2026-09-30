@@ -1,4 +1,4 @@
-//! `osf risk`: the blast radius of a change, as one of three tiers with the
+//! `osf changeset risk`: the blast radius of a change, as one of three tiers with the
 //! reasons behind the answer. Deterministic: the same change always gives
 //! the same answer, on any machine, under any locale. No model is involved.
 
@@ -121,7 +121,7 @@ fn code_dirs_pattern() -> String {
 }
 const DOC_FILES: &str = r"\.(md|txt|rst|adoc)$|^docs/";
 /// A path that looks like a test file in any language, by name or
-/// location. Shared with [`crate::test_summary`], so the Rust test summary
+/// location. Shared with [`crate::changeset_tests`], so the Rust test summary
 /// names a non-Rust test file the same way this module already treats one.
 pub(crate) const TEST_FILES: &str = r"(^|/)(tests?|spec|specs|__tests__|test_data|fixtures)/|[._-](test|tests|spec)\.[a-z]+$|_test\.go$|Tests?\.cs$|Test\.java$|Tests?\.kt$|_test\.dart$";
 const UI_PATTERN: &str = r"\.(dart|tsx|jsx|vue|svelte|xaml|razor|html|css|scss)$|(^|/)(screens?|widgets?|pages?|views?|components?)/";

@@ -1,4 +1,4 @@
-//! `osf status tests`: a summary of Rust tests added, changed and removed
+//! `osf changeset tests`: a summary of Rust tests added, changed and removed
 //! between two refs, read by parsing the base and head versions of each
 //! changed `.rs` file with the tree-sitter Rust grammar. Never builds or
 //! runs the change's code, so the summary cannot drift from what a build
@@ -16,7 +16,7 @@ use std::path::Path;
 use regex::RegexBuilder;
 use tree_sitter::{Node, Parser};
 
-/// A `status tests` run could not finish: a bad ref, or git failing to
+/// A `changeset tests` run could not finish: a bad ref, or git failing to
 /// run. A file the parser cannot read is not this error; it is reported
 /// inside the summary as unparsed instead, so one unreadable file never
 /// stops the rest of the summary from being built.
@@ -94,10 +94,10 @@ fn crate_of(path: &str) -> String {
 }
 
 /// Whether `path` looks like a test file in some language, by the same
-/// name and location patterns [`crate::risk`] already uses to keep tests
+/// name and location patterns [`crate::changeset_risk`] already uses to keep tests
 /// out of the blast-radius count.
 fn looks_like_a_test_file(path: &str) -> bool {
-    RegexBuilder::new(crate::risk::TEST_FILES)
+    RegexBuilder::new(crate::changeset_risk::TEST_FILES)
         .case_insensitive(true)
         .build()
         .expect("built-in test-file pattern compiles")
@@ -410,7 +410,7 @@ pub fn summarize(dir: &Path, base: &str, head: &str) -> Result<Summary, TestSumm
 }
 
 /// Renders a [`Summary`] as the Markdown this build puts in the status
-/// block, and what `osf status tests` prints on its own: the totals, then
+/// block, and what `osf changeset tests` prints on its own: the totals, then
 /// one group per file, each with its removed tests first, by name and
 /// description, then its added and changed tests by description alone.
 /// Only a removed test is ever named: issue #15 shows the raw identifier

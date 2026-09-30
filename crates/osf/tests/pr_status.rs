@@ -1,10 +1,10 @@
-//! Behavioral cases for `osf status`: rendering the block from named
+//! Behavioral cases for `osf pr status`: rendering the block from named
 //! sources, and applying it between markers in a pull request description.
 //! Every case here is offline: nothing is read from or written to GitHub,
 //! except the two cases that exercise the `gh` composition through a fake
 //! client.
 
-use osf::status::{self, GhClient, RenderInput, StatusError};
+use osf::pr_status::{self, GhClient, RenderInput, StatusError};
 use std::cell::RefCell;
 
 const TIER_JSON: &str =
@@ -38,7 +38,7 @@ fn base_input<'a>(gates: &'a str, review_json: &'a str) -> RenderInput<'a> {
 }
 
 fn render_ok(gates: &str, review_json: &str) -> String {
-    status::render(&base_input(gates, review_json)).expect("render succeeds")
+    pr_status::render(&base_input(gates, review_json)).expect("render succeeds")
 }
 
 fn row(block: &str, label: &str) -> String {
@@ -130,7 +130,7 @@ fn a_tier_json_missing_the_required_fields_is_refused() {
         tier_json: "{}",
         ..base_input("build: passed", &review)
     };
-    let err = status::render(&input).expect_err("empty tier object is refused");
+    let err = pr_status::render(&input).expect_err("empty tier object is refused");
     assert!(format!("{err}").contains("tier"), "{err}");
 }
 
@@ -141,7 +141,7 @@ fn a_tier_json_with_a_non_string_reason_is_refused() {
         tier_json: r#"{"tier":"normal","reasons":[{}]}"#,
         ..base_input("build: passed", &review)
     };
-    let err = status::render(&input).expect_err("a non-string reason is refused");
+    let err = pr_status::render(&input).expect_err("a non-string reason is refused");
     assert!(format!("{err}").contains("reasons"), "{err}");
 }
 
@@ -155,7 +155,7 @@ fn review_json_that_is_not_json_at_all_is_refused() {
         review_json: "",
         tests: None,
     };
-    assert!(status::render(&input).is_err());
+    assert!(pr_status::render(&input).is_err());
 }
 
 #[test]
@@ -168,7 +168,7 @@ fn review_json_with_a_non_object_review_is_refused() {
         review_json: r#"{"reviews":[1]}"#,
         tests: None,
     };
-    let err = status::render(&input).expect_err("a non-object review is refused");
+    let err = pr_status::render(&input).expect_err("a non-object review is refused");
     assert!(format!("{err}").contains("shape"), "{err}");
 }
 
@@ -176,7 +176,7 @@ fn review_json_with_a_non_object_review_is_refused() {
 fn a_comma_inside_a_gate_name_is_refused_naming_the_cause() {
     let review = advisory_two_rounds_review();
     let input = base_input("tests (35, both paths): passed", &review);
-    let err = status::render(&input).expect_err("a comma inside a gate name is refused");
+    let err = pr_status::render(&input).expect_err("a comma inside a gate name is refused");
     assert!(
         format!("{err}").contains("a comma inside a gate name"),
         "{err}"
@@ -187,7 +187,7 @@ fn a_comma_inside_a_gate_name_is_refused_naming_the_cause() {
 fn a_gate_result_other_than_passed_or_failed_is_refused() {
     let review = advisory_two_rounds_review();
     let input = base_input("build: ok", &review);
-    let err = status::render(&input).expect_err("an unknown gate result is refused");
+    let err = pr_status::render(&input).expect_err("an unknown gate result is refused");
     assert!(
         format!("{err}").contains("must end ': passed' or ': failed"),
         "{err}"
@@ -198,8 +198,8 @@ fn a_gate_result_other_than_passed_or_failed_is_refused() {
 fn render_gives_byte_identical_output_on_the_same_inputs() {
     let review = advisory_two_rounds_review();
     let input = base_input("build: passed, tests (412): passed", &review);
-    let first = status::render(&input).expect("first render succeeds");
-    let second = status::render(&input).expect("second render succeeds");
+    let first = pr_status::render(&input).expect("first render succeeds");
+    let second = pr_status::render(&input).expect("second render succeeds");
     assert_eq!(first.as_bytes(), second.as_bytes());
 }
 
@@ -207,7 +207,7 @@ fn render_gives_byte_identical_output_on_the_same_inputs() {
 fn with_no_tests_summary_the_block_is_unchanged_from_before_it_existed() {
     let review = advisory_two_rounds_review();
     let input = base_input("build: passed", &review);
-    let block = status::render(&input).expect("render succeeds");
+    let block = pr_status::render(&input).expect("render succeeds");
     assert!(block.contains("**Approach**: The approach.\n<!-- factory:status:end -->"));
     assert!(!block.contains("**Tests**"));
 }
@@ -219,7 +219,7 @@ fn a_given_tests_summary_lands_between_approach_and_the_end_marker() {
         tests: Some("**Tests**: 1 added, 0 changed, 0 removed"),
         ..base_input("build: passed", &review)
     };
-    let block = status::render(&input).expect("render succeeds");
+    let block = pr_status::render(&input).expect("render succeeds");
     assert!(block.contains(
         "**Approach**: The approach.\n\n**Tests**: 1 added, 0 changed, 0 removed\n<!-- factory:status:end -->"
     ));
@@ -256,7 +256,7 @@ fn strip_block(text: &str) -> String {
 #[test]
 fn apply_replaces_the_existing_block_and_changes_nothing_else() {
     let block = new_block();
-    let out = status::apply(BODY_WITH_BLOCK, &block).expect("apply succeeds");
+    let out = pr_status::apply(BODY_WITH_BLOCK, &block).expect("apply succeeds");
     assert_eq!(strip_block(BODY_WITH_BLOCK), strip_block(&out));
     assert!(out.contains("| **Ready** | yes |"));
     assert!(!out.contains("old reasons"));
@@ -266,15 +266,15 @@ fn apply_replaces_the_existing_block_and_changes_nothing_else() {
 #[test]
 fn apply_is_idempotent() {
     let block = new_block();
-    let once = status::apply(BODY_WITH_BLOCK, &block).expect("first apply succeeds");
-    let twice = status::apply(&once, &block).expect("second apply succeeds");
+    let once = pr_status::apply(BODY_WITH_BLOCK, &block).expect("first apply succeeds");
+    let twice = pr_status::apply(&once, &block).expect("second apply succeeds");
     assert_eq!(once, twice);
 }
 
 #[test]
 fn apply_inserts_the_block_at_the_top_when_markers_are_absent() {
     let block = new_block();
-    let out = status::apply(BODY_WITHOUT_BLOCK, &block).expect("apply succeeds");
+    let out = pr_status::apply(BODY_WITHOUT_BLOCK, &block).expect("apply succeeds");
     assert_eq!(out.lines().next(), Some("<!-- factory:status:begin -->"));
     assert_eq!(
         strip_block(&out),
@@ -286,7 +286,7 @@ fn apply_inserts_the_block_at_the_top_when_markers_are_absent() {
 fn apply_keeps_three_trailing_newlines_exactly() {
     let block = new_block();
     let body = format!("{BODY_WITH_BLOCK}\n\n");
-    let out = status::apply(&body, &block).expect("apply succeeds");
+    let out = pr_status::apply(&body, &block).expect("apply succeeds");
     assert!(out.ends_with("\n\n\n"), "{:?}", &out[out.len() - 6..]);
     assert!(!out.ends_with("\n\n\n\n"));
 }
@@ -295,7 +295,7 @@ fn apply_keeps_three_trailing_newlines_exactly() {
 fn apply_adds_no_final_newline_when_the_body_has_none() {
     let block = new_block();
     let body = BODY_WITHOUT_BLOCK.trim_end_matches('\n');
-    let out = status::apply(body, &block).expect("apply succeeds");
+    let out = pr_status::apply(body, &block).expect("apply succeeds");
     assert!(!out.ends_with('\n'), "{:?}", &out[out.len() - 6..]);
 }
 
@@ -305,7 +305,7 @@ fn apply_keeps_a_long_run_of_trailing_newlines_and_stays_fast() {
     let long_trail = "\n".repeat(20_000);
     let body = format!("{BODY_WITH_BLOCK}{long_trail}");
     let started = std::time::Instant::now();
-    let out = status::apply(&body, &block).expect("apply succeeds");
+    let out = pr_status::apply(&body, &block).expect("apply succeeds");
     assert!(started.elapsed().as_secs() < 5, "apply must finish quickly");
     assert!(out.ends_with(&long_trail));
 }
@@ -314,7 +314,7 @@ fn apply_keeps_a_long_run_of_trailing_newlines_and_stays_fast() {
 fn a_body_with_a_begin_marker_and_no_end_marker_is_refused() {
     let block = new_block();
     let body = "<!-- factory:status:begin -->\ncell\n";
-    let err = status::apply(body, &block).expect_err("begin without end is refused");
+    let err = pr_status::apply(body, &block).expect_err("begin without end is refused");
     assert!(
         format!("{err}").contains("1 begin marker(s) and 0 end marker(s)"),
         "{err}"
@@ -328,7 +328,7 @@ fn a_marker_with_trailing_space_is_not_a_marker() {
         "<!-- factory:status:begin -->\n",
         "<!-- factory:status:begin --> \n",
     );
-    let err = status::apply(&body, &block).expect_err("a marker with trailing space is refused");
+    let err = pr_status::apply(&body, &block).expect_err("a marker with trailing space is refused");
     assert!(
         format!("{err}").contains("0 begin marker(s) and 1 end marker(s)"),
         "{err}"
@@ -338,7 +338,7 @@ fn a_marker_with_trailing_space_is_not_a_marker() {
 #[test]
 fn a_block_file_with_an_inline_marker_is_refused() {
     let bad_block = "x <!-- factory:status:begin --> y\n<!-- factory:status:end -->\n";
-    let err = status::apply(BODY_WITHOUT_BLOCK, bad_block)
+    let err = pr_status::apply(BODY_WITHOUT_BLOCK, bad_block)
         .expect_err("an inline marker does not count as a marker line");
     assert!(
         format!("{err}").contains("each marker exactly once"),
@@ -349,7 +349,7 @@ fn a_block_file_with_an_inline_marker_is_refused() {
 #[test]
 fn a_block_file_with_reversed_markers_is_refused() {
     let bad_block = "<!-- factory:status:end -->\ncell\n<!-- factory:status:begin -->\n";
-    let err = status::apply(BODY_WITHOUT_BLOCK, bad_block)
+    let err = pr_status::apply(BODY_WITHOUT_BLOCK, bad_block)
         .expect_err("reversed markers in the block are refused");
     assert!(
         format!("{err}").contains("end marker comes before its begin marker"),
@@ -361,7 +361,7 @@ fn a_block_file_with_reversed_markers_is_refused() {
 fn a_body_with_reversed_markers_is_refused() {
     let block = new_block();
     let body = "<!-- factory:status:end -->\ncell\n<!-- factory:status:begin -->\n";
-    let err = status::apply(body, &block).expect_err("reversed markers in the body are refused");
+    let err = pr_status::apply(body, &block).expect_err("reversed markers in the body are refused");
     assert!(
         format!("{err}").contains("end marker comes before its begin marker"),
         "{err}"
@@ -375,7 +375,7 @@ fn a_body_with_reversed_markers_is_refused() {
 fn apply_on_a_crlf_body_keeps_crlf_throughout_and_preserves_the_trailing_run() {
     let block = new_block();
     let crlf_body = BODY_WITH_BLOCK.replace('\n', "\r\n") + "\r\n";
-    let out = status::apply(&crlf_body, &block).expect("apply succeeds on a CRLF body");
+    let out = pr_status::apply(&crlf_body, &block).expect("apply succeeds on a CRLF body");
     assert!(
         !out.contains("\r\r"),
         "no doubled carriage returns: {out:?}"
@@ -396,7 +396,7 @@ fn apply_on_a_crlf_body_keeps_crlf_throughout_and_preserves_the_trailing_run() {
 fn apply_on_a_crlf_body_with_no_existing_block_inserts_a_crlf_block() {
     let block = new_block();
     let crlf_body = BODY_WITHOUT_BLOCK.replace('\n', "\r\n");
-    let out = status::apply(&crlf_body, &block).expect("apply succeeds");
+    let out = pr_status::apply(&crlf_body, &block).expect("apply succeeds");
     let first_line_end = out.find('\n').expect("at least one line");
     assert_eq!(&out[..=first_line_end], "<!-- factory:status:begin -->\r\n");
     assert!(out.contains("A body written before the status block existed.\r\n"));
@@ -464,7 +464,7 @@ impl GhClient for FakeGh {
 #[test]
 fn a_failed_gh_pr_view_stops_apply_before_gh_pr_edit() {
     let client = FakeGh::failing_view();
-    let result = status::apply_via_gh(
+    let result = pr_status::apply_via_gh(
         &client,
         "open-software-factory/software-factory",
         "1",
@@ -479,7 +479,7 @@ fn a_failed_gh_pr_view_stops_apply_before_gh_pr_edit() {
 #[test]
 fn a_working_gh_pr_view_leads_to_one_gh_pr_edit_with_the_block_on_top() {
     let client = FakeGh::new(BODY_WITHOUT_BLOCK);
-    let new_body = status::apply_via_gh(
+    let new_body = pr_status::apply_via_gh(
         &client,
         "open-software-factory/software-factory",
         "1",
@@ -511,13 +511,13 @@ const CHECKS_JSON: &str = r#"[
 #[test]
 fn gates_from_checks_json_maps_buckets_and_skips_the_self_check() {
     let gates =
-        status::gates_from_checks_json(CHECKS_JSON, "status block").expect("valid checks JSON");
+        pr_status::gates_from_checks_json(CHECKS_JSON, "status block").expect("valid checks JSON");
     assert_eq!(gates, "hygiene: passed, rust: failed: FAILURE");
 }
 
 #[test]
 fn gates_from_checks_json_of_an_empty_array_reads_as_no_checks_reported_yet() {
-    let gates = status::gates_from_checks_json("[]", "status block").expect("valid checks JSON");
+    let gates = pr_status::gates_from_checks_json("[]", "status block").expect("valid checks JSON");
     assert_eq!(gates, "");
     let review = review_json("APPROVED", "", "");
     let input = RenderInput {
@@ -528,7 +528,7 @@ fn gates_from_checks_json_of_an_empty_array_reads_as_no_checks_reported_yet() {
         review_json: &review,
         tests: None,
     };
-    let block = status::render(&input).expect("render succeeds");
+    let block = pr_status::render(&input).expect("render succeeds");
     assert_eq!(
         row(&block, "Verified"),
         "| **Verified** | no checks reported yet |"
@@ -538,8 +538,8 @@ fn gates_from_checks_json_of_an_empty_array_reads_as_no_checks_reported_yet() {
 #[test]
 fn extract_problem_approach_reads_them_from_an_existing_block() {
     let block = new_block();
-    let body = status::apply(BODY_WITHOUT_BLOCK, &block).expect("apply succeeds");
-    let (problem, approach) = status::extract_problem_approach(&body)
+    let body = pr_status::apply(BODY_WITHOUT_BLOCK, &block).expect("apply succeeds");
+    let (problem, approach) = pr_status::extract_problem_approach(&body)
         .expect("extraction succeeds")
         .expect("a block is there");
     assert_eq!(problem, "The problem.");
@@ -548,7 +548,7 @@ fn extract_problem_approach_reads_them_from_an_existing_block() {
 
 #[test]
 fn extract_problem_approach_is_none_when_the_body_has_no_block_yet() {
-    assert!(status::extract_problem_approach(BODY_WITHOUT_BLOCK)
+    assert!(pr_status::extract_problem_approach(BODY_WITHOUT_BLOCK)
         .expect("extraction succeeds")
         .is_none());
 }
@@ -556,18 +556,18 @@ fn extract_problem_approach_is_none_when_the_body_has_no_block_yet() {
 #[test]
 fn is_unchanged_is_true_when_the_body_already_carries_this_exact_block() {
     let block = new_block();
-    let body = status::apply(BODY_WITHOUT_BLOCK, &block).expect("apply succeeds");
-    assert!(status::is_unchanged(&body, &block).expect("no marker error"));
+    let body = pr_status::apply(BODY_WITHOUT_BLOCK, &block).expect("apply succeeds");
+    assert!(pr_status::is_unchanged(&body, &block).expect("no marker error"));
 }
 
 #[test]
 fn is_unchanged_is_false_when_the_bodys_block_differs() {
     let block = new_block();
-    assert!(!status::is_unchanged(BODY_WITH_BLOCK, &block).expect("no marker error"));
+    assert!(!pr_status::is_unchanged(BODY_WITH_BLOCK, &block).expect("no marker error"));
 }
 
 #[test]
 fn is_unchanged_is_false_when_the_body_has_no_block_yet() {
     let block = new_block();
-    assert!(!status::is_unchanged(BODY_WITHOUT_BLOCK, &block).expect("no marker error"));
+    assert!(!pr_status::is_unchanged(BODY_WITHOUT_BLOCK, &block).expect("no marker error"));
 }

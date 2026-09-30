@@ -1,7 +1,7 @@
-use osf::status::GhClient;
+use osf::pr_status::GhClient;
 use osf::{
-    assets, config, exclude, git, hook, lints, review, risk, scan, section, status, test_summary,
-    verify,
+    assets, changeset_risk, changeset_tests, config, exclude, git, hook, lints, pr_status, review,
+    scan, section, verify,
 };
 
 use clap::parser::ValueSource;
@@ -102,12 +102,10 @@ enum Command {
     Scan(ScanArgs),
     /// Run every check one gate needs, in one entry point every gate calls.
     Verify(VerifyArgs),
-    /// Report the blast radius of a change: low, normal, or high, with the reasons.
-    Risk(RiskArgs),
-    /// Render or apply the status block at the top of a pull request description.
-    Status {
+    /// Report on a changeset: its blast radius, or its Rust test summary.
+    Changeset {
         #[command(subcommand)]
-        action: StatusAction,
+        action: ChangesetAction,
     },
     /// Publish a code review on a pull request.
     Review {
@@ -165,6 +163,11 @@ enum PrAction {
         #[command(subcommand)]
         action: SectionAction,
     },
+    /// Render or apply the status block at the top of a pull request description.
+    Status {
+        #[command(subcommand)]
+        action: StatusAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -192,6 +195,16 @@ struct SectionWriteArgs {
     repo: Option<String>,
 }
 
+#[derive(Subcommand)]
+enum ChangesetAction {
+    /// Report the blast radius of a change: low, normal, or high, with the reasons.
+    Risk(RiskArgs),
+    /// Print the Rust test summary alone: the same tests-added-changed-
+    /// removed report the status block carries, for a person or another
+    /// tool to read without going through a pull request at all.
+    Tests(ChangesetTestsArgs),
+}
+
 #[derive(Args)]
 struct RiskArgs {
     /// What to diff the change against. A remote-tracking ref, so a local
@@ -204,6 +217,16 @@ struct RiskArgs {
     format: Option<Format>,
 }
 
+#[derive(Args)]
+struct ChangesetTestsArgs {
+    /// What to diff against: a remote-tracking ref or any commit-ish.
+    #[arg(long, default_value = "origin/main")]
+    base: String,
+    /// The other side of the diff.
+    #[arg(long, default_value = "HEAD")]
+    head: String,
+}
+
 #[derive(Subcommand)]
 enum StatusAction {
     /// Print the status block for the given inputs.
@@ -213,20 +236,6 @@ enum StatusAction {
     /// Recompute the status block from the pull request's current state and
     /// write it back only when it changed.
     Refresh(StatusRefreshArgs),
-    /// Print the Rust test summary alone: the same tests-added-changed-
-    /// removed report the block carries, for a person or another tool to
-    /// read without going through a pull request at all.
-    Tests(StatusTestsArgs),
-}
-
-#[derive(Args)]
-struct StatusTestsArgs {
-    /// What to diff against: a remote-tracking ref or any commit-ish.
-    #[arg(long, default_value = "origin/main")]
-    base: String,
-    /// The other side of the diff.
-    #[arg(long, default_value = "HEAD")]
-    head: String,
 }
 
 #[derive(Args)]
@@ -284,7 +293,7 @@ const STATUS_CHECK_NAME: &str = "status block";
 
 /// `Problem` and `Approach` text a fresh block starts with when neither
 /// `--problem` nor `--approach` was given: a refresh should never sit idle
-/// waiting for a person to run `osf status apply` by hand.
+/// waiting for a person to run `osf pr status apply` by hand.
 const NOT_FILLED_IN: &str = "not filled in yet";
 
 #[derive(Args)]
@@ -302,13 +311,13 @@ struct StatusRefreshArgs {
     /// One sentence describing the problem. Used to start the block when
     /// the description has none yet; ignored once a block exists. Left
     /// out, a fresh block starts with a placeholder instead of waiting for
-    /// a person to run `osf status apply` first.
+    /// a person to run `osf pr status apply` first.
     #[arg(long)]
     problem: Option<String>,
     /// One sentence describing the approach. Used to start the block when
     /// the description has none yet; ignored once a block exists. Left
     /// out, a fresh block starts with a placeholder instead of waiting for
-    /// a person to run `osf status apply` first.
+    /// a person to run `osf pr status apply` first.
     #[arg(long)]
     approach: Option<String>,
     /// A file holding `gh pr checks --json name,state,bucket` output,
@@ -596,19 +605,12 @@ fn main() -> ExitCode {
         Command::Explain { rule_id } => explain(rule_id),
         Command::Scan(args) => scan_cmd(args, cli.config.as_deref()),
         Command::Verify(args) => verify_cmd(args, cli.config.as_deref()),
-        Command::Risk(args) => risk_cmd(args),
-        Command::Status {
-            action: StatusAction::Render(args),
-        } => status_render_cmd(args),
-        Command::Status {
-            action: StatusAction::Apply(args),
-        } => status_apply_cmd(args),
-        Command::Status {
-            action: StatusAction::Refresh(args),
-        } => status_refresh_cmd(args),
-        Command::Status {
-            action: StatusAction::Tests(args),
-        } => status_tests_cmd(args),
+        Command::Changeset {
+            action: ChangesetAction::Risk(args),
+        } => changeset_risk_cmd(args),
+        Command::Changeset {
+            action: ChangesetAction::Tests(args),
+        } => changeset_tests_cmd(args),
         Command::Review {
             action: ReviewAction::Post(args),
         } => review_post_cmd(args),
@@ -618,6 +620,24 @@ fn main() -> ExitCode {
                     action: SectionAction::Write(args),
                 },
         } => pr_section_write_cmd(args),
+        Command::Pr {
+            action:
+                PrAction::Status {
+                    action: StatusAction::Render(args),
+                },
+        } => pr_status_render_cmd(args),
+        Command::Pr {
+            action:
+                PrAction::Status {
+                    action: StatusAction::Apply(args),
+                },
+        } => pr_status_apply_cmd(args),
+        Command::Pr {
+            action:
+                PrAction::Status {
+                    action: StatusAction::Refresh(args),
+                },
+        } => pr_status_refresh_cmd(args),
         Command::Assets {
             action: AssetsAction::Publish(args),
         } => assets_publish_cmd(args),
@@ -1254,17 +1274,17 @@ fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitC
     }
 }
 
-fn risk_cmd(args: &RiskArgs) -> ExitCode {
+fn changeset_risk_cmd(args: &RiskArgs) -> ExitCode {
     let format = args.format.unwrap_or(Format::Human);
     if format == Format::Sarif {
-        eprintln!("osf risk: format 'sarif' is not supported; use human or json");
+        eprintln!("osf changeset risk: format 'sarif' is not supported; use human or json");
         return ExitCode::from(2);
     }
     let dir = Path::new(".");
-    let report = match risk::assess(dir, &args.base) {
+    let report = match changeset_risk::assess(dir, &args.base) {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("osf risk: {e}");
+            eprintln!("osf changeset risk: {e}");
             return ExitCode::from(2);
         }
     };
@@ -1283,7 +1303,7 @@ fn read_to_string_or_exit(path: &Path) -> Result<String, ExitCode> {
     })
 }
 
-fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
+fn pr_status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
     let tier_text = match read_to_string_or_exit(&args.tier_json) {
         Ok(t) => t,
         Err(code) => return code,
@@ -1295,10 +1315,10 @@ fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
         }
     } else {
         let (Some(repo), Some(pr)) = (&args.repo, &args.pr) else {
-            eprintln!("osf status render: needs --repo and --pr, or --review-json");
+            eprintln!("osf pr status render: needs --repo and --pr, or --review-json");
             return ExitCode::from(2);
         };
-        match status::RealGh.view_review(repo, pr) {
+        match pr_status::RealGh.view_review(repo, pr) {
             Ok(t) => t,
             Err(e) => {
                 eprintln!("osf: {e}");
@@ -1306,7 +1326,7 @@ fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
             }
         }
     };
-    let input = status::RenderInput {
+    let input = pr_status::RenderInput {
         tier_json: &tier_text,
         gates: &args.gates,
         problem: &args.problem,
@@ -1314,7 +1334,7 @@ fn status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
         review_json: &review_text,
         tests: None,
     };
-    match status::render(&input) {
+    match pr_status::render(&input) {
         Ok(block) => {
             print!("{block}");
             ExitCode::SUCCESS
@@ -1392,10 +1412,10 @@ fn print_dry_run(args: &ReviewPostArgs, plan: &review::Plan, head_sha: &str) -> 
     }
 }
 
-fn status_tests_cmd(args: &StatusTestsArgs) -> ExitCode {
-    match test_summary::summarize(Path::new("."), &args.base, &args.head) {
+fn changeset_tests_cmd(args: &ChangesetTestsArgs) -> ExitCode {
+    match changeset_tests::summarize(Path::new("."), &args.base, &args.head) {
         Ok(summary) => {
-            println!("{}", test_summary::render(&summary));
+            println!("{}", changeset_tests::render(&summary));
             ExitCode::SUCCESS
         }
         Err(e) => {
@@ -1405,7 +1425,7 @@ fn status_tests_cmd(args: &StatusTestsArgs) -> ExitCode {
     }
 }
 
-fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
+fn pr_status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
     let block_text = match read_to_string_or_exit(&args.block) {
         Ok(t) => t,
         Err(code) => return code,
@@ -1413,7 +1433,7 @@ fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
 
     if args.body_file.is_some() || args.out.is_some() {
         let (Some(body_path), Some(out_path)) = (&args.body_file, &args.out) else {
-            eprintln!("osf status apply: --body-file needs --out");
+            eprintln!("osf pr status apply: --body-file needs --out");
             return ExitCode::from(2);
         };
         let body = match std::fs::read_to_string(body_path) {
@@ -1426,10 +1446,10 @@ fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
                 return ExitCode::from(2);
             }
         };
-        return match status::apply(&body, &block_text) {
+        return match pr_status::apply(&body, &block_text) {
             Ok(new_body) => match std::fs::write(out_path, &new_body) {
                 Ok(()) => {
-                    println!("osf status apply: wrote {}", out_path.display());
+                    println!("osf pr status apply: wrote {}", out_path.display());
                     ExitCode::SUCCESS
                 }
                 Err(e) => {
@@ -1445,10 +1465,10 @@ fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
     }
 
     let (Some(repo), Some(pr)) = (&args.repo, &args.pr) else {
-        eprintln!("osf status apply: needs --repo and --pr, or --body-file and --out");
+        eprintln!("osf pr status apply: needs --repo and --pr, or --body-file and --out");
         return ExitCode::from(2);
     };
-    let client = status::RealGh;
+    let client = pr_status::RealGh;
     let body = match client.view_body(repo, pr) {
         Ok(b) => b,
         Err(e) => {
@@ -1456,7 +1476,7 @@ fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let new_body = match status::apply(&body, &block_text) {
+    let new_body = match pr_status::apply(&body, &block_text) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -1469,7 +1489,7 @@ fn status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
     }
     match client.edit_body(repo, pr, &new_body) {
         Ok(()) => {
-            println!("osf status apply: applied to {repo}#{pr}");
+            println!("osf pr status apply: applied to {repo}#{pr}");
             ExitCode::SUCCESS
         }
         Err(e) => {
@@ -1503,13 +1523,13 @@ fn git_fetch(remote: &str, ref_name: &str) -> Result<(), String> {
 /// own block when it has one; from `--problem`/`--approach` when given and
 /// there is no block yet; or, with neither, [`NOT_FILLED_IN`], so the first
 /// refresh always starts the block instead of waiting for a person to run
-/// `osf status apply` by hand.
-fn status_refresh_problem_approach(
+/// `osf pr status apply` by hand.
+fn pr_status_refresh_problem_approach(
     body: &str,
     problem: Option<&String>,
     approach: Option<&String>,
 ) -> Result<(String, String), ExitCode> {
-    match status::extract_problem_approach(body) {
+    match pr_status::extract_problem_approach(body) {
         Ok(Some((p, a))) => Ok((p, a)),
         Ok(None) => Ok((
             problem
@@ -1528,7 +1548,7 @@ fn status_refresh_problem_approach(
 
 /// The ref to assess risk against: `base` verbatim when given, else
 /// `origin/<base_ref>` after fetching it so a fresh checkout has it.
-fn status_refresh_base(base: Option<&String>, base_ref: &str) -> Result<String, ExitCode> {
+fn pr_status_refresh_base(base: Option<&String>, base_ref: &str) -> Result<String, ExitCode> {
     if let Some(b) = base {
         return Ok(b.clone());
     }
@@ -1541,8 +1561,8 @@ fn status_refresh_base(base: Option<&String>, base_ref: &str) -> Result<String, 
 
 /// The gate spec for `render`: from `checks_json` when given, else from
 /// `gh pr checks`, with the check running this refresh left out.
-fn status_refresh_gates(
-    client: &dyn status::GhClient,
+fn pr_status_refresh_gates(
+    client: &dyn pr_status::GhClient,
     repo: &str,
     pr: &str,
     checks_json: Option<&PathBuf>,
@@ -1555,15 +1575,15 @@ fn status_refresh_gates(
             ExitCode::from(2)
         })?
     };
-    status::gates_from_checks_json(&checks_text, STATUS_CHECK_NAME).map_err(|e| {
+    pr_status::gates_from_checks_json(&checks_text, STATUS_CHECK_NAME).map_err(|e| {
         eprintln!("osf: {e}");
         ExitCode::from(2)
     })
 }
 
 /// The review JSON for `render`: from `review_json` when given, else from `gh pr view`.
-fn status_refresh_review(
-    client: &dyn status::GhClient,
+fn pr_status_refresh_review(
+    client: &dyn pr_status::GhClient,
     repo: &str,
     pr: &str,
     review_json: Option<&PathBuf>,
@@ -1578,43 +1598,43 @@ fn status_refresh_review(
     }
 }
 
-fn status_refresh_cmd(args: &StatusRefreshArgs) -> ExitCode {
-    status_refresh_run(&status::RealGh, args).unwrap_or_else(|code| code)
+fn pr_status_refresh_cmd(args: &StatusRefreshArgs) -> ExitCode {
+    pr_status_refresh_run(&pr_status::RealGh, args).unwrap_or_else(|code| code)
 }
 
-fn status_refresh_run(
-    client: &dyn status::GhClient,
+fn pr_status_refresh_run(
+    client: &dyn pr_status::GhClient,
     args: &StatusRefreshArgs,
 ) -> Result<ExitCode, ExitCode> {
-    let to_exit = |e: status::StatusError| {
+    let to_exit = |e: pr_status::StatusError| {
         eprintln!("osf: {e}");
         ExitCode::from(2)
     };
 
     let pr_info_text = client.view_pr_info(&args.repo, &args.pr).map_err(to_exit)?;
-    let pr_info = status::parse_pr_info(&pr_info_text).map_err(to_exit)?;
+    let pr_info = pr_status::parse_pr_info(&pr_info_text).map_err(to_exit)?;
 
-    let (problem, approach) = status_refresh_problem_approach(
+    let (problem, approach) = pr_status_refresh_problem_approach(
         &pr_info.body,
         args.problem.as_ref(),
         args.approach.as_ref(),
     )?;
-    let base = status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
-    let report = risk::assess(Path::new("."), &base).map_err(|e| {
-        eprintln!("osf risk: {e}");
+    let base = pr_status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
+    let report = changeset_risk::assess(Path::new("."), &base).map_err(|e| {
+        eprintln!("osf changeset risk: {e}");
         ExitCode::from(2)
     })?;
     let tier_text = report.to_json().to_string();
-    let gates = status_refresh_gates(client, &args.repo, &args.pr, args.checks_json.as_ref())?;
+    let gates = pr_status_refresh_gates(client, &args.repo, &args.pr, args.checks_json.as_ref())?;
     let review_text =
-        status_refresh_review(client, &args.repo, &args.pr, args.review_json.as_ref())?;
-    let tests_summary = test_summary::summarize(Path::new("."), &base, "HEAD").map_err(|e| {
+        pr_status_refresh_review(client, &args.repo, &args.pr, args.review_json.as_ref())?;
+    let tests_summary = changeset_tests::summarize(Path::new("."), &base, "HEAD").map_err(|e| {
         eprintln!("osf: {e}");
         ExitCode::from(2)
     })?;
-    let tests_text = test_summary::render(&tests_summary);
+    let tests_text = changeset_tests::render(&tests_summary);
 
-    let input = status::RenderInput {
+    let input = pr_status::RenderInput {
         tier_json: &tier_text,
         gates: &gates,
         problem: &problem,
@@ -1622,13 +1642,13 @@ fn status_refresh_run(
         review_json: &review_text,
         tests: Some(&tests_text),
     };
-    let block = status::render(&input).map_err(to_exit)?;
-    let unchanged = status::is_unchanged(&pr_info.body, &block).map_err(to_exit)?;
+    let block = pr_status::render(&input).map_err(to_exit)?;
+    let unchanged = pr_status::is_unchanged(&pr_info.body, &block).map_err(to_exit)?;
 
     if args.dry_run {
         print!("{block}");
         println!(
-            "osf status refresh: {}",
+            "osf pr status refresh: {}",
             if unchanged {
                 "unchanged"
             } else {
@@ -1638,15 +1658,15 @@ fn status_refresh_run(
         return Ok(ExitCode::SUCCESS);
     }
     if unchanged {
-        println!("osf status refresh: unchanged");
+        println!("osf pr status refresh: unchanged");
         return Ok(ExitCode::SUCCESS);
     }
 
-    let new_body = status::apply(&pr_info.body, &block).map_err(to_exit)?;
+    let new_body = pr_status::apply(&pr_info.body, &block).map_err(to_exit)?;
     client
         .edit_body(&args.repo, &args.pr, &new_body)
         .map_err(to_exit)?;
-    println!("osf status refresh: updated");
+    println!("osf pr status refresh: updated");
     Ok(ExitCode::SUCCESS)
 }
 
@@ -1850,7 +1870,7 @@ mod tests {
 
     #[test]
     fn a_missing_block_is_started_with_a_placeholder_when_no_flags_are_given() {
-        let started = status_refresh_problem_approach("just a description\n", None, None)
+        let started = pr_status_refresh_problem_approach("just a description\n", None, None)
             .expect("never fails");
         assert_eq!(
             started,
@@ -1862,8 +1882,9 @@ mod tests {
     fn a_missing_block_is_started_from_the_given_flags_when_present() {
         let p = "the problem".to_string();
         let a = "the approach".to_string();
-        let started = status_refresh_problem_approach("just a description\n", Some(&p), Some(&a))
-            .expect("never fails");
+        let started =
+            pr_status_refresh_problem_approach("just a description\n", Some(&p), Some(&a))
+                .expect("never fails");
         assert_eq!(started, (p, a));
     }
 
@@ -1872,7 +1893,7 @@ mod tests {
         let body = "<!-- factory:status:begin -->\n**Problem**: existing problem\n**Approach**: existing approach\n<!-- factory:status:end -->\n";
         let flag_p = "ignored".to_string();
         let flag_a = "ignored too".to_string();
-        let kept = status_refresh_problem_approach(body, Some(&flag_p), Some(&flag_a))
+        let kept = pr_status_refresh_problem_approach(body, Some(&flag_p), Some(&flag_a))
             .expect("never fails");
         assert_eq!(
             kept,
