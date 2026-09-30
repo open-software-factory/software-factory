@@ -14,6 +14,7 @@
 //! end up in SARIF, a printed line, or a later posted review.
 
 use crate::answer::AnswerFinding;
+use crate::builder;
 use crate::journal::{Journal, Payload, ReviewAnswer, ReviewDecision};
 use crate::lenses::{self, Depth, Lens};
 use crate::quotes;
@@ -48,6 +49,10 @@ pub struct Request<'a> {
     pub config_root: &'a Path,
     pub base: &'a str,
     pub work_item: Option<&'a Path>,
+    /// Builder families named with `--builder-family`, repeatable. Overrides
+    /// detection from the reviewed range's own `Code-Generator:` trailers
+    /// entirely when non-empty.
+    pub builder_family_overrides: &'a [String],
 }
 
 /// One finding that survived quote verification, with the lens it came from.
@@ -74,11 +79,11 @@ pub struct RunOutcome {
 ///
 /// # Errors
 /// Returns an error, naming the file, when the lens catalogue fails to
-/// load; naming the reason when the risk assessment or the changed-file
-/// list cannot be produced; or when the reviewer roster or the review
-/// threshold cannot be read from `osf.toml`. None of these leaves a lens
-/// to blame, so the caller reports could-not-configure rather than
-/// picking one lens to fail.
+/// load; naming the reason when the risk assessment, the changed-file
+/// list, or the reviewed range's own commits cannot be read; or when the
+/// reviewer roster or the review threshold cannot be read from
+/// `osf.toml`. None of these leaves a lens to blame, so the caller
+/// reports could-not-configure rather than picking one lens to fail.
 pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     let catalogue = lenses::load(req.config_root, None)?;
     let report = risk::assess(req.root, req.config_root, req.base)?;
@@ -92,6 +97,8 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     let review_config = config::review_config(req.config_root).map_err(|e| e.to_string())?;
     let threshold = review_config.threshold;
     let timeout = Duration::from_secs(review_config.timeout_seconds);
+
+    let builder_families = detect_builder_families(req, &review_config)?;
 
     let sources = Sources {
         root: req.root,
@@ -158,6 +165,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
                 lenses: lens_summaries,
                 score,
                 threshold: reported_threshold,
+                builder_families,
             }),
         ) {
             journal_error.get_or_insert(e);
@@ -178,6 +186,27 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
         findings,
         journal_error,
     })
+}
+
+/// The builder families for `req`'s own reviewed range: `req.builder_family_overrides`
+/// verbatim, sorted and deduplicated, when the caller named at least one
+/// with `--builder-family`; otherwise every commit's own `Code-Generator:`
+/// trailer in the range, mapped through `osf.toml`'s own aliases and the
+/// shipped table. See [`builder::detect`].
+///
+/// # Errors
+/// Returns an error when git cannot read the reviewed range's own commits.
+fn detect_builder_families(
+    req: &Request,
+    review_config: &config::ReviewConfig,
+) -> Result<Vec<String>, String> {
+    let range = format!("{}..HEAD", req.base);
+    builder::detect(
+        req.root,
+        &range,
+        &review_config.builder_family_aliases,
+        req.builder_family_overrides,
+    )
 }
 
 /// One reviewer's attempt at answering for one lens, kept just long enough

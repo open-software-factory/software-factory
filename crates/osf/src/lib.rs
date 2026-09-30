@@ -5,6 +5,7 @@
 
 pub mod agents;
 pub mod answer;
+pub mod builder;
 pub mod check;
 pub mod checkpoint;
 pub mod config;

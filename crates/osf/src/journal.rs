@@ -82,6 +82,12 @@ pub struct ReviewDecision {
     pub lenses: Vec<(String, String)>,
     pub score: Option<f64>,
     pub threshold: Option<f64>,
+    /// The families that built this change, from every commit's own
+    /// `Code-Generator:` trailer in the reviewed range, or the
+    /// `--builder-family` flag when the caller named one. Read
+    /// `["unknown"]` as no trailer naming a known family was found; the
+    /// roster then ran with nothing left out.
+    pub builder_families: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

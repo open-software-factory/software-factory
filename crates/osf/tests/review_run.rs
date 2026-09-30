@@ -521,6 +521,85 @@ fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
     assert_no_leak(&secret, &output, &home, Some(&sarif_out));
 }
 
+/// A `Code-Generator: Claude ...` trailer on the reviewed commit makes
+/// `anthropic` this change's builder family. With codex (openai),
+/// claude-code (anthropic) and dsh (deepseek) all enabled, claude-code is
+/// left out and the other two still answer and reach quorum.
+/// No `Code-Generator:` trailer at all on the reviewed commit records the
+/// builder family as `unknown`, and every enabled reviewer still runs, the
+/// same as before this module knew about builder families at all.
+#[test]
+fn no_builder_family_detected_records_unknown_and_runs_every_reviewer() {
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("no-builder-family", &osf_toml);
+    let home = common::isolated_home("review-run-no-builder-family");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let decision = journal_review_decision(&home);
+    let builder_families: Vec<&str> = decision
+        .get("builder_families")
+        .and_then(serde_json::Value::as_array)
+        .expect("builder_families is an array")
+        .iter()
+        .map(|v| v.as_str().expect("a family name"))
+        .collect();
+    assert_eq!(builder_families, vec!["unknown"]);
+}
+
+/// `--builder-family` overrides detection entirely: the family it names is
+/// recorded in the decision, whatever the reviewed commits' own trailers say.
+#[test]
+fn the_builder_family_flag_overrides_detection() {
+    let osf_toml = format!(
+        "{}{}{}",
+        roster_entry_toml("codex", "openai", &fixture("valid.json"), true),
+        roster_entry_toml("claude-code", "anthropic", &fixture("valid.json"), true),
+        roster_entry_toml("dsh", "deepseek", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("builder-family-flag-override", &osf_toml);
+    let home = common::isolated_home("review-run-builder-family-flag-override");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--builder-family",
+            "openai",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let decision = journal_review_decision(&home);
+    let builder_families: Vec<&str> = decision
+        .get("builder_families")
+        .and_then(serde_json::Value::as_array)
+        .expect("builder_families is an array")
+        .iter()
+        .map(|v| v.as_str().expect("a family name"))
+        .collect();
+    assert_eq!(builder_families, vec!["openai"]);
+}
+
 /// `--config-root` names the trusted tree: the lens catalogue and the
 /// `[review]` table (roster, threshold, timeout, cost ceiling) come from
 /// there, never from the repository under review. A pull request that

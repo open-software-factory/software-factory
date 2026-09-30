@@ -295,6 +295,12 @@ struct ReviewRunArgs {
     /// anything.
     #[arg(long = "warn-only")]
     warn_only: bool,
+    /// A family that built this change, repeatable. Overrides detection
+    /// from the reviewed range's own `Code-Generator:` trailers entirely; a
+    /// roster entry from a named family is left out of every lens the same
+    /// way a detected one would be.
+    #[arg(long = "builder-family")]
+    builder_family: Vec<String>,
 }
 
 #[derive(Args)]
@@ -1505,6 +1511,7 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
         config_root: &config_root,
         base: &base,
         work_item: args.work_item.as_deref(),
+        builder_family_overrides: &args.builder_family,
     };
     let outcome = match review_run::run(&req, &state_dir) {
         Ok(outcome) => outcome,

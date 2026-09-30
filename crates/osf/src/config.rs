@@ -241,6 +241,10 @@ pub struct ReviewConfig {
     pub timeout_seconds: u64,
     /// An optional ceiling on what one review run may spend.
     pub cost_ceiling: Option<f64>,
+    /// Model-name prefixes that extend the shipped builder-family table (see
+    /// [`crate::builder`]), tried before it so a repository can name a model
+    /// the shipped table does not know.
+    pub builder_family_aliases: Vec<BuilderFamilyAlias>,
 }
 
 impl Default for ReviewConfig {
@@ -250,8 +254,18 @@ impl Default for ReviewConfig {
             threshold: DEFAULT_REVIEW_THRESHOLD,
             timeout_seconds: DEFAULT_REVIEW_TIMEOUT_SECS,
             cost_ceiling: None,
+            builder_family_aliases: Vec::new(),
         }
     }
+}
+
+/// One model-name prefix, matched case-insensitively against the first word
+/// of a `Code-Generator:` trailer's model name, and the family it maps to.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BuilderFamilyAlias {
+    pub prefix: String,
+    pub family: String,
 }
 
 /// Reads the `[review]` table of `<root>/osf.toml`, or
