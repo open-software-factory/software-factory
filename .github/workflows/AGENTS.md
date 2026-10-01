@@ -6,7 +6,7 @@
   - Not checked: needs judgment.
 - Pin every action to a full commit SHA. Do not pin it to a tag or a branch name instead. Every `uses:` line in this repository's own workflows already does this.
   - Not checked: needs judgment.
-- Grant each job only the permissions it needs, starting from `contents: read`. `ci.yml` and `status-block.yml` both narrow their own permissions from there.
+- Grant each job only the permissions it needs, and none when it needs none. `ci.yml`, `git-town.yml`, and `status-block.yml` each stop at `contents: read` plus whatever their own job writes. `pr-lens.yml` lists only `contents: write` and `pull-requests: write`, the two it uses.
   - Not checked: needs judgment.
 - Start a job that holds a secret with `step-security/harden-runner` in block mode, and give it an allow-list of only the hosts that job needs. Write the allow-list as literal hosts. harden-runner applies it before any later step runs, so it cannot read a later step's output. `pr-lens.yml` already does this, pinned to a commit SHA, with `egress-policy: block` and a literal `allowed-endpoints` list.
   - Not checked: needs judgment.

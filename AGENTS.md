@@ -5,21 +5,34 @@
 Everything in this repository is cross-platform, cross-operating-system, cross-shell, cross-language-ecosystem, cross-coding-agent, and cross-model. No agent is primary. No platform is the default.
 
 - Never name one coding agent, one operating system, one shell, one package ecosystem, or one model vendor on its own in code, a rule, a test, or a document. If one is named, every supported one is, read from a single shared list.
+  - Not checked: needs judgment.
+- Every supported coding agent is supported equally, and none is primary. The list of supported agents lives in one place in the code, in `crate::agents::AGENTS` (`crates/osf/src/agents.rs`), and every rule that names an agent reads it.
+  - Not checked: needs judgment. A test keeps `osf`'s own scan rules in step with that list (`crates/osf/tests/scan_rules.rs`). Nothing yet checks whether every other rule or document reads from it too.
 - Every check, rule, and verifier states what it covers and what it does not. A clean result must never be read as "nothing found" when it means "nothing looked at".
+  - Not checked: needs judgment.
 - Prefer structured detection to a hand-written pattern. Parse the URL, parse the path, ask the platform. A regex is the last resort, and where one remains, its tests carry one case per platform and per agent.
+  - Not checked: needs judgment.
 - Examples in documentation rotate across agents and platforms, or use a made-up one. No example favours a vendor.
+  - Not checked: needs judgment.
 - A change that violates this is wrong even when it works on the author's machine. Review your own diff for it before opening a pull request.
+  - Not checked: needs judgment.
 
 ## Public hygiene
 
-- Never let a private person's name, a private company name, a private project name, or a local file path reach this repository. This applies to code, a document, a commit, an issue, and a pull request description alike. `osf scan` enforces the denylist, the session-link check, and the local-path check.
+- Never let a private person's name, a private company name, a private project name, or a local file path reach this repository. This applies to code, a document, a commit, an issue, and a pull request description alike.
+  - Checked by: `osf scan`, for the denylist, a session link, and a local path (`crates/osf/src/scan/mod.rs`). It runs on every file this repository tracks and on each commit message a pull request adds, in the hygiene job in `.github/workflows/ci.yml`.
+  - Not checked: needs judgment, for an issue body and a pull request description. No job scans either yet.
 - Name a document the repository owns in lowercase kebab-case, such as `review-check.md`. Keep the names an ecosystem requires, such as `AGENTS.md`, `README.md` and `SKILL.md`.
+  - Not checked: needs judgment.
 - Before a change goes in, picture a reader with no access to any private history. Would every line still make sense to that reader? A rule a scan cannot yet cover still binds. State that plainly wherever the rule is written down.
+  - Not checked: needs judgment.
 
 ## Never weaken or bypass a check
 
 - Deterministic checks are authoritative gates. A model's judgment may augment one but never replaces it where a deterministic check exists.
+  - Not checked: needs judgment.
 - A change that makes a check catch fewer real problems than before needs a person's written approval, with a reason, recorded on the change. Never hide a real failure behind a suppression flag, an ignored error, or a narrowed scope with no reason given.
+  - Not checked: needs judgment. The weakening check that would enforce this is designed. It is not built yet.
 
 ## Before coding
 
