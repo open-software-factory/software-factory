@@ -58,7 +58,7 @@ The two-word forms are the vocabulary. "Check recogniser" and "slot attestation"
 
 ## Consequences
 
-- The adopter's tree gains a small set of generated files and one configuration file, and nothing else.
+- An adopter that takes up the checkpoint seam this record describes has its tree gain a small set of generated files and one configuration file. A repository that wants only [decision 0006](0006-distribution-and-packaging.md)'s ecosystem detection still needs no file at all.
 - A periodic audit on the schedule compares slot attestations with completed runs, so an attestation does not stand on its own for long.
 - A new predicate kind for the recogniser is added to the tool once, with its tests, and every ecosystem file may then use it.
 - The stage template file proposed in [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26) is replaced by the tags on moon tasks and the slot tables.
