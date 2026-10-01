@@ -284,9 +284,9 @@ struct ReviewRunArgs {
     #[arg(long = "config-root")]
     config_root: Option<PathBuf>,
     /// Post the kept findings to a pull request as one review, reusing `osf
-    /// review post`'s own posting machinery. Named `owner/repo#N`. The
-    /// command's exit code still reports the verdict, not whether the post
-    /// succeeded.
+    /// review post`'s own posting machinery. Named `owner/repo#N`. A failed
+    /// post makes the run could-not-run: the branch-protection gate must
+    /// never see a clean exit code with no review evidence behind it.
     #[arg(long = "post-to")]
     post_to: Option<String>,
     /// Never fail on the review's own verdict: still prints the verdict and
@@ -1532,8 +1532,16 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
             return 2;
         }
     }
-    if let Some(post_to) = &args.post_to {
-        post_run_outcome(&outcome, post_to);
+    let posted = args
+        .post_to
+        .as_ref()
+        .is_none_or(|post_to| post_run_outcome(&outcome, post_to));
+    // A journal that could not record what happened, or a post that never
+    // reached the pull request, leaves no evidence behind the verdict: the
+    // run counts as could-not-run rather than reporting a verdict nothing
+    // backs up.
+    if outcome.journal_error.is_some() || !posted {
+        return 2;
     }
     match outcome.verdict {
         reducer::Verdict::Pass => 0,
@@ -1619,14 +1627,14 @@ fn review_run_summary(outcome: &review_run::RunOutcome) -> String {
 
 /// `--post-to`'s whole job: build the findings and the summary from
 /// `outcome`, then post through the same [`post_plan`] `osf review post`
-/// uses. A problem here is printed and never changes `osf review run`'s own
-/// exit code, which reports the verdict, not whether the post succeeded.
-fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) {
+/// uses. Returns whether the post landed: a caller that cannot post has no
+/// review evidence on the pull request, whatever the run's own verdict was.
+fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
     let (repo, pr) = match parse_post_to(post_to) {
         Ok(parsed) => parsed,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
-            return;
+            return false;
         }
     };
     let findings = review_findings_for_post(&outcome.findings);
@@ -1636,14 +1644,14 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) {
         Ok(plan) => plan,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
-            return;
+            return false;
         }
     };
     let head_sha = match review::fetch_head_sha(&repo, pr) {
         Ok(sha) => sha,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
-            return;
+            return false;
         }
     };
     match post_plan(&repo, pr, &plan, &head_sha) {
@@ -1659,6 +1667,7 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) {
                 "osf review run --post-to: {} with {n_inline} inline comment(s) on {repo}#{pr}",
                 verdict.as_event()
             );
+            true
         }
         review::Outcome::FallbackComment {
             verdict,
@@ -1673,9 +1682,16 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) {
                  comment(s) on {repo}#{pr}",
                 verdict.as_event()
             );
+            true
         }
-        review::Outcome::Rejected(e) => eprintln!("osf review run --post-to: {e}"),
-        review::Outcome::PostFailed(e) => eprintln!("osf review run --post-to: {e}"),
+        review::Outcome::Rejected(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            false
+        }
+        review::Outcome::PostFailed(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            false
+        }
     }
 }
 

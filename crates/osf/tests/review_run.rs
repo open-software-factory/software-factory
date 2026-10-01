@@ -894,12 +894,12 @@ fn post_to_posts_kept_findings_reusing_review_post_machinery() {
     assert!(stdout.contains("REQUEST_CHANGES"), "{stdout}");
 }
 
-/// The run's own exit code reports the verdict, not whether the post
-/// succeeded: a blocker finding still exits 1 even when the fake `gh`
-/// fails the post outright.
+/// A failed post leaves the branch-protection gate with no review evidence
+/// behind it, so the run counts as could-not-run even though the verdict
+/// itself (a blocker finding) was decided fine.
 #[test]
 #[cfg(unix)]
-fn post_to_failing_never_changes_the_runs_own_exit_code() {
+fn post_to_failing_makes_the_run_could_not_run() {
     let osf_toml = format!(
         "{}{}",
         roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
@@ -925,13 +925,45 @@ fn post_to_failing_never_changes_the_runs_own_exit_code() {
     );
     assert_eq!(
         output.status.code(),
-        Some(1),
+        Some(2),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("some other failure"), "{stderr}");
+}
+
+/// A journal that cannot be opened (an unwritable state directory) leaves no
+/// record of the answers or the decision it claims to have made, so the run
+/// counts as could-not-run even on an otherwise clean pass.
+#[test]
+fn an_unwritable_journal_makes_the_run_could_not_run_even_on_a_pass() {
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("journal-unwritable", &osf_toml);
+    let home = common::isolated_home("review-run-journal-unwritable");
+    let blocked_state_dir = home.join("state-is-a-file");
+    std::fs::write(&blocked_state_dir, "not a directory").expect("blocked state dir file writes");
+    let state_dir_arg = blocked_state_dir.to_string_lossy().into_owned();
+    let output = common::run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_STATE_DIR", &state_dir_arg)],
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "a journal that cannot be opened must not report a clean pass; stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("verdict: pass"), "{stdout}");
 }
 
 #[test]
