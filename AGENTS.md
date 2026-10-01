@@ -1,5 +1,12 @@
 # Software Factory: working context for every coding agent
 
+## Work inside the development container
+
+- Do all build, test, and review work inside this repository's development container, [`.devcontainer/`](.devcontainer/). Run the coding agent itself in that container too, so the root-owned git hooks and agent hooks apply.
+  - Not checked yet: [open-software-factory/software-factory#197 (agent hooks in the container)](https://github.com/open-software-factory/software-factory/issues/197).
+- Two kinds of container exist. `.devcontainer/` builds this repository. The per-ecosystem container templates that an adopter's own factory builds in are a separate kind, and are not designed yet. See [open-software-factory/software-factory#198 (two kinds of container)](https://github.com/open-software-factory/software-factory/issues/198).
+  - Not checked: needs judgment.
+
 ## Cross-everything, without exception
 
 Everything in this repository is cross-platform, cross-operating-system, cross-shell, cross-language-ecosystem, cross-coding-agent, and cross-model. No agent is primary. No platform is the default.
@@ -47,10 +54,12 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 
 This file holds only what every task needs. A rule tied to one folder lives in that folder's own `AGENTS.md`. A rule tied to one moment in the work reaches an agent as a skill that loads when the task matches it.
 
-`skills/` holds what this repository ships to adopters. `.agents/skills/` holds what an agent uses while working in this repository itself. `.claude/skills` is a symlink to `.agents/skills`, because Claude Code reads only that folder.
+[`skills/README.md`](skills/README.md) and [`.agents/README.md`](.agents/README.md) say which skills folder holds what, and how an adopter installs a shipped skill.
 
 | Folder or skill | Loads |
 |---|---|
+| [`skills/README.md`](skills/README.md) | Installing or shipping a skill for adopters |
+| [`.agents/README.md`](.agents/README.md) | Working on a skill used only inside this repository, or asking why there is no `CLAUDE.md` |
 | [`crates/AGENTS.md`](crates/AGENTS.md) | Working under `crates/` |
 | [`.github/workflows/AGENTS.md`](.github/workflows/AGENTS.md) | Working under `.github/workflows/` |
 | [`.agents/skills/adding-an-osf-command/SKILL.md`](.agents/skills/adding-an-osf-command/SKILL.md) | Adding a check, a lint rule, or an `osf` command |
