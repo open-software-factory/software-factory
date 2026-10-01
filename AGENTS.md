@@ -13,19 +13,13 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 ## Public hygiene
 
 - Never let a private person's name, a private company name, a private project name, or a local file path reach this repository. This applies to code, a document, a commit, an issue, and a pull request description alike. `osf scan` enforces the denylist, the session-link check, and the local-path check.
+- Name a document the repository owns in lowercase kebab-case, such as `review-check.md`. Keep the names an ecosystem requires, such as `AGENTS.md`, `README.md` and `SKILL.md`.
 - Before a change goes in, picture a reader with no access to any private history. Would every line still make sense to that reader? A rule a scan cannot yet cover still binds. State that plainly wherever the rule is written down.
 
 ## Never weaken or bypass a check
 
 - Deterministic checks are authoritative gates. A model's judgment may augment one but never replaces it where a deterministic check exists.
 - A change that makes a check catch fewer real problems than before needs a person's written approval, with a reason, recorded on the change. Never hide a real failure behind a suppression flag, an ignored error, or a narrowed scope with no reason given.
-
-## Branches
-
-- Start a new stack with `git town hack <name>`. Add to the stack you are on with `git town append <name>`.
-- If a branch's parent was never recorded this way, record it once with `git town set-parent`.
-- After a change lands lower in a stack, run `git town sync` to bring every branch above it up to date.
-- Never force-push a branch someone else is working on.
 
 ## Before coding
 

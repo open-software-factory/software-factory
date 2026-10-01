@@ -15,7 +15,7 @@ description: Use this skill when you open a pull request, or update its descript
    - Not checked: needs judgment. See `skills/pr-outline/SKILL.md` and `skills/show-me/SKILL.md` for how to write each part.
 6. Do git work for this change in its own worktree when a person also works in the same repository.
    - Not checked: needs judgment.
-7. Create a stacked branch with `git town append`. Start a fresh branch with `git town hack`. `git-town.toml` keeps each branch synced to its parent by rebasing it.
+7. Start a new stack with `git town hack`, and add to the stack you are on with `git town append`. Record a missing parent once with `git town set-parent`. After a change lands lower in a stack, run `git town sync`. `git-town.toml` syncs by merge, so a pushed branch is never rewritten.
    - Not checked: needs judgment.
 8. Carry one attribution trailer naming the model that wrote a change. Never add a `Co-Authored-By` line, the git trailer that credits a second author. Never add a link to a coding-agent session.
    - Not checked yet: issue 194. A commit-msg hook for this is planned in [open-software-factory/software-factory#194 (rules layout)](https://github.com/open-software-factory/software-factory/issues/194), as a second pull request.
