@@ -29,18 +29,35 @@ ARG NODE_SHA256_ARM64=a44aeb94849a299b22df10b9e622ec2f605c2183501bc40590705131de
 # pnpm, must match this repo's root package.json "packageManager" field.
 ARG PNPM_VERSION=10.14.0
 
-# Reviewer CLIs, each pinned to one exact npm version so a rebuild in a
-# month installs the same tool a reviewer just tested against.
+# The coding agents this project supports, every one of them usable as a
+# builder or a reviewer. Each is pinned to one exact npm version so a
+# rebuild in a month installs the same tool a reviewer just tested
+# against.
 ARG CODEX_VERSION=0.154.0
 ARG CLAUDE_CODE_VERSION=2.1.284
 ARG DSH_VERSION=0.1.5-rc.1
-ARG OPENCODE_VERSION=2.0.7
+# opencode's upstream npm package is opencode-ai; @opencode/cli is a
+# different, much newer package under a different GitHub org. This
+# project's own opencode plugin (integrations/opencode) already depends on
+# @opencode-ai/plugin, opencode-ai's own typed plugin SDK, which only ever
+# matches opencode-ai's own version line. Pinned to the exact version that
+# plugin SDK version also exists at.
+ARG OPENCODE_VERSION=1.18.31
+ARG OMP_VERSION=18.2.8
+
+# omp's own bin/cli.js has a "#!/usr/bin/env bun" shebang: omp runs on Bun,
+# not plain Node, unlike every other coding agent in this image.
+ARG BUN_VERSION=1.4.2
+ARG BUN_SHA256_AMD64=36368faef7527875d5ffa52e53cd48021741f2a83eb6208a8dd64068d422a913
+ARG BUN_SHA256_ARM64=54328bbc2d9c8e0c9f892c544d66c57a83b84139e34909e5ee81758f1ac8fda7
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git \
       ca-certificates \
       curl \
       xz-utils \
+      unzip \
+      bubblewrap \
     && rm -rf /var/lib/apt/lists/*
 
 # git-town, matched to the build's processor architecture.
@@ -103,18 +120,36 @@ RUN corepack enable && \
     chmod -R a+rX "${COREPACK_HOME}" && \
     pnpm --version
 
-# Reviewer CLIs, installed as global npm packages into this same Node
+# Bun, from its own release zip, checked against its published SHA-256.
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64) BUN_TARGET=linux-x64; BUN_SHA256="${BUN_SHA256_AMD64}" ;; \
+      arm64) BUN_TARGET=linux-aarch64; BUN_SHA256="${BUN_SHA256_ARM64}" ;; \
+      *) echo "bun: unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/bun.zip \
+      "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-${BUN_TARGET}.zip"; \
+    echo "${BUN_SHA256}  /tmp/bun.zip" | sha256sum -c -; \
+    unzip -q /tmp/bun.zip -d /tmp; \
+    install -o root -g root -m 0755 "/tmp/bun-${BUN_TARGET}/bun" /usr/local/bin/bun; \
+    ln -s /usr/local/bin/bun /usr/local/bin/bunx; \
+    rm -rf /tmp/bun.zip "/tmp/bun-${BUN_TARGET}"; \
+    bun --version
+
+# The coding agents, installed as global npm packages into this same Node
 # install. That install is already root-owned and already on PATH, so no
 # separate prefix or lock-down step is needed for these either.
 RUN npm install -g \
       @openai/codex@${CODEX_VERSION} \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
       @deepseek-ai/dsh@${DSH_VERSION} \
-      @opencode/cli@${OPENCODE_VERSION} && \
+      opencode-ai@${OPENCODE_VERSION} \
+      @oh-my-pi/pi-coding-agent@${OMP_VERSION} && \
     codex --version && \
     claude --version && \
     dsh --version && \
-    opencode --version
+    opencode --version && \
+    omp --version
 
 # Build osf from this workspace. The build directory sits outside
 # /workspace, the path the running container later bind-mounts the repo
