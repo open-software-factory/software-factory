@@ -53,6 +53,17 @@ command = ["dsh", "--profile", "headless"]
 credential_env = ["DEEPSEEK_API_KEY"]
 enabled = false
 
+# omp is built on pi and, like it, runs many model families rather than one
+# fixed provider, so its own family is its own name, not a model's.
+# credential_env is left empty until a deployment names the variable it
+# reads; adopters enabling this repeat its whole shape with that filled in.
+[[reviewer]]
+name = "omp"
+harness = "omp"
+family = "omp"
+command = ["omp"]
+enabled = false
+
 # The four opencode variants below all reach their model through
 # OpenRouter, so they share its one credential variable.
 

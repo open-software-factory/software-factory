@@ -429,15 +429,21 @@ mod tests {
         assert!(r.iter().all(|x| !x.enabled));
     }
 
+    /// The shipped roster's own harness set is checked against
+    /// `crate::agents::reviewer_harnesses`, the one list of agents installed
+    /// in the development container, rather than a second hand-kept copy
+    /// here: a harness added to or dropped from either one without the
+    /// other fails this test.
     #[test]
-    fn the_shipped_roster_has_the_four_named_harnesses() {
+    fn the_shipped_roster_covers_exactly_the_agents_installed_in_the_container() {
         let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
-        for harness in ["codex", "claude", "dsh", "opencode"] {
-            assert!(
-                r.iter().any(|x| x.harness == harness),
-                "no roster entry for {harness}: {r:?}"
-            );
-        }
+        let mut shipped: Vec<&str> = r.iter().map(|x| x.harness.as_str()).collect();
+        shipped.sort_unstable();
+        shipped.dedup();
+        let mut expected = crate::agents::reviewer_harnesses();
+        expected.sort_unstable();
+        expected.dedup();
+        assert_eq!(shipped, expected);
     }
 
     #[test]

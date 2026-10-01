@@ -40,6 +40,14 @@ pub struct Agent {
     pub session_paths: &'static [&'static str],
     /// Whether its sessions are reachable by link, and where.
     pub sessions: Sessions,
+    /// The `harness` name `crates/osf/defaults/review-roster.toml` gives
+    /// this agent, when it is installed in the development container and
+    /// so ships a reviewer entry there; `None` for an agent this project
+    /// supports for other reasons (a scan rule, a hook adapter) but never
+    /// runs as a reviewer. `omp` covers `pi`, which it is built on, so `pi`
+    /// itself carries `None` here. A test in `tests/reviewers.rs` fails
+    /// when the roster's own harness names fall out of step with this.
+    pub reviewer_harness: Option<&'static str>,
 }
 
 /// Every supported agent, in the order this project lists them.
@@ -51,14 +59,17 @@ pub const AGENTS: &[Agent] = &[
         state_dirs: &[".dsh"],
         session_paths: &["sessions"],
         sessions: Sessions::LocalOnly,
+        reviewer_harness: Some("dsh"),
     },
     // pi keeps conversations under `agent/sessions`, one file per
-    // session. No session page on any host.
+    // session. No session page on any host. Not installed in the
+    // development container on its own: omp, built on pi, covers it there.
     Agent {
         name: "pi",
         state_dirs: &[".pi"],
         session_paths: &["agent/sessions"],
         sessions: Sessions::LocalOnly,
+        reviewer_harness: None,
     },
     // omp is built on pi and uses the same `agent/sessions` layout, plus
     // a folder of terminal sessions and one of logs. No session page.
@@ -67,6 +78,7 @@ pub const AGENTS: &[Agent] = &[
         state_dirs: &[".omp"],
         session_paths: &["agent/sessions", "agent/terminal-sessions", "logs"],
         sessions: Sessions::LocalOnly,
+        reviewer_harness: Some("omp"),
     },
     // opencode keeps configuration in one place and its data, including
     // session storage and tool output, in a data directory. A session can
@@ -79,6 +91,7 @@ pub const AGENTS: &[Agent] = &[
             host: "opencode.ai",
             path: "/s/",
         },
+        reviewer_harness: Some("opencode"),
     },
     // codex keeps live and archived sessions, a history file, and logs
     // in its home directory. Its hosted tasks have pages under the
@@ -91,6 +104,7 @@ pub const AGENTS: &[Agent] = &[
             host: "chatgpt.com",
             path: "/codex/",
         },
+        reviewer_harness: Some("codex"),
     },
     // claude code keeps transcripts under `projects`, one folder per
     // working directory, plus session and transcript folders and a file
@@ -103,14 +117,17 @@ pub const AGENTS: &[Agent] = &[
             host: "claude.ai",
             path: "/code/session_",
         },
+        reviewer_harness: Some("claude"),
     },
     // copilot keeps each session's events and database under a
-    // `session-state` folder, plus logs. No session page on any host.
+    // `session-state` folder, plus logs. No session page on any host. Not
+    // installed in the development container, so it ships no reviewer entry.
     Agent {
         name: "copilot",
         state_dirs: &[".copilot"],
         session_paths: &["session-state", "logs"],
         sessions: Sessions::LocalOnly,
+        reviewer_harness: None,
     },
 ];
 
@@ -144,6 +161,14 @@ pub fn with_local_sessions_only() -> Vec<&'static str> {
         .filter(|a| a.hosted().is_none())
         .map(|a| a.name)
         .collect()
+}
+
+/// Every harness name an agent here ships a reviewer entry under, in list
+/// order: the one list `crates/osf/src/reviewers.rs`'s shipped roster is
+/// checked against, so the roster can never silently drift from it.
+#[must_use]
+pub fn reviewer_harnesses() -> Vec<&'static str> {
+    AGENTS.iter().filter_map(|a| a.reviewer_harness).collect()
 }
 
 /// Every state directory of every agent, in list order.
@@ -180,6 +205,17 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The reviewer roster is exactly the agents installed in the
+    /// development container: `omp` covers `pi`, which it derives from, and
+    /// `copilot` is not installed there, so neither carries a harness name.
+    #[test]
+    fn the_reviewer_roster_is_exactly_the_agents_installed_in_the_container() {
+        assert_eq!(
+            reviewer_harnesses(),
+            vec!["dsh", "omp", "opencode", "codex", "claude"]
+        );
     }
 
     #[test]
