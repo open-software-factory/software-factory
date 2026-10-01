@@ -216,6 +216,15 @@ pub fn content_at(dir: &Path, rev: &str, path: &str) -> Result<Vec<u8>, GitError
     run(dir, &["show", &format!("{rev}:{path}")])
 }
 
+/// True when `path` exists in the tree at `rev`. `false`, never an error,
+/// both for a path that is not there and for a `rev` that does not
+/// resolve, so a caller can tell a genuinely missing path apart from any
+/// other reason [`content_at`] might fail to read it.
+#[must_use]
+pub fn path_exists_at(dir: &Path, rev: &str, path: &str) -> bool {
+    run(dir, &["cat-file", "-e", &format!("{rev}:{path}")]).is_ok()
+}
+
 /// The branch a fresh clone checks out: the remote's `HEAD` symbol, else
 /// `main`, else `master`.
 ///

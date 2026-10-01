@@ -104,11 +104,31 @@ fn looks_like_a_test_file(path: &str) -> bool {
         .is_match(path)
 }
 
-/// `path` as it reads at `rev`, or `None` when it does not exist there
-/// (added since, or removed since, depending on which side is asked).
-fn read_at(dir: &Path, rev: &str, path: &str) -> Option<String> {
-    let bytes = crate::git::content_at(dir, rev, path).ok()?;
-    Some(String::from_utf8_lossy(&bytes).into_owned())
+/// What reading one path at one revision came back with.
+enum RawContent {
+    /// The path does not exist at that revision at all.
+    Absent,
+    /// The path exists but git could not read it, or its bytes are not
+    /// valid UTF-8. Never lossy-converted: content this build cannot trust
+    /// as text is reported as unparsed, not guessed at.
+    Unparsed,
+    Text(String),
+}
+
+/// `path` as it reads at `rev`. Checks existence first, so a path missing
+/// at that revision is [`RawContent::Absent`] rather than folded into the
+/// same case as a read that failed for some other reason.
+fn read_at(dir: &Path, rev: &str, path: &str) -> RawContent {
+    if !crate::git::path_exists_at(dir, rev, path) {
+        return RawContent::Absent;
+    }
+    match crate::git::content_at(dir, rev, path) {
+        Ok(bytes) => match String::from_utf8(bytes) {
+            Ok(text) => RawContent::Text(text),
+            Err(_) => RawContent::Unparsed,
+        },
+        Err(_) => RawContent::Unparsed,
+    }
 }
 
 /// One test found while walking a parsed file: the source text of its
@@ -296,12 +316,13 @@ fn read_side(dir: &Path, rev: &str, path: Option<&str>) -> Side {
     let Some(path) = path else {
         return Side::Absent;
     };
-    let Some(text) = read_at(dir, rev, path) else {
-        return Side::Absent;
-    };
-    match parse_rust(&text) {
-        Some(tree) => Side::Parsed(collect_tests(&tree, &text)),
-        None => Side::Unparsed,
+    match read_at(dir, rev, path) {
+        RawContent::Absent => Side::Absent,
+        RawContent::Unparsed => Side::Unparsed,
+        RawContent::Text(text) => match parse_rust(&text) {
+            Some(tree) => Side::Parsed(collect_tests(&tree, &text)),
+            None => Side::Unparsed,
+        },
     }
 }
 
@@ -512,6 +533,80 @@ pub fn render(summary: &Summary) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A throwaway git repository for testing [`read_side`] directly,
+    /// small enough not to need the integration tests' shared fixture.
+    struct RawRepo {
+        dir: std::path::PathBuf,
+    }
+
+    impl RawRepo {
+        fn new(name: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("osf-changeset-tests-readat-{name}"));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).expect("temp repo dir creates");
+            let repo = RawRepo { dir };
+            repo.git(&["init", "-q", "-b", "main"]);
+            repo.git(&["config", "user.email", "test@example.com"]);
+            repo.git(&["config", "user.name", "Test"]);
+            repo
+        }
+
+        fn git(&self, args: &[&str]) -> std::process::Output {
+            let output = std::process::Command::new("git")
+                .current_dir(&self.dir)
+                .args(args)
+                .output()
+                .expect("git runs");
+            assert!(
+                output.status.success(),
+                "git {args:?} failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            output
+        }
+
+        fn write_bytes(&self, path: &str, content: &[u8]) {
+            std::fs::write(self.dir.join(path), content).expect("fixture file writes");
+        }
+
+        fn commit(&self, message: &str) -> String {
+            self.git(&["add", "-A"]);
+            self.git(&["commit", "-q", "-m", message]);
+            String::from_utf8(self.git(&["rev-parse", "HEAD"]).stdout)
+                .expect("a commit hash is ASCII")
+                .trim()
+                .to_string()
+        }
+    }
+
+    impl Drop for RawRepo {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    #[test]
+    fn a_path_missing_at_a_commit_reads_as_absent() {
+        let repo = RawRepo::new("absent");
+        repo.write_bytes("a.rs", b"fn x() {}\n");
+        let base = repo.commit("base");
+        assert!(matches!(
+            read_side(&repo.dir, &base, Some("missing.rs")),
+            Side::Absent
+        ));
+    }
+
+    #[test]
+    fn content_that_is_not_valid_utf8_is_unparsed_not_lossy_converted() {
+        let repo = RawRepo::new("invalid-utf8");
+        repo.write_bytes("a.rs", &[0xFF, 0xFE, b'f', b'n']);
+        let base = repo.commit("base");
+        assert!(matches!(
+            read_side(&repo.dir, &base, Some("a.rs")),
+            Side::Unparsed
+        ));
+    }
 
     #[test]
     fn a_plain_comment_is_not_a_doc_comment() {
