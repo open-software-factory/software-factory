@@ -8,3 +8,20 @@
 - A provider gets its own crate, named after the provider and matching its command group. For example, `osf github …` lives in `osf-github`. Another code host, tracker or coding-agent harness gets a crate of its own when it is added.
 - A functional crate stays free of any one provider. It reaches a provider through an interface.
 - A new tool goes into the crate for its group. Start a new crate only when no group fits.
+
+## Language
+
+- Write the engine, its command-line interface, and the verifier runner in Rust. See [decision 0001](../docs/architecture/decisions/0001-rust-for-the-factory-engine.md). A provider at the factory's edges may be written in any language and reached out of process.
+
+## Tests and checks
+
+Before you push a change under `crates/`, run these from the repository root, and make all four pass:
+
+```
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets
+cargo fmt --all --check
+```
+
+A warning from `cargo clippy` fails the build on purpose. `.github/workflows/ci.yml` is the one source of truth for what a pull request must pass. Read it to reproduce any step by hand.
