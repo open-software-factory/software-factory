@@ -8,7 +8,7 @@
   - Not checked: needs judgment.
 - Grant each job only the permissions it needs, starting from `contents: read`. `ci.yml` and `status-block.yml` both narrow their own permissions from there.
   - Not checked: needs judgment.
-- Add a harden-runner allow-list to a job that reaches the network. This repository has no such job yet. Treat this as a gap to close.
+- Start a job that holds a secret with `step-security/harden-runner` in block mode, and give it an allow-list of only the hosts that job needs. Write the allow-list as literal hosts. harden-runner applies it before any later step runs, so it cannot read a later step's output. `pr-lens.yml` already does this, pinned to a commit SHA, with `egress-policy: block` and a literal `allowed-endpoints` list.
   - Not checked: needs judgment.
 - Let a review aid, such as the status block or a pull request's change outline, post information only. It must never fail a check or block a merge on its own.
   - Not checked: needs judgment.
