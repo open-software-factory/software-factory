@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "192995f836886cf6ae5e4e001ea862276d9c7616",
+    "contentHash": "8a5e8839b1ae6240e0540364bd204088"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.1"
+  },
+  "assets": [
+    {
+      "id": "rules-layout-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "rules-layout",
+      "mediaType": "image/svg+xml",
+      "contentHash": "23d78fdc9ef55efad53fd146d41bc2d6",
+      "bytes": 18656,
+      "width": 867,
+      "height": 760,
+      "animated": false,
+      "path": "rules-layout-light-23d78fdc9ef55efad53fd146d41bc2d6.svg"
+    },
+    {
+      "id": "rules-layout-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "rules-layout",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b718709763e4335335b23224d06df192",
+      "bytes": 18867,
+      "width": 867,
+      "height": 760,
+      "animated": false,
+      "path": "rules-layout-dark-b718709763e4335335b23224d06df192.svg"
+    },
+    {
+      "id": "ci-skill-gate-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-skill-gate",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6f738b27fb83cb08924dcd093cf0278b",
+      "bytes": 8126,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "ci-skill-gate-light-6f738b27fb83cb08924dcd093cf0278b.svg"
+    },
+    {
+      "id": "ci-skill-gate-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-skill-gate",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6a21120221d604c8ed50db0072e0cd91",
+      "bytes": 8194,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "ci-skill-gate-dark-6a21120221d604c8ed50db0072e0cd91.svg"
+    },
+    {
+      "id": "skill-lint-sequence-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "skill-lint-sequence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "22bf7a3b0c2dbc010a71856492e63d3a",
+      "bytes": 11399,
+      "width": 1308,
+      "height": 353,
+      "animated": true,
+      "path": "skill-lint-sequence-light-22bf7a3b0c2dbc010a71856492e63d3a.svg"
+    },
+    {
+      "id": "skill-lint-sequence-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "skill-lint-sequence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "67826d7d80f0f712361a4c9a46714247",
+      "bytes": 11500,
+      "width": 1308,
+      "height": 353,
+      "animated": true,
+      "path": "skill-lint-sequence-dark-67826d7d80f0f712361a4c9a46714247.svg"
+    }
+  ]
+}

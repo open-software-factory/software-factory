@@ -1,0 +1,710 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-01T06:53:37.309Z",
+  "title": "Rules move out of the root AGENTS.md into folder and skill scopes",
+  "summary": "This change is documentation and CI plumbing, not engine code. The root AGENTS.md is slimmed to the rules every task needs, and the rules that only apply in one place move into two new scoped files: crates/AGENTS.md (crate layout, Rust, the four local checks) and .github/workflows/AGENTS.md (workflow trust, secret handling, action pinning, harden-runner). Six new skills under skills/ carry the moment-of-work rules — adding an osf command, writing a workflow, filing an issue, opening a pull request, reviewing a pull request, running sub-agents — each with a front-matter name/description so an agent loads it when the task matches. ci.yml gains one step that lints every skills/*/SKILL.md on each run, so the new skill files are checked by the same osf lint skill gate the repository already ships.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "af26518ebe6f1d78a43e0871da28d6df919ac2aa",
+      "ref": "af26518ebe6f1d78a43e0871da28d6df919ac2aa"
+    },
+    "head": {
+      "sha": "192995f836886cf6ae5e4e001ea862276d9c7616",
+      "ref": "192995f836886cf6ae5e4e001ea862276d9c7616"
+    },
+    "pullRequest": {
+      "number": 195,
+      "url": "https://github.com/open-software-factory/software-factory/pull/195"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "agent",
+      "label": "Agent / contributor",
+      "subtitle": "the actor following the rules",
+      "order": 0
+    },
+    {
+      "id": "rules",
+      "label": "Rule documents",
+      "subtitle": "AGENTS.md scopes and skills",
+      "order": 1
+    },
+    {
+      "id": "ci",
+      "label": "CI workflow",
+      "subtitle": "GitHub Actions on the pull request",
+      "order": 2
+    },
+    {
+      "id": "osf",
+      "label": "osf CLI",
+      "subtitle": "lint and scan gates",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "contributor-agent",
+      "label": "Contributor agent",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agent",
+      "subtitle": "coding agent or person doing the task",
+      "summary": "The actor that reads the rule documents and runs the checks. Unchanged by this diff, but it is the reason the rules are split by scope: an agent should load only the rules that match the task in front of it.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "root-agents-md",
+      "label": "AGENTS.md (root)",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "rules",
+      "subtitle": "rules every task needs",
+      "summary": "Slimmed from a long list of posture, layout, bootstrap and branch rules down to public hygiene, the never-weaken-a-check rule, the before-coding reading list, and a table pointing at where the other rules now live. The removed sections are not deleted, they are relocated.",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "startLine": 1,
+          "endLine": 49
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crates-agents-md",
+      "label": "crates/AGENTS.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "rules",
+      "subtitle": "crate layout, Rust, local checks",
+      "summary": "New scoped file holding the code-layout rules that used to sit in the root: thin osf binary, one crate per logical group, provider crates at the edges, Rust for the engine, and the four cargo commands that must pass before pushing under crates/.",
+      "files": [
+        {
+          "path": "crates/AGENTS.md",
+          "startLine": 1,
+          "endLine": 27
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflows-agents-md",
+      "label": ".github/workflows/AGENTS.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "rules",
+      "subtitle": "workflow trust and secrets",
+      "summary": "New scoped file for workflow authors: define merge-deciding jobs on the base branch, never check out a pull request's code into a job holding a secret, pin actions to a full SHA, narrow permissions, start secret-holding jobs with harden-runner in block mode, and let review aids post information only.",
+      "files": [
+        {
+          "path": ".github/workflows/AGENTS.md",
+          "startLine": 1,
+          "endLine": 14
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-adding-osf-command",
+      "label": "adding-an-osf-command",
+      "kind": "config",
+      "delta": "added",
+      "lane": "rules",
+      "group": "skills",
+      "subtitle": "new check, lint rule or command",
+      "summary": "Skill loaded when adding a check, lint rule, scan rule or osf command. Covers stating coverage, telling could-not-read apart from found-nothing, giving a rule a class and citation, and never hiding a failure behind a suppression.",
+      "files": [
+        {
+          "path": "skills/adding-an-osf-command/SKILL.md",
+          "startLine": 1,
+          "endLine": 22
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-writing-a-workflow",
+      "label": "writing-a-workflow",
+      "kind": "config",
+      "delta": "added",
+      "lane": "rules",
+      "group": "skills",
+      "subtitle": "workflow files and secrets",
+      "summary": "Skill loaded when adding or editing a workflow file or when a job needs a secret. Mirrors the workflows AGENTS.md rules and adds the short-lived-token and adopter-supplied-runner rules.",
+      "files": [
+        {
+          "path": "skills/writing-a-workflow/SKILL.md",
+          "startLine": 1,
+          "endLine": 17
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-filing-an-issue",
+      "label": "filing-an-issue",
+      "kind": "config",
+      "delta": "added",
+      "lane": "rules",
+      "group": "skills",
+      "subtitle": "issue fields and body shape",
+      "summary": "Skill loaded when filing or editing an issue: use the tracker's native fields, match the body to the item type, give Blocked a written reason, read the created number back from the API response, and write whole bodies to a file before sending.",
+      "files": [
+        {
+          "path": "skills/filing-an-issue/SKILL.md",
+          "startLine": 1,
+          "endLine": 17
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-opening-a-pull-request",
+      "label": "opening-a-pull-request",
+      "kind": "config",
+      "delta": "added",
+      "lane": "rules",
+      "group": "skills",
+      "subtitle": "PR hygiene and git town",
+      "summary": "Skill loaded when opening a pull request or updating its description: one concern per PR, name the closed issue, carry a diagram and outline, use git town for stacks, one attribution trailer and no Co-Authored-By, and never force-push someone else's branch.",
+      "files": [
+        {
+          "path": "skills/opening-a-pull-request/SKILL.md",
+          "startLine": 1,
+          "endLine": 27
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-reviewing-a-pull-request",
+      "label": "reviewing-a-pull-request",
+      "kind": "config",
+      "delta": "added",
+      "lane": "rules",
+      "group": "skills",
+      "subtitle": "independent review rules",
+      "summary": "Skill loaded when reviewing a pull request: review from a different model family than the builder, never treat pending as passing, read the pull request's files as data rather than running them, and record review judgment as evidence that augments a deterministic check.",
+      "files": [
+        {
+          "path": "skills/reviewing-a-pull-request/SKILL.md",
+          "startLine": 1,
+          "endLine": 17
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-running-sub-agents",
+      "label": "running-sub-agents",
+      "kind": "config",
+      "delta": "added",
+      "lane": "rules",
+      "group": "skills",
+      "subtitle": "foreground commands, evidence-based status",
+      "summary": "Skill loaded when dispatching sub-agents: run every command in the foreground, and report status only from evidence such as a pushed branch or an opened pull request.",
+      "files": [
+        {
+          "path": "skills/running-sub-agents/SKILL.md",
+          "startLine": 1,
+          "endLine": 11
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "pull request gate",
+      "summary": "The existing CI workflow. This change adds one step to the job that already builds the release osf binary: enumerate every skills/*/SKILL.md directory and run osf lint skill over them.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 209,
+          "endLine": 224
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-check-step",
+      "label": "Check the skills",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "osf lint skill over every skill",
+      "summary": "New step in ci.yml. Uses git ls-files to find skills/*/SKILL.md, takes each directory, and runs ./target/release/osf lint skill --format human over the whole set. Emits a notice and exits clean when there are no skills.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 212,
+          "endLine": 223
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf binary",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "osf",
+      "subtitle": "thin command-line shell",
+      "summary": "The release binary built earlier in the same CI job. Unchanged here, but it is what the new step invokes.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "osf-lint-skill",
+      "label": "osf lint skill",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "osf",
+      "subtitle": "skill front-matter and body rules",
+      "summary": "The lint command that reads a skill's front matter and body. Unchanged by this diff, but it is now run against every skill the repository ships on every CI run, which is what makes the six new skill files gated.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/skill.rs"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "root-points-to-crates",
+      "from": "root-agents-md",
+      "to": "crates-agents-md",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "table row: working under crates/",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The root file now carries a table that names the scoped files and the moment each one loads. This is the connection the change is really about: rules are discovered by scope rather than read top to bottom.",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "startLine": 38,
+          "endLine": 49
+        }
+      ]
+    },
+    {
+      "id": "root-points-to-workflows",
+      "from": "root-agents-md",
+      "to": "workflows-agents-md",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "table row: working under .github/workflows/",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Second row of the same table, pointing workflow authors at the new scoped file.",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "startLine": 40,
+          "endLine": 40
+        }
+      ]
+    },
+    {
+      "id": "root-points-to-skills",
+      "from": "root-agents-md",
+      "to": "skill-adding-osf-command",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "table rows: skills load on task match",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The table also lists each skill and the moment it loads, so an agent can find the right skill without reading every one.",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "startLine": 41,
+          "endLine": 47
+        }
+      ]
+    },
+    {
+      "id": "agent-reads-root",
+      "from": "contributor-agent",
+      "to": "root-agents-md",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "reads before any task",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every task starts here. The file is shorter now, so this read is cheaper and the scoped reads below carry the detail.",
+      "files": []
+    },
+    {
+      "id": "agent-reads-crates",
+      "from": "contributor-agent",
+      "to": "crates-agents-md",
+      "kind": "data",
+      "delta": "added",
+      "label": "loads when working under crates/",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "An agent touching crates/ now reads this file instead of finding the layout rules buried in the root.",
+      "files": []
+    },
+    {
+      "id": "agent-reads-workflows",
+      "from": "contributor-agent",
+      "to": "workflows-agents-md",
+      "kind": "data",
+      "delta": "added",
+      "label": "loads when editing workflows",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "An agent editing a workflow file reads the trust and secret rules here.",
+      "files": []
+    },
+    {
+      "id": "agent-reads-skill",
+      "from": "contributor-agent",
+      "to": "skill-opening-a-pull-request",
+      "kind": "data",
+      "delta": "added",
+      "label": "loads when opening a PR",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Representative of the six new skills: the front-matter description is the trigger, and the body is the checklist for that moment.",
+      "files": []
+    },
+    {
+      "id": "ci-runs-skill-check",
+      "from": "ci-workflow",
+      "to": "skill-check-step",
+      "kind": "call",
+      "delta": "added",
+      "label": "job step",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new step is part of the existing CI job, after the release binary is built.",
+      "files": []
+    },
+    {
+      "id": "skill-check-invokes-osf",
+      "from": "skill-check-step",
+      "to": "osf-cli",
+      "kind": "call",
+      "delta": "added",
+      "label": "./target/release/osf lint skill",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The step shells out to the release binary built earlier in the same job.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 221,
+          "endLine": 221
+        }
+      ]
+    },
+    {
+      "id": "osf-cli-runs-lint-skill",
+      "from": "osf-cli",
+      "to": "osf-lint-skill",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "lint skill subcommand",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unchanged dispatch from the CLI into the skill lint module.",
+      "files": []
+    },
+    {
+      "id": "skill-check-reads-skills",
+      "from": "skill-check-step",
+      "to": "skill-adding-osf-command",
+      "kind": "data",
+      "delta": "added",
+      "label": "git ls-files skills/*/SKILL.md",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The step enumerates every skill directory and passes them all to the lint command, so a new skill is gated the moment it lands.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 215,
+          "endLine": 216
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "skill-lint-flow",
+      "title": "Every skill is linted on each CI run",
+      "summary": "The new CI step discovers every skill directory, invokes the release osf binary, and the skill lint module reports on each file. This is the only executable path this change adds.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "ci-workflow",
+          "label": "ci.yml"
+        },
+        {
+          "node": "skill-check-step",
+          "label": "Check the skills"
+        },
+        {
+          "node": "osf-cli",
+          "label": "osf"
+        },
+        {
+          "node": "osf-lint-skill",
+          "label": "lint skill"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-detect-skills",
+          "from": "ci-workflow",
+          "to": "skill-check-step",
+          "label": "run step after release build",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 212,
+              "endLine": 213
+            }
+          ]
+        },
+        {
+          "id": "step-list-skills",
+          "from": "skill-check-step",
+          "to": "skill-check-step",
+          "label": "git ls-files 'skills/*/SKILL.md' | xargs dirname",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Collects the six new skill directories plus any pre-existing ones. Exits with a notice when the list is empty.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 215,
+              "endLine": 219
+            }
+          ]
+        },
+        {
+          "id": "step-invoke-osf",
+          "from": "skill-check-step",
+          "to": "osf-cli",
+          "label": "./target/release/osf lint skill --format human <dirs>",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 221,
+              "endLine": 221
+            }
+          ]
+        },
+        {
+          "id": "osf-lint-each",
+          "from": "osf-cli",
+          "to": "osf-lint-skill",
+          "label": "lint skill subcommand",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "lint-report",
+          "from": "osf-lint-skill",
+          "to": "skill-check-step",
+          "label": "human-format findings, non-zero exit on failure",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "A failure here fails the CI job, which is the gate that makes the new skill files enforced rather than advisory.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 10,
+    "additions": 192,
+    "deletions": 35,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "rules-layout",
+      "title": "Rule documents and their scopes",
+      "lens": "architecture",
+      "summary": "How the rule set is now split: one root file for every task, two folder-scoped files, and six skills that load on task match.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "agent",
+          "rules"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "ci-skill-gate",
+      "title": "CI skill lint gate",
+      "lens": "architecture",
+      "summary": "The one executable change: a new step in ci.yml that lints every skill through the release osf binary.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "ci",
+          "osf"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "skill-lint-sequence",
+          "title": "Skill lint sequence",
+          "lens": "data-flow",
+          "summary": "The ordered steps of the new CI check.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [],
+            "edges": [],
+            "flows": [
+              "skill-lint-flow"
+            ]
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "wt-root",
+        "heading": "Root file shrinks",
+        "body": "AGENTS.md keeps only what every task needs and gains a table of where the rest lives.",
+        "stage": {
+          "kind": "view",
+          "view": "rules-layout"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "root-agents-md"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-scoped",
+        "heading": "Rules move to their folder",
+        "body": "crate layout goes to crates/AGENTS.md, workflow trust to .github/workflows/AGENTS.md.",
+        "stage": {
+          "kind": "view",
+          "view": "rules-layout"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "crates-agents-md",
+            "workflows-agents-md"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-skills",
+        "heading": "Skills load on task match",
+        "body": "Six new skills carry the moment-of-work rules, each with a front-matter trigger.",
+        "stage": {
+          "kind": "view",
+          "view": "rules-layout"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "skill-adding-osf-command",
+            "skill-writing-a-workflow",
+            "skill-opening-a-pull-request"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-ci",
+        "heading": "CI lints every skill",
+        "body": "A new step enumerates skills/*/SKILL.md and runs osf lint skill over all of them.",
+        "stage": {
+          "kind": "view",
+          "view": "ci-skill-gate"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "skill-check-step",
+            "osf-cli",
+            "osf-lint-skill"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-flow",
+        "heading": "The check in order",
+        "body": "Discover, invoke, lint, report — a failure fails the job.",
+        "stage": {
+          "kind": "flow",
+          "flow": "skill-lint-flow"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}
