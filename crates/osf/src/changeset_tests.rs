@@ -491,7 +491,39 @@ pub fn render(summary: &Summary) -> String {
     )
     .expect("writing to a string never fails");
 
+    // One line per crate, above that crate's files: issue #15 asks for two
+    // levels, the crate's own totals and then its files underneath.
+    let mut crate_totals: BTreeMap<&str, (usize, usize, usize)> = BTreeMap::new();
     for group in &summary.groups {
+        if let GroupBody::Tests {
+            removed,
+            added,
+            changed,
+        } = &group.body
+        {
+            let totals = crate_totals.entry(group.crate_name.as_str()).or_default();
+            totals.0 += added.len();
+            totals.1 += changed.len();
+            totals.2 += removed.len();
+        }
+    }
+
+    let mut current_crate: Option<&str> = None;
+    for group in &summary.groups {
+        if current_crate != Some(group.crate_name.as_str()) {
+            current_crate = Some(group.crate_name.as_str());
+            let (a, c, r) = crate_totals
+                .get(group.crate_name.as_str())
+                .copied()
+                .unwrap_or_default();
+            writeln!(
+                out,
+                "- `{}`: {a} added, {c} changed, {r} removed",
+                group.crate_name
+            )
+            .expect("writing to a string never fails");
+        }
+
         match &group.body {
             GroupBody::Tests {
                 removed,
@@ -500,40 +532,39 @@ pub fn render(summary: &Summary) -> String {
             } => {
                 writeln!(
                     out,
-                    "- `{}` ({}): {} added, {} changed, {} removed",
+                    "  - `{}`: {} added, {} changed, {} removed",
                     group.file,
-                    group.crate_name,
                     added.len(),
                     changed.len(),
                     removed.len()
                 )
                 .expect("writing to a string never fails");
                 for test in removed {
-                    writeln!(out, "  - removed `{}`: {}", test.name, test.description)
+                    writeln!(out, "    - removed `{}`: {}", test.name, test.description)
                         .expect("writing to a string never fails");
                 }
                 for test in added {
                     if test.description == NO_DESCRIPTION {
-                        writeln!(out, "  - added: no description (in {})", group.file)
+                        writeln!(out, "    - added: no description (in {})", group.file)
                             .expect("writing to a string never fails");
                     } else {
-                        writeln!(out, "  - added: {}", test.description)
+                        writeln!(out, "    - added: {}", test.description)
                             .expect("writing to a string never fails");
                     }
                 }
                 for test in changed {
-                    writeln!(out, "  - changed: {}", test.description)
+                    writeln!(out, "    - changed: {}", test.description)
                         .expect("writing to a string never fails");
                 }
             }
             GroupBody::Unparsed => {
-                writeln!(out, "- `{}` ({}): unparsed", group.file, group.crate_name)
+                writeln!(out, "  - `{}`: unparsed", group.file)
                     .expect("writing to a string never fails");
             }
             GroupBody::Unsupported => {
                 writeln!(
                     out,
-                    "- `{}`: not yet supported, see open-software-factory/software-factory#188",
+                    "  - `{}`: not yet supported, see open-software-factory/software-factory#188",
                     group.file
                 )
                 .expect("writing to a string never fails");

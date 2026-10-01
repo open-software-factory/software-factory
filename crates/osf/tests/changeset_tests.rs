@@ -366,6 +366,31 @@ fn render_lists_removed_then_added_then_changed_by_description_alone() {
 }
 
 #[test]
+fn render_carries_a_crate_total_line_above_its_files() {
+    let repo = base_repo("render-crate-totals");
+    repo.write("crates/osf/src/a.rs", "\n");
+    repo.write("crates/osf/src/b.rs", "\n");
+    let base = repo.commit("base");
+    repo.write("crates/osf/src/a.rs", "#[test]\nfn one() {}\n");
+    repo.write(
+        "crates/osf/src/b.rs",
+        "#[test]\nfn two() {}\n\n#[test]\nfn three() {}\n",
+    );
+    let head = repo.commit("head");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.added, 3);
+    let text = render(&summary);
+    let crate_at = text.find("- `osf`: 3 added, 0 changed, 0 removed").expect(
+        "a crate total line summing both files' additions, the first line after the totals",
+    );
+    let a_at = text.find("`crates/osf/src/a.rs`").expect("file a's line");
+    let b_at = text.find("`crates/osf/src/b.rs`").expect("file b's line");
+    assert!(crate_at < a_at, "{text}");
+    assert!(a_at < b_at, "{text}");
+}
+
+#[test]
 fn an_added_test_with_no_readable_description_names_the_file_instead_of_the_test() {
     let repo = base_repo("added-no-description");
     repo.write("crates/osf/src/thing.rs", "\n");
