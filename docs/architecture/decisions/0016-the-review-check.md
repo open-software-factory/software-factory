@@ -92,7 +92,9 @@ An adopter changes or extends the roster in configuration. Onboarding checks whi
 
 Each answer must match a JSON Schema versioned with osf. An answer holds findings and a score from 0 to 1 for each criterion of the lens. Each finding has a file, a line, the quoted code, a severity and an action. An answer that does not match is asked for once more, and then counted as missing.
 
-Deterministic code then checks every finding. A finding counts only when its quoted code exists at the file and line it names.
+The schema has no way to raise a finding about something missing: a missing test, a missing migration, an unmet acceptance criterion. Every finding needs real code to quote. Spec and acceptance and test quality are both must-run lenses. Each loses some of its most useful findings to this limit, until the schema grows a way to represent an absence.
+
+Deterministic code then checks every finding. A finding counts only when its quoted code exists at the file and line it names. That confirms the quote is real. It does not check whether the finding's claim about that code is true. A false severity or description attached to a genuine quote passes unchecked.
 
 The reducer decides per lens, and it is plain code:
 
@@ -105,7 +107,7 @@ The lens weights and the threshold ship as data. Adopters get configurable weigh
 
 ### Where it runs
 
-`osf review run` is one command. It runs as a moon task tagged for pre-push and for the pull request, so moon's cache reuses the pre-push result at the pull request when nothing changed. CI is the authority, because it holds the keys and the verifier identity. The local run gives the coding agent the same feedback earlier.
+`osf review run` is one command. It runs as a moon task tagged for pre-push and, separately, for the pull request. [Decision 0020](0020-who-can-post-a-review-result.md) sets the CI run as the sole authority. The pre-push run is a local, early warning only. Its result is never carried forward as a cached pass at the pull request. CI is the authority, because it holds the keys and the verifier identity. The local run gives the coding agent the same feedback earlier.
 
 A must-fix finding sends the change back to the coding agent before the pull request.
 
@@ -113,7 +115,7 @@ The journal keeps each reviewer's answer as one event, with its lens, reviewer, 
 
 ## Consequences
 
-- A review answer is reported evidence, as [decision 0005](0005-the-factory-domain-model.md) grades it. The deterministic check on quoted code is what keeps a fabricated finding out.
+- A review answer is reported evidence, as [decision 0005](0005-the-factory-domain-model.md) grades it. The deterministic check on quoted code keeps a fabricated location out. It does not check a finding's claim, and the schema has no way to raise a finding about something missing.
 - The model-judgement check has one shape, whether a harness or a local classifier gives the answer. A local classifier, as the reference rule in [open-software-factory/software-factory#131 (one rule for every reference the reader cannot place)](https://github.com/open-software-factory/software-factory/issues/131) proposes, enters the reducer as one more answer.
 - `osf review post` stays the command that publishes a verdict to the code host.
 - The review's own pull request is reviewed first by the command it contains.
