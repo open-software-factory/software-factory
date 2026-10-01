@@ -280,13 +280,17 @@ fn lint_skill_files(opts: &Options, files: &[String]) -> Result<Vec<(String, Fin
     let mut findings = Vec::new();
     for label in &skill_dirs {
         let full = opts.dir.join(label);
-        let skill_findings = lints::skill::lint_skill_checked(
+        let skill_md_rel = format!("{label}/SKILL.md");
+        let bytes = content_for_check(opts.dir, &skill_md_rel, opts.checkpoint)?;
+        let text = String::from_utf8_lossy(&bytes).into_owned();
+        let skill_findings = lints::skill::lint_skill_checked_text(
             &full,
             label,
+            &text,
             &opts.config.skill,
             &known,
             &opts.config.writing,
-        )?;
+        );
         findings.extend(
             skill_findings
                 .into_iter()

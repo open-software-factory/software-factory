@@ -318,6 +318,63 @@ fn check_scan_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
 }
 
+/// `lint-skill` follows the same rule as `scan` and `lint-writing`: the
+/// pre-push checkpoint reads `SKILL.md` as committed at `HEAD`, not an
+/// uncommitted working-tree fix.
+#[test]
+fn check_lint_skill_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
+    let repo = TempRepo::new("check-lint-skill-pre-push-head");
+    let first_person = "---\nname: demo\ndescription: I can check a folder for common problems when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+    repo.write("skills/demo/SKILL.md", first_person);
+    repo.commit("add a first-person skill description");
+    let third_person = "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+    repo.write("skills/demo/SKILL.md", third_person);
+    let home = isolated_home("check-lint-skill-pre-push-head");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pre-push",
+            "skills/demo/SKILL.md",
+        ],
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("skill-first-person"),
+        "the committed, first-person description must still be read at pre-push: {out:?}"
+    );
+}
+
+/// The mirror case: the hook checkpoint reads `SKILL.md` as it is on disk
+/// right now, so the same uncommitted fix is visible to it.
+#[test]
+fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_fix() {
+    let repo = TempRepo::new("check-lint-skill-hook-disk");
+    let first_person = "---\nname: demo\ndescription: I can check a folder for common problems when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+    repo.write("skills/demo/SKILL.md", first_person);
+    repo.commit("add a first-person skill description");
+    let third_person = "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+    repo.write("skills/demo/SKILL.md", third_person);
+    let home = isolated_home("check-lint-skill-hook-disk");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "hook",
+            "skills/demo/SKILL.md",
+        ],
+    );
+    assert!(
+        !String::from_utf8_lossy(&out.stdout).contains("skill-first-person"),
+        "the on-disk fix must be what the hook checkpoint reads: {out:?}"
+    );
+}
+
 /// `OSF_CHECKPOINT` is no longer read at all. An inherited value of `hook`
 /// must not turn a `--checkpoint pre-push` run into a disk read.
 #[test]
