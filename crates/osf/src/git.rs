@@ -65,9 +65,27 @@ pub fn tracked_files(dir: &Path, under: Option<&Path>) -> Result<Vec<String>, Gi
 ///
 /// # Errors
 /// Returns an error if git cannot run in `dir`, or `a` and `b` share no
-/// common ancestor.
+/// common ancestor. Git reports that case with an empty stderr, so the
+/// message here names the likely cause instead of repeating nothing.
 pub fn merge_base(dir: &Path, a: &str, b: &str) -> Result<String, GitError> {
-    run_text(dir, &["merge-base", a, b]).map(|t| t.trim().to_string())
+    let output = Command::new("git")
+        .current_dir(dir)
+        .args(["merge-base", a, b])
+        .output()
+        .map_err(|e| GitError(format!("cannot run git: {e}")))?;
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
+    }
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr.trim().is_empty() {
+        return Err(GitError(format!(
+            "no common ancestor between {a} and {b}; fetch full history (for example a shallow clone)"
+        )));
+    }
+    Err(GitError(format!(
+        "git merge-base {a} {b} failed: {}",
+        stderr.trim()
+    )))
 }
 
 /// Every commit hash in `range`, oldest first.
@@ -473,6 +491,33 @@ mod tests {
             "git {args:?} failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    #[test]
+    fn merge_base_with_no_common_ancestor_names_both_refs() {
+        let dir = test_repo("merge-base-no-common-ancestor");
+        git(&dir, &["init", "-q", "-b", "a"]);
+        git(&dir, &["config", "user.email", "test@example.com"]);
+        git(&dir, &["config", "user.name", "Test"]);
+        std::fs::write(dir.join("f.txt"), "a").expect("fixture file writes");
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "a"]);
+        git(&dir, &["checkout", "-q", "--orphan", "b"]);
+        git(&dir, &["rm", "-rf", "-q", "."]);
+        std::fs::write(dir.join("g.txt"), "b").expect("fixture file writes");
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "b"]);
+
+        let message = merge_base(&dir, "a", "b")
+            .expect_err("a and b share no common ancestor")
+            .to_string();
+        assert!(
+            message.contains("no common ancestor between a and b"),
+            "{message}"
+        );
+        assert!(message.contains("fetch full history"), "{message}");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
