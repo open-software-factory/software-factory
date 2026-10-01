@@ -62,9 +62,8 @@ prints `osf pr status refresh: updated`.
 The block's Problem and Approach are followed by a summary of the Rust
 tests the change added, changed, or removed. It comes from parsing the
 base and head versions of each changed `.rs` file with the tree-sitter
-Rust grammar. It never builds or runs the change's code. So the summary
-cannot be wrong about what actually compiled, and code that fails to
-compile cannot fool it.
+Rust grammar. It never builds or runs the change's code. The summary
+reflects what parsed, and a file that parses can still fail to build.
 
 A test is any function carrying `#[test]`, `#[tokio::test]`, or another
 attribute whose path ends in `test`. This includes one inside a
