@@ -34,6 +34,31 @@ ARG NODE_SHA256_ARM64=a44aeb94849a299b22df10b9e622ec2f605c2183501bc40590705131de
 # pnpm, must match this repo's root package.json "packageManager" field.
 ARG PNPM_VERSION=10.14.0
 
+# GitHub CLI, for the builder role: opening and checking pull requests.
+ARG GH_VERSION=2.102.0
+ARG GH_SHA256_AMD64=bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386
+ARG GH_SHA256_ARM64=7862c86c72f43df3a2d93ddde6f473285b4e2af61b494849846827e513ef6484
+
+# actionlint, for the builder role: the writing-a-workflow skill and this
+# project's own CI both lint GitHub Actions workflow files with it.
+ARG ACTIONLINT_VERSION=1.7.12
+ARG ACTIONLINT_SHA256_AMD64=8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+ARG ACTIONLINT_SHA256_ARM64=325e971b6ba9bfa504672e29be93c24981eeb1c07576d730e9f7c8805afff0c6
+
+# uv, Astral's Python tool installer. Needed only to install SkillSpector
+# and SkillEvaluator below; this image does not otherwise run Python.
+ARG UV_VERSION=0.12.21
+ARG UV_SHA256_AMD64=23f02075b652bb1df64178cfae41b5caf160822e720e2663568f3f5d63bc52c0
+ARG UV_SHA256_ARM64=030b69227b40af8c1981b7301793dc66e71ed3c796ea8688209dd268bd91ec51
+
+# SkillSpector and SkillEvaluator, the two NVIDIA skill-checking tools
+# open-software-factory/software-factory#196 needs on PATH for
+# `osf lint skill`. Pinned to a commit, not a tag, per that issue.
+ARG SKILLSPECTOR_VERSION=2.12.0
+ARG SKILLSPECTOR_COMMIT=2226747
+ARG SKILLEVALUATOR_VERSION=0.4.0
+ARG SKILLEVALUATOR_COMMIT=0da4646
+
 # The coding agents this project supports, every one of them usable as a
 # builder or a reviewer. Each is pinned to one exact npm version so a
 # rebuild in a month installs the same tool a reviewer just tested
@@ -63,6 +88,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       xz-utils \
       unzip \
       bubblewrap \
+      jq \
     && rm -rf /var/lib/apt/lists/*
 
 # git-town, matched to the build's processor architecture.
@@ -94,6 +120,75 @@ RUN set -eu; \
     install -o root -g root -m 0755 "/tmp/moon_cli-${MOON_TARGET}/moon" /usr/local/bin/moon; \
     rm -rf /tmp/moon.tar.xz "/tmp/moon_cli-${MOON_TARGET}"; \
     moon --version
+
+# GitHub CLI, from its own release tarball, checked against its published
+# SHA-256.
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64) GH_ARCH=amd64; GH_SHA256="${GH_SHA256_AMD64}" ;; \
+      arm64) GH_ARCH=arm64; GH_SHA256="${GH_SHA256_ARM64}" ;; \
+      *) echo "gh: unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/gh.tar.gz \
+      "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz"; \
+    echo "${GH_SHA256}  /tmp/gh.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/gh.tar.gz -C /tmp "gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh"; \
+    install -o root -g root -m 0755 "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh" /usr/local/bin/gh; \
+    rm -rf /tmp/gh.tar.gz "/tmp/gh_${GH_VERSION}_linux_${GH_ARCH}"; \
+    gh --version
+
+# actionlint, from its own release tarball, checked against its published
+# SHA-256.
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64) ACTIONLINT_ARCH=amd64; ACTIONLINT_SHA256="${ACTIONLINT_SHA256_AMD64}" ;; \
+      arm64) ACTIONLINT_ARCH=arm64; ACTIONLINT_SHA256="${ACTIONLINT_SHA256_ARM64}" ;; \
+      *) echo "actionlint: unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/actionlint.tar.gz \
+      "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_${ACTIONLINT_ARCH}.tar.gz"; \
+    echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint; \
+    install -o root -g root -m 0755 /tmp/actionlint /usr/local/bin/actionlint; \
+    rm -f /tmp/actionlint.tar.gz /tmp/actionlint; \
+    actionlint -version
+
+# uv, from its own release tarball, checked against its published SHA-256.
+# Used only to install SkillSpector and SkillEvaluator, below.
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64) UV_TARGET=x86_64-unknown-linux-gnu; UV_SHA256="${UV_SHA256_AMD64}" ;; \
+      arm64) UV_TARGET=aarch64-unknown-linux-gnu; UV_SHA256="${UV_SHA256_ARM64}" ;; \
+      *) echo "uv: unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/uv.tar.gz \
+      "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${UV_TARGET}.tar.gz"; \
+    echo "${UV_SHA256}  /tmp/uv.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/uv.tar.gz -C /tmp "uv-${UV_TARGET}/uv" "uv-${UV_TARGET}/uvx"; \
+    install -o root -g root -m 0755 "/tmp/uv-${UV_TARGET}/uv" /usr/local/bin/uv; \
+    install -o root -g root -m 0755 "/tmp/uv-${UV_TARGET}/uvx" /usr/local/bin/uvx; \
+    rm -rf /tmp/uv.tar.gz "/tmp/uv-${UV_TARGET}"; \
+    uv --version
+
+# SkillSpector and SkillEvaluator, each installed from its own git history
+# at the pinned commit above, per open-software-factory/software-factory#196.
+# UV_TOOL_BIN_DIR puts both binaries on the same root-owned PATH as every
+# other tool in this image, rather than under root's own home directory.
+# UV_PYTHON_INSTALL_DIR matters just as much: left at its default, uv
+# downloads the Python interpreter each tool's venv symlinks to under a
+# path inside root's own home directory, which stays unreadable to dev
+# even after chmod on /opt/factory/uv-tools itself. Moving it beside the
+# tools keeps every path dev needs to read and execute out from under
+# root's own home.
+ENV UV_TOOL_DIR=/opt/factory/uv-tools
+ENV UV_TOOL_BIN_DIR=/usr/local/bin
+ENV UV_PYTHON_INSTALL_DIR=/opt/factory/uv-python
+RUN uv tool install "git+https://github.com/NVIDIA/skillspector.git@${SKILLSPECTOR_COMMIT}" && \
+    uv tool install "git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_COMMIT}" && \
+    chown -R root:root /opt/factory/uv-tools /opt/factory/uv-python && \
+    chmod -R a+rX /opt/factory/uv-tools /opt/factory/uv-python && \
+    skillspector --help >/dev/null && \
+    skillevaluator --help >/dev/null
 
 # Node, from the official nodejs.org binary tarball, checked against its
 # published SHA-256. This avoids adding a NodeSource apt repository and
@@ -317,6 +412,12 @@ ENV OSF_WORKSPACE_ROOT="${WORKSPACE_ROOT}"
 # how to use it. No script in this image chooses a builder by name: every
 # one reads this instead.
 ENV OSF_DEFAULT_BUILDER=dsh
+
+# Every login shell resets PATH before reading /etc/profile.d/*.sh (see
+# .devcontainer/profile.d/osf-path.sh), which otherwise drops osf, the
+# cargo toolchain, and every coding agent's own binary.
+COPY .devcontainer/profile.d/osf-path.sh /etc/profile.d/osf-path.sh
+RUN chown root:root /etc/profile.d/osf-path.sh && chmod 0444 /etc/profile.d/osf-path.sh
 
 # Proves the git wrapper's refusals and the forced hooks path at build
 # time, so a broken wrapper fails the build instead of shipping quietly.
