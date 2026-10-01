@@ -77,16 +77,19 @@ An adopter adds a domain lens as a file under `.osf/review-lenses/<name>.toml`, 
 
 osf runs each reviewer through a coding-agent command-line tool, run headless, with the lens prompt. osf owns the prompts, the JSON Schema each answer must match, and which reviewer runs.
 
-The reviewers come from a roster. The shipped roster lists these harness and model pairs, each tagged with its model family.
+The reviewer roster is exactly the coding agents the development container installs: dsh, omp, opencode, codex and claude. [open-software-factory/software-factory#151 (the development container)](https://github.com/open-software-factory/software-factory/pull/151) adds `.devcontainer/agents.json`, the one list of them. omp is built on pi, so pi's place in the roster is omp's entry. This record keeps no hand-kept second copy of that list. Each agent is tagged with its model family.
 
 | Harness | Model family | Access |
 |---|---|---|
 | codex | OpenAI | subscription |
-| Claude Code | Anthropic | subscription |
+| claude | Anthropic | subscription |
 | dsh | DeepSeek | API key |
+| omp | whichever provider the operator configures it with | depends on configuration |
 | opencode | GLM, Kimi, Qwen and MiMo | API key |
 
-An adopter changes or extends the roster in configuration. Onboarding checks which reviewers have working access and disables the rest. The ideal is reviewers from several families, all different from the builder's family. One family is allowed, with a warning, so adoption stays easy.
+An adopter changes or extends the roster in configuration. Onboarding checks which reviewers have working access and disables the rest.
+
+The goal is reviewers from two model families, both different from the builder's family, with more than one review round per family. When a second family has no working reviewer, the review runs one extra critical round with the one family it has. It does not report the lens as could-not-run. This is an interim policy. The factory collects data on how it performs, and the owner sets the final policy once that data exists.
 
 ### The answer and the reducer
 
@@ -98,7 +101,7 @@ Deterministic code then checks every finding. A finding counts only when its quo
 
 The reducer decides per lens, and it is plain code:
 
-- A lens needs answers from reviewers in two model families. With fewer, the lens is could-not-run, and a could-not-run lens is never a pass.
+- A lens needs answers from reviewers in two model families, both different from the builder's, each giving more than one round. When only one family has a working reviewer, the lens runs one extra critical round with that family instead of going could-not-run. A lens with no working reviewer in any family is still could-not-run, and a could-not-run lens is never a pass. This is the same interim policy the Reviewers section states, kept while the factory collects data on how it performs.
 - A verified blocker vetoes the lens.
 - The lens score is the mean of its criterion scores.
 - The review passes when every lens that ran reached quorum, no blocker survived verification, and the weighted score clears the threshold.

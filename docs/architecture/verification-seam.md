@@ -271,7 +271,7 @@ A review is a check with the evidence grade reported. The code host's setting th
 - Each lens declares the context it needs, such as the work item and its acceptance criteria. A missing required input makes that lens could-not-run.
 - An adopter adds a domain lens, such as money or health data, as a file under `.osf/review-lenses/`.
 
-osf runs each reviewer through a coding-agent command-line tool, from a roster of harness and model pairs. Every answer must match a JSON Schema shipped with osf. Deterministic code keeps a finding only when its quoted code exists at the file and line it names. A reducer decides per lens: two model families for quorum, a verified blocker vetoes, and a weighted score must clear a threshold. Too few answers is could-not-run. A must-fix finding sends the change back to the coding agent before the pull request.
+osf runs each reviewer through a coding-agent command-line tool, from a roster that is exactly the coding agents the development container installs. Every answer must match a JSON Schema shipped with osf. Deterministic code keeps a finding only when its quoted code exists at the file and line it names. A reducer decides per lens. Quorum needs two model families. When a second has no working reviewer, the lens runs one extra critical round with the family it has, as an interim policy. A verified blocker vetoes. A weighted score must clear a threshold. No working reviewer in any family is still could-not-run. A must-fix finding sends the change back to the coding agent before the pull request.
 
 [Decision 0016](decisions/0016-the-review-check.md) holds the full catalogue, the roster and the reducer rules.
 
