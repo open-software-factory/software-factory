@@ -8,7 +8,7 @@ The issue for this design is [open-software-factory/software-factory#26 (verify 
 
 ## Purpose
 
-One seam runs the same checks at five checkpoints. An agent gets its findings while it edits. A pull request cannot merge until the factory's aggregation check and the adopter's own required jobs all pass. Every run leaves a journal that survives the machine it ran on.
+One seam runs the same checks at five checkpoints. An agent gets its findings while it edits. A pull request cannot merge until the factory's aggregation check passes and every review thread is resolved. The aggregation itself reads each adopter job's conclusion. A run's journal survives the machine as of its last flush.
 
 The seam serves the engineer who owns the outcome, running one issue to one pull request unattended. The first adopter is this repository. The second ecosystem is .NET, and Java, TypeScript, Python and Go follow, one at a time.
 
@@ -39,7 +39,7 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 | Name | The points where checks run are called checkpoints. |
 | Cost | There is no fixed time budget per checkpoint. Declared inputs and moon's cache make an untouched check free. A repository may set a ceiling per checkpoint in its configuration. |
 | Journal | Every checkpoint writes events in the domain model's structure. A local run buffers events and flushes them on push and on a timer. The orphan branch on the code host is the default sink. An object store with an S3-compatible interface, the interface Amazon's object store made common, is an optional second sink. When both are configured, both receive every write. |
-| Required checks | The aggregation and the adopter's own jobs are all required. Checks run in parallel and the aggregation runs last. |
+| Required checks | Only the aggregation check is required. It reads each adopter job's conclusion and fails when one is missing without a path filter's excuse. Checks run in parallel and the aggregation runs last. |
 | Slots | A slot counts as filled by the adopter's own check only when the check recogniser reads that it is at least as strong as the factory's. Where no recogniser exists, a slot attestation fills it and is reported as such. A periodic audit compares attestations with completed runs. |
 | Empty slots | The factory fills an empty slot with its own default when it has one. A slot only the adopter can fill, such as architecture tests, reports at warning until the adopter raises it to error. |
 | Results | A job's conclusion decides pass or fail. Result files add counts and findings, and the tool finds them by content. |
@@ -72,7 +72,7 @@ tasks:
   lint-writing:
     command: osf lint writing
     inputs: ['**/*.md']
-    tags: [osf:hook, osf:pre-push, osf:pull-request, osf:slot:writing]
+    tags: [osf:hook, osf:pre-commit, osf:pre-push, osf:pull-request, osf:slot:writing]
   fmt:
     command: cargo fmt --all --check
     inputs: ['**/*.rs']
@@ -140,7 +140,7 @@ One change, followed from the first edit to the merged pull request.
 3. **The agent pushes.** The pre-push checkpoint runs on the whole branch diff. Then the buffer flushes to the orphan branch, and to the object store when one is configured.
 4. **The pull request opens.** The adopter's own workflows and the generated factory workflow start together. The factory workflow runs the tasks tagged for the pull-request checkpoint. Each job uploads its result files as artifacts.
 5. **A workflow finishes.** The aggregation workflow starts. It lists the check runs on the commit. If one is still running, it stops and waits for the next finish. When every check is done it reads each conclusion and downloads the artifacts. It hands each file to the reader that recognises its content. The check recogniser reports the state of each slot. Levels and suppressions apply. The aggregation writes the checkpoint-complete event with the slot table, posts the one required check, and flushes the journal.
-6. **Merge.** The required check, the adopter's jobs and the resolved review threads gate the merge.
+6. **Merge.** The required check and the resolved review threads gate the merge. The aggregation itself reads each adopter job's conclusion as part of that check.
 7. **On the schedule.** The scheduled workflow runs the tasks tagged for that cadence. Each finding becomes an issue with the native fields set, and the engine's loop takes it from there.
 8. **On a factory release.** The daily sync task sees the new version and renders the generated files. It opens a pull request under the builder identity. That pull request goes through the pull-request checkpoint like any other.
 
@@ -326,7 +326,7 @@ Every component has its own tests, and this repository proves the whole by runni
 - [Decision 0009](decisions/0009-journal-store-and-sinks.md) is provisional. It gains the local buffer, the flush, the orphan branch as the default sink and the object store as the optional one.
 - [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26) is updated to point at this design.
 
-## The decision records to write
+## The decision records
 
 Each one records the options weighed and the option taken.
 

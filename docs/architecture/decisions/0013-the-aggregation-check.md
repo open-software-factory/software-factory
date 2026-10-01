@@ -10,7 +10,7 @@ A pull request in an adopting repository has the adopter's own jobs, the factory
 
 ## Options considered
 
-**Which checks are required.** The factory's aggregation alone, the adopter's jobs alone, or both. Both was taken. Checks run in parallel and the aggregation runs last.
+**Which checks are required.** The factory's aggregation alone, the adopter's jobs alone, or both as directly required checks. The aggregation alone was taken, reading each adopter job's conclusion instead of naming it as a required check. A job skipped by a path filter would otherwise block merging forever. Checks run in parallel and the aggregation runs last.
 
 **What the aggregation reads from an adopter's job.** The job's conclusion, the result files it uploads, or both. Both was taken. The conclusion decides pass or fail. The files add counts and findings, and the test-count shrink check reads them. Result files are found by content rather than by a fixed path, and a job with a known conclusion and no readable file still counts as passed or failed.
 
