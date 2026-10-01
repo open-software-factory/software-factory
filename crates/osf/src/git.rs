@@ -175,16 +175,19 @@ pub fn diff_name_status_between(
 /// Builds one [`ChangedPath`] from a `git diff --name-status -M -z` status
 /// token (such as `M` or `R100`) and the path token(s) that follow it in
 /// the same NUL-separated stream: one for every status but a rename or a
-/// copy, which carry two. `None` for a status this build has no case for
-/// (a type-change `T`, or an unrecognised one), so one unrecognised entry
-/// never stops the rest being read.
+/// copy, which carry two. A type change (`T`, such as a file replaced by a
+/// symlink at the same path) is treated like `M`: the path is compared at
+/// both revisions, so content that stops being parseable there is reported
+/// as unparsed rather than silently dropped. `None` for a status this
+/// build has no case for, so one unrecognised entry never stops the rest
+/// being read.
 fn changed_path_from_status(
     status: &str,
     tokens: &mut impl Iterator<Item = String>,
 ) -> Option<ChangedPath> {
     match status.as_bytes().first()? {
         b'A' => Some(ChangedPath::Added(tokens.next()?)),
-        b'M' => Some(ChangedPath::Modified(tokens.next()?)),
+        b'M' | b'T' => Some(ChangedPath::Modified(tokens.next()?)),
         b'D' => Some(ChangedPath::Deleted(tokens.next()?)),
         b'R' => Some(ChangedPath::Renamed {
             from: tokens.next()?,
@@ -435,6 +438,15 @@ mod tests {
         assert_eq!(
             parse("C100", &["src.rs", "copy.rs"]),
             Some(ChangedPath::Added("copy.rs".to_string()))
+        );
+    }
+
+    #[test]
+    fn a_type_change_status_parses_like_modified() {
+        let mut tokens = std::iter::once("thing.rs".to_string());
+        assert_eq!(
+            changed_path_from_status("T", &mut tokens),
+            Some(ChangedPath::Modified("thing.rs".to_string()))
         );
     }
 
