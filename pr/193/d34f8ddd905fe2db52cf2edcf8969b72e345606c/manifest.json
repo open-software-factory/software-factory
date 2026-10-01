@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "d34f8ddd905fe2db52cf2edcf8969b72e345606c",
+    "contentHash": "d3943b5703eb990901ef944d5260b14c"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.1"
+  },
+  "assets": [
+    {
+      "id": "workflow-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workflow-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5f8ec83044e61c3bb853493a6cdd6a75",
+      "bytes": 17009,
+      "width": 1770,
+      "height": 646,
+      "animated": false,
+      "path": "workflow-architecture-light-5f8ec83044e61c3bb853493a6cdd6a75.svg"
+    },
+    {
+      "id": "workflow-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workflow-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6bbf2a9aab0778746a7ff2236ade952e",
+      "bytes": 17180,
+      "width": 1770,
+      "height": 646,
+      "animated": false,
+      "path": "workflow-architecture-dark-6bbf2a9aab0778746a7ff2236ade952e.svg"
+    },
+    {
+      "id": "failure-note-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "failure-note-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "129d3b6bf93bebc552ad611bf9e33060",
+      "bytes": 13175,
+      "width": 1781,
+      "height": 375,
+      "animated": true,
+      "path": "failure-note-flow-light-129d3b6bf93bebc552ad611bf9e33060.svg"
+    },
+    {
+      "id": "failure-note-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "failure-note-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4f796d4cb4db6bdaa3a8547d8aa1345a",
+      "bytes": 13287,
+      "width": 1781,
+      "height": 375,
+      "animated": true,
+      "path": "failure-note-flow-dark-4f796d4cb4db6bdaa3a8547d8aa1345a.svg"
+    }
+  ]
+}

@@ -1,0 +1,513 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-01T03:07:32.688Z",
+  "title": "pr-lens workflow: model failure no longer fails the check",
+  "summary": "The pr-lens GitHub Actions workflow is reworked so that a failed model call is no longer a hard gate. The analyze step now runs with `continue-on-error: true` and captures its output through `tee`, extracting the first `✗` line as a failure reason. A new step writes that reason into the PR's pr-lens section via the `osf` CLI, and the render/publish/write-section steps are re-gated on `steps.analyze.outcome == 'success'` instead of re-testing the docs-only and key-present conditions. The shell variable rename from `KEY_VAR`/`KEY` to `key_var`/`key` is cosmetic.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "5be4ad1b5ed0cb032f4b17e524a656b75cb2bbe7",
+      "ref": "5be4ad1b5ed0cb032f4b17e524a656b75cb2bbe7"
+    },
+    "head": {
+      "sha": "d34f8ddd905fe2db52cf2edcf8969b72e345606c",
+      "ref": "d34f8ddd905fe2db52cf2edcf8969b72e345606c"
+    },
+    "pullRequest": {
+      "number": 193,
+      "url": "https://github.com/open-software-factory/software-factory/pull/193"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "github",
+      "label": "GitHub Actions",
+      "subtitle": "ubuntu-latest runner",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The workflow job that orchestrates the pr-lens run, from checkout through publishing."
+    },
+    {
+      "id": "cli",
+      "label": "pr-lens CLI",
+      "subtitle": "npx @coldtea/pr-lens-cli",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "The external CLI that analyzes the diff and renders diagrams."
+    },
+    {
+      "id": "model",
+      "label": "Model provider",
+      "subtitle": "DeepSeek / OpenAI / Anthropic",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The LLM endpoint the CLI calls to produce the graph document."
+    },
+    {
+      "id": "osf",
+      "label": "osf CLI",
+      "subtitle": "target/release/osf",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The repository's own CLI, used to write the pr-lens section back onto the pull request."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pr-lens-workflow",
+      "label": "pr-lens.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "workflow job",
+      "summary": "The workflow definition changed: the analyze step gained an id and continue-on-error, output is teed to a log, and downstream steps are gated on the analyze outcome.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 100,
+          "endLine": 230
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "analyze-step",
+      "label": "Analyze the diff",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "id: analyze, continue-on-error",
+      "summary": "Runs the pr-lens CLI against the PR base and head SHAs. Now tolerates failure, tees stdout/stderr to analyze.log, and writes the first ✗ line to analyze-reason.txt before exiting with the CLI's status.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 152,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "failure-note-step",
+      "label": "Write a note when the model call failed",
+      "kind": "job",
+      "delta": "added",
+      "lane": "github",
+      "subtitle": "if: steps.analyze.outcome == 'failure'",
+      "summary": "New step that reads analyze-reason.txt, formats a short note, and hands it to the osf CLI to post as the pr-lens section.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 192,
+          "endLine": 201
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "render-step",
+      "label": "Render the diagrams",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "if: steps.analyze.outcome == 'success'",
+      "summary": "Renders the graph JSON to SVGs. Its condition changed from docs-only/key-present checks to the analyze step's outcome.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 203,
+          "endLine": 207
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "publish-step",
+      "label": "Publish the SVGs",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "id: publish",
+      "summary": "Pushes rendered assets to the pr-lens branch and emits the assets URL. Now gated on analyze success.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 209,
+          "endLine": 212
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "write-section-step",
+      "label": "Write the diagram section",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "osf pr section write",
+      "summary": "Writes the rendered diagram section onto the pull request. Now gated on analyze success.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 214,
+          "endLine": 230
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-cli",
+      "label": "pr-lens CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "@coldtea/pr-lens-cli",
+      "summary": "Invoked via npx to analyze the diff and render the graph. Unchanged by this PR.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 170,
+          "endLine": 180
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "model-provider",
+      "label": "Model provider",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "model",
+      "subtitle": "DEEPSEEK / OPENAI / ANTHROPIC",
+      "summary": "The LLM endpoint selected by the provider step. Its failure is what the new note step reports.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 157,
+          "endLine": 166
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "osf",
+      "subtitle": "target/release/osf",
+      "summary": "The repository's CLI used to write the pr-lens section. Now also used by the failure-note step.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 199,
+          "endLine": 200
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "workflow-runs-analyze",
+      "from": "pr-lens-workflow",
+      "to": "analyze-step",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "job step",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow defines and runs the analyze step, now with continue-on-error and an id.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 152,
+          "endLine": 190
+        }
+      ]
+    },
+    {
+      "id": "analyze-calls-cli",
+      "from": "analyze-step",
+      "to": "pr-lens-cli",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "npx analyze",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The analyze step invokes the pr-lens CLI with base/head SHAs and output path.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 170,
+          "endLine": 180
+        }
+      ]
+    },
+    {
+      "id": "cli-calls-model",
+      "from": "pr-lens-cli",
+      "to": "model-provider",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "model call",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The CLI calls the configured model provider; this is the call whose failure the new note step reports.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 157,
+          "endLine": 166
+        }
+      ]
+    },
+    {
+      "id": "failure-note-writes-osf",
+      "from": "failure-note-step",
+      "to": "osf-cli",
+      "kind": "call",
+      "delta": "added",
+      "label": "pr section write",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "On analyze failure, the new step calls osf to write a short note as the pr-lens section.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 192,
+          "endLine": 201
+        }
+      ]
+    },
+    {
+      "id": "render-uses-cli",
+      "from": "render-step",
+      "to": "pr-lens-cli",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "npx render",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The render step invokes the CLI to turn graph.json into SVGs.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 203,
+          "endLine": 207
+        }
+      ]
+    },
+    {
+      "id": "publish-uses-workflow",
+      "from": "publish-step",
+      "to": "pr-lens-workflow",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "gated on analyze",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Publishing now depends on the analyze step's success outcome rather than the docs-only/key-present conditions.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 209,
+          "endLine": 212
+        }
+      ]
+    },
+    {
+      "id": "write-section-uses-osf",
+      "from": "write-section-step",
+      "to": "osf-cli",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "pr section write",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The success path writes the diagram section via osf.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 214,
+          "endLine": 230
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "analyze-failure-note",
+      "title": "Model call fails: note instead of red check",
+      "summary": "When the model call fails, the analyze step captures the reason and the workflow writes a short note to the PR section instead of failing the check.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "analyze-step",
+          "label": "Analyze"
+        },
+        {
+          "node": "pr-lens-cli",
+          "label": "pr-lens CLI"
+        },
+        {
+          "node": "model-provider",
+          "label": "Model"
+        },
+        {
+          "node": "failure-note-step",
+          "label": "Failure note"
+        },
+        {
+          "node": "osf-cli",
+          "label": "osf CLI"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m1",
+          "from": "analyze-step",
+          "to": "pr-lens-cli",
+          "label": "npx analyze",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 170,
+              "endLine": 180
+            }
+          ]
+        },
+        {
+          "id": "m2",
+          "from": "pr-lens-cli",
+          "to": "model-provider",
+          "label": "model request",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 157,
+              "endLine": 166
+            }
+          ]
+        },
+        {
+          "id": "m3",
+          "from": "model-provider",
+          "to": "pr-lens-cli",
+          "label": "error",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The model call fails; the CLI exits non-zero.",
+          "files": []
+        },
+        {
+          "id": "m4",
+          "from": "pr-lens-cli",
+          "to": "analyze-step",
+          "label": "non-zero exit",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "Output is teed to analyze.log; the first ✗ line is written to analyze-reason.txt.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 180,
+              "endLine": 190
+            }
+          ]
+        },
+        {
+          "id": "m5",
+          "from": "analyze-step",
+          "to": "failure-note-step",
+          "label": "outcome=failure",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "note": "continue-on-error lets the job proceed to the note step.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 192,
+              "endLine": 201
+            }
+          ]
+        },
+        {
+          "id": "m6",
+          "from": "failure-note-step",
+          "to": "osf-cli",
+          "label": "pr section write",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 199,
+              "endLine": 200
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 26,
+    "deletions": 8,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workflow-architecture",
+      "title": "pr-lens workflow architecture",
+      "lens": "architecture",
+      "summary": "The workflow job, the pr-lens CLI, the model provider, and the osf CLI, with the new failure-note path highlighted.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "failure-note-flow",
+      "title": "Failure note flow",
+      "lens": "data-flow",
+      "summary": "The ordered sequence when the model call fails: analyze captures the reason and the workflow writes a note instead of failing.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "analyze-failure-note"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
