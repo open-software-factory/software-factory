@@ -159,6 +159,54 @@ fn an_async_test_attribute_counts_as_a_test() {
 }
 
 #[test]
+fn adding_an_ignore_attribute_with_no_other_edit_counts_as_changed() {
+    let repo = base_repo("added-ignore-attribute");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "#[test]\nfn a_test() { assert!(true); }\n",
+    );
+    let base = repo.commit("base");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "#[test]\n#[ignore]\nfn a_test() { assert!(true); }\n",
+    );
+    let head = repo.commit("head");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.added, 0, "{:?}", summary.groups);
+    assert_eq!(summary.removed, 0, "{:?}", summary.groups);
+    assert_eq!(summary.changed, 1, "{:?}", summary.groups);
+}
+
+#[test]
+fn editing_only_the_doc_comment_counts_as_changed() {
+    let repo = base_repo("edited-doc-comment");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "/// Checks the first thing.\n#[test]\nfn a_test() {}\n",
+    );
+    let base = repo.commit("base");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "/// Checks the second thing.\n#[test]\nfn a_test() {}\n",
+    );
+    let head = repo.commit("head");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.added, 0, "{:?}", summary.groups);
+    assert_eq!(summary.removed, 0, "{:?}", summary.groups);
+    assert_eq!(summary.changed, 1, "{:?}", summary.groups);
+    let group = summary.groups.first().expect("one group");
+    let GroupBody::Tests { changed, .. } = &group.body else {
+        panic!("expected a Tests body, got {:?}", group.body);
+    };
+    assert_eq!(
+        changed.first().map(|t| t.description.as_str()),
+        Some("Checks the second thing.")
+    );
+}
+
+#[test]
 fn an_unparsable_file_is_reported_unparsed_not_guessed_at() {
     let repo = base_repo("unparsable");
     repo.write("crates/osf/src/thing.rs", "#[test]\nfn ok_fn() {}\n");

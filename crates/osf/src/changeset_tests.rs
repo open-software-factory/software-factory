@@ -236,15 +236,22 @@ fn walk_children(
 ) {
     let mut pending_doc: Vec<String> = Vec::new();
     let mut pending_test_attribute = false;
+    // The byte offset of the first doc comment or attribute seen since the
+    // last item, so a test's compared source can start there: an added
+    // `#[ignore]` or an edited doc comment then changes that source, and so
+    // counts the test as changed, even though its body did not move.
+    let mut pending_start: Option<usize> = None;
     let mut cursor = parent.walk();
     for child in parent.named_children(&mut cursor) {
         match child.kind() {
             "line_comment" => {
+                pending_start.get_or_insert(child.start_byte());
                 if let Some(text) = source.get(child.byte_range()).and_then(doc_comment_text) {
                     pending_doc.push(text.to_string());
                 }
             }
             "attribute_item" => {
+                pending_start.get_or_insert(child.start_byte());
                 if is_test_attribute(child, source) {
                     pending_test_attribute = true;
                 }
@@ -258,7 +265,11 @@ fn walk_children(
                         let mut full_path = path.to_vec();
                         full_path.push(name.to_string());
                         let key = full_path.join("::");
-                        let entry_source = source.get(child.byte_range()).unwrap_or("").to_string();
+                        let start = pending_start.unwrap_or_else(|| child.start_byte());
+                        let entry_source = source
+                            .get(start..child.end_byte())
+                            .unwrap_or("")
+                            .to_string();
                         let description = describe(&pending_doc, name);
                         out.insert(
                             key,
@@ -271,6 +282,7 @@ fn walk_children(
                 }
                 pending_doc.clear();
                 pending_test_attribute = false;
+                pending_start = None;
             }
             "mod_item" => {
                 if let (Some(name), Some(body)) = (
@@ -285,10 +297,12 @@ fn walk_children(
                 }
                 pending_doc.clear();
                 pending_test_attribute = false;
+                pending_start = None;
             }
             _ => {
                 pending_doc.clear();
                 pending_test_attribute = false;
+                pending_start = None;
             }
         }
     }
