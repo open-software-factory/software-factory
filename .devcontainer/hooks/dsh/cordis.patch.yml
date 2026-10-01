@@ -1,0 +1,32 @@
+# The container's own dsh profile, "factory", built from integrations/dsh's
+# own profile-patch.example.yml. dsh has no single system-wide config path:
+# DSH_HOME defaults to the user's home, and the rest of that tree must stay
+# writable for dsh's own sessions and auth. So only this one profile
+# directory, ~/.dsh/profiles/factory, is carved out root-owned and
+# read-only, the same way this image already carves the cargo toolchain out
+# of an otherwise dev-writable CARGO_HOME. Run `dsh --profile factory` to
+# boot it.
+#
+# osf-writing-check covers the stop event: it reads the reply straight out
+# of the session, so it is wired as a plugin rather than through the bridge
+# below, and stays root-owned end to end. dsh-hooks-claude-code covers the
+# prompt event, through this repository's own .claude/hooks.json. dsh reads
+# configPath relative to its own launch directory, never relative to this
+# profile, so that file cannot live under the root-owned profile above; it
+# is a tracked file in this repository instead, like any other project
+# file, and dev can edit it. See .devcontainer/agents.json's "gap" field
+# for this agent. Both plugins run: dsh gives the end-of-turn event to
+# every listener in turn, and neither stops the chain.
+- insert:
+    - id: osf-writing-check
+      name: '@open-software-factory/osf-dsh-plugin'
+      config:
+        command: /opt/factory/bin/osf
+        timeoutMs: 10000
+        adviseOnly: false
+
+    - id: dsh-hooks-claude-code
+      name: '@deepseek-ai/dsh-hooks-claude-code'
+      config:
+        configPath: ./.claude/hooks.json
+        projectDir: .

@@ -15,6 +15,11 @@ ARG TARGETARCH
 # wrapper reads the same value, so the two files never name it separately.
 ARG WORKSPACE_ROOT=/workspace
 
+# The container user's home, named once here so the omp and dsh hook
+# directories below reach it through this build argument rather than
+# repeating the literal path.
+ARG DEV_HOME=/home/dev
+
 # moon, pinned to the version the checkpoint runner needs. Checksums are the
 # official SHA-256 published next to each release asset.
 ARG MOON_VERSION=2.5.5
@@ -166,6 +171,18 @@ RUN mkdir -p /opt/factory/bin && \
     install -o root -g root -m 0555 /usr/src/osf-build/target/release/osf /opt/factory/bin/osf && \
     rm -rf /usr/src/osf-build
 
+# The dsh, omp, and OpenCode writing-check integrations, built from this
+# same workspace's pnpm lockfile so their dependency versions match exactly
+# what `pnpm -r test` already proves elsewhere in CI. The build directory
+# sits outside /workspace for the same reason the osf build above does.
+WORKDIR /usr/src/factory-build
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps ./apps
+COPY packages ./packages
+COPY integrations ./integrations
+RUN pnpm install --frozen-lockfile && \
+    pnpm --filter ./integrations/dsh --filter ./integrations/omp --filter ./integrations/opencode run build
+
 # Root-owned git hooks. Each file only calls osf; see docs/development.md
 # for what each check does and how to run it by hand.
 COPY .devcontainer/githooks/pre-commit /opt/factory/githooks/pre-commit
@@ -188,6 +205,50 @@ RUN chown root:root /opt/factory/githooks /opt/factory/githooks/pre-commit \
 # reason as osf above. docs/development.md states plainly what it cannot do.
 COPY .devcontainer/git-wrapper /opt/factory/bin/git
 RUN chown root:root /opt/factory/bin/git && chmod 0555 /opt/factory/bin/git
+
+# Every coding agent's own hook settings, root-owned and read-only, each
+# calling osf hook for the one or two events osf hook supports (stop and
+# prompt; osf hook has no pre-tool-use event, so none is wired to one). See
+# .devcontainer/agents.json for the one list this follows, and its "gap"
+# fields for where an agent's own hook system falls short of osf hook's
+# two events.
+
+# Claude Code: managed settings. /etc/claude-code/managed-settings.json is
+# confirmed, from the installed claude binary's own strings, as the real
+# system-level settings file Claude Code reads.
+RUN mkdir -p /etc/claude-code
+COPY .devcontainer/hooks/claude-code/managed-settings.json /etc/claude-code/managed-settings.json
+RUN chown -R root:root /etc/claude-code && \
+    chmod 0555 /etc/claude-code && \
+    chmod 0444 /etc/claude-code/managed-settings.json
+
+# Codex: its requirements file plus its managed hooks directory, both
+# confirmed, from the installed codex binary's own strings, as real
+# system-level paths ("/etc/codex/config.toml", "/etc/codex/requirements.toml").
+# Codex's HookEventName enum has no turn-end event, so only user_prompt_submit
+# is wired; see .devcontainer/agents.json's "gap" field for codex.
+RUN mkdir -p /etc/codex/hooks
+COPY .devcontainer/hooks/codex/config.toml /etc/codex/config.toml
+COPY .devcontainer/hooks/codex/requirements.toml /etc/codex/requirements.toml
+COPY .devcontainer/hooks/codex/hooks/osf-prompt.toml /etc/codex/hooks/osf-prompt.toml
+RUN chown -R root:root /etc/codex && \
+    chmod 0555 /etc/codex /etc/codex/hooks && \
+    chmod 0444 /etc/codex/config.toml /etc/codex/requirements.toml /etc/codex/hooks/osf-prompt.toml
+
+# opencode: its system-level config. /etc/opencode is confirmed, from the
+# installed opencode binary's own strings, as a real config search path,
+# the same way ~/.config/opencode is. The plugin path named inside points
+# at the build above.
+RUN mkdir -p /opt/factory/opencode-plugin && \
+    cp -r /usr/src/factory-build/integrations/opencode/dist /opt/factory/opencode-plugin/dist && \
+    chown -R root:root /opt/factory/opencode-plugin && \
+    find /opt/factory/opencode-plugin -type d -exec chmod 0555 {} + && \
+    find /opt/factory/opencode-plugin -type f -exec chmod 0444 {} +
+RUN mkdir -p /etc/opencode
+COPY .devcontainer/hooks/opencode/opencode.json /etc/opencode/opencode.json
+RUN chown -R root:root /etc/opencode && \
+    chmod 0555 /etc/opencode && \
+    chmod 0444 /etc/opencode/opencode.json
 
 # Non-root container user, with no password-less root access: no entry
 # for it in /etc/sudoers, and it is not in the sudo group.
@@ -212,12 +273,50 @@ RUN rustup component add rustfmt clippy && \
 # write bits; nothing here needs to be executable-only or unreadable.
 RUN find /usr/local/cargo /usr/local/rustup -perm /022 -exec chmod go-w {} +
 
+# omp's hook: a global extension loaded from a directory under the
+# container user's own home (omp has no system-level hooks location; see
+# .devcontainer/agents.json). Only this one directory is carved out
+# root-owned and read-only, the same way the dsh profile below is: the
+# rest of that user's .omp directory stays writable for omp's own
+# sessions.
+RUN mkdir -p "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
+    cp /usr/src/factory-build/integrations/omp/dist/src/osf-stop.js "${DEV_HOME}/.omp/agent/hooks/osf-stop/index.js" && \
+    cp /usr/src/factory-build/integrations/omp/dist/src/check.js "${DEV_HOME}/.omp/agent/hooks/osf-stop/check.js" && \
+    chown -R root:root "${DEV_HOME}/.omp" && \
+    chmod 0555 "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
+    chmod 0444 "${DEV_HOME}/.omp/agent/hooks/osf-stop/index.js" "${DEV_HOME}/.omp/agent/hooks/osf-stop/check.js"
+
+# dsh's "factory" profile: the writing-check plugin registered, from
+# integrations/dsh's own profile-patch.example.yml. dsh has no
+# system-wide config path (see .devcontainer/agents.json), so only this
+# one profile directory under the container user's home is carved out
+# root-owned and read-only; the rest of that user's .dsh directory stays
+# writable for dsh's own sessions and auth. Run `dsh --profile factory`
+# to boot it. The profile also registers the Claude-format hooks bridge,
+# pointed at this repository's own .claude/hooks.json (see the profile's
+# own comments for why that file is not under this root-owned directory).
+RUN mkdir -p "${DEV_HOME}/.dsh/profiles/factory"
+COPY .devcontainer/hooks/dsh/cordis.patch.yml ${DEV_HOME}/.dsh/profiles/factory/cordis.patch.yml
+RUN chown -R root:root "${DEV_HOME}/.dsh" && \
+    chmod 0555 "${DEV_HOME}/.dsh/profiles/factory" && \
+    chmod 0444 "${DEV_HOME}/.dsh/profiles/factory/cordis.patch.yml"
+
+# The node_modules build tree for the three plugins above is no longer
+# needed once their dist/ output is copied out.
+RUN rm -rf /usr/src/factory-build
+
 ENV PATH="/opt/factory/bin:${PATH}"
 
 # Read by the git wrapper (.devcontainer/git-wrapper) to decide whether a
 # repository sits under the workspace mount; overridable at "docker run"
 # for a container started with a different bind mount.
 ENV OSF_WORKSPACE_ROOT="${WORKSPACE_ROOT}"
+
+# The one setting that names the default builder agent; see
+# .devcontainer/agents.json for the full list and docs/development.md for
+# how to use it. No script in this image chooses a builder by name: every
+# one reads this instead.
+ENV OSF_DEFAULT_BUILDER=dsh
 
 # Proves the git wrapper's refusals and the forced hooks path at build
 # time, so a broken wrapper fails the build instead of shipping quietly.

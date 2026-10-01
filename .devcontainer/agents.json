@@ -1,0 +1,55 @@
+{
+  "$comment": "The one list of coding agents this container installs and wires. .devcontainer/tests/agent-hooks.sh reads this file instead of naming an agent in its own code, per open-software-factory/software-factory#197.",
+  "default_builder": "dsh",
+  "agents": [
+    {
+      "name": "dsh",
+      "binary": "dsh",
+      "roles": ["builder", "reviewer"],
+      "hook_events": ["stop", "prompt"],
+      "hook_method": "its own plugin for stop, plus the Claude-format hooks bridge for prompt, both registered in a profile named \"factory\"",
+      "hook_path": "~/.dsh/profiles/factory",
+      "system_level": false,
+      "system_level_note": "dsh has no system-wide config path; DSH_HOME defaults to the user's home and the rest of that tree must stay writable for dsh's own sessions and auth, so only the factory profile directory is carved out root-owned and read-only, the same way this image carves the cargo toolchain out of an otherwise dev-writable CARGO_HOME",
+      "gap": "the prompt bridge's own configPath setting is read relative to the directory dsh is launched from, never relative to the profile directory, so its target cannot be a root-owned, home-relative file; it points instead at .claude/hooks.json, tracked in this repository like any other project file, which dev can edit. The stop plugin above is unaffected: it reads the reply from the session directly and is root-owned throughout."
+    },
+    {
+      "name": "omp",
+      "binary": "omp",
+      "roles": ["builder", "reviewer"],
+      "hook_events": ["stop"],
+      "hook_method": "a global extension in its hooks directory",
+      "hook_path": "~/.omp/agent/hooks/osf-stop",
+      "system_level": false,
+      "system_level_note": "omp only reads hooks from a per-user directory; no system-wide location exists upstream, so this directory is created root-owned under dev's home instead"
+    },
+    {
+      "name": "opencode",
+      "binary": "opencode",
+      "roles": ["builder", "reviewer"],
+      "hook_events": ["stop"],
+      "hook_method": "a plugin named in its system-level config",
+      "hook_path": "/etc/opencode/opencode.json",
+      "system_level": true
+    },
+    {
+      "name": "codex",
+      "binary": "codex",
+      "roles": ["builder", "reviewer"],
+      "hook_events": ["prompt"],
+      "hook_method": "a managed hooks directory named in its system-level config, forced by its requirements file",
+      "hook_path": "/etc/codex",
+      "system_level": true,
+      "gap": "Codex's HookEventName enum (pre_tool_use, permission_request, post_tool_use, pre_compact, post_compact, session_start, session_end, user_prompt_submit, subagent_start, subagent_stop, interrupt) has no turn-end event, so there is no Codex event that matches osf hook stop. Only user_prompt_submit is wired."
+    },
+    {
+      "name": "claude-code",
+      "binary": "claude",
+      "roles": ["builder", "reviewer"],
+      "hook_events": ["stop", "prompt"],
+      "hook_method": "managed settings",
+      "hook_path": "/etc/claude-code/managed-settings.json",
+      "system_level": true
+    }
+  ]
+}
