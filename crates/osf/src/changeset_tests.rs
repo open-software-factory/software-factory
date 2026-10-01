@@ -290,7 +290,12 @@ enum Side {
     Parsed(BTreeMap<String, FoundTest>),
 }
 
-fn read_side(dir: &Path, rev: &str, path: &str) -> Side {
+/// `path`'s tests at `rev`, or [`Side::Absent`] when `path` is `None`: the
+/// side of a rename (or an add/delete) that has no file there at all.
+fn read_side(dir: &Path, rev: &str, path: Option<&str>) -> Side {
+    let Some(path) = path else {
+        return Side::Absent;
+    };
     let Some(text) = read_at(dir, rev, path) else {
         return Side::Absent;
     };
@@ -300,15 +305,25 @@ fn read_side(dir: &Path, rev: &str, path: &str) -> Side {
     }
 }
 
-/// One changed `.rs` file's group, or `None` when neither side reads as
-/// having any test change worth reporting.
-fn rust_group(dir: &Path, base: &str, head: &str, path: &str) -> Group {
-    let base_side = read_side(dir, base, path);
-    let head_side = read_side(dir, head, path);
+/// One changed `.rs` file's group. `base_path` and `head_path` are the same
+/// path for an ordinary add, modify, or delete, and the old and new paths
+/// for a rename, so a renamed file is compared as one file rather than a
+/// deletion plus an unrelated addition. `display_name` is the path and
+/// crate the group is reported under.
+fn rust_group(
+    dir: &Path,
+    base: &str,
+    head: &str,
+    base_path: Option<&str>,
+    head_path: Option<&str>,
+    display_name: &str,
+) -> Group {
+    let base_side = read_side(dir, base, base_path);
+    let head_side = read_side(dir, head, head_path);
     if matches!(base_side, Side::Unparsed) || matches!(head_side, Side::Unparsed) {
         return Group {
-            crate_name: crate_of(path),
-            file: path.to_string(),
+            crate_name: crate_of(display_name),
+            file: display_name.to_string(),
             body: GroupBody::Unparsed,
         };
     }
@@ -345,8 +360,8 @@ fn rust_group(dir: &Path, base: &str, head: &str, path: &str) -> Group {
     }
 
     Group {
-        crate_name: crate_of(path),
-        file: path.to_string(),
+        crate_name: crate_of(display_name),
+        file: display_name.to_string(),
         body: GroupBody::Tests {
             removed,
             added,
@@ -359,32 +374,47 @@ fn rust_group(dir: &Path, base: &str, head: &str, path: &str) -> Group {
 /// `head`, by parsing rather than by building or running the change.
 ///
 /// # Errors
-/// Returns an error when git cannot list the changed files, such as when
-/// `base` or `head` does not resolve.
+/// Returns an error when git cannot list the changed files, or resolve the
+/// merge base of `base` and `head`, such as when either does not resolve
+/// or the two share no common ancestor.
 pub fn summarize(dir: &Path, base: &str, head: &str) -> Result<Summary, TestSummaryError> {
-    let files = crate::git::diff_name_only_between(dir, base, head)
+    // The "before" side is read at the merge base, not at `base` itself, so
+    // a commit `base` has gained on its own since the two diverged is never
+    // read as part of this change. The file list uses the same merge base,
+    // since a three-dot `git diff` range resolves it the same way.
+    let merge_base =
+        crate::git::merge_base(dir, base, head).map_err(|e| TestSummaryError(e.to_string()))?;
+    let changes = crate::git::diff_name_status_between(dir, base, head)
         .map_err(|e| TestSummaryError(e.to_string()))?;
 
     let mut summary = Summary::default();
-    for path in files {
-        if under_test_fixtures(&path) {
+    for change in changes {
+        let display_name = change.display_path();
+        if under_test_fixtures(display_name) {
             continue;
         }
-        if !Path::new(&path)
+        if !Path::new(display_name)
             .extension()
             .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
         {
-            if looks_like_a_test_file(&path) {
+            if looks_like_a_test_file(display_name) {
                 summary.groups.push(Group {
-                    crate_name: crate_of(&path),
-                    file: path,
+                    crate_name: crate_of(display_name),
+                    file: display_name.to_string(),
                     body: GroupBody::Unsupported,
                 });
             }
             continue;
         }
 
-        let group = rust_group(dir, base, head, &path);
+        let group = rust_group(
+            dir,
+            &merge_base,
+            head,
+            change.base_path(),
+            change.head_path(),
+            display_name,
+        );
         match &group.body {
             GroupBody::Tests {
                 removed,

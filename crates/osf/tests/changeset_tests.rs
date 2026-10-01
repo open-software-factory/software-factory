@@ -197,6 +197,60 @@ fn a_file_under_tests_fixtures_is_skipped_entirely() {
 }
 
 #[test]
+fn a_test_added_only_on_the_base_branch_is_not_reported_by_this_change() {
+    let repo = base_repo("merge-base");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "#[test]\nfn a_shared_test() {}\n",
+    );
+    repo.commit("common ancestor");
+
+    repo.git(&["checkout", "-b", "feature"]);
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "#[test]\nfn a_shared_test() {}\n\n#[test]\nfn a_pr_test() {}\n",
+    );
+    let head = repo.commit("adds a test on the pull request branch");
+
+    repo.git(&["checkout", "main"]);
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "#[test]\nfn a_shared_test() {}\n\n#[test]\nfn a_base_only_test() {}\n",
+    );
+    let base = repo.commit("adds an unrelated test on the base branch");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.added, 1, "{:?}", summary.groups);
+    assert_eq!(summary.removed, 0, "{:?}", summary.groups);
+    let group = summary.groups.first().expect("one group");
+    let GroupBody::Tests { added, removed, .. } = &group.body else {
+        panic!("expected a Tests body, got {:?}", group.body);
+    };
+    assert_eq!(added.first().map(|t| t.name.as_str()), Some("a_pr_test"));
+    assert!(removed.is_empty(), "{:?}", group.body);
+}
+
+#[test]
+fn a_renamed_test_file_is_compared_as_one_file_not_a_delete_plus_an_add() {
+    let repo = base_repo("renamed-test-file");
+    let original = "#[test]\nfn a_kept_test() { assert_eq!(1, 1); }\n";
+    repo.write("crates/osf/src/old_name.rs", original);
+    let base = repo.commit("base");
+
+    std::fs::remove_file(repo.dir.join("crates/osf/src/old_name.rs")).expect("remove old file");
+    let extended = format!("{original}\n#[test]\nfn an_added_test() {{}}\n");
+    repo.write("crates/osf/src/new_name.rs", &extended);
+    let head = repo.commit("rename and extend");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.removed, 0, "{:?}", summary.groups);
+    assert_eq!(summary.added, 1, "{:?}", summary.groups);
+    assert_eq!(summary.changed, 0, "{:?}", summary.groups);
+    let group = summary.groups.first().expect("one group");
+    assert_eq!(group.file, "crates/osf/src/new_name.rs");
+}
+
+#[test]
 fn a_non_rust_test_file_is_named_not_yet_supported() {
     let repo = base_repo("non-rust");
     repo.write("service/tests/test_thing.py", "def test_old(): pass\n");

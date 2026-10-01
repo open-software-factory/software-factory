@@ -61,6 +61,15 @@ pub fn tracked_files(dir: &Path, under: Option<&Path>) -> Result<Vec<String>, Gi
     run(dir, &refs).map(|raw| split_nul(&raw))
 }
 
+/// The best common ancestor of `a` and `b`: the point they diverged from.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `a` and `b` share no
+/// common ancestor.
+pub fn merge_base(dir: &Path, a: &str, b: &str) -> Result<String, GitError> {
+    run_text(dir, &["merge-base", a, b]).map(|t| t.trim().to_string())
+}
+
 /// Every commit hash in `range`, oldest first.
 ///
 /// # Errors
@@ -97,18 +106,85 @@ pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
     .map(|raw| split_nul(&raw))
 }
 
-/// Paths that differ between `base` and `head`, whatever they are: added,
-/// modified, deleted, or renamed as one path gone and another appearing.
-/// Unlike [`changed_files`], this takes both sides explicitly and diffs
-/// them directly, with no three-dot merge-base and no assumption that
-/// `HEAD` is one of the two points being compared.
+/// How one path changed between `base` and `head`. A rename is its own
+/// case, carrying both paths, rather than a deletion paired with an
+/// unrelated addition.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ChangedPath {
+    Added(String),
+    Modified(String),
+    Deleted(String),
+    Renamed { from: String, to: String },
+}
+
+impl ChangedPath {
+    /// The path to read at `base`, or `None` when the change added it.
+    #[must_use]
+    pub fn base_path(&self) -> Option<&str> {
+        match self {
+            ChangedPath::Added(_) => None,
+            ChangedPath::Modified(p) | ChangedPath::Deleted(p) => Some(p),
+            ChangedPath::Renamed { from, .. } => Some(from),
+        }
+    }
+
+    /// The path to read at `head`, or `None` when the change deleted it.
+    #[must_use]
+    pub fn head_path(&self) -> Option<&str> {
+        match self {
+            ChangedPath::Deleted(_) => None,
+            ChangedPath::Added(p) | ChangedPath::Modified(p) => Some(p),
+            ChangedPath::Renamed { to, .. } => Some(to),
+        }
+    }
+
+    /// The path this change is best named by: `head`'s, when there is one,
+    /// else `base`'s, so a plain deletion still names something.
+    #[must_use]
+    pub fn display_path(&self) -> &str {
+        self.head_path().or_else(|| self.base_path()).unwrap_or("")
+    }
+}
+
+/// Every path that differs between `base` and `head`, at their merge base:
+/// the change this range actually introduces, not whatever `base` itself
+/// has gained or lost on its own since the two diverged. A renamed path is
+/// reported once, as [`ChangedPath::Renamed`], carrying both its old and
+/// new name, rather than as a deletion plus an unrelated addition.
 ///
 /// # Errors
 /// Returns an error if git cannot run in `dir`, such as when `base` or
 /// `head` does not resolve.
-pub fn diff_name_only_between(dir: &Path, base: &str, head: &str) -> Result<Vec<String>, GitError> {
-    run_text(dir, &["diff", "--name-only", base, head])
-        .map(|t| t.lines().map(str::to_string).collect())
+pub fn diff_name_status_between(
+    dir: &Path,
+    base: &str,
+    head: &str,
+) -> Result<Vec<ChangedPath>, GitError> {
+    let range = format!("{base}...{head}");
+    let text = run_text(dir, &["diff", "--name-status", "-M", &range])?;
+    Ok(text.lines().filter_map(parse_name_status_line).collect())
+}
+
+/// Parses one `git diff --name-status -M` line into a [`ChangedPath`].
+/// `None` for a line this build has no case for (a type-change `T`, or a
+/// blank line), so one unrecognised line never stops the rest being read.
+fn parse_name_status_line(line: &str) -> Option<ChangedPath> {
+    let mut fields = line.split('\t');
+    let status = fields.next()?;
+    match status.as_bytes().first()? {
+        b'A' => Some(ChangedPath::Added(fields.next()?.to_string())),
+        b'M' => Some(ChangedPath::Modified(fields.next()?.to_string())),
+        b'D' => Some(ChangedPath::Deleted(fields.next()?.to_string())),
+        b'R' => Some(ChangedPath::Renamed {
+            from: fields.next()?.to_string(),
+            to: fields.next()?.to_string(),
+        }),
+        b'C' => {
+            fields.next()?;
+            Some(ChangedPath::Added(fields.next()?.to_string()))
+        }
+        _ => None,
+    }
 }
 
 /// Paths that differ between `base` and `HEAD`: added, copied, modified or renamed.
@@ -309,5 +385,52 @@ mod tests {
     fn a_url_with_too_few_segments_is_none() {
         assert!(parse_remote("https://github.com/tools").is_none());
         assert!(parse_remote("nonsense").is_none());
+    }
+
+    #[test]
+    fn name_status_lines_parse_into_their_matching_case() {
+        assert_eq!(
+            parse_name_status_line("A\tnew.rs"),
+            Some(ChangedPath::Added("new.rs".to_string()))
+        );
+        assert_eq!(
+            parse_name_status_line("M\tthing.rs"),
+            Some(ChangedPath::Modified("thing.rs".to_string()))
+        );
+        assert_eq!(
+            parse_name_status_line("D\told.rs"),
+            Some(ChangedPath::Deleted("old.rs".to_string()))
+        );
+        assert_eq!(
+            parse_name_status_line("R100\told.rs\tnew.rs"),
+            Some(ChangedPath::Renamed {
+                from: "old.rs".to_string(),
+                to: "new.rs".to_string(),
+            })
+        );
+        assert_eq!(
+            parse_name_status_line("C100\tsrc.rs\tcopy.rs"),
+            Some(ChangedPath::Added("copy.rs".to_string()))
+        );
+    }
+
+    #[test]
+    fn display_path_prefers_head_and_falls_back_to_base() {
+        assert_eq!(
+            ChangedPath::Added("a.rs".to_string()).display_path(),
+            "a.rs"
+        );
+        assert_eq!(
+            ChangedPath::Deleted("a.rs".to_string()).display_path(),
+            "a.rs"
+        );
+        assert_eq!(
+            ChangedPath::Renamed {
+                from: "old.rs".to_string(),
+                to: "new.rs".to_string()
+            }
+            .display_path(),
+            "new.rs"
+        );
     }
 }
