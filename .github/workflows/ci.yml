@@ -209,6 +209,18 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: cargo build --release --bin osf
 
+      # Every skill the repository ships, every run: skills are few and cheap to check.
+      - name: Check the skills
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          mapfile -t skills < <(git ls-files 'skills/*/SKILL.md' | xargs -r -n1 dirname)
+          if [ ${#skills[@]} -eq 0 ]; then
+            echo "::notice::no skills to check"
+            exit 0
+          fi
+          ./target/release/osf lint skill --format human "${skills[@]}"
+
       # Two scopes, one gate. `changed` reads only what this change touches
       # and is the everyday cost. `all` reads every tracked Markdown file and
       # is for a release pass, or for the run after a new rule lands. The
