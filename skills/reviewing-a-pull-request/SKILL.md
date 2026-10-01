@@ -14,4 +14,4 @@ description: Use this skill when you review a pull request, or post a review res
 5. Record a review's judgment as evidence. It augments a deterministic check. It never overrides one. This rule is in [decision 0003](../../docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
    - Not checked: needs judgment. The root `AGENTS.md` already states this for every task.
 
-Stop when the review came from a different model family than the build. Every finding must be replied to or its thread resolved. The result must be recorded as evidence that augments a deterministic check instead of replacing it.
+Stop when the review came from a different model family than the build. Every finding has a reply and its thread resolved, in the same step. The result must be recorded as evidence that augments a deterministic check instead of replacing it.

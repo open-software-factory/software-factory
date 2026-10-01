@@ -18,10 +18,11 @@ description: Use this skill when you open a pull request, or update its descript
 7. Start a new stack with `git town hack`, and add to the stack you are on with `git town append`. Record a missing parent once with `git town set-parent`. After a change lands lower in a stack, run `git town sync`. `git-town.toml` syncs by merge, so a pushed branch is never rewritten.
    - Not checked: needs judgment.
 8. Carry one attribution trailer naming the model that wrote a change. Never add a `Co-Authored-By` line, the git trailer that credits a second author. Never add a link to a coding-agent session.
-   - Not checked yet: issue 194. A commit-msg hook for this is planned in [open-software-factory/software-factory#194 (rules layout)](https://github.com/open-software-factory/software-factory/issues/194), as a second pull request.
+   - Checked by: `osf scan`, for a session link, in every commit message a pull request adds (`crates/osf/src/scan/mod.rs`). The hygiene job in `.github/workflows/ci.yml` runs it on each pull request.
+   - Not checked yet: issue 194, for carrying `Code-Generator` and for never carrying `Co-Authored-By`. A commit-msg hook for this is planned in [open-software-factory/software-factory#194 (rules layout)](https://github.com/open-software-factory/software-factory/issues/194), as a second pull request.
 9. Never force-push a branch you did not create.
    - Not checked yet: issue 194. A harness pre-tool hook for this is planned in [open-software-factory/software-factory#194 (rules layout)](https://github.com/open-software-factory/software-factory/issues/194), as a second pull request.
-10. Let a second identity review a pull request. Its own author cannot approve it.
-    - Not checked: needs judgment.
+10. Let a reviewer from a model family different from the builder's review a pull request. Its own author cannot approve it. This rule is accepted, in decision 0008. The fuller roster design is decision 0016. That decision is not yet merged. It is carried in [open-software-factory/software-factory#136 (review lenses)](https://github.com/open-software-factory/software-factory/pull/136).
+    - Not checked: needs judgment. The roster and the two-family quorum in decision 0016 are designed. They are not built yet.
 
-Stop when the pull request is ready and names the issue it closes with a label. Its outline's claims must match the real diff, and a different identity has reviewed it.
+Stop when the pull request is ready and names the issue it closes with a label. Its outline's claims must match the real diff, and a reviewer from a model family different from the builder's has reviewed it.
