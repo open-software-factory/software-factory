@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "ff381c07ab78ab49e54dd8bd5f4385795e0a4136",
+    "contentHash": "01352a810f0045afee87e3cd3b9e88c1"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.1"
+  },
+  "assets": [
+    {
+      "id": "rules-layout-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "rules-layout",
+      "mediaType": "image/svg+xml",
+      "contentHash": "27d9dde0c938829311e0b37a3866962f",
+      "bytes": 23308,
+      "width": 1718,
+      "height": 760,
+      "animated": false,
+      "path": "rules-layout-light-27d9dde0c938829311e0b37a3866962f.svg"
+    },
+    {
+      "id": "rules-layout-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "rules-layout",
+      "mediaType": "image/svg+xml",
+      "contentHash": "63400a6d9360e9e6e50095db01a101f9",
+      "bytes": 23598,
+      "width": 1718,
+      "height": 760,
+      "animated": false,
+      "path": "rules-layout-dark-63400a6d9360e9e6e50095db01a101f9.svg"
+    },
+    {
+      "id": "skill-lint-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "skill-lint-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "847a495a2f87ebc405227b5ad38cee32",
+      "bytes": 10209,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "skill-lint-detail-light-847a495a2f87ebc405227b5ad38cee32.svg"
+    },
+    {
+      "id": "skill-lint-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "skill-lint-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "922fcc4dc5020d99976accbda5399c0f",
+      "bytes": 10300,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "skill-lint-detail-dark-922fcc4dc5020d99976accbda5399c0f.svg"
+    },
+    {
+      "id": "skill-lint-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "skill-lint-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "92daec3f92df0f0a3210357f5ad0109a",
+      "bytes": 13387,
+      "width": 1666,
+      "height": 337,
+      "animated": true,
+      "path": "skill-lint-flow-light-92daec3f92df0f0a3210357f5ad0109a.svg"
+    },
+    {
+      "id": "skill-lint-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "skill-lint-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0d90945a3b69fcf66e042bce185a5ff9",
+      "bytes": 13511,
+      "width": 1666,
+      "height": 337,
+      "animated": true,
+      "path": "skill-lint-flow-dark-0d90945a3b69fcf66e042bce185a5ff9.svg"
+    }
+  ]
+}

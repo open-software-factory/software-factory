@@ -1,0 +1,660 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-01T07:22:38.180Z",
+  "title": "Rules get a home: folder AGENTS.md files, skills, and a skill lint gate",
+  "summary": "This change is documentation and CI plumbing, not engine code. It splits the monolithic root AGENTS.md into a short root file plus folder-scoped rule files (crates/AGENTS.md, .github/workflows/AGENTS.md) and six new skills under skills/, each carrying front-matter name/description and a numbered rule list annotated with what is checked and what is not. The root file gains a routing table telling an agent which folder file or skill loads for which task. The one executable change is a new CI step in ci.yml that enumerates every skills/*/SKILL.md via git ls-files and runs osf lint skill over them, so the skill corpus is now gated by the same deterministic linter the repository already uses for writing.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "af26518ebe6f1d78a43e0871da28d6df919ac2aa",
+      "ref": "af26518ebe6f1d78a43e0871da28d6df919ac2aa"
+    },
+    "head": {
+      "sha": "ff381c07ab78ab49e54dd8bd5f4385795e0a4136",
+      "ref": "ff381c07ab78ab49e54dd8bd5f4385795e0a4136"
+    },
+    "pullRequest": {
+      "number": 195,
+      "url": "https://github.com/open-software-factory/software-factory/pull/195"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "authoring",
+      "label": "Authoring surface",
+      "subtitle": "Markdown rules and skills an agent reads",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The documents that carry the repository's rules: the root AGENTS.md, the folder-scoped AGENTS.md files, and the skills under skills/. This change restructures and adds to all three."
+    },
+    {
+      "id": "ci",
+      "label": "CI pipeline",
+      "subtitle": "GitHub Actions on pull requests",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The workflow that gates a pull request. A new step lints every shipped skill on every run."
+    },
+    {
+      "id": "osf",
+      "label": "osf CLI",
+      "subtitle": "Rust binary and lint crates",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The deterministic checker the CI step invokes. Unchanged by this diff, but now reached by a new caller."
+    },
+    {
+      "id": "repo",
+      "label": "Repository tree",
+      "subtitle": "Tracked files on the checked-out branch",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The working tree the skill enumeration reads from, and the source of the skill paths passed to the linter."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "root-agents",
+      "label": "AGENTS.md",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "authoring",
+      "subtitle": "Root rules + routing table",
+      "summary": "Rewritten to hold only what every task needs. The working-posture, code-layout, bootstrap-choices and branches sections move out to folder files and skills; a new 'Where the other rules live' table maps each folder or skill to the moment it loads. Every remaining rule gains a 'Not checked: needs judgment' or 'Checked by' annotation.",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "startLine": 1,
+          "endLine": 62
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crates-agents",
+      "label": "crates/AGENTS.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "authoring",
+      "subtitle": "Rules for crates/",
+      "summary": "New folder-scoped rule file. Carries the code-layout rules lifted from the root file (thin binary, one crate per logical group, provider crates, provider-free functional crates), the Rust language rule citing decision 0001, and the four local commands a change under crates/ must pass.",
+      "files": [
+        {
+          "path": "crates/AGENTS.md",
+          "startLine": 1,
+          "endLine": 34
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflows-agents",
+      "label": ".github/workflows/AGENTS.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "authoring",
+      "subtitle": "Rules for workflow files",
+      "summary": "New folder-scoped rule file for workflow authoring: judge jobs defined on the base branch, never check out a pull request's code into a secret-holding job, pin actions to a commit SHA, least-privilege permissions, harden-runner in block mode with a literal allow-list, and review aids that inform but never block. Each rule is marked 'Not checked: needs judgment'.",
+      "files": [
+        {
+          "path": ".github/workflows/AGENTS.md",
+          "startLine": 1,
+          "endLine": 14
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-adding-command",
+      "label": "adding-an-osf-command",
+      "kind": "config",
+      "delta": "added",
+      "lane": "authoring",
+      "group": "skills",
+      "subtitle": "SKILL.md",
+      "summary": "Skill for adding a check, lint rule, scan rule or osf command. Seven rules covering coverage statements, distinguishing 'could not read' from 'found nothing', rule class and citation, denylist reporting without matched text, changed-scope default, self-application, and failing loudly.",
+      "files": [
+        {
+          "path": "skills/adding-an-osf-command/SKILL.md",
+          "startLine": 1,
+          "endLine": 22
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-writing-workflow",
+      "label": "writing-a-workflow",
+      "kind": "config",
+      "delta": "added",
+      "lane": "authoring",
+      "group": "skills",
+      "subtitle": "SKILL.md",
+      "summary": "Skill for adding or editing a workflow file or handling a secret. Five rules on base-branch judge jobs, short-lived scoped tokens, adopter-supplied runner credentials, written approval before weakening a check, and no fixed runner label.",
+      "files": [
+        {
+          "path": "skills/writing-a-workflow/SKILL.md",
+          "startLine": 1,
+          "endLine": 17
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-filing-issue",
+      "label": "filing-an-issue",
+      "kind": "config",
+      "delta": "added",
+      "lane": "authoring",
+      "group": "skills",
+      "subtitle": "SKILL.md",
+      "summary": "Skill for filing or editing an issue. Five rules on native tracker fields, body shape per item type, a written reason for Blocked, reading the created number back from the API response, and writing a whole new body to a file before sending it.",
+      "files": [
+        {
+          "path": "skills/filing-an-issue/SKILL.md",
+          "startLine": 1,
+          "endLine": 17
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-opening-pr",
+      "label": "opening-a-pull-request",
+      "kind": "config",
+      "delta": "added",
+      "lane": "authoring",
+      "group": "skills",
+      "subtitle": "SKILL.md",
+      "summary": "Skill for opening a pull request or updating its description. Ten rules on ready-for-review, one concern per pull request, issue naming, closing comments, carrying a diagram and outline, worktrees, git-town stacking, attribution trailers, no force-push, and cross-family review.",
+      "files": [
+        {
+          "path": "skills/opening-a-pull-request/SKILL.md",
+          "startLine": 1,
+          "endLine": 28
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-reviewing-pr",
+      "label": "reviewing-a-pull-request",
+      "kind": "config",
+      "delta": "added",
+      "lane": "authoring",
+      "group": "skills",
+      "subtitle": "SKILL.md",
+      "summary": "Skill for reviewing a pull request or posting a review result. Five rules on cross-family reviewers, independent review recorded as pending when unavailable, reading a pull request's files as data rather than running them, resolving threads in the same step as the fix, and review judgment as evidence that never overrides a deterministic check.",
+      "files": [
+        {
+          "path": "skills/reviewing-a-pull-request/SKILL.md",
+          "startLine": 1,
+          "endLine": 17
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-running-sub-agents",
+      "label": "running-sub-agents",
+      "kind": "config",
+      "delta": "added",
+      "lane": "authoring",
+      "group": "skills",
+      "subtitle": "SKILL.md",
+      "summary": "Skill for dispatching sub-agents. Two rules: run every dispatched command in the foreground, and report status only from evidence such as a pushed branch or an opened pull request.",
+      "files": [
+        {
+          "path": "skills/running-sub-agents/SKILL.md",
+          "startLine": 1,
+          "endLine": 11
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "Pull request gate",
+      "summary": "The workflow that decides what a pull request must pass. A new step is inserted after the release build and before the writing gate.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 209,
+          "endLine": 221
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-lint-step",
+      "label": "Check the skills",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "osf lint skill over every SKILL.md",
+      "summary": "New CI step. Enumerates skills/*/SKILL.md with git ls-files, takes each directory, notices and exits cleanly when the list is empty, and otherwise runs the release osf binary's skill linter over all of them in human format. Gated on the same detect output as the surrounding steps.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 212,
+          "endLine": 221
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-binary",
+      "label": "osf",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "osf",
+      "subtitle": "release binary",
+      "summary": "The thin command-line shell built earlier in the same job. This change adds a new caller of its lint skill subcommand but does not alter the binary.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-skill",
+      "label": "osf lint skill",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf",
+      "subtitle": "skill linter",
+      "summary": "The lint subcommand that validates a skill's front matter and rule structure. Unchanged here; it is the deterministic gate the new CI step points at the skill corpus.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/skill.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tracked-skills",
+      "label": "skills/*/SKILL.md",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "repo",
+      "subtitle": "tracked skill files",
+      "summary": "The set of skill files git tracks. Six new skills join the two already present, so the enumeration the CI step performs now yields eight directories.",
+      "files": [
+        {
+          "path": "skills/adding-an-osf-command/SKILL.md"
+        },
+        {
+          "path": "skills/writing-a-workflow/SKILL.md"
+        },
+        {
+          "path": "skills/filing-an-issue/SKILL.md"
+        },
+        {
+          "path": "skills/opening-a-pull-request/SKILL.md"
+        },
+        {
+          "path": "skills/reviewing-a-pull-request/SKILL.md"
+        },
+        {
+          "path": "skills/running-sub-agents/SKILL.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "ci-enumerates-skills",
+      "from": "skill-lint-step",
+      "to": "tracked-skills",
+      "kind": "data",
+      "delta": "added",
+      "label": "git ls-files skills/*/SKILL.md",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new step reads the tracked skill paths from the repository tree and reduces each to its directory. This is the enumeration that decides what gets linted.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 215,
+          "endLine": 215
+        }
+      ]
+    },
+    {
+      "id": "ci-invokes-osf",
+      "from": "skill-lint-step",
+      "to": "osf-binary",
+      "kind": "call",
+      "delta": "added",
+      "label": "./target/release/osf lint skill",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The step shells out to the release binary built earlier in the job, passing every skill directory in one invocation.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 220,
+          "endLine": 220
+        }
+      ]
+    },
+    {
+      "id": "osf-lints-skills",
+      "from": "osf-binary",
+      "to": "lint-skill",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The binary dispatches the lint subcommand, which is where the skill rules actually run.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ]
+    },
+    {
+      "id": "lint-reads-skills",
+      "from": "lint-skill",
+      "to": "tracked-skills",
+      "kind": "data",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The linter reads each skill file's front matter and rule list from disk.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/skill.rs"
+        }
+      ]
+    },
+    {
+      "id": "root-routes-to-crates",
+      "from": "root-agents",
+      "to": "crates-agents",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "working under crates/",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new routing table in the root file points an agent working under crates/ at the folder-scoped rule file.",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "startLine": 47,
+          "endLine": 47
+        }
+      ]
+    },
+    {
+      "id": "root-routes-to-workflows",
+      "from": "root-agents",
+      "to": "workflows-agents",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "working under .github/workflows/",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The routing table points an agent editing a workflow file at the workflow rule file.",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "startLine": 48,
+          "endLine": 48
+        }
+      ]
+    },
+    {
+      "id": "root-routes-to-skills",
+      "from": "root-agents",
+      "to": "skill-adding-command",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "adding a check or command",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The routing table names each skill and the moment it loads. This edge stands for the whole set of skill rows; the remaining skills are reached the same way.",
+      "files": [
+        {
+          "path": "AGENTS.md",
+          "startLine": 49,
+          "endLine": 56
+        }
+      ]
+    },
+    {
+      "id": "crates-agents-cites-decision",
+      "from": "crates-agents",
+      "to": "root-agents",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "decision 0001",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The language rule in the folder file cites the architecture decision record, and the root file is the entry point that sends a reader there.",
+      "files": [
+        {
+          "path": "crates/AGENTS.md",
+          "startLine": 20,
+          "endLine": 21
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "skill-lint-gate",
+      "title": "Every shipped skill is linted on each run",
+      "summary": "The new CI step turns the tracked skill corpus into a lint invocation. It enumerates the skill directories from git, short-circuits when there are none, and otherwise hands the whole set to the release osf binary in one call.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "ci-workflow",
+          "label": "ci.yml"
+        },
+        {
+          "node": "skill-lint-step",
+          "label": "Check the skills"
+        },
+        {
+          "node": "tracked-skills",
+          "label": "skills/*/SKILL.md"
+        },
+        {
+          "node": "osf-binary",
+          "label": "osf"
+        },
+        {
+          "node": "lint-skill",
+          "label": "lint skill"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-enumerate",
+          "from": "skill-lint-step",
+          "to": "tracked-skills",
+          "label": "git ls-files 'skills/*/SKILL.md' | xargs dirname",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Runs only when the detect step reports the workspace present. An empty list prints a notice and exits zero rather than failing.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 215,
+              "endLine": 219
+            }
+          ]
+        },
+        {
+          "id": "step-invoke",
+          "from": "skill-lint-step",
+          "to": "osf-binary",
+          "label": "./target/release/osf lint skill --format human <dirs...>",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "One invocation carries every skill directory, so a failure names the offending skill in human-readable output.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 220,
+              "endLine": 220
+            }
+          ]
+        },
+        {
+          "id": "binary-dispatch",
+          "from": "osf-binary",
+          "to": "lint-skill",
+          "label": "lint skill",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs"
+            }
+          ]
+        },
+        {
+          "id": "lint-read",
+          "from": "lint-skill",
+          "to": "tracked-skills",
+          "label": "read SKILL.md front matter and rules",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "repeat": 8,
+          "note": "One read per skill directory; the corpus grows from two skills to eight with this change.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/skill.rs"
+            }
+          ]
+        },
+        {
+          "id": "lint-result",
+          "from": "lint-skill",
+          "to": "skill-lint-step",
+          "label": "findings, or a clean exit",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "A non-zero exit fails the job, which is the gate the new step adds to the pull request.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 220,
+              "endLine": 220
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 10,
+    "additions": 213,
+    "deletions": 35,
+    "chips": [
+      {
+        "label": "New skills",
+        "value": "6",
+        "tone": "added"
+      },
+      {
+        "label": "New folder rule files",
+        "value": "2",
+        "tone": "added"
+      },
+      {
+        "label": "New CI gate",
+        "value": "1",
+        "tone": "hero"
+      },
+      {
+        "label": "Skills linted per run",
+        "value": "8",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "rules-layout",
+      "title": "Where the rules live now",
+      "lens": "architecture",
+      "summary": "The root AGENTS.md shrinks to what every task needs and routes to folder-scoped rule files and skills. The new CI step closes the loop by linting the skill corpus.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "skill-lint-detail",
+      "title": "The skill lint gate",
+      "lens": "architecture",
+      "summary": "Only the new CI step and the nodes it touches: the enumeration of tracked skills, the release binary, and the skill linter.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "skill-lint-step",
+          "tracked-skills",
+          "osf-binary",
+          "lint-skill",
+          "ci-workflow"
+        ],
+        "edges": [
+          "ci-enumerates-skills",
+          "ci-invokes-osf",
+          "osf-lints-skills",
+          "lint-reads-skills"
+        ],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "skill-lint-flow",
+      "title": "Skill lint sequence",
+      "lens": "data-flow",
+      "summary": "The ordered steps the new CI step performs on every run.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "skill-lint-gate"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
