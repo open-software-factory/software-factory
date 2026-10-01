@@ -32,9 +32,12 @@ described below.
 | Problem | One sentence describing the problem the change fixes. |
 | Approach | One sentence describing the approach taken. |
 
-`osf pr status render` builds the block from named inputs. `osf pr
-status apply` puts a rendered block into a description. It goes between
-the markers if they are there, or at the top if they are not.
+`osf pr status render` builds the block from named inputs. Given
+`--base <ref>`, it also computes the Rust test summary against `HEAD`,
+the same way `osf pr status refresh` does, and carries it in the block.
+Left out, the block has no test summary row. `osf pr status apply`
+puts a rendered block into a description. It goes between the markers
+if they are there, or at the top if they are not.
 
 `osf pr status refresh --repo <owner/name> --pr <number>` recomputes the
 block from the pull request's live state. It reads the pull request's

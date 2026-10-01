@@ -263,6 +263,12 @@ struct StatusRenderArgs {
     /// output, instead of fetching it.
     #[arg(long)]
     review_json: Option<PathBuf>,
+    /// What to diff against for the Rust test summary, against `HEAD`.
+    /// Left out, the block carries no test summary row, the same as
+    /// before this existed. Given, computes the summary the same way
+    /// `osf pr status refresh` does.
+    #[arg(long)]
+    base: Option<String>,
 }
 
 #[derive(Args)]
@@ -1326,13 +1332,23 @@ fn pr_status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
             }
         }
     };
+    let tests_text = match &args.base {
+        Some(base) => match changeset_tests::summarize(Path::new("."), base, "HEAD") {
+            Ok(summary) => Some(changeset_tests::render(&summary)),
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        },
+        None => None,
+    };
     let input = pr_status::RenderInput {
         tier_json: &tier_text,
         gates: &args.gates,
         problem: &args.problem,
         approach: &args.approach,
         review_json: &review_text,
-        tests: None,
+        tests: tests_text.as_deref(),
     };
     match pr_status::render(&input) {
         Ok(block) => {
