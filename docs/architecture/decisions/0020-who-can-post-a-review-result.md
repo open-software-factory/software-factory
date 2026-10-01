@@ -110,7 +110,7 @@ If a shared build cache is used, only a base-branch workflow writes to it. A run
 
 ### 8. The review job reads the pull request and never runs it
 
-The review job checks out the pull request as data, and never builds, tests or runs it. Reviewer tools run without a shell, or with a read-only one, and reach only their own model APIs. A pull request from a fork waits for a maintainer's approval before the job runs. Running pull request code next to a job's secrets is the known attack on a base-branch workflow. Build and test already run in the ordinary CI jobs. The reducer in [decision 0016](0016-the-review-check.md) decides a review's verdict from verified quotes and a two-family quorum, so steered text alone cannot pass a review.
+The review job checks out the pull request as data, and never builds, tests or runs it. Reviewer tools run without a shell, or with a read-only one, and reach only their own model APIs. A pull request from a fork waits for a maintainer's approval before the job runs. Running pull request code next to a job's secrets is the known attack on a base-branch workflow. Build and test already run in the ordinary CI jobs. The reducer in [decision 0016](0016-the-review-check.md) checks every finding's quote and requires a two-family quorum. That stops steered text from forging a false finding. It does not stop a reviewer returning an all-high-score answer with no findings at all. Prompt injection aimed at silence, rather than at a forged finding, can still pass a review this way.
 
 ### Routine choices
 
