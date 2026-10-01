@@ -679,6 +679,13 @@ mod tests {
         assert!(!looks_like_a_test_file("service/src/thing.py"));
     }
 
+    #[test]
+    fn looks_like_a_test_file_matches_a_prefix_named_file_at_the_repository_root() {
+        assert!(looks_like_a_test_file("test_thing.py"));
+        assert!(looks_like_a_test_file("deep/nested/test_thing.py"));
+        assert!(!looks_like_a_test_file("contest_winners.py"));
+    }
+
     fn one_added_test_group(name: &str, description: &str) -> Summary {
         Summary {
             added: 1,

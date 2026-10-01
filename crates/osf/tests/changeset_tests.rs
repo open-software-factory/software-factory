@@ -313,6 +313,20 @@ fn a_non_rust_test_file_is_named_not_yet_supported() {
 }
 
 #[test]
+fn a_prefix_named_test_file_at_the_repository_root_is_named_not_yet_supported() {
+    let repo = base_repo("root-prefix-test-file");
+    repo.write("test_thing.py", "def test_old(): pass\n");
+    let base = repo.commit("base");
+    repo.write("test_thing.py", "def test_new(): pass\n");
+    let head = repo.commit("head");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    let group = summary.groups.first().expect("one group");
+    assert_eq!(group.file, "test_thing.py");
+    assert!(matches!(group.body, GroupBody::Unsupported));
+}
+
+#[test]
 fn a_file_outside_crates_groups_under_the_workspace_root() {
     let repo = base_repo("workspace-root");
     repo.write("src/lib.rs", "\n");
