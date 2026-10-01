@@ -161,27 +161,38 @@ pub fn diff_name_status_between(
     head: &str,
 ) -> Result<Vec<ChangedPath>, GitError> {
     let range = format!("{base}...{head}");
-    let text = run_text(dir, &["diff", "--name-status", "-M", &range])?;
-    Ok(text.lines().filter_map(parse_name_status_line).collect())
+    let raw = run(dir, &["diff", "--name-status", "-M", "-z", &range])?;
+    let mut tokens = split_nul(&raw).into_iter();
+    let mut out = Vec::new();
+    while let Some(status) = tokens.next() {
+        if let Some(change) = changed_path_from_status(&status, &mut tokens) {
+            out.push(change);
+        }
+    }
+    Ok(out)
 }
 
-/// Parses one `git diff --name-status -M` line into a [`ChangedPath`].
-/// `None` for a line this build has no case for (a type-change `T`, or a
-/// blank line), so one unrecognised line never stops the rest being read.
-fn parse_name_status_line(line: &str) -> Option<ChangedPath> {
-    let mut fields = line.split('\t');
-    let status = fields.next()?;
+/// Builds one [`ChangedPath`] from a `git diff --name-status -M -z` status
+/// token (such as `M` or `R100`) and the path token(s) that follow it in
+/// the same NUL-separated stream: one for every status but a rename or a
+/// copy, which carry two. `None` for a status this build has no case for
+/// (a type-change `T`, or an unrecognised one), so one unrecognised entry
+/// never stops the rest being read.
+fn changed_path_from_status(
+    status: &str,
+    tokens: &mut impl Iterator<Item = String>,
+) -> Option<ChangedPath> {
     match status.as_bytes().first()? {
-        b'A' => Some(ChangedPath::Added(fields.next()?.to_string())),
-        b'M' => Some(ChangedPath::Modified(fields.next()?.to_string())),
-        b'D' => Some(ChangedPath::Deleted(fields.next()?.to_string())),
+        b'A' => Some(ChangedPath::Added(tokens.next()?)),
+        b'M' => Some(ChangedPath::Modified(tokens.next()?)),
+        b'D' => Some(ChangedPath::Deleted(tokens.next()?)),
         b'R' => Some(ChangedPath::Renamed {
-            from: fields.next()?.to_string(),
-            to: fields.next()?.to_string(),
+            from: tokens.next()?,
+            to: tokens.next()?,
         }),
         b'C' => {
-            fields.next()?;
-            Some(ChangedPath::Added(fields.next()?.to_string()))
+            tokens.next()?;
+            Some(ChangedPath::Added(tokens.next()?))
         }
         _ => None,
     }
@@ -397,30 +408,86 @@ mod tests {
     }
 
     #[test]
-    fn name_status_lines_parse_into_their_matching_case() {
+    fn status_tokens_parse_into_their_matching_case() {
+        let parse = |status: &str, paths: &[&str]| {
+            let mut tokens = paths.iter().map(|s| (*s).to_string());
+            changed_path_from_status(status, &mut tokens)
+        };
         assert_eq!(
-            parse_name_status_line("A\tnew.rs"),
+            parse("A", &["new.rs"]),
             Some(ChangedPath::Added("new.rs".to_string()))
         );
         assert_eq!(
-            parse_name_status_line("M\tthing.rs"),
+            parse("M", &["thing.rs"]),
             Some(ChangedPath::Modified("thing.rs".to_string()))
         );
         assert_eq!(
-            parse_name_status_line("D\told.rs"),
+            parse("D", &["old.rs"]),
             Some(ChangedPath::Deleted("old.rs".to_string()))
         );
         assert_eq!(
-            parse_name_status_line("R100\told.rs\tnew.rs"),
+            parse("R100", &["old.rs", "new.rs"]),
             Some(ChangedPath::Renamed {
                 from: "old.rs".to_string(),
                 to: "new.rs".to_string(),
             })
         );
         assert_eq!(
-            parse_name_status_line("C100\tsrc.rs\tcopy.rs"),
+            parse("C100", &["src.rs", "copy.rs"]),
             Some(ChangedPath::Added("copy.rs".to_string()))
         );
+    }
+
+    /// A throwaway git repository for a test that needs real git plumbing,
+    /// not just the pure parsing functions above.
+    fn test_repo(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("osf-git-tests-{name}"));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp repo dir creates");
+        dir
+    }
+
+    fn git(dir: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .current_dir(dir)
+            .args(args)
+            .output()
+            .expect("git runs");
+        assert!(
+            output.status.success(),
+            "git {args:?} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[test]
+    fn diff_name_status_between_reads_a_non_ascii_renamed_path() {
+        let dir = test_repo("non-ascii-rename");
+        git(&dir, &["init", "-q", "-b", "main"]);
+        git(&dir, &["config", "user.email", "test@example.com"]);
+        git(&dir, &["config", "user.name", "Test"]);
+        std::fs::write(dir.join("old.rs"), "fn x() {}\n").expect("fixture file writes");
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "base"]);
+        let base = run_text(&dir, &["rev-parse", "HEAD"])
+            .expect("rev-parse runs")
+            .trim()
+            .to_string();
+
+        git(&dir, &["mv", "old.rs", "café.rs"]);
+        git(&dir, &["commit", "-q", "-m", "rename"]);
+
+        let changes =
+            diff_name_status_between(&dir, &base, "HEAD").expect("diff reports the rename");
+        assert_eq!(
+            changes,
+            vec![ChangedPath::Renamed {
+                from: "old.rs".to_string(),
+                to: "café.rs".to_string(),
+            }]
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
