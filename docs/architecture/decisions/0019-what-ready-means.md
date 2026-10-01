@@ -133,7 +133,7 @@ A triggered dimension applies at any level whose work touches its area. A waiver
 
 ### The path to Ready, and the light sign-off
 
-The spec's path is Draft, Proposed ready, Ready. An agent may move an item to Proposed ready only when the spec lint passes and the spec review has no blocker. A person moves it on to Ready. Ready also covers a small, low-risk item that the automated review alone was enough to check.
+The spec's path is Draft, Proposed ready, Ready. An agent may move an item to Proposed ready only when the spec lint passes and the spec review has no blocker. A person moves it on to Ready. This includes a small, low-risk item, whose sign-off is the one-click batch action the next section describes.
 
 For a low-risk Task, Chore or Bug, sign-off is one action from a batch list. That list shows the lint result and the review result beside each item. A larger or higher-risk item still needs the person to open it.
 
@@ -188,7 +188,7 @@ stateDiagram-v2
   [*] --> Draft: item created, by a person or an agent
   Draft --> Draft: triage round, fresh context each time
   Draft --> ProposedReady: spec lint passes and spec review has no blocker
-  ProposedReady --> Ready: a person signs off, or a small low-risk item passes the automated review
+  ProposedReady --> Ready: a person signs off, individually or in one batch action for a small low-risk item
   Ready --> ProposedReady: the spec changes after Ready
   Ready --> InProgress: dispatched, when every blocking item is closed
   InProgress --> InReview
