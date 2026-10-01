@@ -673,23 +673,32 @@ fn append_redaction_note(mut text: String, count: usize) -> String {
     text
 }
 
-/// `text`, cut to `limit` bytes with a marker naming how much was left out.
+/// `text`, cut to `limit` bytes total, including its own trailing marker
+/// naming how much was left out: the marker's own length is reserved out of
+/// `limit` first, so the returned string never exceeds the cap it reports.
 fn truncate_to(text: String, limit: usize) -> String {
     if text.len() <= limit {
         return text;
     }
-    let mut cut = limit;
-    while cut > 0 && !text.is_char_boundary(cut) {
-        cut -= 1;
+    let total = text.len();
+    let mut cut = limit.min(total);
+    loop {
+        while cut > 0 && !text.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        let omitted = total - cut;
+        let marker = format!(
+            "\n\n[context truncated: {omitted} of {total} bytes left out to stay under the {limit}-byte cap]"
+        );
+        let Some(kept) = text.get(..cut) else {
+            return text;
+        };
+        if cut == 0 || cut + marker.len() <= limit {
+            return format!("{kept}{marker}");
+        }
+        let overflow = cut + marker.len() - limit;
+        cut = cut.saturating_sub(overflow);
     }
-    let Some(kept) = text.get(..cut) else {
-        return text;
-    };
-    let omitted = text.len() - cut;
-    format!(
-        "{kept}\n\n[context truncated: {omitted} of {} bytes left out to stay under the {limit}-byte cap]",
-        text.len()
-    )
 }
 
 #[cfg(test)]
@@ -848,10 +857,15 @@ mod tests {
     #[test]
     fn truncate_to_cuts_long_text_and_says_how_much_was_left_out() {
         let text = "x".repeat(600);
-        let capped = truncate_to(text, 100);
-        assert!(capped.len() < 600);
+        let limit = 100;
+        let capped = truncate_to(text, limit);
+        assert!(
+            capped.len() <= limit,
+            "capped must stay within the {limit}-byte cap, was {} bytes: {capped:?}",
+            capped.len()
+        );
         assert!(capped.contains("truncated"));
-        assert!(capped.contains("500"));
+        assert!(capped.contains("600"));
     }
 
     #[test]
