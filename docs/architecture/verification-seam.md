@@ -1,6 +1,6 @@
 # The verification seam
 
-Status: proposed design, written from the owner's answers in a questioning session on 2026-09-21 and a design session on 2026-09-22. It waits for the owner's review of this file. The decision records listed at the end are written after that review.
+Status: accepted design, written from the owner's answers in a questioning session on 2026-09-21 and a design session on 2026-09-22. The decision records listed at the end carry the options weighed and the choice each one made.
 
 Date: 2026-09-22
 
