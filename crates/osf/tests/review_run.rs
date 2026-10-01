@@ -686,6 +686,38 @@ fn the_builder_family_flag_overrides_detection() {
     assert_eq!(builder_families, vec!["openai"]);
 }
 
+/// `[review] hot_paths` must not make `osf review run` could-not-configure:
+/// `risk::assess` reads it straight from TOML, but `config::review_config`
+/// also parses the same `[review]` table with `deny_unknown_fields`, so a
+/// hot-path test that only calls `risk::assess` directly can pass while the
+/// full command still fails on the field `review_config` does not know.
+#[test]
+fn hot_paths_in_osf_toml_does_not_fail_the_full_review_run_command() {
+    // A glob that never matches the reviewed change: this test is only
+    // about `hot_paths` parsing, not about earning the "high-traffic path"
+    // signal, which would select lenses beyond the one this test's fixture
+    // repository is set up to answer for.
+    let osf_toml = format!(
+        "[review]\nhot_paths = [\"never/matches/anything.rs\"]\n\n{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("hot-paths-full-command", &osf_toml);
+    let home = common::isolated_home("review-run-hot-paths-full-command");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "a documented [review] hot_paths setting must not make the whole command \
+         could-not-configure; stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 /// `--config-root` names the trusted tree: the lens catalogue and the
 /// `[review]` table (roster, threshold, timeout, cost ceiling) come from
 /// there, never from the repository under review. A pull request that

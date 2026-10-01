@@ -245,6 +245,12 @@ pub struct ReviewConfig {
     /// [`crate::builder`]), tried before it so a repository can name a model
     /// the shipped table does not know.
     pub builder_family_aliases: Vec<BuilderFamilyAlias>,
+    /// Glob patterns naming high-traffic paths, read by [`crate::risk::assess`]
+    /// to earn the "high-traffic path" signal. Kept here, not only in
+    /// `risk.rs`'s own raw-TOML read, so this field's own `deny_unknown_fields`
+    /// does not reject the key `risk.rs` already reads.
+    #[serde(default)]
+    pub hot_paths: Vec<String>,
 }
 
 impl Default for ReviewConfig {
@@ -255,6 +261,7 @@ impl Default for ReviewConfig {
             timeout_seconds: DEFAULT_REVIEW_TIMEOUT_SECS,
             cost_ceiling: None,
             builder_family_aliases: Vec::new(),
+            hot_paths: Vec::new(),
         }
     }
 }
@@ -1318,6 +1325,18 @@ mod tests {
         let loaded = review_config(&dir).expect("review config loads");
         assert!((loaded.threshold - 0.85).abs() < f64::EPSILON);
         assert_eq!(loaded.cost_ceiling, Some(2.5));
+    }
+
+    #[test]
+    fn review_config_reads_hot_paths() {
+        let dir = TempDir::new("osf-config-test-review-hot-paths");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nhot_paths = [\"src/payments/**\"]\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("[review] hot_paths must not be an unknown field");
+        assert_eq!(loaded.hot_paths, vec!["src/payments/**".to_string()]);
     }
 
     #[test]
