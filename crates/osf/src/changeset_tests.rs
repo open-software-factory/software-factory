@@ -1,8 +1,8 @@
 //! `osf changeset tests`: a summary of Rust tests added, changed and removed
 //! between two refs, read by parsing the base and head versions of each
 //! changed `.rs` file with the tree-sitter Rust grammar. Never builds or
-//! runs the change's code, so the summary cannot drift from what a build
-//! would have seen, and it cannot be fooled by code that would not compile.
+//! runs the change's code: the summary reflects what parsed, and a file
+//! that parses can still fail to build.
 //!
 //! This covers Rust only. A non-Rust test file is named in the summary as
 //! not yet supported rather than silently skipped; extending the same
