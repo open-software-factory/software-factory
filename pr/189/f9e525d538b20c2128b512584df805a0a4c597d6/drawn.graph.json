@@ -1,0 +1,639 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-01T08:15:02.066Z",
+  "title": "Rust test summary in the PR status block",
+  "summary": "This change adds a Rust test summary to the pull request status block. A new `changeset_tests` module parses the base and head versions of every changed `.rs` file with tree-sitter, compares the tests it finds by module path plus function name, and renders added, changed and removed tests grouped by crate and file. The status block gains a `**Tests**` section between Approach and the end marker, and `osf pr status refresh` now always starts a block (with a placeholder when Problem/Approach are absent) instead of doing nothing. The CLI is reorganised: `osf risk` becomes `osf changeset risk`, `osf status` becomes `osf pr status`, and a new `osf changeset tests` prints the summary on its own. New git helpers (`merge_base`, `diff_name_status_between`, `path_exists_at`) support the diff, and the shared test-file pattern is widened to catch prefix-style names like `test_thing.py`.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "5be4ad1b5ed0cb032f4b17e524a656b75cb2bbe7",
+      "ref": "5be4ad1b5ed0cb032f4b17e524a656b75cb2bbe7"
+    },
+    "head": {
+      "sha": "f9e525d538b20c2128b512584df805a0a4c597d6",
+      "ref": "f9e525d538b20c2128b512584df805a0a4c597d6"
+    },
+    "pullRequest": {
+      "number": 189,
+      "url": "https://github.com/open-software-factory/software-factory/pull/189"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI",
+      "subtitle": "osf binary",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The clap command tree and the command functions that wire inputs to the library."
+    },
+    {
+      "id": "core",
+      "label": "osf library",
+      "subtitle": "crates/osf/src",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The pure and near-pure modules: changeset risk, the new test summary, the status block renderer, and the git plumbing they share."
+    },
+    {
+      "id": "external",
+      "label": "External",
+      "subtitle": "git and GitHub",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The git repository the diff is read from, and GitHub through the `gh` CLI."
+    },
+    {
+      "id": "ci",
+      "label": "CI",
+      "subtitle": "GitHub Actions",
+      "order": 3,
+      "delta": "modified",
+      "summary": "The status-block workflow that runs the refresh on pull request events."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "clap command tree",
+      "summary": "The command tree is regrouped: `changeset risk`, `changeset tests`, and `pr status render|apply|refresh`. The old top-level `risk` and `status` commands are gone.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-tests-cmd",
+      "label": "changeset tests",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "changeset_tests_cmd",
+      "summary": "Prints the Rust test summary alone, with `--base` and `--head` defaulting to `origin/main` and `HEAD`.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status-render-cmd",
+      "label": "pr status render",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "pr_status_render_cmd",
+      "summary": "Builds the block from named inputs. A new `--base` flag makes it compute the test summary against `HEAD` and thread it into the block.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status-refresh-cmd",
+      "label": "pr status refresh",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "pr_status_refresh_run",
+      "summary": "Recomputes the block from live pull request state. It now always starts a block, using `--problem`/`--approach` or the `not filled in yet` placeholder, and always builds the test summary.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-tests",
+      "label": "changeset_tests",
+      "kind": "module",
+      "delta": "added",
+      "lane": "core",
+      "subtitle": "summarize / render",
+      "summary": "Parses base and head versions of each changed `.rs` file with tree-sitter, compares tests by module path plus function name, and renders the summary grouped by crate and file. Never builds or runs the code.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_tests.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-risk",
+      "label": "changeset_risk",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "assess",
+      "summary": "The blast-radius module, renamed from `risk`. Its `TEST_FILES` pattern is now `pub(crate)` and widened to match prefix-style test names such as `test_thing.py`.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status",
+      "label": "pr_status",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "render / apply",
+      "summary": "The status block renderer, renamed from `status`. `RenderInput` gains an optional `tests` string, inserted between Approach and the end marker; the module stays a pure function of its inputs.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-module",
+      "label": "git",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "merge_base / diff_name_status_between",
+      "summary": "New plumbing: `merge_base`, `diff_name_status_between` with a `ChangedPath` enum that keeps renames whole, and `path_exists_at` to tell a missing path from an unresolved revision.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-repo",
+      "label": "git repository",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "base and head revisions",
+      "summary": "The working tree and object store the diff, merge base and file contents are read from.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "github",
+      "label": "GitHub",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "gh CLI",
+      "summary": "The pull request description, checks and review state, read and written through `gh`.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "status-block-workflow",
+      "label": "status-block workflow",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "status-block.yml",
+      "summary": "Runs `osf pr status refresh` on pull request, review and check-run events, with a read-only dry-run path for forks.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-changeset-tests",
+      "from": "osf-cli",
+      "to": "changeset-tests",
+      "kind": "call",
+      "delta": "added",
+      "label": "summarize + render",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new command and the refresh path both call the test summary.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ]
+    },
+    {
+      "id": "cli-to-pr-status",
+      "from": "osf-cli",
+      "to": "pr-status",
+      "kind": "call",
+      "delta": "modified",
+      "label": "render / apply",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The regrouped `pr status` commands call the renamed renderer.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ]
+    },
+    {
+      "id": "cli-to-changeset-risk",
+      "from": "osf-cli",
+      "to": "changeset-risk",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assess",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`changeset risk` and the refresh path call the renamed risk module.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ]
+    },
+    {
+      "id": "changeset-tests-to-git",
+      "from": "changeset-tests",
+      "to": "git-module",
+      "kind": "call",
+      "delta": "added",
+      "label": "merge base, diff, contents",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The summary reads the merge base, the changed paths, and each side's file contents through the new git helpers.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_tests.rs"
+        }
+      ]
+    },
+    {
+      "id": "changeset-tests-to-changeset-risk",
+      "from": "changeset-tests",
+      "to": "changeset-risk",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "TEST_FILES pattern",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The summary reuses the shared test-file pattern to name non-Rust test files as not yet supported.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_tests.rs"
+        }
+      ]
+    },
+    {
+      "id": "pr-status-to-changeset-tests",
+      "from": "pr-status",
+      "to": "changeset-tests",
+      "kind": "data",
+      "delta": "added",
+      "label": "rendered tests text",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The renderer takes the already-rendered summary as an optional string, so it stays pure.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs"
+        }
+      ]
+    },
+    {
+      "id": "git-module-to-git-repo",
+      "from": "git-module",
+      "to": "git-repo",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "git commands",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every git helper shells out to the repository in the working directory.",
+      "files": []
+    },
+    {
+      "id": "pr-status-to-github",
+      "from": "pr-status",
+      "to": "github",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "gh pr view / edit",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The block is read from and written back to the pull request description through `gh`.",
+      "files": []
+    },
+    {
+      "id": "workflow-to-cli",
+      "from": "status-block-workflow",
+      "to": "osf-cli",
+      "kind": "other",
+      "delta": "modified",
+      "label": "osf pr status refresh",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow's two invocations are updated to the new command path.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "refresh-flow",
+      "title": "pr status refresh builds the block",
+      "summary": "How a refresh turns live pull request state and a parsed diff into the status block, including the new test summary.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "status-block-workflow",
+          "label": "workflow"
+        },
+        {
+          "node": "pr-status-refresh-cmd",
+          "label": "refresh"
+        },
+        {
+          "node": "github",
+          "label": "GitHub"
+        },
+        {
+          "node": "git-repo",
+          "label": "git repo"
+        },
+        {
+          "node": "changeset-tests",
+          "label": "changeset_tests"
+        },
+        {
+          "node": "pr-status",
+          "label": "pr_status"
+        }
+      ],
+      "messages": [
+        {
+          "id": "refresh-invoked",
+          "from": "status-block-workflow",
+          "to": "pr-status-refresh-cmd",
+          "label": "osf pr status refresh --repo --pr",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/status-block.yml"
+            }
+          ]
+        },
+        {
+          "id": "refresh-reads-pr",
+          "from": "pr-status-refresh-cmd",
+          "to": "github",
+          "label": "gh pr view --json body,baseRefName",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "refresh-reads-checks",
+          "from": "pr-status-refresh-cmd",
+          "to": "github",
+          "label": "gh pr checks --json name,state,bucket",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "refresh-reads-review",
+          "from": "pr-status-refresh-cmd",
+          "to": "github",
+          "label": "gh pr view --json reviewDecision,reviews,comments",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "refresh-summarize",
+          "from": "pr-status-refresh-cmd",
+          "to": "changeset-tests",
+          "label": "summarize(base, HEAD)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The base is the merge base of the pull request's base branch and HEAD, so a commit the base branch gained on its own is never read as part of this change.",
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs"
+            }
+          ]
+        },
+        {
+          "id": "summarize-reads-git",
+          "from": "changeset-tests",
+          "to": "git-repo",
+          "label": "merge-base, diff --name-status -M, show rev:path",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "repeat": 3,
+          "note": "One merge base, one name-status diff, then a content read per side of each changed file.",
+          "files": [
+            {
+              "path": "crates/osf/src/git.rs"
+            }
+          ]
+        },
+        {
+          "id": "summarize-parses",
+          "from": "changeset-tests",
+          "to": "changeset-tests",
+          "label": "parse both sides with tree-sitter, diff tests by module path",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/changeset_tests.rs"
+            }
+          ]
+        },
+        {
+          "id": "summarize-returns",
+          "from": "changeset-tests",
+          "to": "pr-status-refresh-cmd",
+          "label": "Summary { added, changed, removed, groups }",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "response": {
+              "type": "Summary",
+              "shape": "Summary { added: usize, changed: usize, removed: usize, groups: Vec<Group> }",
+              "sample": {
+                "added": 1,
+                "changed": 1,
+                "removed": 1,
+                "groups": [
+                  {
+                    "crate_name": "osf",
+                    "file": "crates/osf/src/thing.rs",
+                    "body": "Tests"
+                  }
+                ]
+              },
+              "source": {
+                "path": "crates/osf/src/changeset_tests.rs"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "refresh-renders-tests",
+          "from": "pr-status-refresh-cmd",
+          "to": "changeset-tests",
+          "label": "render(summary)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs"
+            }
+          ]
+        },
+        {
+          "id": "refresh-renders-block",
+          "from": "pr-status-refresh-cmd",
+          "to": "pr-status",
+          "label": "render(RenderInput { tests: Some(...) })",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs"
+            }
+          ]
+        },
+        {
+          "id": "refresh-writes-body",
+          "from": "pr-status-refresh-cmd",
+          "to": "github",
+          "label": "gh pr edit --body-file",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Skipped when the new block is byte-identical to the one already there.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 16,
+    "additions": 2090,
+    "deletions": 160,
+    "chips": [
+      {
+        "label": "New module",
+        "value": "changeset_tests",
+        "tone": "added"
+      },
+      {
+        "label": "Commands regrouped",
+        "value": "risk, status",
+        "tone": "modified"
+      },
+      {
+        "label": "Parsing",
+        "value": "tree-sitter Rust",
+        "tone": "added"
+      },
+      {
+        "label": "Builds or runs code",
+        "value": "never",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Architecture overview",
+      "lens": "architecture",
+      "summary": "The CLI, the osf library modules it calls, and the git and GitHub boundaries the change touches.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "changeset-tests-internals",
+      "title": "changeset_tests internals",
+      "lens": "architecture",
+      "summary": "Inside the new module: the git reads, the tree-sitter parse, the test walk, and the render.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "changeset-tests",
+          "git-module",
+          "git-repo",
+          "changeset-risk"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "refresh-flow-view",
+      "title": "Refresh flow",
+      "lens": "data-flow",
+      "summary": "The ordered steps of `osf pr status refresh`, from the workflow invocation to the written description.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "refresh-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
