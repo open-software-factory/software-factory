@@ -20,6 +20,13 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 - Deterministic checks are authoritative gates. A model's judgment may augment one but never replaces it where a deterministic check exists.
 - A change that makes a check catch fewer real problems than before needs a person's written approval, with a reason, recorded on the change. Never hide a real failure behind a suppression flag, an ignored error, or a narrowed scope with no reason given.
 
+## Branches
+
+- Start a new stack with `git town hack <name>`. Add to the stack you are on with `git town append <name>`.
+- If a branch's parent was never recorded this way, record it once with `git town set-parent`.
+- After a change lands lower in a stack, run `git town sync` to bring every branch above it up to date.
+- Never force-push a branch someone else is working on.
+
 ## Before coding
 
 1. Read the three documents in [`docs/vision/`](docs/vision/).
