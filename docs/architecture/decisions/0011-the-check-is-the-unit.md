@@ -30,7 +30,7 @@ The full design is [the verification seam](../verification-seam.md). This record
 
 A check is a moon task. Its tags name the checkpoints it runs at and the slot it fills. Five checkpoints exist. The harness hook, pre-commit, pre-push, the pull request and the schedule. Every checkpoint runs the same way. The tool selects tasks by tag, hands them to moon with the affected filter, and moon runs them in parallel with its cache. Each task writes one verification event, and the tool writes one checkpoint-complete event.
 
-The harness hook checkpoint fires after a tool call that wrote a file and at the end of a turn. It runs every tagged check on the touched files. A check that cannot finish in the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
+The harness hook checkpoint fires after a tool call that wrote a file and at the end of a turn. It runs every tagged check on the touched files. A check tagged for the hook checkpoint must also carry the pre-commit tag, so the same tag-based selection that skipped it in the hook picks it up and runs it in full at pre-commit. A check that cannot finish in the hook's time reports skipped with a reason.
 
 The scheduled checkpoint runs the tasks tagged for its cadence. A scheduled check is a check. Its findings become issues, and the engine's own loop works those issues as ordinary changes. Model-driven upkeep, such as documentation refresh or code simplification, is therefore an issue for the engine rather than a check. Two alternatives were set aside. Shipping a code host's agentic workflow files for upkeep, which binds the upkeep to one host and adds a second agent runtime. And one broad maintenance agent on a schedule, whose output has no check behind it.
 
