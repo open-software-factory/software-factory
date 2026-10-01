@@ -468,6 +468,7 @@ fn post_tool_with_input(
         base: None,
         files: Some(vec![rel]),
         timeout: Some(timeout),
+        remote: None,
     };
     let summary = crate::checkpoint::run(&req, &state_dir);
     if let Some(err) = &summary.journal_error {

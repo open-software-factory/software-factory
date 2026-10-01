@@ -359,9 +359,10 @@ struct VerifyArgs {
     /// How long to let moon run before it is killed, in seconds. No limit when absent.
     #[arg(long)]
     timeout_secs: Option<u64>,
-    /// Extra positional arguments a git hook passes (pre-push's remote name and URL), swallowed so a real hook call is never refused.
+    /// Extra positional arguments a git hook passes: pre-push's remote name
+    /// (its first entry, read as the remote `verify_cmd` resolves a
+    /// fallback base against) and URL, so a real hook call is never refused.
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
-    #[allow(dead_code)]
     hook_args: Vec<String>,
 }
 
@@ -1398,6 +1399,7 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
         base: args.base.clone(),
         files,
         timeout: args.timeout_secs.map(std::time::Duration::from_secs),
+        remote: args.hook_args.first().cloned(),
     };
     let summary = checkpoint::run(&req, &state_dir);
     for line in &summary.lines {

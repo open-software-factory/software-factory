@@ -115,6 +115,10 @@ pub struct Request<'a> {
     pub base: Option<String>,
     pub files: Option<Vec<String>>,
     pub timeout: Option<Duration>,
+    /// The remote name a pre-push hook was told, from git's own first
+    /// positional argument. `None` defaults to `origin` when pre-push
+    /// falls back to a remote-tracking ref for its base.
+    pub remote: Option<String>,
 }
 
 /// What one checkpoint run produced: the overall result, the lines to print
@@ -145,13 +149,23 @@ fn could_not_run(detail: String) -> Summary {
     }
 }
 
-/// The base to diff against: given verbatim for pre-push and pull-request,
-/// else the repository's default branch. Every other checkpoint keeps
-/// whatever base the caller passed, untouched, since it plays no part in
-/// choosing their files.
+/// The base to diff against: given verbatim when the caller names one.
+/// Pre-push otherwise falls back to the ref it actually pushes against
+/// (the current branch's upstream, or `origin/<default-branch>`), since the
+/// local default branch's own name compares a branch to itself when the
+/// push is made from that branch, which is always empty. Pull-request
+/// falls back to the repository's default branch. Every other checkpoint
+/// keeps whatever base the caller passed, untouched, since it plays no
+/// part in choosing their files.
 fn resolve_base(req: &Request) -> Result<Option<String>, String> {
     match req.checkpoint {
-        Checkpoint::PrePush | Checkpoint::PullRequest => match &req.base {
+        Checkpoint::PrePush => match &req.base {
+            Some(b) => Ok(Some(b.clone())),
+            None => crate::git::upstream_ref(req.root, req.remote.as_deref())
+                .map(Some)
+                .map_err(|e| e.to_string()),
+        },
+        Checkpoint::PullRequest => match &req.base {
             Some(b) => Ok(Some(b.clone())),
             None => crate::git::default_branch(req.root)
                 .map(Some)

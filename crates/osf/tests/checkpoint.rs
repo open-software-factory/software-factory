@@ -47,6 +47,27 @@ fn pre_push_runs_the_tagged_tasks_and_writes_one_event_per_task_plus_one() {
     );
 }
 
+/// Regression for the no-op bug: with no explicit `--base`, pre-push must
+/// diff against the ref it actually pushes against, not the local default
+/// branch's own name — comparing a branch to itself is always empty. A
+/// push made from `main` itself, with `origin/main` behind it, must still
+/// select the real change.
+#[test]
+fn pre_push_with_no_base_diffs_against_the_pushed_to_ref_not_the_local_branch_itself() {
+    let repo = TempRepo::with_moon_workspace("cp-pre-push-no-base");
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("guide.md", "Do Phase 2 next.\n");
+    repo.commit("dirty");
+    let home = isolated_home("cp-pre-push-no-base");
+    let out = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-push"]);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a push from main with origin/main behind it must still see the real change: {out:?}"
+    );
+}
+
 #[test]
 fn a_change_no_task_reads_is_nothing_to_check_and_exits_zero() {
     let repo = TempRepo::with_moon_workspace("cp-nothing");
