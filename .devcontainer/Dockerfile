@@ -397,36 +397,35 @@ RUN find /usr/local/cargo /usr/local/rustup -perm /022 -exec chmod go-w {} +
 
 # omp's hook: a global extension loaded from a directory under the
 # container user's own home (omp has no system-level hooks location; see
-# .devcontainer/agents.json). Only this one directory is carved out
-# root-owned and read-only, the same way the dsh profile below is: the
-# rest of that user's .omp directory stays writable for omp's own
-# sessions.
+# .devcontainer/agents.json). mkdir -p creates .omp itself here, as root,
+# so it starts out root-owned all the way down; chown dev back onto the
+# whole tree first, then root only the one hook directory omp must never
+# write to, so sessions and every other omp state under .omp stays
+# writable the way useradd leaves the rest of the home directory.
 RUN mkdir -p "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
     cp /usr/src/factory-build/integrations/omp/dist/src/osf-stop.js "${DEV_HOME}/.omp/agent/hooks/osf-stop/index.js" && \
     cp /usr/src/factory-build/integrations/omp/dist/src/check.js "${DEV_HOME}/.omp/agent/hooks/osf-stop/check.js" && \
-    chown -R root:root "${DEV_HOME}/.omp" && \
+    chown -R dev:dev "${DEV_HOME}/.omp" && \
+    chown -R root:root "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
     chmod 0555 "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
     chmod 0444 "${DEV_HOME}/.omp/agent/hooks/osf-stop/index.js" "${DEV_HOME}/.omp/agent/hooks/osf-stop/check.js"
 
 # dsh's "factory" profile: the writing-check plugin registered, from
 # integrations/dsh's own profile-patch.example.yml. dsh has no
-# system-wide config path (see .devcontainer/agents.json), so only this
-# one profile directory under the container user's home is carved out
-# root-owned and read-only; the rest of that user's .dsh directory stays
-# writable for dsh's own sessions and auth. Run `dsh --profile factory`
-# to boot it. The profile also registers the Claude-format hooks bridge,
-# pointed at this repository's own .claude/hooks.json (see the profile's
-# own comments for why that file is not under this root-owned directory).
+# system-wide config path (see .devcontainer/agents.json). The same
+# chown-then-chown-back order as omp's hook above applies here: mkdir -p
+# creates .dsh itself as root, so dev needs it back before only the
+# factory profile directory is locked root-owned and read-only. Run
+# `dsh --profile factory` to boot it. The profile also registers the
+# Claude-format hooks bridge, pointed at this repository's own
+# .claude/hooks.json (see the profile's own comments for why that file
+# is not under this root-owned directory).
 RUN mkdir -p "${DEV_HOME}/.dsh/profiles/factory"
 COPY .devcontainer/hooks/dsh/cordis.patch.yml ${DEV_HOME}/.dsh/profiles/factory/cordis.patch.yml
-RUN chown -R root:root "${DEV_HOME}/.dsh" && \
+RUN chown -R dev:dev "${DEV_HOME}/.dsh" && \
+    chown -R root:root "${DEV_HOME}/.dsh/profiles/factory" && \
     chmod 0555 "${DEV_HOME}/.dsh/profiles/factory" && \
     chmod 0444 "${DEV_HOME}/.dsh/profiles/factory/cordis.patch.yml"
-
-# dev owns the rest of its own home directory: sessions, auth, caches, and
-# every coding agent's other state. useradd already set this; restated
-# here because the chown -R calls above, scoped to one hook directory
-# each, never touch anything outside it.
 
 # The node_modules build tree for the three plugins above is no longer
 # needed once their dist/ output is copied out.
