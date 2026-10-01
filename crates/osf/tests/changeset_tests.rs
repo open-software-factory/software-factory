@@ -299,6 +299,59 @@ fn a_renamed_test_file_is_compared_as_one_file_not_a_delete_plus_an_add() {
 }
 
 #[test]
+fn a_rust_file_renamed_away_from_rust_still_reports_its_removed_tests() {
+    let repo = base_repo("renamed-away-from-rust");
+    let content = "#[test]\nfn a_removed_test() {}\n";
+    repo.write("crates/osf/src/thing.rs", content);
+    let base = repo.commit("base");
+
+    std::fs::remove_file(repo.dir.join("crates/osf/src/thing.rs")).expect("remove old file");
+    repo.write("crates/osf/src/thing.txt", content);
+    let head = repo.commit("rename away from rust");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.removed, 1, "{:?}", summary.groups);
+    assert_eq!(summary.added, 0, "{:?}", summary.groups);
+    let group = summary.groups.first().expect("one group");
+    let GroupBody::Tests { removed, .. } = &group.body else {
+        panic!("expected a Tests body, got {:?}", group.body);
+    };
+    assert_eq!(
+        removed.first().map(|t| t.name.as_str()),
+        Some("a_removed_test")
+    );
+}
+
+#[test]
+fn a_file_renamed_into_rust_reports_its_added_tests() {
+    let repo = base_repo("renamed-into-rust");
+    let content = "#[test]\nfn an_added_test() {}\n";
+    repo.write("crates/osf/src/thing.txt", content);
+    let base = repo.commit("base");
+
+    std::fs::remove_file(repo.dir.join("crates/osf/src/thing.txt")).expect("remove old file");
+    repo.write("crates/osf/src/thing.rs", content);
+    let head = repo.commit("rename into rust");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.added, 1, "{:?}", summary.groups);
+    assert_eq!(summary.removed, 0, "{:?}", summary.groups);
+    let group = summary.groups.first().expect("one group");
+    assert!(
+        !matches!(group.body, GroupBody::Unparsed),
+        "{:?}",
+        group.body
+    );
+    let GroupBody::Tests { added, .. } = &group.body else {
+        panic!("expected a Tests body, got {:?}", group.body);
+    };
+    assert_eq!(
+        added.first().map(|t| t.name.as_str()),
+        Some("an_added_test")
+    );
+}
+
+#[test]
 fn a_non_rust_test_file_is_named_not_yet_supported() {
     let repo = base_repo("non-rust");
     repo.write("service/tests/test_thing.py", "def test_old(): pass\n");

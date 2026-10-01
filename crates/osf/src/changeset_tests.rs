@@ -93,6 +93,13 @@ fn crate_of(path: &str) -> String {
         .map_or_else(|| "(workspace root)".to_string(), str::to_string)
 }
 
+/// Whether `path` names a Rust source file, by its extension alone.
+fn is_rust_path(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
+}
+
 /// Whether `path` looks like a test file in some language, by the same
 /// name and location patterns [`crate::changeset_risk`] already uses to keep tests
 /// out of the blast-radius count.
@@ -430,10 +437,14 @@ pub fn summarize(dir: &Path, base: &str, head: &str) -> Result<Summary, TestSumm
         if under_test_fixtures(display_name) {
             continue;
         }
-        if !Path::new(display_name)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
-        {
+        // A rename is judged by each side's own extension, not by
+        // `display_name` alone: a `.rs` file renamed away from Rust still
+        // has its old tests to report as removed, and a file renamed into
+        // `.rs` still has its new tests to report as added. Each side is
+        // only ever parsed as Rust when that side's own path is `.rs`.
+        let base_is_rust = change.base_path().is_some_and(is_rust_path);
+        let head_is_rust = change.head_path().is_some_and(is_rust_path);
+        if !base_is_rust && !head_is_rust {
             if looks_like_a_test_file(display_name) {
                 summary.groups.push(Group {
                     crate_name: crate_of(display_name),
@@ -448,8 +459,8 @@ pub fn summarize(dir: &Path, base: &str, head: &str) -> Result<Summary, TestSumm
             dir,
             &merge_base,
             head,
-            change.base_path(),
-            change.head_path(),
+            change.base_path().filter(|_| base_is_rust),
+            change.head_path().filter(|_| head_is_rust),
             display_name,
         );
         match &group.body {
