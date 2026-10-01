@@ -13,5 +13,15 @@ description: Use this skill when you open a pull request, or update its descript
    - Not checked: needs judgment.
 5. Carry a diagram of what changed, and a short outline of where to start reading, in the pull request description. Refresh both on every push, and check every claim in the outline against the real diff first.
    - Not checked: needs judgment. See `skills/pr-outline/SKILL.md` and `skills/show-me/SKILL.md` for how to write each part.
+6. Do git work for this change in its own worktree when a person also works in the same repository.
+   - Not checked: needs judgment.
+7. Create a stacked branch with `git town append`. Start a fresh branch with `git town hack`. `git-town.toml` keeps each branch synced to its parent by rebasing it.
+   - Not checked: needs judgment.
+8. Carry one attribution trailer naming the model that wrote a change. Never add a `Co-Authored-By` line, the git trailer that credits a second author. Never add a link to a coding-agent session.
+   - Not checked yet: issue 194. A commit-msg hook for this is planned in [open-software-factory/software-factory#194 (rules layout)](https://github.com/open-software-factory/software-factory/issues/194), as a second pull request.
+9. Never force-push a branch you did not create.
+   - Not checked yet: issue 194. A harness pre-tool hook for this is planned in [open-software-factory/software-factory#194 (rules layout)](https://github.com/open-software-factory/software-factory/issues/194), as a second pull request.
+10. Let a second identity review a pull request. Its own author cannot approve it.
+    - Not checked: needs judgment.
 
-Stop when the pull request is ready and names the issue it closes with a label. Its outline's claims must match the real diff.
+Stop when the pull request is ready and names the issue it closes with a label. Its outline's claims must match the real diff, and a different identity has reviewed it.
