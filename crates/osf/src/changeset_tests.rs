@@ -119,8 +119,10 @@ enum RawContent {
 /// at that revision is [`RawContent::Absent`] rather than folded into the
 /// same case as a read that failed for some other reason.
 fn read_at(dir: &Path, rev: &str, path: &str) -> RawContent {
-    if !crate::git::path_exists_at(dir, rev, path) {
-        return RawContent::Absent;
+    match crate::git::path_exists_at(dir, rev, path) {
+        Ok(false) => return RawContent::Absent,
+        Err(_) => return RawContent::Unparsed,
+        Ok(true) => {}
     }
     match crate::git::content_at(dir, rev, path) {
         Ok(bytes) => match String::from_utf8(bytes) {

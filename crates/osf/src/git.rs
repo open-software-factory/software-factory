@@ -230,13 +230,16 @@ pub fn content_at(dir: &Path, rev: &str, path: &str) -> Result<Vec<u8>, GitError
     run(dir, &["show", &format!("{rev}:{path}")])
 }
 
-/// True when `path` exists in the tree at `rev`. `false`, never an error,
-/// both for a path that is not there and for a `rev` that does not
-/// resolve, so a caller can tell a genuinely missing path apart from any
-/// other reason [`content_at`] might fail to read it.
-#[must_use]
-pub fn path_exists_at(dir: &Path, rev: &str, path: &str) -> bool {
-    run(dir, &["cat-file", "-e", &format!("{rev}:{path}")]).is_ok()
+/// Whether `path` exists in the tree at `rev`.
+///
+/// # Errors
+/// Returns an error if git cannot run, or `rev` does not resolve. A path
+/// that is simply not there at `rev` is `Ok(false)`, never an error, so a
+/// caller can tell that apart from a read that failed for some other
+/// reason.
+pub fn path_exists_at(dir: &Path, rev: &str, path: &str) -> Result<bool, GitError> {
+    let output = run(dir, &["ls-tree", rev, "--", path])?;
+    Ok(!output.is_empty())
 }
 
 /// The branch a fresh clone checks out: the remote's `HEAD` symbol, else
@@ -470,6 +473,23 @@ mod tests {
             "git {args:?} failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    #[test]
+    fn path_exists_at_tells_a_missing_path_from_an_unresolved_rev() {
+        let dir = test_repo("path-exists-at");
+        git(&dir, &["init", "-q", "-b", "main"]);
+        git(&dir, &["config", "user.email", "test@example.com"]);
+        git(&dir, &["config", "user.name", "Test"]);
+        std::fs::write(dir.join("a.txt"), "a").expect("fixture file writes");
+        git(&dir, &["add", "-A"]);
+        git(&dir, &["commit", "-q", "-m", "base"]);
+
+        assert!(path_exists_at(&dir, "HEAD", "a.txt").expect("HEAD resolves"));
+        assert!(!path_exists_at(&dir, "HEAD", "missing.txt").expect("HEAD resolves"));
+        assert!(path_exists_at(&dir, "not-a-rev", "a.txt").is_err());
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
