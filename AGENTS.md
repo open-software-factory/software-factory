@@ -2,8 +2,8 @@
 
 ## Work inside the development container
 
-- Do all build, test, and review work inside this repository's development container, [`.devcontainer/`](.devcontainer/). Run the coding agent itself in that container too, so the root-owned git hooks and agent hooks apply.
-  - Not checked yet: [open-software-factory/software-factory#197 (agent hooks in the container)](https://github.com/open-software-factory/software-factory/issues/197).
+- Do all build, test, and review work inside this repository's development container, [`.devcontainer/`](.devcontainer/). Run the coding agent itself in that container too, so the root-owned git hooks apply. The container installs no agent hooks yet.
+  - Not checked yet: [open-software-factory/software-factory#197 (agent hooks in the container)](https://github.com/open-software-factory/software-factory/issues/197) adds agent hooks to the container.
 - Two kinds of container exist. `.devcontainer/` builds this repository. The per-ecosystem container templates that an adopter's own factory builds in are a separate kind, and are not designed yet. See [open-software-factory/software-factory#198 (two kinds of container)](https://github.com/open-software-factory/software-factory/issues/198).
   - Not checked: needs judgment.
 
