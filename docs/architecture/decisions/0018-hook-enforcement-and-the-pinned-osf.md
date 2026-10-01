@@ -14,7 +14,7 @@ The diagram below adapts the one drawn for this decision.
 flowchart LR
   subgraph Container
     A[Agent runs git] --> W[git wrapper, root-owned]
-    W -->|refuses --no-verify, a caller hooksPath, GIT_CONFIG_* overrides| X[Refused, with a message]
+    W -->|refuses --no-verify and -n, a caller hooksPath, GIT_CONFIG_* overrides| X[Refused, with a message]
     W -->|forces -c core.hooksPath| H1[Container hook scripts, root-owned]
   end
   subgraph Plain shell
@@ -92,7 +92,7 @@ Inside the development container, an agent cannot skip a hook, redirect it to a 
 
 ### The container's git wrapper
 
-A root-owned wrapper is the only git the container user can reach. The real git binary is made unreadable to that user. On every call the wrapper forces `-c core.hooksPath` to a root-owned, read-only directory of hook scripts inside the container. It refuses three things, each with a message. The first is the `--no-verify` flag. The second is a caller-supplied `core.hooksPath`. The third is the git config environment overrides: `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_*`, `GIT_CONFIG_VALUE_*`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and `GIT_CONFIG_PARAMETERS`. The container's hook scripts are thin. Each one only runs osf for the checkpoint it fires at.
+A root-owned wrapper is the only git the container user can reach. The real git binary is made unreadable to that user. On every call the wrapper forces `-c core.hooksPath` to a root-owned, read-only directory of hook scripts inside the container. It refuses three things, each with a message. The first is the `--no-verify` flag, on any command that accepts it, and its short form `-n` on `git commit`. The second is a caller-supplied `core.hooksPath`. The third is the git config environment overrides: `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_*`, `GIT_CONFIG_VALUE_*`, `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM` and `GIT_CONFIG_PARAMETERS`. The container's hook scripts are thin. Each one only runs osf for the checkpoint it fires at.
 
 ### Each repository pins its osf version, and a launcher runs it
 
