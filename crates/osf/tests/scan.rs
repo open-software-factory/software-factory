@@ -65,6 +65,25 @@ fn a_tracked_symlink_to_a_directory_is_skipped_not_read_as_a_file() {
         "a symlink must never be read as if it were the file or directory it points at: {:?}",
         found.files
     );
+    assert_eq!(
+        found.excluded, 1,
+        "a skipped symlink must be counted: {found:?}"
+    );
+}
+
+/// A repository whose only tracked entry is a symlink must still show the
+/// summary skipped something, so it never reads as a clean scan of nothing.
+#[test]
+fn a_repo_of_only_a_symlink_reports_it_excluded_not_clean() {
+    let repo = TempRepo::new("only-a-symlink");
+    repo.symlink("link", "nowhere");
+    repo.commit("track only a symlink");
+    let home = isolated_home("only-a-symlink");
+
+    let output = run_osf(&repo.dir, &home, &["scan", "--format", "human"]);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("1 excluded"), "{stdout}");
 }
 
 #[test]

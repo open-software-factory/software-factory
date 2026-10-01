@@ -564,7 +564,9 @@ fn resolve_scan_targets(dir: &Path, paths: &[PathBuf]) -> Result<Vec<(String, Pa
 
 /// Scans every target file, named relative to `dir` when it came from git,
 /// or as given on the command line otherwise. A binary file is skipped. A
-/// file matching `excluder` is never even read.
+/// file matching `excluder` is never even read. A symlink is never read
+/// either; it is counted as excluded instead, so a scan of nothing but
+/// symlinks is never reported as clean.
 ///
 /// # Errors
 /// Returns an error if git cannot run, or a named path cannot be read.
@@ -584,6 +586,7 @@ pub fn scan_paths(
         }
         let is_symlink = std::fs::symlink_metadata(&full).is_ok_and(|m| m.file_type().is_symlink());
         if is_symlink {
+            dropped += 1;
             continue;
         }
         let bytes =
