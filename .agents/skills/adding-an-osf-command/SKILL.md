@@ -5,7 +5,7 @@ description: Use this skill when you add a new osf check, a lint rule, a scan ru
 
 1. State what the new rule covers and what it does not. A clean result must never read as "nothing found" when it means "nothing looked at".
    - Not checked: needs judgment. Follow the Coverage section every existing rule's doc text already carries, for example in `crates/osf/src/scan/meta.rs`.
-2. Make the rule tell "could not read" apart from "read, and found nothing". A missing test command should hold the change rather than pass it. This rule comes from [decision 0003](../../docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
+2. Make the rule tell "could not read" apart from "read, and found nothing". A missing test command should hold the change rather than pass it. This rule comes from [decision 0003](../../../docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
    - Checked by: the writing check's stop hook already refuses a turn it could not check (`crates/osf/src/hook.rs`). It does not let that turn pass silently.
    - Not checked yet: a shrinking test count, or a suppression added in the same change, becoming a finding of its own. This is designed in decision 0018. That decision is not yet merged. It is carried in [open-software-factory/software-factory#136 (hook enforcement)](https://github.com/open-software-factory/software-factory/pull/136).
 3. Give the rule a class and name its source: an external standard, a published measurement, or this project's own taste. A rule with no real citation says plainly that it is taste.

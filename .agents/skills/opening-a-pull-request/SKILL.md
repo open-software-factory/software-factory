@@ -12,7 +12,7 @@ description: Use this skill when you open a pull request, or update its descript
 4. Close an issue with the merge commit's hash and the pull request's link, in the closing comment.
    - Not checked: needs judgment.
 5. Carry a diagram of what changed, and a short outline of where to start reading, in the pull request description. Refresh both on every push, and check every claim in the outline against the real diff first.
-   - Not checked: needs judgment. See `skills/pr-outline/SKILL.md` and `skills/show-me/SKILL.md` for how to write each part.
+   - Not checked: needs judgment. See the pr-outline skill and the show-me skill for how to write each part.
 6. Do git work for this change in its own worktree when a person also works in the same repository.
    - Not checked: needs judgment.
 7. Start a new stack with `git town hack`, and add to the stack you are on with `git town append`. Record a missing parent once with `git town set-parent`. After a change lands lower in a stack, run `git town sync`. `git-town.toml` syncs by merge, so a pushed branch is never rewritten.

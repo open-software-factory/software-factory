@@ -47,15 +47,17 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 
 This file holds only what every task needs. A rule tied to one folder lives in that folder's own `AGENTS.md`. A rule tied to one moment in the work reaches an agent as a skill that loads when the task matches it.
 
+`skills/` holds what this repository ships to adopters. `.agents/skills/` holds what an agent uses while working in this repository itself. `.claude/skills` is a symlink to `.agents/skills`, because Claude Code reads only that folder.
+
 | Folder or skill | Loads |
 |---|---|
 | [`crates/AGENTS.md`](crates/AGENTS.md) | Working under `crates/` |
 | [`.github/workflows/AGENTS.md`](.github/workflows/AGENTS.md) | Working under `.github/workflows/` |
-| [`skills/adding-an-osf-command/SKILL.md`](skills/adding-an-osf-command/SKILL.md) | Adding a check, a lint rule, or an `osf` command |
-| [`skills/writing-a-workflow/SKILL.md`](skills/writing-a-workflow/SKILL.md) | Adding or editing a workflow file, or handling a secret |
-| [`skills/filing-an-issue/SKILL.md`](skills/filing-an-issue/SKILL.md) | Filing or editing an issue |
-| [`skills/opening-a-pull-request/SKILL.md`](skills/opening-a-pull-request/SKILL.md) | Opening a pull request, or updating its description |
-| [`skills/reviewing-a-pull-request/SKILL.md`](skills/reviewing-a-pull-request/SKILL.md) | Reviewing a pull request, or posting a review result |
-| [`skills/running-sub-agents/SKILL.md`](skills/running-sub-agents/SKILL.md) | Dispatching a sub-agent, or a batch of them |
+| [`.agents/skills/adding-an-osf-command/SKILL.md`](.agents/skills/adding-an-osf-command/SKILL.md) | Adding a check, a lint rule, or an `osf` command |
+| [`.agents/skills/writing-a-workflow/SKILL.md`](.agents/skills/writing-a-workflow/SKILL.md) | Adding or editing a workflow file, or handling a secret |
+| [`.agents/skills/filing-an-issue/SKILL.md`](.agents/skills/filing-an-issue/SKILL.md) | Filing or editing an issue |
+| [`.agents/skills/opening-a-pull-request/SKILL.md`](.agents/skills/opening-a-pull-request/SKILL.md) | Opening a pull request, or updating its description |
+| [`.agents/skills/reviewing-a-pull-request/SKILL.md`](.agents/skills/reviewing-a-pull-request/SKILL.md) | Reviewing a pull request, or posting a review result |
+| [`.agents/skills/running-sub-agents/SKILL.md`](.agents/skills/running-sub-agents/SKILL.md) | Dispatching a sub-agent, or a batch of them |
 | [`skills/show-me/SKILL.md`](skills/show-me/SKILL.md), [`skills/pr-outline/SKILL.md`](skills/pr-outline/SKILL.md) | A visual, or a pull request's change outline, would help |
 | [`docs/architecture/decisions/`](docs/architecture/decisions/) | Before any design decision |
