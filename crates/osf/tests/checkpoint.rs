@@ -861,6 +861,184 @@ fn a_wide_glob_task_excluding_moon_and_osf_out_still_caches_across_unchanged_run
     );
 }
 
+/// `scan-staged` reads the git index, not disk, so its own cache key must
+/// include the staged content, not just the file list: `OSF_INDEX_HASH`
+/// closes that gap. Staging a different blob for the same path, with the
+/// working tree reverted to the content the cached run already saw, must
+/// still miss — moon's own glob hash reads disk, and `OSF_FILES_HASH` only
+/// covers the path list, so neither one alone would catch this.
+#[test]
+fn an_index_only_change_still_misses_the_cache() {
+    let repo = TempRepo::new("cp-index-only-cache");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        "tasks:\n  probe:\n    script: 'exit 0'\n    inputs: ['/**/*.md', '$OSF_FILES_HASH', '$OSF_INDEX_HASH']\n    tags: [osf-pre-commit]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n",
+    );
+    repo.write("a.md", "a\n");
+    repo.commit("base");
+    repo.write("a.md", "secret-1\n");
+    repo.stage("a.md");
+    let home = isolated_home("cp-index-only-cache");
+
+    let run1 = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(run1.status.code(), Some(0), "{run1:?}");
+    assert!(
+        String::from_utf8_lossy(&run1.stdout).contains("cache miss"),
+        "{run1:?}"
+    );
+
+    let run2 = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(run2.status.code(), Some(0), "{run2:?}");
+    assert!(
+        String::from_utf8_lossy(&run2.stdout).contains("cache hit"),
+        "an unchanged staged file must cache-hit: {run2:?}"
+    );
+
+    // Stage a different blob for the same path, then revert the working
+    // tree to exactly what run1 and run2 already saw on disk: the file
+    // list and moon's own glob-hashed disk content are both unchanged, so
+    // only OSF_INDEX_HASH can tell runs 2 and 3 apart.
+    repo.write("a.md", "secret-2\n");
+    repo.stage("a.md");
+    repo.write("a.md", "secret-1\n");
+
+    let run3 = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-commit"]);
+    assert_eq!(run3.status.code(), Some(0), "{run3:?}");
+    assert!(
+        String::from_utf8_lossy(&run3.stdout).contains("cache miss"),
+        "a changed staged blob must miss even though the working tree matches the cached run: {run3:?}"
+    );
+}
+
+/// `scan-commits` reads commit hashes and messages, not files, so its own
+/// cache key must include the commit range, not just the file list:
+/// `OSF_COMMITS_HASH` closes that gap. Amending a commit's message alone,
+/// with its tree and the resulting file list unchanged, must still miss.
+#[test]
+fn a_commit_message_only_change_still_misses_the_cache() {
+    let repo = TempRepo::new("cp-commit-message-only-cache");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    repo.write(
+        ".osf/moon.yml",
+        "tasks:\n  probe:\n    script: 'exit 0'\n    inputs: ['/**/*.md', '$OSF_FILES_HASH', '$OSF_COMMITS_HASH']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: true\n",
+    );
+    let c0 = repo.commit("base");
+    repo.write("a.md", "a\n");
+    repo.commit("add a.md");
+    let home = isolated_home("cp-commit-message-only-cache");
+
+    let run1 = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &c0],
+    );
+    assert_eq!(run1.status.code(), Some(0), "{run1:?}");
+    assert!(
+        String::from_utf8_lossy(&run1.stdout).contains("cache miss"),
+        "{run1:?}"
+    );
+
+    let run2 = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &c0],
+    );
+    assert_eq!(run2.status.code(), Some(0), "{run2:?}");
+    assert!(
+        String::from_utf8_lossy(&run2.stdout).contains("cache hit"),
+        "the same base run twice over an unchanged tree must cache-hit: {run2:?}"
+    );
+
+    repo.git(&["commit", "-q", "--amend", "-m", "add a.md, reworded"]);
+
+    let run3 = run_osf(
+        &repo.dir,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &c0],
+    );
+    assert_eq!(run3.status.code(), Some(0), "{run3:?}");
+    assert!(
+        String::from_utf8_lossy(&run3.stdout).contains("cache miss"),
+        "an amended commit message must miss even though the tree and file list are unchanged: {run3:?}"
+    );
+}
+
+/// Only the hook checkpoint's own timeout is a "hook time limit", decision
+/// 0011. Every other checkpoint's timeout journals its per-task result as
+/// could-not-run, never skipped, and names itself in the reason rather
+/// than borrowing the hook's own wording.
+#[test]
+fn a_pre_push_timeout_is_journaled_as_could_not_run_not_a_hook_time_limit_skip() {
+    let repo = TempRepo::new("cp-pre-push-timeout");
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    let sleep = if cfg!(windows) {
+        "Start-Sleep -Seconds 6"
+    } else {
+        "sleep 6"
+    };
+    repo.write(
+        ".osf/moon.yml",
+        &format!(
+            "tasks:\n  slow:\n    script: '{sleep}'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n"
+        ),
+    );
+    let base = repo.commit("base");
+    repo.write("guide.md", "Clean.\n");
+    repo.commit("dirty");
+    let home = isolated_home("cp-pre-push-timeout");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "verify",
+            "--checkpoint",
+            "pre-push",
+            "--base",
+            &base,
+            "--timeout-secs",
+            "2",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+
+    let buffer = std::fs::read_dir(state(&home).join("buffer"))
+        .expect("buffer")
+        .next()
+        .expect("one file")
+        .expect("entry")
+        .path();
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+        .expect("read")
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("json"))
+        .collect();
+    let verification = lines
+        .iter()
+        .find(|e| e["event_type"] == "verification")
+        .expect("a verification event");
+    let payload = verification.get("payload").expect("a payload");
+    assert_eq!(
+        payload.get("result").and_then(serde_json::Value::as_str),
+        Some("could-not-run")
+    );
+    let reason = payload
+        .get("reason")
+        .and_then(serde_json::Value::as_str)
+        .expect("a reason");
+    assert!(!reason.contains("hook time limit"), "{reason}");
+    assert!(reason.contains("pre-push"), "{reason}");
+}
+
 /// A failing task's own result must never be served from moon's cache: an
 /// agent that keeps failing the same check on an unchanged tree must keep
 /// seeing that failure, not a stale success (or a stale failure that skips

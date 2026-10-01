@@ -267,6 +267,33 @@ fn cleanup_files_from(path: &Path) {
     let _ = std::fs::remove_file(path);
 }
 
+/// `OSF_INDEX_HASH`: the lower-case SHA-256 hex digest of `files`' staged
+/// blob hashes, one `path blob-sha` pair per line, sorted by path. A task
+/// that reads the git index rather than disk, such as `scan-staged`,
+/// declares this as a moon input so staging a new blob for an
+/// already-clean path invalidates its cache even though nothing on disk
+/// changed.
+fn index_hash_of(root: &Path, files: &[String]) -> Result<String, String> {
+    let mut lines: Vec<String> = Vec::new();
+    for file in files {
+        let blob = crate::git::staged_blob_hash(root, file).map_err(|e| e.to_string())?;
+        lines.push(format!("{file} {blob}\n"));
+    }
+    lines.sort();
+    Ok(crate::journal::sha256_hex(lines.concat().as_bytes()))
+}
+
+/// `OSF_COMMITS_HASH`: the lower-case SHA-256 hex digest of every commit
+/// hash in `base..HEAD`, oldest first. A task that reads commit hashes and
+/// messages rather than files, such as `scan-commits`, declares this as a
+/// moon input so amending a commit message alone — the tree and file list
+/// both unchanged — still invalidates its cache.
+fn commits_hash_of(root: &Path, base: &str) -> Result<String, String> {
+    let hashes =
+        crate::git::commit_hashes(root, &format!("{base}..HEAD")).map_err(|e| e.to_string())?;
+    Ok(crate::journal::sha256_hex(hashes.join("\n").as_bytes()))
+}
+
 /// The task id a moon target names: the part after its last `:`.
 fn task_id(target: &str) -> &str {
     target.rsplit(':').next().unwrap_or(target)
@@ -275,6 +302,7 @@ fn task_id(target: &str) -> &str {
 /// One SARIF result worth counting: never a suppressed one, since a
 /// suppressed finding is a decision already made, not something to count
 /// or show again.
+#[derive(Debug)]
 struct SarifFinding {
     rule: String,
     message: String,
@@ -284,6 +312,7 @@ struct SarifFinding {
 /// What reading a task's SARIF output found: every non-suppressed finding;
 /// the file was never written; or the file exists but could not be read or
 /// parsed.
+#[derive(Debug)]
 enum SarifOutcome {
     Findings(Vec<SarifFinding>),
     Missing,
@@ -322,13 +351,21 @@ fn sarif_outcome(root: &Path, target: &str) -> SarifOutcome {
         Ok(v) => v,
         Err(e) => return SarifOutcome::Unreadable(e.to_string()),
     };
-    let mut findings = Vec::new();
+    // A tool that never genuinely ran can still write valid JSON with no
+    // `runs` array, or a run with no `results` array, and exit 0. Either
+    // shape is unreadable, never a clean pass with nothing to show: a
+    // passing tool always writes at least one run with a `results` array,
+    // empty or not.
     let Some(runs) = value.get("runs").and_then(serde_json::Value::as_array) else {
-        return SarifOutcome::Findings(findings);
+        return SarifOutcome::Unreadable("SARIF has no \"runs\" array".to_string());
     };
+    if runs.is_empty() {
+        return SarifOutcome::Unreadable("SARIF's \"runs\" array is empty".to_string());
+    }
+    let mut findings = Vec::new();
     for run in runs {
         let Some(results) = run.get("results").and_then(serde_json::Value::as_array) else {
-            continue;
+            return SarifOutcome::Unreadable("a SARIF run has no \"results\" array".to_string());
         };
         for result in results {
             if is_suppressed(result) {
@@ -406,6 +443,42 @@ fn output_stream_block(target: &str, stream: &str, tail: Option<(String, usize, 
 
 const ACTOR: &str = "osf";
 
+/// One slot's table entry, kept to the most significant of the results of
+/// however many tasks share it: failed outranks could-not-run, which
+/// outranks skipped, which outranks a clean result, so a slot already a
+/// problem is never quietly overwritten by a tidier sibling that happened
+/// to be recorded after it.
+fn result_rank(result: CheckResult) -> u8 {
+    match result {
+        CheckResult::Failed => 0,
+        CheckResult::CouldNotRun => 1,
+        CheckResult::Skipped => 2,
+        CheckResult::NothingToCheck => 3,
+        CheckResult::Passed => 4,
+    }
+}
+
+/// Folds one task's `result` into `table` under `slot`, when it has one, by
+/// [`result_rank`]. A task with no slot contributes nothing: the table
+/// names only the slots decisions 0012-0014 define, never a bare check id.
+fn insert_slot_result(
+    table: &mut std::collections::BTreeMap<String, CheckResult>,
+    slot: Option<String>,
+    result: CheckResult,
+) {
+    let Some(slot) = slot else {
+        return;
+    };
+    table
+        .entry(slot)
+        .and_modify(|current| {
+            if result_rank(result) < result_rank(*current) {
+                *current = result;
+            }
+        })
+        .or_insert(result);
+}
+
 /// Appends a checkpoint-complete event when a journal is open, folding any
 /// append error into `journal_error` without ever losing an earlier one.
 fn append_checkpoint_complete(
@@ -414,6 +487,7 @@ fn append_checkpoint_complete(
     commit: Option<String>,
     result: CheckResult,
     checks: u32,
+    slots: std::collections::BTreeMap<String, CheckResult>,
     journal_error: &mut Option<String>,
 ) {
     let Some(j) = journal.as_mut() else {
@@ -427,6 +501,7 @@ fn append_checkpoint_complete(
             commit,
             result,
             checks,
+            slots,
         }),
     ) {
         journal_error.get_or_insert(e);
@@ -560,6 +635,7 @@ fn handle_ran(
     commit: Option<String>,
     label: &str,
     tasks: &[moon::TaskOutcome],
+    task_slots: &std::collections::BTreeMap<String, Option<String>>,
     mut error_findings: Vec<String>,
     mut journal_error: Option<String>,
 ) -> Summary {
@@ -568,6 +644,7 @@ fn handle_ran(
     let mut failed = 0u32;
     let mut skipped = 0u32;
     let mut total_findings = 0u32;
+    let mut slot_table = std::collections::BTreeMap::new();
     for task in tasks {
         let outcome = task_line(req.root, task);
         match outcome.result {
@@ -589,13 +666,15 @@ fn handle_ran(
         total_findings += outcome.findings_count;
         lines.push(outcome.line);
         let cache = if task.cached { "hit" } else { "miss" };
+        let slot = task_slots.get(&task.target).cloned().flatten();
+        insert_slot_result(&mut slot_table, slot.clone(), outcome.result);
         if let Some(j) = journal.as_mut() {
             if let Err(e) = j.append(
                 ACTOR,
                 now_millis(),
                 Payload::Verification(Verification {
                     check: task.target.clone(),
-                    slot: None,
+                    slot,
                     checkpoint: label.to_string(),
                     result: outcome.result,
                     duration_ms: task.duration_ms,
@@ -635,6 +714,7 @@ fn handle_ran(
         commit,
         overall,
         checks,
+        slot_table,
         &mut journal_error,
     );
     Summary {
@@ -665,6 +745,21 @@ struct Prepared {
 fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
     let base = resolve_base(req).map_err(could_not_run)?;
     let files = resolve_files(req, base.as_deref()).map_err(could_not_run)?;
+
+    // Only the checkpoints `scan-staged` and `scan-commits` actually run at
+    // need these: computing them elsewhere would cost a git call for
+    // nothing ever declaring them as a moon input.
+    let index_hash = if req.checkpoint == Checkpoint::PreCommit {
+        Some(index_hash_of(req.root, &files).map_err(could_not_run)?)
+    } else {
+        None
+    };
+    let commits_hash = match (&req.checkpoint, &base) {
+        (Checkpoint::PrePush | Checkpoint::PullRequest, Some(b)) => {
+            Some(commits_hash_of(req.root, b).map_err(could_not_run)?)
+        }
+        _ => None,
+    };
 
     let mut error_findings = Vec::new();
     if req.checkpoint == Checkpoint::PreCommit {
@@ -728,6 +823,12 @@ fn prepare(req: &Request, state_dir: &Path) -> Result<Prepared, Summary> {
         files_path.to_string_lossy().into_owned(),
     ));
     env.push(("OSF_FILES_HASH".to_string(), files_hash(&files)));
+    if let Some(h) = index_hash {
+        env.push(("OSF_INDEX_HASH".to_string(), h));
+    }
+    if let Some(h) = commits_hash {
+        env.push(("OSF_COMMITS_HASH".to_string(), h));
+    }
 
     Ok(Prepared {
         files,
@@ -745,6 +846,7 @@ fn append_unset_verification(
     journal: &mut Journal,
     label: &str,
     check: String,
+    slot: Option<String>,
     result: CheckResult,
     reason: &str,
     journal_error: &mut Option<String>,
@@ -754,7 +856,7 @@ fn append_unset_verification(
         now_millis(),
         Payload::Verification(Verification {
             check,
-            slot: None,
+            slot,
             checkpoint: label.to_string(),
             result,
             duration_ms: 0,
@@ -773,7 +875,8 @@ fn append_unset_verification(
 /// so one verification event per target the checkpoint was about to run
 /// records why, instead of leaving the journal silent about work that
 /// never happened. When even the target list cannot be read, records one
-/// event naming `moon` itself instead.
+/// event naming `moon` itself instead. Returns the slot table every one of
+/// those targets names, for the checkpoint-complete event that follows.
 fn append_unset_verifications(
     root: &Path,
     tag: &str,
@@ -782,14 +885,24 @@ fn append_unset_verifications(
     result: CheckResult,
     reason: &str,
     journal_error: &mut Option<String>,
-) {
+) -> std::collections::BTreeMap<String, CheckResult> {
+    let mut slots = std::collections::BTreeMap::new();
     let Some(j) = journal.as_mut() else {
-        return;
+        return slots;
     };
-    match moon::task_targets_for_tag(root, tag) {
-        Ok(targets) => {
-            for target in targets {
-                append_unset_verification(j, label, target, result, reason, journal_error);
+    match moon::task_slots_for_tag(root, tag) {
+        Ok(tasks) => {
+            for task in tasks {
+                insert_slot_result(&mut slots, task.slot.clone(), result);
+                append_unset_verification(
+                    j,
+                    label,
+                    task.target,
+                    task.slot,
+                    result,
+                    reason,
+                    journal_error,
+                );
             }
         }
         Err(e) => {
@@ -797,12 +910,14 @@ fn append_unset_verifications(
                 j,
                 label,
                 "moon".to_string(),
+                None,
                 CheckResult::CouldNotRun,
                 &e,
                 journal_error,
             );
         }
     }
+    slots
 }
 
 /// Builds the [`Summary`] for a `clear_stale_sarif` failure:
@@ -818,7 +933,7 @@ fn stale_sarif_could_not_run(
     mut journal_error: Option<String>,
     reason: &str,
 ) -> Summary {
-    append_unset_verifications(
+    let slots = append_unset_verifications(
         req.root,
         req.checkpoint.tag(),
         label,
@@ -835,6 +950,7 @@ fn stale_sarif_could_not_run(
         commit,
         CheckResult::CouldNotRun,
         line,
+        slots,
         error_findings,
         journal_error,
     )
@@ -857,16 +973,18 @@ fn timed_out_summary(
     } else {
         CheckResult::CouldNotRun
     };
-    let timeout_reason = format!(
-        "hook time limit {}s",
-        req.timeout.unwrap_or_default().as_secs()
-    );
-    append_unset_verifications(
+    let timeout_secs = req.timeout.unwrap_or_default().as_secs();
+    let timeout_reason = if req.checkpoint == Checkpoint::Hook {
+        format!("hook time limit {timeout_secs}s")
+    } else {
+        format!("{label} timed out after {timeout_secs}s")
+    };
+    let slots = append_unset_verifications(
         req.root,
         req.checkpoint.tag(),
         label,
         journal,
-        CheckResult::Skipped,
+        result,
         &timeout_reason,
         &mut journal_error,
     );
@@ -877,6 +995,7 @@ fn timed_out_summary(
         commit,
         result,
         format!("{label}: moon timed out"),
+        slots,
         error_findings,
         journal_error,
     )
@@ -894,7 +1013,7 @@ fn moon_could_not_run_summary(
     mut journal_error: Option<String>,
     reason: &str,
 ) -> Summary {
-    append_unset_verifications(
+    let slots = append_unset_verifications(
         req.root,
         req.checkpoint.tag(),
         label,
@@ -911,6 +1030,7 @@ fn moon_could_not_run_summary(
         commit,
         CheckResult::CouldNotRun,
         line,
+        slots,
         error_findings,
         journal_error,
     )
@@ -918,16 +1038,18 @@ fn moon_could_not_run_summary(
 
 /// Appends a checkpoint-complete event and builds the one-line [`Summary`]
 /// that goes with it, for every outcome that carries no per-task detail.
+#[allow(clippy::too_many_arguments)]
 fn finish(
     journal: &mut Option<Journal>,
     label: &str,
     commit: Option<String>,
     result: CheckResult,
     line: String,
+    slots: std::collections::BTreeMap<String, CheckResult>,
     error_findings: Vec<String>,
     mut journal_error: Option<String>,
 ) -> Summary {
-    append_checkpoint_complete(journal, label, commit, result, 0, &mut journal_error);
+    append_checkpoint_complete(journal, label, commit, result, 0, slots, &mut journal_error);
     Summary {
         result,
         lines: vec![line],
@@ -969,6 +1091,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
             commit,
             CheckResult::NothingToCheck,
             line,
+            std::collections::BTreeMap::new(),
             error_findings,
             journal_error,
         );
@@ -987,6 +1110,19 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
         );
     }
 
+    // A query failure here never blocks the checkpoint on its own: every
+    // other moon query on this path (`clear_stale_sarif`,
+    // `append_unset_verifications`) already fails the run on its own terms
+    // when moon cannot answer at all. Degrading to no slots just means
+    // every task's own verification event names no slot, same as a task
+    // that genuinely carries no `osf-slot-*` tag.
+    let task_slots: std::collections::BTreeMap<String, Option<String>> =
+        moon::task_slots_for_tag(req.root, req.checkpoint.tag())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|t| (t.target, t.slot))
+            .collect();
+
     let target = format!(":#{}", req.checkpoint.tag());
     let outcome = moon::run(&Invocation {
         root: req.root,
@@ -1004,6 +1140,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
             commit,
             CheckResult::NothingToCheck,
             format!("{label}: nothing to check"),
+            std::collections::BTreeMap::new(),
             error_findings,
             journal_error,
         ),
@@ -1013,6 +1150,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
             commit,
             label,
             &tasks,
+            &task_slots,
             error_findings,
             journal_error,
         ),
@@ -1122,6 +1260,79 @@ mod tests {
         assert!(ran_could_not_run(Checkpoint::Hook, &tasks).is_none());
         let empty: Vec<TaskOutcome> = Vec::new();
         assert!(ran_could_not_run(Checkpoint::Hook, &empty).is_none());
+    }
+
+    /// Writes `.osf/out/<id>.sarif` under `root` with raw `content`.
+    fn write_sarif(root: &Path, id: &str, content: &str) {
+        let dir = root.join(".osf").join("out");
+        std::fs::create_dir_all(&dir).expect("sarif dir creates");
+        std::fs::write(dir.join(format!("{id}.sarif")), content).expect("sarif writes");
+    }
+
+    /// A tool that never genuinely ran can still write `{}` and exit 0: no
+    /// `runs` array at all must read as unreadable, never as a clean pass
+    /// with zero findings.
+    #[test]
+    fn a_sarif_document_with_no_runs_array_is_unreadable() {
+        let root = TempDir::new("osf-sarif-no-runs");
+        write_sarif(&root, "probe", "{}");
+        assert!(matches!(
+            sarif_outcome(&root, "p:probe"),
+            SarifOutcome::Unreadable(_)
+        ));
+    }
+
+    /// A `runs` array with no entries is the same problem as none at all.
+    #[test]
+    fn a_sarif_document_with_an_empty_runs_array_is_unreadable() {
+        let root = TempDir::new("osf-sarif-empty-runs");
+        write_sarif(&root, "probe", r#"{"runs":[]}"#);
+        assert!(matches!(
+            sarif_outcome(&root, "p:probe"),
+            SarifOutcome::Unreadable(_)
+        ));
+    }
+
+    /// A run with no `results` array at all is unreadable, not zero findings.
+    #[test]
+    fn a_sarif_run_with_no_results_array_is_unreadable() {
+        let root = TempDir::new("osf-sarif-no-results");
+        write_sarif(&root, "probe", r#"{"runs":[{}]}"#);
+        assert!(matches!(
+            sarif_outcome(&root, "p:probe"),
+            SarifOutcome::Unreadable(_)
+        ));
+    }
+
+    /// A run with a genuinely empty `results` array is a real, clean pass:
+    /// the one legitimate shape of zero findings, never confused with the
+    /// two unreadable shapes above.
+    #[test]
+    fn a_sarif_run_with_an_empty_results_array_is_zero_findings() {
+        let root = TempDir::new("osf-sarif-empty-results");
+        write_sarif(&root, "probe", r#"{"runs":[{"results":[]}]}"#);
+        match sarif_outcome(&root, "p:probe") {
+            SarifOutcome::Findings(findings) => assert!(findings.is_empty()),
+            other => panic!("expected zero findings, got {other:?}"),
+        }
+    }
+
+    /// Two tasks sharing a slot report the worse of their two results, so
+    /// a passing task never hides a failing sibling in the same slot.
+    #[test]
+    fn a_shared_slot_keeps_the_worse_of_two_results() {
+        let mut table = std::collections::BTreeMap::new();
+        insert_slot_result(&mut table, Some("lint".to_string()), CheckResult::Passed);
+        insert_slot_result(&mut table, Some("lint".to_string()), CheckResult::Failed);
+        assert_eq!(table.get("lint"), Some(&CheckResult::Failed));
+    }
+
+    /// A task with no slot contributes no entry at all.
+    #[test]
+    fn a_task_with_no_slot_is_left_out_of_the_table() {
+        let mut table = std::collections::BTreeMap::new();
+        insert_slot_result(&mut table, None, CheckResult::Passed);
+        assert!(table.is_empty());
     }
 
     /// Runs `git init --quiet` in `dir`.

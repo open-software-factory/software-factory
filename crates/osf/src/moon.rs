@@ -342,16 +342,27 @@ fn read_all(pipe: &mut impl std::io::Read) -> String {
     buf
 }
 
-/// The moon targets tagged `tag`, from `moon query tasks --tags <tag>`.
-/// Moon itself decides tag membership across every project in the
-/// workspace, so this reads exactly the set `moon run :#<tag>` is about to
-/// select, rather than this crate guessing at it by re-reading a project's
-/// own YAML.
+/// One task `moon query tasks` named: its target, and the slot its own
+/// `osf-slot-*` tag names (decisions 0012-0014), when it carries one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TaskSlot {
+    pub target: String,
+    pub slot: Option<String>,
+}
+
+/// The prefix an `osf-slot-*` moon tag carries before the slot's own name.
+const SLOT_TAG_PREFIX: &str = "osf-slot-";
+
+/// The moon tasks tagged `tag`, each with its slot, from `moon query tasks
+/// --tags <tag>`. Moon itself decides tag membership across every project
+/// in the workspace, so this reads exactly the set `moon run :#<tag>` is
+/// about to select, rather than this crate guessing at it by re-reading a
+/// project's own YAML.
 ///
 /// # Errors
 /// Returns an error when moon cannot run, exits non-zero, or its output
 /// does not parse.
-pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, String> {
+pub fn task_slots_for_tag(root: &Path, tag: &str) -> Result<Vec<TaskSlot>, String> {
     let mut command = Command::new(moon_binary());
     command
         .args(["query", "tasks", "--tags", tag])
@@ -369,27 +380,50 @@ pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, Strin
     parse_query_tasks(&String::from_utf8_lossy(&output.stdout))
 }
 
-/// Parses `moon query tasks`' JSON: one target per task, across every
-/// project the query returned.
-fn parse_query_tasks(json: &str) -> Result<Vec<String>, String> {
+/// The moon targets tagged `tag`: [`task_slots_for_tag`], targets only,
+/// for every caller that has no use for a task's slot.
+///
+/// # Errors
+/// Returns an error under the same conditions as [`task_slots_for_tag`].
+pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, String> {
+    Ok(task_slots_for_tag(root, tag)?
+        .into_iter()
+        .map(|t| t.target)
+        .collect())
+}
+
+/// Parses `moon query tasks`' JSON: one target, and its slot if it has
+/// one, per task, across every project the query returned.
+fn parse_query_tasks(json: &str) -> Result<Vec<TaskSlot>, String> {
     let value: serde_json::Value = serde_json::from_str(json)
         .map_err(|e| format!("moon query tasks output is not JSON: {e}"))?;
     let projects = value
         .get("tasks")
         .and_then(serde_json::Value::as_object)
         .ok_or("moon query tasks output has no tasks object")?;
-    let mut targets = Vec::new();
+    let mut out = Vec::new();
     for tasks in projects.values() {
         let Some(tasks) = tasks.as_object() else {
             continue;
         };
         for task in tasks.values() {
-            if let Some(target) = task.get("target").and_then(serde_json::Value::as_str) {
-                targets.push(target.to_string());
-            }
+            let Some(target) = task.get("target").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let slot = task
+                .get("tags")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(serde_json::Value::as_str)
+                .find_map(|t| t.strip_prefix(SLOT_TAG_PREFIX).map(str::to_string));
+            out.push(TaskSlot {
+                target: target.to_string(),
+                slot,
+            });
         }
     }
-    Ok(targets)
+    Ok(out)
 }
 
 /// Parses moon's `runReport.json`, one [`TaskOutcome`] per target moon was
@@ -759,8 +793,31 @@ mod tests {
 
     #[test]
     fn the_captured_query_parses_into_one_target_per_task() {
-        let targets = parse_query_tasks(QUERY_TASKS).expect("query parses");
-        assert_eq!(targets, vec!["osf:probe".to_string()]);
+        let tasks = parse_query_tasks(QUERY_TASKS).expect("query parses");
+        assert_eq!(
+            tasks,
+            vec![TaskSlot {
+                target: "osf:probe".to_string(),
+                slot: Some("probe".to_string()),
+            }]
+        );
+    }
+
+    /// A task with no `osf-slot-*` tag at all names no slot, rather than
+    /// the query failing or defaulting to one that is not really there.
+    #[test]
+    fn a_task_with_no_slot_tag_has_no_slot() {
+        let tasks = parse_query_tasks(
+            r#"{"tasks":{"osf":{"fmt":{"target":"osf:fmt","tags":["osf-pre-commit"]}}}}"#,
+        )
+        .expect("query parses");
+        assert_eq!(
+            tasks,
+            vec![TaskSlot {
+                target: "osf:fmt".to_string(),
+                slot: None
+            }]
+        );
     }
 
     #[test]

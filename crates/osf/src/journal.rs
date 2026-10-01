@@ -46,6 +46,10 @@ pub struct CheckpointComplete {
     pub commit: Option<String>,
     pub result: CheckResult,
     pub checks: u32,
+    /// Slot name to that slot's result, decisions 0012-0014: a `BTreeMap`
+    /// so its JSON key order, and so its place in the replay hash, never
+    /// depends on the order tasks happened to run in.
+    pub slots: std::collections::BTreeMap<String, CheckResult>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
