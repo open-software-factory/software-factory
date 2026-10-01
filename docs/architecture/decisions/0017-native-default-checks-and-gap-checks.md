@@ -54,7 +54,7 @@ Each ecosystem uses its own native licence tool first. Trivy is the fallback for
 
 ### Gap checks
 
-A slot with no tool gets a gap check. It is a shipped default task that runs `osf gap <slot>`. On its first run in a repository it creates or updates one issue in the osf repository that tracks the gap. It reports at warning with the link to that issue, and the slot table shows the slot as a gap tracked by that issue. A gap check is never an untracked empty slot.
+A slot with no tool gets a gap check. It is a shipped default task that runs `osf gap <slot>`. On its first run in a repository it creates or updates one issue in that repository's own tracker, reached through the tracker adapter from [decision 0010](0010-first-tracker-sandbox-and-harness-adapters.md), never a fixed destination in osf's own repository. It reports at warning with the link to that issue, and the slot table shows the slot as a gap tracked by that issue. A gap check is never an untracked empty slot.
 
 This replaces the empty-slot warning in decision 0012. A slot only an adopter can fill, such as architecture tests in a codebase the factory does not know, gets the same gap check until the adopter tags a task for it.
 
