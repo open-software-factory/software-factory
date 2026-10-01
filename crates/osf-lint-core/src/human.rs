@@ -56,7 +56,7 @@ mod tests {
     fn the_offending_line_and_excerpt_are_both_shown() {
         let source = "Fixed in #125 today.\n";
         let findings = vec![Finding::new(
-            "bare-reference",
+            "unplaceable-reference",
             Level::Error,
             1,
             "write the repository before the number".to_string(),
@@ -64,7 +64,7 @@ mod tests {
         )];
         let rendered = render_human("message.txt", source, &findings);
         assert!(rendered.contains("#125"));
-        assert!(rendered.contains("bare-reference"));
+        assert!(rendered.contains("unplaceable-reference"));
         assert!(rendered.contains("message.txt"));
     }
 

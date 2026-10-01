@@ -4,7 +4,7 @@ Software Factory is an agent-native operating environment for shipping high-qual
 
 It is for engineers who run coding agents over their own repositories and want that work verified, recorded and visible.
 
-The project is moving from vision and research toward its first architecture and implementation. There is no runnable factory yet. What runs today is `osf`, a command-line tool. It lints prose and skill files. It scans for text that must never reach a public repository. It reports the risk of a change, and it keeps a status block on a pull request. Build it and try it on this repository:
+The project is moving from vision and research toward its first architecture and implementation. There is no runnable factory yet. What exists now is `osf`, a command-line tool. It lints prose and skill files. It scans for text that must never reach a public repository. It reports the risk of a change, and it keeps a status block on a pull request. Build it and try it on this repository:
 
 ```
 cargo run -p osf -- --help

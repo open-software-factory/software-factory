@@ -82,7 +82,7 @@ mod tests {
     fn sample() -> Sarif {
         let findings = vec![
             Finding::new(
-                "bare-reference",
+                "unplaceable-reference",
                 Level::Error,
                 3,
                 "write the repository before the number".to_string(),
@@ -114,7 +114,7 @@ mod tests {
         assert_eq!(results.len(), 2);
         assert_eq!(
             results.first().and_then(|r| r.rule_id.as_deref()),
-            Some("bare-reference")
+            Some("unplaceable-reference")
         );
     }
 
@@ -160,7 +160,7 @@ mod tests {
         let results = run.results.as_ref().expect("results present");
         assert_eq!(results.len(), 2);
         let first = results.first().expect("first result");
-        assert_eq!(first.rule_id.as_deref(), Some("bare-reference"));
+        assert_eq!(first.rule_id.as_deref(), Some("unplaceable-reference"));
         assert_eq!(first.level, Some(serde_sarif::sarif::ResultLevel::Error));
         let location = first
             .locations

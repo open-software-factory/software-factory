@@ -69,7 +69,7 @@ fn pre_commit_lints_the_message_file_when_one_is_given() {
     repo.commit("add a file");
 
     let message_path = repo.dir.join("MSG");
-    std::fs::write(&message_path, "Do Phase 2 next.\n").expect("message file writes");
+    std::fs::write(&message_path, "Fixed the login crash in #125.\n").expect("message file writes");
 
     let config = Config::default();
     let excluder = Excluder::none();
@@ -101,7 +101,7 @@ fn push_fixture(name: &str) -> (TempRepo, String) {
         "leak.md",
         &format!("See {} here.\n", session_link("abc123")),
     );
-    repo.write("guide.md", "Do Phase 2 next.\n");
+    repo.write("guide.md", "Fixed in #125 today.\n");
     repo.write(
         "skills/demo/SKILL.md",
         "---\nname: demo\ndescription: Checks a folder for problems.\n---\n\n1. Run the check.\n",
@@ -187,7 +187,7 @@ fn pre_push_honours_a_suppression_marker_that_ci_ignores() {
     let base = repo.commit("base commit");
     repo.write(
         "notes.md",
-        "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n",
+        "Fixed in #125 now. <!-- osf-disable-line unplaceable-reference -- tracked -->\n",
     );
     repo.commit("add a suppressed finding");
 
@@ -388,4 +388,41 @@ fn a_writing_fixture_missing_a_declared_rule_fails() {
     assert_eq!(report.total_errors(), 1, "{summary}");
     let rules: Vec<&str> = report.findings().map(|(_, _, f)| f.rule).collect();
     assert!(rules.contains(&"expectation-missing"), "{rules:?}");
+}
+
+/// A writing fixture that declares a rule retired along with the six old
+/// reference and name rules names the replacement, rather than reporting a
+/// bare "did not fire".
+#[test]
+fn a_writing_fixture_declaring_a_retired_rule_names_its_replacement() {
+    let repo = TempRepo::new("writing-fixture-retired");
+    repo.write("base.md", "Clean.\n");
+    let base = repo.commit("base commit");
+    repo.write(
+        "crates/osf/tests/fixtures/writing/demo.md",
+        "Fixed in #125 today.\n\n<!-- osf-expect\nbare-reference\n-->\n",
+    );
+    repo.commit("add a fixture declaring a retired rule");
+
+    let config = Config::default();
+    let excluder = Excluder::none();
+    let options = Options {
+        dir: &repo.dir,
+        base: Some(base),
+        message_file: None,
+        config: &config,
+        excluder: &excluder,
+    };
+    let report = run(Stage::PrePush, &options).expect("pre-push runs");
+    let summary = report.render_summary("pre-push");
+    assert_eq!(report.total_errors(), 1, "{summary}");
+    let finding = report
+        .findings()
+        .map(|(_, _, f)| f)
+        .find(|f| f.rule == "expectation-retired-rule")
+        .unwrap_or_else(|| panic!("{summary}"));
+    assert!(
+        finding.message.contains("unplaceable-reference"),
+        "{summary}"
+    );
 }

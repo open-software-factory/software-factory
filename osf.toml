@@ -14,8 +14,8 @@ repository_visibility = "public"
 [writing]
 # Real tools this repository names in its own docs, plainly spelled, with
 # no internal capital, digit, or domain suffix to give the writing lint's
-# undefined-name rule anything to go on by itself. Read even under --gate;
-# see gate_loaded in crates/osf/src/config.rs for why that is safe.
+# unplaceable-reference rule anything to go on by itself. Read even under
+# --gate; see gate_loaded in crates/osf/src/config.rs for why that is safe.
 #
 #   - Linear: an issue tracker, docs/architecture/open-questions.md:54 and
 #     docs/research/ux/ux-references.md:123.

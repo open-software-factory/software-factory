@@ -155,24 +155,35 @@ fn require_reason(marker: &Marker, diagnostics: &mut Vec<Finding>) {
 }
 
 /// Report every id not in `known`, and return only the known ones. `None`
-/// (the bare form) passes through unchanged: it means every rule.
+/// (the bare form) passes through unchanged: it means every rule. An id
+/// found in `retired` (old id, replacement id) names the rule that
+/// replaced it, so a caller migrating away from a removed rule sees where
+/// to go instead of a bare "not a rule id".
 fn validate_ids(
     ids: Option<Vec<String>>,
     known: &[&str],
+    retired: &[(&str, &str)],
     line: usize,
     diagnostics: &mut Vec<Finding>,
 ) -> Option<Vec<String>> {
     let ids = ids?;
     for id in &ids {
-        if !known.contains(&id.as_str()) {
-            diagnostics.push(Finding::new(
-                "suppression-unknown-rule",
-                Level::Error,
-                line,
-                format!("'{id}' is not a rule id"),
-                id.clone(),
-            ));
+        if known.contains(&id.as_str()) {
+            continue;
         }
+        let message = match retired.iter().find(|(old, _)| *old == id.as_str()) {
+            Some((_, replacement)) => {
+                format!("'{id}' is not a rule id any more; it was replaced by '{replacement}'")
+            }
+            None => format!("'{id}' is not a rule id"),
+        };
+        diagnostics.push(Finding::new(
+            "suppression-unknown-rule",
+            Level::Error,
+            line,
+            message,
+            id.clone(),
+        ));
     }
     Some(
         ids.into_iter()
@@ -217,13 +228,17 @@ fn close_blocks(
     }
 }
 
-fn build(markers: Vec<Marker>, known: &[&str]) -> (Vec<Span>, Vec<Finding>) {
+fn build(
+    markers: Vec<Marker>,
+    known: &[&str],
+    retired: &[(&str, &str)],
+) -> (Vec<Span>, Vec<Finding>) {
     let mut diagnostics = Vec::new();
     let mut open: Vec<OpenBlock> = Vec::new();
     let mut spans = Vec::new();
     for marker in markers {
         require_reason(&marker, &mut diagnostics);
-        let rules = validate_ids(marker.ids, known, marker.line, &mut diagnostics);
+        let rules = validate_ids(marker.ids, known, retired, marker.line, &mut diagnostics);
         match marker.kind {
             Kind::Line => spans.push(Span::new(marker.line, marker.line, rules, marker.reason)),
             Kind::NextLine => spans.push(Span::new(
@@ -270,15 +285,19 @@ fn unused_warning(span: &Span) -> Finding {
 /// finding is kept, not dropped, with its reason recorded. The result also
 /// carries the suppression engine's own diagnostics: a marker with no
 /// reason, an unknown rule id, and a marker that matched nothing.
+/// `retired_rules` names ids a caller's rule set no longer produces, each
+/// paired with the id that replaced it, purely to improve that diagnostic's
+/// message; pass an empty slice when there is nothing to migrate away from.
 #[must_use]
 pub fn apply_suppressions(
     source: &str,
     mut findings: Vec<Finding>,
     known_rules: &[&str],
+    retired_rules: &[(&str, &str)],
 ) -> Vec<Finding> {
     let doc_lines = line_starts(source);
     let markers = scan_markers(source, &doc_lines);
-    let (mut spans, diagnostics) = build(markers, known_rules);
+    let (mut spans, diagnostics) = build(markers, known_rules, retired_rules);
     for finding in &mut findings {
         let mut reason = None;
         for span in &mut spans {
@@ -298,76 +317,88 @@ pub fn apply_suppressions(
 mod tests {
     use super::*;
 
-    const RULES: &[&str] = &["bare-reference", "long-sentence"];
+    const RULES: &[&str] = &["unplaceable-reference", "long-sentence"];
+    const RETIRED: &[(&str, &str)] = &[("bare-reference", "unplaceable-reference")];
 
-    /// A probe finding, as if `bare-reference` had fired on `line`.
+    /// A probe finding, as if `unplaceable-reference` had fired on `line`.
     fn run(source: &str, line: usize) -> Vec<Finding> {
         let finding = Finding::new(
-            "bare-reference",
+            "unplaceable-reference",
             Level::Error,
             line,
-            "write the repository before the number".to_string(),
+            "say what #125 points to".to_string(),
             "#125".to_string(),
         );
-        apply_suppressions(source, vec![finding], RULES)
+        apply_suppressions(source, vec![finding], RULES, &[])
     }
 
-    fn bare_reference(found: &[Finding]) -> &Finding {
+    fn run_with_retired(source: &str, line: usize) -> Vec<Finding> {
+        let finding = Finding::new(
+            "unplaceable-reference",
+            Level::Error,
+            line,
+            "say what #125 points to".to_string(),
+            "#125".to_string(),
+        );
+        apply_suppressions(source, vec![finding], RULES, RETIRED)
+    }
+
+    fn probe(found: &[Finding]) -> &Finding {
         found
             .iter()
-            .find(|f| f.rule == "bare-reference")
+            .find(|f| f.rule == "unplaceable-reference")
             .expect("the probe finding is kept, suppressed or not")
     }
 
     #[test]
     fn disable_line_covers_only_that_line() {
-        let t = "One.\nFixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n";
+        let t =
+            "One.\nFixed in #125 today. <!-- osf-disable-line unplaceable-reference -- tracked -->\n";
         let found = run(t, 2);
-        assert_eq!(
-            bare_reference(&found).suppressed.as_deref(),
-            Some("tracked")
-        );
+        assert_eq!(probe(&found).suppressed.as_deref(), Some("tracked"));
     }
 
     #[test]
     fn disable_next_line_covers_the_line_after() {
-        let t = "<!-- osf-disable-next-line bare-reference -- tracked -->\nFixed in #125 today.\n";
+        let t =
+            "<!-- osf-disable-next-line unplaceable-reference -- tracked -->\nFixed in #125 today.\n";
         let found = run(t, 2);
-        assert!(bare_reference(&found).suppressed.is_some());
+        assert!(probe(&found).suppressed.is_some());
     }
 
     #[test]
     fn disable_and_enable_bound_a_block() {
-        let t = "<!-- osf-disable bare-reference -- tracked -->\nFixed in #125 today.\n<!-- osf-enable bare-reference -->\n";
+        let t = "<!-- osf-disable unplaceable-reference -- tracked -->\nFixed in #125 today.\n<!-- osf-enable unplaceable-reference -->\n";
         let found = run(t, 2);
-        assert!(bare_reference(&found).suppressed.is_some());
+        assert!(probe(&found).suppressed.is_some());
     }
 
     #[test]
     fn a_block_never_enabled_covers_to_end_of_file() {
-        let t = "<!-- osf-disable bare-reference -- tracked -->\nFixed in #125 today.\n";
+        let t = "<!-- osf-disable unplaceable-reference -- tracked -->\nFixed in #125 today.\n";
         let found = run(t, 2);
-        assert!(bare_reference(&found).suppressed.is_some());
+        assert!(probe(&found).suppressed.is_some());
         assert!(found.iter().all(|f| f.rule != "suppression-unused"));
     }
 
     #[test]
     fn disable_file_covers_the_whole_file() {
-        let t = "<!-- osf-disable-file bare-reference -- tracked -->\nOne.\nFixed in #125 today.\n";
+        let t =
+            "<!-- osf-disable-file unplaceable-reference -- tracked -->\nOne.\nFixed in #125 today.\n";
         let found = run(t, 3);
-        assert!(bare_reference(&found).suppressed.is_some());
+        assert!(probe(&found).suppressed.is_some());
     }
 
     #[test]
     fn the_bare_form_covers_every_rule() {
         let t = "Fixed in #125 today. <!-- osf-disable-line -- tracked -->\n";
         let found = run(t, 1);
-        assert!(bare_reference(&found).suppressed.is_some());
+        assert!(probe(&found).suppressed.is_some());
     }
 
     #[test]
     fn a_missing_reason_is_an_error() {
-        let t = "Fixed in #125 today. <!-- osf-disable-line bare-reference -->\n";
+        let t = "Fixed in #125 today. <!-- osf-disable-line unplaceable-reference -->\n";
         let found = run(t, 5);
         assert_eq!(
             found
@@ -385,7 +416,21 @@ mod tests {
         assert!(found
             .iter()
             .any(|f| f.rule == "suppression-unknown-rule" && f.excerpt == "not-a-rule"));
-        assert!(bare_reference(&found).suppressed.is_none());
+        assert!(probe(&found).suppressed.is_none());
+    }
+
+    /// A suppression naming a retired id is still an error, but the message
+    /// points at the rule that replaced it instead of a bare "not a rule id".
+    #[test]
+    fn a_retired_rule_id_names_its_replacement() {
+        let t = "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n";
+        let found = run_with_retired(t, 1);
+        let diagnostic = found
+            .iter()
+            .find(|f| f.rule == "suppression-unknown-rule" && f.excerpt == "bare-reference")
+            .expect("a retired id is still reported as unknown");
+        assert!(diagnostic.message.contains("unplaceable-reference"));
+        assert!(probe(&found).suppressed.is_none());
     }
 
     #[test]

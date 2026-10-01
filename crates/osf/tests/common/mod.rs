@@ -110,6 +110,42 @@ pub fn run_osf(
         .expect("osf runs")
 }
 
+/// Runs the compiled `osf` binary in `dir` the same way [`run_osf`] does,
+/// but writes `input` to the child's standard input first, for a subcommand
+/// such as `hook stop` that reads an event from there. `TMPDIR` is pointed
+/// at `home` too, since the stop hook keeps its bounce counter and advice
+/// files under the process temp directory, keyed only by session id.
+pub fn run_osf_with_stdin(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    args: &[&str],
+    input: &str,
+) -> std::process::Output {
+    use std::io::Write as _;
+    use std::process::Stdio;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_osf"))
+        .current_dir(dir)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("TMPDIR", home)
+        .env_remove("OSF_CONFIG")
+        .env_remove("OSF_DENYLIST")
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("osf spawns");
+    child
+        .stdin
+        .take()
+        .expect("stdin was piped")
+        .write_all(input.as_bytes())
+        .expect("stdin writes");
+    child.wait_with_output().expect("osf runs")
+}
+
 /// Builds a session-link-shaped string at run time for one agent, from the
 /// host and path the agent list holds apart. A scan rule fixture needs the
 /// real shape to prove the rule fires, but this repository's own `osf scan`

@@ -91,8 +91,8 @@ test("an earlier reply is used when the last message is tool calls only", () => 
 });
 
 test("a refusal carries its reason", () => {
-  const result = readResult({ code: 2, stderr: "message:1: error [bare-reference]\n" });
-  assert.deepEqual(result, { kind: "refused", reason: "message:1: error [bare-reference]" });
+  const result = readResult({ code: 2, stderr: "message:1: error [unplaceable-reference]\n" });
+  assert.deepEqual(result, { kind: "refused", reason: "message:1: error [unplaceable-reference]" });
 });
 
 test("a clean check passes", () => {

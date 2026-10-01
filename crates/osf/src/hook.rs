@@ -611,7 +611,7 @@ mod tests {
         f
     }
 
-    /// Change 3: an advise finding must not block the stop hook.
+    /// An advise finding must not block the stop hook.
     #[test]
     fn an_advise_only_batch_does_not_block() {
         let findings = vec![
@@ -656,7 +656,7 @@ mod tests {
         );
     }
 
-    /// Change 3: an advise finding's advice survives to `osf hook prompt`.
+    /// An advise finding's advice survives to `osf hook prompt`.
     #[test]
     fn advice_survives_to_the_next_prompt() {
         let session = "test-session-advice-survives";
@@ -822,5 +822,20 @@ mod tests {
             !counter.exists(),
             "the counter is cleared once the turn is let through"
         );
+    }
+
+    /// A weak-evidence name is a guess, not a fact, so it must never refuse
+    /// a reply on its own.
+    #[test]
+    fn a_reply_with_only_a_weak_evidence_name_finding_is_not_refused() {
+        let session = "test-session-weak-evidence-name-only";
+        let _ = std::fs::remove_file(counter_path(session, ""));
+        let raw = serde_json::json!({
+            "session_id": session,
+            "last_assistant_message": "DuckDB runs fast."
+        })
+        .to_string();
+        let code = stop_with_input(Ok(raw), None, 2, &WritingConfig::default(), None);
+        assert!(!is_refusal(code));
     }
 }

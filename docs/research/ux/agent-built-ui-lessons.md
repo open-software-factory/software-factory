@@ -72,4 +72,4 @@ Also known: a 31 GB npm cache filled the disk during the runs. Watch cache size 
 
 ## Sources
 
-This note summarizes a local forensic review and an independent blind review of the four console builds, both run on 24 August 2026. The review files themselves are not included in this repository. The screenshots in [`prototypes/`](prototypes/README.md) and the findings above are what remains of that work.
+This note summarizes a local forensic review and an independent blind review of the four console builds, both run on 24 August 2026. The review files themselves are not included in this repository. The screenshots in [`prototypes/`](prototypes/README.md) and the findings this note records are what remains of that work.

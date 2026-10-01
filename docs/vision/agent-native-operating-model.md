@@ -116,7 +116,7 @@ Product decisions are probabilistic: evidence supports a belief about what users
 
 Automation in the product loop reduces the cost of evidence gathering and synthesis by making research faster, experiment analysis immediate and signal aggregation continuous. This allows more product-loop cycles per unit time. Humans still make the judgments between evidence and insight.
 
-See Automated SPDLC / SDLC, Phase 0: Discovery and Phase 1: Requirements & Specification, for tooling and verification detail.
+See Automated SPDLC / SDLC, Phase 0: Discovery and ideation, and Phase 1: Requirements & Specification, for tooling and verification detail.
 
 ## 4. The engineering loop
 
@@ -146,7 +146,7 @@ A traditional backlog is a sequential queue. An agent-swarm backlog is a portfol
 | Architectural investment | Debt reduction, infrastructure improvement, fitness function improvements. Enables future delivery. | Debt trend data; delivery pace signal; architectural review     | 15–25%             |
 | Operational necessity    | Security patches, compliance requirements, dependency updates. Non-negotiable.                      | Vulnerability report, compliance deadline, or dependency EOL    | 5–10%              |
 
-The portfolio mix is a product decision. A business that allocates 80% to validated bets and 5% to experiments harvests known value while discovering little new value. A business that allocates 50% to experiments learns quickly but may deliver too little. The right mix depends on business stage, market position and current evidence quality.
+The portfolio mix is a product decision. A business with an 80% share on validated bets and a 5% share on experiments harvests known value while discovering little new value. A business with a 50% share on experiments learns quickly but may deliver too little. The right mix depends on business stage, market position and current evidence quality.
 
 ### 4.3 The path to exception-only
 
@@ -159,7 +159,7 @@ Exception-only human involvement is earned domain by domain as automation proves
 | Exception-only             | Human responds to escalations; system runs autonomously                        | Sustained low false-positive rate; tracked reliability metrics; rollback tested   |
 | Autonomous with monitoring | Human reviews the aggregate metrics and meta-loop output. Individual decisions go unreviewed | Mature, stable, monitored automation with demonstrated self-correction capability |
 
-See Automated SPDLC / SDLC, Phases 3–8, for engineering-loop verification detail and gate specifications.
+See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md) for engineering-loop verification detail and gate specifications, in Phase 3 (the implementation stage) through Phase 8 (the operations stage).
 
 ## 5. Human roles
 
@@ -238,7 +238,7 @@ The model shifts from review (human examining individual changes) to governance 
 | Architecture enforced by convention and culture        | Architecture enforced by automated rules with explicit documented exceptions |
 | Significant changes escalate to principal engineers    | Fitness function failures escalate to product engineers                      |
 
-See Automated SPDLC / SDLC, Phase 2: Design & Architecture and Phase 11: The Meta-Loop, for fitness-function implementation detail.
+See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md), Phase 2: Design & Architecture and Phase 11: The Meta-Loop, for fitness-function implementation detail.
 
 ## 7. The meta-loop
 
@@ -246,7 +246,7 @@ The meta-loop lets the system review and improve its own operation.
 
 ### 7.1 Why the meta-loop is infrastructure
 
-Product discovery, engineering execution and architectural governance all degrade without maintenance. Gates drift out of calibration. LLM capabilities improve faster than prompts are updated. Tools are superseded. Thresholds that were right six months ago produce noise today.
+Product discovery, engineering execution and architectural governance all degrade without maintenance. Gates drift out of calibration. LLM capabilities improve faster than prompts are updated. Tools are superseded. Thresholds that were right six months ago produce noise now.
 
 The meta-loop maintains the automation layer so the other loops continue to work correctly.
 
@@ -340,7 +340,7 @@ The architectural investment category in the portfolio (15–25% of the backlog)
 
 ### 10.1 The frontier moves quickly
 
-Every quarter, the frontier of what is automatable advances. LLM capabilities improve. New deterministic tooling emerges. Patterns that required human judgment last year can be expressed as rules this year. The meta-loop exists specifically to capture these advances as they occur.
+Every quarter, the frontier of what is automatable advances. LLM capabilities improve. New deterministic tooling emerges. Patterns that once required human judgment can, before long, be expressed as rules. The meta-loop exists specifically to capture these advances as they occur.
 
 This operating model is a snapshot of a moving target. Treat the current allocation of human and automated work as provisional, and periodically re-evaluate it.
 

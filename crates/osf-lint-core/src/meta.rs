@@ -71,7 +71,13 @@ pub enum Exception {
 }
 
 /// Resolves a finding's level and remediation from its rule's class and
-/// group, the context the text lives in, and any per-rule exception.
+/// group, the context the text lives in, any per-rule exception, and the
+/// finding's own evidence.
+///
+/// Statistical evidence is a guess, not a fact, so it always resolves to a
+/// warning the caller only advises on, in every context, whatever the
+/// rule's class, group or exception says. A policy that blocks a reply
+/// must never block it on a guess.
 ///
 /// A transcript is already sent by the time anything reads it, so no
 /// finding there ever asks for a rewrite. See below.
@@ -87,8 +93,13 @@ pub fn resolve(
     group: Group,
     context: Context,
     exception: Option<Exception>,
+    evidence: crate::Evidence,
 ) -> (crate::Level, crate::Remediation) {
     use crate::{Level, Remediation};
+
+    if matches!(evidence, crate::Evidence::Statistical) {
+        return (Level::Warning, Remediation::Advise);
+    }
 
     // A transcript cannot be changed. Whatever checks it runs after the
     // text has been sent, so asking for the text again does not replace
@@ -135,7 +146,9 @@ pub fn resolve(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Level, Remediation};
+    use crate::{Evidence, Level, Remediation};
+
+    const D: Evidence = Evidence::Deterministic;
 
     /// The one that matters. A transcript is already sent, so asking for
     /// it again adds a second copy and corrects nothing. No combination
@@ -158,7 +171,7 @@ mod tests {
         for class in classes {
             for group in groups {
                 for exception in exceptions {
-                    let (_, remediation) = resolve(class, group, Context::Transcript, exception);
+                    let (_, remediation) = resolve(class, group, Context::Transcript, exception, D);
                     assert_ne!(
                         remediation,
                         Remediation::Rewrite,
@@ -178,7 +191,8 @@ mod tests {
                 Class::Correctness,
                 Group::Comprehension,
                 Context::Transcript,
-                None
+                None,
+                D
             ),
             (Level::Error, Remediation::Clarify)
         );
@@ -193,7 +207,8 @@ mod tests {
                 Class::Correctness,
                 Group::Comprehension,
                 Context::Commit,
-                None
+                None,
+                D
             ),
             (Level::Error, Remediation::Rewrite)
         );
@@ -206,7 +221,8 @@ mod tests {
                 Class::House,
                 Group::Comprehension,
                 Context::Transcript,
-                None
+                None,
+                D
             ),
             (Level::Error, Remediation::Clarify)
         );
@@ -216,7 +232,7 @@ mod tests {
     fn a_comprehension_rule_elsewhere_asks_for_a_rewrite() {
         for context in [Context::Commit, Context::Document, Context::Skill] {
             assert_eq!(
-                resolve(Class::House, Group::Comprehension, context, None),
+                resolve(Class::House, Group::Comprehension, context, None, D),
                 (Level::Error, Remediation::Rewrite)
             );
         }
@@ -225,7 +241,7 @@ mod tests {
     #[test]
     fn a_style_rule_in_a_transcript_does_not_block() {
         assert_eq!(
-            resolve(Class::House, Group::Style, Context::Transcript, None),
+            resolve(Class::House, Group::Style, Context::Transcript, None, D),
             (Level::Warning, Remediation::Advise)
         );
     }
@@ -233,7 +249,7 @@ mod tests {
     #[test]
     fn a_style_rule_in_a_document_warns_but_still_asks_for_a_rewrite() {
         assert_eq!(
-            resolve(Class::House, Group::Style, Context::Document, None),
+            resolve(Class::House, Group::Style, Context::Document, None, D),
             (Level::Warning, Remediation::Rewrite)
         );
     }
@@ -242,7 +258,7 @@ mod tests {
     fn a_style_rule_in_a_commit_or_skill_file_is_an_error() {
         for context in [Context::Commit, Context::Skill] {
             assert_eq!(
-                resolve(Class::House, Group::Style, context, None),
+                resolve(Class::House, Group::Style, context, None, D),
                 (Level::Error, Remediation::Rewrite)
             );
         }
@@ -256,12 +272,12 @@ mod tests {
         for class in [Class::Security, Class::Correctness] {
             for context in [Context::Commit, Context::Document, Context::Skill] {
                 assert_eq!(
-                    resolve(class, Group::Style, context, None),
+                    resolve(class, Group::Style, context, None, D),
                     (Level::Error, Remediation::Rewrite)
                 );
             }
             assert_eq!(
-                resolve(class, Group::Style, Context::Transcript, None),
+                resolve(class, Group::Style, Context::Transcript, None, D),
                 (Level::Error, Remediation::Clarify)
             );
         }
@@ -271,8 +287,41 @@ mod tests {
     fn a_fixed_level_exception_overrides_the_level_but_not_the_remediation() {
         let exception = Some(Exception::FixedLevel(Level::Warning));
         assert_eq!(
-            resolve(Class::House, Group::Style, Context::Commit, exception),
+            resolve(Class::House, Group::Style, Context::Commit, exception, D),
             (Level::Warning, Remediation::Rewrite)
         );
+    }
+
+    /// Statistical evidence never blocks, in any context, class or group.
+    #[test]
+    fn statistical_evidence_is_always_advisory() {
+        let classes = [
+            Class::Spec,
+            Class::Evidence,
+            Class::Correctness,
+            Class::Security,
+            Class::House,
+        ];
+        let groups = [Group::Comprehension, Group::Style];
+        let contexts = [
+            Context::Transcript,
+            Context::Commit,
+            Context::Document,
+            Context::Skill,
+        ];
+        let exceptions = [None, Some(Exception::FixedLevel(Level::Error))];
+        for class in classes {
+            for group in groups {
+                for context in contexts {
+                    for exception in exceptions {
+                        assert_eq!(
+                            resolve(class, group, context, exception, Evidence::Statistical),
+                            (Level::Warning, Remediation::Advise),
+                            "{class:?} {group:?} {context:?} {exception:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 }
