@@ -50,6 +50,16 @@ jobs:
             api.deepseek.com:443
             openrouter.ai:443
 
+      # OSF_REVIEW_RUNS_ON lets an adopter name any runner, but every step
+      # below assumes a Linux runner with a Docker daemon: docker run, and
+      # Unix paths such as /base and /pr. State that requirement here,
+      # loudly, instead of failing later on the first docker command.
+      - name: Require the Linux runner with Docker this workflow assumes
+        if: runner.os != 'Linux'
+        run: |
+          echo "osf review: OSF_REVIEW_RUNS_ON must name a Linux runner; every step after this one assumes docker run and Unix paths such as /base and /pr" >&2
+          exit 1
+
       - name: Log in to ghcr.io to pull the devcontainer image
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
@@ -189,6 +199,15 @@ jobs:
             api.anthropic.com:443
             api.deepseek.com:443
             openrouter.ai:443
+
+      # See the same-named step in the `review` job above: OSF_REVIEW_RUNS_ON
+      # lets an adopter name any runner, but every step below still assumes
+      # a Linux runner with a Docker daemon.
+      - name: Require the Linux runner with Docker this workflow assumes
+        if: runner.os != 'Linux'
+        run: |
+          echo "osf review: OSF_REVIEW_RUNS_ON must name a Linux runner; every step after this one assumes docker run and Unix paths such as /base and /pr" >&2
+          exit 1
 
       - name: Log in to ghcr.io to pull the devcontainer image
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
