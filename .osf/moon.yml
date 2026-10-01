@@ -28,7 +28,10 @@ fileGroups:
 tasks:
   scan-staged:
     command: 'osf check scan-staged --checkpoint pre-commit --sarif-out .osf/out/scan-staged.sarif'
-    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    # scan-staged reads the git index, not disk, so OSF_INDEX_HASH (a
+    # fingerprint of the staged blobs) is a cache key alongside the file
+    # list: staging a new blob for an already-clean path must still miss.
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH', '$OSF_INDEX_HASH']
     outputs: ['/.osf/out/scan-staged.sarif']
     tags: [osf-pre-commit, osf-slot-secrets]
     options: { runFromWorkspaceRoot: true, shell: false }
@@ -52,13 +55,17 @@ tasks:
     options: { runFromWorkspaceRoot: true, shell: false }
   scan-commits:
     command: 'osf check scan-commits --checkpoint pre-push --sarif-out .osf/out/scan-commits.sarif'
-    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    # scan-commits reads commit hashes and messages, not files, so
+    # OSF_COMMITS_HASH (a fingerprint of the commit range) is a cache key
+    # alongside the file list: amending only a commit message, with the
+    # tree and file list unchanged, must still miss.
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH', '$OSF_COMMITS_HASH']
     outputs: ['/.osf/out/scan-commits.sarif']
     tags: [osf-pre-push, osf-slot-secrets]
     options: { runFromWorkspaceRoot: true, shell: false }
   scan-commits-gate:
     command: 'osf check scan-commits --checkpoint pull-request --gate --sarif-out .osf/out/scan-commits-gate.sarif'
-    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    inputs: ['/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH', '$OSF_COMMITS_HASH']
     outputs: ['/.osf/out/scan-commits-gate.sarif']
     tags: [osf-pull-request, osf-slot-secrets]
     options: { runFromWorkspaceRoot: true, shell: false }

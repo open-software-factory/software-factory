@@ -228,6 +228,22 @@ pub fn staged_content(dir: &Path, path: &str) -> Result<Vec<u8>, GitError> {
     run(dir, &["show", &format!(":{path}")])
 }
 
+/// The blob hash git would commit for `path` if the index were committed
+/// right now: the stage-0 entry `git ls-files --stage` already carries,
+/// cheaper than hashing the staged content itself and just as sensitive to
+/// an index-only change nothing on disk shows.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `path` is not staged.
+pub fn staged_blob_hash(dir: &Path, path: &str) -> Result<String, GitError> {
+    let text = run_text(dir, &["ls-files", "--stage", "--", path])?;
+    text.lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .map(str::to_string)
+        .ok_or_else(|| GitError(format!("{path} is not staged")))
+}
+
 /// The content of `path` as it is at `rev`.
 ///
 /// # Errors
