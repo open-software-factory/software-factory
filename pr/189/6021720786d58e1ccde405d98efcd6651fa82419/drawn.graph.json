@@ -1,0 +1,875 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-changeset-tests",
+  "generatedAt": "2026-10-01T03:03:13.107Z",
+  "title": "osf changeset tests: parse-based Rust test summary in the status block",
+  "summary": "The `osf` CLI is regrouped: `osf risk` becomes `osf changeset risk`, `osf status` becomes `osf pr status`, and a new `osf changeset tests` command joins them. The new module parses the base and head versions of every changed `.rs` file with tree-sitter, diffs the tests it finds by module path plus function name, and renders an added/changed/removed summary. `osf pr status refresh` now calls that summary and threads it into the status block between Approach and the end marker, and a refresh on a description with no block now starts one with a placeholder instead of doing nothing.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "5be4ad1b5ed0cb032f4b17e524a656b75cb2bbe7",
+      "ref": "5be4ad1b5ed0cb032f4b17e524a656b75cb2bbe7"
+    },
+    "head": {
+      "sha": "6021720786d58e1ccde405d98efcd6651fa82419",
+      "ref": "6021720786d58e1ccde405d98efcd6651fa82419"
+    },
+    "pullRequest": {
+      "number": 189,
+      "url": "https://github.com/open-software-factory/software-factory/pull/189"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI surface",
+      "subtitle": "crates/osf/src/main.rs",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The clap command tree: `changeset risk`, `changeset tests`, and `pr status render|apply|refresh`."
+    },
+    {
+      "id": "core",
+      "label": "osf core modules",
+      "subtitle": "crates/osf/src",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The library modules the commands call: risk assessment, test summarization, status block rendering, and git plumbing."
+    },
+    {
+      "id": "git",
+      "label": "Git working tree",
+      "subtitle": "local repository",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The checkout the commands run inside; both sides of the diff are read from it."
+    },
+    {
+      "id": "github",
+      "label": "GitHub",
+      "subtitle": "gh CLI / API",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The pull request description, checks and review state that a refresh reads and writes."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "clap command tree",
+      "summary": "The single binary. Its subcommands are regrouped: `risk` moves under `changeset`, `status` moves under `pr`, and `changeset tests` is new.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 102,
+          "endLine": 230
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-tests-cmd",
+      "label": "changeset tests",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "--base <ref> --head <ref>",
+      "summary": "Prints the Rust test summary on its own, with no pull request involved. Calls the same summarize/render pair the status refresh uses.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1415,
+          "endLine": 1426
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status-refresh-cmd",
+      "label": "pr status refresh",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "--repo --pr",
+      "summary": "Recomputes the whole status block from live pull request state. Now also builds the test summary and passes it into render, and starts a block on a description that has none.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1601,
+          "endLine": 1668
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-tests",
+      "label": "changeset_tests",
+      "kind": "module",
+      "delta": "added",
+      "lane": "core",
+      "subtitle": "summarize / render",
+      "summary": "Parses base and head versions of each changed `.rs` file with tree-sitter, keys tests by module path plus function name, and classifies each as added, changed or removed. Never builds or runs the code.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_tests.rs",
+          "startLine": 1,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-rust",
+      "label": "tree-sitter Rust grammar",
+      "kind": "package",
+      "delta": "added",
+      "lane": "core",
+      "subtitle": "tree-sitter 0.25.10",
+      "summary": "The parser the summary is built on. A file the grammar cannot read is reported as unparsed rather than guessed at.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 29,
+          "endLine": 30
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-risk",
+      "label": "changeset_risk",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "renamed from risk",
+      "summary": "The blast-radius tier and its reasons, unchanged in behaviour. Its TEST_FILES pattern is now shared with the test summary so both agree on what a test file looks like.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 120,
+          "endLine": 126
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status",
+      "label": "pr_status",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "renamed from status",
+      "summary": "Renders and applies the status block. RenderInput gains an optional pre-rendered tests section, keeping render a pure function of its inputs.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 44,
+          "endLine": 95
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-module",
+      "label": "git",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "content_at / diff_name_only_between",
+      "summary": "Git plumbing. Gains diff_name_only_between, which diffs two explicit refs with no merge-base assumption, and is what the test summary lists changed files with.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 100,
+          "endLine": 112
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "working-tree",
+      "label": "Working tree",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "git",
+      "subtitle": "base and head blobs",
+      "summary": "Both revisions of every changed file are read straight out of the local repository; nothing is checked out or built.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 100,
+          "endLine": 112
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-client",
+      "label": "gh CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "github",
+      "subtitle": "pr view / pr edit",
+      "summary": "Reads the pull request description, checks and review state, and writes the new description back.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 614,
+          "endLine": 640
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-description",
+      "label": "PR description",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "status block between markers",
+      "summary": "The block now carries a Tests section between Approach and the end marker, and a description with no block gets one started on the first refresh.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 70,
+          "endLine": 95
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "status-block-workflow",
+      "label": "status-block.yml",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "runs on PR events",
+      "summary": "The workflow that invokes the refresh. Its two invocations are updated to the new `osf pr status refresh` spelling.",
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml",
+          "startLine": 97,
+          "endLine": 117
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-changeset-tests",
+      "from": "osf-cli",
+      "to": "changeset-tests-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "changeset tests",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 608,
+          "endLine": 612
+        }
+      ]
+    },
+    {
+      "id": "cli-to-refresh",
+      "from": "osf-cli",
+      "to": "pr-status-refresh-cmd",
+      "kind": "call",
+      "delta": "modified",
+      "label": "pr status refresh",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 623,
+          "endLine": 629
+        }
+      ]
+    },
+    {
+      "id": "tests-cmd-to-summarize",
+      "from": "changeset-tests-cmd",
+      "to": "changeset-tests",
+      "kind": "call",
+      "delta": "added",
+      "label": "summarize + render",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1415,
+          "endLine": 1426
+        }
+      ]
+    },
+    {
+      "id": "refresh-to-summarize",
+      "from": "pr-status-refresh-cmd",
+      "to": "changeset-tests",
+      "kind": "call",
+      "delta": "added",
+      "label": "summarize(base, HEAD)",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1620,
+          "endLine": 1626
+        }
+      ]
+    },
+    {
+      "id": "refresh-to-risk",
+      "from": "pr-status-refresh-cmd",
+      "to": "changeset-risk",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assess(base)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1613,
+          "endLine": 1617
+        }
+      ]
+    },
+    {
+      "id": "refresh-to-render",
+      "from": "pr-status-refresh-cmd",
+      "to": "pr-status",
+      "kind": "call",
+      "delta": "modified",
+      "label": "render(tests: Some)",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1628,
+          "endLine": 1635
+        }
+      ]
+    },
+    {
+      "id": "summarize-to-parser",
+      "from": "changeset-tests",
+      "to": "tree-sitter-rust",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "parse_rust",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_tests.rs",
+          "startLine": 150,
+          "endLine": 165
+        }
+      ]
+    },
+    {
+      "id": "summarize-to-git",
+      "from": "changeset-tests",
+      "to": "git-module",
+      "kind": "call",
+      "delta": "added",
+      "label": "diff_name_only_between",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_tests.rs",
+          "startLine": 380,
+          "endLine": 385
+        }
+      ]
+    },
+    {
+      "id": "summarize-to-tree",
+      "from": "changeset-tests",
+      "to": "working-tree",
+      "kind": "data",
+      "delta": "added",
+      "label": "content_at(base) / content_at(head)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_tests.rs",
+          "startLine": 130,
+          "endLine": 140
+        }
+      ]
+    },
+    {
+      "id": "risk-to-testfiles",
+      "from": "changeset-risk",
+      "to": "changeset-tests",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "TEST_FILES pattern",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 123,
+          "endLine": 126
+        }
+      ]
+    },
+    {
+      "id": "refresh-to-gh",
+      "from": "pr-status-refresh-cmd",
+      "to": "gh-client",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "view_pr_info / edit_body",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1608,
+          "endLine": 1665
+        }
+      ]
+    },
+    {
+      "id": "gh-to-description",
+      "from": "gh-client",
+      "to": "pr-description",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "body read and written",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 614,
+          "endLine": 640
+        }
+      ]
+    },
+    {
+      "id": "workflow-to-refresh",
+      "from": "status-block-workflow",
+      "to": "pr-status-refresh-cmd",
+      "kind": "other",
+      "delta": "modified",
+      "label": "osf pr status refresh",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/status-block.yml",
+          "startLine": 97,
+          "endLine": 117
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "refresh-builds-tests-section",
+      "title": "pr status refresh builds the Tests section",
+      "summary": "How a refresh turns two git refs into the Tests section of the status block, without building or running anything.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "pr-status-refresh-cmd",
+          "label": "refresh"
+        },
+        {
+          "node": "git-module",
+          "label": "git"
+        },
+        {
+          "node": "working-tree",
+          "label": "working tree"
+        },
+        {
+          "node": "changeset-tests",
+          "label": "changeset_tests"
+        },
+        {
+          "node": "pr-status",
+          "label": "pr_status"
+        },
+        {
+          "node": "gh-client",
+          "label": "gh"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m1",
+          "from": "pr-status-refresh-cmd",
+          "to": "git-module",
+          "label": "diff_name_only_between(base, HEAD)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/changeset_tests.rs",
+              "startLine": 380,
+              "endLine": 385
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "&str, &str",
+              "shape": "diff_name_only_between(dir: &Path, base: &str, head: &str) -> Result<Vec<String>, GitError>",
+              "sample": [
+                "crates/osf/src/changeset_tests.rs",
+                "crates/osf/src/main.rs",
+                "crates/osf/src/pr_status.rs"
+              ],
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m2",
+          "from": "git-module",
+          "to": "pr-status-refresh-cmd",
+          "label": "changed paths",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "response": {
+              "type": "Vec<String>",
+              "shape": "Vec<String>",
+              "sample": [
+                "crates/osf/src/changeset_tests.rs",
+                "crates/osf/src/main.rs"
+              ],
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m3",
+          "from": "pr-status-refresh-cmd",
+          "to": "changeset-tests",
+          "label": "summarize(\".\", base, \"HEAD\")",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1620,
+              "endLine": 1626
+            }
+          ]
+        },
+        {
+          "id": "m4",
+          "from": "changeset-tests",
+          "to": "working-tree",
+          "label": "content_at(base) and content_at(head) per file",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "repeat": 2,
+          "files": [
+            {
+              "path": "crates/osf/src/changeset_tests.rs",
+              "startLine": 130,
+              "endLine": 140
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "&str",
+              "shape": "content_at(dir: &Path, rev: &str, path: &str) -> Result<Vec<u8>, GitError>",
+              "sample": [
+                "#[cfg(test)]",
+                "mod tests {",
+                "    #[test]",
+                "    fn a_kept_test() { assert_eq!(1, 1); }",
+                "}"
+              ],
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m5",
+          "from": "changeset-tests",
+          "to": "changeset-tests",
+          "label": "parse_rust + collect_tests, keyed by module path::fn name",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "A key present on both sides with different source text is a changed test, not an add plus a remove.",
+          "files": [
+            {
+              "path": "crates/osf/src/changeset_tests.rs",
+              "startLine": 150,
+              "endLine": 165
+            }
+          ]
+        },
+        {
+          "id": "m6",
+          "from": "changeset-tests",
+          "to": "pr-status-refresh-cmd",
+          "label": "Summary { added, changed, removed, groups }",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "response": {
+              "type": "Summary",
+              "shape": "Summary { added: usize, changed: usize, removed: usize, groups: Vec<Group> }",
+              "sample": {
+                "added": 1,
+                "changed": 1,
+                "removed": 1,
+                "groups": [
+                  {
+                    "crate_name": "osf",
+                    "file": "crates/osf/src/thing.rs"
+                  }
+                ]
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m7",
+          "from": "pr-status-refresh-cmd",
+          "to": "pr-status",
+          "label": "render(RenderInput { tests: Some(text) })",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1628,
+              "endLine": 1635
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "RenderInput",
+              "shape": "RenderInput<'a> { tier_json, gates, problem, approach, review_json, tests: Option<&'a str> }",
+              "sample": {
+                "tests": "**Tests**: 1 added, 1 changed, 1 removed"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m8",
+          "from": "pr-status",
+          "to": "pr-status-refresh-cmd",
+          "label": "block with Tests between Approach and the end marker",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/pr_status.rs",
+              "startLine": 70,
+              "endLine": 95
+            }
+          ]
+        },
+        {
+          "id": "m9",
+          "from": "pr-status-refresh-cmd",
+          "to": "gh-client",
+          "label": "edit_body(repo, pr, new_body)",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1660,
+              "endLine": 1665
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 15,
+    "additions": 1261,
+    "deletions": 160,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "containers",
+      "title": "Containers: CLI, core modules, git, GitHub",
+      "lens": "architecture",
+      "summary": "The whole change at container level: the regrouped CLI, the new changeset_tests module and its tree-sitter dependency, and the unchanged git and GitHub neighbours the refresh still talks to.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "changeset-tests-internals",
+      "title": "Inside changeset_tests",
+      "lens": "architecture",
+      "summary": "The new module's internals: file listing, per-side parsing, test collection keyed by module path, and the render step that only ever names a removed test.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "changeset-tests",
+          "tree-sitter-rust",
+          "git-module",
+          "working-tree",
+          "changeset-risk"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "render-rules",
+          "title": "What render shows",
+          "lens": "architecture",
+          "summary": "Removed tests first, by name and description; added and changed tests by description alone; an added test with no readable description names its file instead.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "changeset-tests",
+              "pr-status"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "refresh-flow",
+      "title": "Data flow: refresh builds the Tests section",
+      "lens": "data-flow",
+      "summary": "The ordered path from two git refs to the Tests section written into the pull request description.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "refresh-builds-tests-section"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "w1",
+        "heading": "The CLI is regrouped",
+        "body": "risk moves under changeset, status moves under pr, and changeset tests is new.",
+        "stage": {
+          "kind": "view",
+          "view": "containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "osf-cli",
+            "changeset-tests-cmd",
+            "pr-status-refresh-cmd"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "w2",
+        "heading": "A new module parses, never builds",
+        "body": "changeset_tests reads both revisions of each changed .rs file and diffs the tests it finds.",
+        "stage": {
+          "kind": "view",
+          "view": "changeset-tests-internals"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "changeset-tests",
+            "tree-sitter-rust",
+            "working-tree"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "w3",
+        "heading": "Refresh threads it into the block",
+        "body": "The rendered summary lands between Approach and the end marker, and a blockless description now gets one started.",
+        "stage": {
+          "kind": "flow",
+          "flow": "refresh-builds-tests-section"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "m3",
+            "m5",
+            "m7",
+            "m8"
+          ]
+        }
+      }
+    ]
+  }
+}
