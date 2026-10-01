@@ -110,7 +110,12 @@ fn verify(root: &Path, finding: &AnswerFinding) -> Result<(), String> {
     }
 }
 
-/// `path` resolved under `root`, as a file that exists there without leaving `root`.
+/// `path` resolved under `root`, as a file that exists there without leaving
+/// `root`, even through a symlink. The lexical check runs first, cheaply,
+/// against `..` escapes; canonicalising then follows every symlink in the
+/// resolved path and repeats the containment check against the real target,
+/// so a symlink that lexically sits inside `root` but points outside it is
+/// still refused.
 fn resolve_under_root(root: &Path, path: &str) -> Result<PathBuf, String> {
     let candidate = PathBuf::from(path.replace('\\', "/"));
     if candidate.is_absolute() {
@@ -124,7 +129,16 @@ fn resolve_under_root(root: &Path, path: &str) -> Result<PathBuf, String> {
     if !joined_collapsed.is_file() {
         return Err("no such file".to_string());
     }
-    Ok(joined_collapsed)
+    let Ok(canonical_root) = root.canonicalize() else {
+        return Err("outside the repository".to_string());
+    };
+    let Ok(canonical_file) = joined_collapsed.canonicalize() else {
+        return Err("outside the repository".to_string());
+    };
+    if !canonical_file.starts_with(&canonical_root) {
+        return Err("outside the repository".to_string());
+    }
+    Ok(canonical_file)
 }
 
 /// `path`'s `.` and `..` components collapsed left to right, without touching the filesystem.
@@ -356,6 +370,31 @@ mod tests {
         for (_, reason) in &checked.dropped {
             assert!(reason.contains("outside the repository"), "{reason}");
         }
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_symlink_pointing_outside_the_repository_is_dropped() {
+        let root = TempDir::new("quotes-symlink-root");
+        let outside = TempDir::new("quotes-symlink-outside");
+        let secret_path = outside.join("secret.rs");
+        std::fs::write(
+            &secret_path,
+            "fn secret() { /* outside the repository */ }\n",
+        )
+        .expect("outside file writes");
+        let link_path = root.join("src/linked.rs");
+        std::fs::create_dir_all(link_path.parent().expect("parent")).expect("dirs");
+        std::os::unix::fs::symlink(&secret_path, &link_path).expect("symlink creates");
+        let findings = vec![finding(
+            "src/linked.rs",
+            1,
+            "fn secret() { /* outside the repository */ }",
+        )];
+        let checked = check(&root, answer(findings));
+        assert_eq!(checked.kept.findings().len(), 0, "{:?}", checked.kept);
+        let (_, reason) = checked.dropped.first().expect("one dropped");
+        assert!(reason.contains("outside the repository"), "{reason}");
     }
 
     #[test]
