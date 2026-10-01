@@ -253,10 +253,23 @@ fn walk_children(
     let mut cursor = parent.walk();
     for child in parent.named_children(&mut cursor) {
         match child.kind() {
-            "line_comment" => {
-                pending_start.get_or_insert(child.start_byte());
-                if let Some(text) = source.get(child.byte_range()).and_then(doc_comment_text) {
-                    pending_doc.push(text.to_string());
+            "line_comment" | "block_comment" => {
+                // A doc comment (`///`, `//!`, or `/** */`) carries an
+                // `outer` or `inner` field in the grammar; a plain comment,
+                // including a `////`-or-longer banner, carries neither and
+                // resets tracking just like any other unrelated node.
+                let is_doc = child.child_by_field_name("outer").is_some()
+                    || (child.kind() == "line_comment"
+                        && child.child_by_field_name("inner").is_some());
+                if is_doc {
+                    pending_start.get_or_insert(child.start_byte());
+                    if let Some(text) = source.get(child.byte_range()).and_then(doc_comment_text) {
+                        pending_doc.push(text.to_string());
+                    }
+                } else {
+                    pending_doc.clear();
+                    pending_test_attribute = false;
+                    pending_start = None;
                 }
             }
             "attribute_item" => {

@@ -299,6 +299,46 @@ fn a_renamed_test_file_is_compared_as_one_file_not_a_delete_plus_an_add() {
 }
 
 #[test]
+fn editing_only_a_plain_comment_near_a_test_does_not_count_as_changed() {
+    let repo = base_repo("plain-comment-near-test");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "// TODO: tidy this up\n#[test]\nfn a_test() { assert!(true); }\n",
+    );
+    let base = repo.commit("base");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "// TODO: tidy this up later\n#[test]\nfn a_test() { assert!(true); }\n",
+    );
+    let head = repo.commit("head");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.added, 0, "{:?}", summary.groups);
+    assert_eq!(summary.removed, 0, "{:?}", summary.groups);
+    assert_eq!(summary.changed, 0, "{:?}", summary.groups);
+}
+
+#[test]
+fn editing_only_a_block_doc_comment_counts_as_changed() {
+    let repo = base_repo("block-doc-comment");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "/** Checks the first thing. */\n#[test]\nfn a_test() {}\n",
+    );
+    let base = repo.commit("base");
+    repo.write(
+        "crates/osf/src/thing.rs",
+        "/** Checks the second thing. */\n#[test]\nfn a_test() {}\n",
+    );
+    let head = repo.commit("head");
+
+    let summary = summarize(&repo.dir, &base, &head).expect("summarize runs");
+    assert_eq!(summary.added, 0, "{:?}", summary.groups);
+    assert_eq!(summary.removed, 0, "{:?}", summary.groups);
+    assert_eq!(summary.changed, 1, "{:?}", summary.groups);
+}
+
+#[test]
 fn a_rust_file_renamed_away_from_rust_still_reports_its_removed_tests() {
     let repo = base_repo("renamed-away-from-rust");
     let content = "#[test]\nfn a_removed_test() {}\n";
