@@ -1,8 +1,9 @@
 #!/bin/sh
-# Exercises each reviewer CLI's --version, run as the dev user (see the
+# Exercises each coding agent's --version, run as the dev user (see the
 # Dockerfile), so a tool missing from dev's PATH fails the build instead
-# of shipping quietly. Run by hand, inside a container, with:
-# sh .devcontainer/tests/reviewer-tools.sh
+# of shipping quietly. Every one of these agents can act as a builder or
+# a reviewer; see .devcontainer/agents.json. Run by hand, inside a
+# container, with: sh .devcontainer/tests/coding-agent-tools.sh
 set -eu
 
 TOTAL=0
@@ -34,6 +35,7 @@ assert_version "codex --version" codex --version
 assert_version "claude --version" claude --version
 assert_version "dsh --version" dsh --version
 assert_version "opencode --version" opencode --version
+assert_version "omp --version" omp --version
 
 echo ""
 echo "$((TOTAL - FAILURES))/$TOTAL passed"

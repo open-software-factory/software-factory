@@ -1,8 +1,8 @@
 # Development container
 
 This repository ships a development container. It has a pinned Rust
-toolchain, `git-town`, `moon`, Node, `pnpm`, and the `osf` command line tool
-built in.
+toolchain, `git-town`, `gh`, `moon`, `actionlint`, `uv`, Node, `pnpm`, the
+`osf` command line tool, and five coding agents built in.
 
 ## Open the container
 
@@ -21,6 +21,20 @@ drive runs tests far slower, over a Windows bind mount.
 The container user is called `dev`. It is a normal user. It has no
 password-less root access, so it cannot install packages as root or
 change files that root owns.
+
+## Using a git worktree
+
+A plain `git worktree add` checkout's `.git` is not a directory. It is a
+file holding one line, `gitdir: <path>/.git/worktrees/<name>`, naming
+the main clone's `.git` by its absolute path on the host. Mounting only
+the worktree at `/workspace` breaks every git command inside the
+container, because that absolute path does not exist there.
+
+Mount the main clone's `.git` directory read-only at the same absolute
+path inside the container that it has on the host. Add this alongside
+the worktree mount at `/workspace`, in `devcontainer.json`'s `mounts` or
+on `docker run`'s own `-v`. Git then finds the path its worktree file
+already names, unchanged.
 
 ## What the hooks check
 
@@ -54,6 +68,38 @@ contributor does not control that check. The local hook exists so a
 mistake is found in seconds, at the commit. Without it, the same mistake
 is found only minutes later, after a push.
 
+## Coding agents and their hooks
+
+The container installs five coding agents: `dsh`, `omp`, `opencode`,
+`codex`, and Claude Code. Every one of them can act as a builder or a
+reviewer. `.devcontainer/agents.json` is the one list of them. It also
+names the default builder agent, read from the `OSF_DEFAULT_BUILDER`
+environment variable, set to `dsh` today.
+
+Each agent's own hook settings call `osf hook`, root-owned and read-only
+so the agent itself cannot edit its own wiring:
+
+| Agent | Hook wiring | Path |
+|---|---|---|
+| Claude Code | managed settings | `/etc/claude-code/managed-settings.json` |
+| Codex | a managed hooks directory, forced by a requirements file | `/etc/codex/` |
+| dsh | a profile named `factory`, built from `integrations/dsh` | `~/.dsh/profiles/factory` |
+| opencode | a plugin named in system-level config | `/etc/opencode/opencode.json` |
+| omp | a global hook under the agent's own hooks directory | `~/.omp/agent/hooks/osf-stop` |
+
+`osf hook` only answers two events: `stop`, at the end of a turn, and
+`prompt`, when a new one starts. Not every agent's own hook system has an
+event for both. Codex has no turn-end event at all, so only `prompt` is
+wired for it. The `gap` field on an entry in `agents.json` records a
+shortfall like this one.
+
+dsh and omp have no system-wide configuration path of their own. This
+image carves one directory, root-owned and read-only, out of each
+agent's normal, otherwise writable home directory. It already carves the
+Rust toolchain out of an otherwise writable `CARGO_HOME` the same way.
+Run `dsh --profile factory` to boot dsh with its hooks wired. omp and
+opencode read their hooks and plugin automatically.
+
 ## Run the same checks by hand
 
 Every hook is a thin call to `osf`, so the same commands work outside a
@@ -68,6 +114,35 @@ osf lint writing path/to/file.md
 Add `--format human` for readable output in a script or a non-interactive
 shell. Run `osf explain <rule-id>` for the full text of one rule, using
 the rule id shown in a finding, for example `osf explain long-sentence`.
+
+## Which osf a check uses
+
+The git hooks always call `/opt/factory/bin/osf`, the version pinned and
+built into the image at `docker build` time. A hook root-owned and
+read-only, running a binary root-owned and read-only, is the whole point
+of this container. The section above, "What the hooks cannot do",
+explains why.
+
+That pinned binary goes stale on a branch that changes `crates/osf`
+itself. The baked-in binary predates the very change a contributor is
+trying to test.
+
+On such a branch, build the workspace copy and run it directly, rather
+than relying on the hook:
+
+```sh
+cargo build --release -p osf
+./target/release/osf verify --checkpoint pre-commit
+```
+
+The git hooks are not changed to prefer a workspace build automatically.
+A branch would then supply its own `osf` to its own pre-commit and
+pre-push checks. That is exactly the local, agent-editable check this
+project's hooks are built not to trust. The section above makes the same
+point about the real authority being the check that runs on a pull
+request. CI builds and runs `cargo test -p osf`, and the rest of this
+repository's own gates, directly against the branch. It never goes
+through the image's older, pinned binary.
 
 ## The forced hooks path, and its one boundary
 
@@ -171,3 +246,30 @@ pass-through this page describes. The Dockerfile runs it during
 `docker build`, as one of the last steps, so a broken wrapper fails the
 build instead of shipping quietly. Run it by hand inside a container
 with `sh .devcontainer/tests/git-wrapper.sh`.
+
+## Builder tools
+
+One image serves both the builder and the reviewer role. Besides the
+coding agents above, it installs `cargo`, `rustfmt`, `clippy`, `osf`,
+`moon`, Node, `pnpm`, `git-town`, `gh`, `git`, `actionlint`, `uv`, and
+`bun`.
+
+[SkillSpector and SkillEvaluator](https://github.com/NVIDIA/skillspector)
+are two NVIDIA tools that check an agent skill, the first for safety and
+the second for quality. `osf lint skill` runs both against every skill
+it checks, and `uv` is in this image only to install them. `omp`'s own
+CLI has a `#!/usr/bin/env bun` shebang, so it runs on Bun rather than
+plain Node, unlike every other coding agent here. `bun` is in this image
+for that reason alone.
+
+`.devcontainer/tests/coding-agent-tools.sh` and
+`.devcontainer/tests/builder-tools.sh` run each tool's version check
+during `docker build`. `.devcontainer/tests/agent-hooks.sh` checks the
+hook wiring itself: every path in `.devcontainer/agents.json` is
+root-owned and read-only, and `osf hook` answers a sample payload for
+each event it supports.
+
+A login shell (`bash -l`) resets `PATH` before reading
+`/etc/profile.d/*.sh`. That would otherwise drop `osf`, the cargo
+toolchain, and every coding agent's own binary for that shell, and
+`.devcontainer/profile.d/osf-path.sh` is what puts them back.

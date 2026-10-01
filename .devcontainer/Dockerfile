@@ -60,9 +60,10 @@ ARG SKILLEVALUATOR_VERSION=0.4.0
 ARG SKILLEVALUATOR_COMMIT=0da4646
 
 # The coding agents this project supports, every one of them usable as a
-# builder or a reviewer. Each is pinned to one exact npm version so a
-# rebuild in a month installs the same tool a reviewer just tested
-# against.
+# builder or a reviewer (see .devcontainer/agents.json for the one list of
+# them, their hook wiring, and the default builder). Each is pinned to one
+# exact npm version so a rebuild in a month installs the same tool a
+# reviewer just tested against.
 ARG CODEX_VERSION=0.154.0
 ARG CLAUDE_CODE_VERSION=2.1.284
 ARG DSH_VERSION=0.1.5-rc.1
@@ -85,10 +86,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       git \
       ca-certificates \
       curl \
+      jq \
       xz-utils \
       unzip \
       bubblewrap \
-      jq \
     && rm -rf /var/lib/apt/lists/*
 
 # git-town, matched to the build's processor architecture.
@@ -238,7 +239,8 @@ RUN set -eu; \
 
 # The coding agents, installed as global npm packages into this same Node
 # install. That install is already root-owned and already on PATH, so no
-# separate prefix or lock-down step is needed for these either.
+# separate prefix or lock-down step is needed for these either. Every one
+# of them is usable as a builder or a reviewer; see .devcontainer/agents.json.
 RUN npm install -g \
       @openai/codex@${CODEX_VERSION} \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
@@ -345,6 +347,31 @@ RUN chown -R root:root /etc/opencode && \
     chmod 0555 /etc/opencode && \
     chmod 0444 /etc/opencode/opencode.json
 
+ENV PATH="/opt/factory/bin:${PATH}"
+
+# Read by the git wrapper (.devcontainer/git-wrapper) to decide whether a
+# repository sits under the workspace mount; overridable at "docker run"
+# for a container started with a different bind mount.
+ENV OSF_WORKSPACE_ROOT="${WORKSPACE_ROOT}"
+
+# The one setting that names the default builder agent; see
+# .devcontainer/agents.json for the full list and docs/development.md for
+# how to use it. No script in this image chooses a builder by name: every
+# one reads this instead.
+ENV OSF_DEFAULT_BUILDER=dsh
+
+# Every login shell resets PATH before reading /etc/profile.d/*.sh (see
+# .devcontainer/profile.d/osf-path.sh), which otherwise drops osf, the
+# cargo toolchain, and every coding agent's own binary.
+COPY .devcontainer/profile.d/osf-path.sh /etc/profile.d/osf-path.sh
+RUN chown root:root /etc/profile.d/osf-path.sh && chmod 0444 /etc/profile.d/osf-path.sh
+
+# Proves the git wrapper's refusals and the forced hooks path at build
+# time, so a broken wrapper fails the build instead of shipping quietly.
+# See .devcontainer/tests/git-wrapper.sh.
+COPY .devcontainer/tests/git-wrapper.sh /tmp/git-wrapper-test.sh
+RUN sh /tmp/git-wrapper-test.sh && rm -f /tmp/git-wrapper-test.sh
+
 # Non-root container user, with no password-less root access: no entry
 # for it in /etc/sudoers, and it is not in the sudo group.
 RUN useradd --create-home --shell /bin/bash dev
@@ -396,40 +423,34 @@ RUN chown -R root:root "${DEV_HOME}/.dsh" && \
     chmod 0555 "${DEV_HOME}/.dsh/profiles/factory" && \
     chmod 0444 "${DEV_HOME}/.dsh/profiles/factory/cordis.patch.yml"
 
+# dev owns the rest of its own home directory: sessions, auth, caches, and
+# every coding agent's other state. useradd already set this; restated
+# here because the chown -R calls above, scoped to one hook directory
+# each, never touch anything outside it.
+
 # The node_modules build tree for the three plugins above is no longer
 # needed once their dist/ output is copied out.
 RUN rm -rf /usr/src/factory-build
 
-ENV PATH="/opt/factory/bin:${PATH}"
-
-# Read by the git wrapper (.devcontainer/git-wrapper) to decide whether a
-# repository sits under the workspace mount; overridable at "docker run"
-# for a container started with a different bind mount.
-ENV OSF_WORKSPACE_ROOT="${WORKSPACE_ROOT}"
-
-# The one setting that names the default builder agent; see
-# .devcontainer/agents.json for the full list and docs/development.md for
-# how to use it. No script in this image chooses a builder by name: every
-# one reads this instead.
-ENV OSF_DEFAULT_BUILDER=dsh
-
-# Every login shell resets PATH before reading /etc/profile.d/*.sh (see
-# .devcontainer/profile.d/osf-path.sh), which otherwise drops osf, the
-# cargo toolchain, and every coding agent's own binary.
-COPY .devcontainer/profile.d/osf-path.sh /etc/profile.d/osf-path.sh
-RUN chown root:root /etc/profile.d/osf-path.sh && chmod 0444 /etc/profile.d/osf-path.sh
-
-# Proves the git wrapper's refusals and the forced hooks path at build
-# time, so a broken wrapper fails the build instead of shipping quietly.
-# See .devcontainer/tests/git-wrapper.sh.
-COPY .devcontainer/tests/git-wrapper.sh /tmp/git-wrapper-test.sh
-RUN sh /tmp/git-wrapper-test.sh && rm -f /tmp/git-wrapper-test.sh
+WORKDIR ${WORKSPACE_ROOT}
 
 USER dev
 
-# Proves each reviewer CLI runs for the dev user, not just for root.
-# See .devcontainer/tests/reviewer-tools.sh.
-COPY --chown=dev:dev .devcontainer/tests/reviewer-tools.sh /tmp/reviewer-tools-test.sh
-RUN sh /tmp/reviewer-tools-test.sh && rm -f /tmp/reviewer-tools-test.sh
+# Proves each coding agent runs for the dev user, not just for root.
+# See .devcontainer/tests/coding-agent-tools.sh.
+COPY --chown=dev:dev .devcontainer/tests/coding-agent-tools.sh /tmp/coding-agent-tools-test.sh
+RUN sh /tmp/coding-agent-tools-test.sh && rm -f /tmp/coding-agent-tools-test.sh
 
-WORKDIR ${WORKSPACE_ROOT}
+# Proves every builder tool runs for the dev user, including from a login
+# shell. See .devcontainer/tests/builder-tools.sh.
+COPY --chown=dev:dev .devcontainer/tests/builder-tools.sh /tmp/builder-tools-test.sh
+RUN sh /tmp/builder-tools-test.sh && rm -f /tmp/builder-tools-test.sh
+
+# Proves the hook wiring itself: every agent's hook file is root-owned and
+# read-only, and osf hook answers a sample payload for each event it
+# supports. See .devcontainer/tests/agent-hooks.sh. Copied under the same
+# relative layout as the real repository, since the script finds
+# agents.json next to its own directory rather than by an absolute path.
+COPY --chown=dev:dev .devcontainer/agents.json /tmp/agent-hooks-test/agents.json
+COPY --chown=dev:dev .devcontainer/tests/agent-hooks.sh /tmp/agent-hooks-test/tests/agent-hooks.sh
+RUN sh /tmp/agent-hooks-test/tests/agent-hooks.sh && rm -rf /tmp/agent-hooks-test
