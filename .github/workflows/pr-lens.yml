@@ -100,9 +100,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           set -euo pipefail
-          KEY_VAR="${{ steps.provider.outputs.key_var }}"
-          KEY="${!KEY_VAR:-}"
-          if [ -z "${KEY}" ]; then
+          key_var="${{ steps.provider.outputs.key_var }}"
+          key="${!key_var:-}"
+          if [ -z "${key}" ]; then
             echo "present=false" >> "$GITHUB_OUTPUT"
           else
             echo "present=true" >> "$GITHUB_OUTPUT"
@@ -152,8 +152,11 @@ jobs:
 
       # ubuntu-latest ships Node 22, which meets pr-lens 0.11.0's engines
       # field (>=20.11), so no setup-node step downloads anything here.
+      # A review aid, not a gate: a failed model call writes a note below and the check still passes.
       - name: Analyze the diff
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        id: analyze
+        continue-on-error: true
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -163,7 +166,7 @@ jobs:
           BASE_URL: ${{ steps.provider.outputs.base_url }}
           MODEL: ${{ vars.PR_LENS_MODEL || steps.provider.outputs.default_model }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
             --base "${{ github.event.pull_request.base.sha }}" \
             --head "${{ github.event.pull_request.head.sha }}" \
@@ -172,16 +175,31 @@ jobs:
             --api-key-env "${KEY_VAR}" \
             ${MODEL:+--model "${MODEL}"} \
             ${BASE_URL:+--base-url "${BASE_URL}"} \
-            --out "${RUNNER_TEMP}/pr-lens/graph.json"
+            --out "${RUNNER_TEMP}/pr-lens/graph.json" 2>&1 | tee "${RUNNER_TEMP}/analyze.log"
+          status="${PIPESTATUS[0]}"
+          if [ "${status}" -ne 0 ]; then
+            grep -m1 '✗' "${RUNNER_TEMP}/analyze.log" > "${RUNNER_TEMP}/analyze-reason.txt" || echo "the model call failed" > "${RUNNER_TEMP}/analyze-reason.txt"
+            exit "${status}"
+          fi
+
+      - name: Write a note when the model call failed
+        if: steps.analyze.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          reason="$(head -c 300 "${RUNNER_TEMP}/analyze-reason.txt")"
+          printf 'pr-lens could not draw a diagram for this push. The model call failed: %s\n' "${reason}" > "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
 
       - name: Render the diagrams
-        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        if: steps.analyze.outcome == 'success'
         run: |
           npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" render "${RUNNER_TEMP}/pr-lens/graph.json" \
             --out "${RUNNER_TEMP}/pr-lens/assets"
 
       - name: Publish the SVGs to the pr-lens branch
-        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        if: steps.analyze.outcome == 'success'
         id: publish
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -194,7 +212,7 @@ jobs:
           echo "assets-url=${url}" >> "$GITHUB_OUTPUT"
 
       - name: Write the diagram section
-        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        if: steps.analyze.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
