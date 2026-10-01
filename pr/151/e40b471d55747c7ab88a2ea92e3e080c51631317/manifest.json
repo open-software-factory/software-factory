@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "e40b471d55747c7ab88a2ea92e3e080c51631317",
+    "contentHash": "55eca56ab9c21a54220f7171512b5fd9"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.1"
+  },
+  "assets": [
+    {
+      "id": "container-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4e3c395610e7011eb8ad34c8b4067c72",
+      "bytes": 40611,
+      "width": 1848,
+      "height": 876,
+      "animated": true,
+      "path": "container-architecture-light-4e3c395610e7011eb8ad34c8b4067c72.svg"
+    },
+    {
+      "id": "container-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "128053cc9aa2bc7f52eb69c4fc5e6e65",
+      "bytes": 41064,
+      "width": 1848,
+      "height": 876,
+      "animated": true,
+      "path": "container-architecture-dark-128053cc9aa2bc7f52eb69c4fc5e6e65.svg"
+    },
+    {
+      "id": "hook-wiring-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hook-wiring-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "32bc87610a9ec3d09e81edeb0c3676cb",
+      "bytes": 17110,
+      "width": 910,
+      "height": 532,
+      "animated": true,
+      "path": "hook-wiring-detail-light-32bc87610a9ec3d09e81edeb0c3676cb.svg"
+    },
+    {
+      "id": "hook-wiring-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hook-wiring-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a0b95d50fbb1c3309226264a4b8a983f",
+      "bytes": 17268,
+      "width": 910,
+      "height": 532,
+      "animated": true,
+      "path": "hook-wiring-detail-dark-a0b95d50fbb1c3309226264a4b8a983f.svg"
+    },
+    {
+      "id": "git-wrapper-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "git-wrapper-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "45d0c4c98d2d5c0a9703edf5cb4dc67f",
+      "bytes": 8784,
+      "width": 1005,
+      "height": 418,
+      "animated": true,
+      "path": "git-wrapper-detail-light-45d0c4c98d2d5c0a9703edf5cb4dc67f.svg"
+    },
+    {
+      "id": "git-wrapper-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "git-wrapper-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "47da4c7e3c57d573703d46acc56a69f3",
+      "bytes": 8867,
+      "width": 1005,
+      "height": 418,
+      "animated": true,
+      "path": "git-wrapper-detail-dark-47da4c7e3c57d573703d46acc56a69f3.svg"
+    },
+    {
+      "id": "agent-turn-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "agent-turn-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b0c5e566880b9b6d05f5608bd5bd66d8",
+      "bytes": 12250,
+      "width": 1059,
+      "height": 413,
+      "animated": true,
+      "path": "agent-turn-flow-light-b0c5e566880b9b6d05f5608bd5bd66d8.svg"
+    },
+    {
+      "id": "agent-turn-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "agent-turn-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "809f9d8ddae9d1ed5cea23a608a06800",
+      "bytes": 12353,
+      "width": 1059,
+      "height": 413,
+      "animated": true,
+      "path": "agent-turn-flow-dark-809f9d8ddae9d1ed5cea23a608a06800.svg"
+    },
+    {
+      "id": "commit-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "commit-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "254fb47fa5c1cba3d0d058d2e083d48c",
+      "bytes": 12481,
+      "width": 1284,
+      "height": 407,
+      "animated": true,
+      "path": "commit-flow-light-254fb47fa5c1cba3d0d058d2e083d48c.svg"
+    },
+    {
+      "id": "commit-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "commit-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a47ba5be52d028dbd581af9fc9c7a8f3",
+      "bytes": 12597,
+      "width": 1284,
+      "height": 407,
+      "animated": true,
+      "path": "commit-flow-dark-a47ba5be52d028dbd581af9fc9c7a8f3.svg"
+    }
+  ]
+}
