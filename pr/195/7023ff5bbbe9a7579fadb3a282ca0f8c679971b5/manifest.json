@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "7023ff5bbbe9a7579fadb3a282ca0f8c679971b5",
+    "contentHash": "c1385a6da4c0a2257ddd3bbfab56a46b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.1"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3995c5d11e90dcdde7379b9c816280c7",
+      "bytes": 20497,
+      "width": 1728,
+      "height": 542,
+      "animated": false,
+      "path": "architecture-overview-light-3995c5d11e90dcdde7379b9c816280c7.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1849b2dc96b08d500a88bfd6ba4c4cfb",
+      "bytes": 20733,
+      "width": 1728,
+      "height": 542,
+      "animated": false,
+      "path": "architecture-overview-dark-1849b2dc96b08d500a88bfd6ba4c4cfb.svg"
+    },
+    {
+      "id": "architecture-scan-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-scan-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c0669ba03541e3d7111263929d220b57",
+      "bytes": 6768,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "architecture-scan-internals-light-c0669ba03541e3d7111263929d220b57.svg"
+    },
+    {
+      "id": "architecture-scan-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-scan-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "90de8babf85949eca2f43751519fffcd",
+      "bytes": 6826,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "architecture-scan-internals-dark-90de8babf85949eca2f43751519fffcd.svg"
+    },
+    {
+      "id": "architecture-scan-symlink-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-scan-symlink",
+      "mediaType": "image/svg+xml",
+      "contentHash": "91a72cfc238cd7864d01ee67f7a59e51",
+      "bytes": 5245,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "architecture-scan-symlink-light-91a72cfc238cd7864d01ee67f7a59e51.svg"
+    },
+    {
+      "id": "architecture-scan-symlink-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-scan-symlink",
+      "mediaType": "image/svg+xml",
+      "contentHash": "60293a717b969969e3cda007a4651038",
+      "bytes": 5292,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "architecture-scan-symlink-dark-60293a717b969969e3cda007a4651038.svg"
+    },
+    {
+      "id": "data-flow-skill-lint-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "data-flow-skill-lint",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e858e0df979a3b85765f26de4b6c5431",
+      "bytes": 11044,
+      "width": 936,
+      "height": 299,
+      "animated": true,
+      "path": "data-flow-skill-lint-light-e858e0df979a3b85765f26de4b6c5431.svg"
+    },
+    {
+      "id": "data-flow-skill-lint-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "data-flow-skill-lint",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fa119482469e79e1cf7b5e0809aec9b9",
+      "bytes": 11168,
+      "width": 936,
+      "height": 299,
+      "animated": true,
+      "path": "data-flow-skill-lint-dark-fa119482469e79e1cf7b5e0809aec9b9.svg"
+    },
+    {
+      "id": "data-flow-symlink-check-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "data-flow-symlink-check",
+      "mediaType": "image/svg+xml",
+      "contentHash": "df506711778a2e23cfb1e183e9031ad4",
+      "bytes": 8971,
+      "width": 870,
+      "height": 261,
+      "animated": true,
+      "path": "data-flow-symlink-check-light-df506711778a2e23cfb1e183e9031ad4.svg"
+    },
+    {
+      "id": "data-flow-symlink-check-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "data-flow-symlink-check",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8b452c59bcfd08a3005efe367e3c80f4",
+      "bytes": 9050,
+      "width": 870,
+      "height": 261,
+      "animated": true,
+      "path": "data-flow-symlink-check-dark-8b452c59bcfd08a3005efe367e3c80f4.svg"
+    }
+  ]
+}

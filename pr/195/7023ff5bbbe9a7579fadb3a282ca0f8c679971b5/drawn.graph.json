@@ -1,0 +1,693 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-01T11:00:55.477Z",
+  "title": "Skills split, symlink-safe scan, and the rules that moved",
+  "summary": "This change splits the repository's agent rules into three layers: the root AGENTS.md keeps only what every task needs, a new crates/AGENTS.md and .github/workflows/AGENTS.md carry folder-scoped rules, and six new skills under .agents/skills/ carry rules that load at the moment a task matches. .claude/skills becomes a symlink to .agents/skills so Claude Code reads the same files, and ci.yml gains two jobs that lint every skill and assert the symlink is still a symlink. The one code change is in osf scan: a tracked symlink is now skipped rather than read as the file or directory it points at, with a new test helper and test covering it.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "af26518ebe6f1d78a43e0871da28d6df919ac2aa",
+      "ref": "af26518ebe6f1d78a43e0871da28d6df919ac2aa"
+    },
+    "head": {
+      "sha": "7023ff5bbbe9a7579fadb3a282ca0f8c679971b5",
+      "ref": "7023ff5bbbe9a7579fadb3a282ca0f8c679971b5"
+    },
+    "pullRequest": {
+      "number": 195,
+      "url": "https://github.com/open-software-factory/software-factory/pull/195"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "agent-harness",
+      "label": "Agent harness",
+      "subtitle": "where rules are read",
+      "order": 0,
+      "summary": "The coding agents working in this repository, and the rule files they load: the root AGENTS.md, the folder-scoped AGENTS.md files, and the skills."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "Rust workspace",
+      "order": 1,
+      "summary": "The osf binary and the library crates behind it. The scan command is the only part of this change that is code."
+    },
+    {
+      "id": "ci",
+      "label": "GitHub Actions",
+      "subtitle": "ci.yml",
+      "order": 2,
+      "summary": "The workflow that gates a pull request. Two new steps were added to the existing hygiene job."
+    },
+    {
+      "id": "repo-tree",
+      "label": "Repository tree",
+      "subtitle": "tracked files",
+      "order": 3,
+      "summary": "What git tracks: regular files, and the .claude/skills symlink that must stay a symlink."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "root-agents-md",
+      "label": "AGENTS.md",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "agent-harness",
+      "subtitle": "root rules, every task",
+      "summary": "Rewritten to hold only what every task needs. The working-posture, code-layout, bootstrap and branch sections moved out to crates/AGENTS.md, .github/workflows/AGENTS.md and the new skills. A new 'Where the other rules live' table points at each of them.",
+      "files": [
+        {
+          "path": "AGENTS.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crates-agents-md",
+      "label": "crates/AGENTS.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent-harness",
+      "subtitle": "rules for crates/",
+      "summary": "New folder-scoped rules: the thin-binary and one-crate-per-group layout, Rust for the engine, and the four commands to run before pushing under crates/.",
+      "files": [
+        {
+          "path": "crates/AGENTS.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflows-agents-md",
+      "label": ".github/workflows/AGENTS.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent-harness",
+      "subtitle": "rules for workflows",
+      "summary": "New folder-scoped rules for workflow files: judge jobs defined on the base branch, no secret beside a checked-out pull request tree, actions pinned to a commit SHA, least-privilege permissions, harden-runner in block mode, and review aids that never fail a check.",
+      "files": [
+        {
+          "path": ".github/workflows/AGENTS.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-skills",
+      "label": ".agents/skills/",
+      "kind": "module",
+      "delta": "added",
+      "lane": "agent-harness",
+      "group": "skills",
+      "subtitle": "6 new skills",
+      "summary": "Six new skills, each a SKILL.md with a numbered rule list and a stop condition: adding-an-osf-command, filing-an-issue, opening-a-pull-request, reviewing-a-pull-request, running-sub-agents, writing-a-workflow. Each rule says whether it is checked, not checked yet, or needs judgment.",
+      "files": [
+        {
+          "path": ".agents/skills/adding-an-osf-command/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/filing-an-issue/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/opening-a-pull-request/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/reviewing-a-pull-request/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/running-sub-agents/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/writing-a-workflow/SKILL.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude-skills-link",
+      "label": ".claude/skills",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent-harness",
+      "subtitle": "symlink → ../.agents/skills",
+      "summary": "A symlink so Claude Code, which reads only .claude/skills, sees the same skill files as every other agent. It must stay a symlink; a copy would drift.",
+      "files": [
+        {
+          "path": ".claude/skills"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-scan",
+      "label": "osf scan",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "scan_paths",
+      "summary": "The scan walker. It now checks symlink_metadata before reading a tracked path and skips anything that is a symlink, so a link is never read as the file or directory it points at.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 582,
+          "endLine": 590
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-tests",
+      "label": "scan tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "tests/scan.rs, tests/common",
+      "summary": "A new test asserts a tracked symlink to a directory is skipped rather than read, and TempRepo gains a symlink helper that creates the link the way a real symlink resolves it, with a Windows branch for dir versus file.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan.rs",
+          "startLine": 55,
+          "endLine": 69
+        },
+        {
+          "path": "crates/osf/tests/common/mod.rs",
+          "startLine": 68,
+          "endLine": 88
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-hygiene-job",
+      "label": "hygiene job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "ci.yml",
+      "summary": "The existing job that builds osf and runs the writing gate. Two steps were added ahead of the gate: one lints every skill, one asserts the .claude/skills symlink.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 209,
+          "endLine": 243
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-lint-step",
+      "label": "Check the skills",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "osf lint skill",
+      "summary": "Lists every tracked skills/*/SKILL.md and .agents/skills/*/SKILL.md, and runs osf lint skill over all of them on every run. Skills are few and cheap, so this is not scoped to the change.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 212,
+          "endLine": 222
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "symlink-check-step",
+      "label": "Check the Claude Code skills link",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "git ls-files -s",
+      "summary": "Reads the git mode of .claude/skills and fails unless it is 120000, then reads the link target and fails unless it is ../.agents/skills. The error text carries the fix, including the Windows core.symlinks and developer-mode steps.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 224,
+          "endLine": 243
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tracked-files",
+      "label": "tracked files",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "repo-tree",
+      "subtitle": "git index",
+      "summary": "The set of paths git tracks, which is what osf scan walks and what the symlink check reads its mode from.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 560,
+          "endLine": 600
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "root-agents-points-at-crates",
+      "from": "root-agents-md",
+      "to": "crates-agents-md",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "table row",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The root file's new table names crates/AGENTS.md as the rules that load when working under crates/.",
+      "files": [
+        {
+          "path": "AGENTS.md"
+        }
+      ]
+    },
+    {
+      "id": "root-agents-points-at-workflows",
+      "from": "root-agents-md",
+      "to": "workflows-agents-md",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "table row",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The same table names .github/workflows/AGENTS.md for work under that folder.",
+      "files": [
+        {
+          "path": "AGENTS.md"
+        }
+      ]
+    },
+    {
+      "id": "root-agents-points-at-skills",
+      "from": "root-agents-md",
+      "to": "agents-skills",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "table rows",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The table lists each of the six skills and the moment that loads it.",
+      "files": [
+        {
+          "path": "AGENTS.md"
+        }
+      ]
+    },
+    {
+      "id": "claude-link-to-skills",
+      "from": "claude-skills-link",
+      "to": "agents-skills",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "../.agents/skills",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The symlink that makes one set of skill files serve every agent harness. This is the connection the change is really about: a copy would drift, a link cannot.",
+      "files": [
+        {
+          "path": ".claude/skills"
+        }
+      ]
+    },
+    {
+      "id": "skill-lint-reads-skills",
+      "from": "skill-lint-step",
+      "to": "agents-skills",
+      "kind": "data",
+      "delta": "added",
+      "label": "git ls-files",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The step enumerates tracked skill directories and hands them to osf lint skill.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 212,
+          "endLine": 222
+        }
+      ]
+    },
+    {
+      "id": "symlink-check-reads-link",
+      "from": "symlink-check-step",
+      "to": "claude-skills-link",
+      "kind": "data",
+      "delta": "added",
+      "label": "mode + readlink",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The step reads the git mode and the link target of .claude/skills and fails the job when either is wrong.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 224,
+          "endLine": 243
+        }
+      ]
+    },
+    {
+      "id": "scan-reads-tracked-files",
+      "from": "osf-scan",
+      "to": "tracked-files",
+      "kind": "data",
+      "delta": "modified",
+      "label": "symlink_metadata, then read",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The walker now stats each path first and skips symlinks, so a link is never read as its target.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 582,
+          "endLine": 590
+        }
+      ]
+    },
+    {
+      "id": "scan-tests-cover-scan",
+      "from": "scan-tests",
+      "to": "osf-scan",
+      "kind": "call",
+      "delta": "modified",
+      "label": "scan_paths",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new test drives scan_paths over a repo holding a tracked symlink to a directory and asserts nothing was read.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan.rs",
+          "startLine": 55,
+          "endLine": 69
+        }
+      ]
+    },
+    {
+      "id": "hygiene-job-runs-skill-lint",
+      "from": "ci-hygiene-job",
+      "to": "skill-lint-step",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The hygiene job runs the skill lint step before the writing gate.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 209,
+          "endLine": 243
+        }
+      ]
+    },
+    {
+      "id": "hygiene-job-runs-symlink-check",
+      "from": "ci-hygiene-job",
+      "to": "symlink-check-step",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The same job runs the symlink check step.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 209,
+          "endLine": 243
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "skill-lint-flow",
+      "title": "Every skill is linted on each run",
+      "summary": "The hygiene job enumerates the tracked skill directories and hands them to osf lint skill, which reads each SKILL.md and reports.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "ci-hygiene-job",
+          "label": "hygiene job"
+        },
+        {
+          "node": "skill-lint-step",
+          "label": "Check the skills"
+        },
+        {
+          "node": "agents-skills",
+          "label": ".agents/skills/"
+        },
+        {
+          "node": "osf-scan",
+          "label": "osf lint skill"
+        }
+      ],
+      "messages": [
+        {
+          "id": "skill-lint-enumerate",
+          "from": "ci-hygiene-job",
+          "to": "skill-lint-step",
+          "label": "run step",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 212,
+              "endLine": 222
+            }
+          ]
+        },
+        {
+          "id": "skill-lint-list",
+          "from": "skill-lint-step",
+          "to": "agents-skills",
+          "label": "git ls-files skills/*/SKILL.md .agents/skills/*/SKILL.md",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Both the shipped skills and the repository's own skills are listed, so a new skill is checked the moment it is committed.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 214,
+              "endLine": 214
+            }
+          ]
+        },
+        {
+          "id": "skill-lint-run",
+          "from": "skill-lint-step",
+          "to": "osf-scan",
+          "label": "osf lint skill --format human <dirs>",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 221,
+              "endLine": 221
+            }
+          ]
+        },
+        {
+          "id": "skill-lint-result",
+          "from": "osf-scan",
+          "to": "skill-lint-step",
+          "label": "exit status",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 221,
+              "endLine": 221
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "symlink-check-flow",
+      "title": "The .claude/skills link is asserted, not assumed",
+      "summary": "The hygiene job reads the git mode and the link target of .claude/skills and fails with a fix in the message when either is wrong.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "ci-hygiene-job",
+          "label": "hygiene job"
+        },
+        {
+          "node": "symlink-check-step",
+          "label": "Check the link"
+        },
+        {
+          "node": "claude-skills-link",
+          "label": ".claude/skills"
+        }
+      ],
+      "messages": [
+        {
+          "id": "symlink-check-mode",
+          "from": "symlink-check-step",
+          "to": "claude-skills-link",
+          "label": "git ls-files -s .claude/skills",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A mode other than 120000 means the link was committed as a regular file or directory, which is the drift this check exists to catch.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 228,
+              "endLine": 228
+            }
+          ]
+        },
+        {
+          "id": "symlink-check-target",
+          "from": "symlink-check-step",
+          "to": "claude-skills-link",
+          "label": "readlink .claude/skills",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 236,
+              "endLine": 236
+            }
+          ]
+        },
+        {
+          "id": "symlink-check-fail",
+          "from": "symlink-check-step",
+          "to": "ci-hygiene-job",
+          "label": "::error:: with the fix",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "The failure message names the Windows core.symlinks and developer-mode steps, so the fix is in the log rather than in a wiki.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 230,
+              "endLine": 242
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 14,
+    "additions": 276,
+    "deletions": 35,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Rules, scan and CI",
+      "lens": "architecture",
+      "summary": "The three layers the rules now live in, the one code change in osf scan, and the two new CI steps that hold the skill layout in place.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "architecture-scan-internals",
+      "title": "Inside osf scan",
+      "lens": "architecture",
+      "summary": "The scan walker, the tracked-file set it reads, and the test that pins the new symlink behaviour.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "osf-scan",
+          "scan-tests",
+          "tracked-files"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "architecture-scan-symlink",
+          "title": "The symlink skip",
+          "lens": "architecture",
+          "summary": "scan_paths now stats each path with symlink_metadata and continues past anything that is a symlink, before the read that would otherwise follow the link.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "osf-scan",
+              "scan-tests"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "data-flow-skill-lint",
+      "title": "Skill lint on every run",
+      "lens": "data-flow",
+      "summary": "How the hygiene job turns the tracked skill directories into a lint result.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "skill-lint-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "data-flow-symlink-check",
+      "title": "The symlink assertion",
+      "lens": "data-flow",
+      "summary": "How the hygiene job reads the git mode and link target of .claude/skills and fails with a fix when either is wrong.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "symlink-check-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
