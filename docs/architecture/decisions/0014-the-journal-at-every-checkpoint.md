@@ -31,6 +31,6 @@ A flush that cannot reach its sink keeps the buffer and retries at the next flus
 ## Consequences
 
 - Decision 0009 is amended to name the buffer, the flush and the two sinks. Its rule that a journal reaches its sink before the work item changes state stands.
-- A local run's journal survives the machine as of its last flush. A machine that dies before a flush loses at most the buffered events, and the journal shows the gap.
+- A local run's journal survives the machine as of its last flush. A machine that recovers and flushes again writes a gap event naming the missed interval. A machine that is lost for good never flushes again. The journal then simply stops at its last flush, with no gap event marking that loss.
 - The meta-loop's readers join transcripts and events by run identifier.
 - The object store client enters behind the same sink interface as the branch, so a reader sees one journal.
