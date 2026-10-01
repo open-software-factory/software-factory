@@ -582,6 +582,10 @@ pub fn scan_paths(
             dropped += 1;
             continue;
         }
+        let is_symlink = std::fs::symlink_metadata(&full).is_ok_and(|m| m.file_type().is_symlink());
+        if is_symlink {
+            continue;
+        }
         let bytes =
             std::fs::read(&full).map_err(|e| format!("cannot read {}: {e}", full.display()))?;
         if is_binary(&bytes) {

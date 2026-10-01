@@ -53,6 +53,21 @@ fn a_binary_tracked_file_is_skipped_not_scanned() {
 }
 
 #[test]
+fn a_tracked_symlink_to_a_directory_is_skipped_not_read_as_a_file() {
+    let repo = TempRepo::new("symlink-to-dir");
+    repo.write("real/file.md", "Nothing to see here.\n");
+    repo.symlink("link", "real");
+    repo.commit("add a symlinked directory");
+
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    assert!(
+        found.files.iter().all(|(_, f)| f.is_empty()),
+        "a symlink must never be read as if it were the file or directory it points at: {:?}",
+        found.files
+    );
+}
+
+#[test]
 fn an_explicit_path_is_scanned_even_when_not_tracked() {
     let repo = TempRepo::new("explicit-path");
     repo.write(
