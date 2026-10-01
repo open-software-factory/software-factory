@@ -12,7 +12,12 @@ if ($env:OSF_FAKE_ENV_CAPTURE) {
     $lines = @(
         "GH_TOKEN=$($env:GH_TOKEN)",
         "GITHUB_TOKEN=$($env:GITHUB_TOKEN)",
-        "GH_ENTERPRISE_TOKEN=$($env:GH_ENTERPRISE_TOKEN)"
+        "GH_ENTERPRISE_TOKEN=$($env:GH_ENTERPRISE_TOKEN)",
+        "OPENAI_API_KEY=$($env:OPENAI_API_KEY)",
+        "ANTHROPIC_API_KEY=$($env:ANTHROPIC_API_KEY)",
+        "DEEPSEEK_API_KEY=$($env:DEEPSEEK_API_KEY)",
+        "CLAUDE_CODE_OAUTH_TOKEN=$($env:CLAUDE_CODE_OAUTH_TOKEN)",
+        "OPENROUTER_API_KEY=$($env:OPENROUTER_API_KEY)"
     )
     Set-Content -Path $env:OSF_FAKE_ENV_CAPTURE -Value ($lines -join "`n")
 }

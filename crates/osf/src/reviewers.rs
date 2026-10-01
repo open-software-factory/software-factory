@@ -65,6 +65,13 @@ pub struct Reviewer {
     /// `None`.
     #[serde(default)]
     pub model_flag: Option<String>,
+    /// The environment variable names that carry this reviewer's own
+    /// provider credential, such as `ANTHROPIC_API_KEY` or a subscription
+    /// token. [`run_one`] starts this reviewer with only these, plus the
+    /// variables every child needs to run at all; no other reviewer's
+    /// credential is ever in its environment.
+    #[serde(default)]
+    pub credential_env: Vec<String>,
     #[serde(default)]
     pub enabled: bool,
 }
@@ -116,6 +123,28 @@ fn upsert(reviewers: &mut Vec<Reviewer>, reviewer: Reviewer) {
         None => reviewers.push(reviewer),
     }
 }
+
+/// Variable names every reviewer's child needs purely to run its own
+/// program and find its own files, carried over from `osf`'s own
+/// environment when present: never a credential, so the same names are safe
+/// for every reviewer regardless of which one is starting.
+#[cfg(unix)]
+const RUN_ENV_VARS: &[&str] = &["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR"];
+#[cfg(windows)]
+const RUN_ENV_VARS: &[&str] = &[
+    "PATH",
+    "HOME",
+    "USERPROFILE",
+    "SYSTEMROOT",
+    "SYSTEMDRIVE",
+    "COMSPEC",
+    "PATHEXT",
+    "TEMP",
+    "TMP",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "WINDIR",
+];
 
 /// Runs `reviewer` against `prompt` for `lens` in `workdir`, and returns its
 /// validated answer.
@@ -189,6 +218,12 @@ fn extract_pointer(raw: &str, pointer: &str) -> Result<String, String> {
 /// One attempt at running `reviewer`'s harness to completion: its captured
 /// standard output on a successful exit, or the reason it does not count as
 /// one.
+///
+/// The child starts with an allow-listed environment: only [`RUN_ENV_VARS`]
+/// (the variables any program needs to run at all, such as `PATH` and
+/// `HOME`) and `reviewer.credential_env` (that reviewer's own provider
+/// credential, by name). Every other reviewer's credential, and `osf`'s own
+/// `GH_TOKEN`, stay out, whatever else is set on `osf`'s own process.
 fn run_child(
     reviewer: &Reviewer,
     prompt: &str,
@@ -209,14 +244,18 @@ fn run_child(
     };
 
     let mut command = Command::new(program);
+    command.args(rest).current_dir(workdir).env_clear();
+    for var in RUN_ENV_VARS {
+        if let Ok(value) = std::env::var(var) {
+            command.env(var, value);
+        }
+    }
+    for var in &reviewer.credential_env {
+        if let Ok(value) = std::env::var(var) {
+            command.env(var, value);
+        }
+    }
     command
-        .args(rest)
-        .current_dir(workdir)
-        // osf keeps these for posting; a reviewer's own model key, a
-        // different variable, still reaches the harness untouched.
-        .env_remove("GH_TOKEN")
-        .env_remove("GITHUB_TOKEN")
-        .env_remove("GH_ENTERPRISE_TOKEN")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -378,6 +417,7 @@ mod tests {
             answer_pointer: String::new(),
             model: None,
             model_flag: None,
+            credential_env: Vec::new(),
             enabled: false,
         }
     }

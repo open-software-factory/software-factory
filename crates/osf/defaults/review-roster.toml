@@ -23,6 +23,7 @@ schema_flag = "--output-schema"
 schema_as = "path"
 # codex exec's own --model/-m flag; left unset here so codex uses its own default model.
 model_flag = "--model"
+credential_env = ["OPENAI_API_KEY"]
 enabled = false
 
 [[reviewer]]
@@ -38,6 +39,8 @@ schema_as = "inline"
 answer_pointer = "/structured_output"
 # claude's own --model flag; left unset here so claude uses its own default model.
 model_flag = "--model"
+# claude reads either its own subscription token or an Anthropic API key.
+credential_env = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]
 enabled = false
 
 [[reviewer]]
@@ -47,7 +50,11 @@ family = "deepseek"
 # DeepSeek Harness's headless profile has no model flag of its own: it
 # always answers with the model its profile is already configured for.
 command = ["dsh", "--profile", "headless"]
+credential_env = ["DEEPSEEK_API_KEY"]
 enabled = false
+
+# The four opencode variants below all reach their model through
+# OpenRouter, so they share its one credential variable.
 
 [[reviewer]]
 name = "opencode-glm"
@@ -57,6 +64,7 @@ family = "glm"
 command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "zhipuai/glm"
+credential_env = ["OPENROUTER_API_KEY"]
 enabled = false
 
 [[reviewer]]
@@ -66,6 +74,7 @@ family = "kimi"
 command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "moonshotai/kimi"
+credential_env = ["OPENROUTER_API_KEY"]
 enabled = false
 
 [[reviewer]]
@@ -75,6 +84,7 @@ family = "qwen"
 command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "alibaba/qwen"
+credential_env = ["OPENROUTER_API_KEY"]
 enabled = false
 
 [[reviewer]]
@@ -84,4 +94,5 @@ family = "mimo"
 command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "xiaomi/mimo"
+credential_env = ["OPENROUTER_API_KEY"]
 enabled = false

@@ -40,7 +40,9 @@ must_explain_names = ["Linear", "Canny", "Figma", "Jira", "Intercom", "Zendesk"]
 # reviewer reaches its model is not part of its name.
 #
 # This review environment holds OPENAI_API_KEY, DEEPSEEK_API_KEY,
-# CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY.
+# CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each entry's own
+# `credential_env` is the only way its reviewer sees one of these: a
+# reviewer with no entry there starts with none of them.
 
 # codex reads its key from OPENAI_API_KEY (or CODEX_API_KEY), the same
 # variable the review workflow already sets for this job.
@@ -54,6 +56,7 @@ command = ["codex", "exec"]
 schema_flag = "--output-schema"
 schema_as = "path"
 model_flag = "--model"
+credential_env = ["OPENAI_API_KEY", "CODEX_API_KEY"]
 enabled = true
 
 # dsh reads its key from DEEPSEEK_API_KEY. Its headless profile takes
@@ -67,6 +70,7 @@ name = "deepseek"
 harness = "dsh"
 family = "deepseek"
 command = ["sh", "-c", 'exec dsh --profile headless "$(cat "$1")"', "sh", "{prompt_file}"]
+credential_env = ["DEEPSEEK_API_KEY"]
 enabled = true
 
 # claude talks to Anthropic directly and reads CLAUDE_CODE_OAUTH_TOKEN,
@@ -83,6 +87,7 @@ schema_as = "inline"
 answer_pointer = "/structured_output"
 model_flag = "--model"
 model = "claude-sonnet-5"
+credential_env = ["CLAUDE_CODE_OAUTH_TOKEN"]
 enabled = true
 
 # opencode reads OPENROUTER_API_KEY itself. Its own model flag takes
@@ -95,4 +100,5 @@ family = "qwen"
 command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "openrouter/qwen/qwen3-coder-next"
+credential_env = ["OPENROUTER_API_KEY"]
 enabled = true

@@ -14,6 +14,11 @@ if [ -n "${OSF_FAKE_ENV_CAPTURE:-}" ]; then
         echo "GH_TOKEN=${GH_TOKEN:-}"
         echo "GITHUB_TOKEN=${GITHUB_TOKEN:-}"
         echo "GH_ENTERPRISE_TOKEN=${GH_ENTERPRISE_TOKEN:-}"
+        echo "OPENAI_API_KEY=${OPENAI_API_KEY:-}"
+        echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}"
+        echo "DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}"
+        echo "CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}"
+        echo "OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}"
     } > "$OSF_FAKE_ENV_CAPTURE"
 fi
 if [ -n "${OSF_FAKE_SLEEP_SECS:-}" ]; then

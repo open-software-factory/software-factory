@@ -41,35 +41,67 @@ fn fixture(name: &str) -> String {
     )
 }
 
-/// The fake harness, invoked the way a real coding-agent CLI would be: one
-/// program, no shell. `fake-harness.sh` needs its executable bit, which git
-/// preserves once set; `fake-harness.ps1` runs through `powershell -File`.
-fn fake_harness_command() -> Vec<String> {
-    if cfg!(windows) {
-        vec![
-            "powershell".to_string(),
-            "-NoProfile".to_string(),
-            "-ExecutionPolicy".to_string(),
-            "Bypass".to_string(),
-            "-File".to_string(),
-            fixture("fake-harness.ps1"),
-        ]
-    } else {
-        vec![fixture("fake-harness.sh")]
-    }
+/// `s`, single-quoted for a POSIX shell: any single quote inside is closed,
+/// escaped, and reopened.
+#[cfg(unix)]
+fn shell_single_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }
 
-fn fake_reviewer() -> Reviewer {
+/// The fake harness, invoked the way a real coding-agent CLI would be, with
+/// `vars` set for the harness's own run only, never on this test process:
+/// `run_one` now starts a reviewer with an allow-listed environment, so a
+/// control variable set on the test process (the old way every test here
+/// worked) would never reach the child. `fake-harness.sh` needs its
+/// executable bit, which git preserves once set.
+#[cfg(unix)]
+fn fake_harness_command(vars: &[(&str, &str)]) -> Vec<String> {
+    use std::fmt::Write as _;
+    let mut assignments = String::new();
+    for (k, v) in vars {
+        let _ = write!(assignments, "{k}={} ", shell_single_quote(v));
+    }
+    vec![
+        "sh".to_string(),
+        "-c".to_string(),
+        format!(
+            "{assignments}exec {}",
+            shell_single_quote(&fixture("fake-harness.sh"))
+        ),
+    ]
+}
+
+#[cfg(windows)]
+fn fake_harness_command(vars: &[(&str, &str)]) -> Vec<String> {
+    let mut prefix = String::new();
+    for (k, v) in vars {
+        prefix.push_str(&format!("$env:{k}=\"{}\"; ", v.replace('"', "`\"")));
+    }
+    vec![
+        "powershell".to_string(),
+        "-NoProfile".to_string(),
+        "-ExecutionPolicy".to_string(),
+        "Bypass".to_string(),
+        "-Command".to_string(),
+        format!("{prefix}& '{}'", fixture("fake-harness.ps1")),
+    ]
+}
+
+/// A reviewer backed by the fake harness, started with `vars` set for its
+/// own run (see [`fake_harness_command`]) and no declared credential: tests
+/// that need one set `credential_env` on the result themselves.
+fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
     Reviewer {
         name: "fake".to_string(),
         harness: "fake".to_string(),
         family: "fake-family".to_string(),
-        command: fake_harness_command(),
+        command: fake_harness_command(vars),
         schema_flag: None,
         schema_as: SchemaArg::default(),
         answer_pointer: String::new(),
         model: None,
         model_flag: None,
+        credential_env: Vec::new(),
         enabled: true,
     }
 }
@@ -103,47 +135,57 @@ fn test_lens() -> Lens {
 #[test]
 fn a_valid_answer_from_the_fake_harness_is_answered() {
     let answer_path = fixture("valid.json");
-    serial(&[("OSF_FAKE_ANSWER", &answer_path)], || {
-        let workdir = TempDir::new("osf-reviewers-valid");
-        let outcome = run_one(
-            &fake_reviewer(),
-            "review this change",
-            &test_lens(),
-            &workdir,
-            Duration::from_secs(10),
-        );
-        match outcome {
-            Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
-            Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
-            Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
-        }
-    });
+    let workdir = TempDir::new("osf-reviewers-valid");
+    let outcome = run_one(
+        &fake_reviewer(&[("OSF_FAKE_ANSWER", &answer_path)]),
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
+    );
+    match outcome {
+        Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
+        Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+        Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+    }
 }
 
 /// A reviewer's own harness never sees the tokens `osf` itself uses to post
-/// a review: `GH_TOKEN`, `GITHUB_TOKEN`, and `GH_ENTERPRISE_TOKEN` are all
-/// unset in the child's environment, even when they are set on `osf`'s own
-/// process, the way the verifier token is in the review workflow.
+/// a review, nor any other reviewer's own provider credential: `run_one`
+/// starts it with an allow-listed environment holding only the variables
+/// every child needs to run and this reviewer's own declared
+/// `credential_env`, whatever else is set on `osf`'s own process.
 #[test]
-fn a_reviewer_child_never_inherits_a_github_token() {
+fn a_reviewer_child_sees_only_its_own_declared_credential() {
     let workdir = TempDir::new("osf-reviewers-no-token-leak");
     let capture_path = workdir.join("env-capture.txt");
     let capture_str = capture_path.to_string_lossy().into_owned();
     let answer_path = fixture("valid.json");
+    let mut reviewer = fake_reviewer(&[
+        ("OSF_FAKE_ANSWER", &answer_path),
+        ("OSF_FAKE_ENV_CAPTURE", &capture_str),
+    ]);
+    reviewer.credential_env = vec!["ANTHROPIC_API_KEY".to_string()];
     serial(
         &[
-            ("OSF_FAKE_ANSWER", &answer_path),
-            ("OSF_FAKE_ENV_CAPTURE", &capture_str),
             ("GH_TOKEN", "verifier-token-must-never-reach-a-reviewer"),
             ("GITHUB_TOKEN", "default-token-must-never-reach-a-reviewer"),
             (
                 "GH_ENTERPRISE_TOKEN",
                 "enterprise-token-must-never-reach-a-reviewer",
             ),
+            ("ANTHROPIC_API_KEY", "this-reviewers-own-credential"),
+            ("OPENAI_API_KEY", "a-different-providers-credential"),
+            ("DEEPSEEK_API_KEY", "a-different-providers-credential"),
+            (
+                "CLAUDE_CODE_OAUTH_TOKEN",
+                "a-different-reviewers-own-subscription-token",
+            ),
+            ("OPENROUTER_API_KEY", "a-different-providers-credential"),
         ],
         || {
             let outcome = run_one(
-                &fake_reviewer(),
+                &reviewer,
                 "review this change",
                 &test_lens(),
                 &workdir,
@@ -159,7 +201,15 @@ fn a_reviewer_child_never_inherits_a_github_token() {
     let captured =
         std::fs::read_to_string(&capture_path).expect("the fake harness's env capture writes");
     assert_eq!(
-        captured, "GH_TOKEN=\nGITHUB_TOKEN=\nGH_ENTERPRISE_TOKEN=\n",
+        captured,
+        "GH_TOKEN=\n\
+         GITHUB_TOKEN=\n\
+         GH_ENTERPRISE_TOKEN=\n\
+         OPENAI_API_KEY=\n\
+         ANTHROPIC_API_KEY=this-reviewers-own-credential\n\
+         DEEPSEEK_API_KEY=\n\
+         CLAUDE_CODE_OAUTH_TOKEN=\n\
+         OPENROUTER_API_KEY=\n",
         "{captured}"
     );
 }
@@ -170,26 +220,21 @@ fn an_invalid_answer_is_retried_once_then_reported_invalid() {
     let log_path = workdir.join("harness.log");
     let log_str = log_path.to_string_lossy().into_owned();
     let answer_path = fixture("prose-only.txt");
-    serial(
-        &[
+    let outcome = run_one(
+        &fake_reviewer(&[
             ("OSF_FAKE_ANSWER", &answer_path),
             ("OSF_FAKE_HARNESS_LOG", &log_str),
-        ],
-        || {
-            let outcome = run_one(
-                &fake_reviewer(),
-                "review this change",
-                &test_lens(),
-                &workdir,
-                Duration::from_secs(10),
-            );
-            match outcome {
-                Outcome::Invalid(_) => {}
-                Outcome::Answered(_) => panic!("expected Invalid, got Answered"),
-                Outcome::CouldNotRun(e) => panic!("expected Invalid, got CouldNotRun({e})"),
-            }
-        },
+        ]),
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
     );
+    match outcome {
+        Outcome::Invalid(_) => {}
+        Outcome::Answered(_) => panic!("expected Invalid, got Answered"),
+        Outcome::CouldNotRun(e) => panic!("expected Invalid, got CouldNotRun({e})"),
+    }
     let log = std::fs::read_to_string(&log_path).expect("the fake harness's log writes");
     assert_eq!(
         log.lines().count(),
@@ -200,7 +245,7 @@ fn an_invalid_answer_is_retried_once_then_reported_invalid() {
 
 #[test]
 fn a_harness_that_cannot_start_is_could_not_run() {
-    let mut reviewer = fake_reviewer();
+    let mut reviewer = fake_reviewer(&[]);
     reviewer.command = vec!["/nonexistent/osf-fake-harness-that-does-not-exist".to_string()];
     let workdir = TempDir::new("osf-reviewers-missing");
     let outcome = run_one(
@@ -224,27 +269,22 @@ fn a_harness_that_cannot_start_is_could_not_run() {
 #[test]
 fn a_reviewer_whose_required_key_is_missing_is_could_not_run() {
     let answer_path = fixture("valid.json");
-    serial(
-        &[
+    let workdir = TempDir::new("osf-reviewers-missing-key");
+    let outcome = run_one(
+        &fake_reviewer(&[
             ("OSF_FAKE_ANSWER", &answer_path),
             ("OSF_FAKE_REQUIRE_ENV", "OSF_FAKE_REVIEWER_API_KEY"),
-        ],
-        || {
-            let workdir = TempDir::new("osf-reviewers-missing-key");
-            let outcome = run_one(
-                &fake_reviewer(),
-                "review this change",
-                &test_lens(),
-                &workdir,
-                Duration::from_secs(10),
-            );
-            match outcome {
-                Outcome::CouldNotRun(_) => {}
-                Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
-                Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
-            }
-        },
+        ]),
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
     );
+    match outcome {
+        Outcome::CouldNotRun(_) => {}
+        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
+        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+    }
 }
 
 /// A reviewer whose harness hangs past its timeout is killed through the
@@ -259,29 +299,24 @@ fn a_reviewer_that_hangs_past_its_timeout_is_killed_and_reported_could_not_run()
     let marker = workdir.join("marker.txt");
     let marker_str = marker.to_string_lossy().into_owned();
     let answer_path = fixture("valid.json");
-    serial(
-        &[
+    let outcome = run_one(
+        &fake_reviewer(&[
             ("OSF_FAKE_ANSWER", &answer_path),
             ("OSF_FAKE_SLEEP_SECS", "6"),
             ("OSF_FAKE_MARKER", &marker_str),
-        ],
-        || {
-            let outcome = run_one(
-                &fake_reviewer(),
-                "review this change",
-                &test_lens(),
-                &workdir,
-                Duration::from_secs(2),
-            );
-            match outcome {
-                Outcome::CouldNotRun(reason) => {
-                    assert!(reason.contains("timed out"), "{reason}");
-                }
-                Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
-                Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
-            }
-        },
+        ]),
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(2),
     );
+    match outcome {
+        Outcome::CouldNotRun(reason) => {
+            assert!(reason.contains("timed out"), "{reason}");
+        }
+        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
+        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+    }
 
     // The sleep would finish around the 6s mark from spawn; wait well past
     // that before checking the marker never showed up.
@@ -309,28 +344,23 @@ fn a_large_prompt_to_a_harness_that_ignores_stdin_is_still_killed_at_its_timeout
     let answer_path = fixture("valid.json");
     let big_prompt = "x".repeat(1024 * 1024);
     let started = std::time::Instant::now();
-    serial(
-        &[
+    let outcome = run_one(
+        &fake_reviewer(&[
             ("OSF_FAKE_ANSWER", &answer_path),
             ("OSF_FAKE_SLEEP_SECS", "6"),
-        ],
-        || {
-            let outcome = run_one(
-                &fake_reviewer(),
-                &big_prompt,
-                &test_lens(),
-                &workdir,
-                Duration::from_secs(2),
-            );
-            match outcome {
-                Outcome::CouldNotRun(reason) => {
-                    assert!(reason.contains("timed out"), "{reason}");
-                }
-                Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
-                Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
-            }
-        },
+        ]),
+        &big_prompt,
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(2),
     );
+    match outcome {
+        Outcome::CouldNotRun(reason) => {
+            assert!(reason.contains("timed out"), "{reason}");
+        }
+        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
+        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+    }
     assert!(
         started.elapsed() < Duration::from_secs(8),
         "run_one took {:?}, the 2s timeout should have governed it, not the 1 MB stdin write",
@@ -346,23 +376,21 @@ fn a_large_prompt_to_a_harness_that_ignores_stdin_is_still_killed_at_its_timeout
 #[test]
 fn a_codex_style_plain_answer_needs_no_envelope_pointer() {
     let answer_path = fixture("valid.json");
-    serial(&[("OSF_FAKE_ANSWER", &answer_path)], || {
-        let mut reviewer = fake_reviewer();
-        reviewer.answer_pointer = String::new();
-        let workdir = TempDir::new("osf-reviewers-codex-shape");
-        let outcome = run_one(
-            &reviewer,
-            "review this change",
-            &test_lens(),
-            &workdir,
-            Duration::from_secs(10),
-        );
-        match outcome {
-            Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
-            Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
-            Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
-        }
-    });
+    let mut reviewer = fake_reviewer(&[("OSF_FAKE_ANSWER", &answer_path)]);
+    reviewer.answer_pointer = String::new();
+    let workdir = TempDir::new("osf-reviewers-codex-shape");
+    let outcome = run_one(
+        &reviewer,
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
+    );
+    match outcome {
+        Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
+        Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+        Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+    }
 }
 
 /// A 1 MB prompt is well over an OS pipe's own buffer, so the write blocks
@@ -378,21 +406,19 @@ fn a_codex_style_plain_answer_needs_no_envelope_pointer() {
 fn a_harness_that_never_reads_a_large_prompt_and_exits_at_once_is_still_answered() {
     let answer_path = fixture("valid.json");
     let big_prompt = "x".repeat(1024 * 1024);
-    serial(&[("OSF_FAKE_ANSWER", &answer_path)], || {
-        let workdir = TempDir::new("osf-reviewers-broken-pipe-answered");
-        let outcome = run_one(
-            &fake_reviewer(),
-            &big_prompt,
-            &test_lens(),
-            &workdir,
-            Duration::from_secs(10),
-        );
-        match outcome {
-            Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
-            Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
-            Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
-        }
-    });
+    let workdir = TempDir::new("osf-reviewers-broken-pipe-answered");
+    let outcome = run_one(
+        &fake_reviewer(&[("OSF_FAKE_ANSWER", &answer_path)]),
+        &big_prompt,
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
+    );
+    match outcome {
+        Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
+        Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+        Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+    }
 }
 
 /// Claude Code's real shape with `--output-format json` and `--json-schema`:
@@ -401,23 +427,21 @@ fn a_harness_that_never_reads_a_large_prompt_and_exits_at_once_is_still_answered
 #[test]
 fn a_claude_code_style_envelope_extracts_structured_output() {
     let answer_path = fixture("claude-envelope.json");
-    serial(&[("OSF_FAKE_ANSWER", &answer_path)], || {
-        let mut reviewer = fake_reviewer();
-        reviewer.answer_pointer = "/structured_output".to_string();
-        let workdir = TempDir::new("osf-reviewers-claude-envelope");
-        let outcome = run_one(
-            &reviewer,
-            "review this change",
-            &test_lens(),
-            &workdir,
-            Duration::from_secs(10),
-        );
-        match outcome {
-            Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
-            Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
-            Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
-        }
-    });
+    let mut reviewer = fake_reviewer(&[("OSF_FAKE_ANSWER", &answer_path)]);
+    reviewer.answer_pointer = "/structured_output".to_string();
+    let workdir = TempDir::new("osf-reviewers-claude-envelope");
+    let outcome = run_one(
+        &reviewer,
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
+    );
+    match outcome {
+        Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
+        Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+        Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+    }
 }
 
 /// This repository's own `osf.toml` roster, one entry per family, named
