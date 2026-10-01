@@ -206,6 +206,68 @@ fn clear_report(root: &Path) -> Result<(), String> {
     }
 }
 
+/// The lock file naming moon's own `runReport.json`, which moon writes to
+/// one fixed path per workspace with no per-invocation namespacing of its
+/// own. How long [`ReportLock::acquire`] waits for it before giving up:
+/// long enough for a real checkpoint run, short enough that a crashed
+/// holder cannot wedge every later invocation forever.
+const REPORT_LOCK_WAIT: Duration = Duration::from_secs(300);
+const REPORT_LOCK_POLL: Duration = Duration::from_millis(100);
+
+/// Holds the one lock moon's shared `runReport.json` needs: without it, two
+/// checkpoint invocations racing on the same workspace can clear, read or
+/// overwrite each other's report mid-run, since moon has no flag or
+/// environment variable that gives a run its own report path. Acquired for
+/// exactly the span this adapter owns that file — clearing it, running
+/// moon, and reading the result back — and released on every exit from
+/// [`run`], including an early one, since [`Drop`] removes the lock file.
+struct ReportLock {
+    path: PathBuf,
+}
+
+impl ReportLock {
+    fn acquire(root: &Path) -> Result<ReportLock, String> {
+        let path = root.join(".moon").join("cache").join("osf-run-report.lock");
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+        }
+        let deadline = std::time::Instant::now() + REPORT_LOCK_WAIT;
+        loop {
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(_) => return Ok(ReportLock { path }),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(format!(
+                            "cannot acquire the moon run-report lock at {}: held for longer than \
+                             {}s; a previous invocation may have crashed",
+                            path.display(),
+                            REPORT_LOCK_WAIT.as_secs()
+                        ));
+                    }
+                    std::thread::sleep(REPORT_LOCK_POLL);
+                }
+                Err(e) => {
+                    return Err(format!(
+                        "cannot create the moon run-report lock {}: {e}",
+                        path.display()
+                    ))
+                }
+            }
+        }
+    }
+}
+
+impl Drop for ReportLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 /// Runs `moon run <targets> --affected --stdin` for `inv`.
 #[must_use]
 pub fn run(inv: &Invocation) -> Outcome {
@@ -219,6 +281,10 @@ pub fn run(inv: &Invocation) -> Outcome {
         }
         Err(e) => return Outcome::CouldNotRun(e),
     }
+    let _report_lock = match ReportLock::acquire(inv.root) {
+        Ok(l) => l,
+        Err(e) => return Outcome::CouldNotRun(e),
+    };
     if let Err(e) = clear_report(inv.root) {
         return Outcome::CouldNotRun(e);
     }
@@ -777,6 +843,32 @@ mod tests {
             assert_eq!(task.status, TaskStatus::Passed, "{task:?}");
             assert!(task.cached, "{task:?}");
         }
+    }
+
+    /// Two invocations against the same root never hold the run-report
+    /// lock at once: the second's `acquire` must not return until the
+    /// first's guard is dropped, which is what stops it reading or
+    /// clearing the other's `runReport.json` mid-run.
+    #[test]
+    fn a_second_lock_acquire_waits_for_the_first_to_drop() {
+        let root = TempDir::new("osf-moon-report-lock");
+        let first = ReportLock::acquire(&root).expect("first acquire");
+        let root_for_thread = root.to_path_buf();
+        let released_at = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let released_at_writer = released_at.clone();
+        let handle = std::thread::spawn(move || {
+            let started = std::time::Instant::now();
+            let _second = ReportLock::acquire(&root_for_thread).expect("second acquire");
+            *released_at_writer.lock().expect("lock") = Some(started.elapsed());
+        });
+        std::thread::sleep(Duration::from_millis(250));
+        drop(first);
+        handle.join().expect("thread joins");
+        let waited = released_at.lock().expect("lock").expect("recorded a wait");
+        assert!(
+            waited >= Duration::from_millis(200),
+            "the second acquire returned after only {waited:?}, before the first was dropped"
+        );
     }
 
     #[test]
