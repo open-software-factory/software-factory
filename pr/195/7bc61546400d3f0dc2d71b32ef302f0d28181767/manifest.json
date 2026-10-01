@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "agent-rules-and-skill-layout",
+    "headSha": "7bc61546400d3f0dc2d71b32ef302f0d28181767",
+    "contentHash": "6de12b581c69d92f891ffca71a63f6ff"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.1"
+  },
+  "assets": [
+    {
+      "id": "agent-context-map-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-context-map",
+      "mediaType": "image/svg+xml",
+      "contentHash": "98cf9e0e4695122d51a2351663e61fe9",
+      "bytes": 16178,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "agent-context-map-light-98cf9e0e4695122d51a2351663e61fe9.svg"
+    },
+    {
+      "id": "agent-context-map-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-context-map",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ed4e7bf1b813cc6b596cc45b5fee33fe",
+      "bytes": 16345,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "agent-context-map-dark-ed4e7bf1b813cc6b596cc45b5fee33fe.svg"
+    },
+    {
+      "id": "ci-enforcement-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0b90b40fe571721cfaf796a8ad023f78",
+      "bytes": 20691,
+      "width": 1304,
+      "height": 646,
+      "animated": false,
+      "path": "ci-enforcement-light-0b90b40fe571721cfaf796a8ad023f78.svg"
+    },
+    {
+      "id": "ci-enforcement-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c257cbc03ee26a65eb0abe01b14c5bf6",
+      "bytes": 20904,
+      "width": 1304,
+      "height": 646,
+      "animated": false,
+      "path": "ci-enforcement-dark-c257cbc03ee26a65eb0abe01b14c5bf6.svg"
+    }
+  ]
+}
