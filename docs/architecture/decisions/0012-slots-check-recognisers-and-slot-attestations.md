@@ -50,7 +50,7 @@ A slot is a named kind of check the factory expects. A slot is filled by the fac
 
 The configuration file `osf.toml` has one table per slot. An organisation-wide file with the same shape sits above it, and the repository file overrides one key at a time.
 
-The defaults are one TOML file per ecosystem inside the tool. The order is Rust, .NET, Java, TypeScript, Python and Go. The first two ship together, and each of the rest enters when a real repository drives it. The catalogue page is rendered from these files.
+The defaults are one TOML file per ecosystem inside the tool, one for each ecosystem in the shared list in [how the factory reaches a repository](../how-the-factory-reaches-a-repository.md). Rust and .NET ship together first, and each of the rest enters when a real repository drives it. The catalogue page is rendered from these files.
 
 The tool renders the files it owns into the adopter's repository. A daily task opens a pull request under the builder identity when a new factory release exists. The drift gate fails on a hand edit and names the key or the tag where the change belongs.
 
