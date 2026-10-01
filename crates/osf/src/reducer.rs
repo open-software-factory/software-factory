@@ -44,14 +44,23 @@ pub enum Verdict {
 /// Decides one lens's verdict from every reviewer's outcome for it.
 ///
 /// Fewer than [`REQUIRED_FAMILIES`] distinct families among the answers
-/// that are present is [`LensVerdict::CouldNotRun`]: too few reviewers
-/// answered, or they all came from the same family. A finding with
-/// severity blocker, or action must-fix, among those answers' findings
-/// vetoes the lens whatever its score. Otherwise the lens score is the
-/// mean, over the answers, of the mean of each answer's own criterion
+/// that are present is [`LensVerdict::CouldNotRun`], unless
+/// `single_family_available` says the roster only ever offered one
+/// non-building family to begin with: the interim policy then lets that
+/// lone family's extra critical round (run by the caller before this is
+/// called) decide the lens on its own, rather than blocking every review on
+/// a second family nobody has configured yet. Two or more families
+/// available relaxes nothing; the full quorum is still required. A finding
+/// with severity blocker, or action must-fix, among those answers'
+/// findings vetoes the lens whatever its score. Otherwise the lens score is
+/// the mean, over the answers, of the mean of each answer's own criterion
 /// scores.
 #[must_use]
-pub fn decide_lens(lens: &Lens, answers: &[LensAnswer]) -> LensVerdict {
+pub fn decide_lens(
+    lens: &Lens,
+    answers: &[LensAnswer],
+    single_family_available: bool,
+) -> LensVerdict {
     let present: Vec<&VerifiedAnswer> = answers.iter().filter_map(|a| a.answer.as_ref()).collect();
     let families: BTreeSet<&str> = answers
         .iter()
@@ -59,7 +68,9 @@ pub fn decide_lens(lens: &Lens, answers: &[LensAnswer]) -> LensVerdict {
         .map(|a| a.family.as_str())
         .collect();
 
-    if families.len() < REQUIRED_FAMILIES {
+    let quorum_met =
+        families.len() >= REQUIRED_FAMILIES || (single_family_available && families.len() == 1);
+    if !quorum_met {
         return LensVerdict::CouldNotRun(quorum_reason(&families));
     }
 
@@ -272,9 +283,59 @@ mod tests {
             answered("dsh", "openai", scored(&lens, &root, 0.8, 0.8)),
         ];
         assert!(matches!(
-            decide_lens(&lens, &answers),
+            decide_lens(&lens, &answers, false),
             LensVerdict::CouldNotRun(_)
         ));
+    }
+
+    /// The interim policy: when the roster only ever offered one
+    /// non-building family, that family's own rounds decide the lens on
+    /// their own, rather than blocking every review on a second family
+    /// nobody has configured yet.
+    #[test]
+    fn a_single_available_family_passes_under_the_interim_policy() {
+        let lens = test_lens();
+        let root = TempDir::new("reducer-interim-single-family");
+        let answers = vec![
+            answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
+            answered("codex", "openai", scored(&lens, &root, 0.8, 0.8)),
+            answered("codex", "openai", scored(&lens, &root, 1.0, 1.0)),
+        ];
+        match decide_lens(&lens, &answers, true) {
+            LensVerdict::Pass { score } => assert!((score - 0.9).abs() < 1e-9, "{score}"),
+            other => panic!("expected Pass, got {other:?}"),
+        }
+    }
+
+    /// `single_family_available` only relaxes the quorum down to one family;
+    /// it never lowers it below that. No answer at all is still
+    /// could-not-run even under the interim policy.
+    #[test]
+    fn the_interim_policy_still_needs_at_least_one_real_answer() {
+        let lens = test_lens();
+        let answers = vec![missing("codex", "openai", "timed out")];
+        assert!(matches!(
+            decide_lens(&lens, &answers, true),
+            LensVerdict::CouldNotRun(_)
+        ));
+    }
+
+    /// `single_family_available` is the caller's own claim about how many
+    /// families the roster offered, not a license to ignore a second family
+    /// when one did in fact answer: ordinary two-family scoring still
+    /// applies.
+    #[test]
+    fn two_families_answering_is_unaffected_by_the_interim_flag() {
+        let lens = test_lens();
+        let root = TempDir::new("reducer-interim-flag-with-two-families");
+        let answers = vec![
+            answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
+            answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
+        ];
+        match decide_lens(&lens, &answers, true) {
+            LensVerdict::Pass { score } => assert!((score - 0.95).abs() < 1e-9, "{score}"),
+            other => panic!("expected Pass, got {other:?}"),
+        }
     }
 
     #[test]
@@ -285,7 +346,7 @@ mod tests {
             missing("claude", "anthropic", "disabled"),
         ];
         assert!(matches!(
-            decide_lens(&lens, &answers),
+            decide_lens(&lens, &answers, false),
             LensVerdict::CouldNotRun(_)
         ));
     }
@@ -302,7 +363,7 @@ mod tests {
             answered("codex", "openai", with_blocker),
             answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
         ];
-        match decide_lens(&lens, &answers) {
+        match decide_lens(&lens, &answers, false) {
             LensVerdict::Fail { score, blockers } => {
                 assert_eq!(blockers, 1);
                 assert!((score - 1.0).abs() < f64::EPSILON);
@@ -323,7 +384,7 @@ mod tests {
             answered("codex", "openai", with_invented_blocker),
             answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
         ];
-        match decide_lens(&lens, &answers) {
+        match decide_lens(&lens, &answers, false) {
             LensVerdict::Pass { score } => assert!((score - 1.0).abs() < f64::EPSILON),
             other => panic!("expected Pass, got {other:?}"),
         }
@@ -337,7 +398,7 @@ mod tests {
             answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
             answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
         ];
-        match decide_lens(&lens, &answers) {
+        match decide_lens(&lens, &answers, false) {
             LensVerdict::Pass { score } => assert!((score - 0.95).abs() < 1e-9, "{score}"),
             other => panic!("expected Pass, got {other:?}"),
         }
@@ -353,6 +414,7 @@ mod tests {
                 answered("codex", "openai", scored(&lens, &root, 0.9, 0.7)),
                 answered("claude", "anthropic", scored(&lens, &root, 0.6, 0.8)),
             ],
+            false,
         );
         let backward = decide_lens(
             &lens,
@@ -360,6 +422,7 @@ mod tests {
                 answered("claude", "anthropic", scored(&lens, &root, 0.6, 0.8)),
                 answered("codex", "openai", scored(&lens, &root, 0.9, 0.7)),
             ],
+            false,
         );
         assert_eq!(forward, backward);
     }

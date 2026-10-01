@@ -331,6 +331,64 @@ fn assert_no_leak(
     }
 }
 
+/// The payload of the first `review-answer` event in the journal buffer
+/// under `home`.
+fn journal_first_review_answer(home: &Path) -> serde_json::Value {
+    let buffer_dir = home.join(".osf/state/buffer");
+    let entries = std::fs::read_dir(&buffer_dir).expect("journal buffer dir reads");
+    for entry in entries {
+        let entry = entry.expect("dir entry reads");
+        let text = std::fs::read_to_string(entry.path()).expect("journal buffer reads");
+        for line in text.lines() {
+            let value: serde_json::Value =
+                serde_json::from_str(line).expect("journal line is JSON");
+            if value.get("event_type").and_then(serde_json::Value::as_str) == Some("review-answer")
+            {
+                return value
+                    .get("payload")
+                    .cloned()
+                    .expect("review-answer payload");
+            }
+        }
+    }
+    panic!("no review-answer event in the journal");
+}
+
+/// Decisions 0005 and 0016 require every finding and summary to carry an
+/// evidence grade: a reviewer's judgment is reported, not measured, so both
+/// journal event kinds this module writes must say so.
+#[test]
+fn review_answer_and_review_decision_events_carry_the_reported_evidence_grade() {
+    let osf_toml = format!(
+        "{}{}",
+        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("evidence-grade", &osf_toml);
+    let home = common::isolated_home("review-run-evidence-grade");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let answer = journal_first_review_answer(&home);
+    assert_eq!(
+        answer.get("grade").and_then(serde_json::Value::as_str),
+        Some("reported")
+    );
+    let decision = journal_review_decision(&home);
+    assert_eq!(
+        decision.get("grade").and_then(serde_json::Value::as_str),
+        Some("reported")
+    );
+}
+
 #[test]
 fn two_families_that_both_answer_validly_pass_and_write_the_journal_events() {
     let osf_toml = format!(
@@ -354,8 +412,8 @@ fn two_families_that_both_answer_validly_pass_and_write_the_journal_events() {
     let types = journal_event_types(&home);
     assert_eq!(
         types.iter().filter(|t| *t == "review-answer").count(),
-        2,
-        "{types:?}"
+        4,
+        "two rounds each for the two families: {types:?}"
     );
     assert_eq!(
         types.iter().filter(|t| *t == "review-decision").count(),
@@ -387,8 +445,12 @@ fn a_verified_blocker_finding_fails_the_review() {
     );
 }
 
+/// Two roster entries that share one family are still only one family: the
+/// interim policy lets it decide the lens through its own extra critical
+/// round, rather than blocking the review on a second family nobody has
+/// configured.
 #[test]
-fn only_one_family_enabled_cannot_run() {
+fn only_one_family_enabled_passes_under_the_interim_policy() {
     let osf_toml = format!(
         "{}{}",
         roster_entry_toml("fake-a", "same-family", &fixture("valid.json"), true),
@@ -401,13 +463,14 @@ fn only_one_family_enabled_cannot_run() {
         &home,
         &["review", "run", "--base", "origin/main"],
     );
-    assert_eq!(
-        output.status.code(),
-        Some(2),
+    assert!(
+        output.status.success(),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("interim policy"), "{stdout}");
 }
 
 #[test]
@@ -472,7 +535,10 @@ fn a_configured_timeout_governs_how_long_a_reviewer_may_run() {
         &["review", "run", "--base", "origin/main"],
     );
     assert!(
-        started.elapsed() < std::time::Duration::from_secs(5),
+        // One family enabled earns the interim policy's extra critical
+        // round: up to three 1-second timeouts in a row, plus process
+        // overhead, well under the 300-second default this guards against.
+        started.elapsed() < std::time::Duration::from_secs(15),
         "took {:?}: the configured 1-second timeout should have governed \
          this run, not the 300-second default; stdout: {}\nstderr: {}",
         started.elapsed(),
@@ -567,8 +633,8 @@ fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pas
     let types = journal_event_types(&home);
     assert_eq!(
         types.iter().filter(|t| *t == "review-answer").count(),
-        3,
-        "one review-answer event per roster entry, including the skipped one: {types:?}"
+        5,
+        "two rounds each for codex and dsh, plus one skipped record for claude-code: {types:?}"
     );
     let decision = journal_review_decision(&home);
     let builder_families: Vec<&str> = decision
@@ -583,32 +649,40 @@ fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pas
 
 /// With only codex (openai) and claude-code (anthropic) enabled, and the
 /// change built by Claude, claude-code is left out and only one family
-/// (openai) is left to answer: too few for quorum, could-not-run, and the
-/// reason names the builder family that was left out.
+/// (openai) is left to try: the interim policy runs codex for one extra
+/// critical round and lets it decide the lens on its own, naming the
+/// policy rather than blocking the review on the family the builder used.
 #[test]
-fn fewer_than_two_non_builder_families_is_could_not_run_naming_the_builder_family() {
+fn one_non_builder_family_passes_under_the_interim_policy() {
     let osf_toml = format!(
         "{}{}",
         roster_entry_toml("codex", "openai", &fixture("valid.json"), true),
         roster_entry_toml("claude-code", "anthropic", &fixture("valid.json"), true),
     );
-    let repo = review_repo_built_by("builder-family-could-not-run", &osf_toml, "Claude Sonnet 5");
-    let home = common::isolated_home("review-run-builder-family-could-not-run");
+    let repo = review_repo_built_by("builder-family-interim", &osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-builder-family-interim");
     let output = common::run_osf(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
     );
-    assert_eq!(
-        output.status.code(),
-        Some(2),
+    assert!(
+        output.status.success(),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("builder"), "{stdout}");
-    assert!(stdout.contains("anthropic"), "{stdout}");
+    assert!(stdout.contains("interim policy"), "{stdout}");
+    let decision = journal_review_decision(&home);
+    let builder_families: Vec<&str> = decision
+        .get("builder_families")
+        .and_then(serde_json::Value::as_array)
+        .expect("builder_families is an array")
+        .iter()
+        .map(|v| v.as_str().expect("a family name"))
+        .collect();
+    assert_eq!(builder_families, vec!["anthropic"]);
 }
 
 /// No `Code-Generator:` trailer at all on the reviewed commit records the
@@ -1198,26 +1272,28 @@ fn if_enabled_with_no_reviewer_enabled_still_writes_an_empty_sarif() {
     assert!(results.is_empty(), "{sarif_text}");
 }
 
+/// `--if-enabled` only ever decides whether the slot is on at all; once it
+/// is, the same interim policy applies as any other run with one enabled
+/// family, and still journals every answer.
 #[test]
-fn if_enabled_with_a_reviewer_enabled_still_fails_on_could_not_run() {
+fn if_enabled_with_one_reviewer_enabled_passes_under_the_interim_policy() {
     let osf_toml = roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true);
-    let repo = review_repo("if-enabled-on-could-not-run", &osf_toml);
+    let repo = review_repo("if-enabled-on-interim", &osf_toml);
     let home = common::isolated_home("review-run-if-enabled-on");
     let output = common::run_osf(
         &repo.dir,
         &home,
         &["review", "run", "--if-enabled", "--base", "origin/main"],
     );
-    assert_eq!(
-        output.status.code(),
-        Some(2),
+    assert!(
+        output.status.success(),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
         !journal_event_types(&home).is_empty(),
-        "the on path must still journal, even when it could not run"
+        "the on path must still journal"
     );
 }
 

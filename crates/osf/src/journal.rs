@@ -57,6 +57,9 @@ pub struct CheckpointComplete {
 /// `transcript` is a path or nothing, never a prompt or a raw answer: the
 /// journal carries no secret text, and a prompt is already redacted by
 /// `review_context` before any reviewer ever sees it.
+///
+/// `grade` is always `"reported"`: a reviewer's judgment is an agent saying
+/// so, unmeasured, exactly the grade decisions 0005 and 0016 give it.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ReviewAnswer {
     pub lens: String,
@@ -71,6 +74,10 @@ pub struct ReviewAnswer {
     pub findings_dropped: u32,
     pub transcript: Option<String>,
     pub reason: Option<String>,
+    pub grade: String,
+    /// This reviewer's own attempt number for this lens, one-based: more
+    /// than one when the quorum rule asks its family for extra rounds.
+    pub round: u32,
 }
 
 /// The whole review's verdict, with each lens's own outcome alongside the
@@ -79,6 +86,10 @@ pub struct ReviewAnswer {
 /// `score` and `threshold` are `None` exactly when `verdict` is
 /// `"could-not-run"`: a could-not-run review was never scored against the
 /// threshold, so there is nothing genuine to report next to it.
+///
+/// `grade` is always `"reported"`, the same grade as the [`ReviewAnswer`]s
+/// it is decided from: a verdict reached by weighing reported judgments is
+/// itself reported, not independently observed or measured.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct ReviewDecision {
     pub verdict: String,
@@ -91,6 +102,7 @@ pub struct ReviewDecision {
     /// `["unknown"]` as no trailer naming a known family was found; the
     /// roster then ran with nothing left out.
     pub builder_families: Vec<String>,
+    pub grade: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
