@@ -1,6 +1,6 @@
 # 0014: The journal at every checkpoint
 
-Status: accepted. Amends [decision 0009](0009-journal-store-and-sinks.md).
+Status: accepted. Amends [decision 0009](0009-journal-store-and-sinks.md) and [decision 0005](0005-the-factory-domain-model.md), which gains the checkpoint-complete and gap event types.
 
 Date: 2026-09-23
 
