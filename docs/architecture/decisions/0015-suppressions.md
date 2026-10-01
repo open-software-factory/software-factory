@@ -32,4 +32,4 @@ The journal counts every suppression, so the aggregation summary can show how ma
 
 - An adopter's existing suppressions are respected on day one.
 - The suppression reader is one component with a corpus of markers in every comment syntax the supported ecosystems use.
-- A finding's identity is a hash of rule, path, line and column, per [decision 0005](0005-the-factory-domain-model.md), so a marker binds to the finding it sits above and survives edits elsewhere in the file.
+- A suppression marker binds to the finding below it by a hash. The hash combines the rule id, the path and the finding's normalised matched text. It excludes line and column, so the binding survives an edit that shifts the finding elsewhere in the file. This binding hash serves suppression matching only. It does not replace the location-based identity [decision 0005](0005-the-factory-domain-model.md) defines for a SARIF finding. Reconciling the two is for a later record. The binding still breaks when an edit changes the finding's own matched text, such as a renamed symbol the rule reports on.
