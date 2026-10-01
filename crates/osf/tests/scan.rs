@@ -86,6 +86,76 @@ fn a_repo_of_only_a_symlink_reports_it_excluded_not_clean() {
     assert!(stdout.contains("1 excluded"), "{stdout}");
 }
 
+/// An explicit scan path that is itself a symlinked directory is counted as
+/// excluded, not walked into.
+#[test]
+fn an_explicit_path_that_is_a_symlinked_directory_is_not_followed() {
+    let repo = TempRepo::new("explicit-path-symlinked-dir");
+    repo.write(
+        "real/file.md",
+        &format!("{}\n", coauthor_trailer("Someone", "someone@example.com")),
+    );
+    repo.symlink("link", "real");
+
+    let target = repo.dir.join("link");
+    let found = scan_paths(
+        &repo.dir,
+        std::slice::from_ref(&target),
+        &rules(&repo),
+        &no_exclude(),
+    )
+    .expect("scan runs");
+    assert!(found.files.is_empty(), "{found:?}");
+    assert_eq!(found.excluded, 1, "{found:?}");
+}
+
+/// A symlinked directory found while walking a scanned folder is skipped
+/// and counted, not followed to the real directory it points at.
+#[test]
+fn a_symlinked_directory_inside_a_scanned_folder_is_not_followed() {
+    let repo = TempRepo::new("nested-symlinked-dir");
+    repo.write(
+        "outside/secret.md",
+        &format!("{}\n", coauthor_trailer("Someone", "someone@example.com")),
+    );
+    repo.write("scanned/plain.md", "Nothing to see here.\n");
+    repo.symlink("scanned/link", "../outside");
+
+    let target = repo.dir.join("scanned");
+    let found = scan_paths(
+        &repo.dir,
+        std::slice::from_ref(&target),
+        &rules(&repo),
+        &no_exclude(),
+    )
+    .expect("scan runs");
+    assert!(
+        found.files.iter().all(|(_, f)| f.is_empty()),
+        "the file behind the symlink must never be read: {found:?}"
+    );
+    assert_eq!(found.excluded, 1, "{found:?}");
+}
+
+/// A symlink that cycles back on an ancestor directory is skipped the
+/// first time it is seen, instead of recursing forever.
+#[test]
+fn a_symlink_cycle_is_skipped_once_not_followed_forever() {
+    let repo = TempRepo::new("symlink-cycle");
+    repo.write("real/sub/file.md", "Nothing to see here.\n");
+    repo.symlink("real/sub/loop", "..");
+
+    let target = repo.dir.join("real");
+    let found = scan_paths(
+        &repo.dir,
+        std::slice::from_ref(&target),
+        &rules(&repo),
+        &no_exclude(),
+    )
+    .expect("scan runs");
+    assert!(found.files.iter().all(|(_, f)| f.is_empty()), "{found:?}");
+    assert_eq!(found.excluded, 1, "{found:?}");
+}
+
 #[test]
 fn an_explicit_path_is_scanned_even_when_not_tracked() {
     let repo = TempRepo::new("explicit-path");
