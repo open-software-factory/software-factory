@@ -38,7 +38,7 @@ A job that did not run because its path filter excluded the change is reported a
 
 ## Consequences
 
-- The ruleset on main requires the aggregation, the adopter's own jobs, and resolved review threads.
+- The ruleset on main requires the aggregation check and resolved review threads. It does not name an adopter's own job directly. The aggregation reads each job's conclusion instead, and fails whenever one is missing for a reason other than its own path filter. A job a path filter skips is never a required status check in the ruleset. So it can never block merging the way a directly required job can.
 - One concurrency group per commit lets one aggregation run at a time, and a later one supersedes.
 - The aggregation cannot advance a state until the journal reaches its sink, per [decision 0009](0009-journal-store-and-sinks.md), so a flush failure in CI fails the aggregation.
 - A result-file format enters as one reader with a corpus of real files, stored without extensions.
