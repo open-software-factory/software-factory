@@ -205,8 +205,8 @@ fn writing_lint_precision_and_recall_on_the_unplaceable_fixture() {
     let cases = load_all_fixtures();
     assert_eq!(
         cases.len(),
-        46,
-        "expected 46 fixture files under tests/fixtures/writing/unplaceable"
+        66,
+        "expected 66 fixture files under tests/fixtures/writing/unplaceable"
     );
 
     let known = known();

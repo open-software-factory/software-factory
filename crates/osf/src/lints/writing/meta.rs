@@ -65,8 +65,12 @@ pub const RULE_META: &[RuleMeta] = &[
          in the paragraph could not resolve. A number is placed by a \
          bracketed description, a link, or the repository named in the same \
          sentence. A file path or a list item can place it too, for a \
-         file's own number or a bracketed letter. A time is placed by an \
-         absolute date in the paragraph. A name is placed by the \
+         file's own number or a bracketed letter. A file name in the same \
+         sentence places a numbered label. A measure is never a reference. \
+         It is a number with a unit or a percent sign, a version, or a \
+         coordinate. A number after a word such as `about` or `size` \
+         counts too. A time \
+         is placed by an absolute date in the paragraph. A name is placed by the \
          known-names list or a sentence that says what it is. A quoted \
          term is also placed by an example marker, such as \"such as\" or \
          \"for example\". A phrase such as `as discussed` is never placed. \
