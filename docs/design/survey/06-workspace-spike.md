@@ -58,7 +58,7 @@ undock reflow works only via an unsupported-internals CSS hack. That hack needs 
 confirmation before it ships, a risk stated in the animated-transitions requirement in the
 verdict table.
 
-Adopt Dockview for Workspace, as `components.md` already directs. Carry both adaptations
+Adopt Dockview for Workspace, as `components.md` already directs. Carry the adaptations
 forward as named risks, stated openly rather than silently. Also keep the FLIP fallback from
 `survey/02-docking-panels.md` on the shelf, as the fork-free escape hatch. Use it if the
 animated-transitions CSS hack does not hold up under real use.

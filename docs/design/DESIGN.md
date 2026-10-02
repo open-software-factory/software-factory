@@ -249,7 +249,7 @@ These rules govern the app shell in every mode: web, desktop, tablet, mobile. Th
 ### 6.1 Voice
 
 - Calm, factual, specific. The console reports. It does not emote, cheer, or apologise reflexively.
-- Every message answers up to three things, in order: what happened, what it means, what to do. Omit what does not apply. Never omit "what to do" when an action exists.
+- Every message answers these things in order: what happened, what it means, what to do. Omit what does not apply. Never omit "what to do" when an action exists.
 - State facts. Do not assign blame. Write "target not found." Never write "you entered an invalid target."
 - Sentence case for headings, labels and buttons. ALL-CAPS only in established mono eyebrows (§12.3).
 - Buttons and commands start with a verb, such as "Approve" or "Stop run". Destinations are nouns, such as "Runway". This matches navigation grammar (§3.4).
@@ -397,7 +397,7 @@ Glyph characters below are Unicode approximations, so the shape language is visi
 | Fill | Current state (§11 palettes) |
 | Border | Node class or context |
 | Halo | Attention only |
-| Size | Scope, at most two size steps. Never a size gradient. |
+| Size | Scope, with a limit of two size steps. Never a size gradient. |
 | Heat | Muted edge or node tone, for congestion. Rendered only in the dependency lens. |
 
 ### 10.5 Cognitive aids [C]
@@ -552,7 +552,7 @@ Rules:
 
 | Role | Candidate | Alternative | Rule |
 |---|---|---|---|
-| UI sans (body, controls, narrative) | IBM Plex Sans | Geist; fallback system-ui | These families only; no display serif initially [C]; dense long-session readability; must not read as terminal [E] |
+| UI sans (body, controls, narrative) | IBM Plex Sans | Geist; fallback system-ui | Two families total; no display serif initially [C]; dense long-session readability; must not read as terminal [E] |
 | Mono: identity, values, code, raw evidence, diffs | IBM Plex Mono | Geist Mono | Scoped by rule. Chrome stays in the sans family. |
 
 Rationale: Plex is an engineering-family with strong small-size legibility and a neutral, non-consumer character. It avoids the generic model-default look while staying calm. Final choice is an open exploration item [O]. Test against alternatives in the first prototype.

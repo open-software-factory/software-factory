@@ -100,7 +100,7 @@ MotionViewport's job is to host a data-driven graph, and tldraw's job is freehan
 | **d3-dag** | Actively maintained. Its npm package was updated in July 2026 | Multiple layering and crossing-minimisation strategies, including an optimal-crossing mode. Ships a dagre-compatible API for easy migration. Far smaller bundle than elkjs |
 
 For our 30-to-100 node scale, bundle size differences between elkjs and d3-dag do not matter
-operationally. The deciding factor is maintenance. Both elkjs and d3-dag are maintained, while
+operationally. The deciding factor is maintenance. Elkjs and d3-dag are each maintained, while
 dagre is not maintained.
 
 ## Recommendation

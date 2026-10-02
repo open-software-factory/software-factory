@@ -40,13 +40,13 @@ Source of truth: `packages/console-model/src/*.ts`, tested with `node --test`. I
 | Browser | Web Storage (`storage.browser.ts`) | |
 | Tauri desktop | `@tauri-apps/plugin-store` | Layout belongs in the OS app-data location. It is not a webview origin |
 
-**Settings are not layout.** Theme lives in `settings.ts`, under its own storage key. It does not live in `ShellState`. Motion is always on. There is no motion setting and no host-preference gate. Earlier policies seeded the theme from the OS and let it toggle at runtime, but `DESIGN.md` §5.1.5 replaces both policies.
+**Settings are not layout.** Theme lives in `settings.ts`, under its own storage key. It does not live in `ShellState`. Motion is always on. There is no motion setting and no host-preference gate. Earlier policies seeded the theme from the OS and let it toggle at runtime, but `DESIGN.md` §5.1.5 replaces those policies.
 
 ## Design system: `packages/console-ui`
 
 | Module | Owns |
 |---|---|
-| `tokens.ts` | Both palettes as data, and the `[data-theme]` stylesheet generated from them |
+| `tokens.ts` | The light and dark palettes as data, and the `[data-theme]` stylesheet generated from them |
 | `color.ts` | Converts OKLCh to linear sRGB, then to a WCAG contrast score, so a contrast claim is a test rather than a sentence |
 | `overlay.ts` + `overlay.css` | Overlay has a modal contract and a non-modal contract that share one motion lifecycle. The modal contract is the default: React Aria focus containment, a scrim, outside-dismiss, and Escape from anywhere. The other contract, set with `modal={false}`, keeps content live with no scrim and no focus capture. Escape works only from inside it. Placements: left, right, center, top |
 | `palette.ts` | CommandPalette is the search-and-run field opened by Ctrl+P or ⌘K. It combines an Overlay at the top with React Aria Autocomplete, SearchField, and ListBox. SearchField is the labelled search box inside it. `usePaletteShortcut` owns the Ctrl+P and ⌘K binding. The palette draws the list that `console-model/src/commands.ts` builds and ranks |
@@ -57,15 +57,15 @@ The modal Overlay keeps its focus scope and backdrop alive until exit motion com
 
 Adoption reference: [React Aria Modal documentation](https://react-aria.adobe.com/Modal). The adapter composes these building blocks from that library. ModalOverlay is the modal wrapper. Modal is the positioned surface. Dialog is the focus container. Upstream packages are bundled unmodified. Their license notices stay preserved in the HTML.
 
-**The light theme is derived.** It is not simply inverted. An inverted dark palette gives grey mud and glaring surfaces. These rules produced the light theme instead. Elevation steps toward the viewer in both themes, but in opposite directions. Text lightness is chosen for contrast against its own background, rather than mirrored from the dark theme. Chroma rises slightly in light, because a tint that reads on a dark surface washes out on a bright one. Shadows in light are a tinted grey, rather than black.
+**The light theme is derived.** It is not simply inverted. An inverted dark palette gives grey mud and glaring surfaces. These rules produced the light theme instead. Elevation steps toward the viewer in the light and dark themes, but in opposite directions. Text lightness is chosen for contrast against its own background, rather than mirrored from the dark theme. Chroma rises slightly in light, because a tint that reads on a dark surface washes out on a bright one. Shadows in light are a tinted grey, rather than black.
 
 Every pairing we rely on is asserted:
 
 | Text role | Minimum contrast | Where |
 |---|---|---|
-| Body text | 7:1 | Every surface, both themes |
-| Secondary text | 4.5:1 | Every surface, both themes |
-| Faint text and every meaning-carrying colour | 3:1 | Every surface, both themes |
+| Body text | 7:1 | `bg`, `bg-canvas`, `surface-1`, `surface-2` and `surface-3`, in the light and dark themes |
+| Secondary text | 4.5:1 | `bg`, `bg-canvas`, `surface-1`, `surface-2` and `surface-3`, in the light and dark themes |
+| Faint text and every meaning-carrying colour | 3:1 | `bg`, `bg-canvas`, `surface-1`, `surface-2` and `surface-3`, in the light and dark themes |
 
 **A surface declares, the slot decides.** A `SurfaceSpec` states its width appetite (`min`/`max`), whether it survives rail width (`canRail`), where it starts (`home`), and which slots it will accept (`accepts`). The shell negotiates against those declarations rather than hard-coding placements. `accepts` is permissive today. Every surface takes every slot. That is deliberate, until real views show which placements are wrong.
 

@@ -32,7 +32,7 @@ reload while editing.
 The placement model and the component package have Node tests. Run
 `pnpm --filter @open-software-factory/console-model test` and
 `pnpm --filter @open-software-factory/console-ui test` at the repository root. The lab build and
-both test suites run in continuous integration, in the `console` job of `.github/workflows/ci.yml`.
+each test suite run in continuous integration, in the `console` job of `.github/workflows/ci.yml`.
 
 The shell page and the orb page carry their own browser test suites. They are switched off by
 default. The design tracker records which suite covers which change.

@@ -26,7 +26,7 @@ The team retired these on 10 September 2026. Named starting layouts had existed 
 
 ## Shell structural directions
 
-Stage 1 explored these directions in August 2026. Three structurally different shells were considered. The owner chose B, Live Floor, the canvas-centred shell described in the table below, as the starting shell on 2 September 2026. The choice is a starting point, and the team can revisit it. See `DESIGN.md` section 3.1. See tracker item F1 as well.
+Stage 1 explored these directions in August 2026. It considered three structurally different shells. The owner chose B, Live Floor, the canvas-centred shell described in the table below, as the starting shell on 2 September 2026. The choice is a starting point, and the team can revisit it. See `DESIGN.md` section 3.1. See tracker item F1 as well.
 
 | | A, Command Post | B, Live Floor | C, Focus Console |
 |---|---|---|---|
