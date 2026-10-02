@@ -53,9 +53,38 @@ pub struct ReadOnly {
     pub env: &'static [(&'static str, &'static str)],
 }
 
+/// The documented switches that make an agent ignore the settings, plugins and
+/// instruction files of the folder it starts in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Switches {
+    /// Arguments added after the agent's command.
+    pub args: &'static [&'static str],
+    /// Environment variables set on the agent's process.
+    pub env: &'static [(&'static str, &'static str)],
+}
+
+/// File and folder names, besides each agent's own, that coding agents read
+/// project instructions or settings from. A reviewer's clean copy leaves them out.
+pub const OTHER_AGENT_SETTINGS: &[&str] = &[
+    ".cursor",
+    ".cursorrules",
+    ".windsurf",
+    ".windsurfrules",
+    ".mcp.json",
+    "AGENTS.md",
+    "AGENTS.override.md",
+    "CLAUDE.md",
+    "CLAUDE.local.md",
+    "GEMINI.md",
+];
+
 /// What osf needs to run an agent headless as a reviewer.
 #[derive(Debug)]
 pub struct Review {
+    /// How the agent is told to ignore the settings of the folder it runs in.
+    /// A reviewer runs in a clean copy of the change that holds none, and
+    /// these switches back that up.
+    pub clean_copy: Switches,
     /// How the agent is held to read-only tools. `None` when the agent
     /// documents no such mode: it then never starts as a reviewer.
     pub read_only: Option<ReadOnly>,
@@ -210,6 +239,9 @@ pub struct Agent {
     /// transcripts, or logs of them. A committed configuration file lives
     /// under the same directory and is not in this list.
     pub session_paths: &'static [&'static str],
+    /// Names of the files and folders this agent loads its project settings,
+    /// plugins and instructions from, wherever they sit in a project.
+    pub project_settings: &'static [&'static str],
     /// Whether its sessions are reachable by link, and where.
     pub sessions: Sessions,
     /// What running it as a reviewer needs; `None` for an agent that never
@@ -238,8 +270,14 @@ pub const AGENTS: &[Agent] = &[
         },
         state_dirs: &[".dsh"],
         session_paths: &["sessions"],
+        project_settings: &[".dsh"],
         sessions: Sessions::LocalOnly,
         review: Some(Review {
+            // `dsh --help` documents no switch that ignores project settings.
+            clean_copy: Switches {
+                args: &[],
+                env: &[],
+            },
             // `dsh --help` and `dsh --profile headless --help` document no read-only or permission mode.
             read_only: None,
             schema_flag: None,
@@ -264,8 +302,14 @@ pub const AGENTS: &[Agent] = &[
         },
         state_dirs: &[".omp"],
         session_paths: &["agent/sessions", "agent/terminal-sessions", "logs"],
+        project_settings: &[".omp"],
         sessions: Sessions::LocalOnly,
         review: Some(Review {
+            // `omp --help`: `--no-extensions`, `--no-skills` and `--no-rules` turn off discovery of project extensions, skills and rules.
+            clean_copy: Switches {
+                args: &["--no-extensions", "--no-skills", "--no-rules"],
+                env: &[],
+            },
             // `omp --help`: `--tools` is the comma-separated list of tools to enable.
             read_only: Some(ReadOnly {
                 args: &["--tools", "read,grep,glob"],
@@ -293,11 +337,21 @@ pub const AGENTS: &[Agent] = &[
         },
         state_dirs: &[".opencode", ".config/opencode", ".local/share/opencode"],
         session_paths: &["storage", "snapshot", "tool-output", "log"],
+        project_settings: &[".opencode", "opencode.json", "opencode.jsonc"],
         sessions: Sessions::Hosted {
             host: "opencode.ai",
             path: "/s/",
         },
         review: Some(Review {
+            // `opencode run --help`: `--pure` runs without external plugins. The opencode configuration docs list the three variables.
+            clean_copy: Switches {
+                args: &["--pure"],
+                env: &[
+                    ("OPENCODE_DISABLE_PROJECT_CONFIG", "true"),
+                    ("OPENCODE_DISABLE_CLAUDE_CODE", "true"),
+                    ("OPENCODE_DISABLE_EXTERNAL_SKILLS", "true"),
+                ],
+            },
             // The inline permissions config of the opencode CLI docs, `OPENCODE_PERMISSION`; `opencode debug config` shows the rules it sets. Bash is denied entirely; only the folder with the diff is readable outside the checkout.
             read_only: Some(ReadOnly {
                 args: &[],
@@ -327,12 +381,23 @@ pub const AGENTS: &[Agent] = &[
         },
         state_dirs: &[".codex"],
         session_paths: &["sessions", "archived_sessions", "history.jsonl", "log"],
+        project_settings: &[".codex"],
         sessions: Sessions::Hosted {
             host: "chatgpt.com",
             path: "/codex/",
         },
         review: Some(Review {
-            // `codex exec --help`: `--sandbox read-only`.
+            // `codex exec --help`: the first three ignore user configuration, rules files and saved sessions; the folder is not a git repository.
+            clean_copy: Switches {
+                args: &[
+                    "--ignore-user-config",
+                    "--ignore-rules",
+                    "--ephemeral",
+                    "--skip-git-repo-check",
+                ],
+                env: &[],
+            },
+            // `codex exec --help`: `--sandbox read-only`, which limits file writes and commands.
             read_only: Some(ReadOnly {
                 args: &["--sandbox", "read-only"],
                 env: &[],
@@ -359,11 +424,17 @@ pub const AGENTS: &[Agent] = &[
         },
         state_dirs: &[".claude"],
         session_paths: &["projects", "sessions", "transcripts", "file-history"],
+        project_settings: &[".claude"],
         sessions: Sessions::Hosted {
             host: "claude.ai",
             path: "/code/session_",
         },
         review: Some(Review {
+            // `claude --help`: `--restricted` already ignores user, project and local settings; `--strict-mcp-config` skips every MCP server.
+            clean_copy: Switches {
+                args: &["--strict-mcp-config"],
+                env: &[],
+            },
             // `claude --help`: `--restricted` drops the command-running tools and the repository's own settings, and confines file tools to the working directories; `--tools` names the file tools only; `--add-dir` adds the folder with the diff; `--permission-prompts none` denies anything else.
             read_only: Some(ReadOnly {
                 args: &[
@@ -449,6 +520,21 @@ pub fn state_dirs() -> Vec<&'static str> {
         .iter()
         .flat_map(|a| a.state_dirs.iter().copied())
         .collect()
+}
+
+/// Every file and folder name a coding agent reads project settings,
+/// plugins or instructions from: each agent's own, then [`OTHER_AGENT_SETTINGS`].
+/// A reviewer's clean copy of a change leaves all of them out.
+#[must_use]
+pub fn project_settings() -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = AGENTS
+        .iter()
+        .flat_map(|a| a.project_settings.iter().copied())
+        .chain(OTHER_AGENT_SETTINGS.iter().copied())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
 }
 
 /// The agents a repository selected in `osf.toml`, checked against [`AGENTS`].
@@ -781,6 +867,63 @@ mod tests {
             json.pointer("/external_directory/{review_dir}~1**"),
             Some(&serde_json::json!("allow"))
         );
+    }
+
+    #[test]
+    fn the_project_settings_list_covers_every_agent_and_the_common_instruction_files() {
+        let names = project_settings();
+        for expected in [
+            ".opencode",
+            "opencode.json",
+            "opencode.jsonc",
+            ".omp",
+            ".codex",
+            ".claude",
+            ".mcp.json",
+            ".cursor",
+            ".dsh",
+            "AGENTS.md",
+            "CLAUDE.md",
+        ] {
+            assert!(
+                names.contains(&expected),
+                "{expected} is missing: {names:?}"
+            );
+        }
+        for a in AGENTS {
+            for dir in a.state_dirs.iter().filter(|d| !d.contains('/')) {
+                assert!(
+                    names.contains(dir),
+                    "{}: its state folder {dir} is not left out of a clean copy",
+                    a.name
+                );
+            }
+            for name in a.project_settings {
+                assert!(
+                    !name.contains('/') && !name.is_empty(),
+                    "{}: {name} is a plain name",
+                    a.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn each_reviewer_that_documents_a_switch_ignores_project_settings_with_it() {
+        let switches = |name: &str| {
+            AGENTS
+                .iter()
+                .find(|a| a.name == name)
+                .and_then(|a| a.review.as_ref())
+                .map(|r| r.clean_copy)
+                .expect("agent reviews")
+        };
+        assert!(switches("omp").args.contains(&"--no-extensions"));
+        assert!(switches("opencode")
+            .env
+            .contains(&("OPENCODE_DISABLE_PROJECT_CONFIG", "true")));
+        assert!(switches("codex").args.contains(&"--ignore-user-config"));
+        assert!(switches("claude").args.contains(&"--strict-mcp-config"));
     }
 
     #[test]

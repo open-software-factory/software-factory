@@ -18,7 +18,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use wait_timeout::ChildExt as _;
 
-pub use crate::agents::{ReadOnly, SchemaArg};
+pub use crate::agents::{ReadOnly, SchemaArg, Switches};
 
 /// One reviewer: an agent, run with its own model family, through a fixed
 /// command line.
@@ -39,6 +39,9 @@ pub struct Reviewer {
     /// The documented settings that hold this agent to read-only tools.
     /// With `None` the agent has no such mode and is never started.
     pub read_only: Option<ReadOnly>,
+    /// The documented switches that make this agent ignore the settings of
+    /// the folder it starts in.
+    pub clean_copy: Switches,
     /// The flag that introduces the answer schema, when this agent can be
     /// asked to validate its own output against one.
     pub schema_flag: Option<String>,
@@ -100,6 +103,7 @@ impl Reviewer {
             family_error,
             command: owned(agent.command),
             read_only: review.read_only,
+            clean_copy: review.clean_copy,
             schema_flag: review.schema_flag.map(str::to_string),
             schema_as: review.schema_as,
             answer_pointer: review.answer_pointer.to_string(),
@@ -446,14 +450,22 @@ fn prepare_command(
     real_home: Option<&Path>,
 ) -> Result<(Command, RunHome, Vec<String>), String> {
     let home = RunHome::create()?;
-    let notes = home.seed_login(real_home, &reviewer.login_paths)?;
+    // A key in the environment is enough to sign in, so no login file is copied where a read tool could reach it.
+    let key_in_environment = reviewer
+        .credential_env
+        .iter()
+        .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()));
+    let notes = if key_in_environment {
+        Vec::new()
+    } else {
+        home.seed_login(real_home, &reviewer.login_paths)?
+    };
     let mut command = Command::new(resolve_program(program));
     command.args(rest).current_dir(workdir).env_clear();
     home.apply(&mut command);
-    if let Some(read_only) = &reviewer.read_only {
-        for (name, value) in read_only.env {
-            command.env(name, reviewer.fill(value));
-        }
+    let read_only_env = reviewer.read_only.iter().flat_map(|mode| mode.env);
+    for (name, value) in read_only_env.chain(reviewer.clean_copy.env) {
+        command.env(name, reviewer.fill(value));
     }
     for var in RUN_ENV_VARS
         .iter()
@@ -627,6 +639,13 @@ fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Ve
     if let Some(read_only) = &reviewer.read_only {
         args.extend(read_only.args.iter().map(|arg| reviewer.fill(arg)));
     }
+    args.extend(
+        reviewer
+            .clean_copy
+            .args
+            .iter()
+            .map(|arg| reviewer.fill(arg)),
+    );
     if let Some(flag) = &reviewer.schema_flag {
         args.push(flag.clone());
         args.push(match reviewer.schema_as {
@@ -676,6 +695,10 @@ mod tests {
                 args: &[],
                 env: &[],
             }),
+            clean_copy: Switches {
+                args: &[],
+                env: &[],
+            },
             schema_flag: None,
             schema_as: SchemaArg::default(),
             answer_pointer: String::new(),
@@ -764,6 +787,50 @@ mod tests {
         assert_eq!(files.trim(), "./.b-login/auth.json");
         let kept = std::fs::read_to_string(real.join(".b-login/auth.json")).expect("source reads");
         assert_eq!(kept, "login-b");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn no_login_file_is_copied_when_the_reviewers_key_is_in_the_environment() {
+        let real = stand_in_home();
+        let mut lister = file_lister(&[".a-login/auth.json"]);
+        lister.credential_env = vec!["OSF_TEST_LOGIN_SKIP_KEY".to_string()];
+        std::env::set_var("OSF_TEST_LOGIN_SKIP_KEY", "a-key-held-in-the-environment");
+        let (out, notes, result) = run_lister(&lister, &real);
+        std::env::remove_var("OSF_TEST_LOGIN_SKIP_KEY");
+        result.expect("the lister runs");
+        let (_, files) = out.split_once('|').expect("home and files");
+        assert_eq!(files.trim(), "");
+        assert!(notes.is_empty(), "{notes:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_clean_copy_environment_and_arguments_reach_the_child() {
+        let mut r = reviewer(
+            "switch-reporter",
+            vec![
+                "sh",
+                "-c",
+                "printf '%s|%s' \"$IGNORE_PROJECT\" \"$1\"",
+                "sh",
+            ],
+        );
+        r.clean_copy = Switches {
+            args: &["--ignore-project"],
+            env: &[("IGNORE_PROJECT", "yes")],
+        };
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints a variable
+        let out = run_child(
+            &r,
+            "",
+            &workdir,
+            Duration::from_secs(30),
+            None,
+            &mut Vec::new(),
+        )
+        .expect("the reporter runs");
+        assert_eq!(out, "yes|--ignore-project");
     }
 
     #[cfg(unix)]
@@ -1005,6 +1072,30 @@ mod tests {
                 "read-only",
                 "--schema",
                 "/tmp/s"
+            ]
+        );
+    }
+
+    #[test]
+    fn build_args_puts_the_clean_copy_switches_after_the_read_only_arguments() {
+        let mut r = reviewer("fake", vec!["fake", "exec"]);
+        r.read_only = Some(ReadOnly {
+            args: &["--sandbox", "read-only"],
+            env: &[],
+        });
+        r.clean_copy = Switches {
+            args: &["--ignore-user-config"],
+            env: &[],
+        };
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        assert_eq!(
+            args,
+            vec![
+                "fake",
+                "exec",
+                "--sandbox",
+                "read-only",
+                "--ignore-user-config"
             ]
         );
     }

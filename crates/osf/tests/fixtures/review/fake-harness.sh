@@ -23,6 +23,12 @@ if [ -n "${OSF_FAKE_CHANGE_CAPTURE:-}" ] && [ -n "${OSF_FAKE_PROMPT_CAPTURE:-}" 
         echo "$change" > "$OSF_FAKE_CHANGE_CAPTURE.path"
     fi
 fi
+if [ -n "${OSF_FAKE_CWD_CAPTURE:-}" ]; then
+    {
+        pwd -P
+        find . -mindepth 1 \( -type f -o -type l \) | sort
+    } > "$OSF_FAKE_CWD_CAPTURE"
+fi
 if [ -n "${OSF_FAKE_ENV_CAPTURE:-}" ]; then
     {
         echo "GH_TOKEN=${GH_TOKEN:-}"
@@ -41,4 +47,11 @@ if [ -n "${OSF_FAKE_SLEEP_SECS:-}" ]; then
         touch "$OSF_FAKE_MARKER"
     fi
 fi
-cat "$OSF_FAKE_ANSWER"
+if [ -n "${OSF_FAKE_ECHO_ENV:-}" ]; then
+    eval "osf_fake_echo_value=\${${OSF_FAKE_ECHO_ENV}:-}"
+    osf_fake_b64=$(printf '%s' "$osf_fake_echo_value" | base64 | tr -d '\n')
+    osf_fake_hex=$(printf '%s' "$osf_fake_echo_value" | od -An -tx1 | tr -d ' \n')
+    sed -e "s|@@KEY@@|$osf_fake_echo_value|g" -e "s|@@KEY_B64@@|$osf_fake_b64|g" -e "s|@@KEY_HEX@@|$osf_fake_hex|g" "$OSF_FAKE_ANSWER"
+else
+    cat "$OSF_FAKE_ANSWER"
+fi

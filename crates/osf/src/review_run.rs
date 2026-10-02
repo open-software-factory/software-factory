@@ -11,17 +11,20 @@
 //!
 //! A reviewer is whatever coding-agent tool is already installed and
 //! logged in on this machine; this module never reads or holds a model
-//! provider's key. A reviewer that fails to run counts as could-not-run
-//! for that lens; could-not-run never passes. Nothing journalled here
-//! carries a prompt or a raw answer: `review_context` has already redacted
-//! the metadata, and `transcript` is a path or nothing, never the text
-//! itself. A reviewer's findings are reviewer-written text too, so their
-//! path, quote and body are redacted the same way before they leave a
-//! reviewer run, and again before they reach SARIF, a printed line, or a
-//! later posted review.
+//! provider's key. A reviewer starts in a clean copy of the change, with no
+//! coding agent's settings in it ([`CleanCopy`]). A reviewer that fails to
+//! run counts as could-not-run for that lens; could-not-run never passes.
+//! Nothing journalled here carries a prompt or a raw answer:
+//! `review_context` has already redacted the metadata, and `transcript` is a
+//! path or nothing, never the text itself. A reviewer's findings are
+//! reviewer-written text too, so the exact values of the secrets the job
+//! holds are removed from their path, quote and body, and the same pattern
+//! redaction is applied, before they leave a reviewer run, and again before
+//! they reach SARIF, a printed line, or a later posted review.
 
 use crate::answer::{Answer, AnswerFinding};
 use crate::builder;
+use crate::clean_copy::CleanCopy;
 use crate::journal::{Journal, Payload, ReviewAnswer, ReviewDecision};
 use crate::lenses::{self, Catalogue, Lens};
 use crate::quotes;
@@ -29,6 +32,7 @@ use crate::reducer::{self, LensAnswer, LensVerdict, Verdict};
 use crate::review_context::{self, ChangeFolder, PullRequest, Sources};
 use crate::review_prompt;
 use crate::reviewers::{self, Outcome, Reviewer};
+use crate::secret_values;
 use crate::{changeset_risk, config, git};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -235,6 +239,22 @@ pub fn run_reviewer(req: &Request, name: &str) -> Result<ReviewerRun, String> {
     Ok(run_reviewer_with(req, &setup, reviewer))
 }
 
+/// What one reviewer's run works in: the folder that holds the diff, and the
+/// clean copy of the change it starts in. Both are removed when this is dropped.
+struct Workspace {
+    change: ChangeFolder,
+    copy: CleanCopy,
+}
+
+impl Workspace {
+    fn create(sources: &Sources) -> Result<Self, String> {
+        Ok(Self {
+            change: ChangeFolder::create(sources)?,
+            copy: CleanCopy::create(sources.root)?,
+        })
+    }
+}
+
 fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
     let sources = Sources {
         root: req.root,
@@ -248,11 +268,11 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
     let change = if idle {
         None
     } else {
-        Some(ChangeFolder::create(&sources))
+        Some(Workspace::create(&sources))
     };
     let mut reviewer = reviewer.clone();
-    if let Some(Ok(folder)) = &change {
-        reviewer.review_dir = Some(folder.dir().to_path_buf());
+    if let Some(Ok(workspace)) = &change {
+        reviewer.review_dir = Some(workspace.change.dir().to_path_buf());
     }
     let reviewer = &reviewer;
     let lenses = setup
@@ -264,20 +284,29 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
                 context_error: None,
                 attempts: Vec::new(),
             };
-            let folder = match &change {
+            let workspace = match &change {
                 None => return run,
                 Some(Err(reason)) => {
                     run.context_error = Some(reason.clone());
                     return run;
                 }
-                Some(Ok(folder)) => folder,
+                Some(Ok(workspace)) => workspace,
             };
             match review_context::build(lens, &sources) {
                 Err(reason) => run.context_error = Some(reason),
                 Ok(metadata) => {
-                    let file = folder.file().to_string_lossy().into_owned();
+                    let file = workspace.change.file().to_string_lossy().into_owned();
                     let prompt = review_prompt::render(&setup.prompt, lens, &metadata, &file);
-                    run.attempts = attempts_for(req, reviewer, &prompt, lens, setup.timeout);
+                    let attempts = Attempts {
+                        root: req.root,
+                        config_root: req.config_root,
+                        workdir: workspace.copy.dir(),
+                        reviewer,
+                        prompt: &prompt,
+                        lens,
+                        timeout: setup.timeout,
+                    };
+                    run.attempts = attempts.run();
                 }
             }
             run
@@ -289,60 +318,58 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
     }
 }
 
-/// [`ROUNDS_PER_FAMILY`] independent rounds, and, when the reviewer answered
-/// at all, the critical round, saved marked as critical.
-fn attempts_for(
-    req: &Request,
-    reviewer: &Reviewer,
-    prompt: &str,
-    lens: &Lens,
+/// One reviewer's attempts at one lens, run in `workdir`.
+struct Attempts<'a> {
+    root: &'a Path,
+    config_root: &'a Path,
+    /// The clean copy of the change the reviewer starts in.
+    workdir: &'a Path,
+    reviewer: &'a Reviewer,
+    prompt: &'a str,
+    lens: &'a Lens,
     timeout: Duration,
-) -> Vec<Attempt> {
-    let mut attempts: Vec<Attempt> = (1..=ROUNDS_PER_FAMILY)
-        .map(|round| attempt_once(req, reviewer, prompt, lens, timeout, as_u32(round), false))
-        .collect();
-    if attempts.iter().any(|a| a.answer.is_some()) {
-        attempts.push(attempt_once(
-            req,
-            reviewer,
-            prompt,
-            lens,
-            timeout,
-            CRITICAL_ROUND,
-            true,
-        ));
-    }
-    attempts
 }
 
-/// Runs `reviewer` once for `lens`. An answer's findings are redacted here,
-/// so nothing a reviewer wrote is saved as it was written.
-fn attempt_once(
-    req: &Request,
-    reviewer: &Reviewer,
-    prompt: &str,
-    lens: &Lens,
-    timeout: Duration,
-    round: u32,
-    critical: bool,
-) -> Attempt {
-    let (outcome, notes) = reviewers::run_one_noted(reviewer, prompt, lens, req.root, timeout);
-    let (result, reason, answer) = match outcome {
-        Outcome::Answered(answer) => (
-            "answered",
-            None,
-            Some(redact_answer(req.root, req.config_root, answer)),
-        ),
-        Outcome::Invalid(reason) => ("invalid", Some(reason), None),
-        Outcome::CouldNotRun(reason) => ("could-not-run", Some(reason), None),
-    };
-    Attempt {
-        result: result.to_string(),
-        reason,
-        notes,
-        round,
-        critical,
-        answer,
+impl Attempts<'_> {
+    /// [`ROUNDS_PER_FAMILY`] independent rounds, and, when the reviewer
+    /// answered at all, the critical round, saved marked as critical.
+    fn run(&self) -> Vec<Attempt> {
+        let mut attempts: Vec<Attempt> = (1..=ROUNDS_PER_FAMILY)
+            .map(|round| self.once(as_u32(round), false))
+            .collect();
+        if attempts.iter().any(|a| a.answer.is_some()) {
+            attempts.push(self.once(CRITICAL_ROUND, true));
+        }
+        attempts
+    }
+
+    /// Runs the reviewer once. An answer's findings are redacted here, so
+    /// nothing a reviewer wrote is saved as it was written.
+    fn once(&self, round: u32, critical: bool) -> Attempt {
+        let (outcome, notes) = reviewers::run_one_noted(
+            self.reviewer,
+            self.prompt,
+            self.lens,
+            self.workdir,
+            self.timeout,
+        );
+        let (result, reason, answer) = match outcome {
+            Outcome::Answered(answer) => (
+                "answered",
+                None,
+                Some(redact_answer(self.root, self.config_root, answer)),
+            ),
+            Outcome::Invalid(reason) => ("invalid", Some(reason), None),
+            Outcome::CouldNotRun(reason) => ("could-not-run", Some(reason), None),
+        };
+        Attempt {
+            result: result.to_string(),
+            reason,
+            notes,
+            round,
+            critical,
+            answer,
+        }
     }
 }
 
@@ -698,10 +725,12 @@ fn redact_finding(root: &Path, config_root: &Path, finding: &AnswerFinding) -> A
     }
 }
 
-/// `text`, redacted through [`review_context::redact_secrets`], the same
-/// function a reviewer's own prompt is redacted through.
+/// `text`, with the exact secrets this job holds removed, then redacted
+/// through [`review_context::redact_secrets`], the same function a
+/// reviewer's own prompt is redacted through.
 fn redact_reviewer_text(root: &Path, config_root: &Path, text: &str) -> String {
-    review_context::redact_secrets(root, config_root, text).map_or_else(
+    let text = secret_values::scrub_held(text);
+    review_context::redact_secrets(root, config_root, &text).map_or_else(
         |_| "[could not verify this text is safe to show]".to_string(),
         |(redacted, _)| redacted,
     )

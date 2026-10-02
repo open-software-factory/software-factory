@@ -172,8 +172,22 @@ family answered. This is the interim policy of decision 0016. In every
 other case, `osf review reduce` ignores the critical rounds. The cost is one
 more round for each reviewer for each lens.
 
-The reviewer works inside a read-only checkout of the change at its head
-commit. The reviewer has file tools only: read, grep and glob. It has no
+Before `osf` saves an answer, and again in `osf review reduce`, it removes
+the exact value of every secret the job holds from every field. These are
+each reviewer's provider key and the code host's token. `osf` removes
+each one in plain, base64 and hex form. The pattern redaction runs as
+well. Where an API key in the environment is enough to sign in, `osf`
+copies no login file into the reviewer's home.
+
+The reviewer starts in a clean copy of the change. The copy is a temporary
+folder. It holds the change's files and no coding agent's settings,
+plugins or instruction files. Examples are `.opencode`, `opencode.json`,
+`.omp`, `.codex`, `.claude`, `.mcp.json`, `.cursor`, `.dsh`, `AGENTS.md`
+and `CLAUDE.md`. `agents.rs` holds the full list. The copy leaves out every
+symbolic link. Where an agent documents a switch that ignores project
+settings, `osf` passes it too. The quote check still reads the real
+checkout at the head commit. Claude Code, opencode and omp have file tools
+only: read, grep and glob. They have no
 shell. Before the reviewer starts, `osf` writes the commit log and the
 output of `git diff --no-color <base>...<head>` to one file in a new
 read-only folder, and the prompt gives the path of that file. `osf` pastes
@@ -207,7 +221,8 @@ create it. Set up this short list, then the check is live.
 - The `review` environment itself, holding at least two of these keys:
   `secrets.OPENAI_API_KEY`, `secrets.CLAUDE_CODE_OAUTH_TOKEN` (or
   `secrets.ANTHROPIC_API_KEY`), `secrets.OPENROUTER_API_KEY`. Each key
-  belongs to one reviewer job. `osf` itself reads none of them.
+  belongs to one reviewer job. `osf` itself reads a key only to remove its
+  value from answers.
 - Branch protection that requires the `review` job. Require every
   conversation resolved too, so a person still looks at each finding.
 
@@ -321,7 +336,9 @@ command. An agent with no documented read-only mode has none recorded.
 A reviewer list that names it reports could-not-run with the reason "no
 read-only mode", and the agent never starts. The `claude`, `opencode`
 and `omp` modes give file tools only, with no shell. The `codex` sandbox
-lets its shell read only. A mode that allowed `git diff` through a shell
+stops file writes and changes. Its shell can still read any file the
+reviewer's user can read. So a reviewer's home and environment hold no
+secret beyond that reviewer's own provider key. A mode that allowed `git diff` through a shell
 would also allow `git diff --output=<file>`, which writes a file. So no
 mode allows a shell for git.
 
@@ -333,7 +350,8 @@ A model that no prefix matches leaves the family unknown. So does no model
 at all. Such a reviewer does not run. It is could-not-run, and the journal
 gives the reason.
 
-`osf` never reads or holds any of these keys itself. Each tool reads
+`osf` passes each key to the one reviewer it belongs to, and holds a key
+only to remove its value from the reviewer's answer. Each tool reads
 its own key, the same way it would outside `osf`. A reviewer whose key
 is missing exits on its own. `osf` then counts that reviewer as
 could-not-run, and tries the next one. The review as a whole never

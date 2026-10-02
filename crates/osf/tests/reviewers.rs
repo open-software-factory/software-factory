@@ -7,7 +7,7 @@ mod common;
 
 use common::TempDir;
 use osf::lenses::{Criterion, Lens, Runs, SeverityGuide, Trigger};
-use osf::reviewers::{roster, run_one, Outcome, ReadOnly, Reviewer, SchemaArg};
+use osf::reviewers::{roster, run_one, Outcome, ReadOnly, Reviewer, SchemaArg, Switches};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -101,6 +101,10 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
             args: &[],
             env: &[],
         }),
+        clean_copy: Switches {
+            args: &[],
+            env: &[],
+        },
         schema_flag: None,
         schema_as: SchemaArg::default(),
         answer_pointer: String::new(),

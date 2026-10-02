@@ -398,6 +398,25 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn a_folder_link_pointing_outside_the_repository_is_not_followed() {
+        let root = TempDir::new("quotes-dir-symlink-root");
+        let outside = TempDir::new("quotes-dir-symlink-outside");
+        std::fs::write(outside.join("secret.rs"), "fn secret() { /* outside */ }\n")
+            .expect("outside file writes");
+        std::os::unix::fs::symlink(&*outside, root.join("linked")).expect("symlink creates");
+        let findings = vec![finding(
+            "linked/secret.rs",
+            1,
+            "fn secret() { /* outside */ }",
+        )];
+        let checked = check(&root, answer(findings));
+        assert_eq!(checked.kept.findings().len(), 0, "{:?}", checked.kept);
+        let (_, reason) = checked.dropped.first().expect("one dropped");
+        assert!(reason.contains("outside the repository"), "{reason}");
+    }
+
+    #[test]
     fn a_quote_under_six_non_whitespace_characters_is_dropped_as_too_short() {
         let root = root_with_file(
             "quotes-too-short",

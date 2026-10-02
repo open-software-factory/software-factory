@@ -122,6 +122,33 @@ fn review_repo_with(name: &str, osf_toml: &str, extra: &[(&str, &str)]) -> TempR
     repo
 }
 
+/// [`review_repo_with`], with each of `links` committed in the base commit as a
+/// symbolic link named by the first item and pointing at the second.
+#[cfg(unix)]
+fn review_repo_linked(
+    name: &str,
+    osf_toml: &str,
+    extra: &[(&str, &str)],
+    links: &[(&str, &Path)],
+) -> TempRepo {
+    let repo = TempRepo::new(name);
+    write_lens_overrides(&repo);
+    for (path, content) in extra {
+        repo.write(path, content);
+    }
+    for (link, target) in links {
+        std::os::unix::fs::symlink(target, repo.dir.join(link)).expect("symlink creates");
+    }
+    repo.write("osf.toml", osf_toml);
+    repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
+    repo.write("README.md", "base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("README.md", "base\nplus a change to review\n");
+    repo.commit("a small change to review");
+    repo
+}
+
 /// The same as [`review_repo`], except the reviewed commit carries a
 /// `Code-Generator:` trailer naming `trailer_model`, so `osf review run`
 /// detects a builder family for it.
@@ -161,6 +188,10 @@ enum Fake<'a> {
     /// Prints the answer file's text, and records its prompt, arguments and
     /// environment under the folder, plus a `started` file.
     Records(&'a str, &'a Path),
+    /// Prints the answer file's text, with `@@KEY@@`, `@@KEY_B64@@` and
+    /// `@@KEY_HEX@@` replaced by the named environment variable's value in
+    /// plain, base64 and hex form, as a reviewer that echoes its own key would.
+    Echoes(&'a str, &'a str),
 }
 
 /// `osf.toml` text that selects `reviewers` from the agent list, after `prefix`.
@@ -183,10 +214,13 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
         Fake::Records(answer, dir) => format!(
             "env > '{d}/env'\nOSF_FAKE_ANSWER='{answer}' OSF_FAKE_PROMPT_CAPTURE='{d}/prompt' \
-             OSF_FAKE_ARGS_CAPTURE='{d}/args' OSF_FAKE_HARNESS_LOG='{d}/started' OSF_FAKE_CHANGE_CAPTURE='{d}/change' \
-             exec '{harness}' \"$@\"",
+            OSF_FAKE_ARGS_CAPTURE='{d}/args' OSF_FAKE_HARNESS_LOG='{d}/started' OSF_FAKE_CHANGE_CAPTURE='{d}/change' \
+             OSF_FAKE_CWD_CAPTURE='{d}/cwd' exec '{harness}' \"$@\"",
             d = dir.display()
         ),
+        Fake::Echoes(answer, var) => {
+            format!("OSF_FAKE_ANSWER='{answer}' OSF_FAKE_ECHO_ENV='{var}' exec '{harness}'")
+        }
     };
     let program = bin.join(agent);
     std::fs::write(&program, format!("#!/bin/sh\n{body}\n")).expect("fake agent writes");
@@ -206,7 +240,9 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         )
     };
     let body = match fake {
-        Fake::Answers(answer) | Fake::Records(answer, _) => run(answer, ""),
+        Fake::Answers(answer) | Fake::Records(answer, _) | Fake::Echoes(answer, _) => {
+            run(answer, "")
+        }
         Fake::Slow(answer, secs) => run(answer, &format!("set \"OSF_FAKE_SLEEP_SECS={secs}\"\r\n")),
         Fake::Fails(secret) => format!("@echo off\r\necho {secret} 1>&2\r\nexit /b 9\r\n"),
     };
@@ -2157,4 +2193,280 @@ fn a_reviewer_outside_the_roster_is_an_error_or_a_quiet_skip() {
     );
     let text = std::fs::read_to_string(&file).expect("an empty reviewer file is written");
     assert!(text.contains("\"lenses\": []"), "{text}");
+}
+
+/// A reviewer starts in a clean copy of the change: a temporary folder with
+/// the change's files, no coding agent's settings and no symbolic link. The
+/// folder is gone after the run.
+#[test]
+#[cfg(unix)]
+fn a_reviewer_starts_in_a_clean_copy_of_the_change_with_no_agent_settings() {
+    let rec = TempDir::new("review-run-clean-copy-rec");
+    let outside = TempDir::new("review-run-clean-copy-outside");
+    std::fs::write(outside.join("secret.txt"), "outside").expect("outside file writes");
+    let fakes = Fakes::new(
+        "",
+        &[("codex", Fake::Records(&fixture("valid.json"), &rec))],
+    );
+    let repo = review_repo_linked(
+        "clean-copy",
+        &fakes.osf_toml,
+        &[
+            (".opencode/plugin/evil.js", "x"),
+            ("opencode.json", "{}"),
+            ("opencode.jsonc", "{}"),
+            (".omp/agent/hooks/a/index.js", "x"),
+            (".codex/hooks.json", "{}"),
+            (".claude/settings.json", "{}"),
+            (".mcp.json", "{}"),
+            (".cursor/rules/r.mdc", "x"),
+            (".dsh/p.yml", "x"),
+            ("AGENTS.md", "x"),
+            ("CLAUDE.md", "x"),
+            ("docs/AGENTS.md", "x"),
+            ("docs/guide.md", "kept"),
+        ],
+        &[
+            ("link-to-file", &outside.join("secret.txt")),
+            ("link-to-dir", &outside),
+        ],
+    );
+    let home = common::isolated_home("review-run-clean-copy");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let seen = recorded(&rec, "cwd");
+    let mut lines = seen.lines();
+    let dir = lines.next().expect("the working folder");
+    let files: Vec<&str> = lines.collect();
+    assert_ne!(
+        Path::new(dir),
+        repo.dir.canonicalize().expect("repo resolves"),
+        "the reviewer must not start in the checkout"
+    );
+    assert!(dir.contains("osf-review-copy-"), "{dir}");
+    for kept in [
+        "./README.md",
+        "./src/lib.rs",
+        "./docs/guide.md",
+        "./osf.toml",
+    ] {
+        assert!(files.contains(&kept), "{kept} is missing: {files:?}");
+    }
+    for left_out in [
+        ".opencode",
+        "opencode.json",
+        "opencode.jsonc",
+        ".omp",
+        ".codex",
+        ".claude",
+        ".mcp.json",
+        ".cursor",
+        ".dsh",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "link-to-file",
+        "link-to-dir",
+    ] {
+        assert!(
+            !files.iter().any(|f| f.contains(left_out)),
+            "{left_out} reached the copy: {files:?}"
+        );
+    }
+    assert!(
+        !Path::new(dir).exists(),
+        "the copy is removed after the run"
+    );
+}
+
+/// With a real opencode, a plugin file under `.opencode/plugin` in the change
+/// does not run when osf starts the reviewer, and does run when opencode is
+/// started in the checkout itself, which shows the test can tell. Run it with
+/// `cargo test -- --ignored` where opencode is installed.
+#[test]
+#[cfg(unix)]
+#[ignore = "runs a real opencode, so it needs the opencode command on PATH"]
+fn a_plugin_in_the_change_does_not_run_in_a_real_opencode_reviewer() {
+    let marker_dir = TempDir::new("review-run-real-opencode-marker");
+    let ran = marker_dir.join("plugin-ran");
+    let plugin = format!(
+        "import fs from \"node:fs\";\nfs.writeFileSync({:?}, \"ran\");\nexport const Evil = async () => ({{}});\n",
+        ran.to_string_lossy()
+    );
+    let osf_toml = "[agents]\nreviewers = [\"opencode\"]\n\n[agents.models]\nopencode = \"openrouter/qwen/qwen3-coder-next\"\n\n[review]\ntimeout_seconds = 120\n";
+    let repo = review_repo_with(
+        "real-opencode",
+        osf_toml,
+        &[(".opencode/plugin/evil.js", &plugin)],
+    );
+    let key = common::fake_provider_key("sk-");
+
+    let control_home = common::isolated_home("review-run-real-opencode-control");
+    let control = std::process::Command::new("opencode")
+        .args([
+            "run",
+            "--format",
+            "json",
+            "-m",
+            "openrouter/qwen/qwen3-coder-next",
+            "hello",
+        ])
+        .current_dir(&repo.dir)
+        .env("HOME", &*control_home)
+        .env("OPENROUTER_API_KEY", &key)
+        .output()
+        .expect("opencode starts");
+    assert!(
+        ran.exists(),
+        "opencode in the checkout must load the plugin, or this test shows nothing: {}",
+        String::from_utf8_lossy(&control.stdout)
+    );
+    std::fs::remove_file(&ran).expect("marker removes");
+
+    let home = common::isolated_home("review-run-real-opencode");
+    let output = common::run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OPENROUTER_API_KEY", &key)],
+        &["review", "run", "--base", "origin/main"],
+    );
+    let journal = journal_lines_of(&home, "opencode");
+    assert!(
+        journal.contains("exited with code"),
+        "the reviewer must have started: {journal}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !ran.exists(),
+        "the plugin in the change ran in the reviewer"
+    );
+}
+
+/// The base64 text of `text`, from the system tool.
+#[cfg(unix)]
+fn base64_of(text: &str) -> String {
+    use std::io::Write as _;
+    let mut child = std::process::Command::new("base64")
+        .args(["-w", "0"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("base64 runs");
+    child
+        .stdin
+        .take()
+        .expect("stdin")
+        .write_all(text.as_bytes())
+        .expect("writes");
+    let out = child.wait_with_output().expect("base64 finishes");
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+/// The lower-case hex text of `text`.
+#[cfg(unix)]
+fn hex_of(text: &str) -> String {
+    use std::fmt::Write as _;
+    text.bytes().fold(String::new(), |mut out, b| {
+        let _ = write!(out, "{b:02x}");
+        out
+    })
+}
+
+/// An answer file whose findings carry the placeholders [`Fake::Echoes`] fills in.
+#[cfg(unix)]
+fn echoing_answer(dir: &TempDir) -> String {
+    let payload = serde_json::json!({
+        "lens": "correctness",
+        "scores": {"c1": 0.9, "c2": 0.9},
+        "findings": [
+            {
+                "path": "src/lib.rs", "line": 2, "quote": "fn broken() {}",
+                "severity": "minor", "action": "justify",
+                "body": "plain @@KEY@@ base64 @@KEY_B64@@ hex @@KEY_HEX@@"
+            },
+            {
+                "path": "notes/@@KEY@@.md", "line": 1, "quote": "see @@KEY_HEX@@ here",
+                "severity": "minor", "action": "justify", "body": "again @@KEY_B64@@"
+            }
+        ]
+    })
+    .to_string();
+    write_answer_file(dir, "echo.json", &payload)
+}
+
+/// A reviewer's own key, in plain, base64 and hex form, is removed from every
+/// field of the answer before it is saved.
+#[test]
+#[cfg(unix)]
+fn a_reviewers_own_key_is_removed_from_its_saved_answer() {
+    let key = "reviewer-key-4f9c1a7be2d84a05";
+    let payloads = TempDir::new("review-run-own-key-payload");
+    let answer = echoing_answer(&payloads);
+    let fakes = Fakes::new("", &[("codex", Fake::Echoes(&answer, "CODEX_API_KEY"))]);
+    let repo = review_repo("own-key", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-own-key-saved");
+    let file = saved.join("codex.json").to_string_lossy().into_owned();
+    let home = common::isolated_home("review-run-own-key");
+    let output = fakes.run_with_env(
+        &repo.dir,
+        &home,
+        &[("CODEX_API_KEY", key)],
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = std::fs::read_to_string(&file).expect("the saved run reads");
+    for form in [key.to_string(), base64_of(key), hex_of(key)] {
+        assert!(!text.contains(&form), "the saved run holds {form}: {text}");
+    }
+    assert!(text.contains("a secret this job holds"), "{text}");
+}
+
+/// The same reviewer through the single run: the key reaches no journal line,
+/// printed line or SARIF file either.
+#[test]
+#[cfg(unix)]
+fn a_reviewers_own_key_reaches_no_journal_line_or_output() {
+    let key = "reviewer-key-91d0b3c75e6f4a28";
+    let payloads = TempDir::new("review-run-own-key-single-payload");
+    let answer = echoing_answer(&payloads);
+    let fakes = Fakes::new("", &[("codex", Fake::Echoes(&answer, "CODEX_API_KEY"))]);
+    let repo = review_repo("own-key-single", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-own-key-single");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = fakes.run_with_env(
+        &repo.dir,
+        &home,
+        &[("CODEX_API_KEY", key)],
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    for form in [key.to_string(), base64_of(key), hex_of(key)] {
+        assert_no_leak(&form, &output, &home, Some(&sarif_out));
+    }
 }

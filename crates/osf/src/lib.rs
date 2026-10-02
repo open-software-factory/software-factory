@@ -11,6 +11,7 @@ pub mod changeset_risk;
 pub mod changeset_tests;
 pub mod check;
 pub mod checkpoint;
+pub mod clean_copy;
 pub mod config;
 pub mod exclude;
 pub mod git;
@@ -34,6 +35,7 @@ pub mod review_prompt;
 pub mod review_run;
 pub mod reviewers;
 pub mod scan;
+pub mod secret_values;
 pub mod section;
 #[cfg(test)]
 mod test_support;
