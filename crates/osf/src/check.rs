@@ -305,8 +305,7 @@ fn scan_commits(opts: &Options) -> Result<Vec<(String, Finding)>, String> {
         Some(b) => b.clone(),
         None => crate::git::default_branch(opts.dir).map_err(|e| e.to_string())?,
     };
-    let range = format!("{base}..HEAD");
-    let hashes = crate::git::commit_hashes(opts.dir, &range).map_err(|e| e.to_string())?;
+    let hashes = crate::git::commits_since(opts.dir, &base).map_err(|e| e.to_string())?;
     if hashes.is_empty() {
         return Ok(Vec::new());
     }

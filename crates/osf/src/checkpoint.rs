@@ -151,9 +151,8 @@ fn could_not_run(detail: String) -> Summary {
 
 /// The base to diff against: given verbatim when the caller names one.
 /// Pre-push otherwise falls back to the ref it actually pushes against
-/// (the current branch's upstream, or `origin/<default-branch>`), since the
-/// local default branch's own name compares a branch to itself when the
-/// push is made from that branch, which is always empty. Pull-request
+/// (see [`crate::git::upstream_ref`]): a remote ref, else the empty tree, so
+/// a first push with no remote ref checks everything it sends. Pull-request
 /// falls back to the repository's default branch. Every other checkpoint
 /// keeps whatever base the caller passed, untouched, since it plays no
 /// part in choosing their files.
@@ -289,8 +288,7 @@ fn index_hash_of(root: &Path, files: &[String]) -> Result<String, String> {
 /// moon input so amending a commit message alone — the tree and file list
 /// both unchanged — still invalidates its cache.
 fn commits_hash_of(root: &Path, base: &str) -> Result<String, String> {
-    let hashes =
-        crate::git::commit_hashes(root, &format!("{base}..HEAD")).map_err(|e| e.to_string())?;
+    let hashes = crate::git::commits_since(root, base).map_err(|e| e.to_string())?;
     Ok(crate::journal::sha256_hex(hashes.join("\n").as_bytes()))
 }
 

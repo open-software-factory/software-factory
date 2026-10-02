@@ -68,6 +68,22 @@ fn pre_push_with_no_base_diffs_against_the_pushed_to_ref_not_the_local_branch_it
     );
 }
 
+/// A first push has no upstream and no remote ref: every file and commit it
+/// sends must still be checked, not compared with the branch itself.
+#[test]
+fn a_first_push_with_no_remote_ref_checks_everything_it_sends() {
+    let repo = TempRepo::with_moon_workspace("cp-pre-push-first-push");
+    repo.write("guide.md", "Do Phase 2 next.\n");
+    repo.commit("first and only commit");
+    let home = isolated_home("cp-pre-push-first-push");
+    let out = run_osf(&repo.dir, &home, &["verify", "--checkpoint", "pre-push"]);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a first push must check the files it sends: {out:?}"
+    );
+}
+
 #[test]
 fn a_change_no_task_reads_is_nothing_to_check_and_exits_zero() {
     let repo = TempRepo::with_moon_workspace("cp-nothing");
