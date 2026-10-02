@@ -271,6 +271,14 @@ struct StatusRenderArgs {
     /// `osf pr status refresh` does.
     #[arg(long)]
     base: Option<String>,
+    /// One short line for the Automated review row's Details, for example
+    /// the model family, the rounds and the fixing commit.
+    #[arg(long)]
+    automated_review: Option<String>,
+    /// One short line for the Human review row's Details, for example the
+    /// reviewers' display names.
+    #[arg(long)]
+    human_review: Option<String>,
 }
 
 #[derive(Args)]
@@ -1343,6 +1351,8 @@ fn pr_status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
         review_json: &review_text,
         head: &head,
         tests: tests_text.as_deref(),
+        automated_review: args.automated_review.as_deref(),
+        human_review: args.human_review.as_deref(),
     };
     match pr_status::render(&input) {
         Ok(block) => {
@@ -1622,6 +1632,8 @@ fn pr_status_refresh_run(
         review_json: &review_text,
         head: &head,
         tests: Some(&tests_text),
+        automated_review: None,
+        human_review: None,
     };
     let block = pr_status::render(&input).map_err(to_exit)?;
     let unchanged = pr_status::is_unchanged(&pr_info.body, &block).map_err(to_exit)?;

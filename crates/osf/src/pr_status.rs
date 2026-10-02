@@ -53,6 +53,13 @@ pub struct RenderInput<'a> {
     /// module stays a pure function of its inputs and never builds one
     /// itself.
     pub tests: Option<&'a str>,
+    /// One line for the Automated review row's Details, such as the model
+    /// family, the rounds and the fixing commit. `None` or empty keeps the
+    /// details computed from the review comments.
+    pub automated_review: Option<&'a str>,
+    /// One line for the Human review row's Details, such as reviewer display
+    /// names. `None` or empty keeps the details computed from the decision.
+    pub human_review: Option<&'a str>,
 }
 
 /// Renders the status block: a heading naming the head commit, a table of
@@ -78,6 +85,10 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
     let (ci_result, ci_details) = gates.ci_row();
     let (auto_result, auto_details) = automated_review_row(&review);
     let (human_result, human_details) = human_review_row(&review);
+    let auto_details =
+        review_override("--automated-review", input.automated_review)?.unwrap_or(auto_details);
+    let human_details =
+        review_override("--human-review", input.human_review)?.unwrap_or(human_details);
 
     let mut out = String::new();
     writeln!(out, "{}", marker::start(NAME, input.head)).expect("writing to a string never fails");
@@ -94,6 +105,7 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
          | Contributor agreement | ⏸ not run | no check yet, and a first-time author who is not a bot posts the sentence from CONTRIBUTING.md |\n\
          | Automated review | {auto_result} | {auto_details} |\n\
          | Human review | {human_result} | {human_details} |\n",
+        human_details = cell(&human_details),
         tier = cell(&tier),
         risk = cell(risk_details),
         tests_result = cell(&tests_result),
@@ -173,12 +185,25 @@ fn automated_review_row(review: &ReviewFields) -> (String, String) {
 }
 
 /// The Human review row, from the decision GitHub reports.
-fn human_review_row(review: &ReviewFields) -> (&'static str, &'static str) {
-    match review.decision.as_str() {
+fn human_review_row(review: &ReviewFields) -> (&'static str, String) {
+    let (result, details) = match review.decision.as_str() {
         "APPROVED" => ("✅ approved", "approved on GitHub"),
         "CHANGES_REQUESTED" => ("❌ changes requested", "changes requested on GitHub"),
         _ => ("⏳ waiting", "no approving review yet"),
+    };
+    (result, details.to_string())
+}
+
+/// The caller's one-line Details for a review row: `None` when absent or
+/// empty, an error when it spans lines, since a table cell holds one line.
+fn review_override(label: &str, value: Option<&str>) -> Result<Option<String>, StatusError> {
+    let Some(text) = value.map(str::trim).filter(|t| !t.is_empty()) else {
+        return Ok(None);
+    };
+    if text.contains(['\n', '\r']) {
+        return Err(StatusError(format!("{label} must be one line")));
     }
+    Ok(Some(text.to_string()))
 }
 
 /// Puts `block` into `body`: between the markers when both are present,

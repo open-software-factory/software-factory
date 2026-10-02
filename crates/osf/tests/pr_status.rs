@@ -39,6 +39,8 @@ fn base_input<'a>(gates: &'a str, review_json: &'a str) -> RenderInput<'a> {
         review_json,
         head: HEAD,
         tests: None,
+        automated_review: None,
+        human_review: None,
     }
 }
 
@@ -243,6 +245,57 @@ fn an_empty_head_is_refused() {
     };
     let err = pr_status::render(&input).expect_err("an empty head is refused");
     assert!(format!("{err}").contains("--head"), "{err}");
+}
+
+#[test]
+fn given_review_lines_go_into_the_details_of_both_review_rows() {
+    let review = advisory_two_rounds_review();
+    let input = RenderInput {
+        automated_review: Some("Codex (OpenAI family), 2 rounds, fixed in abc1234"),
+        human_review: Some("Keith Marchant | Ana Silva"),
+        ..base_input("build: passed", &review)
+    };
+    let block = pr_status::render(&input).expect("render succeeds");
+    assert_eq!(
+        row(&block, "Automated review"),
+        "| Automated review | ✅ APPROVE | Codex (OpenAI family), 2 rounds, fixed in abc1234 |"
+    );
+    assert_eq!(
+        row(&block, "Human review"),
+        "| Human review | ⏳ waiting | Keith Marchant \\| Ana Silva |"
+    );
+}
+
+#[test]
+fn without_review_lines_the_review_rows_keep_their_computed_details() {
+    let review = advisory_two_rounds_review();
+    let plain = render_ok("build: passed", &review);
+    let blank = RenderInput {
+        automated_review: Some("  "),
+        human_review: Some(""),
+        ..base_input("build: passed", &review)
+    };
+    assert_eq!(pr_status::render(&blank).expect("render succeeds"), plain);
+    assert!(
+        row(&plain, "Automated review")
+            .ends_with("| 1 round, 6 findings, 5 fixed, 1 justified, 0 deferred |"),
+        "{plain}"
+    );
+    assert!(
+        row(&plain, "Human review").ends_with("| no approving review yet |"),
+        "{plain}"
+    );
+}
+
+#[test]
+fn a_review_line_that_spans_lines_is_refused() {
+    let review = advisory_two_rounds_review();
+    let input = RenderInput {
+        human_review: Some("one\ntwo"),
+        ..base_input("build: passed", &review)
+    };
+    let err = pr_status::render(&input).expect_err("a multi-line value is refused");
+    assert!(format!("{err}").contains("--human-review"), "{err}");
 }
 
 #[test]

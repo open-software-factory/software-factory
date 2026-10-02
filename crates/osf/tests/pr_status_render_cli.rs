@@ -88,6 +88,45 @@ fn render_with_no_base_carries_no_test_summary() {
 }
 
 #[test]
+fn render_puts_the_review_flags_into_the_review_rows() {
+    let repo = TempRepo::new("pr-status-render-review-flags");
+    repo.write("a.md", "Clean.\n");
+    repo.commit("only commit");
+    let home = isolated_home("pr-status-render-review-flags");
+    let (tier_json, review_json) = write_inputs(&repo);
+
+    let output = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "pr",
+            "status",
+            "render",
+            "--tier-json",
+            tier_json.to_str().expect("utf8 path"),
+            "--gates",
+            "build: passed",
+            "--review-json",
+            review_json.to_str().expect("utf8 path"),
+            "--automated-review",
+            "Codex (OpenAI family), 2 rounds, fixed in abc1234",
+            "--human-review",
+            "Keith Marchant",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("| Codex (OpenAI family), 2 rounds, fixed in abc1234 |"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("| ✅ approved | Keith Marchant |"),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn render_writes_the_current_head_into_the_marker_and_heading() {
     let repo = TempRepo::new("pr-status-render-head");
     repo.write("a.md", "Clean.\n");
