@@ -2,11 +2,12 @@
 //! command-line tool, headless.
 //!
 //! osf never holds a model provider's API key. A reviewer is one of the
-//! coding-agent tools already installed and logged in on this machine; osf
-//! only starts it with a prompt and, where the tool supports it, a JSON
-//! Schema to constrain its answer. Every shipped roster entry ships
-//! disabled; onboarding, or a repository's own `osf.toml`, turns one on.
+//! agents in [`crate::agents::AGENTS`], already installed and logged in on
+//! this machine; osf only starts it with a prompt and, where the tool
+//! supports it, a JSON Schema to constrain its answer. A repository's own
+//! `osf.toml` picks the reviewers under `[agents]`.
 
+use crate::agents::{self, Agent};
 use crate::answer::{self, Answer};
 use crate::lenses::Lens;
 use std::io::Write as _;
@@ -17,70 +18,65 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use wait_timeout::ChildExt as _;
 
-/// The shipped roster, embedded so `osf` needs no network access to know
-/// its own default reviewers.
-const SHIPPED_ROSTER: &str = include_str!("../defaults/review-roster.toml");
+pub use crate::agents::SchemaArg;
 
-/// How a reviewer's `schema_flag` value is given: most coding-agent tools
-/// take a file path, but at least one (Claude Code's `--json-schema`) takes
-/// the schema's own JSON text on the command line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum SchemaArg {
-    #[default]
-    Path,
-    Inline,
-}
-
-/// One reviewer: a coding-agent harness, run with one model family, through
-/// a fixed command line.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+/// One reviewer: an agent, run with its own model family, through a fixed
+/// command line.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Reviewer {
+    /// The agent's name.
     pub name: String,
-    pub harness: String,
     pub family: String,
     /// The argument list to run, in order. `{prompt_file}` is replaced with
-    /// the path of a file holding the prompt, for a harness that reads one
+    /// the path of a file holding the prompt, for an agent that reads one
     /// from a file rather than from standard input.
     pub command: Vec<String>,
-    /// The flag that introduces the answer schema, when this harness can be
+    /// The flag that introduces the answer schema, when this agent can be
     /// asked to validate its own output against one.
-    #[serde(default)]
     pub schema_flag: Option<String>,
     /// How `schema_flag`'s value is given. Ignored when `schema_flag` is `None`.
-    #[serde(default)]
     pub schema_as: SchemaArg,
-    /// A JSON pointer to the answer inside the harness's own output
+    /// A JSON pointer to the answer inside the agent's own output
     /// envelope, such as `/structured_output`. Empty when the whole output
     /// is the answer.
-    #[serde(default)]
     pub answer_pointer: String,
-    /// The model this reviewer's harness should use, when pinned. Left
-    /// unset, the harness falls back to its own default model.
-    #[serde(default)]
+    /// The model this reviewer's agent should use, when pinned. Left
+    /// unset, the agent falls back to its own default model.
     pub model: Option<String>,
-    /// The flag that introduces `model`'s value on the harness's own
-    /// command line, such as `"--model"` or `"-m"`. Ignored when `model` is
-    /// `None`.
-    #[serde(default)]
+    /// The flag that introduces `model`'s value on the agent's own
+    /// command line, such as `"--model"`. Ignored when `model` is `None`.
     pub model_flag: Option<String>,
     /// The environment variable names that carry this reviewer's own
-    /// provider credential, such as `ANTHROPIC_API_KEY` or a subscription
-    /// token. [`run_one`] starts this reviewer with only these, plus the
-    /// variables every child needs to run at all; no other reviewer's
-    /// credential is ever in its environment.
-    #[serde(default)]
+    /// provider credential. [`run_one`] starts this reviewer with only
+    /// these, plus the variables every child needs to run at all; no other
+    /// reviewer's credential is ever in its environment.
     pub credential_env: Vec<String>,
-    /// The paths, relative to the real home directory, that this harness's
+    /// The paths, relative to the real home directory, that this agent's
     /// own login needs. [`run_one`] copies only these into the reviewer's
     /// fresh home before it runs; nothing else of the real home, and no other
     /// reviewer's login, goes in. A path that is missing is left out and
     /// named in the run's notes.
-    #[serde(default)]
     pub login_paths: Vec<String>,
-    #[serde(default)]
-    pub enabled: bool,
+}
+
+impl Reviewer {
+    /// `agent` as a reviewer running `model`; `None` when `agent` never reviews.
+    fn from_agent(agent: &Agent, model: Option<&str>) -> Option<Self> {
+        let review = agent.review.as_ref()?;
+        let owned = |items: &[&str]| items.iter().map(ToString::to_string).collect();
+        Some(Reviewer {
+            name: agent.name.to_string(),
+            family: agent.family.to_string(),
+            command: owned(agent.command),
+            schema_flag: review.schema_flag.map(str::to_string),
+            schema_as: review.schema_as,
+            answer_pointer: review.answer_pointer.to_string(),
+            model: model.map(str::to_string),
+            model_flag: review.model_flag.map(str::to_string),
+            credential_env: owned(review.credential_env),
+            login_paths: owned(review.login_paths),
+        })
+    }
 }
 
 /// One reviewer's outcome for one lens.
@@ -94,43 +90,20 @@ pub enum Outcome {
     CouldNotRun(String),
 }
 
-/// The shipped roster, then this repository's own `osf.toml` `[review]`
-/// overrides, a later reviewer of the same `name` replacing an earlier one
-/// and a new name appending.
+/// The reviewers `<root>/osf.toml` selects under `[agents]`, in the order it
+/// names them. None when it names none.
 ///
 /// # Errors
-/// Returns an error when the shipped roster fails to parse (a defect in
-/// this crate), or `<root>/osf.toml` is not valid TOML, or its `[review]`
-/// table does not match the reviewer shape.
+/// Returns an error when `<root>/osf.toml` is not valid TOML, or its
+/// `[agents]` table does not match the shape [`agents::resolve`] accepts.
 pub fn roster(root: &Path) -> Result<Vec<Reviewer>, String> {
-    let mut reviewers = shipped_roster()?;
-    let overrides = crate::config::review_config(root)
-        .map_err(|e| e.to_string())?
-        .roster;
-    for reviewer in overrides {
-        upsert(&mut reviewers, reviewer);
-    }
-    Ok(reviewers)
+    let selection = agents::selection(root)?;
+    Ok(selection
+        .reviewers
+        .iter()
+        .filter_map(|agent| Reviewer::from_agent(agent, selection.model(agent)))
+        .collect())
 }
-
-fn shipped_roster() -> Result<Vec<Reviewer>, String> {
-    #[derive(serde::Deserialize)]
-    struct Shipped {
-        reviewer: Vec<Reviewer>,
-    }
-    let shipped: Shipped =
-        toml::from_str(SHIPPED_ROSTER).map_err(|e| format!("review-roster.toml: {e}"))?;
-    Ok(shipped.reviewer)
-}
-
-/// Replaces the reviewer named `reviewer.name` in place, keeping roster order, or appends it as new.
-fn upsert(reviewers: &mut Vec<Reviewer>, reviewer: Reviewer) {
-    match reviewers.iter_mut().find(|r| r.name == reviewer.name) {
-        Some(existing) => *existing = reviewer,
-        None => reviewers.push(reviewer),
-    }
-}
-
 /// Variable names every reviewer's child needs purely to run its own
 /// program and find its own files, carried over from `osf`'s own
 /// environment when present: never a credential, so the same names are safe
@@ -622,7 +595,6 @@ mod tests {
     fn reviewer(name: &str, command: Vec<&str>) -> Reviewer {
         Reviewer {
             name: name.to_string(),
-            harness: name.to_string(),
             family: "test-family".to_string(),
             command: command.into_iter().map(str::to_string).collect(),
             schema_flag: None,
@@ -632,7 +604,6 @@ mod tests {
             model_flag: None,
             credential_env: Vec::new(),
             login_paths: Vec::new(),
-            enabled: false,
         }
     }
 
@@ -766,36 +737,6 @@ mod tests {
         assert_eq!(notes.len(), 1, "{notes:?}");
     }
 
-    /// Every shipped login path sits under a state directory of the agent
-    /// that the entry's own harness names, so one harness never copies
-    /// another's files; and every shipped entry declares at least one.
-    #[test]
-    fn the_shipped_login_paths_stay_inside_their_own_agents_state_directories() {
-        let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
-        for entry in &r {
-            assert!(
-                !entry.login_paths.is_empty(),
-                "{} declares no login path",
-                entry.name
-            );
-            let agent = crate::agents::AGENTS
-                .iter()
-                .find(|a| a.reviewer_harness == Some(entry.harness.as_str()))
-                .expect("every shipped harness is a listed agent");
-            for path in &entry.login_paths {
-                assert!(
-                    agent
-                        .state_dirs
-                        .iter()
-                        .any(|dir| Path::new(path).starts_with(dir)),
-                    "{}: {path} is outside {:?}",
-                    entry.name,
-                    agent.state_dirs
-                );
-            }
-        }
-    }
-
     /// Prints the child's `HOME` and how many entries that directory holds.
     #[cfg(unix)]
     fn home_reporter() -> Reviewer {
@@ -839,43 +780,41 @@ mod tests {
     }
 
     #[test]
-    fn the_shipped_roster_has_no_gemini_and_every_entry_disabled() {
+    fn with_no_agents_table_there_is_no_reviewer() {
         let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
-        assert!(r.iter().all(|x| !x.harness.contains("gemini")));
-        assert!(r.iter().all(|x| !x.enabled));
-    }
-
-    /// The shipped roster's own harness set is checked against
-    /// `crate::agents::reviewer_harnesses`, the one list of agents installed
-    /// in the development container, rather than a second hand-kept copy
-    /// here: a harness added to or dropped from either one without the
-    /// other fails this test.
-    #[test]
-    fn the_shipped_roster_covers_exactly_the_agents_installed_in_the_container() {
-        let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
-        let mut shipped: Vec<&str> = r.iter().map(|x| x.harness.as_str()).collect();
-        shipped.sort_unstable();
-        shipped.dedup();
-        let mut expected = crate::agents::reviewer_harnesses();
-        expected.sort_unstable();
-        expected.dedup();
-        assert_eq!(shipped, expected);
+        assert!(r.is_empty());
     }
 
     #[test]
-    fn an_adopter_roster_entry_replaces_a_shipped_one_by_name() {
-        let root = crate::test_support::TempDir::new("osf-reviewers-roster-replace");
+    fn the_roster_is_built_from_the_agent_list_in_the_order_osf_toml_names_it() {
+        let root = crate::test_support::TempDir::new("osf-reviewers-roster-select");
         std::fs::write(
             root.join("osf.toml"),
-            "[[review.roster]]\nname = \"codex\"\nharness = \"codex\"\nfamily = \"openai\"\ncommand = [\"codex\", \"exec\"]\nenabled = true\n",
+            "[agents]\nreviewers = [\"codex\", \"dsh\"]\n[agents.models]\ncodex = \"o4-mini\"\n",
         )
         .expect("osf.toml writes");
         let r = roster(&root).expect("roster");
-        let codex = r.iter().find(|x| x.name == "codex").expect("codex entry");
-        assert!(codex.enabled);
-        assert_eq!(r.iter().filter(|x| x.name == "codex").count(), 1);
+        let names: Vec<&str> = r.iter().map(|x| x.name.as_str()).collect();
+        assert_eq!(names, vec!["codex", "dsh"]);
+        let codex = r.first().expect("codex entry");
+        assert_eq!(codex.family, "openai");
+        assert_eq!(codex.command, vec!["codex", "exec"]);
+        assert_eq!(codex.model.as_deref(), Some("o4-mini"));
+        assert_eq!(codex.login_paths, vec![".codex/auth.json"]);
+        assert_eq!(r.get(1).expect("dsh entry").model, None);
     }
 
+    #[test]
+    fn an_agent_the_list_does_not_hold_is_refused_with_its_name() {
+        let root = crate::test_support::TempDir::new("osf-reviewers-roster-unknown");
+        std::fs::write(
+            root.join("osf.toml"),
+            "[agents]\nreviewers = [\"copilot\"]\n",
+        )
+        .expect("osf.toml writes");
+        let e = roster(&root).expect_err("an unknown reviewer is refused");
+        assert!(e.contains("unknown agent \"copilot\""), "{e}");
+    }
     #[test]
     fn build_args_substitutes_the_prompt_file_and_appends_the_schema_flag() {
         let mut r = reviewer("fake", vec!["fake", "{prompt_file}"]);

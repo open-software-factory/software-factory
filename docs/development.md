@@ -159,8 +159,8 @@ a lens asks for. It never builds, installs, or runs anything from the
 pull request.
 
 The job also reads the lens catalogue from the base branch. It reads the
-`[review]` settings from the base branch too, including the roster, the
-threshold, the timeout, and the cost ceiling. A pull request cannot turn
+`[agents]` and `[review]` settings from the base branch too: the reviewers,
+the threshold, the timeout, and the cost ceiling. A pull request cannot turn
 off a lens or lower the threshold to pass its own review.
 
 Findings that survive verification are posted on the pull request as one
@@ -218,7 +218,7 @@ it stays public or turns private later. Both jobs pull the same image,
 `ghcr.io/open-software-factory/devcontainer:main`. This is the same
 image the development container in this repository builds from. It
 already carries a pinned Rust toolchain, moon, and every reviewer
-tool a roster entry can enable.
+tool the agent list can enable.
 
 Both the build step and the review step run through `docker run`
 against that image. Each run gets its own fresh, disposable container.
@@ -249,37 +249,38 @@ under that one policy. So does the traffic each docker container makes.
 ### Enable a reviewer
 
 A reviewer is a coding-agent tool, run headless, such as Codex or
-Claude Code. Every shipped reviewer starts disabled. A roster entry
-replaces a shipped one of the same name as a whole entry. Turning one
-on therefore means repeating its whole shape here, in this
-repository's `osf.toml`:
+Claude Code. `crates/osf/src/agents.rs` is the one list of agents osf can
+drive. Each entry holds the agent's command, model family, credential
+variables, and login files, so a repository never repeats them. This
+repository's `osf.toml` selects from that list under `[agents]`:
 
 ```toml
-[[review.roster]]
-name = "codex"
-harness = "codex"
-family = "openai"
-command = ["codex", "exec"]
-schema_flag = "--output-schema"
-schema_as = "path"
-enabled = true
+[agents]
+enabled = ["dsh", "omp", "opencode", "codex", "claude"]
+builder = "dsh"
+reviewers = ["codex", "dsh", "claude", "opencode"]
+
+[agents.models]
+claude = "claude-sonnet-5"
+opencode = "openrouter/qwen/qwen3-coder-next"
 ```
 
-The name must match a reviewer this tool already ships, or a new entry
-this file adds in full. A reviewer needs its own tool installed and
-logged in inside the development container, the same as it would on a
-person's own machine.
+`enabled` defaults to every agent in the list, `builder` to dsh, and
+`reviewers` to none. A name the list does not hold is an error. So is a
+builder or reviewer that is not enabled. A reviewer needs its own tool
+installed and logged in inside the development container, the same as it
+would on a person's own machine. Run `osf agents list` to see every
+agent, with what `osf.toml` selects.
 
-This repository's own `osf.toml` names each entry after its own model
-family. Decision 0016 needs the family to differ from the builder's
-own family.
+Decision 0016 needs a reviewer's family to differ from the builder's own
+family.
 
-| Reviewer name | Family | Harness | Model | Reads its key from |
-|---|---|---|---|---|
-| `openai` | OpenAI | Codex | its own default | `OPENAI_API_KEY` (or `CODEX_API_KEY`) |
-| `deepseek` | DeepSeek | DeepSeek Harness | its own default | `DEEPSEEK_API_KEY` |
-| `anthropic` | Anthropic | Claude Code | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` |
-| `qwen` | Qwen | opencode | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` |
+| Reviewer | Family | Model | Reads its key from |
+|---|---|---|---|
+| `codex` | openai | its own default | `OPENAI_API_KEY` (or `CODEX_API_KEY`) |
+| `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` |
+| `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) |
+| `opencode` | opencode | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` |
 
 `osf` never reads or holds any of these keys itself. Each tool reads
 its own key, the same way it would outside `osf`. A reviewer whose key
@@ -291,14 +292,18 @@ stalls on one missing key.
 against the owner's own Claude subscription. Claude Code reads it the
 same way it would outside `osf`, and talks to Anthropic directly.
 
-DeepSeek Harness needs one adjustment the other three do not need. Its
+DeepSeek Harness needs one adjustment the other agents do not need. Its
 headless profile takes the task as a command-line argument. It never
-reads one from standard input. The `deepseek` entry above wraps the
-call in a small shell script instead: `sh -c 'exec dsh --profile
-headless "$(cat "$1")"' sh {prompt_file}`. That script reads the
-prompt file `osf` already writes. It then passes that file's text as
-the argument DeepSeek Harness expects.
+reads one from standard input. Its entry in the list wraps the call in a
+small shell script instead: `sh -c 'exec dsh --profile headless
+"$(cat "$1")"' sh {prompt_file}`. That script reads the prompt file
+`osf` already writes. It then passes that file's text as the argument
+DeepSeek Harness expects.
 
+To write each enabled agent's stop and prompt hook settings, run
+`osf hooks install --agents --root <dir>`. It writes one settings file
+per enabled agent under `<dir>`, from the same list, and replaces a file
+already there.
 ### The builder's own family is left out
 
 A reviewer from the same family as the change's own builder is not an
@@ -313,7 +318,7 @@ repository's own `osf.toml` can add more names to that table, under
 this reading and names the family directly; pass it more than once for
 more than one family.
 
-A roster entry whose family matches does not run for this change. The
+A reviewer whose family matches does not run for this change. The
 review's decision still names every family it found, so a person
 reading the result can see why a reviewer sat out. When no trailer
 names a known family, `osf` records `unknown` and runs the roster the
@@ -326,27 +331,19 @@ could-not-run, and its reason names the family that was left out.
 
 ### Pin a reviewer's model
 
-A roster entry can name the model its harness should use, and the
-flag that passes it:
+Name the model an agent should use under `[agents.models]`, keyed by the
+agent's name:
 
 ```toml
-[[review.roster]]
-name = "codex"
-harness = "codex"
-family = "openai"
-command = ["codex", "exec"]
-schema_flag = "--output-schema"
-schema_as = "path"
-model_flag = "--model"
-model = "o4-mini"
-enabled = true
+[agents.models]
+codex = "o4-mini"
 ```
 
-`osf` passes `model_flag` and `model` on the harness's own command
-line only when both are set. Leaving `model` unset lets the harness
-use its own default model. Each reviewer's own answer, on the journal,
-records the model it actually ran with.
-
+`osf` passes the agent's own model flag and the model on its command
+line. Leaving an agent out lets it use its own default model. An agent
+with no model flag, such as dsh, cannot be given one, and naming it here
+is an error. Each reviewer's own answer, on the journal, records the
+model it actually ran with.
 ## The git wrapper, and its limit
 
 `/opt/factory/bin` comes before the real git on the container's path, and

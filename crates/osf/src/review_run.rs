@@ -106,7 +106,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     let depth = lenses::depth(report.tier);
 
     let roster = reviewers::roster(req.config_root)?;
-    let enabled: Vec<&Reviewer> = roster.iter().filter(|r| r.enabled).collect();
+    let enabled: Vec<&Reviewer> = roster.iter().collect();
     let review_config = config::review_config(req.config_root).map_err(|e| e.to_string())?;
     let threshold = review_config.threshold;
     let timeout = Duration::from_secs(review_config.timeout_seconds);

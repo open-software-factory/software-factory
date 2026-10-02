@@ -28,81 +28,23 @@ repository_visibility = "public"
 #   - Zendesk: a support and feedback tool, docs/vision/product-lifecycle.md:426.
 must_explain_names = ["Linear", "Canny", "Figma", "Jira", "Intercom", "Zendesk"]
 
-[review]
-# A roster entry replaces a shipped one of the same name in full, so
-# enabling a shipped reviewer still means repeating its whole shape
-# here, not just its name and `enabled`. See crates/osf/src/reviewers.rs
-# and crates/osf/defaults/review-roster.toml for the shipped shape each
-# entry below copies, and docs/development.md for the reviewer table.
+[agents]
+# Selects from the one list of agents in crates/osf/src/agents.rs. A name
+# that list does not hold is a configuration error. Each agent's command,
+# family, credential variables and login files come from that list.
+enabled = ["dsh", "omp", "opencode", "codex", "claude"]
+builder = "dsh"
+
+# The agents that review, in the order they run. Decision 0016 needs each
+# reviewer's family to differ from the builder's.
 #
-# Each entry here is named after its own model family, since the family
-# is what decision 0016 needs to differ from the builder's. How a
-# reviewer reaches its model is not part of its name.
-#
-# This review environment holds OPENAI_API_KEY, DEEPSEEK_API_KEY,
-# CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each entry's own
-# `credential_env` is the only way its reviewer sees one of these: a
-# reviewer with no entry there starts with none of them.
+# The review environment holds OPENAI_API_KEY, DEEPSEEK_API_KEY,
+# CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each agent's list entry
+# names the only variables its reviewer sees.
+reviewers = ["codex", "dsh", "claude", "opencode"]
 
-# codex reads its key from OPENAI_API_KEY (or CODEX_API_KEY), the same
-# variable the review workflow already sets for this job.
-# model is left unset: codex uses its own default model. Pin one with
-# model = "<model-id>" (codex exec's own --model/-m flag).
-[[review.roster]]
-name = "openai"
-harness = "codex"
-family = "openai"
-command = ["codex", "exec"]
-schema_flag = "--output-schema"
-schema_as = "path"
-model_flag = "--model"
-credential_env = ["OPENAI_API_KEY", "CODEX_API_KEY"]
-login_paths = [".codex/auth.json"]
-enabled = true
-
-# dsh reads its key from DEEPSEEK_API_KEY. Its headless profile takes
-# the task as a command-line argument, not on standard input, so this
-# entry reads the prompt file itself and passes its contents as that
-# argument, through a small shell wrapper.
-# model is left unset: DeepSeek Harness's headless profile has no model
-# flag of its own, so it always answers with its profile's own model.
-[[review.roster]]
-name = "deepseek"
-harness = "dsh"
-family = "deepseek"
-command = ["sh", "-c", 'exec dsh --profile headless "$(cat "$1")"', "sh", "{prompt_file}"]
-credential_env = ["DEEPSEEK_API_KEY"]
-login_paths = [".dsh/.credentials.yaml"]
-enabled = true
-
-# claude talks to Anthropic directly and reads CLAUDE_CODE_OAUTH_TOKEN,
-# a long-lived token `claude setup-token` makes from the owner's own
-# Claude subscription. model is pinned to the newest Sonnet id claude
-# itself accepts (its own --model flag).
-[[review.roster]]
-name = "anthropic"
-harness = "claude"
-family = "anthropic"
-command = ["claude", "--print", "--output-format", "json"]
-schema_flag = "--json-schema"
-schema_as = "inline"
-answer_pointer = "/structured_output"
-model_flag = "--model"
-model = "claude-sonnet-5"
-credential_env = ["CLAUDE_CODE_OAUTH_TOKEN"]
-login_paths = [".claude/.credentials.json"]
-enabled = true
-
-# opencode reads OPENROUTER_API_KEY itself. Its own model flag takes
-# "provider/vendor/model"; "openrouter/..." names the OpenRouter model
-# this family's own id already carries.
-[[review.roster]]
-name = "qwen"
-harness = "opencode"
-family = "qwen"
-command = ["opencode", "run", "--format", "json"]
-model_flag = "--model"
-model = "openrouter/qwen/qwen3-coder-next"
-credential_env = ["OPENROUTER_API_KEY"]
-login_paths = [".local/share/opencode/auth.json"]
-enabled = true
+# A model per agent. An agent left out uses its own default model, and dsh
+# and omp take no model flag.
+[agents.models]
+claude = "claude-sonnet-5"
+opencode = "openrouter/qwen/qwen3-coder-next"

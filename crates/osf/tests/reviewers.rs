@@ -93,7 +93,6 @@ fn fake_harness_command(vars: &[(&str, &str)]) -> Vec<String> {
 fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
     Reviewer {
         name: "fake".to_string(),
-        harness: "fake".to_string(),
         family: "fake-family".to_string(),
         command: fake_harness_command(vars),
         schema_flag: None,
@@ -103,7 +102,6 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
         model_flag: None,
         credential_env: Vec::new(),
         login_paths: Vec::new(),
-        enabled: true,
     }
 }
 
@@ -328,13 +326,6 @@ fn a_reviewer_that_hangs_past_its_timeout_is_killed_and_reported_could_not_run()
     );
 }
 
-#[test]
-fn the_shipped_roster_has_no_gemini_and_every_entry_disabled() {
-    let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
-    assert!(r.iter().all(|x| !x.harness.contains("gemini")));
-    assert!(r.iter().all(|x| !x.enabled));
-}
-
 /// A 1 MB prompt is well over an OS pipe's own buffer (64 KiB on Linux), so
 /// a harness that never reads its stdin would block a synchronous write
 /// forever. `run_one` must still be governed by `timeout` alone: the write
@@ -445,40 +436,43 @@ fn a_claude_code_style_envelope_extracts_structured_output() {
     }
 }
 
-/// This repository's own `osf.toml` roster, one entry per family, named
-/// after the family rather than the harness (the owner's own rule: the
-/// family is what must differ from the builder, not how a reviewer reaches
-/// its model).
+/// This repository's own `osf.toml` picks its reviewers from the agent
+/// list, in this order, and pins the models it names.
 #[test]
-fn this_repositorys_osf_toml_roster_is_named_by_family_in_order() {
+fn this_repositorys_osf_toml_selects_its_reviewers_from_the_agent_list_in_order() {
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
-    let enabled_names: Vec<&str> = loaded
-        .iter()
-        .filter(|r| r.enabled)
-        .map(|r| r.name.as_str())
-        .collect();
+    let names: Vec<&str> = loaded.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(
-        enabled_names,
-        vec!["openai", "deepseek", "anthropic", "qwen"],
+        names,
+        vec!["codex", "dsh", "claude", "opencode"],
         "{loaded:?}"
     );
+    let model = |name: &str| {
+        loaded
+            .iter()
+            .find(|r| r.name == name)
+            .and_then(|r| r.model.as_deref())
+    };
+    assert_eq!(model("claude"), Some("claude-sonnet-5"));
+    assert_eq!(model("opencode"), Some("openrouter/qwen/qwen3-coder-next"));
+    assert_eq!(model("codex"), None);
 }
 
 /// A Claude-built range's own family (`anthropic`, from its
-/// `Code-Generator:` trailer) matches this repository's own `anthropic`
-/// roster entry, so `run_lens`'s own `skip_families.contains` check would
-/// leave that entry out for such a change.
+/// `Code-Generator:` trailer) matches this repository's own `claude`
+/// reviewer, so `run_lens`'s own `skip_families.contains` check would
+/// leave that reviewer out for such a change.
 #[test]
-fn a_claude_built_range_names_the_same_family_as_this_repositorys_anthropic_entry() {
+fn a_claude_built_range_names_the_same_family_as_this_repositorys_claude_reviewer() {
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
-    let anthropic = loaded
+    let claude = loaded
         .iter()
-        .find(|r| r.name == "anthropic" && r.enabled)
-        .expect("an enabled anthropic entry");
+        .find(|r| r.name == "claude")
+        .expect("a claude reviewer");
     let review_config =
         osf::config::review_config(&repo_root).expect("this repository's review config loads");
     let family = osf::builder::family_of("Claude Sonnet 5", &review_config.builder_family_aliases);
-    assert_eq!(family, anthropic.family);
+    assert_eq!(family, claude.family);
 }

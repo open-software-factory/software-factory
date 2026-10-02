@@ -35,9 +35,9 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Bad: a link to an agent's session page, pasted into a discussion.\n\
               Good: no session link in the text at all.\n\
               ### Coverage\n\
-              Hosted session links for: claude code, codex, opencode. Agents whose \
-              sessions live only on disk leave a path rather than a link: dsh, pi, omp, \
-              copilot. Those are covered by `scan-agent-state-path`. A host this list \
+              Hosted session links for: claude, codex, opencode. Agents whose \
+              sessions live only on disk leave a path rather than a link: dsh, omp. \
+              Those are covered by `scan-agent-state-path`. A host this list \
               does not name is not checked unless it is added in the configuration.",
         exception: None,
     },
@@ -65,8 +65,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: an agent's committed configuration file, such as its hooks file, which \
               is repository content and is not flagged.\n\
               ### Coverage\n\
-              The state directories and session places of: dsh, pi, omp, opencode, codex, \
-              claude code, copilot. A configuration file under the same directory is not \
+              The state directories and session places of: dsh, omp, opencode, codex, \
+              claude. A configuration file under the same directory is not \
               flagged.",
         exception: None,
     },

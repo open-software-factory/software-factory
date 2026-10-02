@@ -12,6 +12,8 @@
 //! record to build. That leaves exactly one lens selected for every
 //! change these tests make, whatever its size or tier.
 
+#![cfg(unix)]
+
 mod common;
 
 use common::{TempDir, TempRepo};
@@ -130,111 +132,78 @@ fn review_repo_built_by(name: &str, osf_toml: &str, trailer_model: &str) -> Temp
     repo
 }
 
-/// The fake harness, invoked with `answer_path`'s content wired to its own
-/// `OSF_FAKE_ANSWER`, as a single command line so each roster entry can
-/// carry its own canned answer independently of process-wide environment
-/// state.
-#[cfg(unix)]
-fn fake_reviewer_command(answer_path: &str) -> Vec<String> {
-    vec![
-        "sh".to_string(),
-        "-c".to_string(),
-        format!(
-            "OSF_FAKE_ANSWER={} {}",
-            answer_path,
-            fixture("fake-harness.sh")
-        ),
-    ]
+/// What one fake agent program does when osf starts it as a reviewer.
+enum Fake<'a> {
+    /// Prints the answer file's text.
+    Answers(&'a str),
+    /// Sleeps, then prints the answer file's text.
+    Slow(&'a str, u64),
+    /// Writes a secret to standard error and exits non-zero, as a broken agent would.
+    Fails(&'a str),
 }
 
-#[cfg(windows)]
-fn fake_reviewer_command(answer_path: &str) -> Vec<String> {
-    vec![
-        "powershell".to_string(),
-        "-NoProfile".to_string(),
-        "-ExecutionPolicy".to_string(),
-        "Bypass".to_string(),
-        "-Command".to_string(),
-        format!(
-            "$env:OSF_FAKE_ANSWER='{}'; & '{}'",
-            answer_path,
-            fixture("fake-harness.ps1")
-        ),
-    ]
+/// `osf.toml` text that selects `reviewers` from the agent list, after `prefix`.
+fn agents_toml(prefix: &str, reviewers: &[&str]) -> String {
+    let names: Vec<String> = reviewers.iter().map(|n| format!("\"{n}\"")).collect();
+    format!("{prefix}[agents]\nreviewers = [{}]\n", names.join(", "))
 }
 
-/// A reviewer whose harness sleeps for `sleep_secs` before answering, to
-/// prove a configured timeout, not just the default, governs how long it
-/// may run.
-#[cfg(unix)]
-fn slow_reviewer_command(answer_path: &str, sleep_secs: u64) -> Vec<String> {
-    vec![
-        "sh".to_string(),
-        "-c".to_string(),
-        format!(
-            "OSF_FAKE_ANSWER={answer_path} OSF_FAKE_SLEEP_SECS={sleep_secs} {}",
-            fixture("fake-harness.sh")
-        ),
-    ]
+/// A folder of fake agent programs, one per reviewer and named as the real
+/// agent is, plus the `osf.toml` text that selects them. Put on `PATH`, they
+/// stand in for the real agents so no test ever calls a real model.
+struct Fakes {
+    bin: TempDir,
+    osf_toml: String,
 }
 
-#[cfg(windows)]
-fn slow_reviewer_command(answer_path: &str, sleep_secs: u64) -> Vec<String> {
-    vec![
-        "powershell".to_string(),
-        "-NoProfile".to_string(),
-        "-ExecutionPolicy".to_string(),
-        "Bypass".to_string(),
-        "-Command".to_string(),
-        format!(
-            "$env:OSF_FAKE_ANSWER='{answer_path}'; $env:OSF_FAKE_SLEEP_SECS='{sleep_secs}'; & '{}'",
-            fixture("fake-harness.ps1")
-        ),
-    ]
-}
+impl Fakes {
+    fn new(prefix: &str, reviewers: &[(&str, Fake)]) -> Fakes {
+        use std::os::unix::fs::PermissionsExt as _;
+        let bin = TempDir::new("review-run-fake-agents");
+        let harness = fixture("fake-harness.sh");
+        for (agent, fake) in reviewers {
+            let body = match fake {
+                Fake::Answers(answer) => format!("OSF_FAKE_ANSWER='{answer}' exec '{harness}'"),
+                Fake::Slow(answer, secs) => format!(
+                    "OSF_FAKE_ANSWER='{answer}' OSF_FAKE_SLEEP_SECS={secs} exec '{harness}'"
+                ),
+                Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
+            };
+            let program = bin.join(agent);
+            std::fs::write(&program, format!("#!/bin/sh\n{body}\n")).expect("fake agent writes");
+            std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755))
+                .expect("fake agent chmod");
+        }
+        let names: Vec<&str> = reviewers.iter().map(|(agent, _)| *agent).collect();
+        Fakes {
+            bin,
+            osf_toml: agents_toml(prefix, &names),
+        }
+    }
 
-/// One `[[review.roster]]` entry, as TOML, with an arbitrary `command`.
-fn raw_roster_entry_toml(name: &str, family: &str, command: &[String], enabled: bool) -> String {
-    let command_toml = command
-        .iter()
-        .map(|arg| format!("{arg:?}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!(
-        "[[review.roster]]\n\
-         name = \"{name}\"\n\
-         harness = \"fake\"\n\
-         family = \"{family}\"\n\
-         command = [{command_toml}]\n\
-         enabled = {enabled}\n\n"
-    )
-}
+    fn run(&self, dir: &Path, home: &Path, args: &[&str]) -> std::process::Output {
+        self.run_with_env(dir, home, &[], args)
+    }
 
-/// One `[[review.roster]]` entry, as TOML, naming `answer_path`'s content
-/// as this reviewer's whole answer.
-fn roster_entry_toml(name: &str, family: &str, answer_path: &str, enabled: bool) -> String {
-    raw_roster_entry_toml(name, family, &fake_reviewer_command(answer_path), enabled)
-}
-
-/// A reviewer whose harness writes `secret` to its own standard error and
-/// exits non-zero, standing in for a broken or hostile coding-agent tool.
-#[cfg(unix)]
-fn failing_reviewer_command(secret: &str) -> Vec<String> {
-    vec![
-        "sh".to_string(),
-        "-c".to_string(),
-        format!("echo '{secret}' 1>&2; exit 9"),
-    ]
-}
-
-#[cfg(windows)]
-fn failing_reviewer_command(secret: &str) -> Vec<String> {
-    vec![
-        "powershell".to_string(),
-        "-NoProfile".to_string(),
-        "-Command".to_string(),
-        format!("[Console]::Error.WriteLine('{secret}'); exit 9"),
-    ]
+    /// Runs `osf` with the fake agents first on `PATH`, ahead of the `PATH`
+    /// in `env` when it names one.
+    fn run_with_env(
+        &self,
+        dir: &Path,
+        home: &Path,
+        env: &[(&str, &str)],
+        args: &[&str],
+    ) -> std::process::Output {
+        let base = env.iter().find(|(k, _)| *k == "PATH").map_or_else(
+            || std::env::var("PATH").unwrap_or_default(),
+            |(_, v)| (*v).to_string(),
+        );
+        let path = format!("{}:{base}", self.bin.display());
+        let mut all: Vec<(&str, &str)> =
+            env.iter().copied().filter(|(k, _)| *k != "PATH").collect();
+        all.push(("PATH", &path));
+        common::run_osf_with_env(dir, home, &all, args)
+    }
 }
 
 /// Writes `content` to `name` under `dir`, and returns its absolute path as a string.
@@ -359,14 +328,16 @@ fn journal_first_review_answer(home: &Path) -> serde_json::Value {
 /// journal event kinds this module writes must say so.
 #[test]
 fn review_answer_and_review_decision_events_carry_the_reported_evidence_grade() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("evidence-grade", &osf_toml);
+    let repo = review_repo("evidence-grade", &fakes.osf_toml);
     let home = common::isolated_home("review-run-evidence-grade");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -391,14 +362,16 @@ fn review_answer_and_review_decision_events_carry_the_reported_evidence_grade() 
 
 #[test]
 fn two_families_that_both_answer_validly_pass_and_write_the_journal_events() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("both-pass", &osf_toml);
+    let repo = review_repo("both-pass", &fakes.osf_toml);
     let home = common::isolated_home("review-run-both-pass");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -424,14 +397,16 @@ fn two_families_that_both_answer_validly_pass_and_write_the_journal_events() {
 
 #[test]
 fn a_verified_blocker_finding_fails_the_review() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("blocker-fails", &osf_toml);
+    let repo = review_repo("blocker-fails", &fakes.osf_toml);
     let home = common::isolated_home("review-run-blocker");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -445,20 +420,15 @@ fn a_verified_blocker_finding_fails_the_review() {
     );
 }
 
-/// Two roster entries that share one family are still only one family: the
-/// interim policy lets it decide the lens through its own extra critical
-/// round, rather than blocking the review on a second family nobody has
-/// configured.
+/// One family alone: the interim policy lets it decide the lens through its
+/// own extra critical round, rather than blocking the review on a second
+/// family nobody has configured.
 #[test]
 fn only_one_family_enabled_passes_under_the_interim_policy() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "same-family", &fixture("valid.json"), true),
-        roster_entry_toml("fake-b", "same-family", &fixture("valid.json"), true),
-    );
-    let repo = review_repo("one-family", &osf_toml);
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo("one-family", &fakes.osf_toml);
     let home = common::isolated_home("review-run-one-family");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -477,19 +447,16 @@ fn only_one_family_enabled_passes_under_the_interim_policy() {
 /// family that did answer gets the critical round and decides the lens.
 #[test]
 fn a_family_that_times_out_leaves_the_working_family_its_critical_round() {
-    let osf_toml = format!(
-        "[review]\ntimeout_seconds = 1\n\n{}{}",
-        raw_roster_entry_toml(
-            "fake-slow",
-            "family-slow",
-            &slow_reviewer_command(&fixture("valid.json"), 6),
-            true,
-        ),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "[review]\ntimeout_seconds = 1\n\n",
+        &[
+            ("codex", Fake::Slow(&fixture("valid.json"), 6)),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("one-family-times-out", &osf_toml);
+    let repo = review_repo("one-family-times-out", &fakes.osf_toml);
     let home = common::isolated_home("review-run-one-family-times-out");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -505,7 +472,7 @@ fn a_family_that_times_out_leaves_the_working_family_its_critical_round() {
     let journal = journal_text(&home);
     let answered = journal
         .lines()
-        .filter(|l| l.contains("\"reviewer\":\"fake-b\"") && l.contains("\"result\":\"answered\""))
+        .filter(|l| l.contains("\"reviewer\":\"dsh\"") && l.contains("\"result\":\"answered\""))
         .count();
     assert_eq!(answered, 3, "two rounds plus the critical round: {journal}");
 }
@@ -554,19 +521,14 @@ fn a_could_not_run_verdict_reports_no_score_or_threshold() {
 
 #[test]
 fn a_configured_timeout_governs_how_long_a_reviewer_may_run() {
-    let osf_toml = format!(
-        "[review]\ntimeout_seconds = 1\n\n{}",
-        raw_roster_entry_toml(
-            "fake-a",
-            "family-a",
-            &slow_reviewer_command(&fixture("valid.json"), 6),
-            true,
-        ),
+    let fakes = Fakes::new(
+        "[review]\ntimeout_seconds = 1\n\n",
+        &[("codex", Fake::Slow(&fixture("valid.json"), 6))],
     );
-    let repo = review_repo("configured-timeout", &osf_toml);
+    let repo = review_repo("configured-timeout", &fakes.osf_toml);
     let home = common::isolated_home("review-run-configured-timeout");
     let started = std::time::Instant::now();
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -618,16 +580,11 @@ fn a_bad_lens_file_cannot_configure_and_names_the_file() {
 #[test]
 fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
     let secret = common::fake_provider_key("sk-");
-    let osf_toml = raw_roster_entry_toml(
-        "fake-a",
-        "family-a",
-        &failing_reviewer_command(&secret),
-        true,
-    );
-    let repo = review_repo("secret-stderr", &osf_toml);
+    let fakes = Fakes::new("", &[("codex", Fake::Fails(&secret))]);
+    let repo = review_repo("secret-stderr", &fakes.osf_toml);
     let home = common::isolated_home("review-run-secret-stderr");
     let sarif_out = repo.dir.join("out.sarif");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &[
@@ -644,19 +601,21 @@ fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
 
 /// A `Code-Generator: Claude ...` trailer on the reviewed commit makes
 /// `anthropic` this change's builder family. With codex (openai),
-/// claude-code (anthropic) and dsh (deepseek) all enabled, claude-code is
+/// claude (anthropic) and dsh (deepseek) all enabled, claude is
 /// left out and the other two still answer and reach quorum.
 #[test]
 fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pass() {
-    let osf_toml = format!(
-        "{}{}{}",
-        roster_entry_toml("codex", "openai", &fixture("valid.json"), true),
-        roster_entry_toml("claude-code", "anthropic", &fixture("valid.json"), true),
-        roster_entry_toml("dsh", "deepseek", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo_built_by("builder-family-skip", &osf_toml, "Claude Sonnet 5");
+    let repo = review_repo_built_by("builder-family-skip", &fakes.osf_toml, "Claude Sonnet 5");
     let home = common::isolated_home("review-run-builder-family-skip");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -671,7 +630,7 @@ fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pas
     assert_eq!(
         types.iter().filter(|t| *t == "review-answer").count(),
         5,
-        "two rounds each for codex and dsh, plus one skipped record for claude-code: {types:?}"
+        "two rounds each for codex and dsh, plus one skipped record for claude: {types:?}"
     );
     let decision = journal_review_decision(&home);
     let builder_families: Vec<&str> = decision
@@ -684,21 +643,23 @@ fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pas
     assert_eq!(builder_families, vec!["anthropic"]);
 }
 
-/// With only codex (openai) and claude-code (anthropic) enabled, and the
-/// change built by Claude, claude-code is left out and only one family
+/// With only codex (openai) and claude (anthropic) enabled, and the
+/// change built by Claude, claude is left out and only one family
 /// (openai) is left to try: the interim policy runs codex for one extra
 /// critical round and lets it decide the lens on its own, naming the
 /// policy rather than blocking the review on the family the builder used.
 #[test]
 fn one_non_builder_family_passes_under_the_interim_policy() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("codex", "openai", &fixture("valid.json"), true),
-        roster_entry_toml("claude-code", "anthropic", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
     );
-    let repo = review_repo_built_by("builder-family-interim", &osf_toml, "Claude Sonnet 5");
+    let repo = review_repo_built_by("builder-family-interim", &fakes.osf_toml, "Claude Sonnet 5");
     let home = common::isolated_home("review-run-builder-family-interim");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -727,14 +688,16 @@ fn one_non_builder_family_passes_under_the_interim_policy() {
 /// same as before this module knew about builder families at all.
 #[test]
 fn no_builder_family_detected_records_unknown_and_runs_every_reviewer() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("no-builder-family", &osf_toml);
+    let repo = review_repo("no-builder-family", &fakes.osf_toml);
     let home = common::isolated_home("review-run-no-builder-family");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -760,15 +723,17 @@ fn no_builder_family_detected_records_unknown_and_runs_every_reviewer() {
 /// recorded in the decision, whatever the reviewed commits' own trailers say.
 #[test]
 fn the_builder_family_flag_overrides_detection() {
-    let osf_toml = format!(
-        "{}{}{}",
-        roster_entry_toml("codex", "openai", &fixture("valid.json"), true),
-        roster_entry_toml("claude-code", "anthropic", &fixture("valid.json"), true),
-        roster_entry_toml("dsh", "deepseek", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("builder-family-flag-override", &osf_toml);
+    let repo = review_repo("builder-family-flag-override", &fakes.osf_toml);
     let home = common::isolated_home("review-run-builder-family-flag-override");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &[
@@ -808,14 +773,16 @@ fn hot_paths_in_osf_toml_does_not_fail_the_full_review_run_command() {
     // about `hot_paths` parsing, not about earning the "high-traffic path"
     // signal, which would select lenses beyond the one this test's fixture
     // repository is set up to answer for.
-    let osf_toml = format!(
-        "[review]\nhot_paths = [\"never/matches/anything.rs\"]\n\n{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "[review]\nhot_paths = [\"never/matches/anything.rs\"]\n\n",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("hot-paths-full-command", &osf_toml);
+    let repo = review_repo("hot-paths-full-command", &fakes.osf_toml);
     let home = common::isolated_home("review-run-hot-paths-full-command");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -830,7 +797,7 @@ fn hot_paths_in_osf_toml_does_not_fail_the_full_review_run_command() {
 }
 
 /// `--config-root` names the trusted tree: the lens catalogue and the
-/// `[review]` table (roster, threshold, timeout, cost ceiling) come from
+/// `[review]` and `[agents]` tables (reviewers, threshold, timeout, cost ceiling) come from
 /// there, never from the repository under review. A pull request that
 /// lowers its own threshold to zero and swaps in a harmless roster must
 /// still fail, because the base tree's own high threshold and its
@@ -839,23 +806,22 @@ fn hot_paths_in_osf_toml_does_not_fail_the_full_review_run_command() {
 fn a_pull_request_tree_cannot_loosen_review_via_its_own_config_root() {
     let config_root = TempDir::new("review-run-config-root-base");
     write_lens_overrides_to(&config_root);
-    let base_osf_toml = format!(
-        "[review]\nthreshold = 0.9\n\n{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let base = Fakes::new(
+        "[review]\nthreshold = 0.9\n\n",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    std::fs::write(config_root.join("osf.toml"), base_osf_toml).expect("base osf.toml writes");
+    std::fs::write(config_root.join("osf.toml"), &base.osf_toml).expect("base osf.toml writes");
 
     // The reviewed tree carries its own low threshold and a roster that
     // would only ever answer clean. If either of these were read instead
     // of the base tree's, the review would pass.
-    let pr_osf_toml = format!(
-        "[review]\nthreshold = 0.0\n\n{}",
-        roster_entry_toml("fake-only", "family-only", &fixture("valid.json"), true),
-    );
+    let pr_osf_toml = agents_toml("[review]\nthreshold = 0.0\n\n", &["omp"]);
     let repo = review_repo("config-root-pr-tree", &pr_osf_toml);
     let home = common::isolated_home("review-run-config-root");
-    let output = common::run_osf(
+    let output = base.run(
         &repo.dir,
         &home,
         &[
@@ -881,14 +847,16 @@ fn a_pull_request_tree_cannot_loosen_review_via_its_own_config_root() {
 /// governs, exactly as before this flag existed.
 #[test]
 fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
-    let osf_toml = format!(
-        "[review]\nthreshold = 0.0\n\n{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "[review]\nthreshold = 0.0\n\n",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("no-config-root", &osf_toml);
+    let repo = review_repo("no-config-root", &fakes.osf_toml);
     let home = common::isolated_home("review-run-no-config-root");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
@@ -905,14 +873,16 @@ fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
 /// the process always exits 0, whatever that verdict is.
 #[test]
 fn warn_only_prints_the_verdict_but_never_fails() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("warn-only-blocker", &osf_toml);
+    let repo = review_repo("warn-only-blocker", &fakes.osf_toml);
     let home = common::isolated_home("review-run-warn-only-blocker");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main", "--warn-only"],
@@ -999,17 +969,19 @@ fn path_with_dir_first(dir: &Path) -> String {
 #[test]
 #[cfg(unix)]
 fn post_to_posts_kept_findings_reusing_review_post_machinery() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("post-to-blocker", &osf_toml);
+    let repo = review_repo("post-to-blocker", &fakes.osf_toml);
     let home = common::isolated_home("review-run-post-to-blocker");
     let gh_holder = TempDir::new("review-run-post-to-blocker-gh");
     let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
     let path = path_with_dir_first(&gh_dir);
-    let output = common::run_osf_with_env(
+    let output = fakes.run_with_env(
         &repo.dir,
         &home,
         &[("PATH", &path)],
@@ -1043,17 +1015,19 @@ fn post_to_posts_kept_findings_reusing_review_post_machinery() {
 #[test]
 #[cfg(unix)]
 fn post_to_failing_makes_the_run_could_not_run() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("blocker.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("post-to-boom", &osf_toml);
+    let repo = review_repo("post-to-boom", &fakes.osf_toml);
     let home = common::isolated_home("review-run-post-to-boom");
     let gh_holder = TempDir::new("review-run-post-to-boom-gh");
     let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
     let path = path_with_dir_first(&gh_dir);
-    let output = common::run_osf_with_env(
+    let output = fakes.run_with_env(
         &repo.dir,
         &home,
         &[("PATH", &path), ("FAKE_GH_MODE", "boom")],
@@ -1082,17 +1056,19 @@ fn post_to_failing_makes_the_run_could_not_run() {
 /// counts as could-not-run even on an otherwise clean pass.
 #[test]
 fn an_unwritable_journal_makes_the_run_could_not_run_even_on_a_pass() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("journal-unwritable", &osf_toml);
+    let repo = review_repo("journal-unwritable", &fakes.osf_toml);
     let home = common::isolated_home("review-run-journal-unwritable");
     let blocked_state_dir = home.join("state-is-a-file");
     std::fs::write(&blocked_state_dir, "not a directory").expect("blocked state dir file writes");
     let state_dir_arg = blocked_state_dir.to_string_lossy().into_owned();
-    let output = common::run_osf_with_env(
+    let output = fakes.run_with_env(
         &repo.dir,
         &home,
         &[("OSF_STATE_DIR", &state_dir_arg)],
@@ -1127,11 +1103,11 @@ fn a_secret_in_a_verified_findings_body_is_redacted_in_sarif() {
     .to_string();
     let payloads = TempDir::new("review-run-secret-body-payload");
     let answer_path = write_answer_file(&payloads, "answer.json", &payload);
-    let osf_toml = roster_entry_toml("fake-a", "family-a", &answer_path, true);
-    let repo = review_repo("secret-body", &osf_toml);
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&answer_path))]);
+    let repo = review_repo("secret-body", &fakes.osf_toml);
     let home = common::isolated_home("review-run-secret-body");
     let sarif_out = repo.dir.join("out.sarif");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &[
@@ -1159,11 +1135,11 @@ fn a_secret_as_the_answers_lens_field_never_reaches_the_journal_or_output() {
     .to_string();
     let payloads = TempDir::new("review-run-secret-lens-payload");
     let answer_path = write_answer_file(&payloads, "answer.json", &payload);
-    let osf_toml = roster_entry_toml("fake-a", "family-a", &answer_path, true);
-    let repo = review_repo("secret-lens", &osf_toml);
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&answer_path))]);
+    let repo = review_repo("secret-lens", &fakes.osf_toml);
     let home = common::isolated_home("review-run-secret-lens");
     let sarif_out = repo.dir.join("out.sarif");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &[
@@ -1196,11 +1172,11 @@ fn a_secret_as_an_invalid_severity_value_never_reaches_the_journal_or_output() {
     .to_string();
     let payloads = TempDir::new("review-run-secret-severity-payload");
     let answer_path = write_answer_file(&payloads, "answer.json", &payload);
-    let osf_toml = roster_entry_toml("fake-a", "family-a", &answer_path, true);
-    let repo = review_repo("secret-severity", &osf_toml);
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&answer_path))]);
+    let repo = review_repo("secret-severity", &fakes.osf_toml);
     let home = common::isolated_home("review-run-secret-severity");
     let sarif_out = repo.dir.join("out.sarif");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &[
@@ -1229,11 +1205,11 @@ fn a_secret_as_an_unexpected_extra_field_name_never_reaches_the_journal_or_outpu
         .insert(secret.clone(), serde_json::json!(true));
     let payloads = TempDir::new("review-run-secret-extra-field-payload");
     let answer_path = write_answer_file(&payloads, "answer.json", &payload.to_string());
-    let osf_toml = roster_entry_toml("fake-a", "family-a", &answer_path, true);
-    let repo = review_repo("secret-extra-field", &osf_toml);
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&answer_path))]);
+    let repo = review_repo("secret-extra-field", &fakes.osf_toml);
     let home = common::isolated_home("review-run-secret-extra-field");
     let sarif_out = repo.dir.join("out.sarif");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &[
@@ -1314,10 +1290,10 @@ fn if_enabled_with_no_reviewer_enabled_still_writes_an_empty_sarif() {
 /// family, and still journals every answer.
 #[test]
 fn if_enabled_with_one_reviewer_enabled_passes_under_the_interim_policy() {
-    let osf_toml = roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true);
-    let repo = review_repo("if-enabled-on-interim", &osf_toml);
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo("if-enabled-on-interim", &fakes.osf_toml);
     let home = common::isolated_home("review-run-if-enabled-on");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--if-enabled", "--base", "origin/main"],
@@ -1336,14 +1312,16 @@ fn if_enabled_with_one_reviewer_enabled_passes_under_the_interim_policy() {
 
 #[test]
 fn omitting_base_falls_back_to_the_osf_base_environment_variable() {
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &fixture("valid.json"), true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("base-from-env", &osf_toml);
+    let repo = review_repo("base-from-env", &fakes.osf_toml);
     let home = common::isolated_home("review-run-base-from-env");
-    let output = common::run_osf_with_env(
+    let output = fakes.run_with_env(
         &repo.dir,
         &home,
         &[("OSF_BASE", "origin/main")],
@@ -1375,15 +1353,17 @@ fn a_secret_as_an_unresolvable_findings_path_is_dropped_not_leaked() {
     .to_string();
     let payloads = TempDir::new("review-run-secret-path-payload");
     let answer_path = write_answer_file(&payloads, "answer.json", &payload);
-    let osf_toml = format!(
-        "{}{}",
-        roster_entry_toml("fake-a", "family-a", &answer_path, true),
-        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&answer_path)),
+            ("dsh", Fake::Answers(&fixture("valid.json"))),
+        ],
     );
-    let repo = review_repo("secret-path", &osf_toml);
+    let repo = review_repo("secret-path", &fakes.osf_toml);
     let home = common::isolated_home("review-run-secret-path");
     let sarif_out = repo.dir.join("out.sarif");
-    let output = common::run_osf(
+    let output = fakes.run(
         &repo.dir,
         &home,
         &[

@@ -221,20 +221,55 @@ pub const DEFAULT_REVIEW_THRESHOLD: f64 = 0.7;
 /// The per-reviewer timeout, in seconds, `review_config` reports when `[review]` names none.
 pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 300;
 
-/// The `[review]` section of a repository's own `osf.toml`: the reviewer
-/// roster overrides, the pass threshold, the per-reviewer timeout, and an
-/// optional per-run cost ceiling.
+/// The `[agents]` section of a repository's own `osf.toml`: which of the
+/// agents in [`crate::agents::AGENTS`] it uses. Every field left out takes
+/// its default from that list; [`crate::agents::resolve`] checks the rest.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct AgentsConfig {
+    /// The agents in use. Left out, every agent in the list.
+    pub enabled: Option<Vec<String>>,
+    /// The agent that builds by default. Left out, the list's default builder.
+    pub builder: Option<String>,
+    /// The agents that review, in the order they run. Left out, none.
+    pub reviewers: Vec<String>,
+    /// The model each named agent runs with, keyed by agent name. An agent
+    /// left out uses its own default model.
+    pub models: BTreeMap<String, String>,
+}
+
+/// Reads the `[agents]` table of `<root>/osf.toml`, or
+/// [`AgentsConfig::default`] when the file, or the table, is absent.
+///
+/// # Errors
+/// Returns an error when the file is not valid TOML, or its `[agents]`
+/// table does not match [`AgentsConfig`]'s shape.
+pub fn agents_config(root: &Path) -> Result<AgentsConfig, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(AgentsConfig::default());
+    };
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    let Some(agents) = value.get("agents") else {
+        return Ok(AgentsConfig::default());
+    };
+    agents
+        .clone()
+        .try_into()
+        .map_err(|e| ConfigError::new(format!("{}: [agents]: {e}", path.display())))
+}
+
+/// The `[review]` section of a repository's own `osf.toml`: the pass
+/// threshold, the per-reviewer timeout, and an optional per-run cost
+/// ceiling. The reviewers themselves come from `[agents]`.
 ///
 /// Kept out of the layered [`Config`]/[`Layered`] system deliberately: a
 /// fractional `threshold` cannot honour `Config`'s `Eq` derive the way
-/// every other field does, and a roster override replaces a reviewer by
-/// name (see [`crate::reviewers::roster`]) rather than merging field by
-/// field the way the rest of this file's settings do.
+/// every other field does.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct ReviewConfig {
-    /// Reviewers that replace a shipped one of the same name, or add a new one.
-    pub roster: Vec<crate::reviewers::Reviewer>,
     /// The weighted lens score a review must clear to pass.
     pub threshold: f64,
     /// How long one reviewer call may run before it is killed and counted could-not-run.
@@ -256,7 +291,6 @@ pub struct ReviewConfig {
 impl Default for ReviewConfig {
     fn default() -> Self {
         ReviewConfig {
-            roster: Vec::new(),
             threshold: DEFAULT_REVIEW_THRESHOLD,
             timeout_seconds: DEFAULT_REVIEW_TIMEOUT_SECS,
             cost_ceiling: None,
@@ -538,12 +572,13 @@ pub fn load(
             let mut value: toml::Value = toml::from_str(&text).map_err(|e| {
                 ConfigError::new(format!("config {} is not valid: {e}", p.display()))
             })?;
-            // `[review]` is this same file's own table, read separately by
-            // `review_config`, and deliberately kept out of this struct
-            // (see `ReviewConfig`'s own doc comment). Drop it here so its
-            // presence never trips this struct's `deny_unknown_fields`.
+            // `[review]` and `[agents]` are this same file's own tables, read
+            // separately by `review_config` and `agents_config`. Drop them
+            // here so their presence never trips this struct's
+            // `deny_unknown_fields`.
             if let Some(table) = value.as_table_mut() {
                 table.remove("review");
+                table.remove("agents");
             }
             layered.merge_document(&value, Layer::File);
             file = Some(p.clone());
@@ -1309,7 +1344,6 @@ mod tests {
     fn review_config_defaults_when_osf_toml_is_absent() {
         let dir = TempDir::new("osf-config-test-review-defaults");
         let loaded = review_config(&dir).expect("defaults load with no osf.toml");
-        assert!(loaded.roster.is_empty());
         assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
         assert_eq!(loaded.cost_ceiling, None);
     }
@@ -1383,29 +1417,65 @@ mod tests {
         assert!(err.to_string().contains("threshhold"), "{err}");
     }
 
-    /// `[review]` is this same `osf.toml`, read separately by
-    /// `review_config`, never by this module's own `Config`. A repository
-    /// that enables a reviewer this way must still load its `[writing]`,
-    /// `[scan]`, and `[skill]` settings, the same as one with no `[review]`
-    /// table at all.
+    /// `[review]` and `[agents]` are this same `osf.toml`, read separately by
+    /// `review_config` and `agents_config`, never by this module's own
+    /// `Config`. A repository that selects reviewers this way must still load
+    /// its `[writing]`, `[scan]`, and `[skill]` settings, the same as one
+    /// with neither table.
     #[test]
-    fn a_review_table_with_a_roster_entry_does_not_stop_the_rest_of_the_file_loading() {
+    fn the_review_and_agents_tables_do_not_stop_the_rest_of_the_file_loading() {
         let dir = TempDir::new("osf-config-test-review-alongside-writing");
         let path = dir.join("osf.toml");
         std::fs::write(
             &path,
             "[writing]\nmax_sentence_words = 30\n\n\
              [review]\n\n\
-             [[review.roster]]\n\
-             name = \"codex\"\n\
-             harness = \"codex\"\n\
-             family = \"openai\"\n\
-             command = [\"codex\", \"exec\"]\n\
-             enabled = true\n",
+             [agents]\n\
+             reviewers = [\"codex\"]\n",
         )
         .expect("osf.toml writes");
         let loaded =
             serial(&[], || load(Some(&path), &[], &[], false)).expect("file with [review] loads");
         assert_eq!(loaded.config.writing.max_sentence_words, 30);
+    }
+
+    #[test]
+    fn agents_config_defaults_when_osf_toml_is_absent_or_has_no_agents_table() {
+        let dir = TempDir::new("osf-config-test-agents-defaults");
+        let loaded = agents_config(&dir).expect("defaults load with no osf.toml");
+        assert!(loaded.enabled.is_none() && loaded.builder.is_none());
+        assert!(loaded.reviewers.is_empty() && loaded.models.is_empty());
+        std::fs::write(dir.join("osf.toml"), "[writing]\nmax_numerals = 3\n").expect("writes");
+        assert!(agents_config(&dir).expect("loads").reviewers.is_empty());
+    }
+
+    #[test]
+    fn agents_config_reads_every_field() {
+        let dir = TempDir::new("osf-config-test-agents-fields");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[agents]\nenabled = [\"dsh\", \"codex\"]\nbuilder = \"dsh\"\nreviewers = [\"codex\"]\n\n[agents.models]\ncodex = \"o4-mini\"\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = agents_config(&dir).expect("agents config loads");
+        assert_eq!(
+            loaded.enabled,
+            Some(vec!["dsh".to_string(), "codex".to_string()])
+        );
+        assert_eq!(loaded.builder.as_deref(), Some("dsh"));
+        assert_eq!(loaded.reviewers, vec!["codex".to_string()]);
+        assert_eq!(
+            loaded.models.get("codex").map(String::as_str),
+            Some("o4-mini")
+        );
+    }
+
+    #[test]
+    fn an_unknown_agents_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-agents-unknown-field");
+        std::fs::write(dir.join("osf.toml"), "[agents]\nreviewer = [\"codex\"]\n")
+            .expect("osf.toml writes");
+        let err = agents_config(&dir).expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("reviewer"), "{err}");
     }
 }

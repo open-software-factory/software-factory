@@ -1,7 +1,7 @@
 use osf::status::GhClient;
 use osf::{
-    answer, assets, check, checkpoint, config, exclude, git, githooks, hook, journal, lints,
-    reducer, review, review_run, reviewers, risk, scan, section, status, verify,
+    agents, answer, assets, check, checkpoint, config, exclude, git, githooks, hook, journal,
+    lints, reducer, review, review_run, reviewers, risk, scan, section, status, verify,
 };
 
 use clap::parser::ValueSource;
@@ -131,11 +131,30 @@ enum Command {
         #[command(subcommand)]
         action: AssetsAction,
     },
+    /// Show the agents osf can drive and which this repository uses.
+    Agents {
+        #[command(subcommand)]
+        action: AgentsAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum AgentsAction {
+    /// List every agent, with what `[agents]` in `osf.toml` selects.
+    List(AgentsListArgs),
+}
+
+#[derive(Args)]
+struct AgentsListArgs {
+    /// Print one JSON array instead of a table.
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Subcommand)]
 enum HooksAction {
-    /// Write osf's own hook scripts and point this repository at them.
+    /// Write osf's own hook scripts and point this repository at them, or
+    /// with `--agents`, write each enabled agent's hook settings.
     Install(HooksInstallArgs),
 }
 
@@ -145,6 +164,13 @@ struct HooksInstallArgs {
     /// instead of installing anything. Exits non-zero when they do not.
     #[arg(long)]
     check: bool,
+    /// Write the stop and prompt hook settings of every enabled agent under
+    /// `--root`, replacing a file already there, instead of the git hooks.
+    #[arg(long, requires = "root", conflicts_with = "check")]
+    agents: bool,
+    /// The folder the agents' settings go under, such as a home directory.
+    #[arg(long, requires = "agents")]
+    root: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -346,8 +372,8 @@ struct ReviewRunArgs {
     /// Write the kept findings as SARIF to this path.
     #[arg(long = "sarif-out")]
     sarif_out: Option<PathBuf>,
-    /// Runs only when the roster has at least one enabled reviewer. With
-    /// none enabled, prints one line and exits 0 without opening the
+    /// Runs only when `[agents]` selects at least one reviewer. With
+    /// none selected, prints one line and exits 0 without opening the
     /// journal, so the moon review task skips cleanly on a checkout with no
     /// reviewer configured instead of failing its checkpoint.
     #[arg(long = "if-enabled")]
@@ -701,11 +727,126 @@ fn main() -> ExitCode {
         Command::Assets {
             action: AssetsAction::Publish(args),
         } => assets_publish_cmd(args),
+        Command::Agents {
+            action: AgentsAction::List(args),
+        } => agents_list_cmd(args),
+    }
+}
+
+/// One agent's row in `osf agents list`.
+#[derive(serde::Serialize)]
+struct AgentRow {
+    name: &'static str,
+    family: &'static str,
+    enabled: bool,
+    builder: bool,
+    reviewer: bool,
+    model: Option<String>,
+    command: &'static [&'static str],
+    hooks: &'static str,
+}
+
+fn agents_list_cmd(args: &AgentsListArgs) -> ExitCode {
+    let selection = match agents::selection(Path::new(".")) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("osf agents list: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let rows: Vec<AgentRow> = agents::AGENTS
+        .iter()
+        .map(|a| {
+            let is = |list: &[&agents::Agent]| list.iter().any(|x| x.name == a.name);
+            AgentRow {
+                name: a.name,
+                family: a.family,
+                enabled: is(&selection.enabled),
+                builder: selection.builder.name == a.name,
+                reviewer: is(&selection.reviewers),
+                model: selection.model(a).map(str::to_string),
+                command: a.command,
+                hooks: a.hooks.file(),
+            }
+        })
+        .collect();
+    if args.json {
+        match serde_json::to_string(&rows) {
+            Ok(text) => println!("{text}"),
+            Err(e) => {
+                eprintln!("osf agents list: {e}");
+                return ExitCode::from(2);
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+    let yes = |on: bool| if on { "yes" } else { "no" }.to_string();
+    let mut table: Vec<Vec<String>> = vec![[
+        "agent",
+        "family",
+        "enabled",
+        "builder",
+        "reviewer",
+        "model",
+        "hook settings",
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect()];
+    for row in &rows {
+        table.push(vec![
+            row.name.to_string(),
+            row.family.to_string(),
+            yes(row.enabled),
+            yes(row.builder),
+            yes(row.reviewer),
+            row.model.clone().unwrap_or_else(|| "-".to_string()),
+            row.hooks.to_string(),
+        ]);
+    }
+    let mut widths = vec![0; 7];
+    for line in &table {
+        for (width, cell) in widths.iter_mut().zip(line) {
+            *width = (*width).max(cell.len());
+        }
+    }
+    for line in &table {
+        let cells: Vec<String> = line
+            .iter()
+            .zip(&widths)
+            .map(|(cell, width)| format!("{cell:<width$}"))
+            .collect();
+        println!("{}", cells.join("  ").trim_end());
+    }
+    ExitCode::SUCCESS
+}
+fn hooks_install_agents_cmd(root: &Path) -> ExitCode {
+    let selection = match agents::selection(Path::new(".")) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("osf hooks install: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    match agents::write_hooks(root, &selection.enabled) {
+        Ok(paths) => {
+            for path in paths {
+                println!("osf hooks install: wrote {}", path.display());
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf hooks install: {e}");
+            ExitCode::from(2)
+        }
     }
 }
 
 fn hooks_install_cmd(args: &HooksInstallArgs) -> ExitCode {
     let dir = Path::new(".");
+    if let Some(root) = args.root.as_deref().filter(|_| args.agents) {
+        return hooks_install_agents_cmd(root);
+    }
     if args.check {
         return hooks_check_cmd(dir);
     }
@@ -1566,7 +1707,7 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
         .unwrap_or_else(|| root.to_path_buf());
     if args.if_enabled {
         match reviewers::roster(&config_root) {
-            Ok(roster) if roster.iter().any(|r| r.enabled) => {}
+            Ok(roster) if !roster.is_empty() => {}
             Ok(_) => {
                 println!("review: slot off, no reviewer enabled");
                 if let Some(path) = &args.sarif_out {

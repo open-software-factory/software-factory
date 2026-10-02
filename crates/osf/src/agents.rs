@@ -1,14 +1,22 @@
-//! The coding agents this project supports, in one place.
+//! The coding agents osf can drive, in one place.
 //!
-//! Every rule that names an agent reads this list, so no rule knows one
-//! agent and not the others, and adding an agent here is the whole of
-//! adding it. A test in `tests/scan_rules.rs` fails when a rule's doc text
-//! or corpus falls out of step with this list.
+//! This is the one list. Each entry carries everything osf needs to know
+//! about an agent: its name, model family, command, hook wiring, session
+//! state folders, and the login paths a reviewer home needs. Every rule that
+//! names an agent reads this list, so adding an agent here is the whole of
+//! adding it. A repository selects from it in `osf.toml` under `[agents]`,
+//! and naming an agent this list does not hold is a configuration error.
 //!
 //! Where each agent keeps its conversations was established by listing a
 //! home directory on a machine with every agent installed, on 17 September
 //! 2026. An agent whose layout changes needs its entry here updated, and
 //! the corpus will say so the moment a sample stops matching.
+
+use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
+
+/// The agent a repository builds with when `[agents]` names none.
+pub const DEFAULT_BUILDER: &str = "dsh";
 
 /// Where an agent's sessions can be reached from outside the machine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,11 +34,114 @@ pub enum Sessions {
     LocalOnly,
 }
 
-/// One supported coding agent.
+/// How a reviewer's `schema_flag` value is given: most agents take a file
+/// path, but at least one takes the schema's own JSON text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SchemaArg {
+    #[default]
+    Path,
+    Inline,
+}
+
+/// What osf needs to run an agent headless as a reviewer.
+#[derive(Debug)]
+pub struct Review {
+    /// The flag that introduces the answer schema, when the agent can be
+    /// asked to validate its own output against one.
+    pub schema_flag: Option<&'static str>,
+    /// How `schema_flag`'s value is given.
+    pub schema_as: SchemaArg,
+    /// A JSON pointer to the answer inside the agent's own output envelope.
+    /// Empty when the whole output is the answer.
+    pub answer_pointer: &'static str,
+    /// The flag that introduces a model name, when the agent takes one.
+    pub model_flag: Option<&'static str>,
+    /// The environment variables that carry the agent's own provider
+    /// credential. A reviewer starts with only these.
+    pub credential_env: &'static [&'static str],
+    /// Paths, relative to the real home, that the agent's own login lives
+    /// in. A reviewer's fresh home holds a copy of only these.
+    pub login_paths: &'static [&'static str],
+}
+
+/// Where and how an agent's stop hook, and its prompt hook when it has one,
+/// are configured. Every path is relative to the root a caller names.
+#[derive(Debug)]
+pub enum Hooks {
+    /// A JSON file holding a `hooks` object with `Stop` and
+    /// `UserPromptSubmit` entries that run `osf hook stop` and `osf hook prompt`.
+    JsonFile { file: &'static str },
+    /// A dsh patch file that adds the osf plugin to the profile.
+    DshPatch {
+        file: &'static str,
+        package: &'static str,
+    },
+    /// An opencode config file whose `plugin` list names the osf plugin.
+    PluginList {
+        file: &'static str,
+        package: &'static str,
+    },
+    /// An omp extension file that re-exports the osf hook package.
+    Extension {
+        file: &'static str,
+        package: &'static str,
+    },
+}
+
+impl Hooks {
+    /// The settings file, relative to the root.
+    #[must_use]
+    pub fn file(&self) -> &'static str {
+        match self {
+            Hooks::JsonFile { file }
+            | Hooks::DshPatch { file, .. }
+            | Hooks::PluginList { file, .. }
+            | Hooks::Extension { file, .. } => file,
+        }
+    }
+
+    /// The settings file's text.
+    #[must_use]
+    pub fn render(&self) -> String {
+        match self {
+            Hooks::JsonFile { .. } => {
+                let entry = |command: &str| {
+                    serde_json::json!([{"hooks": [{"type": "command", "command": command}]}])
+                };
+                let value = serde_json::json!({
+                    "hooks": {
+                        "Stop": entry("osf hook stop"),
+                        "UserPromptSubmit": entry("osf hook prompt"),
+                    }
+                });
+                format!("{value:#}\n")
+            }
+            Hooks::DshPatch { package, .. } => format!(
+                "- insert:\n    - id: osf-writing-check\n      name: '{package}'\n      config:\n        command: osf\n"
+            ),
+            Hooks::PluginList { package, .. } => {
+                format!("{:#}\n", serde_json::json!({ "plugin": [package] }))
+            }
+            Hooks::Extension { package, .. } => {
+                format!("export {{ default }} from \"{package}\";\n")
+            }
+        }
+    }
+}
+
+/// One agent osf can drive.
 #[derive(Debug)]
 pub struct Agent {
-    /// The name a person uses for it.
+    /// The name a person uses for it, and the name `osf.toml` selects it by.
     pub name: &'static str,
+    /// The model family it answers with. A reviewer whose family built a
+    /// change sits that change out.
+    pub family: &'static str,
+    /// The command it is started with. A reviewer's schema and model flags
+    /// are appended to it.
+    pub command: &'static [&'static str],
+    /// Where its stop and prompt hooks are configured.
+    pub hooks: Hooks,
     /// Directories, under a home or a repository, where it keeps its own
     /// state. Named without a leading slash.
     pub state_dirs: &'static [&'static str],
@@ -40,94 +151,145 @@ pub struct Agent {
     pub session_paths: &'static [&'static str],
     /// Whether its sessions are reachable by link, and where.
     pub sessions: Sessions,
-    /// The `harness` name `crates/osf/defaults/review-roster.toml` gives
-    /// this agent, when it is installed in the development container and
-    /// so ships a reviewer entry there; `None` for an agent this project
-    /// supports for other reasons (a scan rule, a hook adapter) but never
-    /// runs as a reviewer. `omp` covers `pi`, which it is built on, so `pi`
-    /// itself carries `None` here. A test in `tests/reviewers.rs` fails
-    /// when the roster's own harness names fall out of step with this.
-    pub reviewer_harness: Option<&'static str>,
+    /// What running it as a reviewer needs; `None` for an agent that never
+    /// reviews.
+    pub review: Option<Review>,
 }
 
-/// Every supported agent, in the order this project lists them.
+/// Every agent osf can drive, in the order this project lists them.
 pub const AGENTS: &[Agent] = &[
     // dsh keeps every conversation under a `sessions` folder in its home
-    // directory. It has no session page on any host.
+    // directory. It has no session page on any host. Its headless profile
+    // takes the task as an argument, so a shell reads the prompt file.
     Agent {
         name: "dsh",
+        family: "deepseek",
+        command: &[
+            "sh",
+            "-c",
+            "exec dsh --profile headless \"$(cat \"$1\")\"",
+            "sh",
+            "{prompt_file}",
+        ],
+        hooks: Hooks::DshPatch {
+            file: ".dsh/cordis.patch.yml",
+            package: "@open-software-factory/osf-dsh-plugin",
+        },
         state_dirs: &[".dsh"],
         session_paths: &["sessions"],
         sessions: Sessions::LocalOnly,
-        reviewer_harness: Some("dsh"),
+        review: Some(Review {
+            schema_flag: None,
+            schema_as: SchemaArg::Path,
+            answer_pointer: "",
+            model_flag: None,
+            credential_env: &["DEEPSEEK_API_KEY"],
+            login_paths: &[".dsh/.credentials.yaml"],
+        }),
     },
-    // pi keeps conversations under `agent/sessions`, one file per
-    // session. No session page on any host. Not installed in the
-    // development container on its own: omp, built on pi, covers it there.
-    Agent {
-        name: "pi",
-        state_dirs: &[".pi"],
-        session_paths: &["agent/sessions"],
-        sessions: Sessions::LocalOnly,
-        reviewer_harness: None,
-    },
-    // omp is built on pi and uses the same `agent/sessions` layout, plus
-    // a folder of terminal sessions and one of logs. No session page.
+    // omp is built on pi, and covers it. It keeps conversations under
+    // `agent/sessions`, plus a folder of terminal sessions and one of logs.
+    // No session page. It runs many model families, so its family is its
+    // own name.
     Agent {
         name: "omp",
+        family: "omp",
+        command: &["omp"],
+        hooks: Hooks::Extension {
+            file: ".omp/agent/hooks/osf-stop/index.js",
+            package: "@open-software-factory/osf-omp-hook",
+        },
         state_dirs: &[".omp"],
         session_paths: &["agent/sessions", "agent/terminal-sessions", "logs"],
         sessions: Sessions::LocalOnly,
-        reviewer_harness: Some("omp"),
+        review: Some(Review {
+            schema_flag: None,
+            schema_as: SchemaArg::Path,
+            answer_pointer: "",
+            model_flag: None,
+            credential_env: &[],
+            login_paths: &[".omp/agent/agent.db"],
+        }),
     },
     // opencode keeps configuration in one place and its data, including
     // session storage and tool output, in a data directory. A session can
-    // be shared as a page on its host.
+    // be shared as a page on its host. It runs many model families, so its
+    // family is its own name.
     Agent {
         name: "opencode",
+        family: "opencode",
+        command: &["opencode", "run", "--format", "json"],
+        hooks: Hooks::PluginList {
+            file: ".config/opencode/opencode.json",
+            package: "@open-software-factory/osf-opencode-plugin",
+        },
         state_dirs: &[".opencode", ".config/opencode", ".local/share/opencode"],
         session_paths: &["storage", "snapshot", "tool-output", "log"],
         sessions: Sessions::Hosted {
             host: "opencode.ai",
             path: "/s/",
         },
-        reviewer_harness: Some("opencode"),
+        review: Some(Review {
+            schema_flag: None,
+            schema_as: SchemaArg::Path,
+            answer_pointer: "",
+            model_flag: Some("--model"),
+            credential_env: &["OPENROUTER_API_KEY"],
+            login_paths: &[".local/share/opencode/auth.json"],
+        }),
     },
     // codex keeps live and archived sessions, a history file, and logs
     // in its home directory. Its hosted tasks have pages under the
-    // vendor's site.
+    // vendor's site. With `--output-schema` alone, `codex exec` writes the
+    // schema-matching message straight to standard output.
     Agent {
         name: "codex",
+        family: "openai",
+        command: &["codex", "exec"],
+        hooks: Hooks::JsonFile {
+            file: ".codex/hooks.json",
+        },
         state_dirs: &[".codex"],
         session_paths: &["sessions", "archived_sessions", "history.jsonl", "log"],
         sessions: Sessions::Hosted {
             host: "chatgpt.com",
             path: "/codex/",
         },
-        reviewer_harness: Some("codex"),
+        review: Some(Review {
+            schema_flag: Some("--output-schema"),
+            schema_as: SchemaArg::Path,
+            answer_pointer: "",
+            model_flag: Some("--model"),
+            credential_env: &["OPENAI_API_KEY", "CODEX_API_KEY"],
+            login_paths: &[".codex/auth.json"],
+        }),
     },
-    // claude code keeps transcripts under `projects`, one folder per
-    // working directory, plus session and transcript folders and a file
-    // history. Its hosted sessions have pages under the vendor's site.
+    // claude keeps transcripts under `projects`, one folder per working
+    // directory, plus session and transcript folders and a file history.
+    // Its hosted sessions have pages under the vendor's site. Its
+    // `--json-schema` takes effect with `--output-format json`, and the
+    // answer then sits under the envelope's `structured_output` field.
     Agent {
-        name: "claude code",
+        name: "claude",
+        family: "anthropic",
+        command: &["claude", "--print", "--output-format", "json"],
+        hooks: Hooks::JsonFile {
+            file: ".claude/settings.json",
+        },
         state_dirs: &[".claude"],
         session_paths: &["projects", "sessions", "transcripts", "file-history"],
         sessions: Sessions::Hosted {
             host: "claude.ai",
             path: "/code/session_",
         },
-        reviewer_harness: Some("claude"),
-    },
-    // copilot keeps each session's events and database under a
-    // `session-state` folder, plus logs. No session page on any host. Not
-    // installed in the development container, so it ships no reviewer entry.
-    Agent {
-        name: "copilot",
-        state_dirs: &[".copilot"],
-        session_paths: &["session-state", "logs"],
-        sessions: Sessions::LocalOnly,
-        reviewer_harness: None,
+        review: Some(Review {
+            schema_flag: Some("--json-schema"),
+            schema_as: SchemaArg::Inline,
+            answer_pointer: "/structured_output",
+            model_flag: Some("--model"),
+            credential_env: &["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
+            login_paths: &[".claude/.credentials.json"],
+        }),
     },
 ];
 
@@ -163,14 +325,6 @@ pub fn with_local_sessions_only() -> Vec<&'static str> {
         .collect()
 }
 
-/// Every harness name an agent here ships a reviewer entry under, in list
-/// order: the one list `crates/osf/src/reviewers.rs`'s shipped roster is
-/// checked against, so the roster can never silently drift from it.
-#[must_use]
-pub fn reviewer_harnesses() -> Vec<&'static str> {
-    AGENTS.iter().filter_map(|a| a.reviewer_harness).collect()
-}
-
 /// Every state directory of every agent, in list order.
 #[must_use]
 pub fn state_dirs() -> Vec<&'static str> {
@@ -180,14 +334,148 @@ pub fn state_dirs() -> Vec<&'static str> {
         .collect()
 }
 
+/// The agents a repository selected in `osf.toml`, checked against [`AGENTS`].
+#[derive(Debug)]
+pub struct Selection {
+    /// The agents in use, in the order `osf.toml` names them.
+    pub enabled: Vec<&'static Agent>,
+    /// The agent that builds by default.
+    pub builder: &'static Agent,
+    /// The agents that review, in the order they run.
+    pub reviewers: Vec<&'static Agent>,
+    models: BTreeMap<&'static str, String>,
+}
+
+impl Selection {
+    /// The model `osf.toml` names for `agent`; `None` leaves the choice to the agent.
+    #[must_use]
+    pub fn model(&self, agent: &Agent) -> Option<&str> {
+        self.models.get(agent.name).map(String::as_str)
+    }
+}
+
+fn find(name: &str, field: &str) -> Result<&'static Agent, String> {
+    AGENTS.iter().find(|a| a.name == name).ok_or_else(|| {
+        let known: Vec<&str> = AGENTS.iter().map(|a| a.name).collect();
+        format!(
+            "[agents] {field}: unknown agent \"{name}\"; the known agents are {}",
+            known.join(", ")
+        )
+    })
+}
+
+fn find_all(names: &[String], field: &str) -> Result<Vec<&'static Agent>, String> {
+    let mut found: Vec<&'static Agent> = Vec::with_capacity(names.len());
+    for name in names {
+        let agent = find(name, field)?;
+        if found.iter().any(|a| a.name == agent.name) {
+            return Err(format!("[agents] {field}: \"{name}\" is named twice"));
+        }
+        found.push(agent);
+    }
+    Ok(found)
+}
+
+fn require_enabled(enabled: &[&Agent], agent: &Agent, field: &str) -> Result<(), String> {
+    if enabled.iter().any(|a| a.name == agent.name) {
+        Ok(())
+    } else {
+        Err(format!(
+            "[agents] {field}: \"{}\" is not in the enabled agents",
+            agent.name
+        ))
+    }
+}
+
+/// Checks `cfg` against [`AGENTS`] and fills in every default from it.
+///
+/// # Errors
+/// Names the field and the agent when `cfg` names an agent this list does not
+/// hold, names one twice, picks a builder or reviewer that is not enabled,
+/// picks a reviewer that cannot review, or sets a model for an agent that
+/// takes none.
+pub fn resolve(cfg: &crate::config::AgentsConfig) -> Result<Selection, String> {
+    let enabled = match &cfg.enabled {
+        Some(names) => find_all(names, "enabled")?,
+        None => AGENTS.iter().collect(),
+    };
+    let builder = find(cfg.builder.as_deref().unwrap_or(DEFAULT_BUILDER), "builder")?;
+    require_enabled(&enabled, builder, "builder")?;
+    let reviewers = find_all(&cfg.reviewers, "reviewers")?;
+    for agent in &reviewers {
+        require_enabled(&enabled, agent, "reviewers")?;
+        if agent.review.is_none() {
+            return Err(format!(
+                "[agents] reviewers: \"{}\" cannot run as a reviewer",
+                agent.name
+            ));
+        }
+    }
+    let mut models = BTreeMap::new();
+    for (name, model) in &cfg.models {
+        let agent = find(name, "models")?;
+        require_enabled(&enabled, agent, "models")?;
+        if agent.review.as_ref().and_then(|r| r.model_flag).is_none() {
+            return Err(format!(
+                "[agents] models: \"{name}\" takes no model flag, so it cannot be given a model"
+            ));
+        }
+        models.insert(agent.name, model.clone());
+    }
+    Ok(Selection {
+        enabled,
+        builder,
+        reviewers,
+        models,
+    })
+}
+
+/// The selection `<root>/osf.toml` makes, or the defaults when it makes none.
+///
+/// # Errors
+/// Returns an error when the `[agents]` table cannot be read or [`resolve`] refuses it.
+pub fn selection(root: &Path) -> Result<Selection, String> {
+    let cfg = crate::config::agents_config(root).map_err(|e| e.to_string())?;
+    resolve(&cfg)
+}
+
+/// Writes each of `agents`' hook settings under `root`, replacing any file
+/// already there, and returns the paths written.
+///
+/// # Errors
+/// Returns an error when a folder or file cannot be written.
+pub fn write_hooks(root: &Path, agents: &[&Agent]) -> Result<Vec<PathBuf>, String> {
+    let mut written = Vec::with_capacity(agents.len());
+    for agent in agents {
+        let path = root.join(agent.hooks.file());
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+        }
+        std::fs::write(&path, agent.hooks.render())
+            .map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+        written.push(path);
+    }
+    Ok(written)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::AgentsConfig;
 
     #[test]
-    fn every_agent_has_a_name_a_state_dir_and_a_session_path() {
+    fn the_list_is_exactly_the_five_agents_osf_drives() {
+        let names: Vec<&str> = AGENTS.iter().map(|a| a.name).collect();
+        assert_eq!(names, vec!["dsh", "omp", "opencode", "codex", "claude"]);
+    }
+
+    #[test]
+    fn every_agent_has_a_name_a_family_a_command_a_state_dir_and_a_session_path() {
         for a in AGENTS {
             assert!(!a.name.is_empty());
+            assert!(!a.family.is_empty(), "{}", a.name);
+            assert!(!a.command.is_empty(), "{}", a.name);
             assert!(!a.state_dirs.is_empty(), "{}", a.name);
             assert!(!a.session_paths.is_empty(), "{}", a.name);
             for d in a.state_dirs {
@@ -207,15 +495,67 @@ mod tests {
         }
     }
 
-    /// The reviewer roster is exactly the agents installed in the
-    /// development container: `omp` covers `pi`, which it derives from, and
-    /// `copilot` is not installed there, so neither carries a harness name.
+    /// A hook file that names nothing, or sits outside the agent's own
+    /// folders, would write settings the agent never reads.
     #[test]
-    fn the_reviewer_roster_is_exactly_the_agents_installed_in_the_container() {
+    fn every_agent_has_hook_wiring_that_runs_the_stop_check() {
+        for a in AGENTS {
+            let file = a.hooks.file();
+            assert!(
+                !file.is_empty() && !file.starts_with('/'),
+                "{}: hook file {file:?} must be relative and not empty",
+                a.name
+            );
+            assert!(
+                a.state_dirs.iter().any(|d| Path::new(file).starts_with(d)),
+                "{}: hook file {file} is outside {:?}",
+                a.name,
+                a.state_dirs
+            );
+            let text = a.hooks.render();
+            assert!(
+                text.contains("osf hook stop") || text.contains("osf-"),
+                "{}: its hook settings never reach the stop check: {text}",
+                a.name
+            );
+        }
+    }
+
+    #[test]
+    fn a_json_hook_file_wires_both_the_stop_and_the_prompt_hook() {
+        let text = Hooks::JsonFile { file: "x.json" }.render();
+        let value: serde_json::Value = serde_json::from_str(&text).expect("valid JSON");
+        let command = |event: &str| {
+            value
+                .pointer(&format!("/hooks/{event}/0/hooks/0/command"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        };
+        assert_eq!(command("Stop").as_deref(), Some("osf hook stop"));
         assert_eq!(
-            reviewer_harnesses(),
-            vec!["dsh", "omp", "opencode", "codex", "claude"]
+            command("UserPromptSubmit").as_deref(),
+            Some("osf hook prompt")
         );
+    }
+
+    #[test]
+    fn a_reviewer_has_login_paths_inside_its_own_state_directories() {
+        for a in AGENTS {
+            let Some(review) = &a.review else { continue };
+            assert!(
+                !review.login_paths.is_empty(),
+                "{} has no login path",
+                a.name
+            );
+            for path in review.login_paths {
+                assert!(
+                    a.state_dirs.iter().any(|d| Path::new(path).starts_with(d)),
+                    "{}: {path} is outside {:?}",
+                    a.name,
+                    a.state_dirs
+                );
+            }
+        }
     }
 
     #[test]
@@ -241,5 +581,83 @@ mod tests {
             dirs.len(),
             AGENTS.iter().map(|a| a.state_dirs.len()).sum::<usize>()
         );
+    }
+
+    fn cfg(enabled: Option<&[&str]>, reviewers: &[&str], models: &[(&str, &str)]) -> AgentsConfig {
+        let owned = |names: &[&str]| names.iter().map(|n| (*n).to_string()).collect();
+        AgentsConfig {
+            enabled: enabled.map(owned),
+            builder: None,
+            reviewers: owned(reviewers),
+            models: models
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn with_nothing_selected_every_agent_is_enabled_dsh_builds_and_nobody_reviews() {
+        let s = resolve(&AgentsConfig::default()).expect("defaults resolve");
+        assert_eq!(s.enabled.len(), AGENTS.len());
+        assert_eq!(s.builder.name, DEFAULT_BUILDER);
+        assert!(s.reviewers.is_empty());
+    }
+
+    #[test]
+    fn an_agent_the_list_does_not_hold_is_a_clear_error_in_every_field() {
+        let unknown = ["pi", "copilot"];
+        for name in unknown {
+            for config in [
+                cfg(Some(&[name]), &[], &[]),
+                cfg(None, &[name], &[]),
+                cfg(None, &[], &[(name, "m")]),
+                AgentsConfig {
+                    builder: Some(name.to_string()),
+                    ..AgentsConfig::default()
+                },
+            ] {
+                let e = resolve(&config).expect_err("an unknown agent is refused");
+                assert!(e.contains(&format!("unknown agent \"{name}\"")), "{e}");
+                assert!(e.contains("dsh, omp, opencode, codex, claude"), "{e}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_reviewer_or_builder_must_be_enabled_and_a_model_needs_a_model_flag() {
+        let e = resolve(&cfg(Some(&["dsh"]), &["codex"], &[])).expect_err("refused");
+        assert!(e.contains("\"codex\" is not in the enabled agents"), "{e}");
+        let e = resolve(&cfg(Some(&["codex"]), &[], &[]))
+            .expect_err("the default builder is not enabled");
+        assert!(e.contains("builder"), "{e}");
+        let e = resolve(&cfg(None, &[], &[("dsh", "m")])).expect_err("refused");
+        assert!(e.contains("takes no model flag"), "{e}");
+        let e = resolve(&cfg(None, &["codex", "codex"], &[])).expect_err("refused");
+        assert!(e.contains("named twice"), "{e}");
+    }
+
+    #[test]
+    fn a_selected_model_is_reported_for_its_agent_only() {
+        let s = resolve(&cfg(None, &["codex"], &[("codex", "o4-mini")])).expect("resolves");
+        let codex = AGENTS.iter().find(|a| a.name == "codex").expect("codex");
+        let claude = AGENTS.iter().find(|a| a.name == "claude").expect("claude");
+        assert_eq!(s.model(codex), Some("o4-mini"));
+        assert_eq!(s.model(claude), None);
+    }
+
+    #[test]
+    fn writing_hooks_puts_each_agents_file_under_the_root() {
+        let root = crate::test_support::TempDir::new("osf-agents-write-hooks");
+        let all: Vec<&Agent> = AGENTS.iter().collect();
+        let written = write_hooks(&root, &all).expect("hooks write");
+        assert_eq!(written.len(), AGENTS.len());
+        for (agent, path) in AGENTS.iter().zip(&written) {
+            assert_eq!(path, &root.join(agent.hooks.file()));
+            assert_eq!(
+                std::fs::read_to_string(path).expect("file reads"),
+                agent.hooks.render()
+            );
+        }
     }
 }
