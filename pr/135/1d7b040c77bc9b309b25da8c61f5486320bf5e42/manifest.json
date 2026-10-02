@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "1d7b040c77bc9b309b25da8c61f5486320bf5e42",
+    "contentHash": "1f66522b1b5c1e7f7bd97c0783814fb3"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "checkpoint-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "checkpoint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "99ac3bb144a12a4566873019aa83894a",
+      "bytes": 29978,
+      "width": 2212,
+      "height": 770,
+      "animated": false,
+      "path": "checkpoint-architecture-light-99ac3bb144a12a4566873019aa83894a.svg"
+    },
+    {
+      "id": "checkpoint-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "checkpoint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9e44bde209744964e5ced637c1a0d318",
+      "bytes": 30337,
+      "width": 2212,
+      "height": 770,
+      "animated": false,
+      "path": "checkpoint-architecture-dark-9e44bde209744964e5ced637c1a0d318.svg"
+    },
+    {
+      "id": "checkpoint-runner-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "checkpoint-runner-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e7e06a1c35dff353d9962653f7ba80d8",
+      "bytes": 10598,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "checkpoint-runner-internals-light-e7e06a1c35dff353d9962653f7ba80d8.svg"
+    },
+    {
+      "id": "checkpoint-runner-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "checkpoint-runner-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dd9ca932c9592eee62e7d6f470ae8839",
+      "bytes": 10710,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "checkpoint-runner-internals-dark-dd9ca932c9592eee62e7d6f470ae8839.svg"
+    },
+    {
+      "id": "check-dispatch-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "check-dispatch-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1f7c7ce8f90fc589abc3b9ff9d7f2994",
+      "bytes": 9855,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "check-dispatch-internals-light-1f7c7ce8f90fc589abc3b9ff9d7f2994.svg"
+    },
+    {
+      "id": "check-dispatch-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "check-dispatch-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "90fecb20841fe40937a9e80b8fe718f4",
+      "bytes": 9992,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "check-dispatch-internals-dark-90fecb20841fe40937a9e80b8fe718f4.svg"
+    },
+    {
+      "id": "pre-push-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "pre-push-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ddb2005a718736c37b6a7e35e9b02b2a",
+      "bytes": 14822,
+      "width": 1611,
+      "height": 391,
+      "animated": true,
+      "path": "pre-push-flow-light-ddb2005a718736c37b6a7e35e9b02b2a.svg"
+    },
+    {
+      "id": "pre-push-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "pre-push-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3a861643e788058384d32620bf45b3c1",
+      "bytes": 14967,
+      "width": 1611,
+      "height": 391,
+      "animated": true,
+      "path": "pre-push-flow-dark-3a861643e788058384d32620bf45b3c1.svg"
+    }
+  ]
+}
