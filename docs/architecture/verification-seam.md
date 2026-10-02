@@ -39,9 +39,9 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 | Name | The points where checks run are called checkpoints. |
 | Cost | There is no fixed time budget per checkpoint. Declared inputs and moon's cache make an untouched check free. A repository may set a ceiling per checkpoint in its configuration. |
 | Journal | Every checkpoint writes events in the domain model's structure. A local run buffers events and flushes them on push and on a timer. The orphan branch on the code host is the default sink. An object store with an S3-compatible interface, the interface Amazon's object store made common, is an optional second sink. When both are configured, both receive every write. |
-| Required checks | Only the aggregation check is required. It reads each adopter job's conclusion and fails when one is missing without a path filter's excuse. Checks run in parallel and the aggregation runs last. |
+| Required checks | Branch protection requires the aggregation check, the review job and every review conversation resolved, as [decision 0020](decisions/0020-who-can-post-a-review-result.md) sets. The aggregation reads each adopter job's conclusion and fails when one is missing without a path filter's excuse. Checks run in parallel and the aggregation runs last. |
 | Slots | A slot counts as filled by the adopter's own check only when the check recogniser reads that it is at least as strong as the factory's. Where no recogniser exists, a slot attestation fills it and is reported as such. A periodic audit compares attestations with completed runs. |
-| Empty slots | The factory fills an empty slot with its own default when it has one. A slot with no tool, or one only the adopter can fill such as architecture tests, runs a gap check at warning, tracked by an issue in the osf repository, until a tool or the adopter fills it. |
+| Empty slots | The factory fills an empty slot with its own default when it has one. A slot with no tool, or one only the adopter can fill such as architecture tests, runs a gap check at warning, tracked by an issue in the adopter's own tracker, reached through the tracker adapter, until a tool or the adopter fills it. |
 | Several tools per slot | Every task tagged for a slot fills it, and the slot passes only when all of them pass. [Decision 0017](decisions/0017-native-default-checks-and-gap-checks.md) sets this out with the native default tools. |
 | Results | A job's conclusion decides pass or fail. Result files add counts and findings, and the tool finds them by content. |
 | Reviews | A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it. [Decision 0016](decisions/0016-the-review-check.md) sets how it runs: review lenses, reviewers from a roster, a JSON Schema for every answer, and a deterministic reducer. |
@@ -141,7 +141,7 @@ One change, followed from the first edit to the merged pull request.
 3. **The agent pushes.** The pre-push checkpoint runs on the whole branch diff. Then the buffer flushes to the orphan branch, and to the object store when one is configured.
 4. **The pull request opens.** The adopter's own workflows and the generated factory workflow start together. The factory workflow runs the tasks tagged for the pull-request checkpoint. Each job uploads its result files as artifacts.
 5. **A workflow finishes.** The aggregation workflow starts. It lists the check runs on the commit. If one is still running, it stops and waits for the next finish. When every check is done it reads each conclusion and downloads the artifacts. It hands each file to the reader that recognises its content. The check recogniser reports the state of each slot. Levels and suppressions apply. The aggregation writes the checkpoint-complete event with the slot table, posts the one required check, and flushes the journal.
-6. **Merge.** The required check and the resolved review threads gate the merge. The aggregation itself reads each adopter job's conclusion as part of that check.
+6. **Merge.** The required checks and the resolved review threads gate the merge. The aggregation itself reads each adopter job's conclusion as part of that check.
 7. **On the schedule.** The scheduled workflow runs the tasks tagged for that cadence. Each finding becomes an issue with the native fields set, and the engine's loop takes it from there.
 8. **On a factory release.** The daily sync task sees the new version and renders the generated files. It opens a pull request under the builder identity. That pull request goes through the pull-request checkpoint like any other.
 
@@ -233,7 +233,7 @@ The tool renders a small set of files from the TOML defaults and the repository'
 | Generated file | Holds |
 | --- | --- |
 | `.osf/moon.yml` | The factory's moon project with its tagged tasks. |
-| `.osf/hooks/pre-commit`, `.osf/hooks/pre-push` | The git hooks. The sandbox points git's hooks path here. |
+| Nothing for the git hooks | No repository tracks hook scripts. `osf hooks install` writes them outside the repository, and the sandbox points git's hooks path there. |
 | The factory's pull-request workflow | Runs the tasks tagged for the pull-request checkpoint and uploads their results. |
 | The aggregation workflow | Runs after every workflow on the commit finishes and posts the one required check. |
 | The scheduled workflow | Runs the tasks tagged for each cadence. |
@@ -271,7 +271,7 @@ A review is a check with the evidence grade reported. The code host's setting th
 - Each lens declares the context it needs, such as the work item and its acceptance criteria. A missing required input makes that lens could-not-run.
 - An adopter adds a domain lens, such as money or health data, as a file under `.osf/review-lenses/`.
 
-osf runs each reviewer through a coding-agent command-line tool, from a roster that is exactly the coding agents the development container installs. Every answer must match a JSON Schema shipped with osf. Deterministic code keeps a finding only when its quoted code exists at the file and line it names. A reducer decides per lens. Quorum needs two model families. When a second has no working reviewer, the lens runs one extra critical round with the family it has, as an interim policy. A verified blocker vetoes. A weighted score must clear a threshold. No working reviewer in any family is still could-not-run. A must-fix finding sends the change back to the coding agent before the pull request.
+osf runs each reviewer through a coding-agent command-line tool, from a roster that is exactly the coding agents the development container installs. Every answer must match a JSON Schema shipped with osf. Deterministic code keeps a finding only when its quoted code exists at the file and line it names. A reducer decides per lens. Quorum needs two model families, both different from the builder's, each giving more than one round. When a second has no working reviewer, the lens runs one extra critical round with the family it has, as an interim policy. A verified blocker vetoes. A weighted score must clear a threshold. No working reviewer in any family is still could-not-run. A must-fix finding sends the change back to the coding agent before the pull request.
 
 [Decision 0016](decisions/0016-the-review-check.md) holds the full catalogue, the roster and the reducer rules.
 
