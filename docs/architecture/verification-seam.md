@@ -106,7 +106,7 @@ The event to refuse a tool call, such as a commit that skips hooks, is a separat
 | --- | --- | --- | --- | --- |
 | [Claude Code](https://github.com/anthropics/claude-code), Anthropic's coding agent | the post-tool-use event | the stop event | the pre-tool-use event | its settings file |
 | [Codex](https://github.com/openai/codex), OpenAI's coding agent | the same events, in the same file format | same | same | its hooks file |
-| dsh, a coding-agent harness | reads the same hooks file | same | same | its bridge to that file, which passes no reply text yet |
+| dsh, a coding-agent harness | reads the same hooks file | same | same | its bridge to that file, which passes no reply text as of 2026-09-22 |
 | [Copilot CLI](https://github.com/github/copilot-cli), GitHub's coding agent for the terminal | reads the same hooks file | unverified | same | its policy directory in the container |
 | [OpenCode](https://opencode.ai), an open-source coding agent | a plugin on the after-execute event | a plugin | a plugin on the before-execute event | a short plugin |
 | omp, a coding-agent harness | a hook under its hooks directory | a hook | a hook | a short hook |
@@ -146,11 +146,11 @@ One change, followed from the first edit to the merged pull request.
 
 ### The records
 
-A verification event carries the check name, the slot, the checkpoint, the result, the duration, the cache outcome, the finding count and the evidence grade. A checkpoint-complete event carries the checkpoint, the commit, the slot table and the aggregate result. A slot table row carries the slot, how it was filled, the result, the counts, the grade and the source that supplied it. Findings with a location are written in SARIF, the static-analysis results interchange format, as the domain model already says.
+A verification event carries the check name, the slot, the checkpoint, the result, the duration, the cache outcome, the finding count and the evidence grade. A checkpoint-complete event carries the checkpoint, the commit, the slot table and the aggregate result. A slot table row carries the slot, how it was filled, the result, the counts, the grade and the source that supplied it. Findings with a location are written in SARIF, the static-analysis results interchange format, as the domain model says.
 
 ### Raw transcripts
 
-Raw harness transcripts share the journal's buffer, flush and sinks, keyed by run identifier. The run-started event records the transcript's location, and the run-complete event records its hash. Files are stored as written, and scrubbed of secrets before the flush. The collection cadence, the scrub rules, the per-harness readers and the query dataset are a later design of their own.
+Raw harness transcripts share the journal's buffer, flush and sinks, keyed by run identifier. The run-started event records the transcript's location, and the run-complete event records its hash. Files are stored as written, and scrubbed of secrets before the flush. The collection cadence, the scrub rules, the per-harness readers and the query dataset need a design of their own.
 
 ## Configuration
 
@@ -225,7 +225,7 @@ The catalogue page is rendered from the same files in CI, so the list has one so
 
 ## Deployment into a repository
 
-The core stays in the image and never ships into a product repository. The surface is vendored into each repository and a drift gate checks it, as [the page on how the factory reaches a repository](how-the-factory-reaches-a-repository.md) already says. This design fixes what the surface holds for checks.
+The core stays in the image and never ships into a product repository. The surface is vendored into each repository and a drift gate checks it, as [the page on how the factory reaches a repository](how-the-factory-reaches-a-repository.md) says. This design fixes what the surface holds for checks.
 
 The tool renders a small set of files from the TOML defaults and the repository's `osf.toml`.
 
@@ -264,7 +264,7 @@ A review is a check with the evidence grade reported. The code host's setting th
 
 A scheduled check is a moon task tagged for the scheduled checkpoint, with a cadence tag such as daily or weekly. It runs in the generated scheduled workflow, writes its verification event, and its findings become issues with the native fields set. The engine's own loop, one issue to one pull request, picks those issues up under the selection policy. So a documentation-drift check finds the drift and raises the issue, and the engine fixes it as ordinary work. Checks stay deterministic and every model-driven change goes through the same pull-request checkpoint as any other change.
 
-These kinds of check belong here first. The audit that compares slot attestations with completed runs. Dependency and vulnerability checks whose inputs change without a commit. Trend checks over the journal, such as test-count shrink and check duration growth. The list is open. The next candidates are mutation testing, file-size growth, duplicate-code detection against a committed baseline, stale-branch cleanup and post-deploy smoke tests. Each enters as a data entry in the shipped defaults.
+These kinds of check belong here first. The audit that compares slot attestations with completed runs. Dependency and vulnerability checks whose inputs change without a commit. Trend checks over the journal, such as test-count shrink and check duration growth. The list is open. Candidates are mutation testing, file-size growth, duplicate-code detection against a committed baseline, stale-branch cleanup and post-deploy smoke tests. Each enters as a data entry in the shipped defaults.
 
 ## Suppressions
 
@@ -280,7 +280,7 @@ A suppression silences one finding in place, with a reason and an expiry, and th
 
 A marker without an expiry or a reason is itself a finding. An expired marker is a finding. The marker's fields are the same as a `[[suppress]]` entry in `osf.toml`, so one parser reads both.
 
-A suppression the ecosystem's own tool understands keeps working for that tool, and the factory reads it. A Rust allow attribute (the attribute that silences a warning) and a Python noqa comment (the comment that tells Python linters to skip a line) are examples of such forms. A suppression the team already has at adoption stays in force and is counted. A native suppression that a change adds is a finding for review, which [decision 0003 (deterministic verification is authoritative)](decisions/0003-deterministic-verification-is-authoritative.md) already requires.
+A suppression the ecosystem's own tool understands keeps working for that tool, and the factory reads it. A Rust allow attribute (the attribute that silences a warning) and a Python noqa comment (the comment that tells Python linters to skip a line) are examples of such forms. A suppression the team already has at adoption stays in force and is counted. A native suppression that a change adds is a finding for review, which [decision 0003 (deterministic verification is authoritative)](decisions/0003-deterministic-verification-is-authoritative.md) requires.
 
 ## When things go wrong
 
@@ -299,7 +299,7 @@ A suppression the ecosystem's own tool understands keeps working for that tool, 
 | Rendering would overwrite a file the adopter already has under the same name | The sync command refuses and names the file. | Nothing. The sync did not run. |
 | The flush cannot reach the branch or the store | Locally the buffer keeps the events and the next flush retries. In the pull-request checkpoint the aggregation fails, because evidence must be durable before the state changes. | Locally, a gap event at the next successful flush. In CI, the failed aggregation. |
 | Two aggregation runs start on the same commit | A concurrency group per commit lets one run at a time, and the later one supersedes. | One checkpoint-complete event per commit. |
-| The harness sends no text in its hook reply, as one bridge does today | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
+| The harness sends no text in its hook reply, as the dsh bridge does as of 2026-09-22 | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
 
 ## Testing
 
@@ -338,9 +338,9 @@ Each one records the options weighed and the option taken.
 | [The journal at every checkpoint](decisions/0014-the-journal-at-every-checkpoint.md) | Local buffer, flush on push and on a timer, orphan branch and object store as sinks, transcripts on the same path. |
 | [Suppressions](decisions/0015-suppressions.md) | The factory marker and the native markers, each with a reason and an expiry where the form allows. |
 
-## Later
+## Not covered by this design
 
-- The object store sink, as a fast follow after the orphan branch.
+- The object store sink, which is built after the orphan branch sink.
 - The ecosystems after .NET, one at a time, each driven by a real repository.
 - The raw transcript archive's internals.
 - The selection policy that chooses which issue the engine works next.

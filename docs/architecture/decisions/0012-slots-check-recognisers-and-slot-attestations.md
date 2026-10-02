@@ -6,7 +6,7 @@ Date: 2026-09-23
 
 ## Context
 
-An adopting repository already runs a linter, a formatter and a test suite through its own tooling and wants those to count. The factory has to know when they do. A slot is a named kind of check the factory expects, such as lint or unit tests. A build that merely compiles fills no lint slot, and a test job that runs next to no tests fills no unit-test slot in any useful sense. The design is [the verification seam](../verification-seam.md). This record holds the decisions about how an adopter's own checks count, how the factory's defaults are stored, and how both reach a repository. Checks are tasks in [moon](https://moonrepo.dev), the task runner that [decision 0011 (the check is the unit)](0011-the-check-is-the-unit.md) chose.
+An adopting repository runs a linter, a formatter and a test suite through its own tooling and wants those to count. The factory has to know when they do. A slot is a named kind of check the factory expects, such as lint or unit tests. A build that merely compiles fills no lint slot, and a test job that runs next to no tests fills no unit-test slot in any useful sense. The design is [the verification seam](../verification-seam.md). This record holds the decisions about how an adopter's own checks count, how the factory's defaults are stored, and how both reach a repository. Checks are tasks in [moon](https://moonrepo.dev), the task runner that [decision 0011 (the check is the unit)](0011-the-check-is-the-unit.md) chose.
 
 ## Options considered
 

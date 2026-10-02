@@ -10,7 +10,7 @@ The verification command this repository ships runs a fixed list of checks in a 
 
 The full design is [the verification seam](../verification-seam.md). This record holds the decisions about the unit and the points where it runs.
 
-[Moon](https://moonrepo.dev) is the task runner the execution research chose, in [Moon as the OSF execution substrate](../../research/2026-09-18-moon-as-osf-execution-substrate.md). It already owns task inputs, outputs, dependencies, hashing and a cache.
+[Moon](https://moonrepo.dev) is the task runner the execution research chose, in [Moon as the OSF execution substrate](../../research/2026-09-18-moon-as-osf-execution-substrate.md). It owns task inputs, outputs, dependencies, hashing and a cache.
 
 ## Options considered
 
@@ -18,13 +18,13 @@ The full design is [the verification seam](../verification-seam.md). This record
 
 | Option | What it meant | Why it was set aside |
 |---|---|---|
-| A stage template file | A file per repository naming every slot, its command, its inputs and whether it blocks. The runner reads it. | It duplicates what a task runner already holds. Inputs, dependencies, hashing and a cache would be written again, in the factory. |
+| A stage template file | A file per repository naming every slot, its command, its inputs and whether it blocks. The runner reads it. | It duplicates what a task runner holds. Inputs, dependencies, hashing and a cache would be written again, in the factory. |
 | Checks fixed in the binary, stages as selections | The list stays in code and a stage picks from it. | An adopter cannot add or replace a check without a release. |
-| A moon task with tags | Moon already owns inputs, outputs, dependencies, hashing and the cache. A tag names the checkpoints a task runs at and the slot it fills. | Taken. |
+| A moon task with tags | Moon owns inputs, outputs, dependencies, hashing and the cache. A tag names the checkpoints a task runs at and the slot it fills. | Taken. |
 
-**The name for the points where checks run.** Enforcement point, trigger, event and checkpoint were weighed. Event already names a line in the journal. Enforcement point is longer and already names the refusal points in [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97). Checkpoint was taken.
+**The name for the points where checks run.** Enforcement point, trigger, event and checkpoint were weighed. Event names a line in the journal. Enforcement point is longer and names the refusal points in [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97). Checkpoint was taken.
 
-**Whether moon is required.** Running the factory's checks through moon only where an adopter already has moon, or through moon everywhere. Everywhere was taken. Moon ships in the factory's image, and the factory's tasks live in their own moon project, so the adopter's tree needs no moon of its own.
+**Whether moon is required.** Running the factory's checks through moon only where an adopter has moon, or through moon everywhere. Everywhere was taken. Moon ships in the factory's image, and the factory's tasks live in their own moon project, so the adopter's tree needs no moon of its own.
 
 **The time budget.** A fixed short budget per checkpoint, or no budget with declared inputs and the cache making an untouched check free. No budget was taken. A repository may set a ceiling per checkpoint in its configuration.
 
@@ -40,7 +40,7 @@ The factory's own tasks live in a moon project under `.osf/`, rendered from data
 
 ## Consequences
 
-- The factory writes no task graph, no hasher and no cache of its own. That stays in moon, as [the execution and verification architecture](../execution-and-verification.md) already says, and that page is amended so the hook checkpoint is one of the points where moon runs.
+- The factory writes no task graph, no hasher and no cache of its own. That stays in moon, as [the execution and verification architecture](../execution-and-verification.md) says, and that page is amended so the hook checkpoint is one of the points where moon runs.
 - The word checkpoint joins the vocabulary in [decision 0003 (deterministic verification is authoritative)](0003-deterministic-verification-is-authoritative.md).
-- An adopter adds a check by adding a tag to a task it already has.
+- An adopter adds a check by adding a tag to a task it has.
 - The refusal of a tool call, such as a commit that skips hooks, stays a separate concern.
