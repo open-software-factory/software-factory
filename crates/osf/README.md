@@ -13,31 +13,38 @@ the rules, because the rules are compiled in.
 | `osf hook prompt` | Reads a coding agent's prompt-submitted event from standard input and prints context for the new turn: a one-line reminder of the writing shapes a model slips into most, then any style advice the last stop check stored for that session. The advice holds the last turn only, at most twenty lines, and is cleared once printed. |
 | `osf pr status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
 | `osf changeset tests --base <ref> --head <ref>` | Prints the Rust test summary on its own, without a pull request. See "The Rust test summary" below. |
-| `osf pr section write --pr <number> --name <name> --file <path>` | Replaces the text between `<!-- osf:<name>:start -->` and `<!-- osf:<name>:end -->` in a pull request description with the file's content, or appends the section when the markers are not there yet. Reads and writes the description through `gh`. |
+| `osf pr section write --pr <number> --name <name> --file <path> [--head <sha>]` | Replaces the block named `<name>` in a pull request description with the file's content, or appends it when the markers are not there yet. The start marker records the head commit, from `--head` or from the pull request. A block with an older marker is replaced in place. Reads and writes the description through `gh`. |
 | `osf assets publish --branch <branch> --path <prefix> --dir <folder>` | Pushes every file in `<folder>` to `<prefix>` on `<branch>`, in a temporary clone, creating the branch as an orphan the first time. Prints the raw content web address for what landed. Retries when a push loses a race with another run. |
 
 ## The status block
 
-`osf pr status` manages the block at the top of a pull request description.
-The block says whether a change is ready to merge. It sits between two
-HTML comment markers and has six rows, plus the Rust test summary
+`osf pr status` manages the `osf:status` block of a pull request
+description. The layout of the whole description, and the rules for what
+each part says, live in `.github/PULL_REQUEST_TEMPLATE.md`. Read the
+template for the format. This section covers only what the commands do.
+
+The block is headed with the short head commit and holds a table of
+checks. The block sits between the shared markers, and the start marker
+records the full head commit. The Tests row carries the Rust test summary
 described below.
 
-| Row | Meaning |
+| Row | Where it comes from |
 |---|---|
-| Ready | `yes` when every gate passed, the verdict is APPROVE, and no human review is still required. Otherwise, the one blocking reason. |
 | Risk | The blast radius tier from `osf changeset risk`, with its reasons. |
-| Verified | The gate results. `all N passed` when every check passed, `no checks reported yet` when there are none, or `P of N passed, failed: name (reason), ...` naming only the failing checks. |
-| Review | The review verdict, whether it is advisory, and the latest review round's counts. |
-| Problem | One sentence describing the problem the change fixes. |
-| Approach | One sentence describing the approach taken. |
+| Tests | The Rust test summary. |
+| CI | The gate results from the pull request's checks. |
+| Commit messages | Not run yet, because no check lints commit messages. |
+| Contributor agreement | Not run yet, because no check reads the agreement. |
+| Automated review | The last advisory review verdict and the latest review round's counts. |
+| Human review | The review decision GitHub reports. |
 
-`osf pr status render` builds the block from named inputs. Given
-`--base <ref>`, it also computes the Rust test summary against `HEAD`,
-the same way `osf pr status refresh` does, and carries it in the block.
-Left out, the block has no test summary row. `osf pr status apply`
-puts a rendered block into a description. It goes between the markers
-if they are there, or at the top if they are not.
+`osf pr status render` builds the block from named inputs. The head
+commit comes from `--head`, or from `HEAD` of the current directory.
+Given `--base <ref>`, it also computes the Rust test summary against
+`HEAD`, the same way `osf pr status refresh` does. Left out, the Tests
+row is not run. `osf pr status apply` puts a rendered block into a
+description. It goes between the markers if they are there, or at the top
+if they are not.
 
 `osf pr status refresh --repo <owner/name> --pr <number>` recomputes the
 block from the pull request's live state. It reads the pull request's
@@ -45,21 +52,20 @@ own checks and review state. It reruns the risk assessment against the
 base branch. It rebuilds the Rust test summary between that base and
 `HEAD`.
 
-`Problem` and `Approach` come back out of the block already in the
-description, when there is one. A description with no block yet gets
-one started. `Problem` and `Approach` come from `--problem` and
-`--approach` when given. Without them, a placeholder fills the row
-instead. Either way, the first refresh on a pull request leaves it with
-a block to edit.
+Refresh also finds a block with the older `factory:status:begin` and
+`factory:status:end` markers. It replaces that block in place. An open
+pull request moves to the new markers on its next refresh and never
+carries two blocks.
 
 Refresh compares the new block against the one already there, byte for
 byte. It writes nothing when they match, and prints `osf pr status
 refresh: unchanged`. When they differ, it writes the new block and
-prints `osf pr status refresh: updated`.
+prints `osf pr status refresh: updated`. A new head commit always
+differs, because the head is in the start marker.
 
 ## The Rust test summary
 
-The block's Problem and Approach are followed by a summary of the Rust
+The block's Tests row carries a summary of the Rust
 tests the change added, changed, or removed. It comes from parsing the
 base and head versions of each changed `.rs` file with the tree-sitter
 Rust grammar. It never builds or runs the change's code. The summary

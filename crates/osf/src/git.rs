@@ -355,6 +355,14 @@ pub fn head_short_sha(dir: &Path) -> Result<String, GitError> {
     run_text(dir, &["rev-parse", "--short", "HEAD"]).map(|t| t.trim().to_string())
 }
 
+/// `HEAD`'s full commit hash.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`.
+pub fn head_sha(dir: &Path) -> Result<String, GitError> {
+    run_text(dir, &["rev-parse", "HEAD"]).map(|t| t.trim().to_string())
+}
+
 /// True when `rev` resolves to a commit in `dir`; false, never an error,
 /// when it does not.
 #[must_use]

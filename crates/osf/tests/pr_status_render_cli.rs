@@ -45,10 +45,6 @@ fn render_with_base_carries_the_test_summary_in_the_block() {
             tier_json.to_str().expect("utf8 path"),
             "--gates",
             "build: passed",
-            "--problem",
-            "The problem.",
-            "--approach",
-            "The approach.",
             "--review-json",
             review_json.to_str().expect("utf8 path"),
             "--base",
@@ -58,7 +54,7 @@ fn render_with_base_carries_the_test_summary_in_the_block() {
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("**Tests**: 1 added, 0 changed, 0 removed"),
+        stdout.contains("| Tests | 1 added, 0 changed, 0 removed |"),
         "{stdout}"
     );
 }
@@ -82,15 +78,46 @@ fn render_with_no_base_carries_no_test_summary() {
             tier_json.to_str().expect("utf8 path"),
             "--gates",
             "build: passed",
-            "--problem",
-            "The problem.",
-            "--approach",
-            "The approach.",
             "--review-json",
             review_json.to_str().expect("utf8 path"),
         ],
     );
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(!stdout.contains("**Tests**"), "{stdout}");
+    assert!(stdout.contains("| Tests | ⏸ not run |"), "{stdout}");
+}
+
+#[test]
+fn render_writes_the_current_head_into_the_marker_and_heading() {
+    let repo = TempRepo::new("pr-status-render-head");
+    repo.write("a.md", "Clean.\n");
+    let head = repo.commit("only commit");
+    let home = isolated_home("pr-status-render-head");
+    let (tier_json, review_json) = write_inputs(&repo);
+
+    let output = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "pr",
+            "status",
+            "render",
+            "--tier-json",
+            tier_json.to_str().expect("utf8 path"),
+            "--gates",
+            "build: passed",
+            "--review-json",
+            review_json.to_str().expect("utf8 path"),
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains(&format!("<!-- osf:status:start head={head} -->")),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(&format!("### Status at {}", &head[..7])),
+        "{stdout}"
+    );
 }

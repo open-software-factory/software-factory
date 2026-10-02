@@ -144,7 +144,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "pr-lens has no model key: add the review environment and a ${{ steps.provider.outputs.key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
-          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --head "${{ github.event.pull_request.head.sha }}" --file "${RUNNER_TEMP}/section.md"
 
       - name: Fetch the pull request's head, as data only
         if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
@@ -194,7 +194,7 @@ jobs:
             reason="$(head -c 300 "${RUNNER_TEMP}/analyze-reason.txt")"
           fi
           printf 'pr-lens could not draw a diagram for this push. The model call failed: %s\n' "${reason}" > "${RUNNER_TEMP}/section.md"
-          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --head "${{ github.event.pull_request.head.sha }}" --file "${RUNNER_TEMP}/section.md"
 
       - name: Render the diagrams
         if: steps.analyze.outcome == 'success'
@@ -226,4 +226,4 @@ jobs:
             --manifest "${RUNNER_TEMP}/pr-lens/assets/manifest.json" \
             --asset-base-url "${{ steps.publish.outputs.assets-url }}" \
             --out "${RUNNER_TEMP}/section.md"
-          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --head "${{ github.event.pull_request.head.sha }}" --file "${RUNNER_TEMP}/section.md"

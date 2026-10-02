@@ -12,6 +12,7 @@ pub mod exclude;
 pub mod git;
 pub mod hook;
 pub mod lints;
+pub mod marker;
 pub mod pr_status;
 pub mod repository;
 pub mod review;
