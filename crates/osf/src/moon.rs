@@ -208,31 +208,37 @@ fn clear_report(root: &Path) -> Result<(), String> {
 
 /// The lock file naming moon's own `runReport.json`, which moon writes to
 /// one fixed path per workspace with no per-invocation namespacing of its
-/// own. How long [`ReportLock::acquire`] waits for it before giving up:
-/// long enough for a real checkpoint run, short enough that a crashed
-/// holder cannot wedge every later invocation forever.
+/// own. The longest [`ReportLock::acquire`] ever waits for it: long enough
+/// for a real checkpoint run, short enough that a crashed holder cannot
+/// wedge every later invocation forever. A shorter invocation timeout
+/// shortens the wait (see [`lock_wait`]).
 const REPORT_LOCK_WAIT: Duration = Duration::from_secs(300);
 const REPORT_LOCK_POLL: Duration = Duration::from_millis(100);
+
+/// How long an invocation with `timeout` may wait for the report lock: its own timeout, never more than [`REPORT_LOCK_WAIT`].
+pub(crate) fn lock_wait(timeout: Option<Duration>) -> Duration {
+    timeout.map_or(REPORT_LOCK_WAIT, |t| t.min(REPORT_LOCK_WAIT))
+}
 
 /// Holds the one lock moon's shared `runReport.json` needs: without it, two
 /// checkpoint invocations racing on the same workspace can clear, read or
 /// overwrite each other's report mid-run, since moon has no flag or
-/// environment variable that gives a run its own report path. Acquired for
-/// exactly the span this adapter owns that file — clearing it, running
-/// moon, and reading the result back — and released on every exit from
-/// [`run`], including an early one, since [`Drop`] removes the lock file.
-struct ReportLock {
+/// environment variable that gives a run its own report path. The caller
+/// holds it for the whole span it owns that file and the SARIF files beside
+/// it: clearing them, running moon, and reading both back. [`Drop`] removes
+/// the lock file on every exit, including an early one.
+pub(crate) struct ReportLock {
     path: PathBuf,
 }
 
 impl ReportLock {
-    fn acquire(root: &Path) -> Result<ReportLock, String> {
+    pub(crate) fn acquire(root: &Path, wait: Duration) -> Result<ReportLock, String> {
         let path = root.join(".moon").join("cache").join("osf-run-report.lock");
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
         }
-        let deadline = std::time::Instant::now() + REPORT_LOCK_WAIT;
+        let deadline = std::time::Instant::now() + wait;
         loop {
             match std::fs::OpenOptions::new()
                 .write(true)
@@ -244,9 +250,8 @@ impl ReportLock {
                     if std::time::Instant::now() >= deadline {
                         return Err(format!(
                             "cannot acquire the moon run-report lock at {}: held for longer than \
-                             {}s; a previous invocation may have crashed",
-                            path.display(),
-                            REPORT_LOCK_WAIT.as_secs()
+                             {wait:?}; a previous invocation may have crashed",
+                            path.display()
                         ));
                     }
                     std::thread::sleep(REPORT_LOCK_POLL);
@@ -268,9 +273,18 @@ impl Drop for ReportLock {
     }
 }
 
-/// Runs `moon run <targets> --affected --stdin` for `inv`.
+/// Runs `moon run <targets> --affected --stdin` for `inv`, taking the report lock for the duration.
 #[must_use]
 pub fn run(inv: &Invocation) -> Outcome {
+    match ReportLock::acquire(inv.root, lock_wait(inv.timeout)) {
+        Ok(lock) => run_holding(inv, &lock),
+        Err(e) => Outcome::CouldNotRun(e),
+    }
+}
+
+/// [`run`] for a caller that already holds `_lock` and keeps holding it while it reads the SARIF files this run wrote.
+#[must_use]
+pub(crate) fn run_holding(inv: &Invocation, _lock: &ReportLock) -> Outcome {
     match version(inv.root) {
         Ok(v) if v >= (MINIMUM.0, MINIMUM.1, 0) => {}
         Ok(v) => {
@@ -281,10 +295,6 @@ pub fn run(inv: &Invocation) -> Outcome {
         }
         Err(e) => return Outcome::CouldNotRun(e),
     }
-    let _report_lock = match ReportLock::acquire(inv.root) {
-        Ok(l) => l,
-        Err(e) => return Outcome::CouldNotRun(e),
-    };
     if let Err(e) = clear_report(inv.root) {
         return Outcome::CouldNotRun(e);
     }
@@ -852,13 +862,14 @@ mod tests {
     #[test]
     fn a_second_lock_acquire_waits_for_the_first_to_drop() {
         let root = TempDir::new("osf-moon-report-lock");
-        let first = ReportLock::acquire(&root).expect("first acquire");
+        let first = ReportLock::acquire(&root, Duration::from_secs(30)).expect("first acquire");
         let root_for_thread = root.to_path_buf();
         let released_at = std::sync::Arc::new(std::sync::Mutex::new(None));
         let released_at_writer = released_at.clone();
         let handle = std::thread::spawn(move || {
             let started = std::time::Instant::now();
-            let _second = ReportLock::acquire(&root_for_thread).expect("second acquire");
+            let _second = ReportLock::acquire(&root_for_thread, Duration::from_secs(30))
+                .expect("second acquire");
             *released_at_writer.lock().expect("lock") = Some(started.elapsed());
         });
         std::thread::sleep(Duration::from_millis(250));
@@ -869,6 +880,30 @@ mod tests {
             waited >= Duration::from_millis(200),
             "the second acquire returned after only {waited:?}, before the first was dropped"
         );
+    }
+
+    /// A held lock makes a short-timeout invocation give up at its own timeout, not after five minutes.
+    #[test]
+    fn the_lock_wait_is_bounded_by_the_invocations_own_timeout() {
+        let root = TempDir::new("osf-moon-report-lock-bounded");
+        let _held = ReportLock::acquire(&root, Duration::from_secs(30)).expect("first acquire");
+        let started = std::time::Instant::now();
+        let wait = lock_wait(Some(Duration::from_millis(300)));
+        let Err(err) = ReportLock::acquire(&root, wait) else {
+            panic!("the lock was already held")
+        };
+        assert!(started.elapsed() < Duration::from_secs(10), "{err}");
+        assert!(err.contains("300ms"), "{err}");
+    }
+
+    #[test]
+    fn lock_wait_uses_the_timeout_but_never_exceeds_the_default() {
+        assert_eq!(lock_wait(None), REPORT_LOCK_WAIT);
+        assert_eq!(
+            lock_wait(Some(Duration::from_secs(2))),
+            Duration::from_secs(2)
+        );
+        assert_eq!(lock_wait(Some(Duration::from_secs(9999))), REPORT_LOCK_WAIT);
     }
 
     #[test]
