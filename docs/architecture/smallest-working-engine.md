@@ -46,7 +46,7 @@ The engine is a core with providers at its edges, per decision 0002. Each row na
 | Verifier runner | Run the repository's deterministic checks and turn each into a verifier-run event and findings. | `osf verify`, with ecosystem detection. | Core |
 | Reviewer | Run one review round by a harness of a different model family and post the findings. | `osf review`, extended to record a review-run event. | Core, over a harness adapter |
 | Forge adapter | Branch, pull request, status block, review comments, check status. | GitHub through the API, from the existing status and review code. | Provider |
-| Policy | Read the run's evidence and decide: advance, hold, or raise attention. | The rules of decision 0003 and the risk tier from `osf risk`. | Core |
+| Policy | Read the run's evidence and decide: advance, hold, or raise attention. | The rules of decision 0003 and the risk tier from `osf changeset risk`. | Core |
 | Journal | Append every event to the run's journal, hash-chained, and validate every event against the schema. | JSON Lines under the state directory, per [decision 0009](decisions/0009-journal-store-and-sinks.md). | Core |
 | Sink | Copy a completed run's journal to where other runs and the console can read it. | The local sink: the state directory itself. The forge-native sink follows. | Provider |
 | Projections and queries | Compute the work item's state, the attention list and the recorder from the journal, on read, for the command line and the console. | `osf work`, `osf run` and `osf attention` subcommands. | Core |
