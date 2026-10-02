@@ -502,10 +502,21 @@ fn is_placed(
     }
 }
 
-/// A developer tool name is placed by a link around it, or a definer after it in its own sentence,
-/// or in the next sentence when that one names the tool again.
+/// A developer tool name is placed by a link around it, a description right before it, as in `the build tool moon`,
+/// or a definer after it in its own sentence, or in the next sentence when that one names the tool again.
 fn tool_is_placed(text: &str, candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
+    static KIND_BEFORE: OnceLock<Regex> = OnceLock::new();
     if is_linked(text, candidate) {
+        return true;
+    }
+    let kind_before = re(
+        &KIND_BEFORE,
+        r"(?i)\b(?:tool|runner|manager|linter|formatter|compiler|bundler|builder|framework|generator|engine|cli|utility|app|service|platform|library|package|plugin|extension)\s+(?:called\s+|named\s+)?`?$",
+    );
+    if text
+        .get(..candidate.range.start)
+        .is_some_and(|before| kind_before.is_match(before))
+    {
         return true;
     }
     let Some(i) = local_sentences
@@ -576,7 +587,7 @@ fn version_is_placed(candidate: &Candidate, local_sentences: &[TextUnit]) -> boo
     let Some(sentence) = containing_sentence(local_sentences, candidate.range.start) else {
         return false;
     };
-    let tag = re(&TAG, r"\bv\d+(?:\.\d+)+\b|\b\d+\.\d+\.\d+\b");
+    let tag = re(&TAG, r"\bv\d+(?:\.\d+)*\b|\b\d+\.\d+\.\d+\b");
     let of_product = re(&OF_PRODUCT, r"^\s+of\s+(?:`[^`]+`|[A-Z]\w*)");
     let after = sentence
         .text
@@ -1953,6 +1964,14 @@ mod unplaceable_reference_tests {
         assert!(is_placed(t, "Today"), "{:?}", find(t));
     }
 
+    /// `now` and `currently` are not covered here; a separate time-word rule owns them.
+    #[test]
+    fn now_and_currently_are_left_to_the_time_word_rule() {
+        for t in ["Run the command again now.", "It currently fails."] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+    }
+
     /// A comma and an article place a label only for a real appositive right after it.
     #[test]
     fn a_main_clause_after_a_comma_and_an_article_does_not_place_a_label() {
@@ -1980,6 +1999,7 @@ mod unplaceable_reference_tests {
     fn a_version_is_placed_only_by_a_product_a_link_a_date_or_a_tag() {
         for t in [
             "Revert to version 7.",
+            "Revert version 7.",
             "In version 7 we dropped the old cache.",
             "The library is active at version 7 beta.",
         ] {
@@ -1987,6 +2007,10 @@ mod unplaceable_reference_tests {
         }
         for t in [
             "Chrome version 113 supports it.",
+            "Widget version 2 supports plugins.",
+            "Acme version 2 supports plugins.",
+            "In version 7, tagged v7, the cache changed.",
+            "Use version 1.2 or later.",
             "Revert to [version 7](https://example.com/releases/7).",
             "In version 7 (2026-03-01) we dropped the old cache.",
             "In version 7 we dropped the old cache, tagged v7.0.1.",
@@ -2006,6 +2030,12 @@ mod unplaceable_reference_tests {
             "The release has only 3 checkpoints.",
             "Use at most 3 significant digits.",
             "It takes roughly 30 workers.",
+            "The cache holds 1 item.",
+            "The list holds 1 entry.",
+            "The API exposes 3 status endpoints.",
+            "The suite runs 12 slow tests.",
+            "The job uses 2 large runners.",
+            "The job keeps 5 recent builds.",
         ] {
             assert!(!reports(t), "{t}: {:?}", find(t));
         }
@@ -2015,6 +2045,7 @@ mod unplaceable_reference_tests {
             "Phase 2 starts later.",
             "Decision 0014 is final.",
             "Decision 12 seconds the proposal.",
+            "Build 12 succeeds on all platforms.",
         ] {
             assert!(reports(t), "{t}: {:?}", find(t));
         }
@@ -2023,7 +2054,8 @@ mod unplaceable_reference_tests {
     #[test]
     fn a_bare_tool_name_is_reported_once_at_first_use_in_a_document() {
         for t in [
-            "We pinned the renderer to moon 2.5.5.",
+            "We pinned the renderer to bazel 7.1.0.",
+            "The moon task runner builds the app.",
             "Run `moon` before you push.",
             "Run `bazel` before you push.",
             "Run `mise` before you push.",
@@ -2061,6 +2093,39 @@ mod unplaceable_reference_tests {
                 .collect();
             assert!(found.is_empty(), "{t}: {found:?}");
         }
+    }
+
+    /// A tool name that is also an ordinary word is never reported in an ordinary sentence.
+    #[test]
+    fn an_ordinary_english_word_is_never_a_tool_name() {
+        for t in [
+            "Please renovate the room before installation.",
+            "The earthly remains were found.",
+            "She writes poetry in the evening.",
+            "The ship's helm turned slowly.",
+            "The biome of the reef is fragile.",
+            "The husky barked at the mail carrier.",
+            "A meson decays quickly.",
+            "The yarn was dyed blue.",
+            "The moon is bright tonight.",
+        ] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+    }
+
+    /// A description before the name, as in `the build tool moon`, describes it.
+    #[test]
+    fn a_description_before_a_tool_name_places_it() {
+        for t in [
+            "Call the build tool moon to run tasks.",
+            "Call the build tool bazel to run tasks.",
+            "Call the task runner moon to run tasks.",
+        ] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+        assert!(reports("Call bazel to run tasks."));
+        assert!(reports("Call `moon` to run tasks."));
+        assert!(reports("The moon task runner builds the app."));
     }
 
     /// A tool name is a guess, so it only warns, and a transcript and a commit never see it.
