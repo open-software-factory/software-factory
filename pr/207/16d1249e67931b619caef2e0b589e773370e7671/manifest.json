@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "16d1249e67931b619caef2e0b589e773370e7671",
+    "contentHash": "3980b9bbbd222a9af4cbad6467d8e9f3"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "writing-lint-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writing-lint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9d6c842e48d7b2246f075c76f0fa3cc0",
+      "bytes": 25698,
+      "width": 1789,
+      "height": 770,
+      "animated": false,
+      "path": "writing-lint-architecture-light-9d6c842e48d7b2246f075c76f0fa3cc0.svg"
+    },
+    {
+      "id": "writing-lint-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writing-lint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "de71bead999be3def7261f6f5d0d8fb9",
+      "bytes": 26012,
+      "width": 1789,
+      "height": 770,
+      "animated": false,
+      "path": "writing-lint-architecture-dark-de71bead999be3def7261f6f5d0d8fb9.svg"
+    },
+    {
+      "id": "durable-rules-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "durable-rules-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2a1e13c64c06e350d9e9b94c27708e99",
+      "bytes": 9356,
+      "width": 456,
+      "height": 428,
+      "animated": false,
+      "path": "durable-rules-detail-light-2a1e13c64c06e350d9e9b94c27708e99.svg"
+    },
+    {
+      "id": "durable-rules-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "durable-rules-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "855a8e95df8f93587d1fc32e7828e9ef",
+      "bytes": 9467,
+      "width": 456,
+      "height": 428,
+      "animated": false,
+      "path": "durable-rules-detail-dark-855a8e95df8f93587d1fc32e7828e9ef.svg"
+    },
+    {
+      "id": "measure-harness-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "measure-harness",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3d925d0ae2a91b32fb5148a53e4821d8",
+      "bytes": 6162,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "measure-harness-light-3d925d0ae2a91b32fb5148a53e4821d8.svg"
+    },
+    {
+      "id": "measure-harness-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "measure-harness",
+      "mediaType": "image/svg+xml",
+      "contentHash": "602537a163405476a24ae5c5a5383861",
+      "bytes": 6229,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "measure-harness-dark-602537a163405476a24ae5c5a5383861.svg"
+    },
+    {
+      "id": "count-word-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "count-word-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "22985a843e3c4b0c0141388deb01bd52",
+      "bytes": 14816,
+      "width": 1696,
+      "height": 449,
+      "animated": true,
+      "path": "count-word-flow-light-22985a843e3c4b0c0141388deb01bd52.svg"
+    },
+    {
+      "id": "count-word-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "count-word-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ac0da5f64a8db9f85382dc5d3d8e6ef5",
+      "bytes": 14972,
+      "width": 1696,
+      "height": 449,
+      "animated": true,
+      "path": "count-word-flow-dark-ac0da5f64a8db9f85382dc5d3d8e6ef5.svg"
+    },
+    {
+      "id": "relative-time-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "relative-time-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f0908157db8c0ee7afb704c918e82d78",
+      "bytes": 14792,
+      "width": 1696,
+      "height": 449,
+      "animated": true,
+      "path": "relative-time-flow-light-f0908157db8c0ee7afb704c918e82d78.svg"
+    },
+    {
+      "id": "relative-time-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "relative-time-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "26970d2e1545081d467f59f691267546",
+      "bytes": 14948,
+      "width": 1696,
+      "height": 449,
+      "animated": true,
+      "path": "relative-time-flow-dark-26970d2e1545081d467f59f691267546.svg"
+    }
+  ]
+}
