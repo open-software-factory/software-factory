@@ -151,9 +151,8 @@ fn could_not_run(detail: String) -> Summary {
 
 /// The base to diff against: given verbatim when the caller names one.
 /// Pre-push otherwise falls back to the ref it actually pushes against
-/// (the current branch's upstream, or `origin/<default-branch>`), since the
-/// local default branch's own name compares a branch to itself when the
-/// push is made from that branch, which is always empty. Pull-request
+/// (see [`crate::git::upstream_ref`]): a remote ref, else the empty tree, so
+/// a first push with no remote ref checks everything it sends. Pull-request
 /// falls back to the repository's default branch. Every other checkpoint
 /// keeps whatever base the caller passed, untouched, since it plays no
 /// part in choosing their files.
@@ -289,8 +288,7 @@ fn index_hash_of(root: &Path, files: &[String]) -> Result<String, String> {
 /// moon input so amending a commit message alone — the tree and file list
 /// both unchanged — still invalidates its cache.
 fn commits_hash_of(root: &Path, base: &str) -> Result<String, String> {
-    let hashes =
-        crate::git::commit_hashes(root, &format!("{base}..HEAD")).map_err(|e| e.to_string())?;
+    let hashes = crate::git::commits_since(root, base).map_err(|e| e.to_string())?;
     Ok(crate::journal::sha256_hex(hashes.join("\n").as_bytes()))
 }
 
@@ -398,14 +396,17 @@ fn sarif_outcome(root: &Path, target: &str) -> SarifOutcome {
 /// read as this run's result. Deletes `.osf/out/<task-id>.sarif` for every
 /// task tagged `tag` before moon runs, reading the task set from moon's own
 /// `query tasks` rather than this crate's guess at what a project file's
-/// tags resolve to.
-fn clear_stale_sarif(root: &Path, tag: &str) -> Result<(), String> {
-    let targets = moon::task_targets_for_tag(root, tag)?;
-    for target in &targets {
+/// tags resolve to. Returns each of those tasks with its slot, from the same query.
+fn clear_stale_sarif(
+    root: &Path,
+    tag: &str,
+) -> Result<std::collections::BTreeMap<String, Option<String>>, String> {
+    let tasks = moon::task_slots_for_tag(root, tag)?;
+    for task in &tasks {
         let path = root
             .join(".osf")
             .join("out")
-            .join(format!("{}.sarif", task_id(target)));
+            .join(format!("{}.sarif", task_id(&task.target)));
         match std::fs::remove_file(&path) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -417,7 +418,7 @@ fn clear_stale_sarif(root: &Path, tag: &str) -> Result<(), String> {
             }
         }
     }
-    Ok(())
+    Ok(tasks.into_iter().map(|t| (t.target, t.slot)).collect())
 }
 
 /// A failed task's own output must be visible, capped so one
@@ -1097,42 +1098,76 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
         );
     }
 
-    if let Err(e) = clear_stale_sarif(req.root, req.checkpoint.tag()) {
-        cleanup_files_from(&files_path);
-        return stale_sarif_could_not_run(
-            req,
-            &mut journal,
-            commit,
-            label,
-            error_findings,
-            journal_error,
-            &e,
-        );
-    }
+    // One lock spans clearing the SARIF files, the moon run, and reading the report and the SARIF back.
+    let report_lock = match moon::ReportLock::acquire(req.root, moon::lock_wait(req.timeout)) {
+        Ok(lock) => lock,
+        Err(e) => {
+            cleanup_files_from(&files_path);
+            return moon_could_not_run_summary(
+                req,
+                &mut journal,
+                commit,
+                label,
+                error_findings,
+                journal_error,
+                &e,
+            );
+        }
+    };
 
-    // A query failure here never blocks the checkpoint on its own: every
-    // other moon query on this path (`clear_stale_sarif`,
-    // `append_unset_verifications`) already fails the run on its own terms
-    // when moon cannot answer at all. Degrading to no slots just means
-    // every task's own verification event names no slot, same as a task
-    // that genuinely carries no `osf-slot-*` tag.
-    let task_slots: std::collections::BTreeMap<String, Option<String>> =
-        moon::task_slots_for_tag(req.root, req.checkpoint.tag())
-            .unwrap_or_default()
-            .into_iter()
-            .map(|t| (t.target, t.slot))
-            .collect();
+    // One task query serves both the SARIF clearing and the slot table, so a failed query is never hidden.
+    let task_slots = match clear_stale_sarif(req.root, req.checkpoint.tag()) {
+        Ok(slots) => slots,
+        Err(e) => {
+            cleanup_files_from(&files_path);
+            return stale_sarif_could_not_run(
+                req,
+                &mut journal,
+                commit,
+                label,
+                error_findings,
+                journal_error,
+                &e,
+            );
+        }
+    };
 
     let target = format!(":#{}", req.checkpoint.tag());
-    let outcome = moon::run(&Invocation {
-        root: req.root,
-        targets: std::slice::from_ref(&target),
-        files: &files,
-        env: &env,
-        timeout: req.timeout,
-    });
+    let outcome = moon::run_holding(
+        &Invocation {
+            root: req.root,
+            targets: std::slice::from_ref(&target),
+            files: &files,
+            env: &env,
+            timeout: req.timeout,
+        },
+        &report_lock,
+    );
     cleanup_files_from(&files_path);
 
+    summarise_outcome(
+        req,
+        outcome,
+        journal,
+        commit,
+        &task_slots,
+        error_findings,
+        journal_error,
+    )
+}
+
+/// The [`Summary`] for what moon reported, built while [`run`] still holds the report lock so the SARIF files it reads are this run's own.
+#[allow(clippy::too_many_arguments)]
+fn summarise_outcome(
+    req: &Request,
+    outcome: Outcome,
+    mut journal: Option<Journal>,
+    commit: Option<String>,
+    task_slots: &std::collections::BTreeMap<String, Option<String>>,
+    error_findings: Vec<String>,
+    journal_error: Option<String>,
+) -> Summary {
+    let label = req.checkpoint.label();
     match outcome {
         Outcome::NothingAffected => finish(
             &mut journal,
@@ -1150,7 +1185,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
             commit,
             label,
             &tasks,
-            &task_slots,
+            task_slots,
             error_findings,
             journal_error,
         ),
@@ -1260,6 +1295,31 @@ mod tests {
         assert!(ran_could_not_run(Checkpoint::Hook, &tasks).is_none());
         let empty: Vec<TaskOutcome> = Vec::new();
         assert!(ran_could_not_run(Checkpoint::Hook, &empty).is_none());
+    }
+
+    /// Another invocation holds the report lock: this one must wait for it
+    /// before touching any SARIF file, and give up at its own timeout.
+    #[test]
+    fn a_held_report_lock_stops_the_run_before_it_clears_any_sarif() {
+        let root = TempDir::new("osf-checkpoint-lock-before-clear");
+        let state = TempDir::new("osf-checkpoint-lock-before-clear-state");
+        let _held = moon::ReportLock::acquire(&root, std::time::Duration::from_secs(30))
+            .expect("the first acquire succeeds");
+        write_sarif(&root, "probe", "{}");
+        let req = Request {
+            root: &root,
+            checkpoint: Checkpoint::Hook,
+            base: None,
+            files: Some(vec!["a.md".to_string()]),
+            timeout: Some(std::time::Duration::from_millis(300)),
+            remote: None,
+        };
+        let summary = run(&req, &state);
+        assert_eq!(summary.result, CheckResult::CouldNotRun);
+        assert!(
+            root.join(".osf").join("out").join("probe.sarif").is_file(),
+            "the stale SARIF was cleared while another run held the lock"
+        );
     }
 
     /// Writes `.osf/out/<id>.sarif` under `root` with raw `content`.

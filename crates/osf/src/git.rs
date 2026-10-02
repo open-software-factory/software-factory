@@ -117,10 +117,15 @@ fn index_file_is_within_dirs_git_dir(index_file: &std::ffi::OsStr, dir: &Path) -
 /// Also forces `LC_ALL=C` and removes `LANGUAGE`, so git's own messages are
 /// stable English text a caller can match, whatever locale is inherited.
 pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
+    scrub_with_index(command, dir, std::env::var_os("GIT_INDEX_FILE"));
+}
+
+/// [`scrub_git_env_for_dir`] with the inherited `GIT_INDEX_FILE` passed in, so a test never has to set a process-wide variable.
+fn scrub_with_index(command: &mut Command, dir: &Path, index_file: Option<std::ffi::OsString>) {
     for var in LOCATING_VARS {
         command.env_remove(var);
     }
-    if let Some(index_file) = std::env::var_os("GIT_INDEX_FILE") {
+    if let Some(index_file) = index_file {
         if !index_file_is_within_dirs_git_dir(&index_file, dir) {
             command.env_remove("GIT_INDEX_FILE");
         }
@@ -130,9 +135,20 @@ pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
 }
 
 fn run(dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
+    run_with_index(dir, args, std::env::var_os("GIT_INDEX_FILE"))
+}
+
+fn run_with_index(
+    dir: &Path,
+    args: &[&str],
+    index_file: Option<std::ffi::OsString>,
+) -> Result<Vec<u8>, GitError> {
     let mut command = Command::new("git");
     command.current_dir(dir).args(args);
-    scrub_git_env_for_dir(&mut command, dir);
+    if let Some(f) = &index_file {
+        command.env("GIT_INDEX_FILE", f);
+    }
+    scrub_with_index(&mut command, dir, index_file);
     let output = command
         .output()
         .map_err(|e| GitError(format!("cannot run git: {e}")))?;
@@ -194,7 +210,14 @@ pub fn commit_message(dir: &Path, hash: &str) -> Result<String, GitError> {
 /// # Errors
 /// Returns an error if git cannot run in `dir`.
 pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
-    run(
+    staged_files_with_index(dir, std::env::var_os("GIT_INDEX_FILE"))
+}
+
+fn staged_files_with_index(
+    dir: &Path,
+    index_file: Option<std::ffi::OsString>,
+) -> Result<Vec<String>, GitError> {
+    run_with_index(
         dir,
         &[
             "diff",
@@ -203,21 +226,38 @@ pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
             "-z",
             "--diff-filter=ACMR",
         ],
+        index_file,
     )
     .map(|raw| split_nul(&raw))
 }
 
-/// Paths that differ between `base` and `HEAD`: added, copied, modified or renamed.
+/// Paths that differ between `base` and `HEAD`: added, copied, modified or
+/// renamed. A `base` that is a tree, such as the empty tree, is compared
+/// directly, since a tree has no merge base with `HEAD`.
 ///
 /// # Errors
 /// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
 pub fn changed_files(dir: &Path, base: &str) -> Result<Vec<String>, GitError> {
     let range = format!("{base}...HEAD");
-    run(
-        dir,
-        &["diff", "--name-only", "-z", "--diff-filter=ACMR", &range],
-    )
-    .map(|raw| split_nul(&raw))
+    let mut args = vec!["diff", "--name-only", "-z", "--diff-filter=ACMR"];
+    if is_tree(dir, base) {
+        args.extend([base, "HEAD"]);
+    } else {
+        args.push(&range);
+    }
+    run(dir, &args).map(|raw| split_nul(&raw))
+}
+
+/// Every commit hash in `base..HEAD`, oldest first; every commit reachable
+/// from `HEAD` when `base` is a tree, such as the empty tree.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
+pub fn commits_since(dir: &Path, base: &str) -> Result<Vec<String>, GitError> {
+    if is_tree(dir, base) {
+        return commit_hashes(dir, "HEAD");
+    }
+    commit_hashes(dir, &format!("{base}..HEAD"))
 }
 
 /// The content of `path` as staged in the index right now.
@@ -252,6 +292,18 @@ pub fn content_at(dir: &Path, rev: &str, path: &str) -> Result<Vec<u8>, GitError
     run(dir, &["show", &format!("{rev}:{path}")])
 }
 
+/// Every file under `prefix` (a path ending in `/`) in the tree at `rev`.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `rev` does not resolve.
+pub fn files_at(dir: &Path, rev: &str, prefix: &str) -> Result<Vec<String>, GitError> {
+    run(
+        dir,
+        &["ls-tree", "-r", "--name-only", "-z", rev, "--", prefix],
+    )
+    .map(|raw| split_nul(&raw))
+}
+
 /// The branch a fresh clone checks out: the remote's `HEAD` symbol, else
 /// `main`, else `master`.
 ///
@@ -276,20 +328,29 @@ pub fn default_branch(dir: &Path) -> Result<String, GitError> {
     ))
 }
 
-/// The ref a `git push` with no explicit refspec actually pushes against:
-/// the current branch's configured upstream (`@{u}`) when one is set;
-/// otherwise `<remote>/<default-branch>` (`remote` defaulting to `origin`),
-/// when that ref actually exists; otherwise the local default branch's own
-/// name, the same ref [`default_branch`] itself returns. Diffing against
-/// that local name compares a branch to itself when the push is made from
-/// that same branch, which is always empty — the bug this exists to avoid
-/// — but it is the only ref left to offer a repository with no upstream
-/// configured and no remote-tracking state at all, such as one that has
-/// never fetched from the remote it is about to push to for the first time.
+/// The ref a `git push` with no explicit refspec compares against, first
+/// match wins: `<remote>/<default-branch>` on the remote being pushed to,
+/// when the caller names one and that ref exists; the current branch's
+/// configured upstream (`@{u}`); `origin/<default-branch>` when no remote is
+/// named; the default branch on any other remote that has one; and last the
+/// empty tree. A repository with no remote ref at all, such as a fresh
+/// clone that never fetched, is therefore compared with nothing, so a first
+/// push checks every commit and file it sends. [`changed_files`] and
+/// [`commits_since`] both accept the empty tree as a base.
 ///
 /// # Errors
-/// Returns an error when [`default_branch`] cannot find one.
+/// Returns an error when git cannot give the empty tree's id.
 pub fn upstream_ref(dir: &Path, remote: Option<&str>) -> Result<String, GitError> {
+    let default = default_branch(dir).ok();
+    let on_remote = |name: &str| {
+        default
+            .as_deref()
+            .map(|b| format!("{name}/{b}"))
+            .filter(|r| commit_exists(dir, r))
+    };
+    if let Some(found) = remote.and_then(on_remote) {
+        return Ok(found);
+    }
     if let Ok(text) = run_text(
         dir,
         &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
@@ -299,12 +360,55 @@ pub fn upstream_ref(dir: &Path, remote: Option<&str>) -> Result<String, GitError
             return Ok(trimmed.to_string());
         }
     }
-    let branch = default_branch(dir)?;
-    let remote_tracking = format!("{}/{branch}", remote.unwrap_or("origin"));
-    if commit_exists(dir, &remote_tracking) {
-        return Ok(remote_tracking);
+    if remote.is_none() {
+        if let Some(found) = on_remote("origin") {
+            return Ok(found);
+        }
     }
-    Ok(branch)
+    if let Some(branch) = &default {
+        if let Some(found) = any_remote_ref_named(dir, branch)? {
+            return Ok(found);
+        }
+    }
+    empty_tree(dir)
+}
+
+/// The first remote-tracking ref (`<remote>/<branch>`) for `branch` on any remote.
+fn any_remote_ref_named(dir: &Path, branch: &str) -> Result<Option<String>, GitError> {
+    let text = run_text(
+        dir,
+        &["for-each-ref", "--format=%(refname:short)", "refs/remotes/"],
+    )?;
+    let suffix = format!("/{branch}");
+    Ok(text
+        .lines()
+        .find(|r| r.ends_with(&suffix) && commit_exists(dir, r))
+        .map(str::to_string))
+}
+
+/// The id of the empty tree in `dir`'s hash format, which git knows without the object being stored.
+fn empty_tree(dir: &Path) -> Result<String, GitError> {
+    let mut command = Command::new("git");
+    command
+        .current_dir(dir)
+        .args(["hash-object", "-t", "tree", "--stdin"])
+        .stdin(std::process::Stdio::null());
+    scrub_git_env_for_dir(&mut command, dir);
+    let output = command
+        .output()
+        .map_err(|e| GitError(format!("cannot run git: {e}")))?;
+    if !output.status.success() {
+        return Err(GitError(format!(
+            "git hash-object failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// True when `rev` names a tree, such as the empty tree [`upstream_ref`] falls back to.
+fn is_tree(dir: &Path, rev: &str) -> bool {
+    run_text(dir, &["cat-file", "-t", rev]).is_ok_and(|t| t.trim() == "tree")
 }
 
 /// The `origin` remote, split into the host it lives on, the owner, and
@@ -556,39 +660,20 @@ pub fn untracked_files(dir: &Path) -> Result<Vec<String>, GitError> {
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
-    use std::sync::Mutex;
+    use std::ffi::{OsStr, OsString};
 
-    /// Serialises every test that sets `GIT_DIR`/`GIT_INDEX_FILE`: both are process-wide.
-    static GIT_ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    /// Runs `f` with `vars` applied for its duration (`None` means unset), restoring whatever each one held before.
-    fn with_git_env<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
-        let guard = GIT_ENV_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let ambient: Vec<(&str, Option<String>)> = vars
-            .iter()
-            .map(|(k, _)| (*k, std::env::var(k).ok()))
-            .collect();
-        for (k, v) in vars {
-            match v {
-                // SAFETY: serialised by GIT_ENV_LOCK.
-                Some(v) => unsafe { std::env::set_var(k, v) },
-                // SAFETY: serialised by GIT_ENV_LOCK.
-                None => unsafe { std::env::remove_var(k) },
-            }
-        }
-        let result = f();
-        for (k, prior) in ambient {
-            match prior {
-                // SAFETY: serialised by GIT_ENV_LOCK.
-                Some(v) => unsafe { std::env::set_var(k, v) },
-                // SAFETY: serialised by GIT_ENV_LOCK.
-                None => unsafe { std::env::remove_var(k) },
-            }
-        }
-        drop(guard);
-        result
+    /// What `scrub_with_index` did to `GIT_INDEX_FILE` on a fresh command given `inherited`: `Some(true)` removed, `Some(false)` set, `None` left alone.
+    fn index_file_action(dir: &Path, inherited: Option<&Path>) -> Option<bool> {
+        let mut command = Command::new("git");
+        scrub_with_index(
+            &mut command,
+            dir,
+            inherited.map(|p| OsString::from(p.as_os_str())),
+        );
+        command
+            .get_envs()
+            .find(|(k, _)| *k == OsStr::new("GIT_INDEX_FILE"))
+            .map(|(_, v)| v.is_none())
     }
 
     #[test]
@@ -681,18 +766,73 @@ mod tests {
         assert_eq!(upstream_ref(&dir, None).expect("resolves"), "origin/main");
     }
 
-    /// With no upstream configured and no remote-tracking ref for the
-    /// named remote either, the local default branch's own name is the
-    /// only ref left to offer — the pre-fix behaviour, kept as a fallback
-    /// for a repository that has never fetched from the remote it is
-    /// about to push to.
+    /// Commits `name` with `content` on top of the current branch.
+    fn commit_file(dir: &Path, name: &str, content: &str) {
+        std::fs::write(dir.join(name), content).expect("file writes");
+        run_ok(dir, &["add", name]);
+        run_ok(dir, &["commit", "-q", "-m", name]);
+    }
+
+    /// With no upstream and no remote ref at all, a first push is compared
+    /// with the empty tree: every file and every commit it sends is checked,
+    /// never nothing, which is what comparing the branch to itself gave.
     #[test]
-    fn upstream_ref_falls_back_to_the_local_branch_with_no_remote_tracking_state() {
-        let dir = TempDir::new("osf-git-test-upstream-no-tracking");
+    fn a_first_push_with_no_remote_ref_checks_every_file_and_commit() {
+        let dir = TempDir::new("osf-git-test-upstream-first-push");
         init_repo_on_main(&dir);
+        commit_file(&dir, "b.txt", "b\n");
+        let base = upstream_ref(&dir, Some("scratch")).expect("resolves");
+        assert!(is_tree(&dir, &base), "{base} is not a tree");
+        let mut files = changed_files(&dir, &base).expect("diff runs");
+        files.sort();
+        assert_eq!(files, vec!["a.txt".to_string(), "b.txt".to_string()]);
+        assert_eq!(commits_since(&dir, &base).expect("log runs").len(), 2);
+    }
+
+    /// A normal base is still a plain `base..HEAD` range.
+    #[test]
+    fn commits_since_a_commit_base_lists_only_the_newer_commits() {
+        let dir = TempDir::new("osf-git-test-commits-since-commit");
+        init_repo_on_main(&dir);
+        commit_file(&dir, "b.txt", "b\n");
+        assert_eq!(commits_since(&dir, "HEAD~1").expect("log runs").len(), 1);
+    }
+
+    /// With no `origin` but another remote that has the default branch, that
+    /// ref is the base, so the diff is against the remote and not the empty tree.
+    #[test]
+    fn upstream_ref_uses_the_default_branch_on_any_other_remote() {
+        let dir = TempDir::new("osf-git-test-upstream-other-remote");
+        init_repo_on_main(&dir);
+        run_ok(&dir, &["update-ref", "refs/remotes/mirror/main", "HEAD"]);
+        commit_file(&dir, "b.txt", "b\n");
+        assert_eq!(upstream_ref(&dir, None).expect("resolves"), "mirror/main");
         assert_eq!(
             upstream_ref(&dir, Some("scratch")).expect("resolves"),
-            "main"
+            "mirror/main"
+        );
+    }
+
+    /// The remote the push goes to wins over a configured upstream on a
+    /// different remote; with no ref on the pushed remote, the upstream is
+    /// the fallback.
+    #[test]
+    fn upstream_ref_prefers_the_pushed_to_remote_over_the_configured_upstream() {
+        let dir = TempDir::new("osf-git-test-upstream-pushed-remote");
+        init_repo_on_main(&dir);
+        run_ok(&dir, &["update-ref", "refs/remotes/scratch/main", "HEAD"]);
+        commit_file(&dir, "b.txt", "b\n");
+        run_ok(&dir, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        run_ok(&dir, &["config", "branch.main.remote", "origin"]);
+        run_ok(&dir, &["config", "branch.main.merge", "refs/heads/main"]);
+        assert_eq!(upstream_ref(&dir, None).expect("resolves"), "origin/main");
+        assert_eq!(
+            upstream_ref(&dir, Some("scratch")).expect("resolves"),
+            "scratch/main"
+        );
+        assert_eq!(
+            upstream_ref(&dir, Some("unfetched")).expect("resolves"),
+            "origin/main"
         );
     }
 
@@ -768,19 +908,17 @@ mod tests {
     /// Every locating variable is removed, regardless of what is inherited.
     #[test]
     fn scrub_removes_the_locating_variables_unconditionally() {
-        with_git_env(&[("GIT_DIR", None), ("GIT_INDEX_FILE", None)], || {
-            let dir = TempDir::new("osf-git-test-scrub-locating");
-            let mut command = Command::new("git");
-            scrub_git_env_for_dir(&mut command, &dir);
-            let removed: Vec<String> = command
-                .get_envs()
-                .filter(|(_, v)| v.is_none())
-                .map(|(k, _)| k.to_string_lossy().into_owned())
-                .collect();
-            for var in LOCATING_VARS {
-                assert!(removed.iter().any(|r| r == var), "{var} not removed");
-            }
-        });
+        let dir = TempDir::new("osf-git-test-scrub-locating");
+        let mut command = Command::new("git");
+        scrub_with_index(&mut command, &dir, None);
+        let removed: Vec<String> = command
+            .get_envs()
+            .filter(|(_, v)| v.is_none())
+            .map(|(k, _)| k.to_string_lossy().into_owned())
+            .collect();
+        for var in LOCATING_VARS {
+            assert!(removed.iter().any(|r| r == var), "{var} not removed");
+        }
     }
 
     /// `GIT_INDEX_FILE` is left alone when its own path lies inside `dir`'s own git directory.
@@ -790,20 +928,7 @@ mod tests {
         init_repo(&dir, false);
         let index_path = dir.join(".git").join("fake-index");
         std::fs::write(&index_path, b"stand-in for an index").expect("fake index writes");
-        with_git_env(
-            &[(
-                "GIT_INDEX_FILE",
-                Some(index_path.to_str().expect("utf8 path")),
-            )],
-            || {
-                let mut command = Command::new("git");
-                scrub_git_env_for_dir(&mut command, &dir);
-                let touched = command
-                    .get_envs()
-                    .any(|(k, _)| k == std::ffi::OsStr::new("GIT_INDEX_FILE"));
-                assert!(!touched, "GIT_INDEX_FILE should have been left alone");
-            },
-        );
+        assert_eq!(index_file_action(&dir, Some(&index_path)), None);
     }
 
     /// `GIT_INDEX_FILE` is removed when its own path lies outside `dir`'s
@@ -817,20 +942,7 @@ mod tests {
             .expect("fake index writes");
         let dir = TempDir::new("osf-git-test-index-outside-target");
         init_repo(&dir, false);
-        with_git_env(
-            &[(
-                "GIT_INDEX_FILE",
-                Some(other_index.to_str().expect("utf8 path")),
-            )],
-            || {
-                let mut command = Command::new("git");
-                scrub_git_env_for_dir(&mut command, &dir);
-                let removed = command
-                    .get_envs()
-                    .any(|(k, v)| k == std::ffi::OsStr::new("GIT_INDEX_FILE") && v.is_none());
-                assert!(removed, "GIT_INDEX_FILE should have been removed");
-            },
-        );
+        assert_eq!(index_file_action(&dir, Some(&other_index)), Some(true));
     }
 
     /// `GIT_INDEX_FILE` is removed when `dir` has no repository of its own:
@@ -842,20 +954,7 @@ mod tests {
         let source_index = source.join(".git").join("fake-index");
         std::fs::write(&source_index, b"stand-in for an index").expect("fake index writes");
         let dir = TempDir::new("osf-git-test-index-no-dir-repo-target");
-        with_git_env(
-            &[(
-                "GIT_INDEX_FILE",
-                Some(source_index.to_str().expect("utf8 path")),
-            )],
-            || {
-                let mut command = Command::new("git");
-                scrub_git_env_for_dir(&mut command, &dir);
-                let removed = command
-                    .get_envs()
-                    .any(|(k, v)| k == std::ffi::OsStr::new("GIT_INDEX_FILE") && v.is_none());
-                assert!(removed, "GIT_INDEX_FILE should have been removed");
-            },
-        );
+        assert_eq!(index_file_action(&dir, Some(&source_index)), Some(true));
     }
 
     /// No `GIT_INDEX_FILE` inherited at all: nothing to touch.
@@ -863,61 +962,33 @@ mod tests {
     fn no_git_index_file_is_left_untouched() {
         let dir = TempDir::new("osf-git-test-no-index-file");
         init_repo(&dir, false);
-        with_git_env(&[("GIT_INDEX_FILE", None)], || {
-            let mut command = Command::new("git");
-            scrub_git_env_for_dir(&mut command, &dir);
-            let touched = command
-                .get_envs()
-                .any(|(k, _)| k == std::ffi::OsStr::new("GIT_INDEX_FILE"));
-            assert!(!touched, "nothing named GIT_INDEX_FILE should be touched");
-        });
+        assert_eq!(index_file_action(&dir, None), None);
     }
 
-    /// The reviewer's exact two-repository reproduction: `GIT_INDEX_FILE`
-    /// inherited from repo A's real index, no `GIT_DIR` at all, and a git
-    /// call made for repo B. Before this fix this failed outright
-    /// ("unable to read <sha>") or, with coincidental blobs, silently
-    /// scanned the wrong content. `staged_files` must now read repo B's own
-    /// index.
-    /// Stages `path` in `dir`, with the real stderr in the panic message on
-    /// failure: `.status()` alone throws it away, leaving a bare "false"
-    /// with no clue why.
+    /// Stages `path` in `dir`, with the real stderr in the panic message on failure.
     fn stage_or_panic(dir: &Path, path: &str) {
-        let mut command = Command::new("git");
-        command.current_dir(dir).args(["add", path]);
-        scrub_git_env(&mut command);
-        let out = command.output().expect("git add runs");
-        assert!(
-            out.status.success(),
-            "git add {path} failed: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
+        run_ok(dir, &["add", path]);
     }
 
+    /// The reviewer's two-repository reproduction: `GIT_INDEX_FILE` inherited
+    /// from repo A's real index, and a git call made for repo B. The
+    /// inherited value is given to the one call, never set on the process.
     #[test]
     fn a_foreign_git_index_file_no_longer_lets_a_call_for_another_folder_read_it() {
-        // The whole body runs under one lock, not just the final assertion:
-        // `git add` below reads the ambient environment at spawn time same
-        // as any other git call, so it is just as exposed as `staged_files`
-        // to another test's `with_git_env` setting GIT_INDEX_FILE mid-flight
-        // if it is left unguarded.
-        with_git_env(&[("GIT_DIR", None), ("GIT_INDEX_FILE", None)], || {
-            let repo_a = TempDir::new("osf-git-test-two-repo-a");
-            init_repo(&repo_a, false);
-            std::fs::write(repo_a.join("a.txt"), b"a").expect("a.txt writes");
-            stage_or_panic(&repo_a, "a.txt");
+        let repo_a = TempDir::new("osf-git-test-two-repo-a");
+        init_repo(&repo_a, false);
+        std::fs::write(repo_a.join("a.txt"), b"a").expect("a.txt writes");
+        stage_or_panic(&repo_a, "a.txt");
 
-            let repo_b = TempDir::new("osf-git-test-two-repo-b");
-            init_repo(&repo_b, false);
-            std::fs::write(repo_b.join("b.txt"), b"b").expect("b.txt writes");
-            stage_or_panic(&repo_b, "b.txt");
+        let repo_b = TempDir::new("osf-git-test-two-repo-b");
+        init_repo(&repo_b, false);
+        std::fs::write(repo_b.join("b.txt"), b"b").expect("b.txt writes");
+        stage_or_panic(&repo_b, "b.txt");
 
-            let repo_a_index = std::fs::canonicalize(repo_a.join(".git").join("index"))
-                .expect("repo a's index canonicalises");
-            // SAFETY: serialised by GIT_ENV_LOCK, held by the enclosing with_git_env call.
-            unsafe { std::env::set_var("GIT_INDEX_FILE", &repo_a_index) };
-            let files = staged_files(&repo_b).expect("staged_files reads repo b's own index");
-            assert_eq!(files, vec!["b.txt".to_string()]);
-        });
+        let repo_a_index = std::fs::canonicalize(repo_a.join(".git").join("index"))
+            .expect("repo a's index canonicalises");
+        let files = staged_files_with_index(&repo_b, Some(repo_a_index.into_os_string()))
+            .expect("staged_files reads repo b's own index");
+        assert_eq!(files, vec!["b.txt".to_string()]);
     }
 }

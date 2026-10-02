@@ -273,6 +273,34 @@ fn declared_fixture_findings(
     missing.chain(unexpected).collect()
 }
 
+/// The skill folder `label`'s scripts from the same source as its `SKILL.md`
+/// ([`content_for_check`]): the working tree at the hook checkpoint, git
+/// `HEAD` at every other.
+fn scripts_for_check(
+    dir: &Path,
+    label: &str,
+    checkpoint: crate::checkpoint::Checkpoint,
+) -> Vec<lints::skill::ScriptEntry> {
+    use lints::skill::ScriptEntry;
+    if checkpoint == crate::checkpoint::Checkpoint::Hook {
+        return lints::skill::scripts_on_disk(&dir.join(label));
+    }
+    let paths = match crate::git::files_at(dir, "HEAD", &format!("{label}/scripts/")) {
+        Ok(p) => p,
+        Err(e) => return vec![ScriptEntry::FolderUnreadable(e.to_string())],
+    };
+    let prefix = format!("{label}/");
+    paths
+        .into_iter()
+        .map(|path| {
+            let text = content_for_check(dir, &path, checkpoint)
+                .and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()));
+            let rel = path.strip_prefix(&prefix).unwrap_or(&path).to_string();
+            ScriptEntry::File { rel, text }
+        })
+        .collect()
+}
+
 fn lint_skill_files(opts: &Options, files: &[String]) -> Result<Vec<(String, Finding)>, String> {
     let candidates = skill_folders(opts.dir, files);
     if candidates.is_empty() {
@@ -290,10 +318,12 @@ fn lint_skill_files(opts: &Options, files: &[String]) -> Result<Vec<(String, Fin
         let skill_md_rel = format!("{label}/SKILL.md");
         let bytes = content_for_check(opts.dir, &skill_md_rel, opts.checkpoint)?;
         let text = String::from_utf8_lossy(&bytes).into_owned();
+        let scripts = scripts_for_check(opts.dir, label, opts.checkpoint);
         let skill_findings = lints::skill::lint_skill_checked_text(
             &full,
             label,
             &text,
+            &scripts,
             &opts.config.skill,
             &known,
             &opts.config.writing,
@@ -314,8 +344,7 @@ fn scan_commits(opts: &Options) -> Result<Vec<(String, Finding)>, String> {
         Some(b) => b.clone(),
         None => crate::git::default_branch(opts.dir).map_err(|e| e.to_string())?,
     };
-    let range = format!("{base}..HEAD");
-    let hashes = crate::git::commit_hashes(opts.dir, &range).map_err(|e| e.to_string())?;
+    let hashes = crate::git::commits_since(opts.dir, &base).map_err(|e| e.to_string())?;
     if hashes.is_empty() {
         return Ok(Vec::new());
     }

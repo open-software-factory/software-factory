@@ -151,11 +151,14 @@ fn to_hex(bytes: &[u8]) -> String {
 /// varies run to run even when every decision is identical, so it is
 /// zeroed here, and a review answer's `transcript` path, a per-run temporary
 /// location, is dropped; the real values still reach the stored event untouched,
-/// since this is only ever used to compute a hash.
+/// since this is only ever used to compute a hash. The `cache` field is
+/// dropped for the same reason: a first run misses the cache and a repeat
+/// run hits it, with identical decisions.
 fn replay_payload(payload: &Payload) -> Payload {
     match payload {
         Payload::Verification(v) => Payload::Verification(Verification {
             duration_ms: 0,
+            cache: None,
             ..v.clone()
         }),
         Payload::ReviewAnswer(a) => Payload::ReviewAnswer(ReviewAnswer {
@@ -408,6 +411,27 @@ mod tests {
         };
         changed.findings_kept = 2;
         assert_ne!(a, event_hash("0", "osf", &Payload::ReviewAnswer(changed)));
+    }
+
+    /// A first run misses the cache and a repeat run hits it, with the same decisions: decision 0005 requires the same head hash.
+    #[test]
+    fn a_cache_miss_and_a_cache_hit_have_the_same_head_hash() {
+        let with_cache = |cache: &str| match verification("scan") {
+            Payload::Verification(v) => Payload::Verification(Verification {
+                cache: Some(cache.into()),
+                ..v
+            }),
+            other @ (Payload::CheckpointComplete(_)
+            | Payload::ReviewAnswer(_)
+            | Payload::ReviewDecision(_)) => other,
+        };
+        let a_dir = TempDir::new("osf-journal-cache-miss");
+        let b_dir = TempDir::new("osf-journal-cache-hit");
+        let mut a = Journal::open(&a_dir, "run-1").expect("open");
+        let mut b = Journal::open(&b_dir, "run-2").expect("open");
+        let ha = a.append("osf", 1, with_cache("miss")).expect("append").hash;
+        let hb = b.append("osf", 2, with_cache("hit")).expect("append").hash;
+        assert_eq!(ha, hb);
     }
 
     #[test]

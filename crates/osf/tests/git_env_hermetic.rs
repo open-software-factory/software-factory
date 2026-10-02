@@ -400,6 +400,8 @@ fn a_real_pre_push_hook_from_a_linked_worktree_never_touches_the_main_repository
     );
     main_repo.write("README.md", "a clean repository\n");
     main_repo.commit("base");
+    // A first push with no remote ref checks every file, and the task's own binary path is not scannable.
+    main_repo.track_origin_main();
 
     let worktree_dir = unique_dir("osf-git-env-linked-worktree");
     let worktree_add = git_in(
