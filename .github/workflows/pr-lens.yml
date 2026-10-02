@@ -26,38 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: review # the model key, when an adopter sets one, lives here
     steps:
-      # One place mapping a provider name to the CLI flags it needs. The
-      # network allow-list below names every provider host, since harden-runner
-      # applies it before this step runs.
-      - name: Resolve the model provider
-        id: provider
-        run: |
-          set -euo pipefail
-          case "${PR_LENS_PROVIDER}" in
-            deepseek)
-              echo "cli_provider=openai-compatible" >> "$GITHUB_OUTPUT"
-              echo "base_url=https://api.deepseek.com" >> "$GITHUB_OUTPUT"
-              echo "default_model=deepseek-chat" >> "$GITHUB_OUTPUT"
-              echo "key_var=DEEPSEEK_API_KEY" >> "$GITHUB_OUTPUT"
-              ;;
-            openai)
-              echo "cli_provider=openai" >> "$GITHUB_OUTPUT"
-              echo "base_url=" >> "$GITHUB_OUTPUT"
-              echo "default_model=" >> "$GITHUB_OUTPUT"
-              echo "key_var=OPENAI_API_KEY" >> "$GITHUB_OUTPUT"
-              ;;
-            anthropic)
-              echo "cli_provider=openai-compatible" >> "$GITHUB_OUTPUT"
-              echo "base_url=https://api.anthropic.com/v1" >> "$GITHUB_OUTPUT"
-              echo "default_model=claude-sonnet-5" >> "$GITHUB_OUTPUT"
-              echo "key_var=ANTHROPIC_API_KEY" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "::error::PR_LENS_PROVIDER is '${PR_LENS_PROVIDER}'; supported values are deepseek, openai, anthropic."
-              exit 1
-              ;;
-          esac
-
+      # The allow-list names every provider host, since it applies to the
+      # whole job: a retry with another provider needs its host open too.
       - name: Harden the runner
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -72,6 +42,62 @@ jobs:
             api.deepseek.com:443
             api.openai.com:443
             api.anthropic.com:443
+
+      # One place mapping a provider name to the CLI flags it needs. It
+      # picks up to two providers that have a key: the configured one first
+      # when it has a key, then the others in a fixed order. The second is
+      # the one retry when the first fails. PR_LENS_MODEL names a model for
+      # the configured provider only; another provider uses its own default.
+      - name: Resolve the model providers
+        id: provider
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL_OVERRIDE: ${{ vars.PR_LENS_MODEL }}
+        run: |
+          set -euo pipefail
+          # cli provider | base url | default model | key variable
+          table() {
+            case "$1" in
+              deepseek) echo "openai-compatible|https://api.deepseek.com|deepseek-chat|DEEPSEEK_API_KEY" ;;
+              openai) echo "openai|||OPENAI_API_KEY" ;;
+              anthropic) echo "openai-compatible|https://api.anthropic.com/v1|claude-sonnet-5|ANTHROPIC_API_KEY" ;;
+              *) return 1 ;;
+            esac
+          }
+          if ! primary_row="$(table "${PR_LENS_PROVIDER}")"; then
+            echo "::error::PR_LENS_PROVIDER is '${PR_LENS_PROVIDER}'; supported values are deepseek, openai, anthropic."
+            exit 1
+          fi
+          IFS='|' read -r _ _ _ primary_key_var <<< "${primary_row}"
+          echo "primary_key_var=${primary_key_var}" >> "$GITHUB_OUTPUT"
+
+          seen=" "
+          slot=0
+          for name in "${PR_LENS_PROVIDER}" deepseek openai anthropic; do
+            case "${seen}" in *" ${name} "*) continue ;; esac
+            seen="${seen}${name} "
+            IFS='|' read -r cli base_url model key_var <<< "$(table "${name}")"
+            if [ -z "${!key_var:-}" ]; then
+              continue
+            fi
+            if [ "${name}" = "${PR_LENS_PROVIDER}" ] && [ -n "${MODEL_OVERRIDE}" ]; then
+              model="${MODEL_OVERRIDE}"
+            fi
+            slot=$((slot + 1))
+            if [ "${slot}" -eq 1 ]; then prefix=first; else prefix=second; fi
+            {
+              echo "${prefix}_name=${name}"
+              echo "${prefix}_cli_provider=${cli}"
+              echo "${prefix}_base_url=${base_url}"
+              echo "${prefix}_model=${model}"
+              echo "${prefix}_key_var=${key_var}"
+            } >> "$GITHUB_OUTPUT"
+            if [ "${slot}" -eq 2 ]; then
+              break
+            fi
+          done
 
       - name: List the changed files
         id: files
@@ -90,23 +116,6 @@ jobs:
       - name: Skip a documentation-only pull request
         if: steps.files.outputs.docs_only == 'true'
         run: echo "::notice::every changed file is documentation; no diagram section is written."
-
-      - name: Check the environment holds a model key
-        if: steps.files.outputs.docs_only == 'false'
-        id: key
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: |
-          set -euo pipefail
-          key_var="${{ steps.provider.outputs.key_var }}"
-          key="${!key_var:-}"
-          if [ -z "${key}" ]; then
-            echo "present=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          fi
 
       # Runs for both the note path and the diagram path below, so osf, the
       # tool both steps need, is built either way. Built from the base
@@ -138,50 +147,85 @@ jobs:
         run: cargo build --release --bin osf
 
       - name: Write a note in place of a diagram
-        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'false'
+        if: steps.files.outputs.docs_only == 'false' && steps.provider.outputs.first_name == ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          echo "pr-lens has no model key: add the review environment and a ${{ steps.provider.outputs.key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
-          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
+          echo "pr-lens has no model key: add the review environment and a ${{ steps.provider.outputs.primary_key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --head "${{ github.event.pull_request.head.sha }}" --file "${RUNNER_TEMP}/section.md"
 
       - name: Fetch the pull request's head, as data only
-        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        if: steps.files.outputs.docs_only == 'false' && steps.provider.outputs.first_name != ''
         run: git fetch origin "refs/pull/${{ github.event.pull_request.number }}/head"
 
       # ubuntu-latest ships Node 22, which meets pr-lens 0.11.0's engines
       # field (>=20.11), so no setup-node step downloads anything here.
       # A review aid, not a gate: a failed model call writes a note below and the check still passes.
+      # When the first provider fails, one retry runs with the second, if any.
       - name: Analyze the diff
-        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        if: steps.files.outputs.docs_only == 'false' && steps.provider.outputs.first_name != ''
         id: analyze
         continue-on-error: true
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          CLI_PROVIDER: ${{ steps.provider.outputs.cli_provider }}
-          KEY_VAR: ${{ steps.provider.outputs.key_var }}
-          BASE_URL: ${{ steps.provider.outputs.base_url }}
-          MODEL: ${{ vars.PR_LENS_MODEL || steps.provider.outputs.default_model }}
+          FIRST_NAME: ${{ steps.provider.outputs.first_name }}
+          FIRST_CLI: ${{ steps.provider.outputs.first_cli_provider }}
+          FIRST_BASE_URL: ${{ steps.provider.outputs.first_base_url }}
+          FIRST_MODEL: ${{ steps.provider.outputs.first_model }}
+          FIRST_KEY_VAR: ${{ steps.provider.outputs.first_key_var }}
+          SECOND_NAME: ${{ steps.provider.outputs.second_name }}
+          SECOND_CLI: ${{ steps.provider.outputs.second_cli_provider }}
+          SECOND_BASE_URL: ${{ steps.provider.outputs.second_base_url }}
+          SECOND_MODEL: ${{ steps.provider.outputs.second_model }}
+          SECOND_KEY_VAR: ${{ steps.provider.outputs.second_key_var }}
         run: |
           set -uo pipefail
           echo "the model call failed before it reported a reason" > "${RUNNER_TEMP}/analyze-reason.txt"
-          npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
-            --base "${{ github.event.pull_request.base.sha }}" \
-            --head "${{ github.event.pull_request.head.sha }}" \
-            --pr "${{ github.event.pull_request.number }}" \
-            --provider "${CLI_PROVIDER}" \
-            --api-key-env "${KEY_VAR}" \
-            ${MODEL:+--model "${MODEL}"} \
-            ${BASE_URL:+--base-url "${BASE_URL}"} \
-            --out "${RUNNER_TEMP}/pr-lens/graph.json" 2>&1 | tee "${RUNNER_TEMP}/analyze.log"
-          status="${PIPESTATUS[0]}"
-          if [ "${status}" -ne 0 ]; then
-            grep -m1 '✗' "${RUNNER_TEMP}/analyze.log" > "${RUNNER_TEMP}/analyze-reason.txt" || echo "the model call failed" > "${RUNNER_TEMP}/analyze-reason.txt"
-            exit "${status}"
+
+          # args: cli provider, base url, model, key variable, log file
+          attempt() {
+            npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
+              --base "${{ github.event.pull_request.base.sha }}" \
+              --head "${{ github.event.pull_request.head.sha }}" \
+              --pr "${{ github.event.pull_request.number }}" \
+              --provider "$1" \
+              --api-key-env "$4" \
+              ${3:+--model "$3"} \
+              ${2:+--base-url "$2"} \
+              --out "${RUNNER_TEMP}/pr-lens/graph.json" 2>&1 | tee "$5"
+          }
+
+          # The first line the tool marks with a cross, else a plain fallback.
+          reason_of() {
+            local line
+            if line="$(grep -m1 '✗' "$1")"; then
+              printf '%s' "${line}"
+            else
+              printf 'no reason line in the log'
+            fi
+          }
+
+          if attempt "${FIRST_CLI}" "${FIRST_BASE_URL}" "${FIRST_MODEL}" "${FIRST_KEY_VAR}" "${RUNNER_TEMP}/analyze-first.log"; then
+            echo "::notice::pr-lens drew the diagram with ${FIRST_NAME}."
+            exit 0
           fi
+          reason="${FIRST_NAME}: $(reason_of "${RUNNER_TEMP}/analyze-first.log")"
+
+          if [ -n "${SECOND_NAME}" ]; then
+            echo "::warning::pr-lens: ${FIRST_NAME} failed; retrying once with ${SECOND_NAME}."
+            rm -f "${RUNNER_TEMP}/pr-lens/graph.json"
+            if attempt "${SECOND_CLI}" "${SECOND_BASE_URL}" "${SECOND_MODEL}" "${SECOND_KEY_VAR}" "${RUNNER_TEMP}/analyze-second.log"; then
+              echo "::notice::pr-lens drew the diagram with ${SECOND_NAME}, after ${FIRST_NAME} failed."
+              exit 0
+            fi
+            reason="${reason} | retry with ${SECOND_NAME}: $(reason_of "${RUNNER_TEMP}/analyze-second.log")"
+          fi
+
+          printf '%s\n' "${reason}" > "${RUNNER_TEMP}/analyze-reason.txt"
+          exit 1
 
       - name: Write a note when the model call failed
         if: steps.analyze.outcome == 'failure'
@@ -191,10 +235,10 @@ jobs:
           set -euo pipefail
           reason="no reason was recorded"
           if [ -s "${RUNNER_TEMP}/analyze-reason.txt" ]; then
-            reason="$(head -c 300 "${RUNNER_TEMP}/analyze-reason.txt")"
+            reason="$(head -c 500 "${RUNNER_TEMP}/analyze-reason.txt")"
           fi
           printf 'pr-lens could not draw a diagram for this push. The model call failed: %s\n' "${reason}" > "${RUNNER_TEMP}/section.md"
-          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --head "${{ github.event.pull_request.head.sha }}" --file "${RUNNER_TEMP}/section.md"
 
       - name: Render the diagrams
         if: steps.analyze.outcome == 'success'
@@ -215,10 +259,8 @@ jobs:
             --dir "${RUNNER_TEMP}/pr-lens/assets")"
           echo "assets-url=${url}" >> "$GITHUB_OUTPUT"
 
-      - name: Write the diagram section
+      - name: Build the diagram section
         if: steps.analyze.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" comment \
@@ -226,4 +268,11 @@ jobs:
             --manifest "${RUNNER_TEMP}/pr-lens/assets/manifest.json" \
             --asset-base-url "${{ steps.publish.outputs.assets-url }}" \
             --out "${RUNNER_TEMP}/section.md"
-          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
+
+      - name: Write the diagram section
+        if: steps.analyze.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --head "${{ github.event.pull_request.head.sha }}" --file "${RUNNER_TEMP}/section.md"
