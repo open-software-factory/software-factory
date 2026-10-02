@@ -1,0 +1,1160 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-02T14:05:19.973Z",
+  "title": "osf: head-stamped PR description blocks, a file table, and a provider retry",
+  "summary": "This change reworks how `osf` writes generated blocks into a pull request description. A new `marker` module becomes the single place that knows the marker style `<!-- osf:NAME:start head=<sha> -->` … `<!-- osf:NAME:end -->`, and it also recognises the older markers (`osf:NAME:start` with no head, and the legacy `factory:status:begin/end`), so an open pull request migrates in place on its next write instead of gaining a duplicate block. `osf pr status render` is rewritten around that marker: it drops the Problem/Approach rows and the Ready verdict, and emits a head-stamped heading plus a seven-row Check/Result/Details table (Risk, Tests, CI, Commit messages, Contributor agreement, Automated review, Human review) with collapsed sections for risk reasons, review rounds and test changes. A new `osf pr tree render` command reads the change from git and prints the collapsed file table for the `osf:tree` block, with coloured count chips and log-scale size bars. The pr-lens workflow now resolves up to two providers that hold a key and retries once with the second when the first model call fails, and every `osf pr section write` call passes the pull request's head commit.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "59512686f73ef83fe874da3ef7123ef4542e67c2",
+      "ref": "59512686f73ef83fe874da3ef7123ef4542e67c2"
+    },
+    "head": {
+      "sha": "75ca2ff32fc0ef1799f642223c78f5f78d2507ba",
+      "ref": "75ca2ff32fc0ef1799f642223c78f5f78d2507ba"
+    },
+    "pullRequest": {
+      "number": 202,
+      "url": "https://github.com/open-software-factory/software-factory/pull/202"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workflow",
+      "label": "GitHub Actions",
+      "subtitle": "pr-lens workflow",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The pr-lens job resolves providers, runs the model call with one retry, and writes the generated blocks back into the description."
+    },
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The command surface: status render/refresh, the new tree render, and section write."
+    },
+    {
+      "id": "core",
+      "label": "osf core modules",
+      "subtitle": "pure rendering and marker logic",
+      "order": 2,
+      "delta": "modified",
+      "summary": "Marker matching, status block rendering, file-table rendering and section replacement."
+    },
+    {
+      "id": "git-gh",
+      "label": "git and gh",
+      "subtitle": "local repo and GitHub API",
+      "order": 3,
+      "delta": "modified",
+      "summary": "Where the change, the head commit and the description are read from and written to."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pr-lens-workflow",
+      "label": "pr-lens workflow",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "pr-lens.yml",
+      "summary": "Resolves up to two providers that hold a key, runs the model call, retries once with the second provider, and writes the resulting section.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "provider-resolver",
+      "label": "Resolve the model providers",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "first_* / second_* outputs",
+      "summary": "Builds a provider table, picks the configured provider first when it has a key, then the others in a fixed order, and emits first_* and second_* outputs.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 46,
+          "endLine": 104
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "analyze-step",
+      "label": "Analyze the diff",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "npx pr-lens-cli analyze",
+      "summary": "Runs the model call through an attempt() helper, records the first cross-marked reason line, and retries once with the second provider before failing.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 170,
+          "endLine": 232
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "section-write-step",
+      "label": "Write the section",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "osf pr section write --head",
+      "summary": "Writes the generated Markdown into the description, now passing the pull request's head commit so the start marker records it.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 272,
+          "endLine": 278
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "main.rs",
+      "summary": "The clap command tree: pr status render/apply/refresh, the new pr tree render, and pr section write with --head.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "status-render-cmd",
+      "label": "pr status render",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "pr_status_render_cmd",
+      "summary": "Resolves the head commit from --head or HEAD, then calls pr_status::render with the new RenderInput.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1363,
+          "endLine": 1386
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "status-refresh-cmd",
+      "label": "pr status refresh",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "pr_status_refresh_run",
+      "summary": "Reads the head commit, drops the Problem/Approach plumbing, and renders the new block against the live pull request state.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1635,
+          "endLine": 1668
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-render-cmd",
+      "label": "pr tree render",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "pr_tree_render_cmd",
+      "summary": "Collects the change from git and prints the file table, or exits 2 when nothing differs or git fails.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1785,
+          "endLine": 1801
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "section-write-cmd",
+      "label": "pr section write",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "pr_section_write_cmd",
+      "summary": "Resolves the head commit from --head or gh, then calls section::apply with it.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1803,
+          "endLine": 1836
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "marker-module",
+      "label": "marker",
+      "kind": "module",
+      "delta": "added",
+      "lane": "core",
+      "subtitle": "start/end, start_len/end_len, find_starts/find_ends",
+      "summary": "The one marker style for every generated block, plus readers that also accept the older no-head start marker and the legacy factory:status markers. Matching is plain text, never a regex.",
+      "files": [
+        {
+          "path": "crates/osf/src/marker.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-status-module",
+      "label": "pr_status",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "render, apply, current_block",
+      "summary": "Renders the head-stamped status block: a heading, a seven-row Check/Result/Details table, and collapsed sections for risk reasons, review rounds and test changes.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-tree-module",
+      "label": "pr_tree",
+      "kind": "module",
+      "delta": "added",
+      "lane": "core",
+      "subtitle": "collect, render",
+      "summary": "Groups changed files into Code, Tests and Docs, build and infra, then renders a flat table up to 15 files or a per-component table above that, with count chips and log-scale size bars.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_tree.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "section-module",
+      "label": "section",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "apply, fetch_head_sha",
+      "summary": "Replaces the block between the markers, or appends it, and now writes the head commit into the start marker. A block found with older markers comes out with new ones.",
+      "files": [
+        {
+          "path": "crates/osf/src/section.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-module",
+      "label": "git",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "git-gh",
+      "subtitle": "head_sha, diff_numstat_between",
+      "summary": "Adds head_sha and a NUL-separated numstat parser that handles plain, binary and renamed paths.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-client",
+      "label": "gh",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "git-gh",
+      "subtitle": "pr view / pr edit",
+      "summary": "Reads the description and the head commit, and writes the description back.",
+      "files": [
+        {
+          "path": "crates/osf/src/section.rs",
+          "startLine": 166,
+          "endLine": 196
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-repo",
+      "label": "git repository",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "git-gh",
+      "subtitle": "base...head",
+      "summary": "The source of the change list and line counts for both the status block and the file table.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-description",
+      "label": "Pull request description",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "git-gh",
+      "subtitle": "osf:status, osf:tree, osf:pr-lens, osf:outline blocks",
+      "summary": "The document the blocks live in. Each block is delimited by the shared marker pair, and the start marker now records the head commit.",
+      "files": [
+        {
+          "path": ".github/PULL_REQUEST_TEMPLATE.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "workflow-resolves-providers",
+      "from": "pr-lens-workflow",
+      "to": "provider-resolver",
+      "kind": "call",
+      "delta": "modified",
+      "label": "provider table",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 46,
+          "endLine": 104
+        }
+      ]
+    },
+    {
+      "id": "workflow-analyzes",
+      "from": "pr-lens-workflow",
+      "to": "analyze-step",
+      "kind": "call",
+      "delta": "modified",
+      "label": "first, then one retry",
+      "emphasis": "hero",
+      "animated": true,
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 170,
+          "endLine": 232
+        }
+      ]
+    },
+    {
+      "id": "workflow-writes-section",
+      "from": "pr-lens-workflow",
+      "to": "section-write-step",
+      "kind": "call",
+      "delta": "modified",
+      "label": "--head <sha>",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 272,
+          "endLine": 278
+        }
+      ]
+    },
+    {
+      "id": "section-step-calls-cli",
+      "from": "section-write-step",
+      "to": "osf-cli",
+      "kind": "call",
+      "delta": "modified",
+      "label": "osf pr section write",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 272,
+          "endLine": 278
+        }
+      ]
+    },
+    {
+      "id": "cli-status-render",
+      "from": "osf-cli",
+      "to": "status-render-cmd",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1363,
+          "endLine": 1386
+        }
+      ]
+    },
+    {
+      "id": "cli-status-refresh",
+      "from": "osf-cli",
+      "to": "status-refresh-cmd",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1635,
+          "endLine": 1668
+        }
+      ]
+    },
+    {
+      "id": "cli-tree-render",
+      "from": "osf-cli",
+      "to": "tree-render-cmd",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1785,
+          "endLine": 1801
+        }
+      ]
+    },
+    {
+      "id": "cli-section-write",
+      "from": "osf-cli",
+      "to": "section-write-cmd",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1803,
+          "endLine": 1836
+        }
+      ]
+    },
+    {
+      "id": "status-render-uses-status",
+      "from": "status-render-cmd",
+      "to": "pr-status-module",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1363,
+          "endLine": 1386
+        }
+      ]
+    },
+    {
+      "id": "status-refresh-uses-status",
+      "from": "status-refresh-cmd",
+      "to": "pr-status-module",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1635,
+          "endLine": 1668
+        }
+      ]
+    },
+    {
+      "id": "tree-render-uses-tree",
+      "from": "tree-render-cmd",
+      "to": "pr-tree-module",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1785,
+          "endLine": 1801
+        }
+      ]
+    },
+    {
+      "id": "section-write-uses-section",
+      "from": "section-write-cmd",
+      "to": "section-module",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1803,
+          "endLine": 1836
+        }
+      ]
+    },
+    {
+      "id": "status-uses-marker",
+      "from": "pr-status-module",
+      "to": "marker-module",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 1,
+          "endLine": 12
+        }
+      ]
+    },
+    {
+      "id": "section-uses-marker",
+      "from": "section-module",
+      "to": "marker-module",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/section.rs",
+          "startLine": 1,
+          "endLine": 12
+        }
+      ]
+    },
+    {
+      "id": "tree-uses-git",
+      "from": "pr-tree-module",
+      "to": "git-module",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/pr_tree.rs",
+          "startLine": 380,
+          "endLine": 393
+        }
+      ]
+    },
+    {
+      "id": "status-uses-git",
+      "from": "status-refresh-cmd",
+      "to": "git-module",
+      "kind": "call",
+      "delta": "modified",
+      "label": "head_sha",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1638,
+          "endLine": 1641
+        }
+      ]
+    },
+    {
+      "id": "section-uses-gh",
+      "from": "section-module",
+      "to": "gh-client",
+      "kind": "call",
+      "delta": "modified",
+      "label": "headRefOid",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/section.rs",
+          "startLine": 166,
+          "endLine": 196
+        }
+      ]
+    },
+    {
+      "id": "git-reads-repo",
+      "from": "git-module",
+      "to": "git-repo",
+      "kind": "data",
+      "delta": "modified",
+      "label": "diff --numstat -M -z",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 402,
+          "endLine": 450
+        }
+      ]
+    },
+    {
+      "id": "section-writes-description",
+      "from": "section-module",
+      "to": "pr-description",
+      "kind": "data",
+      "delta": "modified",
+      "label": "replace block",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/section.rs",
+          "startLine": 89,
+          "endLine": 120
+        }
+      ]
+    },
+    {
+      "id": "status-writes-description",
+      "from": "pr-status-module",
+      "to": "pr-description",
+      "kind": "data",
+      "delta": "modified",
+      "label": "osf:status block",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/pr_status.rs",
+          "startLine": 60,
+          "endLine": 140
+        }
+      ]
+    },
+    {
+      "id": "tree-writes-description",
+      "from": "pr-tree-module",
+      "to": "pr-description",
+      "kind": "data",
+      "delta": "added",
+      "label": "osf:tree block",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/pr_tree.rs",
+          "startLine": 300,
+          "endLine": 370
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "status-block-write",
+      "title": "Writing the status block for a new head",
+      "summary": "A refresh reads the live pull request, renders the head-stamped block, and replaces the old block in place — including one written with the legacy markers.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "status-refresh-cmd",
+          "label": "pr status refresh"
+        },
+        {
+          "node": "git-module",
+          "label": "git"
+        },
+        {
+          "node": "pr-status-module",
+          "label": "pr_status"
+        },
+        {
+          "node": "marker-module",
+          "label": "marker"
+        },
+        {
+          "node": "gh-client",
+          "label": "gh"
+        },
+        {
+          "node": "pr-description",
+          "label": "description"
+        }
+      ],
+      "messages": [
+        {
+          "id": "refresh-reads-head",
+          "from": "status-refresh-cmd",
+          "to": "git-module",
+          "label": "rev-parse HEAD",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1638,
+              "endLine": 1641
+            }
+          ]
+        },
+        {
+          "id": "refresh-reads-pr",
+          "from": "status-refresh-cmd",
+          "to": "gh-client",
+          "label": "pr view --json body,baseRefName",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1635,
+              "endLine": 1637
+            }
+          ]
+        },
+        {
+          "id": "refresh-renders",
+          "from": "status-refresh-cmd",
+          "to": "pr-status-module",
+          "label": "RenderInput { head, gates, review_json, tests }",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1657,
+              "endLine": 1668
+            }
+          ]
+        },
+        {
+          "id": "render-stamps-marker",
+          "from": "pr-status-module",
+          "to": "marker-module",
+          "label": "start(\"status\", head)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/pr_status.rs",
+              "startLine": 60,
+              "endLine": 70
+            }
+          ]
+        },
+        {
+          "id": "render-returns-block",
+          "from": "pr-status-module",
+          "to": "status-refresh-cmd",
+          "label": "block",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/pr_status.rs",
+              "startLine": 60,
+              "endLine": 140
+            }
+          ]
+        },
+        {
+          "id": "refresh-applies",
+          "from": "status-refresh-cmd",
+          "to": "pr-status-module",
+          "label": "apply(body, block)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1669,
+              "endLine": 1680
+            }
+          ]
+        },
+        {
+          "id": "apply-finds-markers",
+          "from": "pr-status-module",
+          "to": "marker-module",
+          "label": "find_starts / find_ends",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/pr_status.rs",
+              "startLine": 542,
+              "endLine": 560
+            }
+          ]
+        },
+        {
+          "id": "refresh-writes",
+          "from": "status-refresh-cmd",
+          "to": "gh-client",
+          "label": "pr edit --body-file",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1681,
+              "endLine": 1690
+            }
+          ]
+        },
+        {
+          "id": "gh-updates-description",
+          "from": "gh-client",
+          "to": "pr-description",
+          "label": "new block, old markers gone",
+          "kind": "async",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/section.rs",
+              "startLine": 196,
+              "endLine": 220
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tree-block-write",
+      "title": "Rendering the file table from git",
+      "summary": "`osf pr tree render` reads status and line counts from git, groups the files, and prints the collapsed table that goes into the `osf:tree` block.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "tree-render-cmd",
+          "label": "pr tree render"
+        },
+        {
+          "node": "git-module",
+          "label": "git"
+        },
+        {
+          "node": "pr-tree-module",
+          "label": "pr_tree"
+        },
+        {
+          "node": "pr-description",
+          "label": "description"
+        }
+      ],
+      "messages": [
+        {
+          "id": "tree-collects",
+          "from": "tree-render-cmd",
+          "to": "pr-tree-module",
+          "label": "collect(dir, base, head)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1785,
+              "endLine": 1801
+            }
+          ]
+        },
+        {
+          "id": "tree-reads-status",
+          "from": "pr-tree-module",
+          "to": "git-module",
+          "label": "diff --name-status -M",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/pr_tree.rs",
+              "startLine": 380,
+              "endLine": 393
+            }
+          ]
+        },
+        {
+          "id": "tree-reads-counts",
+          "from": "pr-tree-module",
+          "to": "git-module",
+          "label": "diff --numstat -M -z",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/git.rs",
+              "startLine": 402,
+              "endLine": 450
+            }
+          ]
+        },
+        {
+          "id": "git-returns-changes",
+          "from": "git-module",
+          "to": "pr-tree-module",
+          "label": "Numstat[] + Status",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/git.rs",
+              "startLine": 402,
+              "endLine": 450
+            }
+          ]
+        },
+        {
+          "id": "tree-renders",
+          "from": "pr-tree-module",
+          "to": "tree-render-cmd",
+          "label": "Markdown table",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/pr_tree.rs",
+              "startLine": 300,
+              "endLine": 370
+            }
+          ]
+        },
+        {
+          "id": "tree-lands-in-description",
+          "from": "tree-render-cmd",
+          "to": "pr-description",
+          "label": "osf pr section write --name tree",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/README.md",
+              "startLine": 108,
+              "endLine": 124
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 17,
+    "additions": 2226,
+    "deletions": 548,
+    "chips": [
+      {
+        "label": "New osf commands",
+        "value": "1",
+        "tone": "added"
+      },
+      {
+        "label": "Status block rows",
+        "value": "7",
+        "tone": "modified"
+      },
+      {
+        "label": "Provider retries",
+        "value": "1",
+        "tone": "hero"
+      },
+      {
+        "label": "Marker styles accepted",
+        "value": "3",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "context",
+      "title": "System context",
+      "lens": "architecture",
+      "summary": "Who and what the change touches: the pr-lens workflow, the osf CLI, git and gh, and the pull request description they all write into.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "osf-internals",
+      "title": "osf internals",
+      "lens": "architecture",
+      "summary": "The CLI commands and the core modules behind them, with the new marker module as the shared dependency of status and section.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "osf-cli",
+          "status-render-cmd",
+          "status-refresh-cmd",
+          "tree-render-cmd",
+          "section-write-cmd",
+          "marker-module",
+          "pr-status-module",
+          "pr-tree-module",
+          "section-module",
+          "git-module"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "status-block",
+      "title": "The status block",
+      "lens": "data-flow",
+      "summary": "How a refresh turns the live pull request and the local head commit into a head-stamped block and replaces the old one in place.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "status-block-write"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "tree-block",
+      "title": "The file table",
+      "lens": "data-flow",
+      "summary": "How `osf pr tree render` turns a git range into the collapsed file table for the `osf:tree` block.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "tree-block-write"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-context",
+        "heading": "The shape of the change",
+        "body": "One marker style, one status table, one new file table, one provider retry.",
+        "stage": {
+          "kind": "view",
+          "view": "context"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "step-marker",
+        "heading": "Marker is the hinge",
+        "body": "status and section both read and write blocks through the new marker module.",
+        "stage": {
+          "kind": "view",
+          "view": "osf-internals"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "marker-module",
+            "pr-status-module",
+            "section-module"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-status-flow",
+        "heading": "A refresh stamps the head",
+        "body": "The head commit goes into the start marker, so a new push always differs.",
+        "stage": {
+          "kind": "flow",
+          "flow": "status-block-write"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "refresh-reads-head",
+            "render-stamps-marker",
+            "refresh-writes"
+          ]
+        }
+      },
+      {
+        "id": "step-tree-flow",
+        "heading": "The file table reads git",
+        "body": "Status and counts come from one git range, then group into Code, Tests and Docs.",
+        "stage": {
+          "kind": "flow",
+          "flow": "tree-block-write"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}
