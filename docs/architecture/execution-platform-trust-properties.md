@@ -4,7 +4,7 @@ Status: draft. This document states principles for later enforcement. It becomes
 
 Date: 2026-09-30
 
-Decision 0020 is called "Who can post a review result the factory trusts". It is [open-software-factory/software-factory#136 (the review check design)](https://github.com/open-software-factory/software-factory/issues/136). It settles the review gate on one platform, GitHub Actions. This document names the general properties behind that record. Any gate, on any platform, needs these properties to be safe.
+Decision 0020, the decision on who can post a review result the factory trusts, is [open-software-factory/software-factory#136 (the review check design)](https://github.com/open-software-factory/software-factory/issues/136). It settles the review gate on one platform, GitHub Actions. This document names the general properties behind that record. Any gate, on any platform, needs these properties to be safe.
 
 ## Problem
 
@@ -36,12 +36,12 @@ This loop carries forward the rule in [decision 0003](decisions/0003-determinist
 | Egress control | Only listed hosts are reachable from the job. | harden-runner, in block mode. | Minimum (built in) |
 | Outside approval | A person approves a run that comes from outside the project, before it can use trusted keys. | Off by default. `OSF_REVIEW_FORKS`, plus a protected fork-review environment, turn it on. | Recommended |
 | Short-lived identity | The verifier posts its result with a token that expires soon. | An app token, minted fresh for each job. | Minimum |
-| Key never exposed | The job can use a key. The job never reads the key's value. | Today, this is not met on GitHub-hosted runners. A later option is a self-hosted, ephemeral runner with a proxy on the host. The proxy adds the key to model API requests. The job itself never sees the key. | Future |
+| Key never exposed | The job can use a key. The job never reads the key's value. | Currently, this is not met on GitHub-hosted runners. A later option is a self-hosted, ephemeral runner with a proxy on the host. The proxy adds the key to model API requests. The job itself never sees the key. | Future |
 | Least privilege for the builder | The builder app cannot change a setting a gate later reads. | Remove `actions_variables: write` from the builder app. | Recommended |
 
-## Adopter minimum today, for the review gate
+## Current adopter minimum for the review gate
 
-An adopter who wants the review gate needs three things today:
+An adopter who wants the review gate currently needs three things:
 
 - the verifier app's ID and its key
 - one environment, named `review`, holding two model keys

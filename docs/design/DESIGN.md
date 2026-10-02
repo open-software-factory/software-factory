@@ -124,7 +124,7 @@ Every chart, card or cluster must complete one sentence: *"I look at this when I
 
 ### 3.2 Shell rules
 
-- The product vision defines six surfaces. These are **Command/Attention** (attention feed), **Factory Floor**, **Work Graphs**, **Flight Recorder**, **Factory Runway** (capacity outlook), and **Factory Intelligence**. §2.3 maps their densities. Whether they collapse into a few modes, as Direction B does today, is **not settled**. Or they may earn nav destinations of their own [O, previously tagged E]. The current working shape is a small set of modes. Everything else is a **lens**, a **layer**, or a **dock**.
+- The product vision defines six surfaces. These are **Command/Attention** (attention feed), **Factory Floor**, **Work Graphs**, **Flight Recorder**, **Factory Runway** (capacity outlook), and **Factory Intelligence**. §2.3 maps their densities. Whether they collapse into a few modes, as Direction B does now, is **not settled**. Or they may earn nav destinations of their own [O, previously tagged E]. The current working shape is a small set of modes. Everything else is a **lens**, a **layer**, or a **dock**.
 - Exactly one home for human attention [C]: the attention strip or layer. Attention never scatters across surfaces.
 - Selection is the thread. A focused entity, such as a work item, a cluster, or a gate, persists across lens and mode changes [E same-truth, C mechanism].
 - The ambient operator is a cross-cutting modality: command palette, context action, annotation, generated view. It is not a surface and not a chat tab [E]. Its transport is [O].
@@ -313,7 +313,7 @@ A message lives in exactly one active channel. Escalation moves it. It is never 
 | Attention item | Anything needing operator judgement | until resolved; ranked (§11.3) | P2 to P1 |
 | Banner | Factory-level condition affecting the whole session | while the condition holds; one at a time, highest wins | P1 |
 | Dialog (P0 interruption) | The factory cannot proceed safely without a decision | until decided | P0 |
-| History / inbox | Append-only record of all of the above | permanent | all |
+| History / inbox | Append-only record of every item in this table | permanent | all |
 
 ### 7.2 Loading and progress
 
@@ -570,7 +570,7 @@ Rationale: Plex is an engineering-family with strong small-size legibility and a
 | `--text-verdict` | 22 / 1.25 | 600 | Runway verdict, single numbers in Stand |
 | `--mono-metric` | 12 / 1.4 | 400 | Numeric data, timings, hashes, ids, in tabular figures |
 
-**UI scale [C].** The sizes above are design units on a 16 px base. The shell renders every size in rem, so one number sets the scale of the whole console. This covers text, spacing, controls, seams, and the orb together.
+**UI scale [C].** The sizes in this table are design units on a 16 px base. The shell renders every size in rem, so one number sets the scale of the whole console. This covers text, spacing, controls, seams, and the orb together.
 
 The default is 125 %. This sets the root font-size to 20 px. Body text then renders at 16.25 px, and captions at 13.75 px.
 

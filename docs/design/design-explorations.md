@@ -7,7 +7,7 @@ Everything explored and not chosen lives here, so we can refer back without clut
 The owner set these rules on 2 September 2026.
 
 1. Keep a copy of every discarded direction in this file at the moment it is discarded.
-2. Explore **one dimension at a time**. Try layout, then typography, then colour, and so on. The Stage 1 round tried colour, theme, brand, look-and-feel, typography, layout, and components at once, with no structure. That is a large part of why it did not work.
+2. Explore **one dimension at a time**. Try layout, then typography, then colour, and so on. The first round tried colour, theme, brand, look-and-feel, typography, layout, and components at once, with no structure. That is a large part of why it did not work.
 
 ## Tab treatments
 
@@ -16,7 +16,7 @@ The team compared three tab treatments live in the prototype and picked chip on 
 | Discarded | Why |
 |---|---|
 | **Underline**, text only, a 2px accent bar under the active tab | Cleanest of the three, but it is a *line*, and this shell spent several rounds removing lines in favour of tone. It reintroduced the thing we had just taken out. |
-| **Lifted**, active tab shares the body surface and merges into it, no seam | The most "designed" of the three and the previous default. It depends on the tab strip and pane body sharing a background, which constrains what a pane body can be, and it reads fussy beside a chip-shaped rail selection. |
+| **Lifted**, active tab shares the body surface and merges into it, no seam | The most "designed" of the three and the default before this comparison. It depends on the tab strip and pane body sharing a background, which constrains what a pane body can be, and it reads fussy beside a chip-shaped rail selection. |
 
 Both are removed from the prototype along with the switcher. Recorded here rather than kept as an option: keeping three implementations alive to defer one decision is how a prototype turns into a settings screen.
 
@@ -26,7 +26,7 @@ The team retired these on 10 September 2026. Four named starting layouts had exi
 
 ## Shell structural directions
 
-Stage 1 explored these directions in August 2026. Three structurally different shells were considered. The owner chose B, Live Floor, the canvas-centred shell described in the table below, as the starting shell on 2 September 2026. The choice is a starting point, and the team can revisit it. See `DESIGN.md` section 3.1. See tracker item F1 as well.
+The first round explored these directions in August 2026. Three structurally different shells were considered. The owner chose B, Live Floor, the canvas-centred shell described in the table below, as the starting shell on 2 September 2026. The choice is a starting point, and the team can revisit it. See `DESIGN.md` section 3.1. See tracker item F1 as well.
 
 | | A, Command Post | B, Live Floor | C, Focus Console |
 |---|---|---|---|
@@ -52,7 +52,7 @@ Verdicts work like this. `covered` means we hold an opinion, even if exact value
 
 ### Classic dimensions
 
-| Dimension | Codified by | Us today | Verdict |
+| Dimension | Codified by | Us now | Verdict |
 |---|---|---|---|
 | Principles & product character | all | `DESIGN.md` §1 | covered |
 | Information hierarchy & density | Carbon, Fluent | §2 + component modes | covered, stronger than most |
@@ -77,7 +77,7 @@ Verdicts work like this. `covered` means we hold an opinion, even if exact value
 
 ### Agent-UX dimensions (2026 guidance)
 
-| Dimension | Us today | Verdict |
+| Dimension | Us now | Verdict |
 |---|---|---|
 | Agent activity transparency, "what is it doing now" | AgentPin, RecorderTimeline, §11.7 | covered |
 | Provenance, evidence, confidence display | §11.8, ProvenanceChip, ConfidenceTag | covered, ahead of the reference set |
@@ -90,7 +90,7 @@ Verdicts work like this. `covered` means we hold an opinion, even if exact value
 
 ### Recommended adoption order
 
-The adoption order applies before the component survey. On 2 September 2026, the team drafted several items into `DESIGN.md` and reviewed them. These were items 1-4 in the list below. They are now `DESIGN.md` sections 6-9, after a later reorg. Item 5, dataviz and gesture vocabulary, remains open.
+The adoption order applies before the component survey. On 2 September 2026, the team drafted several items into `DESIGN.md` and reviewed them. These were items 1-4 in the list below. They are now `DESIGN.md` sections 6-9, after a later reorg. The fifth item, dataviz and gesture vocabulary, remains open.
 
 1. **Voice and tone**, terminology, and the error-message standard have the highest priority. Operators read this UI under stress, and agents generate text into it. A written voice standard is also a constraint the team hands to LLM output.
 2. **Feedback taxonomy.** This is one table. It maps each channel, toast, banner, badge, attention item, or inbox, to a severity and a lifetime. It also gives a loading and skeleton opinion. Progressive loading becomes a first-class state in streaming UIs, under rule 5.6.
