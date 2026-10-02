@@ -29,7 +29,33 @@ pub(super) const NON_LABEL_WORDS: &[&str] = &[
     "during", "before", "after", "between", "about", "around", "near", "past", "over", "under",
     "than", "to", "is", "was", "were", "are", "and", "or", "but", "this", "that", "these", "those",
     "it", "he", "she", "they", "we", "you", "him", "her", "them", "his", "its", "their", "your",
-    "my", "our",
+    "my", "our", "which", "what", "who", "whose", "where", "when", "while", "if", "so", "as",
+    "because", "then", "not", "do", "does", "did", "has", "have", "had", "will", "would", "can",
+    "could", "should", "may", "might", "must", "be", "been",
+];
+
+/// Words that sit between a count and its plural noun, as in `19 such warnings` and `3 failing checks`.
+const COUNT_MODIFIERS: &[&str] = &[
+    "such",
+    "more",
+    "other",
+    "new",
+    "old",
+    "additional",
+    "extra",
+    "different",
+    "separate",
+    "remaining",
+    "open",
+    "closed",
+    "distinct",
+    "unique",
+    "active",
+    "pending",
+    "related",
+    "further",
+    "same",
+    "own",
 ];
 
 /// A unit that follows a number: size, time, data, angle, frequency or share. The number is a quantity.
@@ -721,12 +747,20 @@ fn counts_a_plural_noun(text: &str, word: regex::Match<'_>, word_lower: &str, af
     if capitalised && !opens_a_sentence(text, word.start()) {
         return false;
     }
-    let next: String = after
-        .trim_start()
-        .chars()
-        .take_while(|c| c.is_alphabetic())
-        .collect();
-    is_a_plural_noun(&next.to_lowercase())
+    let mut words = after
+        .split_whitespace()
+        .map(|w| {
+            w.chars()
+                .take_while(|c| c.is_alphabetic())
+                .collect::<String>()
+                .to_lowercase()
+        })
+        .take(2);
+    let first = words.next().unwrap_or_default();
+    let is_a_modifier = COUNT_MODIFIERS.contains(&first.as_str())
+        || (first.len() >= 5 && (first.ends_with("ing") || first.ends_with("ed")));
+    is_a_plural_noun(&first)
+        || (is_a_modifier && words.next().is_some_and(|second| is_a_plural_noun(&second)))
 }
 
 /// Whether a product, named before `start`, places the version number that follows `version`.
@@ -2173,6 +2207,20 @@ mod tests {
         assert!(has_no_number("Add 3 workers to the pool."));
         assert!(has_no_number("Use at most 3 significant digits."));
         assert!(has_no_number("It runs roughly 30 workers."));
+    }
+
+    /// A modifier between the count and its plural noun keeps it a count, and a relative word before a number is no label.
+    #[test]
+    fn number_excludes_a_count_with_a_modifier_and_a_number_after_a_relative_word() {
+        assert!(has_no_number("The repository docs carry 19 such warnings."));
+        assert!(has_no_number("It shows 10 more results."));
+        assert!(has_no_number("The queue lists 5 other workers."));
+        assert!(has_no_number("The run had 3 failing checks."));
+        assert!(has_no_number(
+            "The run found 900 findings, of which 454 come from the new rule."
+        ));
+        assert!(has("Layer 2 holds the cache.", Kind::Number, "Layer 2"));
+        assert!(has("Step 4 fails.", Kind::Number, "Step 4"));
     }
 
     /// A label noun, or a capitalised word inside a sentence, still labels one thing before a verb that ends in `s`.
