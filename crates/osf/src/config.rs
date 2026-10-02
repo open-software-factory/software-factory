@@ -339,7 +339,8 @@ const RETIRED_ENV_VARS: &[(&str, &str)] = &[(
     "OSF_WRITING_CHAT_LOCAL_PHRASES or OSF_WRITING_MUST_EXPLAIN_NAMES",
 )];
 
-/// One notice line for each retired variable that `is_set` reports, so an old setting never vanishes without a trace.
+/// One notice line for each retired variable that `is_set` reports.
+/// A gate run never reads the environment, and a hook keeps the notice out of the text an agent reads.
 fn retired_env_notices(is_set: impl Fn(&str) -> bool) -> Vec<String> {
     RETIRED_ENV_VARS
         .iter()
@@ -350,7 +351,7 @@ fn retired_env_notices(is_set: impl Fn(&str) -> bool) -> Vec<String> {
         .collect()
 }
 
-fn apply_env(layered: &mut Layered) -> Result<(), ConfigError> {
+fn apply_env(layered: &mut Layered, announce_retired: bool) -> Result<(), ConfigError> {
     for field in ENV_FIELDS {
         let Ok(raw) = std::env::var(field.var) else {
             continue;
@@ -359,8 +360,10 @@ fn apply_env(layered: &mut Layered) -> Result<(), ConfigError> {
             .map_err(|e| ConfigError::new(format!("{} is invalid: {e}", field.var)))?;
         layered.set(field.path, value, Layer::Env);
     }
-    for notice in retired_env_notices(|var| std::env::var_os(var).is_some()) {
-        eprintln!("osf: {notice}");
+    if announce_retired {
+        for notice in retired_env_notices(|var| std::env::var_os(var).is_some()) {
+            eprintln!("osf: {notice}");
+        }
     }
     Ok(())
 }
@@ -452,6 +455,25 @@ pub fn load(
     extra_exclude: &[String],
     gate: bool,
 ) -> Result<Loaded, ConfigError> {
+    load_announcing(file_flag, flags, extra_exclude, gate, true)
+}
+
+/// [`load`] for a hook, with no flags and no gate, that prints no retired-variable notice,
+/// since an agent reads a hook's output as its next instruction.
+///
+/// # Errors
+/// Returns the same errors as [`load`].
+pub fn load_for_hook(file_flag: Option<&Path>) -> Result<Loaded, ConfigError> {
+    load_announcing(file_flag, &[], &[], false, false)
+}
+
+fn load_announcing(
+    file_flag: Option<&Path>,
+    flags: &[(&[&str], toml::Value)],
+    extra_exclude: &[String],
+    gate: bool,
+    announce_retired: bool,
+) -> Result<Loaded, ConfigError> {
     if gate {
         return gate_loaded();
     }
@@ -471,7 +493,7 @@ pub fn load(
         }
     }
 
-    apply_env(&mut layered)?;
+    apply_env(&mut layered, announce_retired)?;
 
     for (path, value) in flags {
         layered.set(path, value.clone(), Layer::Flag);

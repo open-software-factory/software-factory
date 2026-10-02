@@ -423,7 +423,7 @@ pub fn unplaceable_reference(
     }
 }
 
-/// A labelled `owner/repo#N` with no link around it is placed but still warns, as the retired link rule did.
+/// A labelled `owner/repo#N` or `repo#N` with no link around it is placed but still warns, as the retired link rule did.
 fn unlinked_finding(paragraph: &TextUnit, candidate: &Candidate) -> Option<Finding> {
     let is_repo_reference = candidate.kind == Kind::Number && candidate.text.contains('#');
     (is_repo_reference && !is_linked(&paragraph.text, candidate)).then(|| {
