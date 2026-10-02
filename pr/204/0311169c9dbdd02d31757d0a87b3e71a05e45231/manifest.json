@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "0311169c9dbdd02d31757d0a87b3e71a05e45231",
+    "contentHash": "6226bba4fe770c09c851a8647026ed89"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "97aeffc32294cc0e422e35e119d9a9d2",
+      "bytes": 23780,
+      "width": 1758,
+      "height": 760,
+      "animated": false,
+      "path": "context-light-97aeffc32294cc0e422e35e119d9a9d2.svg"
+    },
+    {
+      "id": "context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1f1715719b0cdd8f1f5b93b73581014e",
+      "bytes": 24033,
+      "width": 1758,
+      "height": 760,
+      "animated": false,
+      "path": "context-dark-1f1715719b0cdd8f1f5b93b73581014e.svg"
+    },
+    {
+      "id": "writing-rules-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writing-rules",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9d7a5186ca1650957302f3e599de7f92",
+      "bytes": 8591,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "writing-rules-light-9d7a5186ca1650957302f3e599de7f92.svg"
+    },
+    {
+      "id": "writing-rules-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writing-rules",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fcdf4a45935f78cb0954acc44a4a2d80",
+      "bytes": 8683,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "writing-rules-dark-fcdf4a45935f78cb0954acc44a4a2d80.svg"
+    },
+    {
+      "id": "lint-core-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "lint-core",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3d39167ae1db9b52c7e1f3bb1e0add83",
+      "bytes": 8894,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "lint-core-light-3d39167ae1db9b52c7e1f3bb1e0add83.svg"
+    },
+    {
+      "id": "lint-core-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "lint-core",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e12ccbb2bdd6f9fdf931f49c90ba1bb0",
+      "bytes": 8986,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "lint-core-dark-e12ccbb2bdd6f9fdf931f49c90ba1bb0.svg"
+    }
+  ]
+}
