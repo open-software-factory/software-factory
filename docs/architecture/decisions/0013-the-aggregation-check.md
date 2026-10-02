@@ -14,7 +14,7 @@ A pull request in an adopting repository has the adopter's own jobs, the factory
 
 **What the aggregation reads from an adopter's job.** The job's conclusion, the result files it uploads, or both. Both was taken. The conclusion decides pass or fail. The files add counts and findings, and the test-count shrink check reads them. Result files are found by content rather than by a fixed path, and a job with a known conclusion and no readable file still counts as passed or failed.
 
-**Where the aggregation runs.** As a workflow in the adopter's repository, or posted from outside through the factory's app identity. The workflow was taken. A job on the first code host can wait only on jobs in its own workflow, and an adopter's checks span several. A workflow that re-runs each time another finishes converges without polling and needs no new infrastructure. The app identity takes over when the factory runs as a service.
+**Where the aggregation runs.** As a workflow in the adopter's repository, or posted from outside through the factory's app identity. The workflow was taken. A job on the first code host can wait only on jobs in its own workflow, and an adopter's checks span several. A workflow that runs after the others finish, and waits on any still running, converges without polling and needs no new infrastructure. The app identity takes over when the factory runs as a service.
 
 **What the aggregation shows.**
 
