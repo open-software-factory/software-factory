@@ -21,8 +21,13 @@
 //! holds are removed from their path, quote and body, and the same pattern
 //! redaction is applied, before they leave a reviewer run, and again before
 //! they reach SARIF, a printed line, or a later posted review.
+//!
+//! A saved reviewer run is untrusted input to [`reduce`]: every answer is
+//! checked again against the schema and the lens, a file must be named for
+//! the reviewer it holds, and the round and critical flags are worked out
+//! from the order of the attempts.
 
-use crate::answer::{Answer, AnswerFinding};
+use crate::answer::{self, Answer, AnswerFinding};
 use crate::builder;
 use crate::clean_copy::CleanCopy;
 use crate::journal::{Journal, Payload, ReviewAnswer, ReviewDecision};
@@ -34,7 +39,7 @@ use crate::review_prompt;
 use crate::reviewers::{self, Outcome, Reviewer};
 use crate::secret_values;
 use crate::{changeset_risk, config, git};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -50,6 +55,9 @@ const ROUNDS_PER_FAMILY: usize = 2;
 /// and the policy that goes with it, once a second family is a real
 /// requirement rather than a goal.
 const CRITICAL_ROUND: u32 = 3;
+
+/// The most attempts one reviewer makes at one lens: the independent rounds and the critical round.
+const MAX_ATTEMPTS: usize = ROUNDS_PER_FAMILY + 1;
 
 const ACTOR: &str = "osf";
 
@@ -218,7 +226,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
         .iter()
         .map(|reviewer| run_reviewer_with(req, &setup, reviewer))
         .collect();
-    Ok(reduce_with(req, &setup, &runs, state_dir))
+    Ok(reduce_with(req, &setup, &runs, &BTreeMap::new(), state_dir))
 }
 
 /// Runs the roster reviewer called `name` over every selected lens, and
@@ -373,19 +381,94 @@ impl Attempts<'_> {
     }
 }
 
+/// A reviewer's saved run, with the name of the file or artifact it came from.
+#[derive(Debug, Clone)]
+pub struct SavedRun {
+    /// The file or artifact name without its extension. It must be the name
+    /// of the reviewer the run holds.
+    pub name: String,
+    pub run: ReviewerRun,
+}
+
+/// Whether `name` is a plain reviewer name: letters, digits, `-` and `_`,
+/// starting with a letter or digit. Checked before a file or artifact name is used.
+#[must_use]
+pub fn valid_artifact_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && name.len() <= 64
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+/// The runs `saved` holds that may be used, and the reason each reviewer's
+/// file was refused. A file counts only when its name is a plain name, it is
+/// the reviewer's own name, and no other file carries it.
+fn bind(saved: &[SavedRun]) -> (Vec<ReviewerRun>, BTreeMap<String, String>) {
+    let mut refused = BTreeMap::new();
+    let mut copies: BTreeMap<&str, usize> = BTreeMap::new();
+    for entry in saved {
+        *copies.entry(entry.name.as_str()).or_default() += 1;
+    }
+    let mut accepted = Vec::new();
+    for entry in saved {
+        let reason = if !valid_artifact_name(&entry.name) {
+            "a saved run came from a file whose name is not a plain reviewer name"
+        } else if entry.name != entry.run.reviewer {
+            "its saved run names another reviewer"
+        } else if copies.get(entry.name.as_str()).copied().unwrap_or(0) > 1 {
+            "more than one saved run carries its name"
+        } else {
+            accepted.push(entry.run.clone());
+            continue;
+        };
+        if valid_artifact_name(&entry.name) {
+            refused.insert(entry.name.clone(), reason.to_string());
+        }
+    }
+    (accepted, refused)
+}
+
 /// Decides the review from the saved `runs` of the roster's reviewers,
 /// journaling every answer plus the decision to `state_dir`. A roster
 /// reviewer with no run, or no run for a lens, counts as could-not-run for
-/// it, naming that.
+/// it, naming that. Each run is taken to come from a file named for its reviewer.
 ///
 /// # Errors
 /// Returns an error when [`setup`] fails; see there.
 pub fn reduce(req: &Request, runs: &[ReviewerRun], state_dir: &Path) -> Result<RunOutcome, String> {
-    let setup = setup(req)?;
-    Ok(reduce_with(req, &setup, runs, state_dir))
+    let saved: Vec<SavedRun> = runs
+        .iter()
+        .map(|run| SavedRun {
+            name: run.reviewer.clone(),
+            run: run.clone(),
+        })
+        .collect();
+    reduce_saved(req, &saved, state_dir)
 }
 
-fn reduce_with(req: &Request, setup: &Setup, runs: &[ReviewerRun], state_dir: &Path) -> RunOutcome {
+/// [`reduce`] for runs read from files or artifacts, each with the name it
+/// came from. A run whose name is not its reviewer's, or that shares a name
+/// with another, is refused, and that reviewer is could-not-run.
+///
+/// # Errors
+/// Returns an error when [`setup`] fails; see there.
+pub fn reduce_saved(
+    req: &Request,
+    saved: &[SavedRun],
+    state_dir: &Path,
+) -> Result<RunOutcome, String> {
+    let setup = setup(req)?;
+    let (runs, refused) = bind(saved);
+    Ok(reduce_with(req, &setup, &runs, &refused, state_dir))
+}
+
+fn reduce_with(
+    req: &Request,
+    setup: &Setup,
+    runs: &[ReviewerRun],
+    refused: &BTreeMap<String, String>,
+    state_dir: &Path,
+) -> RunOutcome {
     let run_id = format!("review-{}-{}", now_millis(), std::process::id());
     let mut journal_error = None;
     let mut journal = match Journal::open(state_dir, &run_id) {
@@ -403,7 +486,7 @@ fn reduce_with(req: &Request, setup: &Setup, runs: &[ReviewerRun], state_dir: &P
     let mut findings = Vec::new();
 
     for lens in selected {
-        let (verdict, judged, interim) = judge_lens(req, setup, runs, lens);
+        let (verdict, judged, interim) = judge_lens(req, setup, runs, refused, lens);
         for attempt in judged {
             if let Some(journal) = journal.as_mut() {
                 let event = attempt.into_event(&lens.name);
@@ -497,6 +580,8 @@ struct Judged {
     findings_dropped: u32,
     kept: Vec<AnswerFinding>,
     round: u32,
+    /// Whether this is the critical round, worked out from the attempt's place in the run.
+    critical: bool,
     notes: Vec<String>,
 }
 
@@ -517,6 +602,7 @@ impl Judged {
             findings_dropped: 0,
             kept: Vec::new(),
             round: 1,
+            critical: false,
             notes: Vec::new(),
         }
     }
@@ -576,11 +662,12 @@ fn judge_lens(
     req: &Request,
     setup: &Setup,
     runs: &[ReviewerRun],
+    refused: &BTreeMap<String, String>,
     lens: &Lens,
 ) -> (LensVerdict, Vec<Judged>, bool) {
     let mut judged: Vec<Judged> = Vec::new();
     let mut context_error: Option<String> = None;
-    let mut ran: Vec<(&Reviewer, &LensRun)> = Vec::new();
+    let mut ran: Vec<(&Reviewer, Vec<Judged>)> = Vec::new();
     for reviewer in &setup.roster {
         if let Some(reason) = &reviewer.family_error {
             judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
@@ -591,15 +678,36 @@ fn judge_lens(
             judged.push(Judged::missing(reviewer, "skipped", reason));
             continue;
         }
-        let lens_run = runs
+        if let Some(reason) = refused.get(&reviewer.name) {
+            judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
+            continue;
+        }
+        let mut lens_runs = runs
             .iter()
-            .find(|r| r.reviewer == reviewer.name)
-            .and_then(|r| r.lenses.iter().find(|l| l.lens == lens.name));
+            .filter(|r| r.reviewer == reviewer.name)
+            .flat_map(|r| r.lenses.iter())
+            .filter(|l| l.lens == lens.name);
+        let lens_run = lens_runs.next();
+        if lens_runs.next().is_some() {
+            judged.push(Judged::missing(
+                reviewer,
+                "could-not-run",
+                "its saved run holds this lens more than once".to_string(),
+            ));
+            continue;
+        }
         match lens_run {
             Some(run) if run.context_error.is_some() => {
                 context_error = context_error.or_else(|| run.context_error.clone());
             }
-            Some(run) if !run.attempts.is_empty() => ran.push((reviewer, run)),
+            Some(run) if run.attempts.len() > MAX_ATTEMPTS => judged.push(Judged::missing(
+                reviewer,
+                "could-not-run",
+                "its saved run holds more attempts than a run makes".to_string(),
+            )),
+            Some(run) if !run.attempts.is_empty() => {
+                ran.push((reviewer, judge_attempts(req, reviewer, lens, &run.attempts)));
+            }
             _ => judged.push(Judged::missing(
                 reviewer,
                 "could-not-run",
@@ -612,21 +720,20 @@ fn judge_lens(
     }
     let answered: BTreeSet<&str> = ran
         .iter()
-        .filter(|(_, run)| {
-            run.attempts
+        .filter(|(_, attempts)| {
+            attempts
                 .iter()
-                .any(|a| !a.critical && a.result == "answered" && a.answer.is_some())
+                .any(|a| !a.critical && a.result == "answered")
         })
         .map(|(reviewer, _)| reviewer.family.as_str())
         .collect();
     let interim = answered.len() == 1;
-    for (reviewer, run) in ran {
+    for (reviewer, attempts) in ran {
         let counts_critical = interim && answered.contains(reviewer.family.as_str());
         judged.extend(
-            run.attempts
-                .iter()
-                .filter(|saved| !saved.critical || counts_critical)
-                .map(|saved| judge_attempt(req, reviewer, saved)),
+            attempts
+                .into_iter()
+                .filter(|a| !a.critical || counts_critical),
         );
     }
     let answers: Vec<LensAnswer> = judged.iter().map(|a| a.lens_answer.clone()).collect();
@@ -638,12 +745,48 @@ fn judge_lens(
     (verdict, judged, interim)
 }
 
-/// `saved`, with an answer's findings checked against the files under
-/// `req.root` through [`quotes::check`], so a lens can never be scored from
-/// a finding nothing has verified, whoever wrote the file.
-fn judge_attempt(req: &Request, reviewer: &Reviewer, saved: &Attempt) -> Judged {
+/// Every attempt of one reviewer at `lens`, judged. The round and the
+/// critical flag come from an attempt's place in the run, never from the
+/// saved file: the first [`ROUNDS_PER_FAMILY`] attempts are the independent
+/// rounds, and the one after them is the critical round, which exists only
+/// when an independent round answered.
+fn judge_attempts(
+    req: &Request,
+    reviewer: &Reviewer,
+    lens: &Lens,
+    attempts: &[Attempt],
+) -> Vec<Judged> {
+    let independent_answered = attempts
+        .iter()
+        .take(ROUNDS_PER_FAMILY)
+        .any(|a| a.result == "answered" && a.answer.is_some());
+    attempts
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| *index < ROUNDS_PER_FAMILY || independent_answered)
+        .map(|(index, saved)| {
+            let mut judged = judge_attempt(req, reviewer, lens, saved);
+            judged.round = as_u32(index + 1);
+            judged.critical = index >= ROUNDS_PER_FAMILY;
+            judged
+        })
+        .collect()
+}
+
+/// `saved`, with its answer checked again against the schema and `lens`, and
+/// its findings checked against the files under `req.root` through
+/// [`quotes::check`], so a lens can never be scored from an answer or a
+/// finding nothing has verified, whoever wrote the file.
+fn judge_attempt(req: &Request, reviewer: &Reviewer, lens: &Lens, saved: &Attempt) -> Judged {
     let (answer, reason, result) = match (&saved.answer, saved.result.as_str()) {
-        (Some(answer), "answered") => (Some(answer.clone()), None, "answered"),
+        (Some(answer), "answered") => match answer::revalidate(answer, lens) {
+            Ok(valid) => (Some(valid), None, "answered"),
+            Err(why) => (
+                None,
+                Some(format!("the saved answer does not validate: {why}")),
+                "could-not-run",
+            ),
+        },
         (None, "answered") => (
             None,
             Some("the saved run holds no answer".to_string()),
@@ -652,10 +795,10 @@ fn judge_attempt(req: &Request, reviewer: &Reviewer, saved: &Attempt) -> Judged 
         (_, "invalid") => (None, saved.reason.clone(), "invalid"),
         _ => (None, saved.reason.clone(), "could-not-run"),
     };
+    let text = |text: &str| redact_reviewer_text(req.root, req.config_root, text);
     let mut judged = Judged::missing(reviewer, result, String::new());
-    judged.lens_answer.reason = reason;
-    judged.round = saved.round;
-    judged.notes.clone_from(&saved.notes);
+    judged.lens_answer.reason = reason.map(|reason| text(&reason));
+    judged.notes = saved.notes.iter().map(|note| text(note)).collect();
     if let Some(answer) = answer {
         let checked = quotes::check(req.root, answer);
         judged.findings_kept = as_u32(checked.kept.findings().len());
@@ -798,6 +941,7 @@ mod tests {
             findings_dropped: 0,
             kept: Vec::new(),
             round: 1,
+            critical: false,
             notes: notes.iter().map(ToString::to_string).collect(),
         }
     }
@@ -841,6 +985,68 @@ mod tests {
             .expect("one attempt");
         assert_eq!(attempt.round, 2);
         assert_eq!(attempt.reason.as_deref(), Some("timed out"));
+    }
+
+    fn saved(name: &str, reviewer: &str) -> SavedRun {
+        SavedRun {
+            name: name.to_string(),
+            run: ReviewerRun {
+                reviewer: reviewer.to_string(),
+                lenses: Vec::new(),
+            },
+        }
+    }
+
+    #[test]
+    fn a_saved_run_is_used_only_under_the_name_of_the_reviewer_it_holds() {
+        let (accepted, refused) = bind(&[saved("codex", "codex"), saved("claude", "claude")]);
+        assert_eq!(accepted.len(), 2);
+        assert!(refused.is_empty(), "{refused:?}");
+    }
+
+    #[test]
+    fn a_file_named_for_one_reviewer_that_claims_another_is_refused() {
+        let (accepted, refused) = bind(&[saved("codex", "claude")]);
+        assert!(accepted.is_empty());
+        assert_eq!(
+            refused.get("codex").map(String::as_str),
+            Some("its saved run names another reviewer")
+        );
+        assert!(!refused.contains_key("claude"));
+    }
+
+    #[test]
+    fn two_saved_runs_with_one_name_are_both_refused() {
+        let (accepted, refused) = bind(&[saved("claude", "claude"), saved("claude", "claude")]);
+        assert!(accepted.is_empty());
+        assert_eq!(
+            refused.get("claude").map(String::as_str),
+            Some("more than one saved run carries its name")
+        );
+    }
+
+    #[test]
+    fn a_reviewer_name_is_checked_before_it_is_used() {
+        for good in ["codex", "opencode", "a", "review-run_2"] {
+            assert!(valid_artifact_name(good), "{good}");
+        }
+        for bad in [
+            "",
+            "../codex",
+            "a/b",
+            "a\\b",
+            ".hidden",
+            "-lead",
+            "has space",
+            "semi;colon",
+            "new\nline",
+            &"x".repeat(65),
+        ] {
+            assert!(!valid_artifact_name(bad), "{bad:?}");
+        }
+        let (accepted, refused) = bind(&[saved("../codex", "codex")]);
+        assert!(accepted.is_empty());
+        assert!(refused.is_empty(), "a bad name is never used as a key");
     }
 
     #[test]

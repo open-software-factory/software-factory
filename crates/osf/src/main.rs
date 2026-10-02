@@ -1958,8 +1958,13 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
     };
     let mut runs = Vec::with_capacity(args.files.len());
     for file in &args.files {
+        let name = file
+            .file_stem()
+            .and_then(std::ffi::OsStr::to_str)
+            .unwrap_or_default()
+            .to_string();
         match review_run::ReviewerRun::load(file) {
-            Ok(run) => runs.push(run),
+            Ok(run) => runs.push(review_run::SavedRun { name, run }),
             Err(e) => {
                 eprintln!("osf review reduce: {e}");
                 return 2;
@@ -1981,7 +1986,7 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
         pull_request: None,
         builder_family_overrides: &args.builder_family,
     };
-    match review_run::reduce(&req, &runs, &state_dir) {
+    match review_run::reduce_saved(&req, &runs, &state_dir) {
         Ok(outcome) => finish_review(&outcome, args.sarif_out.as_deref(), args.post_to.as_deref()),
         Err(e) => {
             eprintln!("osf review reduce: {e}");

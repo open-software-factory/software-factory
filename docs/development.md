@@ -172,6 +172,15 @@ family answered. This is the interim policy of decision 0016. In every
 other case, `osf review reduce` ignores the critical rounds. The cost is one
 more round for each reviewer for each lens.
 
+`osf review reduce` treats every saved file as input to check. It checks
+each answer again against the schema and the lens, the same way the
+reviewer job does. The lens name must match. Every criterion needs a
+score, and each score must be between 0 and 1. A file counts only for
+the reviewer its file name gives, and no two files may carry one name. A
+file that fails a check is could-not-run for that reviewer. The reducer
+works out the round and the critical flag from the order of the attempts
+in the file.
+
 Before `osf` saves an answer, and again in `osf review reduce`, it removes
 the exact value of every secret the job holds from every field. These are
 each reviewer's provider key and the code host's token. `osf` removes

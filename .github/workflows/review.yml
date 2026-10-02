@@ -453,8 +453,11 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.verifier-token.outputs.token }}
         run: |
-          files=$(cd out && find runs -name '*.json' | sort | sed 's#^#/out/#' | tr '\n' ' ')
-          # shellcheck disable=SC2086
+          set -euo pipefail
+          files=()
+          while IFS= read -r -d '' file; do
+            files+=("/out/${file#out/}")
+          done < <(find out/runs -type f -name '*.json' -print0 | sort -z)
           docker run --rm \
             -v "${{ github.workspace }}/bin:/osf-bin:ro" \
             -v "${{ github.workspace }}/base:/base:ro" \
@@ -469,7 +472,7 @@ jobs:
             --config-root /base \
             --sarif-out /out/review.sarif \
             --post-to ${{ github.repository }}#${{ github.event.pull_request.number }} \
-            $files
+            "${files[@]}"
 
       - name: Keep the review findings
         if: always()

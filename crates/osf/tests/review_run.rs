@@ -2470,3 +2470,286 @@ fn a_reviewers_own_key_reaches_no_journal_line_or_output() {
         assert_no_leak(&form, &output, &home, Some(&sarif_out));
     }
 }
+
+/// One saved run: `reviewer`'s attempts at the `correctness` lens.
+#[cfg(unix)]
+fn saved_run_value(reviewer: &str, attempts: &[serde_json::Value]) -> serde_json::Value {
+    serde_json::json!({
+        "reviewer": reviewer,
+        "lenses": [{"lens": "correctness", "context_error": null, "attempts": attempts}]
+    })
+}
+
+/// One attempt, as saved: answered when it holds an answer.
+#[cfg(unix)]
+fn attempt_value(
+    round: u64,
+    critical: bool,
+    answer: Option<&serde_json::Value>,
+) -> serde_json::Value {
+    serde_json::json!({
+        "result": if answer.is_some() { "answered" } else { "could-not-run" },
+        "reason": null, "notes": [], "round": round, "critical": critical, "answer": answer
+    })
+}
+
+/// A well-formed answer for the lens these tests exercise, with `body` on its one finding.
+#[cfg(unix)]
+fn good_answer_value(body: &str) -> serde_json::Value {
+    answer_value(
+        "correctness",
+        &serde_json::json!({"c1": 0.9, "c2": 0.9}),
+        body,
+    )
+}
+
+/// An answer for `lens` with `scores` and one finding that holds `body`.
+#[cfg(unix)]
+fn answer_value(lens: &str, scores: &serde_json::Value, body: &str) -> serde_json::Value {
+    serde_json::json!({
+        "lens": lens,
+        "scores": scores,
+        "findings": [{
+            "path": "src/lib.rs", "line": 2, "quote": "fn broken() {}",
+            "severity": "minor", "action": "justify", "body": body
+        }]
+    })
+}
+
+/// Three attempts that all hold `answer`: two independent rounds and the critical one.
+#[cfg(unix)]
+fn three_answers(answer: &serde_json::Value) -> Vec<serde_json::Value> {
+    vec![
+        attempt_value(1, false, Some(answer)),
+        attempt_value(2, false, Some(answer)),
+        attempt_value(3, true, Some(answer)),
+    ]
+}
+
+/// What `review reduce` made of `files`, each given as the folder it sits in,
+/// its name and its content: the output and the home that holds the journal.
+#[cfg(unix)]
+fn reduce_files(
+    label: &str,
+    reviewers: &[&str],
+    files: &[(&str, &str, serde_json::Value)],
+    env: &[(&str, &str)],
+    extra_args: &[&str],
+) -> (std::process::Output, common::IsolatedHome) {
+    let rec_answers: Vec<(&str, Fake)> = reviewers
+        .iter()
+        .map(|name| (*name, Fake::Answers("/dev/null")))
+        .collect();
+    let fakes = Fakes::new("", &rec_answers);
+    let repo = review_repo(label, &fakes.osf_toml);
+    let saved = TempDir::new(&format!("review-run-reduce-{label}"));
+    let mut paths = Vec::new();
+    for (folder, name, value) in files {
+        let dir = saved.join(folder);
+        std::fs::create_dir_all(&dir).expect("folder creates");
+        let path = dir.join(name);
+        std::fs::write(&path, value.to_string()).expect("saved run writes");
+        paths.push(path.to_string_lossy().into_owned());
+    }
+    let home = common::isolated_home(&format!("review-run-reduce-{label}"));
+    let mut args = vec!["review", "reduce", "--base", "origin/main"];
+    args.extend_from_slice(extra_args);
+    args.extend(paths.iter().map(String::as_str));
+    let output = fakes.run_with_env(&repo.dir, &home, env, &args);
+    (output, home)
+}
+
+/// A saved run that is well formed passes, which is what makes the refusals below mean something.
+#[test]
+#[cfg(unix)]
+fn a_well_formed_saved_run_is_accepted_at_reduce() {
+    let attempts = three_answers(&good_answer_value("fine"));
+    let (output, _home) = reduce_files(
+        "accepts",
+        &["codex"],
+        &[("a", "codex.json", saved_run_value("codex", &attempts))],
+        &[],
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stdout_of(&output));
+}
+
+/// Each saved answer that fails the reviewer job's own checks is refused at
+/// reduce as could-not-run for that reviewer, and counts for nothing.
+#[test]
+#[cfg(unix)]
+fn a_saved_answer_that_fails_the_schema_or_the_lens_is_refused_at_reduce() {
+    let wrong_score = answer_value(
+        "correctness",
+        &serde_json::json!({"c1": 1000, "c2": 0.9}),
+        "fine",
+    );
+    let wrong_lens = answer_value(
+        "security",
+        &serde_json::json!({"c1": 0.9, "c2": 0.9}),
+        "fine",
+    );
+    let missing = answer_value("correctness", &serde_json::json!({"c1": 0.9}), "fine");
+    for (label, answer, expected) in [
+        ("score", wrong_score, "does not validate"),
+        ("lens", wrong_lens, "another lens"),
+        ("criterion", missing, "c2"),
+    ] {
+        let attempts = three_answers(&answer);
+        let (output, home) = reduce_files(
+            &format!("refuses-{label}"),
+            &["codex"],
+            &[("a", "codex.json", saved_run_value("codex", &attempts))],
+            &[],
+            &[],
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{label}: {}",
+            stdout_of(&output)
+        );
+        let journal = journal_lines_of(&home, "codex");
+        assert!(journal.contains(expected), "{label}: {journal}");
+        assert!(
+            !journal.contains("\"result\":\"answered\""),
+            "{label}: {journal}"
+        );
+    }
+}
+
+/// A file is read for the reviewer its name gives. A file named `codex.json`
+/// that holds `claude`'s run counts for neither, and quorum is not met by it.
+#[test]
+#[cfg(unix)]
+fn a_saved_run_under_another_reviewers_file_name_is_refused_at_reduce() {
+    let attempts = three_answers(&good_answer_value("fine"));
+    let (output, home) = reduce_files(
+        "wrong-name",
+        &["codex", "claude"],
+        &[("a", "codex.json", saved_run_value("claude", &attempts))],
+        &[],
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stdout_of(&output));
+    let codex = journal_lines_of(&home, "codex");
+    assert!(codex.contains("names another reviewer"), "{codex}");
+    let claude = journal_lines_of(&home, "claude");
+    assert!(claude.contains("left no answer"), "{claude}");
+    assert!(
+        !journal_text(&home).contains("\"result\":\"answered\""),
+        "no answer counts"
+    );
+}
+
+/// Two saved runs that carry one reviewer's name are both refused.
+#[test]
+#[cfg(unix)]
+fn two_saved_runs_for_one_reviewer_are_both_refused_at_reduce() {
+    let attempts = three_answers(&good_answer_value("fine"));
+    let (output, home) = reduce_files(
+        "duplicate",
+        &["codex"],
+        &[
+            ("first", "codex.json", saved_run_value("codex", &attempts)),
+            ("second", "codex.json", saved_run_value("codex", &attempts)),
+        ],
+        &[],
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stdout_of(&output));
+    let journal = journal_lines_of(&home, "codex");
+    assert!(journal.contains("more than one saved run"), "{journal}");
+}
+
+/// A file name that is not a plain reviewer name is never used.
+#[test]
+#[cfg(unix)]
+fn a_saved_run_from_a_file_with_an_odd_name_is_never_used() {
+    let attempts = three_answers(&good_answer_value("fine"));
+    let (output, home) = reduce_files(
+        "odd-name",
+        &["codex"],
+        &[("a", "co dex;1.json", saved_run_value("codex", &attempts))],
+        &[],
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stdout_of(&output));
+    let journal = journal_lines_of(&home, "codex");
+    assert!(journal.contains("left no answer"), "{journal}");
+}
+
+/// The round and critical flags come from the order of the attempts, whatever the file says.
+#[test]
+#[cfg(unix)]
+fn the_rounds_are_worked_out_from_the_order_of_the_attempts_at_reduce() {
+    let answer = good_answer_value("fine");
+    let attempts = vec![
+        attempt_value(7, true, Some(&answer)),
+        attempt_value(7, true, Some(&answer)),
+        attempt_value(7, false, Some(&answer)),
+    ];
+    let (output, home) = reduce_files(
+        "rounds",
+        &["codex"],
+        &[("a", "codex.json", saved_run_value("codex", &attempts))],
+        &[],
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(0), "{}", stdout_of(&output));
+    let journal = journal_lines_of(&home, "codex");
+    for round in 1..=3 {
+        assert!(journal.contains(&format!("\"round\":{round}")), "{journal}");
+    }
+    assert!(!journal.contains("\"round\":7"), "{journal}");
+}
+
+/// A saved run with more attempts than a run makes is refused.
+#[test]
+#[cfg(unix)]
+fn a_saved_run_with_too_many_attempts_is_refused_at_reduce() {
+    let answer = good_answer_value("fine");
+    let mut attempts = three_answers(&answer);
+    attempts.push(attempt_value(4, false, Some(&answer)));
+    let (output, home) = reduce_files(
+        "too-many",
+        &["codex"],
+        &[("a", "codex.json", saved_run_value("codex", &attempts))],
+        &[],
+        &[],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stdout_of(&output));
+    let journal = journal_lines_of(&home, "codex");
+    assert!(
+        journal.contains("more attempts than a run makes"),
+        "{journal}"
+    );
+}
+
+/// The code host's token is removed from a saved finding at reduce, even when
+/// the saved text is no pattern a scan would catch.
+#[test]
+#[cfg(unix)]
+fn the_code_hosts_token_is_removed_from_saved_findings_at_reduce() {
+    let token = "host-token-5b1e7c93a02d4f68";
+    let body = format!(
+        "plain {token} base64 {} hex {}",
+        base64_of(token),
+        hex_of(token)
+    );
+    let attempts = three_answers(&good_answer_value(&body));
+    let sarif_dir = TempDir::new("review-run-reduce-token-sarif");
+    let sarif = sarif_dir.join("out.sarif");
+    let (output, home) = reduce_files(
+        "token",
+        &["codex"],
+        &[("a", "codex.json", saved_run_value("codex", &attempts))],
+        &[("GH_TOKEN", token)],
+        &["--sarif-out", &sarif.to_string_lossy()],
+    );
+    for form in [token.to_string(), base64_of(token), hex_of(token)] {
+        assert_no_leak(&form, &output, &home, Some(&sarif));
+    }
+    let text = std::fs::read_to_string(&sarif).expect("sarif reads");
+    assert!(text.contains("a secret this job holds"), "{text}");
+}

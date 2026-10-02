@@ -48,7 +48,18 @@ pub fn load(config_root: &Path, prompt_file: Option<&str>) -> Result<String, Str
         ));
     }
     let path = config_root.join(relative);
-    std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))
+    let real_root = config_root
+        .canonicalize()
+        .map_err(|e| format!("{}: {e}", config_root.display()))?;
+    let real_path = path
+        .canonicalize()
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    if !real_path.starts_with(&real_root) {
+        return Err(format!(
+            "[review] prompt_file \"{relative}\" must be a file inside the config root, not a link to one outside it"
+        ));
+    }
+    std::fs::read_to_string(&real_path).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 /// `template` with its placeholders filled in for `lens` and `metadata`,
@@ -174,6 +185,30 @@ mod tests {
             let e = load(Path::new("."), Some(bad)).expect_err("refused");
             assert!(e.contains("inside the config root"), "{bad}: {e}");
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_prompt_file_that_links_outside_the_config_root_is_not_read() {
+        let outside = TempDir::new("osf-review-prompt-outside");
+        std::fs::write(outside.join("other.md"), "OUTSIDE-TEXT").expect("writes");
+        let root = TempDir::new("osf-review-prompt-link");
+        std::os::unix::fs::symlink(outside.join("other.md"), root.join("mine.md"))
+            .expect("file link");
+        std::os::unix::fs::symlink(&*outside, root.join("dir")).expect("dir link");
+        for named in ["mine.md", "dir/other.md"] {
+            let e = load(&root, Some(named)).expect_err("a link out is refused");
+            assert!(e.contains("inside the config root"), "{named}: {e}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_prompt_file_that_links_to_another_file_inside_the_config_root_is_read() {
+        let root = TempDir::new("osf-review-prompt-inner-link");
+        std::fs::write(root.join("real.md"), "INSIDE-TEXT").expect("writes");
+        std::os::unix::fs::symlink("real.md", root.join("mine.md")).expect("link");
+        assert_eq!(load(&root, Some("mine.md")).expect("loads"), "INSIDE-TEXT");
     }
 
     #[test]

@@ -135,7 +135,7 @@ fn validate_candidate(value: serde_json::Value, lens: &Lens) -> Result<Answer, S
         .validate(&value)
         .map_err(|error| schema_error_reason(&error))?;
 
-    let answer: Answer = serde_json::from_value(value)
+    let mut answer: Answer = serde_json::from_value(value)
         .map_err(|_| "the answer matched its schema but not its shape".to_string())?;
 
     if answer.lens != lens.name {
@@ -164,7 +164,23 @@ fn validate_candidate(value: serde_json::Value, lens: &Lens) -> Result<Answer, S
         ));
     }
 
+    // A score for a name that is no criterion of the lens is free text from the reviewer, and counts for nothing.
+    answer
+        .scores
+        .retain(|id, _| lens.criteria.iter().any(|criterion| &criterion.id == id));
     Ok(answer)
+}
+
+/// `answer`, checked again against [`SCHEMA`] and `lens` the way a reviewer's
+/// own run checks it: the same schema, the lens name, every criterion
+/// scored. For an answer read back from a saved file, which nothing vouches for.
+///
+/// # Errors
+/// Names the reason when the answer fails any of those checks.
+pub fn revalidate(answer: &Answer, lens: &Lens) -> Result<Answer, String> {
+    let value = serde_json::to_value(answer)
+        .map_err(|_| "the saved answer cannot be read back".to_string())?;
+    validate_candidate(value, lens)
 }
 
 /// One fenced block's outcome: the reviewer's answer, or why this block is not it.
@@ -394,5 +410,52 @@ mod tests {
             &test_lens()
         )
         .is_err());
+    }
+
+    fn saved_answer() -> Answer {
+        extract_and_validate(
+            include_str!("../tests/fixtures/review/valid.json"),
+            &test_lens(),
+        )
+        .expect("valid")
+    }
+
+    #[test]
+    fn a_saved_answer_that_validated_validates_again() {
+        let again = revalidate(&saved_answer(), &test_lens()).expect("still valid");
+        assert_eq!(again, saved_answer());
+    }
+
+    #[test]
+    fn a_saved_answer_with_a_score_outside_zero_to_one_is_rejected() {
+        for bad in [1000.0, -0.5, f64::NAN] {
+            let mut answer = saved_answer();
+            answer.scores.insert("c1".to_string(), bad);
+            let e = revalidate(&answer, &test_lens()).expect_err("rejected");
+            assert!(e.contains("scores"), "{bad}: {e}");
+        }
+    }
+
+    #[test]
+    fn a_saved_answer_for_another_lens_or_missing_a_criterion_is_rejected() {
+        let mut other = saved_answer();
+        other.lens = "security".to_string();
+        let e = revalidate(&other, &test_lens()).expect_err("another lens");
+        assert!(e.contains("another lens"), "{e}");
+        let mut short = saved_answer();
+        short.scores.remove("c2");
+        let e = revalidate(&short, &test_lens()).expect_err("missing criterion");
+        assert!(e.contains("c2"), "{e}");
+    }
+
+    #[test]
+    fn a_score_for_a_name_that_is_no_criterion_is_dropped() {
+        let mut answer = saved_answer();
+        answer
+            .scores
+            .insert("free-text-from-a-reviewer".to_string(), 0.5);
+        let kept = revalidate(&answer, &test_lens()).expect("valid");
+        assert!(!kept.scores.contains_key("free-text-from-a-reviewer"));
+        assert_eq!(kept.scores.len(), 2);
     }
 }
