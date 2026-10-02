@@ -213,6 +213,14 @@ the threshold, the timeout, the cost ceiling, and the prompt file. A pull
 request cannot turn off a lens, lower the threshold, or rewrite its own
 reviewer's instructions to pass its own review.
 
+One test starts a real opencode and checks that a plugin file in the change
+does not run. It builds only with the `real-agents` feature. Run it inside
+the development container, where opencode is installed:
+
+```sh
+cargo test -p osf --features real-agents --test review_run
+```
+
 Findings that survive verification are posted on the pull request as one
 review, with a comment on each finding's own line. A must-fix finding
 fails the job. A review that could not run fails the job too, and every

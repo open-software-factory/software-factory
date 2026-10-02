@@ -2288,11 +2288,10 @@ fn a_reviewer_starts_in_a_clean_copy_of_the_change_with_no_agent_settings() {
 
 /// With a real opencode, a plugin file under `.opencode/plugin` in the change
 /// does not run when osf starts the reviewer, and does run when opencode is
-/// started in the checkout itself, which shows the test can tell. Run it with
-/// `cargo test -- --ignored` where opencode is installed.
+/// started in the checkout itself, which shows the test can tell. It is built
+/// only with `--features real-agents`, where the opencode command is installed.
 #[test]
-#[cfg(unix)]
-#[ignore = "runs a real opencode, so it needs the opencode command on PATH"]
+#[cfg(all(unix, feature = "real-agents"))]
 fn a_plugin_in_the_change_does_not_run_in_a_real_opencode_reviewer() {
     let marker_dir = TempDir::new("review-run-real-opencode-marker");
     let ran = marker_dir.join("plugin-ran");

@@ -12,6 +12,10 @@ rust-version = "1.85"
 name = "osf"
 path = "src/main.rs"
 
+[features]
+# Builds the tests that start a real coding agent, which needs its command on PATH.
+real-agents = []
+
 [lints]
 workspace = true
 
