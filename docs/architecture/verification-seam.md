@@ -4,7 +4,7 @@ Status: accepted design, written from the owner's answers in a questioning sessi
 
 Date: 2026-09-22
 
-The issue for this design is [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26). This design replaces the template file that issue proposed with tagged moon tasks and one configuration file. It also serves [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97) and [open-software-factory/software-factory#50 (fast native git hooks and agent hooks)](https://github.com/open-software-factory/software-factory/issues/50).
+The issue for this design is [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26). This design replaces the template file that issue proposed with tagged [moon](https://moonrepo.dev) tasks and one configuration file. Moon is the task runner the execution research chose, in [the moon research note](../research/2026-09-18-moon-as-osf-execution-substrate.md). This design also serves [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97) and [open-software-factory/software-factory#50 (fast native git hooks and agent hooks)](https://github.com/open-software-factory/software-factory/issues/50).
 
 ## Purpose
 
@@ -18,7 +18,7 @@ Each term below has one job in this document.
 
 | Term | Meaning |
 | --- | --- |
-| Check | One unit of verification. A check is a [moon](https://moonrepo.dev) task with tags. Moon is the task runner the execution research chose, in [the moon research note](../research/2026-09-18-moon-as-osf-execution-substrate.md). |
+| Check | One unit of verification. A check is a moon task with tags. |
 | Checkpoint | A point where checks run: the harness hook, pre-commit, pre-push, the pull request and the schedule. |
 | Slot | A named kind of check the factory expects, such as lint, format, unit tests or architecture tests. A slot is filled by a factory default, by the adopter's own task or job, or by a slot attestation. |
 | Check recogniser | The part of the tool that reads an adopter's workflow and project files and judges whether the adopter's own check is at least as strong as the factory's for that slot. |
