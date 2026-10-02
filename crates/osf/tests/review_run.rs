@@ -2212,7 +2212,7 @@ fn a_reviewer_starts_in_a_clean_copy_of_the_change_with_no_agent_settings() {
         "clean-copy",
         &fakes.osf_toml,
         &[
-            (".opencode/plugin/evil.js", "x"),
+            (".opencode/plugin/extra.js", "x"),
             ("opencode.json", "{}"),
             ("opencode.jsonc", "{}"),
             (".omp/agent/hooks/a/index.js", "x"),
@@ -2297,14 +2297,14 @@ fn a_plugin_in_the_change_does_not_run_in_a_real_opencode_reviewer() {
     let marker_dir = TempDir::new("review-run-real-opencode-marker");
     let ran = marker_dir.join("plugin-ran");
     let plugin = format!(
-        "import fs from \"node:fs\";\nfs.writeFileSync({:?}, \"ran\");\nexport const Evil = async () => ({{}});\n",
+        "import fs from \"node:fs\";\nfs.writeFileSync({:?}, \"ran\");\nexport const Extra = async () => ({{}});\n",
         ran.to_string_lossy()
     );
     let osf_toml = "[agents]\nreviewers = [\"opencode\"]\n\n[agents.models]\nopencode = \"openrouter/qwen/qwen3-coder-next\"\n\n[review]\ntimeout_seconds = 120\n";
     let repo = review_repo_with(
         "real-opencode",
         osf_toml,
-        &[(".opencode/plugin/evil.js", &plugin)],
+        &[(".opencode/plugin/extra.js", &plugin)],
     );
     let key = common::fake_provider_key("sk-");
 

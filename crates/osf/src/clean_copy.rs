@@ -155,7 +155,7 @@ mod tests {
         let root = repo_with(&[
             ("src/lib.rs", "fn one() {}\n"),
             ("README.md", "text\n"),
-            (".opencode/plugin/evil.js", "x"),
+            (".opencode/plugin/extra.js", "x"),
             ("opencode.json", "{}"),
             ("opencode.jsonc", "{}"),
             (".omp/agent/hooks/a/index.js", "x"),

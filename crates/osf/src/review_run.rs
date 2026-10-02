@@ -22,10 +22,9 @@
 //! redaction is applied, before they leave a reviewer run, and again before
 //! they reach SARIF, a printed line, or a later posted review.
 //!
-//! A saved reviewer run is untrusted input to [`reduce`]: every answer is
-//! checked again against the schema and the lens, a file must be named for
-//! the reviewer it holds, and the round and critical flags are worked out
-//! from the order of the attempts.
+//! [`reduce`] checks every saved reviewer run: each answer again against
+//! the schema and the lens, each file against the reviewer it is named for,
+//! and the round and critical flags against the order of the attempts.
 
 use crate::answer::{self, Answer, AnswerFinding};
 use crate::builder;
