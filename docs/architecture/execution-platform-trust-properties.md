@@ -35,21 +35,21 @@ This loop carries forward the rule in [decision 0003](decisions/0003-determinist
 | Isolation | Each job runs in a fresh environment. The change is mounted read-only. | A hosted runner, with `docker run` and a read-only mount. | Minimum (built in) |
 | Egress control | Only listed hosts are reachable from the job. | harden-runner, in block mode. | Minimum (built in) |
 | Outside approval | A person approves a run that comes from outside the project, before it can use trusted keys. | Off by default. `OSF_REVIEW_FORKS`, plus a protected fork-review environment, turn it on. | Recommended |
-| Short-lived identity | The verifier posts its result with a token that expires soon. | An app token, minted fresh for each job. | Minimum |
-| Key never exposed | The job can use a key. The job never reads the key's value. | Today, this is not met on GitHub-hosted runners. A later option is a self-hosted, ephemeral runner with a proxy on the host. The proxy adds the key to model API requests. The job itself never sees the key. | Future |
+| Short-lived identity | The verifier posts its result with a token that expires quickly. | An app token, minted fresh for each job. | Minimum |
+| Key never exposed | The job can use a key. The job never reads the key's value. | As of 2026-09-30, this is not met on GitHub-hosted runners. A later option is a self-hosted, ephemeral runner with a proxy on the host. The proxy adds the key to model API requests. The job itself never sees the key. | Future |
 | Least privilege for the builder | The builder app cannot change a setting a gate later reads. | Remove `actions_variables: write` from the builder app. | Recommended |
 
-## Adopter minimum today, for the review gate
+## Adopter minimum for the review gate
 
-An adopter who wants the review gate needs three things today:
+An adopter who wants the review gate needs these things:
 
 - the verifier app's ID and its key
-- one environment, named `review`, holding two model keys
+- one environment, named `review`, holding the model keys
 - branch protection that requires the review job
 
 ## Future work
 
-None of this exists yet. Three pieces of work follow from this document.
+As of 2026-09-30, none of this exists. The pieces of work below follow from this document.
 
 1. A posture check. It reports each property, for each repository. It sits next to [open-software-factory/software-factory#153 (the CI authority and weakening check)](https://github.com/open-software-factory/software-factory/issues/153).
 2. An `osf github setup` command. It creates the environments, with the branch limit. It sets branch protection. It prompts for the keys. It runs the posture check.
@@ -57,4 +57,4 @@ None of this exists yet. Three pieces of work follow from this document.
 
 ## Status of this document
 
-This document is a draft. It states principles. It does not give commands. It does not enforce anything yet. A design session must review it before it becomes a decision record.
+This document is a draft. It states principles. It does not give commands. It does not enforce anything. A design session must review it before it becomes a decision record.

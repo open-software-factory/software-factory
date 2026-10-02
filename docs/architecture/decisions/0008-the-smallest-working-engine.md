@@ -6,9 +6,9 @@ Date: 2026-09-20
 
 ## Context
 
-Six work items and three documents named "the smallest working engine" and none defined it. The domain model in decision 0005 is accepted and unbuilt. The choice of first job decides which parts of that model are tested first, and everything after it is built against that job.
+Work items and documents named "the smallest working engine" and none defined it. The domain model in decision 0005 is accepted and unbuilt. The choice of first job decides which parts of that model are tested first, and everything after it is built against that job.
 
-Three shapes were considered. Verifying one change and recording the evidence would have tested the journal and the policy and left the run, the sandbox and the harness untouched. A journal with a console view over it would have tested less. Taking one work item to a pull request without a person tests the whole model at once, on one item, in one sandbox.
+These shapes were considered. Verifying one change and recording the evidence would have tested the journal and the policy and left the run, the sandbox and the harness untouched. A journal with a console view over it would have tested less. Taking one work item to a pull request without a person tests the whole model at once, on one item, in one sandbox.
 
 ## Decision
 
@@ -26,5 +26,5 @@ The design is [`../smallest-working-engine.md`](../smallest-working-engine.md).
 
 - The event schema is written first, because every component writes to the journal.
 - The tracker, the sandbox, the harness and the forge each get one provider implementation behind an interface, and the engine's own code names none of them.
-- The vocabulary draft's five questions are answered on paper in the design and confirmed against real runs once the engine runs.
+- The vocabulary draft's questions are answered on paper in the design and confirmed against real runs once the engine runs.
 - The second slice is parallel items and scheduling. The third is merging without a person, once the risk classification is calibrated.

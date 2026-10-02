@@ -25,7 +25,7 @@ Four words, each with one job:
 | Policy | Reads evidence and decides. A soft cap warns; a hard limit blocks. |
 | Gate | The name for the moment a policy hard limit stops the work. |
 
-### Two rules every verifier and every reader of evidence follows
+### Rules every verifier and every reader of evidence follows
 
 **A read distinguishes "could not read" from "read, and found nothing".** A verifier that could not run reports a failure to run, and no such report ever counts as a pass. A reader of a tracker, a forge or a store returns "unknown" when it could not read and an empty result when it read and there was nothing. The two are different facts and are recorded differently.
 

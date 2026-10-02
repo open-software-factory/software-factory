@@ -27,7 +27,7 @@ Every entity has a stable string ID. Relationships use an identifier and never a
 | Runner | id, platform (windows-x64, linux-x64, linux-arm64, macos-arm64), location (local, remote), current work item | available, busy, stale |
 | Deployment | id, repository, work item, pull request, check IDs, environment (staging, production) | pending, deploying, deployed, rolled-back |
 | Attention item | id, severity (critical, high, medium, low), title, related IDs | active or resolved |
-| Evidence | id, kind (intent, specification, verification, production-outcome), summary, related IDs | known or not yet known |
+| Evidence | id, kind (intent, specification, verification, production-outcome), summary, related IDs | known or unknown |
 | Trace link | id, from (kind, id), to (kind, id), relation (informs, implements, verifies, deploys, observes) | none |
 | Design decision | id, title, rationale, intent, related pull requests | none |
 | Operator choice | id, design decision, action, impact, confidence, reversibility, missing knowledge | verified |
@@ -49,7 +49,7 @@ The benchmark needed one unbroken chain from intent to production outcome. That 
 
 ## Catalog versus state
 
-Version 1.1 split each entity into two parts:
+Version 1.1 split each entity into these parts:
 
 - **Catalog.** Facts that do not change during a scenario: IDs, names, purposes, commands, relationships, decision option text.
 - **State.** Facts that change: repository status, work status, check status, runner status, deployment status, active attention, completed containment, known evidence, pending decision, and the event history so far.
@@ -85,39 +85,39 @@ Test and evaluator controls (advance, reset, override availability) live in a se
 
 This scenario exercises attention, the live floor, investigation, the flight recorder, traceability and a controlled operator decision in one story. It is a candidate acceptance scenario for the smallest working engine and for the operator console.
 
-Fictional setting: six repositories for a portfolio product (investor app, portfolio API, wallet importer, exchange importer, market data sync, platform infrastructure). Two intents: keep portfolio integrity synchronized, and keep portfolio data fresh. One design decision, "coordinate reconciliation ordering", implemented through three pull requests in the portfolio API.
+Fictional setting: the repositories of a portfolio product (investor app, portfolio API, wallet importer, exchange importer, market data sync, platform infrastructure). The intents: keep portfolio integrity synchronized, and keep portfolio data fresh. One design decision, "coordinate reconciliation ordering", implemented through pull requests in the portfolio API.
 
 | Step | What is true | State change |
 |---|---|---|
-| Calm | Routine autonomous work. All repositories healthy, no active attention, no containment, no decision. Three deployments already live. | Initial state. |
-| Reconciliation breach | The post-deployment replay gate fails. Twenty-seven fictional portfolios show inconsistent totals. | Portfolio API goes to attention-required. Replay check fails. Critical attention item raised. Breach and replay evidence become known. |
-| Contained | Automation halts rollout, pauses generation, quarantines the queue and preserves snapshots. No rollback has happened. | Four containment actions completed. |
+| Calm | Routine autonomous work. All repositories healthy, no active attention, no containment, no decision. All deployments already live. | Initial state. |
+| Reconciliation breach | The post-deployment replay gate fails. Fictional portfolios show inconsistent totals. | Portfolio API goes to attention-required. Replay check fails. Critical attention item raised. Breach and replay evidence become known. |
+| Contained | Automation halts rollout, pauses generation, quarantines the queue and preserves snapshots. No rollback has happened. | The containment actions completed. |
 | Investigating | A verification session finds the missing cross-service ordering case. | Availability is streaming. |
-| Decision required | Two verified options are offered, each with impact, confidence, reversibility and missing knowledge. | Pending decision is required. |
-| Rollback applied (branch A) | Deployments are rolled back. Affected portfolios stay stale until safe resync. | Three deployments rolled-back. Decision approved. |
+| Decision required | Verified options are offered, each with impact, confidence, reversibility and missing knowledge. | Pending decision is required. |
+| Rollback applied (branch A) | Deployments are rolled back. Affected portfolios stay stale until safe resync. | Deployments rolled-back. Decision approved. |
 | Forward fix approved (branch B) | The forward fix and controlled replay begin. | Decision approved. Availability is streaming. |
 | Recovering | Corrected artifacts move through verification. | Replay check running. |
 | Recovered | Recovery is complete. Evidence stays available. | Portfolio API healthy. Replay check passed. Decision cleared. |
 
-Background pressure that stays visible through the incident: a stale remote runner, a wallet contract check still running, a ready-work runway metric, replay failure count and review retry cost.
+Background pressure that stays visible through the incident: a stale remote runner, a wallet contract check that is running, a ready-work runway metric, replay failure count and review retry cost.
 
-The two decision options are:
+The decision options are:
 
 - **Roll back.** Stops inconsistent totals while freshness stays delayed. Confidence 0.98. Reversible by approving a later controlled replay. Unknown: the length of the safe resync window.
 - **Forward fix.** Restores totals with changed recovery behaviour. Confidence 0.87. Can be halted before each replay batch completes. Unknown: the overlap rate in the first replay batch.
 
 ## What was tested against the smallest working engine
 
-Five questions were left for the engine. Each has an answer on paper in [the engine's design](smallest-working-engine.md), against the domain model in [decision 0005](decisions/0005-the-factory-domain-model.md). Real runs confirm or amend each one.
+The questions below were left for the engine. Each has an answer on paper in [the engine's design](smallest-working-engine.md), against the domain model in [decision 0005](decisions/0005-the-factory-domain-model.md). Real runs confirm or amend each one.
 
 | Question | Answer on paper |
 |---|---|
 | Does the Engine's durable unit map onto work item, agent session, check, deployment and event, or does it need something else, such as attempt or run? | The work item is the durable unit and is the tracker's issue. A run is one execution by one actor, and a retry is another run naming the first. An agent session is the harness's identifier on the run and is no factory entity. A check is a verifier run. |
 | Is "attention" an entity the Engine owns, or a projection the console derives? | The engine emits an attention event when a person is needed. The list is a projection of those events and the blocked states. There is no attention table. |
-| Is the catalog-versus-state split still natural when state comes from a real provider instead of a fixture? | The split is retired. The journal is the state, the run-started event records what the providers said at the start, and a snapshot is a projection up to a moment. |
-| Do trace links need a relation vocabulary this small, or a richer one? | The seven edges of decision 0005 replace the five relations here. Informs is traced from, implements is produces, deploys is deploys to, and observes waits for production evidence. |
-| Do the six availability values survive contact with real disconnects and partial data? | They move to the console. The engine exposes the journal's freshness and the console derives the six from it. |
+| Is the catalog-versus-state split natural when state comes from a real provider instead of a fixture? | The split is retired. The journal is the state, the run-started event records what the providers said at the start, and a snapshot is a projection up to a moment. |
+| Do trace links need a relation vocabulary this small, or a richer one? | The edges of decision 0005 replace the relations here. Informs is traced from, implements is produces, deploys is deploys to, and observes waits for production evidence. |
+| Do the availability values survive contact with real disconnects and partial data? | They move to the console. The engine exposes the journal's freshness and the console derives them from it. |
 
-The entity families, the reference incident scenario and the actions above remain as they were written, as the record of what the console needed. Where a family has no answer above, the engine has not reached it yet.
+The entity families, the reference incident scenario and the actions above remain as they were written, as the record of what the console needed. Where a family has no answer above, the engine has not reached it.
 
 Related: [`open-questions.md`](open-questions.md), [`decisions/0003-deterministic-verification-is-authoritative.md`](decisions/0003-deterministic-verification-is-authoritative.md), [`../research/ux/agent-built-ui-lessons.md`](../research/ux/agent-built-ui-lessons.md).

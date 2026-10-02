@@ -4,7 +4,7 @@ Status: provisional design. Date: 2026-09-18.
 
 What the factory installs, where each part lives, and how the parts combine when a repository is opened. One model serves every shape: a sandbox that mounts many repositories, a factory deployed into a single repository, and the sandbox implementations between them.
 
-## Two layers
+## Core and surface
 
 **Core.** The commands and their guardrails, installed root-owned and read-only into whatever sandbox the adopter runs, on whatever platform that sandbox runs on. Both are providers ([decision 0002](decisions/0002-provider-neutral-process-boundaries.md)), and the factory ships a container on the local platform as the default pair. The core never ships into a product repository. It is Rust ([decision 0001](decisions/0001-rust-for-the-factory-engine.md)). What is published, under which names and versions, is [decision 0006](decisions/0006-distribution-and-packaging.md).
 
@@ -33,11 +33,11 @@ A capability may arrive from more than one place, so the more specific source wi
 | an organisation-wide surface, where one is configured | the core |
 | the core in the image | nothing |
 
-A repository that ships its own skill, runbook or rule replaces the one the factory supplies under the same name. Anything the repository does not name, it inherits. A composed run records which source each capability came from, so a surprising result can be traced without reading three trees.
+A repository that ships its own skill, runbook or rule replaces the one the factory supplies under the same name. Anything the repository does not name, it inherits. A composed run records which source each capability came from, so a surprising result can be traced without reading each source.
 
 ## Adopter scripts
 
-A check does not have to be a factory command. An adopter registers any script in the repository's surface, and the factory runs it at the point the surface names. The script is free in how it works and owes the factory four things:
+A check does not have to be a factory command. An adopter registers any script in the repository's surface, and the factory runs it at the point the surface names. The script is free in how it works and owes the factory these things:
 
 - an exit status, where zero is a pass;
 - findings on standard output in the agreed shape, or none;
