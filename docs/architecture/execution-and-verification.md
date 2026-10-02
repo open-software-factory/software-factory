@@ -243,7 +243,7 @@ This supports the factory-floor and drill-down UX without asking OSF to become t
 - Integrate action topology into OSF observability.
 - Validate clean-run equivalence periodically.
 
-### Stage 3 Shared caching
+### Stage 3: Shared caching
 
 - Add a REAPI-compatible remote cache when measurement justifies it.
 - Establish cache trust, retention and isolation policies.
@@ -255,7 +255,7 @@ This supports the factory-floor and drill-down UX without asking OSF to become t
 - Make execution-strength policy explicit.
 - Verify cross-platform behaviour.
 
-### Stage 5 Remote execution
+### Stage 5: Remote execution
 
 - Adopt only after actions are accurately declared and remoteable.
 - Use REAPI and retain backend neutrality.

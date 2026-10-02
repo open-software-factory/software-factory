@@ -10,7 +10,7 @@ Write a short outline of the change into the pull request description, between t
 3. Write a file tree of the changed paths, split into two groups: the files that carry logic, and the files that are fixtures or tests. Say which file to read first, and why.
 4. Write one before-and-after diff, or one pseudocode block, for the key change. Use plain text or a `diff` block. Do not draw a Mermaid diagram. The pr-lens workflow already draws one for a code change.
 5. Check every claim in the outline against the real diff. Remove or fix any claim the diff does not support.
-6. Save the outline from steps 3 and 4 to a file.
+6. Save the file tree and the diff or pseudocode block to a file.
 7. Run `osf pr section write --pr <number> --name outline --file <path>`. It replaces the text between the two markers, or adds them near the end when absent. Everything else in the description stays as it was.
 
 Keep the whole outline short for a small pull request. A one-file change needs a one-line tree.
