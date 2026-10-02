@@ -72,6 +72,13 @@ pub struct Reviewer {
     /// credential is ever in its environment.
     #[serde(default)]
     pub credential_env: Vec<String>,
+    /// The paths, relative to the real home directory, that this harness's
+    /// own login needs. [`run_one`] copies only these into the reviewer's
+    /// fresh home before it runs; nothing else of the real home, and no other
+    /// reviewer's login, goes in. A path that is missing is left out and
+    /// named in the run's notes.
+    #[serde(default)]
+    pub login_paths: Vec<String>,
     #[serde(default)]
     pub enabled: bool,
 }
@@ -195,6 +202,91 @@ impl RunHome {
     }
 }
 
+impl RunHome {
+    /// Copies each of `paths` from `real_home` into this home, and returns a
+    /// note for each one left out because it is missing or not a path inside
+    /// the home. A missing path is no error: the reviewer runs without it.
+    ///
+    /// # Errors
+    /// Returns an error when a path exists but cannot be copied.
+    fn seed_login(
+        &self,
+        real_home: Option<&Path>,
+        paths: &[String],
+    ) -> Result<Vec<String>, String> {
+        let mut notes = Vec::new();
+        for rel in paths {
+            let rel_path = Path::new(rel);
+            let inside = !rel.is_empty()
+                && rel_path
+                    .components()
+                    .all(|c| matches!(c, std::path::Component::Normal(_)));
+            if !inside {
+                notes.push(format!(
+                    "login path \"{rel}\" is not a path inside the home and was left out"
+                ));
+                continue;
+            }
+            let copied = match real_home {
+                Some(real) => copy_login(&real.join(rel_path), &self.0.join(rel_path))
+                    .map_err(|e| format!("cannot copy login path \"{rel}\": {e}"))?,
+                None => false,
+            };
+            if !copied {
+                notes.push(format!(
+                    "login path \"{rel}\" is missing from the home directory; the reviewer ran without it"
+                ));
+            }
+        }
+        Ok(notes)
+    }
+}
+
+/// The real home directory of the user running `osf`, when it is set.
+fn real_home() -> Option<PathBuf> {
+    #[cfg(unix)]
+    let var = "HOME";
+    #[cfg(windows)]
+    let var = "USERPROFILE";
+    std::env::var_os(var)
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+}
+
+/// Copies the file or directory at `source` to `dest`, and says whether
+/// `source` existed. A symbolic link inside a directory is not followed.
+fn copy_login(source: &Path, dest: &Path) -> std::io::Result<bool> {
+    let meta = match std::fs::metadata(source) {
+        Ok(meta) => meta,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(e),
+    };
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    if meta.is_dir() {
+        copy_dir(source, dest)?;
+    } else {
+        std::fs::copy(source, dest)?;
+    }
+    Ok(true)
+}
+
+fn copy_dir(source: &Path, dest: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dest)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        let target = dest.join(entry.file_name());
+        if kind.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else if kind.is_file() {
+            std::fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
+}
+
 impl Drop for RunHome {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.0);
@@ -220,7 +312,42 @@ pub fn run_one(
     workdir: &Path,
     timeout: Duration,
 ) -> Outcome {
-    let raw = match run_child(reviewer, prompt, workdir, timeout) {
+    run_one_noted(reviewer, prompt, lens, workdir, timeout).0
+}
+
+/// [`run_one`], and the run's notes: one for each of the reviewer's declared
+/// `login_paths` that was missing, so it ran without it.
+#[must_use]
+pub fn run_one_noted(
+    reviewer: &Reviewer,
+    prompt: &str,
+    lens: &Lens,
+    workdir: &Path,
+    timeout: Duration,
+) -> (Outcome, Vec<String>) {
+    let mut notes = Vec::new();
+    let outcome = run_with_retry(
+        reviewer,
+        prompt,
+        lens,
+        workdir,
+        timeout,
+        real_home().as_deref(),
+        &mut notes,
+    );
+    (outcome, notes)
+}
+
+fn run_with_retry(
+    reviewer: &Reviewer,
+    prompt: &str,
+    lens: &Lens,
+    workdir: &Path,
+    timeout: Duration,
+    real_home: Option<&Path>,
+    notes: &mut Vec<String>,
+) -> Outcome {
+    let raw = match run_child(reviewer, prompt, workdir, timeout, real_home, notes) {
         Ok(text) => text,
         Err(reason) => return Outcome::CouldNotRun(reason),
     };
@@ -228,7 +355,7 @@ pub fn run_one(
         Ok(answer) => Outcome::Answered(answer),
         Err(reason) => {
             let retry_prompt = format!("{prompt}\n\nThe previous answer was invalid: {reason}");
-            match run_child(reviewer, &retry_prompt, workdir, timeout) {
+            match run_child(reviewer, &retry_prompt, workdir, timeout, real_home, notes) {
                 Ok(raw) => match validate_stage(&raw, reviewer, lens) {
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
@@ -277,8 +404,10 @@ fn prepare_command(
     program: &str,
     rest: &[String],
     workdir: &Path,
-) -> Result<(Command, RunHome), String> {
+    real_home: Option<&Path>,
+) -> Result<(Command, RunHome, Vec<String>), String> {
     let home = RunHome::create()?;
+    let notes = home.seed_login(real_home, &reviewer.login_paths)?;
     let mut command = Command::new(program);
     command.args(rest).current_dir(workdir).env_clear();
     home.apply(&mut command);
@@ -291,7 +420,7 @@ fn prepare_command(
             command.env(var, value);
         }
     }
-    Ok((command, home))
+    Ok((command, home, notes))
 }
 
 /// One attempt at running `reviewer`'s harness to completion: its captured
@@ -300,14 +429,18 @@ fn prepare_command(
 ///
 /// The child starts with an allow-listed environment: only [`RUN_ENV_VARS`]
 /// (the variables any program needs to run at all, such as `PATH`), its own
-/// fresh empty home directory, and `reviewer.credential_env` (that reviewer's own provider
-/// credential, by name). Every other reviewer's credential, and `osf`'s own
-/// `GH_TOKEN`, stay out, whatever else is set on `osf`'s own process.
+/// fresh home directory holding only `reviewer.login_paths` copied from
+/// `real_home`, and `reviewer.credential_env` (that reviewer's own provider
+/// credential, by name). Every other reviewer's credential and login, and
+/// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
+/// process. A missing login path adds a note to `notes`, once.
 fn run_child(
     reviewer: &Reviewer,
     prompt: &str,
     workdir: &Path,
     timeout: Duration,
+    real_home: Option<&Path>,
+    notes: &mut Vec<String>,
 ) -> Result<String, String> {
     let prompt_file = write_temp_file("osf-review-prompt", prompt)?;
     let schema_file = write_temp_file("osf-review-schema", answer::SCHEMA)?;
@@ -322,13 +455,19 @@ fn run_child(
         return Err(format!("reviewer '{}' has an empty command", reviewer.name));
     };
 
-    let (mut command, _home) = match prepare_command(reviewer, program, rest, workdir) {
-        Ok(prepared) => prepared,
-        Err(e) => {
-            cleanup();
-            return Err(e);
+    let (mut command, _home, home_notes) =
+        match prepare_command(reviewer, program, rest, workdir, real_home) {
+            Ok(prepared) => prepared,
+            Err(e) => {
+                cleanup();
+                return Err(e);
+            }
+        };
+    for note in home_notes {
+        if !notes.contains(&note) {
+            notes.push(note);
         }
-    };
+    }
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -492,7 +631,168 @@ mod tests {
             model: None,
             model_flag: None,
             credential_env: Vec::new(),
+            login_paths: Vec::new(),
             enabled: false,
+        }
+    }
+
+    /// Prints the child's `HOME` and every file under it, in order.
+    #[cfg(unix)]
+    fn file_lister(login_paths: &[&str]) -> Reviewer {
+        let mut r = reviewer(
+            "file-lister",
+            vec![
+                "sh",
+                "-c",
+                "printf '%s|' \"$HOME\"; cd \"$HOME\" && find . -type f | sort | tr '\\n' ' '",
+            ],
+        );
+        r.login_paths = login_paths.iter().map(ToString::to_string).collect();
+        r
+    }
+
+    /// A stand-in real home holding two harnesses' logins and an unrelated file.
+    #[cfg(unix)]
+    fn stand_in_home() -> crate::test_support::TempDir {
+        let home = crate::test_support::TempDir::new("osf-reviewers-real-home");
+        for (path, text) in [
+            (".a-login/auth.json", "login-a"),
+            (".b-login/auth.json", "login-b"),
+            (".unrelated", "other"),
+        ] {
+            let file = home.join(path);
+            std::fs::create_dir_all(file.parent().expect("parent")).expect("dir creates");
+            std::fs::write(file, text).expect("file writes");
+        }
+        home
+    }
+
+    #[cfg(unix)]
+    fn run_lister(
+        reviewer: &Reviewer,
+        real_home: &Path,
+    ) -> (String, Vec<String>, Result<(), String>) {
+        let mut notes = Vec::new();
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only lists its HOME
+        let out = run_child(
+            reviewer,
+            "",
+            &workdir,
+            Duration::from_secs(30),
+            Some(real_home),
+            &mut notes,
+        );
+        match out {
+            Ok(text) => (text, notes, Ok(())),
+            Err(e) => (String::new(), notes, Err(e)),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_reviewers_home_holds_only_its_own_declared_login() {
+        let real = stand_in_home();
+        let (out, notes, result) = run_lister(&file_lister(&[".a-login/auth.json"]), &real);
+        result.expect("the lister runs");
+        let (home, files) = out.split_once('|').expect("home and files");
+        assert_eq!(files.trim(), "./.a-login/auth.json");
+        assert!(notes.is_empty(), "{notes:?}");
+        assert!(
+            !Path::new(home).exists(),
+            "the home is removed after the run"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_login_directory_is_copied_whole_and_the_real_home_is_left_alone() {
+        let real = stand_in_home();
+        let (out, _notes, result) = run_lister(&file_lister(&[".b-login"]), &real);
+        result.expect("the lister runs");
+        let (_, files) = out.split_once('|').expect("home and files");
+        assert_eq!(files.trim(), "./.b-login/auth.json");
+        let kept = std::fs::read_to_string(real.join(".b-login/auth.json")).expect("source reads");
+        assert_eq!(kept, "login-b");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_missing_login_path_is_noted_and_is_not_an_error() {
+        let real = stand_in_home();
+        let lister = file_lister(&[".a-login/auth.json", ".gone/auth.json"]);
+        let (out, notes, result) = run_lister(&lister, &real);
+        result.expect("a missing path is not an error");
+        let (home, files) = out.split_once('|').expect("home and files");
+        assert_eq!(files.trim(), "./.a-login/auth.json");
+        assert_eq!(notes.len(), 1, "{notes:?}");
+        assert!(
+            notes.iter().all(|n| n.contains(".gone/auth.json")),
+            "{notes:?}"
+        );
+        assert!(
+            !Path::new(home).exists(),
+            "the home is removed after the run"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_login_path_outside_the_home_is_noted_and_never_copied() {
+        let real = stand_in_home();
+        let lister = file_lister(&["../escape", "/etc/hostname", ""]);
+        let (out, notes, result) = run_lister(&lister, &real);
+        result.expect("the lister runs");
+        let (_, files) = out.split_once('|').expect("home and files");
+        assert_eq!(files.trim(), "");
+        assert_eq!(notes.len(), 3, "{notes:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_unknown_real_home_notes_every_login_path_as_missing() {
+        let mut notes = Vec::new();
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only lists its HOME
+        let out = run_child(
+            &file_lister(&[".a-login/auth.json"]),
+            "",
+            &workdir,
+            Duration::from_secs(30),
+            None,
+            &mut notes,
+        )
+        .expect("the lister runs");
+        let (_, files) = out.split_once('|').expect("home and files");
+        assert_eq!(files.trim(), "");
+        assert_eq!(notes.len(), 1, "{notes:?}");
+    }
+
+    /// Every shipped login path sits under a state directory of the agent
+    /// that the entry's own harness names, so one harness never copies
+    /// another's files; and every shipped entry declares at least one.
+    #[test]
+    fn the_shipped_login_paths_stay_inside_their_own_agents_state_directories() {
+        let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
+        for entry in &r {
+            assert!(
+                !entry.login_paths.is_empty(),
+                "{} declares no login path",
+                entry.name
+            );
+            let agent = crate::agents::AGENTS
+                .iter()
+                .find(|a| a.reviewer_harness == Some(entry.harness.as_str()))
+                .expect("every shipped harness is a listed agent");
+            for path in &entry.login_paths {
+                assert!(
+                    agent
+                        .state_dirs
+                        .iter()
+                        .any(|dir| Path::new(path).starts_with(dir)),
+                    "{}: {path} is outside {:?}",
+                    entry.name,
+                    agent.state_dirs
+                );
+            }
         }
     }
 
@@ -516,8 +816,15 @@ mod tests {
         let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints its HOME
         let mut homes = Vec::new();
         for _ in 0..2 {
-            let out = run_child(&home_reporter(), "", &workdir, Duration::from_secs(30))
-                .expect("the reporter runs");
+            let out = run_child(
+                &home_reporter(),
+                "",
+                &workdir,
+                Duration::from_secs(30),
+                None,
+                &mut Vec::new(),
+            )
+            .expect("the reporter runs");
             let (home, count) = out.split_once('|').expect("home and count");
             assert_ne!(home, parent_home);
             assert_eq!(count.trim(), "0", "the home starts empty");

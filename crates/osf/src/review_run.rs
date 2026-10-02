@@ -263,6 +263,8 @@ struct Attempt {
     kept: Vec<AnswerFinding>,
     /// This reviewer's own attempt number for this lens, one-based.
     round: u32,
+    /// What the run noted, such as a declared login path that was missing.
+    notes: Vec<String>,
 }
 
 impl Attempt {
@@ -276,6 +278,12 @@ impl Attempt {
             .map(|a| a.scores().clone())
             .unwrap_or_default();
         let found = self.kept_findings(lens);
+        let reason = self
+            .lens_answer
+            .reason
+            .into_iter()
+            .chain(self.notes)
+            .collect::<Vec<_>>();
         let event = ReviewAnswer {
             lens: lens.to_string(),
             reviewer: self.lens_answer.reviewer,
@@ -286,7 +294,7 @@ impl Attempt {
             findings_kept: self.findings_kept,
             findings_dropped: self.findings_dropped,
             transcript: None,
-            reason: self.lens_answer.reason,
+            reason: (!reason.is_empty()).then(|| reason.join("; ")),
             grade: "reported".to_string(),
             round: self.round,
         };
@@ -414,6 +422,7 @@ fn skipped_attempt(reviewer: &Reviewer) -> Attempt {
         findings_dropped: 0,
         kept: Vec::new(),
         round: 1,
+        notes: Vec::new(),
     }
 }
 
@@ -453,7 +462,8 @@ fn attempt_reviewer(
     timeout: Duration,
     round: u32,
 ) -> Attempt {
-    match reviewers::run_one(reviewer, prompt, lens, root, timeout) {
+    let (outcome, notes) = reviewers::run_one_noted(reviewer, prompt, lens, root, timeout);
+    match outcome {
         Outcome::Answered(answer) => {
             let checked = quotes::check(root, answer);
             let findings_kept = as_u32(checked.kept.findings().len());
@@ -478,6 +488,7 @@ fn attempt_reviewer(
                 findings_dropped,
                 kept,
                 round,
+                notes,
             }
         }
         Outcome::Invalid(reason) => Attempt {
@@ -493,6 +504,7 @@ fn attempt_reviewer(
             findings_dropped: 0,
             kept: Vec::new(),
             round,
+            notes,
         },
         Outcome::CouldNotRun(reason) => Attempt {
             lens_answer: LensAnswer {
@@ -507,6 +519,7 @@ fn attempt_reviewer(
             findings_dropped: 0,
             kept: Vec::new(),
             round,
+            notes,
         },
     }
 }
@@ -606,4 +619,37 @@ fn now_millis() -> u64 {
         .unwrap_or_default()
         .as_millis();
     u64::try_from(millis).unwrap_or(u64::MAX)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn attempt(reason: Option<&str>, notes: &[&str]) -> Attempt {
+        Attempt {
+            lens_answer: LensAnswer {
+                reviewer: "r".to_string(),
+                family: "f".to_string(),
+                answer: None,
+                reason: reason.map(str::to_string),
+            },
+            model: None,
+            result: "answered",
+            findings_kept: 0,
+            findings_dropped: 0,
+            kept: Vec::new(),
+            round: 1,
+            notes: notes.iter().map(ToString::to_string).collect(),
+        }
+    }
+
+    #[test]
+    fn the_journal_event_carries_the_runs_notes_in_its_reason() {
+        let (event, _) = attempt(None, &["login path \"x\" is missing"]).into_event("lens");
+        assert_eq!(event.reason.as_deref(), Some("login path \"x\" is missing"));
+        let (event, _) = attempt(Some("bad"), &["note"]).into_event("lens");
+        assert_eq!(event.reason.as_deref(), Some("bad; note"));
+        let (event, _) = attempt(None, &[]).into_event("lens");
+        assert_eq!(event.reason, None);
+    }
 }

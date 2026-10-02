@@ -57,6 +57,7 @@ schema_flag = "--output-schema"
 schema_as = "path"
 model_flag = "--model"
 credential_env = ["OPENAI_API_KEY", "CODEX_API_KEY"]
+login_paths = [".codex/auth.json"]
 enabled = true
 
 # dsh reads its key from DEEPSEEK_API_KEY. Its headless profile takes
@@ -71,6 +72,7 @@ harness = "dsh"
 family = "deepseek"
 command = ["sh", "-c", 'exec dsh --profile headless "$(cat "$1")"', "sh", "{prompt_file}"]
 credential_env = ["DEEPSEEK_API_KEY"]
+login_paths = [".dsh/.credentials.yaml"]
 enabled = true
 
 # claude talks to Anthropic directly and reads CLAUDE_CODE_OAUTH_TOKEN,
@@ -88,6 +90,7 @@ answer_pointer = "/structured_output"
 model_flag = "--model"
 model = "claude-sonnet-5"
 credential_env = ["CLAUDE_CODE_OAUTH_TOKEN"]
+login_paths = [".claude/.credentials.json"]
 enabled = true
 
 # opencode reads OPENROUTER_API_KEY itself. Its own model flag takes
@@ -101,4 +104,5 @@ command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "openrouter/qwen/qwen3-coder-next"
 credential_env = ["OPENROUTER_API_KEY"]
+login_paths = [".local/share/opencode/auth.json"]
 enabled = true

@@ -7,6 +7,11 @@
 # credentials (a subscription login, or its own API key environment
 # variable) the way it already does outside osf.
 #
+# `login_paths` lists, relative to the real home, the files a harness's own
+# login lives in. Each reviewer runs in a fresh home that holds a copy of
+# only its own entry's paths; one that is missing is noted in the run and
+# the reviewer runs without it.
+#
 # The prompt is always sent on the harness's own standard input; a harness
 # whose command line needs the prompt as a file instead can use the
 # `{prompt_file}` token in its own `command`.
@@ -24,6 +29,8 @@ schema_as = "path"
 # codex exec's own --model/-m flag; left unset here so codex uses its own default model.
 model_flag = "--model"
 credential_env = ["OPENAI_API_KEY"]
+# codex stores its login in auth.json under its home folder.
+login_paths = [".codex/auth.json"]
 enabled = false
 
 [[reviewer]]
@@ -41,6 +48,8 @@ answer_pointer = "/structured_output"
 model_flag = "--model"
 # claude reads either its own subscription token or an Anthropic API key.
 credential_env = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]
+# claude stores a Linux login in this file under its config folder.
+login_paths = [".claude/.credentials.json"]
 enabled = false
 
 [[reviewer]]
@@ -51,6 +60,8 @@ family = "deepseek"
 # always answers with the model its profile is already configured for.
 command = ["dsh", "--profile", "headless"]
 credential_env = ["DEEPSEEK_API_KEY"]
+# dsh keeps saved keys in this file under its harness home folder.
+login_paths = [".dsh/.credentials.yaml"]
 enabled = false
 
 # omp is built on pi and, like it, runs many model families rather than one
@@ -62,10 +73,13 @@ name = "omp"
 harness = "omp"
 family = "omp"
 command = ["omp"]
+# omp keeps its credential store in agent.db under its agent folder.
+login_paths = [".omp/agent/agent.db"]
 enabled = false
 
 # The four opencode variants below all reach their model through
-# OpenRouter, so they share its one credential variable.
+# OpenRouter, so they share its one credential variable. opencode keeps
+# its saved logins in auth.json under its data folder.
 
 [[reviewer]]
 name = "opencode-glm"
@@ -76,6 +90,7 @@ command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "zhipuai/glm"
 credential_env = ["OPENROUTER_API_KEY"]
+login_paths = [".local/share/opencode/auth.json"]
 enabled = false
 
 [[reviewer]]
@@ -86,6 +101,7 @@ command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "moonshotai/kimi"
 credential_env = ["OPENROUTER_API_KEY"]
+login_paths = [".local/share/opencode/auth.json"]
 enabled = false
 
 [[reviewer]]
@@ -96,6 +112,7 @@ command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "alibaba/qwen"
 credential_env = ["OPENROUTER_API_KEY"]
+login_paths = [".local/share/opencode/auth.json"]
 enabled = false
 
 [[reviewer]]
@@ -106,4 +123,5 @@ command = ["opencode", "run", "--format", "json"]
 model_flag = "--model"
 model = "xiaomi/mimo"
 credential_env = ["OPENROUTER_API_KEY"]
+login_paths = [".local/share/opencode/auth.json"]
 enabled = false
