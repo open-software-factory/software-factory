@@ -153,22 +153,39 @@ GitHub always reads a `pull_request_target` workflow from the base
 branch. That is why `.github/workflows/review.yml` is the real gate, and
 a pull request cannot change what this job does.
 
-The job builds the `osf` tool from the base branch only. It reads the
-pull request's files as data: the diff, the changed files, and whatever
-a lens asks for. It never builds, installs, or runs anything from the
-pull request.
+The workflow has one job for each step. A `build` job builds the `osf`
+tool from the base branch only, with no secrets. Each reviewer then runs
+in its own job: `review codex`, `review claude` and `review opencode`.
+A reviewer job gets only its own provider's key. Its network list holds
+only its own provider host and the hosts it needs to run. It saves what
+the reviewer did as an artifact, with `osf review run --reviewer <name>
+--out <file>`. The last job, named `review`, downloads every saved
+file and runs `osf review reduce <files>`. It checks the findings,
+decides, and posts. It alone gets the code host's token. A reviewer whose
+job left no file counts as could-not-run, and could-not-run never passes.
+
+The reviewer works inside a read-only checkout of the change at its head
+commit. The base commit is available through git, so the reviewer can
+read any file and run `git diff <base>...<head>` itself. `osf` pastes no
+diff and no file text into the prompt. The prompt holds these items:
+the pull request's number, title and body, the base and head commits, the
+changed files with their line counts, the work item text, the paths of
+the linked decision records, and the lens questions. `osf` redacts a
+secret in any of that text. A finding's quote must still exist at the cited file and line in
+the checkout, or `osf` drops the finding.
 
 The job also reads the lens catalogue from the base branch. It reads the
 `[agents]` and `[review]` settings from the base branch too: the reviewers,
-the threshold, the timeout, and the cost ceiling. A pull request cannot turn
-off a lens or lower the threshold to pass its own review.
+the threshold, the timeout, the cost ceiling, and the prompt file. A pull
+request cannot turn off a lens, lower the threshold, or rewrite its own
+reviewer's instructions to pass its own review.
 
 Findings that survive verification are posted on the pull request as one
 review, with a comment on each finding's own line. A must-fix finding
 fails the job. A review that could not run fails the job too, and every
 other outcome passes.
 
-A same-repository pull request's job reads its secrets and variables
+A same-repository pull request's jobs read their secrets and variables
 through a GitHub environment named `review`. A repository admin must
 create it. Set up this short list, then the check is live.
 
@@ -177,17 +194,18 @@ create it. Set up this short list, then the check is live.
 - The verifier app. Set `vars.VERIFIER_APP_ID` and
   `secrets.VERIFIER_APP_PRIVATE_KEY` in the `review` environment. The
   job mints a short-lived token from this app, to post the review.
-- The `review` environment itself, holding at least two of these three
-  keys: `secrets.OPENAI_API_KEY`, `secrets.ANTHROPIC_API_KEY`,
-  `secrets.DEEPSEEK_API_KEY`. Each key belongs to one reviewer. `osf`
-  itself reads none of them.
+- The `review` environment itself, holding at least two of these keys:
+  `secrets.OPENAI_API_KEY`, `secrets.CLAUDE_CODE_OAUTH_TOKEN` (or
+  `secrets.ANTHROPIC_API_KEY`), `secrets.OPENROUTER_API_KEY`. Each key
+  belongs to one reviewer job. `osf` itself reads none of them.
 - Branch protection that requires the `review` job. Require every
   conversation resolved too, so a person still looks at each finding.
 
 A fork's pull request runs a separate job, also named `review`. It
 fails on purpose, with one line explaining why, unless the repository
 variable `OSF_REVIEW_FORKS` is `true` and the `fork-review` environment
-is also set up. This is why: GitHub creates a missing environment on
+is also set up. When both are set, the same jobs run, and the reviewer
+jobs and the last job use the `fork-review` environment. This is why: GitHub creates a missing environment on
 demand, with no protection at all. Without this off switch, a fork's
 pull request could run with the model keys before anyone set up
 `fork-review` at all. Turning it on is one of the recommendations
@@ -212,38 +230,42 @@ below.
 
 ### The container image
 
-Each job now runs directly on the runner. It logs in to `ghcr.io`
+Each job runs directly on the runner. It logs in to `ghcr.io`
 with its own token first. That login works whether the image behind
-it stays public or turns private later. Both jobs pull the same image,
+it stays public or turns private later. Every job pulls the same image,
 `ghcr.io/open-software-factory/devcontainer:main`. This is the same
 image the development container in this repository builds from. It
 already carries a pinned Rust toolchain, moon, and every reviewer
 tool the agent list can enable.
 
-Both the build step and the review step run through `docker run`
-against that image. Each run gets its own fresh, disposable container.
-The build step mounts `base` read-write. `cargo build` writes its own
-output there. The review step mounts `base` read-write again, for the
-`osf` binary the build step just wrote there. It also mounts `pr`
-read-only. The pull request's tree is only ever data this job reads.
-A third mount, `out`, holds the SARIF file and the review's own
-journal and state, both written through `OSF_STATE_DIR`. Only four
-environment variables cross into either container: the verifier's
-token, and the three reviewer keys named below.
+Each step that runs `osf` goes through `docker run` against that image.
+Each run gets its own fresh, disposable container. The `build` job mounts
+`base` read-write, and `cargo build` writes its own output there. It
+uploads the `osf` binary as an artifact, and every later job downloads
+that one binary. A reviewer job and the last job mount `base` and `pr`
+read-only. The pull request's tree is only ever data. A third mount,
+`out`, holds the saved reviewer file, the SARIF file, and the review's
+own journal and state, written through `OSF_STATE_DIR`. A reviewer job
+passes only its own provider's key into its container. The last job
+passes only the verifier's token.
 
 ### Outbound network access
 
-Both jobs run `step-security/harden-runner` as their first step. Its
+Every job runs `step-security/harden-runner` as its first step. Its
 policy sets `egress-policy` to `block`, with an explicit list of the
-hosts a review needs. That list names GitHub, the crates.io registry,
-the container registry, and the three reviewer APIs this file also
-names.
+hosts that job needs. The `build` job names GitHub, the crates.io
+registry and the container registry. A reviewer job names GitHub and the
+container registry. It names one provider host: `api.openai.com` for
+codex, `api.anthropic.com` for claude, and `openrouter.ai` for
+opencode. opencode also reads its model catalogue from
+`models.opencode.ai`, so that host is on its list. The last job names
+GitHub and the container registry.
 
 This step-security/harden-runner action needs sudo access on the
 runner's own virtual machine to enforce that policy. A job-level
 container would leave none of its own steps that access. This is one
-reason each job now runs directly on the runner instead, using
-`docker run` only for the build and the review. Every step then falls
+reason each job runs directly on the runner instead, using
+`docker run` only to run `osf`. Every step then falls
 under that one policy. So does the traffic each docker container makes.
 
 ### Enable a reviewer
@@ -258,7 +280,7 @@ repository's `osf.toml` selects from that list under `[agents]`:
 [agents]
 enabled = ["dsh", "omp", "opencode", "codex", "claude"]
 builder = "dsh"
-reviewers = ["codex", "dsh", "claude", "opencode"]
+reviewers = ["codex", "claude", "opencode"]
 
 [agents.models]
 claude = "claude-sonnet-5"
@@ -275,12 +297,21 @@ agent, with what `osf.toml` selects.
 Decision 0016 needs a reviewer's family to differ from the builder's own
 family.
 
-| Reviewer | Family | Model | Reads its key from |
-|---|---|---|---|
-| `codex` | openai | its own default | `OPENAI_API_KEY` (or `CODEX_API_KEY`) |
-| `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` |
-| `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) |
-| `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` |
+| Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
+|---|---|---|---|---|
+| `codex` | openai | its own default | `OPENAI_API_KEY` (or `CODEX_API_KEY`) | `--sandbox read-only`, from `codex exec --help` |
+| `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
+| `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) | `--restricted`, `--tools`, `--allowedTools` and `--permission-prompts none`, from `claude --help` |
+| `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, from the opencode CLI docs |
+| `omp` | from its model | none: it takes no model flag | its own login | `--tools read,grep,glob`, from `omp --help` |
+
+Each reviewer runs read-only. `agents.rs` records the exact flags or
+settings of each agent as data, and `osf` adds them to the agent's
+command. An agent with no documented read-only mode has none recorded.
+A reviewer list that names it reports could-not-run with the reason "no
+read-only mode", and the agent never starts. The `claude` mode lets
+Bash run only `git diff`, `git log` and `git show`. The `opencode` mode
+does the same. The `codex` sandbox lets the shell read only.
 
 Codex, Claude and DeepSeek Harness each run one family. opencode and omp
 run models from any family. The model they run decides their family.
@@ -352,6 +383,36 @@ line. Leaving an agent out lets it use its own default model. An agent
 with no model flag, such as dsh, cannot be given one, and naming it here
 is an error. Each reviewer's own answer, on the journal, records the
 model it actually ran with.
+
+### Change the reviewer's prompt
+
+`osf` ships the prompt frame as a file, `crates/osf/defaults/review-prompt.md`,
+built into the binary. A repository replaces it with a file its own
+`osf.toml` names, relative to the trusted config root:
+
+```toml
+[review]
+prompt_file = ".osf/review-prompt.md"
+```
+
+`osf` reads the file from the base branch only. It reads the lenses the
+same way. A pull request cannot rewrite its own reviewer's instructions.
+The file holds these placeholders, which `osf` fills in once, left to
+right: `{lens_name}`, `{lens_summary}`, `{lens_questions}`,
+`{severity_guide}` and `{metadata}`. Only the answer format that `osf`
+parses stays in code. `osf` appends it after the file's text, so no file
+can break parsing.
+
+### Run one reviewer, then decide
+
+`osf review run` with no `--reviewer` runs every reviewer in turn and
+decides, in one process. The pull request job splits the same work in
+two. `osf review run --reviewer <name> --out <file>` runs one reviewer
+and saves what it did. `osf review reduce <files...>` takes the saved
+files, checks the findings against the files, journals, and decides. Both
+reach the same decision. Pass `--pull-request <file>`, a JSON file with
+the `number`, `title` and `body`, to put the pull request in the prompt.
+
 ## The git wrapper, and its limit
 
 `/opt/factory/bin` comes before the real git on the container's path, and
