@@ -693,8 +693,11 @@ fn truncate_to(text: String, limit: usize) -> String {
         let Some(kept) = text.get(..cut) else {
             return text;
         };
-        if cut == 0 || cut + marker.len() <= limit {
+        if cut + marker.len() <= limit {
             return format!("{kept}{marker}");
+        }
+        if cut == 0 {
+            return marker.chars().take(limit).collect();
         }
         let overflow = cut + marker.len() - limit;
         cut = cut.saturating_sub(overflow);
@@ -866,6 +869,26 @@ mod tests {
         );
         assert!(capped.contains("truncated"));
         assert!(capped.contains("600"));
+    }
+
+    #[test]
+    fn truncate_to_never_exceeds_a_limit_shorter_than_its_marker() {
+        let text = "x".repeat(600);
+        assert_eq!(truncate_to(text.clone(), 0), "");
+        assert!(truncate_to(text.clone(), 1).len() <= 1);
+        let marker_len = |limit: usize| {
+            format!(
+                "\n\n[context truncated: 600 of 600 bytes left out to stay under the {limit}-byte cap]"
+            )
+            .len()
+        };
+        let exact = (0..300)
+            .find(|&l| marker_len(l) == l)
+            .expect("some limit equals its own marker length");
+        for limit in [exact - 1, exact, exact + 1] {
+            let capped = truncate_to(text.clone(), limit);
+            assert!(capped.len() <= limit, "limit {limit}, was {}", capped.len());
+        }
     }
 
     #[test]
