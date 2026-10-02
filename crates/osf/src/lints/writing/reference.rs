@@ -104,8 +104,205 @@ const DIMENSION_WORDS: &[&str] = &[
     "score",
 ];
 
-/// A word that says the number after it is a release number.
-const VERSION_WORDS: &[&str] = &["version", "ver", "v"];
+/// A word that says the number after it is a release number. `version` is judged apart, since a version needs a product to be placed.
+const VERSION_WORDS: &[&str] = &["ver", "v"];
+
+/// Nouns that label one numbered thing, such as `Layer 2`. A count noun or a unit after the number never cancels one.
+const LABEL_NOUNS: &[&str] = &[
+    "step",
+    "phase",
+    "layer",
+    "decision",
+    "item",
+    "option",
+    "part",
+    "point",
+    "issue",
+    "fix",
+    "milestone",
+    "task",
+    "round",
+    "track",
+    "control",
+    "stage",
+    "wave",
+    "sprint",
+    "epic",
+    "epoch",
+    "case",
+    "rule",
+    "ticket",
+    "bug",
+    "section",
+    "chapter",
+    "figure",
+    "table",
+    "appendix",
+    "question",
+    "problem",
+    "finding",
+    "review",
+    "scenario",
+    "tier",
+    "level",
+    "gate",
+    "check",
+    "checkpoint",
+    "slice",
+    "story",
+    "theme",
+    "lane",
+    "pass",
+    "attempt",
+    "iteration",
+    "experiment",
+    "trial",
+    "session",
+    "pillar",
+    "principle",
+    "goal",
+    "version",
+];
+
+/// Words that end in `s` and are never a plural noun, so a number before one is no count.
+const NOT_PLURAL_WORDS: &[&str] = &[
+    "across",
+    "always",
+    "does",
+    "goes",
+    "has",
+    "its",
+    "perhaps",
+    "plus",
+    "sometimes",
+    "thus",
+    "towards",
+    "unless",
+    "was",
+    "this",
+    "yes",
+    "less",
+    "besides",
+    "afterwards",
+    "otherwise",
+];
+
+/// Developer tools a reader may not know. A bare use with no description is a name nobody explained.
+const DEV_TOOLS: &[&str] = &[
+    "moon",
+    "bazel",
+    "mise",
+    "nx",
+    "turborepo",
+    "pnpm",
+    "yarn",
+    "lerna",
+    "cmake",
+    "meson",
+    "earthly",
+    "skaffold",
+    "asdf",
+    "direnv",
+    "devbox",
+    "fnm",
+    "volta",
+    "nvm",
+    "esbuild",
+    "webpack",
+    "rollup",
+    "biome",
+    "oxlint",
+    "eslint",
+    "prettier",
+    "ruff",
+    "pytest",
+    "poetry",
+    "pipx",
+    "nextest",
+    "sccache",
+    "rustup",
+    "rustfmt",
+    "clippy",
+    "terraform",
+    "pulumi",
+    "ansible",
+    "helm",
+    "kustomize",
+    "kubectl",
+    "minikube",
+    "podman",
+    "buildah",
+    "buildkit",
+    "buildx",
+    "lefthook",
+    "husky",
+    "renovate",
+    "dependabot",
+    "jq",
+    "yq",
+    "ripgrep",
+    "fzf",
+    "tmux",
+    "zellij",
+];
+
+/// Verbs that follow a postposed `above` and take an object or a clause, such as `the table above lists the rules`.
+const ABOVE_VERBS: &[&str] = &[
+    "explains",
+    "lists",
+    "describes",
+    "shows",
+    "covers",
+    "says",
+    "states",
+    "defines",
+    "gives",
+    "notes",
+    "names",
+    "introduces",
+    "details",
+    "summarises",
+    "summarizes",
+    "outlines",
+    "recommends",
+    "proposes",
+    "uses",
+    "contains",
+    "includes",
+    "mentions",
+    "presents",
+    "specifies",
+    "requires",
+    "applies",
+    "sets",
+    "makes",
+    "means",
+    "implies",
+    "argues",
+    "claims",
+    "sketches",
+    "documents",
+    "records",
+    "tracks",
+    "matches",
+    "repeats",
+    "holds",
+    "draws",
+    "found",
+    "said",
+    "gave",
+    "made",
+    "took",
+    "wrote",
+    "ran",
+    "led",
+    "chose",
+];
+
+/// Whether `term` is a developer tool name from the built-in list.
+pub(super) fn is_tool_term(term: &str) -> bool {
+    DEV_TOOLS.contains(&term)
+}
 
 pub(super) const MONTHS: &[&str] = &[
     "january",
@@ -170,7 +367,52 @@ pub fn candidates(
         &doc.sentences,
         doc_run_counts,
     ));
+    if context == Context::Document {
+        out.extend(tool_candidates(unit, &quotes, &masked, known));
+    }
     keep_longest_per_kind(out)
+}
+
+/// A lowercase developer tool name, in backticks or as a bare word, that the known names do not cover.
+fn tool_candidates(
+    unit: &TextUnit,
+    quotes: &[QuotedSpan],
+    masked: &str,
+    known: &KnownNames,
+) -> Vec<Candidate> {
+    static BARE: OnceLock<Regex> = OnceLock::new();
+    let mut out = Vec::new();
+    for q in quotes.iter().filter(|q| q.kind == MentionKind::Backtick) {
+        let content = unit.text.get(q.content.clone()).unwrap_or("").trim();
+        if is_tool_term(content) && !is_known_name_head(known, content) {
+            out.push(Candidate {
+                kind: Kind::Name,
+                text: content.to_string(),
+                range: q.content.clone(),
+            });
+        }
+    }
+    let bare = BARE.get_or_init(|| {
+        Regex::new(&format!(r"\b(?:{})\b", DEV_TOOLS.join("|"))).expect("tool pattern compiles")
+    });
+    for m in bare.find_iter(masked) {
+        let before = masked.get(..m.start()).and_then(|b| b.chars().next_back());
+        let after = masked.get(m.end()..).unwrap_or("");
+        let joins_a_path_or_name = before.is_some_and(|c| matches!(c, '-' | '_' | '.' | '/' | '@'))
+            || after.starts_with(['-', '_', '/', '@'])
+            || after
+                .strip_prefix('.')
+                .is_some_and(|rest| rest.starts_with(char::is_alphanumeric));
+        if joins_a_path_or_name || is_known_name_head(known, m.as_str()) {
+            continue;
+        }
+        out.push(Candidate {
+            kind: Kind::Name,
+            text: m.as_str().to_string(),
+            range: m.range(),
+        });
+    }
+    out
 }
 
 /// Multi-word name-repeat counts gathered once over the whole document, so a name split across paragraphs still counts as seen more than once.
@@ -421,10 +663,20 @@ fn word_number_candidate(
     if is_percent_quantity(text, number.end()) || is_a_range_end(after) {
         return None;
     }
-    if continues_the_number(after) || is_a_citation_volume(after) || is_followed_by_a_unit(after) {
+    let labels_one_thing = LABEL_NOUNS.contains(&word_lower.as_str());
+    if continues_the_number(after)
+        || is_a_citation_volume(after)
+        || (is_followed_by_a_unit(after) && !labels_one_thing)
+    {
         return None;
     }
     if is_a_measured_value(text, word, &word_lower) {
+        return None;
+    }
+    if counts_a_plural_noun(text, word, &word_lower, after) {
+        return None;
+    }
+    if word_lower == "version" && follows_a_product_name(&unit.text, word.start(), known) {
         return None;
     }
     if is_known_name_head(known, word.as_str()) {
@@ -439,6 +691,64 @@ fn word_number_candidate(
         text: whole.as_str().to_string(),
         range: whole.range(),
     })
+}
+
+/// Whether the text before `start` ends a sentence, or is only markup, so a word at `start` opens one.
+fn opens_a_sentence(text: &str, start: usize) -> bool {
+    let before = text.get(..start).unwrap_or("").trim_end_matches(|c: char| {
+        c.is_whitespace() || matches!(c, '#' | '*' | '>' | '-' | '|' | '_' | '(' | '[' | '"')
+    });
+    before.is_empty() || before.ends_with(['.', '!', '?', ':'])
+}
+
+/// Whether `word` is a plural noun: it ends in `s`, and is no verb form or other word that only looks plural.
+fn is_a_plural_noun(word: &str) -> bool {
+    word.len() >= 4
+        && word.ends_with('s')
+        && !word.ends_with("ss")
+        && !word.ends_with("us")
+        && !word.ends_with("is")
+        && !NOT_PLURAL_WORDS.contains(&word)
+}
+
+/// A digit that counts a plural noun, as in `holds 3 items`, is a count and never a numbered label.
+/// A label noun or a capitalised word inside a sentence names one thing, so it never counts a plural.
+fn counts_a_plural_noun(text: &str, word: regex::Match<'_>, word_lower: &str, after: &str) -> bool {
+    if LABEL_NOUNS.contains(&word_lower) || !after.starts_with(char::is_whitespace) {
+        return false;
+    }
+    let capitalised = word.as_str().starts_with(char::is_uppercase);
+    if capitalised && !opens_a_sentence(text, word.start()) {
+        return false;
+    }
+    let next: String = after
+        .trim_start()
+        .chars()
+        .take_while(|c| c.is_alphabetic())
+        .collect();
+    is_a_plural_noun(&next.to_lowercase())
+}
+
+/// Whether a product, named before `start`, places the version number that follows `version`.
+/// It is a known name, a name with an inner capital, a code span, or a capitalised word inside a sentence.
+fn follows_a_product_name(raw: &str, start: usize, known: &KnownNames) -> bool {
+    let before = raw.get(..start).unwrap_or("");
+    for token in before.split_whitespace().rev().take(3) {
+        let bare = token.trim_matches(|c: char| !c.is_alphanumeric() && c != '`');
+        let lower = bare.to_lowercase();
+        if NON_LABEL_WORDS.contains(&lower.as_str()) {
+            continue;
+        }
+        if bare.starts_with('`') || bare.ends_with('`') {
+            return true;
+        }
+        let word_start = before.rfind(token).unwrap_or(0);
+        let is_a_name = is_known_name_head(known, bare)
+            || bare.chars().skip(1).any(char::is_uppercase)
+            || (bare.starts_with(char::is_uppercase) && !opens_a_sentence(before, word_start));
+        return is_a_name;
+    }
+    false
 }
 
 /// A hyphenated range such as `12-15`.
@@ -506,16 +816,18 @@ fn is_a_label_value_item(unit: &TextUnit, after: &str) -> bool {
         && label_words.chars().all(|c| c.is_alphabetic() || c == ' ')
 }
 
-/// A heading that opens with a numbered label and then names it, such as `Stage 1 Local checks`.
+/// A heading that opens with a numbered label and then names it in three or more words, or with a link,
+/// such as `Stage 1 Canonical local verification`. One or two words after the label name nothing.
 fn is_a_defining_heading(unit: &TextUnit, text: &str, start: usize, after: &str) -> bool {
     let only_markup_before = text
         .get(..start)
         .is_some_and(|before| before.chars().all(|c| !c.is_alphanumeric()));
-    let names_it = after
-        .trim_start_matches(|c: char| c == ':' || c.is_whitespace())
-        .chars()
-        .next()
-        .is_some_and(char::is_alphabetic);
+    let named = after.trim_start_matches(|c: char| c == ':' || c.is_whitespace());
+    let words = named
+        .split_whitespace()
+        .filter(|w| w.chars().any(char::is_alphanumeric))
+        .count();
+    let names_it = (named.starts_with(char::is_alphabetic) && words >= 3) || named.contains("](");
     unit.is_heading && only_markup_before && names_it
 }
 
@@ -616,7 +928,8 @@ fn above_reference_candidates(text: &str, raw: &str) -> Vec<Candidate> {
             let rest = text.get(m.end()..).unwrap_or("");
             let raw_rest = raw.get(m.end()..).unwrap_or("");
             let is_a_noun = follows_a_determiner(text, m.start());
-            (is_a_noun || closes_a_clause(rest, raw_rest)) && !is_spatial_pair(rest)
+            let is_postposed = is_a_postposed_reference(text, m.start(), rest, raw_rest);
+            (is_a_noun || is_postposed || closes_a_clause(rest, raw_rest)) && !is_spatial_pair(rest)
         })
         .map(|m| Candidate {
             kind: Kind::Phrase,
@@ -652,6 +965,52 @@ fn closes_a_clause(rest: &str, raw_rest: &str) -> bool {
             '.' | ',' | ';' | ':' | '!' | '?' | ')' | '|' | '\u{2014}' | '\u{2013}'
         ),
     }
+}
+
+/// A noun with a determiner before `above`, then a verb that takes an object or a clause, as in
+/// `the table above lists the rules`. A verb form followed by a plain noun, as in `above recommended
+/// limits`, is an object phrase and a position.
+fn is_a_postposed_reference(text: &str, start: usize, rest: &str, raw_rest: &str) -> bool {
+    let before: Vec<String> = text
+        .get(..start)
+        .unwrap_or("")
+        .split_whitespace()
+        .rev()
+        .take(3)
+        .map(str::to_lowercase)
+        .collect();
+    let after_a_determiner = before.iter().skip(1).any(|w| {
+        matches!(
+            w.as_str(),
+            "the"
+                | "this"
+                | "that"
+                | "these"
+                | "those"
+                | "our"
+                | "your"
+                | "its"
+                | "their"
+                | "a"
+                | "an"
+        )
+    });
+    if !after_a_determiner || raw_rest.trim_start().starts_with(['`', '"', '\'']) {
+        return false;
+    }
+    let mut words = rest.split_whitespace();
+    let Some(verb) = words.next().map(str::to_lowercase) else {
+        return false;
+    };
+    let is_a_verb = ABOVE_VERBS.contains(&verb.as_str()) || is_a_participle(&verb);
+    is_a_verb
+        && words.next().is_some_and(|next| {
+            NON_LABEL_WORDS.contains(&next.to_lowercase().as_str())
+                || matches!(
+                    next.to_lowercase().as_str(),
+                    "how" | "why" | "what" | "which"
+                )
+        })
 }
 
 /// A lower-case word that reads as a past participle, such as `recommended` or `returned`.
@@ -903,11 +1262,6 @@ mod tests {
             "The service listens on port 8080 now.",
             Kind::Number,
             "port 8080"
-        ));
-        assert!(has(
-            "We only show the top 10 results.",
-            Kind::Number,
-            "top 10"
         ));
     }
 
@@ -1177,10 +1531,12 @@ mod tests {
 
     #[test]
     fn number_excludes_a_release_a_coordinate_and_a_package_version() {
-        assert!(has_no_number("Version 7 beta added tabs."));
+        assert!(has_no_number("Chrome Version 7 beta added tabs."));
         assert!(has_no_number(
             "Chrome and Edge from version 113 support it."
         ));
+        assert!(has_no_number("Pin `moon` version 2 for the build."));
+        assert!(has_no_number("We run DuckDB version 1 in the tests."));
         assert!(has_no_number("The panes measure L 382 and R 358."));
         assert!(has_no_number(
             "It drags in react-spring 8 and Material-UI 4."
@@ -1260,13 +1616,40 @@ mod tests {
     #[test]
     fn number_excludes_a_heading_that_defines_its_own_label() {
         assert_eq!(
-            number_candidate_count(&paragraph_in("Stage 1 Local checks", false, true)),
+            number_candidate_count(&paragraph_in(
+                "Stage 1 Canonical local verification",
+                false,
+                true
+            )),
             0
         );
         assert_eq!(
-            number_candidate_count(&paragraph_in("Phase 3: Implementation", false, true)),
+            number_candidate_count(&paragraph_in(
+                "Phase 3: Implementation of the loop",
+                false,
+                true
+            )),
             0
         );
+        assert_eq!(
+            number_candidate_count(&paragraph_in(
+                "Stage 1 [Local checks](checks.md)",
+                false,
+                true
+            )),
+            0
+        );
+        for short in [
+            "Decision 0014 Status",
+            "Stage 1 Local checks",
+            "Phase 3: Implementation",
+        ] {
+            assert_eq!(
+                number_candidate_count(&paragraph_in(short, false, true)),
+                1,
+                "{short}"
+            );
+        }
         assert_eq!(
             number_candidate_count(&paragraph_in("Stage 2", false, true)),
             1
@@ -1776,6 +2159,128 @@ mod tests {
         };
         assert_ne!(first.range, second.range, "{all:?}");
         assert!(second.range.start > first.range.start, "{all:?}");
+    }
+
+    // --- review fixes: counts, versions, units, above and tools ---
+
+    /// A digit that counts a plural noun is a count. Neither `3 items` nor `only 3 checkpoints` is a reference.
+    #[test]
+    fn number_excludes_a_digit_that_counts_a_plural_noun() {
+        assert!(has_no_number("The cache holds 3 items."));
+        assert!(has_no_number("The queue has 3 workers."));
+        assert!(has_no_number("The release has only 3 checkpoints."));
+        assert!(has_no_number("We show the top 10 results."));
+        assert!(has_no_number("Add 3 workers to the pool."));
+        assert!(has_no_number("Use at most 3 significant digits."));
+        assert!(has_no_number("It runs roughly 30 workers."));
+    }
+
+    /// A label noun, or a capitalised word inside a sentence, still labels one thing before a verb that ends in `s`.
+    #[test]
+    fn number_still_fires_on_a_label_before_a_verb_or_a_unit_word() {
+        assert!(has("Layer 2 holds the cache.", Kind::Number, "Layer 2"));
+        assert!(has("Step 4 fails.", Kind::Number, "Step 4"));
+        assert!(has("Phase 2 starts later.", Kind::Number, "Phase 2"));
+        assert!(has(
+            "Decision 0014 is final.",
+            Kind::Number,
+            "Decision 0014"
+        ));
+        assert!(has(
+            "Decision 12 seconds the proposal.",
+            Kind::Number,
+            "Decision 12"
+        ));
+        assert!(has(
+            "We shipped Wave 3 starts today.",
+            Kind::Number,
+            "Wave 3"
+        ));
+        assert!(has_no_number("The wait is 12 seconds."));
+    }
+
+    #[test]
+    fn number_version_needs_a_product_name_before_it() {
+        assert!(has("Revert to version 7.", Kind::Number, "version 7"));
+        assert!(has(
+            "In version 7 we dropped the old cache.",
+            Kind::Number,
+            "version 7"
+        ));
+        assert!(has_no_number("Chrome version 113 supports it."));
+        assert!(has_no_number("Pin `moon` version 2 for the build."));
+    }
+
+    #[test]
+    fn phrase_above_after_a_noun_and_before_a_verb_is_a_reference() {
+        for t in [
+            "The section above explains the exception.",
+            "The table above lists the rules.",
+            "The plan above recommended a fix.",
+            "The pricing table above shows how it works.",
+        ] {
+            assert!(
+                has(t, Kind::Phrase, "above"),
+                "{t}: {:?}",
+                find(t, Context::Document)
+            );
+        }
+    }
+
+    #[test]
+    fn phrase_above_before_an_object_phrase_is_still_a_position() {
+        assert!(has_no_phrase("Keep the volume above recommended limits."));
+        assert!(has_no_phrase("Put the label above notes."));
+        assert!(has_no_phrase("Place the label above the field."));
+        assert!(has_no_phrase("The orb floats above everything."));
+        assert!(has_no_phrase("Panels above canvas use a shadow."));
+    }
+
+    fn tool_names(text: &str, context: Context) -> Vec<String> {
+        find(text, context)
+            .into_iter()
+            .filter(|c| c.kind == Kind::Name && is_tool_term(&c.text))
+            .map(|c| c.text)
+            .collect()
+    }
+
+    #[test]
+    fn name_a_bare_or_backticked_tool_is_a_candidate_in_a_document() {
+        assert_eq!(
+            tool_names("We pinned the renderer to moon 2.5.5.", Context::Document),
+            vec!["moon"]
+        );
+        for t in ["Run `moon` now.", "Run `bazel` now.", "Run `mise` now."] {
+            assert_eq!(tool_names(t, Context::Document).len(), 1, "{t}");
+        }
+    }
+
+    #[test]
+    fn name_a_tool_is_no_candidate_outside_a_document_or_inside_a_path() {
+        assert!(tool_names("Run `moon` now.", Context::Transcript).is_empty());
+        assert!(tool_names("Run `moon` now.", Context::Commit).is_empty());
+        assert!(tool_names("Edit .moon/workspace.yml and moon.yml.", Context::Document).is_empty());
+        assert!(tool_names("The moonlight and Moon rise.", Context::Document).is_empty());
+        assert!(tool_names("Run `moon run :test` now.", Context::Document).is_empty());
+    }
+
+    #[test]
+    fn name_a_tool_a_project_already_knows_is_no_candidate() {
+        let dir =
+            std::env::temp_dir().join(format!("osf-reference-test-tool-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let path = dir.join("known-names.txt");
+        std::fs::write(&path, "moon\n").expect("known names file writes");
+        let with_file = load_known_names(&[], Some(&path)).expect("known names load");
+        let found = candidates(
+            &paragraph("Run `moon` and moon again."),
+            &WritingConfig::default(),
+            &with_file,
+            Context::Document,
+            &HashMap::new(),
+        );
+        assert!(found.iter().all(|c| !is_tool_term(&c.text)), "{found:?}");
+        std::fs::remove_dir_all(&dir).expect("temp dir cleans up");
     }
 
     // --- the fixture check ---

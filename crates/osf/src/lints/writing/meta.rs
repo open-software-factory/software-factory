@@ -200,12 +200,18 @@ pub const RULE_META: &[RuleMeta] = &[
          bracketed description, a link, or the repository named in the same \
          sentence. A file path or a list item can place it too, for a \
          file's own number or a bracketed letter. A file name in the same \
-         sentence places a numbered label. A measure is never a reference. \
-         It is a number with a unit or a percent sign, a version, or a \
-         coordinate. A number after a word such as `about` or `size` \
-         counts too. A time \
-         is placed by an absolute date in the paragraph. A name is placed by the \
-         known-names list or a sentence that says what it is. A quoted \
+         sentence places a numbered label only when it follows the label, as \
+         in `Layer 1 in components.md`. A measure is never a reference. \
+         It is a number with a unit or a percent sign, a version after a \
+         product name, or a coordinate. A number after a word such as \
+         `about` or `size` counts too. A digit that counts a plural noun, as \
+         in `holds 3 items`, is a count and never a label. A version with no \
+         product name is placed by a date, a release tag or a link. A time \
+         is placed by an absolute date in the same sentence. A name is placed by the \
+         known-names list or a sentence that says what it is. A lowercase \
+         developer tool name such as `moon` is a name too. It is reported \
+         at its first use in a document, unless a sentence says what it \
+         is. A quoted \
          term is also placed by an example marker, such as \"such as\" or \
          \"for example\". A phrase such as `as discussed` is never placed. \
          Using one is always a finding.\n\

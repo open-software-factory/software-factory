@@ -1,4 +1,4 @@
-We pinned the renderer to moon 2.5.5 after the earlier upgrade broke the export path. The export path works again now.
+We pinned the renderer to moon 2.5.5 (a build tool) after the earlier upgrade broke the export path. The export path works again now.
 
 <!-- osf-unplaceable
 label: placeable
