@@ -129,22 +129,77 @@ fn upsert(reviewers: &mut Vec<Reviewer>, reviewer: Reviewer) {
 /// environment when present: never a credential, so the same names are safe
 /// for every reviewer regardless of which one is starting.
 #[cfg(unix)]
-const RUN_ENV_VARS: &[&str] = &["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR"];
+const RUN_ENV_VARS: &[&str] = &["PATH", "LANG", "LC_ALL", "TMPDIR"];
 #[cfg(windows)]
 const RUN_ENV_VARS: &[&str] = &[
     "PATH",
-    "HOME",
-    "USERPROFILE",
     "SYSTEMROOT",
     "SYSTEMDRIVE",
     "COMSPEC",
     "PATHEXT",
     "TEMP",
     "TMP",
-    "APPDATA",
-    "LOCALAPPDATA",
     "WINDIR",
 ];
+
+/// A private, empty home directory for one reviewer run, removed on drop.
+struct RunHome(PathBuf);
+
+impl RunHome {
+    fn create() -> Result<Self, String> {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let path = std::env::temp_dir() // osf: temp-dir allowed, one directory per reviewer run
+            .join(format!(
+                "osf-review-home-{}-{unique}-{n}",
+                std::process::id()
+            ));
+        std::fs::create_dir(&path).map_err(|e| format!("cannot create {}: {e}", path.display()))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
+                .map_err(|e| format!("cannot protect {}: {e}", path.display()))?;
+        }
+        let home = Self(path);
+        #[cfg(windows)]
+        for dir in [home.roaming(), home.local()] {
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+        }
+        Ok(home)
+    }
+
+    #[cfg(windows)]
+    fn roaming(&self) -> PathBuf {
+        self.0.join("AppData").join("Roaming")
+    }
+
+    #[cfg(windows)]
+    fn local(&self) -> PathBuf {
+        self.0.join("AppData").join("Local")
+    }
+
+    /// Points the child's home and, on Windows, its profile variables here.
+    fn apply(&self, command: &mut Command) {
+        command.env("HOME", &self.0);
+        #[cfg(windows)]
+        command
+            .env("USERPROFILE", &self.0)
+            .env("APPDATA", self.roaming())
+            .env("LOCALAPPDATA", self.local());
+    }
+}
+
+impl Drop for RunHome {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 /// Runs `reviewer` against `prompt` for `lens` in `workdir`, and returns its
 /// validated answer.
@@ -215,13 +270,37 @@ fn extract_pointer(raw: &str, pointer: &str) -> Result<String, String> {
     serde_json::to_string(found).map_err(|_| format!("cannot read the value at \"{pointer}\""))
 }
 
+/// `program` with `rest`, started in `workdir` with the allow-listed
+/// environment and a fresh [`RunHome`], which must outlive the child.
+fn prepare_command(
+    reviewer: &Reviewer,
+    program: &str,
+    rest: &[String],
+    workdir: &Path,
+) -> Result<(Command, RunHome), String> {
+    let home = RunHome::create()?;
+    let mut command = Command::new(program);
+    command.args(rest).current_dir(workdir).env_clear();
+    home.apply(&mut command);
+    for var in RUN_ENV_VARS
+        .iter()
+        .copied()
+        .chain(reviewer.credential_env.iter().map(String::as_str))
+    {
+        if let Ok(value) = std::env::var(var) {
+            command.env(var, value);
+        }
+    }
+    Ok((command, home))
+}
+
 /// One attempt at running `reviewer`'s harness to completion: its captured
 /// standard output on a successful exit, or the reason it does not count as
 /// one.
 ///
 /// The child starts with an allow-listed environment: only [`RUN_ENV_VARS`]
-/// (the variables any program needs to run at all, such as `PATH` and
-/// `HOME`) and `reviewer.credential_env` (that reviewer's own provider
+/// (the variables any program needs to run at all, such as `PATH`), its own
+/// fresh empty home directory, and `reviewer.credential_env` (that reviewer's own provider
 /// credential, by name). Every other reviewer's credential, and `osf`'s own
 /// `GH_TOKEN`, stay out, whatever else is set on `osf`'s own process.
 fn run_child(
@@ -243,18 +322,13 @@ fn run_child(
         return Err(format!("reviewer '{}' has an empty command", reviewer.name));
     };
 
-    let mut command = Command::new(program);
-    command.args(rest).current_dir(workdir).env_clear();
-    for var in RUN_ENV_VARS {
-        if let Ok(value) = std::env::var(var) {
-            command.env(var, value);
+    let (mut command, _home) = match prepare_command(reviewer, program, rest, workdir) {
+        Ok(prepared) => prepared,
+        Err(e) => {
+            cleanup();
+            return Err(e);
         }
-    }
-    for var in &reviewer.credential_env {
-        if let Ok(value) = std::env::var(var) {
-            command.env(var, value);
-        }
-    }
+    };
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -420,6 +494,41 @@ mod tests {
             credential_env: Vec::new(),
             enabled: false,
         }
+    }
+
+    /// Prints the child's `HOME` and how many entries that directory holds.
+    #[cfg(unix)]
+    fn home_reporter() -> Reviewer {
+        reviewer(
+            "home-reporter",
+            vec![
+                "sh",
+                "-c",
+                "printf '%s|%s' \"$HOME\" \"$(ls -A \"$HOME\" | wc -l)\"",
+            ],
+        )
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn each_reviewer_run_gets_its_own_fresh_empty_home() {
+        let parent_home = std::env::var("HOME").unwrap_or_default();
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints its HOME
+        let mut homes = Vec::new();
+        for _ in 0..2 {
+            let out = run_child(&home_reporter(), "", &workdir, Duration::from_secs(30))
+                .expect("the reporter runs");
+            let (home, count) = out.split_once('|').expect("home and count");
+            assert_ne!(home, parent_home);
+            assert_eq!(count.trim(), "0", "the home starts empty");
+            assert!(
+                !Path::new(home).exists(),
+                "the home is removed after the run"
+            );
+            homes.push(home.to_string());
+        }
+        assert_eq!(homes.len(), 2);
+        assert_ne!(homes.first(), homes.get(1));
     }
 
     #[test]
