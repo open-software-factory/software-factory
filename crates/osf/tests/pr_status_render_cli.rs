@@ -54,7 +54,7 @@ fn render_with_base_carries_the_test_summary_in_the_block() {
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(
-        stdout.contains("| Tests | 1 added, 0 changed, 0 removed |"),
+        stdout.contains("| **Tests** | ✅ 1 added, 0 changed, 0 removed |"),
         "{stdout}"
     );
 }
@@ -84,7 +84,7 @@ fn render_with_no_base_carries_no_test_summary() {
     );
     assert_eq!(output.status.code(), Some(0), "{output:?}");
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("| Tests | ⏸ not run |"), "{stdout}");
+    assert!(stdout.contains("| **Tests** | ⏸ not run |"), "{stdout}");
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn render_writes_the_current_head_into_the_marker_and_heading() {
         "{stdout}"
     );
     assert!(
-        stdout.contains(&format!("### Status at {}", &head[..7])),
+        stdout.contains(&format!("### Status at `{}`", &head[..7])),
         "{stdout}"
     );
 }

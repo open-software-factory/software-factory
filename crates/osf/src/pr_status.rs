@@ -80,6 +80,7 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
     let review = parse_review(input.review_json)?;
     let short = input.head.get(..SHORT_SHA_LEN).unwrap_or(input.head);
 
+    let (risk_result, level) = risk_label(&tier);
     let risk_details = reasons.first().map_or("no reason recorded", String::as_str);
     let (tests_result, tests_details, tests_rest) = tests_row(input.tests);
     let (ci_result, ci_details) = gates.ci_row();
@@ -94,19 +95,19 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
     writeln!(out, "{}", marker::start(NAME, input.head)).expect("writing to a string never fails");
     write!(
         out,
-        "### Status at {short}\n\
+        "### Status at `{short}`\n\
          \n\
          | Check | Result | Details |\n\
          |---|---|---|\n\
-         | Risk | {tier} | {risk} |\n\
-         | Tests | {tests_result} | {tests_details} |\n\
-         | CI | {ci_result} | {ci_details} |\n\
-         | Commit messages | ⏸ not run | no check lints commit messages yet |\n\
-         | Contributor agreement | ⏸ not run | no check yet, and a first-time author who is not a bot posts the sentence from CONTRIBUTING.md |\n\
-         | Automated review | {auto_result} | {auto_details} |\n\
-         | Human review | {human_result} | {human_details} |\n",
+         | **Risk** | {risk_result} | {risk} |\n\
+         | **Tests** | {tests_result} | {tests_details} |\n\
+         | **CI** | {ci_result} | {ci_details} |\n\
+         | **Commit messages** | ⏸ not run | no check lints commit messages yet |\n\
+         | **Contributor agreement** | ⏸ not run | no check yet; a first-time author posts the CONTRIBUTING.md sentence |\n\
+         | **Automated review** | {auto_result} | {auto_details} |\n\
+         | **Human review** | {human_result} | {human_details} |\n",
         human_details = cell(&human_details),
-        tier = cell(&tier),
+        risk_result = cell(&risk_result),
         risk = cell(risk_details),
         tests_result = cell(&tests_result),
         ci_result = cell(&ci_result),
@@ -119,7 +120,7 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
     if !reasons.is_empty() {
         write!(
             out,
-            "\n<details>\n<summary>Why the risk is {tier}</summary>\n\n"
+            "\n<details>\n<summary><b>Why the risk is {level}</b></summary>\n\n"
         )
         .expect("writing to a string never fails");
         for reason in &reasons {
@@ -127,10 +128,17 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
         }
         out.push_str("\n</details>\n");
     }
+    if !review.rounds.is_empty() {
+        out.push_str("\n<details>\n<summary><b>Automated review rounds</b></summary>\n\n");
+        for round in &review.rounds {
+            writeln!(out, "- {}", round_bullet(round)).expect("writing to a string never fails");
+        }
+        out.push_str("\n</details>\n");
+    }
     if let Some(rest) = tests_rest {
         write!(
             out,
-            "\n<details>\n<summary>Test changes</summary>\n\n{rest}\n\n</details>\n"
+            "\n<details>\n<summary><b>Test changes</b></summary>\n\n{rest}\n\n</details>\n"
         )
         .expect("writing to a string never fails");
     }
@@ -158,19 +166,42 @@ fn tests_row(tests: Option<&str>) -> (String, String, Option<String>) {
     let summary = first.strip_prefix("**Tests**: ").unwrap_or(first);
     let rest: Vec<&str> = lines.collect();
     let rest = (!rest.is_empty()).then(|| rest.join("\n"));
-    (
-        summary.to_string(),
-        "[Testing notes](#testing-notes)".to_string(),
-        rest,
-    )
+    let result = if summary == "0 added, 0 changed, 0 removed" {
+        "➖ none automated".to_string()
+    } else {
+        format!("✅ {summary}")
+    };
+    (result, "[Testing notes](#testing-notes)".to_string(), rest)
+}
+
+/// The Risk row's dot and level, and the level word for the collapsed
+/// section: 🔴 High, 🟠 Medium (the `normal` tier), 🟢 Low. A tier this
+/// build does not know keeps its own name behind a white dot.
+fn risk_label(tier: &str) -> (String, String) {
+    match tier {
+        "high" => ("🔴 High".to_string(), "high".to_string()),
+        "normal" | "medium" => ("🟠 Medium".to_string(), "medium".to_string()),
+        "low" => ("🟢 Low".to_string(), "low".to_string()),
+        other => (format!("⚪ {other}"), other.to_string()),
+    }
+}
+
+/// One bullet for the rounds section: the round and its tier in bold, then
+/// the counts. A line that does not have the usual shape is kept as written.
+fn round_bullet(line: &str) -> String {
+    let shape = Regex::new(r"^Review round (\d+) \(([a-z]+)\): (.*?)\.?$").expect("fixed pattern");
+    match shape.captures(line) {
+        Some(c) => format!("**Round {} ({}):** {}", &c[1], &c[2], &c[3]),
+        None => line.to_string(),
+    }
 }
 
 /// The Automated review row: the verdict of the last advisory review, and
 /// the latest review round's counts.
 fn automated_review_row(review: &ReviewFields) -> (String, String) {
     let result = match review.advisory_verdict.as_deref() {
-        Some("APPROVE") => "✅ APPROVE".to_string(),
-        Some("REQUEST_CHANGES") => "❌ REQUEST_CHANGES".to_string(),
+        Some("APPROVE") => "✅ clean".to_string(),
+        Some("REQUEST_CHANGES") => "❌ changes requested".to_string(),
         Some(other) => format!("⏳ {other}"),
         None => "⏳ waiting".to_string(),
     };
@@ -299,6 +330,8 @@ struct ReviewFields {
     decision: String,
     advisory_verdict: Option<String>,
     round_line: Option<String>,
+    /// The first line of every review-round comment, oldest first.
+    rounds: Vec<String>,
 }
 
 fn parse_review(text: &str) -> Result<ReviewFields, StatusError> {
@@ -333,6 +366,7 @@ fn parse_review(text: &str) -> Result<ReviewFields, StatusError> {
         decision,
         advisory_verdict: advisory_verdict(&reviews),
         round_line: round_line(&comments),
+        rounds: round_lines(&comments),
     })
 }
 
@@ -356,11 +390,17 @@ fn advisory_verdict(reviews: &[Value]) -> Option<String> {
 
 /// The first line of the last comment whose body opens with "Review round ".
 fn round_line(comments: &[Value]) -> Option<String> {
+    round_lines(comments).pop()
+}
+
+/// The first line of every comment whose body opens with "Review round ".
+fn round_lines(comments: &[Value]) -> Vec<String> {
     comments
         .iter()
         .filter_map(|c| c.get("body").and_then(Value::as_str))
-        .rfind(|body| body.starts_with("Review round "))
-        .and_then(|body| body.lines().next().map(str::to_string))
+        .filter(|body| body.starts_with("Review round "))
+        .filter_map(|body| body.lines().next().map(str::to_string))
+        .collect()
 }
 
 #[derive(Default)]

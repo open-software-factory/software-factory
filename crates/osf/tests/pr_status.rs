@@ -51,7 +51,7 @@ fn render_ok(gates: &str, review_json: &str) -> String {
 fn row(block: &str, label: &str) -> String {
     block
         .lines()
-        .find(|line| line.starts_with(&format!("| {label} |")))
+        .find(|line| line.starts_with(&format!("| **{label}** |")))
         .unwrap_or_else(|| panic!("no {label} row in:\n{block}"))
         .to_string()
 }
@@ -61,7 +61,7 @@ fn the_block_opens_with_the_new_marker_and_a_heading_naming_the_head() {
     let block = render_ok("rust: passed", &advisory_two_rounds_review());
     let mut lines = block.lines();
     assert_eq!(lines.next(), Some(START));
-    assert_eq!(lines.next(), Some("### Status at 0123456"));
+    assert_eq!(lines.next(), Some("### Status at `0123456`"));
     assert_eq!(block.lines().last(), Some(END));
 }
 
@@ -77,7 +77,7 @@ fn the_head_sha_is_written_into_the_start_marker() {
         block.lines().next(),
         Some("<!-- osf:status:start head=fedcba9876543210 -->")
     );
-    assert!(block.contains("### Status at fedcba9"), "{block}");
+    assert!(block.contains("### Status at `fedcba9`"), "{block}");
 }
 
 #[test]
@@ -86,20 +86,20 @@ fn the_table_has_the_agreed_header_and_rows_in_order() {
     assert!(block.contains("| Check | Result | Details |\n|---|---|---|\n"));
     let labels: Vec<&str> = block
         .lines()
-        .filter(|l| l.starts_with("| ") && !l.starts_with("| Check"))
+        .filter(|l| l.starts_with("| **"))
         .filter_map(|l| l.split('|').nth(1))
         .map(str::trim)
         .collect();
     assert_eq!(
         labels,
         [
-            "Risk",
-            "Tests",
-            "CI",
-            "Commit messages",
-            "Contributor agreement",
-            "Automated review",
-            "Human review"
+            "**Risk**",
+            "**Tests**",
+            "**CI**",
+            "**Commit messages**",
+            "**Contributor agreement**",
+            "**Automated review**",
+            "**Human review**"
         ]
     );
 }
@@ -110,18 +110,18 @@ fn a_passing_change_shows_passed_ci_and_the_advisory_approval() {
         "build: passed, tests (412): passed",
         &advisory_two_rounds_review(),
     );
-    assert_eq!(row(&block, "CI"), "| CI | ✅ passed | all 2 passed |");
+    assert_eq!(row(&block, "CI"), "| **CI** | ✅ passed | all 2 passed |");
     assert_eq!(
         row(&block, "Automated review"),
-        "| Automated review | ✅ APPROVE | 1 round, 6 findings, 5 fixed, 1 justified, 0 deferred |"
+        "| **Automated review** | ✅ clean | 1 round, 6 findings, 5 fixed, 1 justified, 0 deferred |"
     );
     assert_eq!(
         row(&block, "Human review"),
-        "| Human review | ⏳ waiting | no approving review yet |"
+        "| **Human review** | ⏳ waiting | no approving review yet |"
     );
     assert_eq!(
         row(&block, "Risk"),
-        "| Risk | normal | 3 files, 120 lines, no high-blast-radius path |"
+        "| **Risk** | 🟠 Medium | 3 files, 120 lines, no high-blast-radius path |"
     );
 }
 
@@ -133,7 +133,7 @@ fn a_failed_gate_fails_ci_and_keeps_its_reason_while_trimming_names() {
     );
     assert_eq!(
         row(&block, "CI"),
-        "| CI | ❌ failed | 1 of 2 passed, failed: lint (3 warnings) |"
+        "| **CI** | ❌ failed | 1 of 2 passed, failed: lint (3 warnings) |"
     );
 }
 
@@ -142,7 +142,7 @@ fn no_gates_yet_reads_as_waiting_never_as_passed() {
     let block = render_ok("", &advisory_two_rounds_review());
     assert_eq!(
         row(&block, "CI"),
-        "| CI | ⏳ waiting | no checks reported yet |"
+        "| **CI** | ⏳ waiting | no checks reported yet |"
     );
 }
 
@@ -161,11 +161,11 @@ fn a_native_changes_requested_decision_fails_human_review() {
     let block = render_ok("build: passed", &review);
     assert_eq!(
         row(&block, "Human review"),
-        "| Human review | ❌ changes requested | changes requested on GitHub |"
+        "| **Human review** | ❌ changes requested | changes requested on GitHub |"
     );
     assert_eq!(
         row(&block, "Automated review"),
-        "| Automated review | ⏳ waiting | no round yet |"
+        "| **Automated review** | ⏳ waiting | no round yet |"
     );
 }
 
@@ -175,7 +175,7 @@ fn a_native_approved_decision_passes_human_review() {
     let block = render_ok("build: passed", &review);
     assert_eq!(
         row(&block, "Human review"),
-        "| Human review | ✅ approved | approved on GitHub |"
+        "| **Human review** | ✅ approved | approved on GitHub |"
     );
 }
 
@@ -189,11 +189,11 @@ fn an_advisory_request_for_changes_fails_automated_review() {
     let block = render_ok("build: passed", &review);
     assert_eq!(
         row(&block, "Automated review"),
-        "| Automated review | ❌ REQUEST_CHANGES | no round yet |"
+        "| **Automated review** | ❌ changes requested | no round yet |"
     );
     assert_eq!(
         row(&block, "Human review"),
-        "| Human review | ⏳ waiting | no approving review yet |"
+        "| **Human review** | ⏳ waiting | no approving review yet |"
     );
 }
 
@@ -202,7 +202,7 @@ fn the_risk_reasons_go_in_a_collapsed_section_named_for_the_level() {
     let block = render_ok("build: passed", &advisory_two_rounds_review());
     assert!(
         block.contains(
-            "<details>\n<summary>Why the risk is normal</summary>\n\n- 3 files, 120 lines, no high-blast-radius path\n- touches no deploy file\n\n</details>\n"
+            "<details>\n<summary><b>Why the risk is medium</b></summary>\n\n- 3 files, 120 lines, no high-blast-radius path\n- touches no deploy file\n\n</details>\n"
         ),
         "{block}"
     );
@@ -258,11 +258,11 @@ fn given_review_lines_go_into_the_details_of_both_review_rows() {
     let block = pr_status::render(&input).expect("render succeeds");
     assert_eq!(
         row(&block, "Automated review"),
-        "| Automated review | ✅ APPROVE | Codex (OpenAI family), 2 rounds, fixed in abc1234 |"
+        "| **Automated review** | ✅ clean | Codex (OpenAI family), 2 rounds, fixed in abc1234 |"
     );
     assert_eq!(
         row(&block, "Human review"),
-        "| Human review | ⏳ waiting | Keith Marchant \\| Ana Silva |"
+        "| **Human review** | ⏳ waiting | Keith Marchant \\| Ana Silva |"
     );
 }
 
@@ -353,7 +353,7 @@ fn with_no_tests_summary_the_tests_row_is_not_run_and_has_no_detail_section() {
     let block = render_ok("build: passed", &advisory_two_rounds_review());
     assert_eq!(
         row(&block, "Tests"),
-        "| Tests | ⏸ not run | no base to compare against |"
+        "| **Tests** | ⏸ not run | no base to compare against |"
     );
     assert!(!block.contains("Test changes"));
 }
@@ -368,11 +368,11 @@ fn a_given_tests_summary_fills_the_row_and_a_collapsed_section() {
     let block = pr_status::render(&input).expect("render succeeds");
     assert_eq!(
         row(&block, "Tests"),
-        "| Tests | 1 added, 0 changed, 0 removed | [Testing notes](#testing-notes) |"
+        "| **Tests** | ✅ 1 added, 0 changed, 0 removed | [Testing notes](#testing-notes) |"
     );
     assert!(
         block.contains(
-            "<details>\n<summary>Test changes</summary>\n\n- `osf`: 1 added, 0 changed, 0 removed\n  - added: it works\n\n</details>\n"
+            "<details>\n<summary><b>Test changes</b></summary>\n\n- `osf`: 1 added, 0 changed, 0 removed\n  - added: it works\n\n</details>\n"
         ),
         "{block}"
     );
@@ -460,7 +460,7 @@ fn apply_replaces_the_existing_block_and_changes_nothing_else() {
     let block = new_block();
     let out = pr_status::apply(BODY_WITH_NEW_BLOCK, &block).expect("apply succeeds");
     assert_eq!(strip_block(BODY_WITH_NEW_BLOCK), strip_block(&out));
-    assert!(out.contains("| CI | ✅ passed | all 2 passed |"));
+    assert!(out.contains("| **CI** | ✅ passed | all 2 passed |"));
     assert!(!out.contains("old table"));
     assert!(out.contains("Body text that must not change."));
 }
@@ -601,7 +601,7 @@ fn apply_on_a_crlf_body_keeps_crlf_throughout_and_preserves_the_trailing_run() {
         );
     }
     assert!(out.ends_with("\r\n\r\n"), "{:?}", &out[out.len() - 8..]);
-    assert!(out.contains("| CI | ✅ passed"));
+    assert!(out.contains("| **CI** | ✅ passed"));
     assert!(out.contains("Body text that must not change."));
     assert!(!out.contains("old reasons"));
 }
@@ -734,7 +734,7 @@ fn gates_from_checks_json_of_an_empty_array_reads_as_no_checks_reported_yet() {
     let block = render_ok(&gates, &review);
     assert_eq!(
         row(&block, "CI"),
-        "| CI | ⏳ waiting | no checks reported yet |"
+        "| **CI** | ⏳ waiting | no checks reported yet |"
     );
 }
 
@@ -755,4 +755,88 @@ fn is_unchanged_is_false_when_the_bodys_block_differs() {
 fn is_unchanged_is_false_when_the_body_has_no_block_yet() {
     let block = new_block();
     assert!(!pr_status::is_unchanged(BODY_WITHOUT_BLOCK, &block).expect("no marker error"));
+}
+
+fn risk_row_for(tier: &str) -> String {
+    let review = advisory_two_rounds_review();
+    let tier_json = format!(r#"{{"tier":"{tier}","reasons":["a reason"]}}"#);
+    let input = RenderInput {
+        tier_json: &tier_json,
+        ..base_input("build: passed", &review)
+    };
+    let block = pr_status::render(&input).expect("render succeeds");
+    row(&block, "Risk")
+}
+
+#[test]
+fn the_risk_row_shows_a_coloured_dot_and_the_level() {
+    assert_eq!(risk_row_for("high"), "| **Risk** | 🔴 High | a reason |");
+    assert_eq!(
+        risk_row_for("normal"),
+        "| **Risk** | 🟠 Medium | a reason |"
+    );
+    assert_eq!(risk_row_for("low"), "| **Risk** | 🟢 Low | a reason |");
+    assert_eq!(risk_row_for("odd"), "| **Risk** | ⚪ odd | a reason |");
+}
+
+#[test]
+fn a_summary_with_no_test_changes_reads_none_automated() {
+    let review = advisory_two_rounds_review();
+    let input = RenderInput {
+        tests: Some("**Tests**: 0 added, 0 changed, 0 removed"),
+        ..base_input("build: passed", &review)
+    };
+    let block = pr_status::render(&input).expect("render succeeds");
+    assert_eq!(
+        row(&block, "Tests"),
+        "| **Tests** | ➖ none automated | [Testing notes](#testing-notes) |"
+    );
+    assert!(!block.contains("Test changes"), "{block}");
+}
+
+#[test]
+fn every_review_round_gets_a_bold_bullet_in_a_bold_collapsed_section() {
+    let review = review_json(
+        "",
+        "",
+        r#"{"body":"Review round 1 (normal): 6 findings, 5 fixed, 1 justified, 0 deferred.\n\nDetail."},
+           {"body":"Review round 2 (high): 0 findings.\n\nDetail."}"#,
+    );
+    let block = render_ok("build: passed", &review);
+    assert!(
+        block.contains(
+            "<details>\n<summary><b>Automated review rounds</b></summary>\n\n- **Round 1 (normal):** 6 findings, 5 fixed, 1 justified, 0 deferred\n- **Round 2 (high):** 0 findings\n\n</details>\n"
+        ),
+        "{block}"
+    );
+}
+
+#[test]
+fn with_no_review_round_there_is_no_rounds_section() {
+    let review = review_json("", "", "");
+    let block = render_ok("build: passed", &review);
+    assert!(!block.contains("Automated review rounds"), "{block}");
+}
+
+#[test]
+fn every_collapsed_section_in_the_block_has_a_bold_summary() {
+    let review = advisory_two_rounds_review();
+    let input = RenderInput {
+        tests: Some(
+            "**Tests**: 1 added, 0 changed, 0 removed\n- `osf`: 1 added, 0 changed, 0 removed",
+        ),
+        ..base_input("build: passed", &review)
+    };
+    let block = pr_status::render(&input).expect("render succeeds");
+    let summaries: Vec<&str> = block
+        .lines()
+        .filter(|l| l.starts_with("<summary>"))
+        .collect();
+    assert_eq!(summaries.len(), 3, "{block}");
+    for line in summaries {
+        assert!(
+            line.starts_with("<summary><b>") && line.ends_with("</b></summary>"),
+            "{line}"
+        );
+    }
 }
