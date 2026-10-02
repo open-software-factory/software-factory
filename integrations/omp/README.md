@@ -106,7 +106,7 @@ node -e "import('./dist/src/check.js').then(({ lastAssistantText, readResult }) 
   const text = lastAssistantText({ role: 'assistant', content: [{ type: 'text', text: 'Sample assistant reply, not a bare reference.' }] }, []); \
   console.log('extracted:', JSON.stringify(text)); \
   console.log('clean check:', JSON.stringify(readResult({ code: 0, stdout: '' }))); \
-  console.log('blocked check:', JSON.stringify(readResult({ code: 0, stdout: JSON.stringify({ decision: 'block', reason: 'message:1: error [bare-reference]' }) }))); \
+  console.log('blocked check:', JSON.stringify(readResult({ code: 0, stdout: JSON.stringify({ decision: 'block', reason: 'message:1: error [unplaceable-reference]' }) }))); \
 });"
 ```
 

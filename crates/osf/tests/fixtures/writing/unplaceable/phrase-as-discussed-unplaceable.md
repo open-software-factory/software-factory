@@ -9,5 +9,4 @@ reason: phrase that only works inside one conversation
 
 <!-- osf-expect
 unplaceable-reference
-chat-local-reference
 -->

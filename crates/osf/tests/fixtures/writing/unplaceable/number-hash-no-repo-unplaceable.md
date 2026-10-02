@@ -9,5 +9,4 @@ reason: hash-number with no repository in front of it
 
 <!-- osf-expect
 unplaceable-reference
-bare-reference
 -->

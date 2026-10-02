@@ -9,5 +9,4 @@ reason: a generic label word from names.rs, not a known name, followed by a numb
 
 <!-- osf-expect
 unplaceable-reference
-chat-local-reference
 -->

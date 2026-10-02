@@ -6,7 +6,3 @@ kind: model
 target: as discussed
 reason: "example" sits beside the quote but only blames it for confusion, without saying what it means
 -->
-
-<!-- osf-expect
-chat-local-reference
--->
