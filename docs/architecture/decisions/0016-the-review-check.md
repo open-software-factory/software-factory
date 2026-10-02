@@ -77,7 +77,7 @@ An adopter adds a domain lens as a file under `.osf/review-lenses/<name>.toml`, 
 
 osf runs each reviewer through a coding-agent command-line tool, run headless, with the lens prompt. osf owns the prompts, the JSON Schema each answer must match, and which reviewer runs.
 
-The reviewer roster is exactly the coding agents the development container installs: dsh, omp, opencode, codex and claude. [open-software-factory/software-factory#151 (the development container)](https://github.com/open-software-factory/software-factory/pull/151) adds `.devcontainer/agents.json`, the one list of them. omp is built on pi, so pi's place in the roster is omp's entry. This record keeps no hand-kept second copy of that list. Each agent is tagged with its model family.
+The reviewer roster is exactly the coding agents the development container installs. [open-software-factory/software-factory#151 (the development container)](https://github.com/open-software-factory/software-factory/pull/151) adds `.devcontainer/agents.json`, the one list of them. omp is built on pi, so pi's place in the roster is omp's entry. This record names the agents only in the table below, which tags each with its model family.
 
 | Harness | Model family | Access |
 |---|---|---|
@@ -104,7 +104,7 @@ The reducer decides per lens, and it is plain code:
 - A lens needs answers from reviewers in two model families, both different from the builder's, each giving more than one round. When only one family has a working reviewer, the lens runs one extra critical round with that family instead of going could-not-run. A lens with no working reviewer in any family is still could-not-run, and a could-not-run lens is never a pass. This is the same interim policy the Reviewers section states, kept while the factory collects data on how it performs.
 - A verified blocker vetoes the lens.
 - The lens score is the mean of its criterion scores.
-- The review passes when every lens that ran reached quorum, no blocker survived verification, and the weighted score clears the threshold.
+- The review passes when every lens that ran reached quorum (the one-family fallback round counts as quorum under the interim policy), no blocker survived verification, and the weighted score clears the threshold.
 
 The lens weights and the threshold ship as data. Adopters get configurable weights in a later version.
 
