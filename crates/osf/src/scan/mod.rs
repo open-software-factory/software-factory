@@ -435,7 +435,36 @@ fn is_known_placeholder(whole: &str, value: Option<&str>) -> bool {
         return true;
     }
     value.is_some_and(|v| {
-        KNOWN_PLACEHOLDER_LITERALS.contains(&v) || placeholder_value_pattern().is_match(v)
+        KNOWN_PLACEHOLDER_LITERALS.contains(&v)
+            || placeholder_value_pattern().is_match(v)
+            || is_reference_value(v)
+            || is_readable_slug(v)
+    })
+}
+
+/// A value that names a variable or an expression, such as `${NAME}`,
+/// `$NAME` or `${{ secrets.X }}`, so the secret lives elsewhere.
+fn is_reference_value(value: &str) -> bool {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    re(
+        &RE,
+        r"^(?:\$\{[^}]*\}+|\$[A-Za-z_][A-Za-z0-9_]*|\{\{.*\}\})$",
+    )
+    .is_match(value)
+}
+
+/// A lowercase slug such as `od-factory-float`: only lowercase letters,
+/// digits, hyphens, underscores and dots, and every part between separators
+/// reads as a word or a short label. A part of five or more characters that
+/// mixes in digits, or a letters-only part over 15 characters, looks random,
+/// so such a value stays flagged.
+fn is_readable_slug(value: &str) -> bool {
+    let charset = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || "-_.".contains(c);
+    if !value.chars().all(charset) {
+        return false;
+    }
+    value.split(['-', '_', '.']).all(|part| {
+        part.len() <= 4 || (part.len() <= 15 && part.chars().all(|c| c.is_ascii_lowercase()))
     })
 }
 

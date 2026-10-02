@@ -610,6 +610,58 @@ fn a_value_that_only_starts_with_a_placeholder_word_still_fires_scan_secret() {
 }
 
 #[test]
+fn a_lowercase_slug_value_does_not_fire_scan_secret() {
+    let (_repo, rules) = rules();
+    for (name, value) in [
+        ("FLOAT_KEY", "od-factory-float"),
+        ("STORAGE_KEY", "od-factory-shell"),
+        ("SETTINGS_KEY", "od-factory-settings"),
+        ("LAYOUT_KEY", "od-workspace-spike-layout-v1"),
+        ("KEY", "od-panels-spike-v1"),
+        ("CACHE_KEY", "release_notes.v2"),
+    ] {
+        let text = format!("{name} = '{value}'\n");
+        let found = rules.scan_text(&text, Context::Document);
+        assert!(rule_ids(&found).is_empty(), "{name}: {found:?}");
+    }
+}
+
+#[test]
+fn a_variable_or_expression_reference_value_does_not_fire_scan_secret() {
+    let (_repo, rules) = rules();
+    for value in [
+        "${DEPLOY_TOKEN}",
+        "$DEPLOY_TOKEN",
+        "${{ secrets.DEPLOY_TOKEN }}",
+        "${{secrets.DEPLOY_TOKEN}}",
+    ] {
+        let text = format!("{}\n", secret_assignment("TOKEN", value));
+        let found = rules.scan_text(&text, Context::Document);
+        assert!(rule_ids(&found).is_empty(), "{value}: {found:?}");
+    }
+}
+
+/// Random-looking values are not slugs, even when they are lowercase, and a
+/// reference shape only counts when it is the whole value.
+#[test]
+fn a_random_looking_value_still_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    let long_lower = "abcdefghijklmnopqrstuvwxyzabcdefghijklmn";
+    let hex = "9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c";
+    for value in [
+        long_lower,
+        hex,
+        "Zk3pQ9vLx2WmRt7YbN4cHd8S",
+        "od-factory-9f8a7b6c5d4e",
+        "prefix${SUFFIX}abcdef",
+    ] {
+        let text = format!("{}\n", secret_assignment("SECRET", value));
+        let found = rules.scan_text(&text, Context::Document);
+        assert_eq!(rule_ids(&found), vec!["scan-secret"], "{value}: {found:?}");
+    }
+}
+
+#[test]
 fn a_lower_case_key_named_variable_does_not_fire_scan_secret() {
     let (_repo, rules) = rules();
     let text = "cache_key = \"a-perfectly-normal-lookup-key\"\nsort_key = \"created_at\"\n";

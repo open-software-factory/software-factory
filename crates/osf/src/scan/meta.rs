@@ -184,7 +184,13 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               this repository's own tracked files, its commit messages, and any text a caller \
               passes through `scan_text`, such as a reviewer's assembled prompt. A lower-case \
               or mixed-case name such as `cache_key` is not flagged, and neither is a bare \
-              word that merely ends in one of these strings, such as `MONKEY`. A secret shape \
+              word that merely ends in one of these strings, such as `MONKEY`. An assigned value \
+              that is a lowercase slug (only lowercase letters, digits, hyphens, underscores \
+              and dots, every part a word or a short label) is a name, not a secret, so a \
+              browser storage key such as `od-factory-float` is not flagged. A value that is a \
+              variable or expression reference, such as `${NAME}`, `$NAME` or \
+              `${{ secrets.X }}`, is not flagged either. A long random string, a slug with a \
+              random-looking part, and every known token prefix stay flagged. A secret shape \
               this list does not name is not caught; an adopter's own known shapes belong in \
               `[scan] denylist`.",
         exception: None,
