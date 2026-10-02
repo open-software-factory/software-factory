@@ -19,7 +19,7 @@ if ($env:OSF_FAKE_ENV_CAPTURE) {
         "CLAUDE_CODE_OAUTH_TOKEN=$($env:CLAUDE_CODE_OAUTH_TOKEN)",
         "OPENROUTER_API_KEY=$($env:OPENROUTER_API_KEY)"
     )
-    Set-Content -Path $env:OSF_FAKE_ENV_CAPTURE -Value ($lines -join "`n")
+    [IO.File]::WriteAllText($env:OSF_FAKE_ENV_CAPTURE, (($lines -join "`n") + "`n"))
 }
 if ($env:OSF_FAKE_SLEEP_SECS) {
     Start-Sleep -Seconds ([int]$env:OSF_FAKE_SLEEP_SECS)

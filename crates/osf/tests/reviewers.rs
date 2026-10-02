@@ -73,9 +73,10 @@ fn fake_harness_command(vars: &[(&str, &str)]) -> Vec<String> {
 
 #[cfg(windows)]
 fn fake_harness_command(vars: &[(&str, &str)]) -> Vec<String> {
+    use std::fmt::Write as _;
     let mut prefix = String::new();
     for (k, v) in vars {
-        prefix.push_str(&format!("$env:{k}=\"{}\"; ", v.replace('"', "`\"")));
+        let _ = write!(prefix, "$env:{k}=\"{}\"; ", v.replace('"', "`\""));
     }
     vec![
         "powershell".to_string(),

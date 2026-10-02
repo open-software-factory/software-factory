@@ -387,6 +387,33 @@ fn extract_pointer(raw: &str, pointer: &str) -> Result<String, String> {
     serde_json::to_string(found).map_err(|_| format!("cannot read the value at \"{pointer}\""))
 }
 
+/// `program` as given on Unix. On Windows, a bare name is looked up on `PATH`
+/// with each `PATHEXT` extension, because `Command` only adds `.exe` and an
+/// agent installed with npm is a `.cmd` file.
+#[cfg(windows)]
+fn resolve_program(program: &str) -> std::ffi::OsString {
+    let bare =
+        Path::new(program).extension().is_none() && Path::new(program).components().count() == 1;
+    let (true, Some(path)) = (bare, std::env::var_os("PATH")) else {
+        return program.into();
+    };
+    let exts = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_string());
+    for dir in std::env::split_paths(&path) {
+        for ext in exts.split(';').filter(|e| !e.is_empty()) {
+            let candidate = dir.join(format!("{program}{ext}"));
+            if candidate.is_file() {
+                return candidate.into_os_string();
+            }
+        }
+    }
+    program.into()
+}
+
+#[cfg(not(windows))]
+fn resolve_program(program: &str) -> std::ffi::OsString {
+    program.into()
+}
+
 /// `program` with `rest`, started in `workdir` with the allow-listed
 /// environment and a fresh [`RunHome`], which must outlive the child.
 fn prepare_command(
@@ -398,7 +425,7 @@ fn prepare_command(
 ) -> Result<(Command, RunHome, Vec<String>), String> {
     let home = RunHome::create()?;
     let notes = home.seed_login(real_home, &reviewer.login_paths)?;
-    let mut command = Command::new(program);
+    let mut command = Command::new(resolve_program(program));
     command.args(rest).current_dir(workdir).env_clear();
     home.apply(&mut command);
     for var in RUN_ENV_VARS

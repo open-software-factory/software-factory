@@ -12,12 +12,12 @@
 //! record to build. That leaves exactly one lens selected for every
 //! change these tests make, whatever its size or tier.
 
-#![cfg(unix)]
-
 mod common;
 
 use common::{TempDir, TempRepo};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
 
 /// The lens names the shipped catalogue always runs, other than
 /// `correctness`, which these tests redefine as their one active lens
@@ -132,6 +132,16 @@ fn review_repo_built_by(name: &str, osf_toml: &str, trailer_model: &str) -> Temp
     repo
 }
 
+/// How long a reviewer may run in the timeout tests. PowerShell alone takes
+/// about a second to start, so Windows gets a longer limit.
+#[cfg(unix)]
+const TIMEOUT_SECS: u64 = 1;
+#[cfg(windows)]
+const TIMEOUT_SECS: u64 = 5;
+
+/// How long a slow fake sleeps: well past the timeout.
+const SLOW_SECS: u64 = TIMEOUT_SECS + 5;
+
 /// What one fake agent program does when osf starts it as a reviewer.
 enum Fake<'a> {
     /// Prints the answer file's text.
@@ -148,6 +158,47 @@ fn agents_toml(prefix: &str, reviewers: &[&str]) -> String {
     format!("{prefix}[agents]\nreviewers = [{}]\n", names.join(", "))
 }
 
+/// Writes the fake program for `agent` into `bin`: a script that runs the
+/// fake harness the way `fake` says.
+#[cfg(unix)]
+fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
+    use std::os::unix::fs::PermissionsExt as _;
+    let harness = fixture("fake-harness.sh");
+    let body = match fake {
+        Fake::Answers(answer) => format!("OSF_FAKE_ANSWER='{answer}' exec '{harness}'"),
+        Fake::Slow(answer, secs) => {
+            format!("OSF_FAKE_ANSWER='{answer}' OSF_FAKE_SLEEP_SECS={secs} exec '{harness}'")
+        }
+        Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
+    };
+    let program = bin.join(agent);
+    std::fs::write(&program, format!("#!/bin/sh\n{body}\n")).expect("fake agent writes");
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755))
+        .expect("fake agent chmod");
+}
+
+/// The Windows form: a `.cmd` file that runs `fake-harness.ps1`. The dsh agent
+/// is started through `sh -c`, so a fake `sh.cmd` stands in for it too.
+#[cfg(windows)]
+fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
+    let harness = fixture("fake-harness.ps1");
+    let run = |answer: &str, sleep: &str| {
+        format!(
+            "@echo off\r\nset \"OSF_FAKE_ANSWER={answer}\"\r\n{sleep}\
+             powershell -NoProfile -ExecutionPolicy Bypass -File \"{harness}\"\r\n"
+        )
+    };
+    let body = match fake {
+        Fake::Answers(answer) => run(answer, ""),
+        Fake::Slow(answer, secs) => run(answer, &format!("set \"OSF_FAKE_SLEEP_SECS={secs}\"\r\n")),
+        Fake::Fails(secret) => format!("@echo off\r\necho {secret} 1>&2\r\nexit /b 9\r\n"),
+    };
+    std::fs::write(bin.join(format!("{agent}.cmd")), &body).expect("fake agent writes");
+    if agent == "dsh" {
+        std::fs::write(bin.join("sh.cmd"), &body).expect("fake sh writes");
+    }
+}
+
 /// A folder of fake agent programs, one per reviewer and named as the real
 /// agent is, plus the `osf.toml` text that selects them. Put on `PATH`, they
 /// stand in for the real agents so no test ever calls a real model.
@@ -158,21 +209,9 @@ struct Fakes {
 
 impl Fakes {
     fn new(prefix: &str, reviewers: &[(&str, Fake)]) -> Fakes {
-        use std::os::unix::fs::PermissionsExt as _;
         let bin = TempDir::new("review-run-fake-agents");
-        let harness = fixture("fake-harness.sh");
         for (agent, fake) in reviewers {
-            let body = match fake {
-                Fake::Answers(answer) => format!("OSF_FAKE_ANSWER='{answer}' exec '{harness}'"),
-                Fake::Slow(answer, secs) => format!(
-                    "OSF_FAKE_ANSWER='{answer}' OSF_FAKE_SLEEP_SECS={secs} exec '{harness}'"
-                ),
-                Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
-            };
-            let program = bin.join(agent);
-            std::fs::write(&program, format!("#!/bin/sh\n{body}\n")).expect("fake agent writes");
-            std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755))
-                .expect("fake agent chmod");
+            write_fake_agent(&bin, agent, fake);
         }
         let names: Vec<&str> = reviewers.iter().map(|(agent, _)| *agent).collect();
         Fakes {
@@ -198,7 +237,11 @@ impl Fakes {
             || std::env::var("PATH").unwrap_or_default(),
             |(_, v)| (*v).to_string(),
         );
-        let path = format!("{}:{base}", self.bin.display());
+        let dirs = std::iter::once(self.bin.to_path_buf()).chain(std::env::split_paths(&base));
+        let path = std::env::join_paths(dirs)
+            .expect("PATH joins")
+            .to_string_lossy()
+            .into_owned();
         let mut all: Vec<(&str, &str)> =
             env.iter().copied().filter(|(k, _)| *k != "PATH").collect();
         all.push(("PATH", &path));
@@ -448,9 +491,9 @@ fn only_one_family_enabled_passes_under_the_interim_policy() {
 #[test]
 fn a_family_that_times_out_leaves_the_working_family_its_critical_round() {
     let fakes = Fakes::new(
-        "[review]\ntimeout_seconds = 1\n\n",
+        &format!("[review]\ntimeout_seconds = {TIMEOUT_SECS}\n\n"),
         &[
-            ("codex", Fake::Slow(&fixture("valid.json"), 6)),
+            ("codex", Fake::Slow(&fixture("valid.json"), SLOW_SECS)),
             ("dsh", Fake::Answers(&fixture("valid.json"))),
         ],
     );
@@ -522,8 +565,8 @@ fn a_could_not_run_verdict_reports_no_score_or_threshold() {
 #[test]
 fn a_configured_timeout_governs_how_long_a_reviewer_may_run() {
     let fakes = Fakes::new(
-        "[review]\ntimeout_seconds = 1\n\n",
-        &[("codex", Fake::Slow(&fixture("valid.json"), 6))],
+        &format!("[review]\ntimeout_seconds = {TIMEOUT_SECS}\n\n"),
+        &[("codex", Fake::Slow(&fixture("valid.json"), SLOW_SECS))],
     );
     let repo = review_repo("configured-timeout", &fakes.osf_toml);
     let home = common::isolated_home("review-run-configured-timeout");
@@ -537,7 +580,7 @@ fn a_configured_timeout_governs_how_long_a_reviewer_may_run() {
         // One family enabled earns the interim policy's extra critical
         // round: up to three 1-second timeouts in a row, plus process
         // overhead, well under the 300-second default this guards against.
-        started.elapsed() < std::time::Duration::from_secs(15),
+        started.elapsed() < std::time::Duration::from_secs(3 * TIMEOUT_SECS + 12),
         "took {:?}: the configured 1-second timeout should have governed \
          this run, not the 300-second default; stdout: {}\nstderr: {}",
         started.elapsed(),
