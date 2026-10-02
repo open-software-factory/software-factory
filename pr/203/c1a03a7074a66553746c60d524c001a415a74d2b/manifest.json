@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "c1a03a7074a66553746c60d524c001a415a74d2b",
+    "contentHash": "e92c6c47fb1961e28f1ac1f309b606e1"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bbce8ff3f817b2d3fdb7f0ae070d7b27",
+      "bytes": 27701,
+      "width": 1798,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-light-bbce8ff3f817b2d3fdb7f0ae070d7b27.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1671ea5de2f476ef450c8cba2eb5953e",
+      "bytes": 28062,
+      "width": 1798,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-dark-1671ea5de2f476ef450c8cba2eb5953e.svg"
+    },
+    {
+      "id": "candidate-engine-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "candidate-engine-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ebcebeb8f5892aa1784444a6b1ed9cc4",
+      "bytes": 10091,
+      "width": 436,
+      "height": 418,
+      "animated": false,
+      "path": "candidate-engine-detail-light-ebcebeb8f5892aa1784444a6b1ed9cc4.svg"
+    },
+    {
+      "id": "candidate-engine-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "candidate-engine-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "29edae1f0e4968421482161eb1a24ee5",
+      "bytes": 10204,
+      "width": 436,
+      "height": 418,
+      "animated": false,
+      "path": "candidate-engine-detail-dark-29edae1f0e4968421482161eb1a24ee5.svg"
+    },
+    {
+      "id": "evidence-resolution-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "evidence-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "24a7c65369cab2e8786debe02c7ee113",
+      "bytes": 11578,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "evidence-resolution-light-24a7c65369cab2e8786debe02c7ee113.svg"
+    },
+    {
+      "id": "evidence-resolution-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "evidence-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "93399680372f998c566810d2436f1396",
+      "bytes": 11716,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "evidence-resolution-dark-93399680372f998c566810d2436f1396.svg"
+    }
+  ]
+}
