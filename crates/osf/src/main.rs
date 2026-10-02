@@ -1,7 +1,7 @@
 use osf::pr_status::GhClient;
 use osf::{
-    assets, changeset_risk, changeset_tests, config, exclude, git, hook, lints, pr_status, review,
-    scan, section, verify,
+    assets, changeset_risk, changeset_tests, config, exclude, git, hook, lints, pr_status, pr_tree,
+    review, scan, section, verify,
 };
 
 use clap::parser::ValueSource;
@@ -168,6 +168,29 @@ enum PrAction {
         #[command(subcommand)]
         action: StatusAction,
     },
+    /// Render the file table for the tree block of a pull request description.
+    Tree {
+        #[command(subcommand)]
+        action: TreeAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum TreeAction {
+    /// Print the collapsed file table for a change, with count chips and
+    /// size bars. Put it in a pull request with `osf pr section write
+    /// --name tree`.
+    Render(TreeRenderArgs),
+}
+
+#[derive(Args)]
+struct TreeRenderArgs {
+    /// What to diff against: a remote-tracking ref or any commit-ish.
+    #[arg(long, default_value = "origin/main")]
+    base: String,
+    /// The other side of the diff.
+    #[arg(long, default_value = "HEAD")]
+    head: String,
 }
 
 #[derive(Subcommand)]
@@ -637,6 +660,11 @@ fn main() -> ExitCode {
                     action: StatusAction::Refresh(args),
                 },
         } => pr_status_refresh_cmd(args),
+        Command::Pr {
+            action: PrAction::Tree {
+                action: TreeAction::Render(args),
+            },
+        } => pr_tree_render_cmd(args),
         Command::Assets {
             action: AssetsAction::Publish(args),
         } => assets_publish_cmd(args),
@@ -1752,6 +1780,26 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
     }
     let outcome = post_plan(&args.repo, args.pr, &plan, &head_sha);
     report_outcome(outcome, args, &head_sha)
+}
+
+fn pr_tree_render_cmd(args: &TreeRenderArgs) -> ExitCode {
+    match pr_tree::collect(Path::new("."), &args.base, &args.head) {
+        Ok(changes) if changes.is_empty() => {
+            eprintln!(
+                "osf: no files differ between {} and {}",
+                args.base, args.head
+            );
+            ExitCode::from(2)
+        }
+        Ok(changes) => {
+            print!("{}", pr_tree::render(&changes));
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
 }
 
 fn pr_section_write_cmd(args: &SectionWriteArgs) -> ExitCode {

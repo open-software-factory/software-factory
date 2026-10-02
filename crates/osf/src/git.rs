@@ -399,6 +399,54 @@ pub fn diff_numstat(dir: &Path, rev: &str) -> Result<Vec<String>, GitError> {
     run_text(dir, &["diff", "--numstat", rev]).map(|t| t.lines().map(str::to_string).collect())
 }
 
+/// Added and removed line counts for one path. A binary file has two zeros.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Numstat {
+    pub added: u64,
+    pub removed: u64,
+    /// The path at `head`; the new name for a rename.
+    pub path: String,
+}
+
+/// Line counts for every path that differs between `base` and `head`, at
+/// their merge base, with renames detected.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` or
+/// `head` does not resolve.
+pub fn diff_numstat_between(dir: &Path, base: &str, head: &str) -> Result<Vec<Numstat>, GitError> {
+    let range = format!("{base}...{head}");
+    run(dir, &["diff", "--numstat", "-M", "-z", &range]).map(|raw| parse_numstat_z(&raw))
+}
+
+/// Parses `git diff --numstat -M -z`: `added<TAB>removed<TAB>path<NUL>`, and
+/// for a rename `added<TAB>removed<TAB><NUL>old<NUL>new<NUL>`.
+fn parse_numstat_z(raw: &[u8]) -> Vec<Numstat> {
+    let mut tokens = split_nul(raw).into_iter();
+    let mut out = Vec::new();
+    while let Some(token) = tokens.next() {
+        let mut fields = token.splitn(3, '\t');
+        let (Some(added), Some(removed), Some(path)) =
+            (fields.next(), fields.next(), fields.next())
+        else {
+            continue;
+        };
+        let path = if path.is_empty() {
+            let _old = tokens.next();
+            let Some(new) = tokens.next() else { break };
+            new
+        } else {
+            path.to_string()
+        };
+        out.push(Numstat {
+            added: added.parse().unwrap_or(0),
+            removed: removed.parse().unwrap_or(0),
+            path,
+        });
+    }
+    out
+}
+
 /// Every path git neither tracks nor ignores.
 ///
 /// # Errors
@@ -467,6 +515,24 @@ mod tests {
         assert_eq!(
             parse("C100", &["src.rs", "copy.rs"]),
             Some(ChangedPath::Added("copy.rs".to_string()))
+        );
+    }
+
+    #[test]
+    fn numstat_reads_plain_binary_and_renamed_paths() {
+        let raw = b"3\t1\tsrc/a.rs\0-\t-\tlogo.png\x005\t0\t\0old.rs\0new.rs\0";
+        let entry = |added, removed, path: &str| Numstat {
+            added,
+            removed,
+            path: path.to_string(),
+        };
+        assert_eq!(
+            parse_numstat_z(raw),
+            vec![
+                entry(3, 1, "src/a.rs"),
+                entry(0, 0, "logo.png"),
+                entry(5, 0, "new.rs")
+            ]
         );
     }
 

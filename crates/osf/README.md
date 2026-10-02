@@ -12,6 +12,7 @@ the rules, because the rules are compiled in.
 | `osf hook stop` | Reads a coding agent's Stop event from standard input and lints the final message. Stop is the event an agent sends when it wants to end its turn. The command refuses the stop when the message has errors, and also when it could not check the message at all (bad input, no message in the event, or no known-names list to check against). The agent gets the findings, or the reason it could not be checked, and rewrites. After two refusals in one turn the message goes through. |
 | `osf hook prompt` | Reads a coding agent's prompt-submitted event from standard input and prints context for the new turn: a one-line reminder of the writing shapes a model slips into most, then any style advice the last stop check stored for that session. The advice holds the last turn only, at most twenty lines, and is cleared once printed. |
 | `osf pr status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
+| `osf pr tree render [--base <ref>] [--head <ref>]` | Prints the collapsed file table for the `osf:tree` block, with count chips and log-scale size bars. See "The file table" below. |
 | `osf changeset tests --base <ref> --head <ref>` | Prints the Rust test summary on its own, without a pull request. See "The Rust test summary" below. |
 | `osf pr section write --pr <number> --name <name> --file <path> [--head <sha>]` | Replaces the block named `<name>` in a pull request description with the file's content, or appends it when the markers are not there yet. The start marker records the head commit, from `--head` or from the pull request. A block with an older marker is replaced in place. Reads and writes the description through `gh`. |
 | `osf assets publish --branch <branch> --path <prefix> --dir <folder>` | Pushes every file in `<folder>` to `<prefix>` on `<branch>`, in a temporary clone, creating the branch as an orphan the first time. Prints the raw content web address for what landed. Retries when a push loses a race with another run. |
@@ -23,10 +24,13 @@ description. The layout of the whole description, and the rules for what
 each part says, live in `.github/PULL_REQUEST_TEMPLATE.md`. Read the
 template for the format. This section covers only what the commands do.
 
-The block is headed with the short head commit and holds a table of
-checks. The block sits between the shared markers, and the start marker
-records the full head commit. The Tests row carries the Rust test summary
-described below.
+The block is headed with the short head commit in backticks and holds a
+table of checks with bold names. The block sits between the shared
+markers, and the start marker records the full head commit. The Tests row
+carries the Rust test summary described below. Results are one icon and a
+few words: ✅ passed, ⏳ waiting, ❌ failed, ⏸ not run, ➖ none automated.
+Risk shows a dot with the level: 🔴 High, 🟠 Medium, 🟢 Low. The risk
+reasons and the review rounds sit in collapsed sections with bold titles.
 
 | Row | Where it comes from |
 |---|---|
@@ -100,6 +104,24 @@ A file under `tests/fixtures` is never scanned for tests at all.
 `osf changeset tests --base <ref> --head <ref>` prints this summary on
 its own, using the same code `osf pr status refresh` calls to put it in
 the block.
+
+## The file table
+
+`osf pr tree render --base <ref> --head <ref>` prints the collapsed file
+table that goes in the `osf:tree` block. It reads the change from git. Put
+it in the description with `osf pr section write --pr <number> --name tree
+--file <path>`, which adds the markers. The layout rules live in
+`.github/PULL_REQUEST_TEMPLATE.md`.
+
+- Files fall into three groups: Code, Tests, and Docs, build and infra.
+  Each group has a bold header with its file count and line totals.
+- With 15 files or fewer, each file has a row with its change letter. With
+  more, each component has a row, biggest first. A component is a
+  directory cut to three levels.
+- Each row has a coloured chip for lines added and for lines removed, and a
+  size bar. The bar is on a log scale, against the biggest row. A chip is as
+  wide as its text.
+- The maths uses only `\color`, `\rule`, `\rlap`, `\hspace` and `\texttt`.
 
 ## The status block workflow
 
