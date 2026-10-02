@@ -4,7 +4,7 @@ Status: accepted design, written from the owner's answers in a questioning sessi
 
 Date: 2026-09-22
 
-The issue for this design is [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26). This design replaces the template file that issue proposed with tagged [moon](https://moonrepo.dev) tasks and one configuration file. Moon is the task runner the execution research chose, in [the moon research note](../research/2026-09-18-moon-as-osf-execution-substrate.md). This design also serves [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97) and [open-software-factory/software-factory#50 (fast native git hooks and agent hooks)](https://github.com/open-software-factory/software-factory/issues/50).
+The issue for this design is [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26). This design replaces the template file that issue proposed with tagged [moon](https://moonrepo.dev) tasks and one configuration file. Moon is the task runner the execution research chose, in [the moon research note](../research/2026-09-18-moon-as-osf-execution-substrate.md). This design also serves [open-software-factory/software-factory#97 (enforcement points: pre-tool-use, pre-commit, pre-change, workflow start)](https://github.com/open-software-factory/software-factory/issues/97) and [open-software-factory/software-factory#50 (fast native git hooks and agent hooks)](https://github.com/open-software-factory/software-factory/issues/50).
 
 ## Purpose
 
@@ -100,7 +100,7 @@ Every event reaches the local journal first. A buffer flushes on push and on a t
 
 The hook checkpoint fires after a tool call that wrote a file and at the end of a turn. It runs every tagged check on the touched files, so the agent fixes its edits at once. A check that cannot finish inside the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
 
-The event to refuse a tool call, such as a commit that skips hooks, is a separate concern. It stays with [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97).
+The event to refuse a tool call, such as a commit that skips hooks, is a separate concern. It stays with [open-software-factory/software-factory#97 (enforcement points: pre-tool-use, pre-commit, pre-change, workflow start)](https://github.com/open-software-factory/software-factory/issues/97).
 
 | Harness | After a file write | End of turn | Refuse a tool call | How it is wired |
 | --- | --- | --- | --- | --- |

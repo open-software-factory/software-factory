@@ -22,7 +22,7 @@ The full design is [the verification seam](../verification-seam.md). This record
 | Checks fixed in the binary, stages as selections | The list stays in code and a stage picks from it. | An adopter cannot add or replace a check without a release. |
 | A moon task with tags | Moon owns inputs, outputs, dependencies, hashing and the cache. A tag names the checkpoints a task runs at and the slot it fills. | Taken. |
 
-**The name for the points where checks run.** Enforcement point, trigger, event and checkpoint were weighed. Event names a line in the journal. Enforcement point is longer and names the refusal points in [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97). Checkpoint was taken.
+**The name for the points where checks run.** Enforcement point, trigger, event and checkpoint were weighed. Event names a line in the journal. Enforcement point is longer and names the refusal points in [open-software-factory/software-factory#97 (enforcement points: pre-tool-use, pre-commit, pre-change, workflow start)](https://github.com/open-software-factory/software-factory/issues/97). Checkpoint was taken.
 
 **Whether moon is required.** Running the factory's checks through moon only where an adopter has moon, or through moon everywhere. Everywhere was taken. Moon ships in the factory's image, and the factory's tasks live in their own moon project, so the adopter's tree needs no moon of its own.
 
