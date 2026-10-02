@@ -71,7 +71,7 @@ The likely workflow will combine several of these types.
 | [jiji262 claude-design](https://github.com/jiji262/claude-design-skill) | Installable consolidation with progressive references, direction selection, starter artifacts, and browser verification | Broad adaptation with assumptions to test, but a credible attempt to reproduce the useful Claude Design workflow outside its hosted product | Claude Design lane |
 | [Garden `web-design-engineer`](https://github.com/ConardLi/garden-skills/blob/main/skills/web-design-engineer/SKILL.md) | Deep recipes, calibration, direction advising, redesign, browser acceptance, and failure-pattern material | The surrounding Garden repository is unrelated and this should not be described as a direct Trystan adaptation; the individual skill is nevertheless one of the original Claude Design-adjacent candidates | Claude Design lane |
 | Nothing Design skill | A coherent, recognizable single visual language | Too style-prescriptive for a product whose own language is still being discovered | Inspiration only |
-| [Material 3](https://m3.material.io/) skill | Detailed components, tokens, responsive guidance, and compliance audit | Strong when [Material 3](https://m3.material.io/) is the chosen system; its web path is explicitly limited and the factory should not inherit a house style by default | Exclude as primary |
+| Material 3 skill | Detailed components, tokens, responsive guidance, and compliance audit | Strong when Material 3 is the chosen system; its web path is explicitly limited and the factory should not inherit a house style by default | Exclude as primary |
 
 ### Agent-operated canvases and design environments
 

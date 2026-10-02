@@ -56,7 +56,7 @@ Version 1.1 split each entity into two parts:
 
 A snapshot at any moment is the catalog plus the cumulative state. The console only ever receives a snapshot. It cannot read future events or the full catalog with end-of-story statuses.
 
-This split came from a real defect. The first version gave the UI the whole story at once, so the calm view already showed failed checks and rolled-back deployments.
+This split came from a real defect. The first version gave the UI the whole story at once, so the "calm" view already showed failed checks and rolled-back deployments.
 
 ## Availability versus domain state
 
@@ -85,7 +85,7 @@ Test and evaluator controls (advance, reset, override availability) live in a se
 
 This scenario exercises attention, the live floor, investigation, the flight recorder, traceability and a controlled operator decision in one story. It is a candidate acceptance scenario for the smallest working engine and for the operator console.
 
-Fictional setting: six repositories for a portfolio product (investor app, portfolio API, wallet importer, exchange importer, market data sync, platform infrastructure). Two intents: keep portfolio integrity synchronized, and keep portfolio data fresh. One design decision, coordinate reconciliation ordering, implemented through three pull requests in the portfolio API.
+Fictional setting: six repositories for a portfolio product (investor app, portfolio API, wallet importer, exchange importer, market data sync, platform infrastructure). Two intents: keep portfolio integrity synchronized, and keep portfolio data fresh. One design decision, "coordinate reconciliation ordering", implemented through three pull requests in the portfolio API.
 
 | Step | What is true | State change |
 |---|---|---|
@@ -113,7 +113,7 @@ Five questions were left for the engine. Each has an answer on paper in [the eng
 | Question | Answer on paper |
 |---|---|
 | Does the Engine's durable unit map onto work item, agent session, check, deployment and event, or does it need something else, such as attempt or run? | The work item is the durable unit and is the tracker's issue. A run is one execution by one actor, and a retry is another run naming the first. An agent session is the harness's identifier on the run and is no factory entity. A check is a verifier run. |
-| Is attention an entity the Engine owns, or a projection the console derives? | The engine emits an attention event when a person is needed. The list is a projection of those events and the blocked states. There is no attention table. |
+| Is "attention" an entity the Engine owns, or a projection the console derives? | The engine emits an attention event when a person is needed. The list is a projection of those events and the blocked states. There is no attention table. |
 | Is the catalog-versus-state split still natural when state comes from a real provider instead of a fixture? | The split is retired. The journal is the state, the run-started event records what the providers said at the start, and a snapshot is a projection up to a moment. |
 | Do trace links need a relation vocabulary this small, or a richer one? | The seven edges of [decision 0005](decisions/0005-the-factory-domain-model.md) replace the five relations here. Informs is traced from, implements is produces, deploys is deploys to, and observes waits for production evidence. |
 | Do the six availability values survive contact with real disconnects and partial data? | They move to the console. The engine exposes the journal's freshness and the console derives the six from it. |

@@ -4,7 +4,7 @@ A vision for automating software and product delivery.
 
 Status: living draft
 
-This document describes an aspirational direction for end-to-end automation of the product and software-delivery lifecycle. Some parts are out of reach and will change as LLMs and deterministic tools improve. The goal is to remove tedious, low-judgment work and concentrate human attention on direction, taste and decisions.
+This document describes an aspirational direction for end-to-end automation of the product and software-delivery lifecycle. Some parts are not achievable and will change as LLMs and deterministic tools improve. The goal is to remove tedious, low-judgment work and concentrate human attention on direction, taste and decisions.
 
 ## 0. Engineering principles
 
@@ -34,7 +34,7 @@ These principles survive, but their mechanism has changed. The new mechanism exp
 
 The traditional justification: humans read code and names communicate intent. A well-named variable or function is the fastest documentation.
 
-The agent-native justification: the L in LLM is language. Models are trained predominantly on human-readable code. Agent comprehension of code currently tracks human readability because the training data makes them closely related. “Write code an agent can understand” and “write code a human can understand” produce the same answer.
+The agent-native justification: the L in LLM is language. Models are trained predominantly on human-readable code. Agent comprehension of code currently tracks human readability because the training data makes them closely related. “Write code an agent can understand” and “write code a human can understand” currently produce the same answer.
 
 This equivalence depends on training data rather than anything fundamental about agents. Most existing and foreseeable code is human-readable, so models will continue to train on it. Human readability therefore remains the best available proxy for agent readability, even if the equivalence is not permanent.
 
@@ -62,7 +62,7 @@ Each of the five SOLID principles survives, with justification that is at least 
 
 The traditional justification: new team members learn the codebase through consistent patterns. Inconsistency forces each person to hold multiple mental models simultaneously.
 
-The agent-native justification: an inconsistent codebase gives an agent conflicting signals about what correct looks like. When it sees three implementations of the same pattern, it may average across them and produce a fourth. Consistency helps an agent build an accurate model of what the codebase considers correct.
+The agent-native justification: an inconsistent codebase gives an agent conflicting signals about what “correct” looks like. When it sees three implementations of the same pattern, it may average across them and produce a fourth. Consistency helps an agent build an accurate model of what the codebase considers correct.
 
 ### 0.3 Previously aspirational practices that become achievable
 
@@ -257,7 +257,7 @@ Domain: Engineering. This phase addresses correctness, quality, testability and 
 | Code smell detection         | God classes, feature envy, data clumps, primitive obsession               | CI                    | Every PR                |
 | Dependency direction         | No upward imports; layer boundaries not violated                          | Pre-commit + CI       | Every commit            |
 | Dead code                    | Unreachable code detected and flagged                                     | CI                    | Every PR                |
-| Duplication (DRY)            | Copy-paste detection over a set threshold                                 | CI                    | Every PR                |
+| Duplication (DRY)            | Copy-paste detection above threshold                                      | CI                    | Every PR                |
 | Error handling completeness  | Every error path handled explicitly; no swallowed exceptions              | CI (SAST rules)       | Every PR                |
 | Logging correctness          | Right level, right content, no sensitive data logged                      | CI (SAST rules)       | Every PR                |
 | Async / concurrency          | Race condition and deadlock patterns detected (partial automation)        | CI                    | Every PR                |
@@ -456,7 +456,7 @@ These concerns apply throughout the lifecycle.
 
 - Logging, tracing, and metrics requirements defined in Phase 1 (the specification stage)
 
-- SLI/SLO definitions written in Phase 2 (the design stage), committed as configuration
+- SLI/SLO definitions written in Phase 2 (design), committed as configuration
 
 - Observability implementation verified in Phase 3 (the implementation stage), where CI checks that the required instrumentation is present
 

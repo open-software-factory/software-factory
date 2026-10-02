@@ -146,7 +146,7 @@ A traditional backlog is a sequential queue. An agent-swarm backlog is a portfol
 | Architectural investment | Debt reduction, infrastructure improvement, fitness function improvements. Enables future delivery. | Debt trend data; delivery pace signal; architectural review     | 15–25%             |
 | Operational necessity    | Security patches, compliance requirements, dependency updates. Non-negotiable.                      | Vulnerability report, compliance deadline, or dependency EOL    | 5–10%              |
 
-The portfolio mix is a product decision. A business with an 80% share on validated bets and a 5% share on experiments harvests known value while discovering little new value. A business with a 50% share on experiments learns quickly but may deliver too little. The right mix depends on business stage, market position and current evidence quality.
+The portfolio mix is a product decision. A business that allocates 80% to validated bets and 5% to experiments harvests known value while discovering little new value. A business that allocates 50% to experiments learns quickly but may deliver too little. The right mix depends on business stage, market position and current evidence quality.
 
 ### 4.3 The path to exception-only
 
@@ -238,7 +238,7 @@ The model shifts from review (human examining individual changes) to governance 
 | Architecture enforced by convention and culture        | Architecture enforced by automated rules with explicit documented exceptions |
 | Significant changes escalate to principal engineers    | Fitness function failures escalate to product engineers                      |
 
-See [Automated SPDLC / SDLC](automated-spdlc-sdlc-vision.md), Phase 2: Design & Architecture and Phase 11: The Meta-Loop, for fitness-function implementation detail.
+See Automated SPDLC / SDLC, Phase 2: Design & Architecture and Phase 11: The Meta-Loop, for fitness-function implementation detail.
 
 ## 7. The meta-loop
 
@@ -246,7 +246,7 @@ The meta-loop lets the system review and improve its own operation.
 
 ### 7.1 Why the meta-loop is infrastructure
 
-Product discovery, engineering execution and architectural governance all degrade without maintenance. Gates drift out of calibration. LLM capabilities improve faster than prompts are updated. Tools are superseded. Thresholds that were right when set drift into producing noise.
+Product discovery, engineering execution and architectural governance all degrade without maintenance. Gates drift out of calibration. LLM capabilities improve faster than prompts are updated. Tools are superseded. Thresholds that were right six months ago produce noise.
 
 The meta-loop maintains the automation layer so the other loops continue to work correctly.
 
@@ -340,7 +340,7 @@ The architectural investment category in the portfolio (15–25% of the backlog)
 
 ### 10.1 The frontier moves quickly
 
-Every quarter, the frontier of what is automatable advances. LLM capabilities improve. New deterministic tooling emerges. Patterns that required human judgment at the start of a quarter can be expressed as rules by its end. The meta-loop exists specifically to capture these advances as they occur.
+Every quarter, the frontier of what is automatable advances. LLM capabilities improve. New deterministic tooling emerges. Patterns that required human judgment in 2025 can be expressed as rules in 2026. The meta-loop exists specifically to capture these advances as they occur.
 
 This operating model is a snapshot of a moving target. Treat the current allocation of human and automated work as provisional, and periodically re-evaluate it.
 

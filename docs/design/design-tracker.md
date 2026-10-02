@@ -170,7 +170,7 @@ The Tauri adapter, `WebviewWindow`, is the app package's job. It remains **unver
 
 ### A12 plan: the ambient orb (proposed `2026-09-12`)
 
-A v1 draggable orb exists in `apps/console-lab/shell.html`, with a fixed menu.
+There is a v1 draggable orb in `apps/console-lab/shell.html`, with a fixed menu.
 
 The contract, DESIGN.md §5.3, asks for more from two components: L1 `FloatingOrb`, the draggable trigger, and L3 `AmbientAssistant`, the assistant surface it opens. It wants a circular draggable button above everything. That button opens a menu shaped by *context and viewport*. It is a cross-cutting modality, one of command, context action, annotation, or generated view. It is neither a surface nor a chat tab. Question Q12, which modality matters first, is still open.
 
@@ -546,7 +546,7 @@ This status is from 3 September 2026, against `factory-floor.html`, which is now
 | Dialog | partial. P0 panel exists; appears without motion |
 | Popover | Not built as a shared component. Environment menu and assistant menu are ad-hoc |
 | Toast | built |
-| ScreenHost | Not built. Swaps are instant |
+| ScreenHost | Not built. Instant swap |
 | MotionViewport | partial. Zoom-reset animates; +/− and node-focus jumps snap; labels scale geometrically, violating rule 5.7 |
 | FloatingOrb | built as the assistant; the menu is fixed and needs context-awareness added |
 | Breadcrumb | Not built |
@@ -620,7 +620,7 @@ This priority is from 11 September 2026.
 2. **Then** brainstorm A10 and the canvas. Q17 likely goes with B3. See "Owner direction, loops as an organising idea" below.
 3. **Not shell work:** A7 (per-list filter) does not belong in the shell for now. A11 (voice) and A12 (ambient assistant) move to the components track as global shared components. A12 may still count as shell.
 4. **Needs thought and exploration first:** A13 (streaming UI), A15 (toasts).
-5. **A16** (retire the floor) once the first four items are done. The floor's "surfaces" will likely become one or more views per surface, and more. See below.
+5. **A16** (retire the floor) once the earlier items are done. The floor's "surfaces" will likely become one or more views per surface, and more. See below.
 
 ### Owner direction, loops as an organising idea
 
@@ -659,7 +659,7 @@ This starts from the owner's loops direction rather than from a canvas engine. T
 
 Cytoscape and ELK cover compound nodes and layered layout. ELK does not animate, so transitions are ours. A hand-rolled SVG, what Floor is, stays viable for a loop with under about 40 nodes and no free panning. Spike both against the zoom-ladder-as-drill requirement first, because that is where hand-rolled SVG will break.
 
-**8. Smallest useful next step.** Build a loop-definition schema with the default SDLC loop as a fixture. Redraw the Floor from it as a task flow, with the items overlaid by state. This needs no engine change yet. The zoom ladder can follow once the drawing is data-driven.
+**8. Smallest useful next step.** Build a loop-definition schema with the default SDLC loop as a fixture. Redraw the Floor from it as a task flow, with the current items overlaid by state. This needs no engine change yet. The zoom ladder can follow once the drawing is data-driven.
 
 ### Build order
 

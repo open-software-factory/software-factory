@@ -33,7 +33,7 @@ Each product word maps to one term of the domain model in architecture [decision
 | Finding | Finding | Shown with its severity and where it is. |
 | Measured, computed, claimed, unverified | Observed, derived, reported, unverified | The evidence grades, in plain words. |
 | Gate, held | Policy hard limit, hold | Where a policy stopped the work, and the state it left. |
-| Blocked, with its cause | Blocked: dependency, human, clarification, ambiguous, capacity | Copy says the cause: blocked, waiting for you; blocked on a dependency. |
+| Blocked, with its cause | Blocked: dependency, human, clarification, ambiguous, capacity | Copy says the cause: "blocked, waiting for you", "blocked on a dependency". |
 | Needs you | Attention | The list of items that need a person. |
 | Since you last looked | Recap | The arrival summary on every surface. |
 | Agent, by its product name | Actor: harness, model, model family | Shown under the run. The product has no roster of agents. |

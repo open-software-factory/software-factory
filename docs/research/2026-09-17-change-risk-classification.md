@@ -175,16 +175,16 @@ The design in open-software-factory/software-factory#31 (risk classification) ha
 
 ## 10. References
 
-Every source this document draws on has a link the reader can open. Preprints are on arXiv, the open preprint server. A source the survey reported but this author did not open is marked as such.
+Every source the sections above draw on, with a link the reader can open. Preprints are on arXiv, the open preprint server. A source the survey reported but this author did not open is marked as such.
 
 ### Research literature
 
-- Mockus and Weiss 2000, "Predicting risk of software changes", Bell Labs Technical Journal. [PDF](http://mockus.us/papers/bltj13.pdf), [DOI](https://doi.org/10.1002/bltj.2229)
+- Mockus and Weiss 2000, "Predicting risk of software changes", Bell Labs Technical Journal 5(2). [PDF](http://mockus.us/papers/bltj13.pdf), [DOI](https://doi.org/10.1002/bltj.2229)
 - Nagappan and Ball 2005, "Use of relative code churn measures to predict system defect density", ICSE. [Publisher page](https://www.microsoft.com/en-us/research/publication/use-of-relative-code-churn-measures-to-predict-system-defect-density/)
 - Nagappan, Murphy and Basili 2008, "The influence of organizational structure on software quality", ICSE. [DOI](https://doi.org/10.1145/1368088.1368160)
 - Bird, Nagappan, Murphy, Gall and Devanbu 2011, "Don't touch my code! Examining the effects of ownership on software quality", FSE. [Publisher page](https://www.microsoft.com/en-us/research/publication/dont-touch-my-code-examining-the-effects-of-ownership-on-software-quality/)
-- Kamei, Shihab, Adams, Hassan, Mockus, Sinha and Ubayashi 2013, "A large-scale empirical study of just-in-time quality assurance", IEEE Transactions on Software Engineering. [DOI](https://doi.org/10.1109/TSE.2012.70), [author PDF](https://posl.ait.kyushu-u.ac.jp/~kamei/publications/Kamei_TSE2013.pdf)
-- McIntosh and Kamei 2018, "Are fix-inducing changes a moving target? A longitudinal case study of just-in-time defect prediction", IEEE Transactions on Software Engineering. [DOI](https://doi.org/10.1109/TSE.2017.2693980)
+- Kamei, Shihab, Adams, Hassan, Mockus, Sinha and Ubayashi 2013, "A large-scale empirical study of just-in-time quality assurance", IEEE Transactions on Software Engineering 39(6). [DOI](https://doi.org/10.1109/TSE.2012.70), [author PDF](https://posl.ait.kyushu-u.ac.jp/~kamei/publications/Kamei_TSE2013.pdf)
+- McIntosh and Kamei 2018, "Are fix-inducing changes a moving target? A longitudinal case study of just-in-time defect prediction", IEEE Transactions on Software Engineering 44(5). [DOI](https://doi.org/10.1109/TSE.2017.2693980)
 - Hoang, Dam, Kamei, Lo and Ubayashi 2019, "DeepJIT: an end-to-end deep learning framework for just-in-time defect prediction", MSR. [DOI](https://doi.org/10.1109/MSR.2019.00016)
 - Hoang, Kang, Lo and Lawall 2020, "CC2Vec: distributed representations of code changes", ICSE. [arXiv 2003.05620](https://arxiv.org/abs/2003.05620)
 - Zeng, Zhang, Zhang and Zhang 2021, "Deep just-in-time defect prediction: how far are we?", ISSTA. [DOI](https://doi.org/10.1145/3460319.3464819)

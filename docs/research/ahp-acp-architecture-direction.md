@@ -371,7 +371,7 @@ It does not solve:
 - lease ownership and duplicate execution;
 - cross-host failover.
 
-Factory conclusion: use AHP for disconnected operation of agent sessions, while the Factory Engine owns durable orchestration and recovery. The UI losing its connection and the work itself stopping must be separate states.
+Factory conclusion: use AHP for disconnected operation of agent sessions, while the Factory Engine owns durable orchestration and recovery. “The UI disconnected” and “the work stopped” must be separate states.
 
 ### Interchangeable coding-agent harnesses
 
