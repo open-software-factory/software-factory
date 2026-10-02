@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "dbc3e4a48fefddabd11e1100592e510e8c68a58a",
+    "contentHash": "a405f26777b9eb0eb4d4ae8240a69280"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "135cfc0f3b6b924b0f91a2fbf7bc981a",
+      "bytes": 23746,
+      "width": 1728,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-light-135cfc0f3b6b924b0f91a2fbf7bc981a.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1ae8396f09c801fd3c6bc3067820f152",
+      "bytes": 24022,
+      "width": 1728,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-dark-1ae8396f09c801fd3c6bc3067820f152.svg"
+    },
+    {
+      "id": "config-and-fixtures-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "config-and-fixtures",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f62152c74641e6fca188c7fe3a42cf2b",
+      "bytes": 12783,
+      "width": 1708,
+      "height": 418,
+      "animated": false,
+      "path": "config-and-fixtures-light-f62152c74641e6fca188c7fe3a42cf2b.svg"
+    },
+    {
+      "id": "config-and-fixtures-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "config-and-fixtures",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b24d2c8e519ca1e952f8f7d1a1191c77",
+      "bytes": 12921,
+      "width": 1708,
+      "height": 418,
+      "animated": false,
+      "path": "config-and-fixtures-dark-b24d2c8e519ca1e952f8f7d1a1191c77.svg"
+    }
+  ]
+}
