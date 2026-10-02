@@ -277,7 +277,7 @@ Their captures are named `verify-orb-shell-*.png`, and the look capture is `veri
   - friction 0.004/ms
   - restitution 0.55
   - release threshold 0.25 px/ms
-- Snap-to-edge on release, which the plan above recommended, versus stay-where-dropped, which is what the lab does now. Both are one line in the release handler.
+- Snap-to-edge on release, which the plan in this entry recommended, versus stay-where-dropped, which is what the lab does now. Both are one line in the release handler.
 - Whether the ring's labels should show at all, or only on hover/focus.
 - Q12 still stands: which modalities matter first, and whether it should float only or dock into a pane like the inspector.
 
