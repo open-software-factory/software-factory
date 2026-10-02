@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "4934e00aaa868847ce28158a00f9b3daa80701fa",
+    "contentHash": "1bbb6cab9db3ec31154b448b54a36f59"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "checkpoint-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "checkpoint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e0f62f2a4c75d79df6f2c5739b89738f",
+      "bytes": 26841,
+      "width": 1708,
+      "height": 988,
+      "animated": false,
+      "path": "checkpoint-architecture-light-e0f62f2a4c75d79df6f2c5739b89738f.svg"
+    },
+    {
+      "id": "checkpoint-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "checkpoint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e320198c76c6c8fbb9473f62fcdf78c3",
+      "bytes": 27154,
+      "width": 1708,
+      "height": 988,
+      "animated": false,
+      "path": "checkpoint-architecture-dark-e320198c76c6c8fbb9473f62fcdf78c3.svg"
+    },
+    {
+      "id": "moon-adapter-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "moon-adapter-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5ce5b320554b92823d860af02acc7956",
+      "bytes": 8967,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "moon-adapter-detail-light-5ce5b320554b92823d860af02acc7956.svg"
+    },
+    {
+      "id": "moon-adapter-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "moon-adapter-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "57182dd34cf9de04c12fd719764f7b15",
+      "bytes": 9056,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "moon-adapter-detail-dark-57182dd34cf9de04c12fd719764f7b15.svg"
+    },
+    {
+      "id": "check-cmd-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "check-cmd-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "06d2e9d088e92e809526fe19be395cef",
+      "bytes": 7159,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "check-cmd-detail-light-06d2e9d088e92e809526fe19be395cef.svg"
+    },
+    {
+      "id": "check-cmd-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "check-cmd-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "de96f5a806e48d9c593ce08e39b442eb",
+      "bytes": 7227,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "check-cmd-detail-dark-de96f5a806e48d9c593ce08e39b442eb.svg"
+    }
+  ]
+}
