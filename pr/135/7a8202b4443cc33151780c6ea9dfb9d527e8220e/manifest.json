@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "7a8202b4443cc33151780c6ea9dfb9d527e8220e",
+    "contentHash": "214873da43f6a27d671d44b996a1346e"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "arch-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "81b329c3ce675ae69f78b41430b4e0ab",
+      "bytes": 27982,
+      "width": 1718,
+      "height": 988,
+      "animated": false,
+      "path": "arch-overview-light-81b329c3ce675ae69f78b41430b4e0ab.svg"
+    },
+    {
+      "id": "arch-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6b90e0af378fc07eedbf0f8239e85782",
+      "bytes": 28316,
+      "width": 1718,
+      "height": 988,
+      "animated": false,
+      "path": "arch-overview-dark-6b90e0af378fc07eedbf0f8239e85782.svg"
+    },
+    {
+      "id": "arch-moon-adapter-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-moon-adapter",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d148f70444a0f6d39e598a576a938fc5",
+      "bytes": 10879,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "arch-moon-adapter-light-d148f70444a0f6d39e598a576a938fc5.svg"
+    },
+    {
+      "id": "arch-moon-adapter-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-moon-adapter",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e1401f62b42161a8316fb593658db360",
+      "bytes": 10990,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "arch-moon-adapter-dark-e1401f62b42161a8316fb593658db360.svg"
+    },
+    {
+      "id": "flow-pre-push-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "flow-pre-push",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a91ffa0a6f638194e1f8712c627fd899",
+      "bytes": 19464,
+      "width": 2790,
+      "height": 559,
+      "animated": true,
+      "path": "flow-pre-push-light-a91ffa0a6f638194e1f8712c627fd899.svg"
+    },
+    {
+      "id": "flow-pre-push-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "flow-pre-push",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d6e067bd7bef11ecebfa1d51aaf71fb3",
+      "bytes": 19642,
+      "width": 2790,
+      "height": 559,
+      "animated": true,
+      "path": "flow-pre-push-dark-d6e067bd7bef11ecebfa1d51aaf71fb3.svg"
+    }
+  ]
+}
