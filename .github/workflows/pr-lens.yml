@@ -215,10 +215,8 @@ jobs:
             --dir "${RUNNER_TEMP}/pr-lens/assets")"
           echo "assets-url=${url}" >> "$GITHUB_OUTPUT"
 
-      - name: Write the diagram section
+      - name: Build the diagram section
         if: steps.analyze.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" comment \
@@ -226,4 +224,11 @@ jobs:
             --manifest "${RUNNER_TEMP}/pr-lens/assets/manifest.json" \
             --asset-base-url "${{ steps.publish.outputs.assets-url }}" \
             --out "${RUNNER_TEMP}/section.md"
+
+      - name: Write the diagram section
+        if: steps.analyze.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
           ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --head "${{ github.event.pull_request.head.sha }}" --file "${RUNNER_TEMP}/section.md"
