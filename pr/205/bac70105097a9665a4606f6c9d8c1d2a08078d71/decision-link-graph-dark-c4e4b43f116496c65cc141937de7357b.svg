@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1063 874" width="1063" height="874" role="img" aria-label="Decision record cross-references" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Decision record cross-references</title>
+<desc>The links added between decision records. Decision 0001 gains the most, and decision 0005 becomes the most-linked target.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1063" height="874" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1063" height="874" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="814" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">DOCUMENTATION CORPUS · MARKDOWN UNDER DOCS/, R…</text>
+<rect class="lanebox" x="500" y="44" width="404" height="814" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="516" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">DECISION RECORDS · DOCS/ARCHITECTURE/DECISIONS,…</text></g>
+<g><path class="glow" stroke="#3fb950" d="M516,123 L474,123 C455.22,123 440,138.22 440,157 L440,545 C440,563.78 455.22,579 474,579 L516,579" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M516,123 L474,123 C455.22,123 440,138.22 440,157 L440,545 C440,563.78 455.22,579 474,579 L516,579" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="2.25"/>
+<path class="edge edge-added" d="M516,139 L488,139 C472.54,139 460,151.54 460,167 L460,706 C460,724.78 475.22,740 494,740 L764,740 C773.94,740 782,748.06 782,758 L782,776" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M516,107 L454,107 C435.22,107 420,122.22 420,141 L420,354 C420,372.78 435.22,388 454,388 L775,388 C787.7,388 798,398.3 798,411 L798,434" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M702,724 L702,737 C702,744.18 707.82,750 715,750 L801,750 C808.18,750 814,755.82 814,763 L814,776" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M702,724 L702,742 C702,751.94 693.94,760 684,760 L606,760 C601.58,760 598,763.58 598,768 L598,776" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M798,154 L798,167 C798,174.18 803.82,180 811,180 L870,180 C888.78,180 904,195.22 904,214 L904,685 C904,689.42 900.42,693 896,693 L888,693" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M798,154 L798,175 C798,186.6 807.4,196 819,196 L860,196 C878.78,196 894,211.22 894,230 L894,384 C894,402.78 878.78,418 860,418 L606,418 C601.58,418 598,421.58 598,426 L598,434" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M702,382 L702,390 C702,394.42 705.58,398 710,398 L910,398 C928.78,398 944,413.22 944,432 L944,787 C944,802.46 931.46,815 916,815 L888,815" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M702,382 L702,395 C702,402.18 696.18,408 689,408 L544,408 C525.22,408 510,423.22 510,442 L510,707 C510,708.66 511.34,710 513,710 L516,710" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M516,237 L508,237 C503.58,237 500,240.58 500,245 L500,690.67 C500,695.09 503.58,698.67 508,698.67 L516,698.67" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,237 L906,237 C915.94,237 924,245.06 924,255 L924,736 C924,754.78 908.78,770 890,770 L617,770 C615.34,770 614,771.34 614,773 L614,776" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,253 L911,253 C923.7,253 934,263.3 934,276 L934,776 C934,788.7 923.7,799 911,799 L888,799" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,221 L901,221 C908.18,221 914,226.82 914,234 L914,394 C914,412.78 898.78,428 880,428 L617,428 C615.34,428 614,429.34 614,431 L614,434" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M122,154 L122,159 C122,161.76 124.24,164 127,164 L446,164 C464.78,164 480,179.22 480,198 L480,669.33 C480,679.27 488.06,687.33 498,687.33 L516,687.33" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,117.33 L417,117.33 C424.18,117.33 430,123.15 430,130.33 L430,642 C430,660.78 445.22,676 464,676 L516,676" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,128.67 L427,128.67 C439.7,128.67 450,138.96 450,151.67 L450,696 C450,714.78 465.22,730 484,730 L775,730 C787.7,730 798,740.3 798,753 L798,776" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,140 L437,140 C455.23,140 470,154.77 470,173 L470,776 C470,788.7 480.3,799 493,799 L516,799" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,106 L407,106 C408.66,106 410,107.34 410,109 L410,431 C410,449.78 425.22,465 444,465 L516,465" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,237 L456,237 C474.78,237 490,252.22 490,271 L490,802 C490,809.18 495.82,815 503,815 L516,815" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M702,610 L702,662" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="32" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="54" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="59" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="64" cy="123" r="1.8"/></g>
+<text class="ntitle" x="82" y="119" font-size="10.5" font-weight="600" fill="#e6edf3">Draft factory vocabula…</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text>
+<g class="bdg bdg-modified"><rect x="138.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="171.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="224" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="238" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="246" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="251" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="256" cy="123" r="1.8"/></g>
+<text class="ntitle" x="274" y="119" font-size="10.5" font-weight="600" fill="#e6edf3">Smallest working engi…</text>
+<text class="nsub" x="274" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/s…</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="363.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="32" y="206" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="54" cy="237" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="59" cy="237" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="64" cy="237" r="1.8"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#e6edf3">Open questions</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/open-questions.md</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="198" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="363.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="516" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="538" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="543" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="548" cy="123" r="1.8"/></g>
+<text class="ntitle" x="566" y="119" font-size="10.5" font-weight="600" fill="#e6edf3">ADR 0001: Rust for th…</text>
+<text class="nsub" x="566" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text>
+<g class="bdg bdg-modified"><rect x="622.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="655.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="708" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="722" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="730" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="735" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="740" cy="123" r="1.8"/></g>
+<text class="ntitle" x="758" y="119" font-size="10.5" font-weight="600" fill="#e6edf3">ADR 0007: Console s…</text>
+<text class="nsub" x="758" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="847.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="516" y="206" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="538" cy="237" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="543" cy="237" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="548" cy="237" r="1.8"/></g>
+<text class="ntitle" x="566" y="233" font-size="10.5" font-weight="600" fill="#e6edf3">ADR 0009: Journal st…</text>
+<text class="nsub" x="566" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text>
+<g class="bdg bdg-modified"><rect x="622.38" y="198" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="655.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="708" y="206" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="722" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="730" cy="237" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="735" cy="237" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="740" cy="237" r="1.8"/></g>
+<text class="ntitle" x="758" y="233" font-size="10.5" font-weight="600" fill="#e6edf3">ADR 0010: First adap…</text>
+<text class="nsub" x="758" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="198" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="847.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="516" y="320" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="538" cy="351" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="543" cy="351" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="548" cy="351" r="1.8"/></g>
+<text class="ntitle" x="566" y="347" font-size="13" font-weight="600" fill="#e6edf3">ADR 0008: Smallest working engine</text>
+<text class="nsub" x="566" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/decisions/0008</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="312" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="847.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="516" y="434" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="530" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="538" cy="465" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="543" cy="465" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="548" cy="465" r="1.8"/></g>
+<text class="ntitle" x="566" y="461" font-size="10.5" font-weight="600" fill="#e6edf3">ADR 0004: Protocol-i…</text>
+<text class="nsub" x="566" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="708" y="434" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="722" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="730" cy="465" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="735" cy="465" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="740" cy="465" r="1.8"/></g>
+<text class="ntitle" x="758" y="461" font-size="10.5" font-weight="600" fill="#e6edf3">ADR 0006: Distributio…</text>
+<text class="nsub" x="758" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="426" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="847.69" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="516" y="548" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="566" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="538" cy="579" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="543" cy="579" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="548" cy="579" r="1.8"/></g>
+<text class="ntitle" x="566" y="575" font-size="13" font-weight="600" fill="#e6edf3">Product decision 0002: Operator vocabulary</text>
+<text class="nsub" x="566" y="593" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/product/decisions/0002</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="540" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="847.69" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="516" y="662" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="680" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="538" cy="693" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="543" cy="693" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="548" cy="693" r="1.8"/></g>
+<text class="ntitle" x="566" y="689" font-size="13" font-weight="600" fill="#e6edf3">ADR 0005: Factory domain model</text>
+<text class="nsub" x="566" y="707" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/decisions/0005</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="654" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="847.69" y="665" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="516" y="776" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="530" y="794" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="538" cy="807" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="543" cy="807" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="548" cy="807" r="1.8"/></g>
+<text class="ntitle" x="566" y="803" font-size="10.5" font-weight="600" fill="#e6edf3">ADR 0002: Provider-n…</text>
+<text class="nsub" x="566" y="821" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="708" y="776" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="722" y="794" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="730" cy="807" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="735" cy="807" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="740" cy="807" r="1.8"/></g>
+<text class="ntitle" x="758" y="803" font-size="10.5" font-weight="600" fill="#e6edf3">ADR 0003: Determini…</text>
+<text class="nsub" x="758" y="821" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="768" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="847.69" y="779" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g></g>
+<g><g><rect class="lpill" x="301.35" y="466" width="148.65" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="375.68" y="477" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to product decision 0001</text></g>
+<g><rect class="lpill" x="491" y="732.5" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="547.14" y="743.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0003</text></g>
+<g><rect class="lpill" x="741.87" y="403.5" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="798" y="414.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0006</text></g>
+<g><rect class="lpill" x="735.54" y="742.5" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="791.68" y="753.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0003</text></g>
+<g><rect class="lpill" x="613.27" y="752.5" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="669.41" y="763.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0002</text></g>
+<g><rect class="lpill" x="801.73" y="508" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="857.87" y="519" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0005</text></g>
+<g><rect class="lpill" x="619.6" y="410.5" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="675.73" y="421.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0004</text></g>
+<g><rect class="lpill" x="934" y="602" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="990.14" y="613" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0003</text></g>
+<g><rect class="lpill" x="500" y="521" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="556.14" y="532" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0005</text></g>
+<g><rect class="lpill" x="490" y="394" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="546.14" y="405" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0005</text></g>
+<g><rect class="lpill" x="821.73" y="627" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="877.87" y="638" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0002</text></g>
+<g><rect class="lpill" x="924" y="382" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="980.14" y="393" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0003</text></g>
+<g><rect class="lpill" x="917" y="226.5" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="973.14" y="237.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0004</text></g>
+<g><rect class="lpill" x="296.73" y="167" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="352.87" y="178" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0005</text></g>
+<g><rect class="lpill" x="327.73" y="491" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="383.87" y="502" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0005</text></g>
+<g><rect class="lpill" x="347.73" y="677" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="403.87" y="688" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0003</text></g>
+<g><rect class="lpill" x="367.73" y="741" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="423.87" y="752" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0002</text></g>
+<g><rect class="lpill" x="307.73" y="280" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="363.87" y="291" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0004</text></g>
+<g><rect class="lpill" x="480" y="293" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="536.14" y="304" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0002</text></g>
+<g><rect class="lpill" x="645.87" y="628.5" width="112.27" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="702" y="639.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">links to decision 0005</text></g></g>
+</svg>
