@@ -428,6 +428,18 @@ fn is_bounded(toks: &[Tok<'_>], i: usize) -> bool {
         && next2.is_some_and(|n| is_numberish(&n.core))
 }
 
+/// Whether the noun at `end` is followed by a bound, as in "15 files or
+/// fewer": a threshold, which stays true when a list changes.
+fn is_bounded_after(toks: &[Tok<'_>], end: usize) -> bool {
+    toks.get(end + 1).is_some_and(|t| t.core == "or")
+        && toks.get(end + 2).is_some_and(|t| {
+            matches!(
+                t.core.as_str(),
+                "fewer" | "more" | "less" | "greater" | "higher" | "lower" | "above" | "below"
+            )
+        })
+}
+
 /// Facts that cannot change, so a count of them is safe. Each entry is a
 /// fact in maths, physics, or everyday language, named with the words that
 /// must appear in the counted phrase or its sentence.
@@ -528,7 +540,7 @@ impl Rule<WritingConfig> for CountWordRule<'_> {
                 continue;
             };
             let Some(noun) = toks.get(end) else { continue };
-            if MEASURES.contains(&noun.core.as_str()) {
+            if MEASURES.contains(&noun.core.as_str()) || is_bounded_after(&toks, end) {
                 continue;
             }
             let phrase: Vec<&str> = toks
@@ -768,6 +780,12 @@ mod tests {
             excerpts("count-word", "There are four reasons."),
             vec!["four reasons"]
         );
+    }
+
+    #[test]
+    fn a_threshold_after_the_noun_is_not_a_count() {
+        assert!(excerpts("count-word", "With 15 files or fewer, each file has a row.").is_empty());
+        assert!(excerpts("count-word", "Review a list of four items or more.").is_empty());
     }
 
     #[test]

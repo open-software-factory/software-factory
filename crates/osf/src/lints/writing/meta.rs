@@ -727,7 +727,8 @@ pub const RULE_META: &[RuleMeta] = &[
          because a dated record stays true. A number inside a quotation, \
          inside code, or after a label such as `Phase 2`.\n\
          It also leaves a bound, a range or an estimate, such as `at least \
-         four`, `up to 20` or `30 to 100`. Each stays true when a list \
+         four`, `up to 20`, `30 to 100` or `15 files or fewer`. Each stays \
+         true when a list \
          changes. A sentence that links to a source or cites one passes. So \
          does a sentence that a citation note follows, and a table cell in \
          a row that links one.\n\
