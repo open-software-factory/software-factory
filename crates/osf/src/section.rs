@@ -179,7 +179,7 @@ pub fn fetch_body(repo: Option<&str>, pr: u64) -> Result<String, SectionError> {
 }
 
 /// Writes a pull request's description back through `gh`, via a temporary
-/// file, the same way `osf status apply` does.
+/// file, the same way `osf pr status apply` does.
 ///
 /// # Errors
 /// Returns an error when the temporary file cannot be written, or `gh`

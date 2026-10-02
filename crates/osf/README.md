@@ -11,44 +11,94 @@ the rules, because the rules are compiled in.
 | `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, names used with no description, sentences over 25 words, dashes, arrows, filler, and headings in short texts. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. `--message` marks the text as a reply to a person, where a heading in a short text is an error. |
 | `osf hook stop` | Reads a coding agent's Stop event from standard input and lints the final message. Stop is the event an agent sends when it wants to end its turn. The command refuses the stop when the message has errors, and also when it could not check the message at all (bad input, no message in the event, or no known-names list to check against). The agent gets the findings, or the reason it could not be checked, and rewrites. After two refusals in one turn the message goes through. |
 | `osf hook prompt` | Reads a coding agent's prompt-submitted event from standard input and prints context for the new turn: a one-line reminder of the writing shapes a model slips into most, then any style advice the last stop check stored for that session. The advice holds the last turn only, at most twenty lines, and is cleared once printed. |
-| `osf status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
+| `osf pr status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
+| `osf changeset tests --base <ref> --head <ref>` | Prints the Rust test summary on its own, without a pull request. See "The Rust test summary" below. |
 | `osf pr section write --pr <number> --name <name> --file <path>` | Replaces the text between `<!-- osf:<name>:start -->` and `<!-- osf:<name>:end -->` in a pull request description with the file's content, or appends the section when the markers are not there yet. Reads and writes the description through `gh`. |
 | `osf assets publish --branch <branch> --path <prefix> --dir <folder>` | Pushes every file in `<folder>` to `<prefix>` on `<branch>`, in a temporary clone, creating the branch as an orphan the first time. Prints the raw content web address for what landed. Retries when a push loses a race with another run. |
 
 ## The status block
 
-`osf status` manages the block at the top of a pull request description.
+`osf pr status` manages the block at the top of a pull request description.
 The block says whether a change is ready to merge. It sits between two
-HTML comment markers and has six rows.
+HTML comment markers and has six rows, plus the Rust test summary
+described below.
 
 | Row | Meaning |
 |---|---|
 | Ready | `yes` when every gate passed, the verdict is APPROVE, and no human review is still required. Otherwise, the one blocking reason. |
-| Risk | The blast radius tier from `osf risk`, with its reasons. |
+| Risk | The blast radius tier from `osf changeset risk`, with its reasons. |
 | Verified | The gate results. `all N passed` when every check passed, `no checks reported yet` when there are none, or `P of N passed, failed: name (reason), ...` naming only the failing checks. |
 | Review | The review verdict, whether it is advisory, and the latest review round's counts. |
 | Problem | One sentence describing the problem the change fixes. |
 | Approach | One sentence describing the approach taken. |
 
-`osf status render` builds the block from named inputs. `osf status
-apply` puts a rendered block into a description. It goes between the
-markers if they are there, or at the top if they are not.
+`osf pr status render` builds the block from named inputs. Given
+`--base <ref>`, it also computes the Rust test summary against `HEAD`,
+the same way `osf pr status refresh` does, and carries it in the block.
+Left out, the block has no test summary row. `osf pr status apply`
+puts a rendered block into a description. It goes between the markers
+if they are there, or at the top if they are not.
 
-`osf status refresh --repo <owner/name> --pr <number>` recomputes the
-block from the pull request's live state. It reads the pull request's own
-checks, its review state, and a fresh risk assessment against its base
-branch. It reads `Problem` and `Approach` back out of the block already
-in the description. A description with no block is left alone, and the
-command says so and exits 0. To start a block on such a pull request, pass
-`--problem` and `--approach` once, or run `osf status apply`. Refresh compares the new block against the one already
-there, byte for byte. It writes nothing when they match, and prints `osf
-status refresh: unchanged`. When they differ, it writes the new block and
-prints `osf status refresh: updated`.
+`osf pr status refresh --repo <owner/name> --pr <number>` recomputes the
+block from the pull request's live state. It reads the pull request's
+own checks and review state. It reruns the risk assessment against the
+base branch. It rebuilds the Rust test summary between that base and
+`HEAD`.
+
+`Problem` and `Approach` come back out of the block already in the
+description, when there is one. A description with no block yet gets
+one started. `Problem` and `Approach` come from `--problem` and
+`--approach` when given. Without them, a placeholder fills the row
+instead. Either way, the first refresh on a pull request leaves it with
+a block to edit.
+
+Refresh compares the new block against the one already there, byte for
+byte. It writes nothing when they match, and prints `osf pr status
+refresh: unchanged`. When they differ, it writes the new block and
+prints `osf pr status refresh: updated`.
+
+## The Rust test summary
+
+The block's Problem and Approach are followed by a summary of the Rust
+tests the change added, changed, or removed. It comes from parsing the
+base and head versions of each changed `.rs` file with the tree-sitter
+Rust grammar. It never builds or runs the change's code. The summary
+reflects what parsed, and a file that parses can still fail to build.
+
+A test is any function carrying `#[test]`, `#[tokio::test]`, or another
+attribute whose path ends in `test`. This includes one inside a
+`#[cfg(test)]` module. Two tests are the same test when their module
+path plus function name match. A match with a different source text is
+a changed test, not an added one plus a removed one. Its one-line
+description is its `///` doc comment when it has one. Without a doc
+comment, the description comes from its name, split on underscores and
+turned into words: `a_missing_block_is_started` reads as "a missing
+block is started".
+
+The summary is grouped by crate and by file, each with its own added,
+changed, and removed counts. Under a group, the removed tests come
+first, each by name and description, since a removal is the change a
+reviewer most needs to see. The added tests come next, by description
+alone. The changed tests follow, also by description alone, since what a
+changed test checks has not changed. A removed test is the only one
+ever named: nowhere else does the summary show a test's raw identifier.
+When an added test has no readable description at all, its line names
+the file instead of the test.
+
+A file the grammar cannot read is listed as unparsed. A non-Rust file
+that looks like a test file is named as not yet supported instead. It
+points at
+[open-software-factory/software-factory#188 (test summaries for other languages)](https://github.com/open-software-factory/software-factory/issues/188).
+A file under `tests/fixtures` is never scanned for tests at all.
+
+`osf changeset tests --base <ref> --head <ref>` prints this summary on
+its own, using the same code `osf pr status refresh` calls to put it in
+the block.
 
 ## The status block workflow
 
-`.github/workflows/status-block.yml` runs `osf status refresh` on a pull
-request. It watches three events:
+`.github/workflows/status-block.yml` runs `osf pr status refresh` on a
+pull request. It watches three events:
 
 - a pull request opens, updates, or reopens
 - a review is submitted or dismissed
