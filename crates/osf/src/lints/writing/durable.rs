@@ -96,6 +96,35 @@ fn cites_a_source(raw: &str) -> bool {
     .is_match(raw)
 }
 
+/// The byte ranges of every block a tool wrote between `<!-- osf:NAME:start
+/// head=SHA -->` and `<!-- osf:NAME:end -->`. The start marker names the head
+/// commit the block was written for, so a count or a time word in it is a
+/// snapshot of that commit, not a claim for a reader later.
+fn tool_blocks(text: &str) -> Vec<Range<usize>> {
+    static START: OnceLock<Regex> = OnceLock::new();
+    let start = re(
+        &START,
+        r"<!--\s*osf:([A-Za-z0-9_-]+):start\s+head=\S+\s*-->",
+    );
+    let mut out = Vec::new();
+    for caps in start.captures_iter(text) {
+        let (Some(open), Some(name)) = (caps.get(0), caps.get(1)) else {
+            continue;
+        };
+        let close = format!("<!-- osf:{}:end -->", name.as_str());
+        let from = open.end();
+        if let Some(len) = text.get(from..).and_then(|rest| rest.find(&close)) {
+            out.push(from..from + len);
+        }
+    }
+    out
+}
+
+/// Whether a sentence sits inside one of the tool-written blocks.
+fn inside_a_block(blocks: &[Range<usize>], s: &TextUnit) -> bool {
+    blocks.iter().any(|b| b.contains(&s.span.start))
+}
+
 /// Whether the text right after a sentence opens with a citation, such as
 /// `[reported: source]`, the way a note follows the claim it supports.
 fn leads_a_citation(after: &str) -> bool {
@@ -477,6 +506,7 @@ fn is_fixed_fact(number: &str, phrase: &str, sentence: &str) -> bool {
 pub struct CountWordRule<'a> {
     text: &'a str,
     lines: Vec<&'a str>,
+    blocks: Vec<Range<usize>>,
 }
 
 impl<'a> CountWordRule<'a> {
@@ -484,6 +514,7 @@ impl<'a> CountWordRule<'a> {
         CountWordRule {
             text,
             lines: text.lines().collect(),
+            blocks: tool_blocks(text),
         }
     }
 
@@ -509,7 +540,10 @@ impl Rule<WritingConfig> for CountWordRule<'_> {
     }
 
     fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-        if self.cited(s) || has_absolute_date(&without_link_targets(&s.text)) {
+        if inside_a_block(&self.blocks, s)
+            || self.cited(s)
+            || has_absolute_date(&without_link_targets(&s.text))
+        {
             return vec![];
         }
         let text = reduce_inline(&s.text);
@@ -678,8 +712,37 @@ fn is_time_sense(word: &str, before: &[String], after: &[String]) -> bool {
 
 /// A relative time word is flagged: it means a different time every time
 /// someone reads the sentence, so the sentence is true only on the day it
-/// was written.
-pub fn relative_time(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+/// was written. A block a tool wrote for a named head commit is skipped.
+pub struct RelativeTimeRule {
+    blocks: Vec<Range<usize>>,
+}
+
+impl RelativeTimeRule {
+    pub fn new(text: &str) -> Self {
+        RelativeTimeRule {
+            blocks: tool_blocks(text),
+        }
+    }
+}
+
+impl Rule<WritingConfig> for RelativeTimeRule {
+    fn id(&self) -> &'static str {
+        "relative-time"
+    }
+
+    fn scope(&self) -> Scope {
+        Scope::Sentence
+    }
+
+    fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+        if inside_a_block(&self.blocks, s) {
+            return vec![];
+        }
+        relative_time(s)
+    }
+}
+
+fn relative_time(s: &TextUnit) -> Vec<Finding> {
     static TIME: OnceLock<Regex> = OnceLock::new();
     let pattern = re(
         &TIME,
@@ -780,6 +843,19 @@ mod tests {
             excerpts("count-word", "There are four reasons."),
             vec!["four reasons"]
         );
+    }
+
+    #[test]
+    fn a_block_a_tool_wrote_for_a_head_commit_is_left_alone() {
+        let text = "<!-- osf:tree:start head=abc123 -->\nThe tree holds 65 files and is final now.\n<!-- osf:tree:end -->\n\nThe change adds 65 files and is final now.\n";
+        assert_eq!(excerpts("count-word", text), vec!["65 files"]);
+        assert_eq!(excerpts("relative-time", text), vec!["now"]);
+    }
+
+    #[test]
+    fn a_block_without_a_head_commit_is_still_read() {
+        let text = "<!-- osf:tree:start -->\nThe tree holds 65 files.\n<!-- osf:tree:end -->\n";
+        assert_eq!(excerpts("count-word", text), vec!["65 files"]);
     }
 
     #[test]

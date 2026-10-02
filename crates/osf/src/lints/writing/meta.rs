@@ -737,6 +737,8 @@ pub const RULE_META: &[RuleMeta] = &[
          the `states of matter`, and `two states` in a sentence about \
          binary. The word `one` is never read as a count, so `one of`, \
          `one place` and `each one` pass.\n\
+         Text a tool writes between `osf` markers that name a head commit \
+         passes. It is a snapshot of that commit.\n\
          It does not cover `both`, `several` or `a couple of`. It does not \
          read a number joined to its noun by a hyphen. It does not read a \
          number followed by an adverb, or a count with no noun after it. \
@@ -773,7 +775,8 @@ pub const RULE_META: &[RuleMeta] = &[
          It covers English text and the words above. It stays silent when \
          the same sentence carries an absolute date. That means a year, \
          month and day, a month with a day or a year, a four-digit year, or \
-         `as of` a date.\n\
+         `as of` a date. It also stays silent in text a tool writes between \
+         `osf` markers that name a head commit.\n\
          It also stays silent where the word is not about time. Those cases \
          are `now that`, `now and then`, `as soon as`, `up to date`, an \
          opening `Now,` or `Still,`, and `still` before a comparative, after \

@@ -32,7 +32,6 @@ const SENTENCE_RULES: &[FnRule<WritingConfig>] = &[
     FnRule::sentence("universal-pronoun", universal_pronoun),
     FnRule::sentence("colon-reveal", colon_reveal),
     FnRule::sentence("ing-tail", ing_tail),
-    FnRule::sentence("relative-time", super::durable::relative_time),
 ];
 
 /// Rules that need to see more than one sentence at once, to judge a shape
@@ -57,6 +56,8 @@ pub fn per_sentence(doc: &Doc, cfg: &WritingConfig, fast_only: bool, out: &mut V
     rules.push(&chat_local_rule);
     let count_word_rule = super::durable::CountWordRule::new(&doc.whole.text);
     rules.push(&count_word_rule);
+    let relative_time_rule = super::durable::RelativeTimeRule::new(&doc.whole.text);
+    rules.push(&relative_time_rule);
     out.extend(run_rules(doc, &rules, cfg, fast_only));
 }
 
@@ -70,6 +71,7 @@ pub fn rule_ids() -> Vec<&'static str> {
             "filler",
             "chat-local-reference",
             "count-word",
+            "relative-time",
             "heading-in-short-text",
             "undefined-name",
             "undefined-name-at-start",
