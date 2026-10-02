@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "15b7f3a05c0c9230c0a8ae693fe424dbe1113590",
+    "contentHash": "34333b345cee0659d6e7f2d848dfca73"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "docs-map-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "docs-map",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4d0784282174679c63cfc9284541d8cd",
+      "bytes": 21437,
+      "width": 1736,
+      "height": 874,
+      "animated": false,
+      "path": "docs-map-light-4d0784282174679c63cfc9284541d8cd.svg"
+    },
+    {
+      "id": "docs-map-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "docs-map",
+      "mediaType": "image/svg+xml",
+      "contentHash": "296bf018659f289e72a2d213b75485bf",
+      "bytes": 21690,
+      "width": 1736,
+      "height": 874,
+      "animated": false,
+      "path": "docs-map-dark-296bf018659f289e72a2d213b75485bf.svg"
+    },
+    {
+      "id": "decision-link-graph-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "decision-link-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "97dc089b7187043a90bc251879ad0e77",
+      "bytes": 9756,
+      "width": 602,
+      "height": 532,
+      "animated": false,
+      "path": "decision-link-graph-light-97dc089b7187043a90bc251879ad0e77.svg"
+    },
+    {
+      "id": "decision-link-graph-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "decision-link-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1dcfa8ffbaf749e00c445120d55f220a",
+      "bytes": 9849,
+      "width": 602,
+      "height": 532,
+      "animated": false,
+      "path": "decision-link-graph-dark-1dcfa8ffbaf749e00c445120d55f220a.svg"
+    },
+    {
+      "id": "adr-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adr-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "243524bc08ec5faa4647156b074c3ab5",
+      "bytes": 6300,
+      "width": 582,
+      "height": 304,
+      "animated": false,
+      "path": "adr-internals-light-243524bc08ec5faa4647156b074c3ab5.svg"
+    },
+    {
+      "id": "adr-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adr-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5d2e1936678a8764fb66eca6ac93c52e",
+      "bytes": 6347,
+      "width": 582,
+      "height": 304,
+      "animated": false,
+      "path": "adr-internals-dark-5d2e1936678a8764fb66eca6ac93c52e.svg"
+    },
+    {
+      "id": "code-touch-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "code-touch",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a8c7a9d0ab039627576c29e6c97ab2be",
+      "bytes": 6898,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "code-touch-light-a8c7a9d0ab039627576c29e6c97ab2be.svg"
+    },
+    {
+      "id": "code-touch-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "code-touch",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c94809c8982ae2ebb2987c06f8cf52c7",
+      "bytes": 6956,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "code-touch-dark-c94809c8982ae2ebb2987c06f8cf52c7.svg"
+    }
+  ]
+}
