@@ -38,7 +38,7 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 | Unit | A check is a moon task. Its tags name its checkpoints and its slot. Moon runs under every factory check and ships in the factory's image. |
 | Name | The points where checks run are called checkpoints. |
 | Cost | There is no fixed time budget per checkpoint. Declared inputs and moon's cache make an untouched check free. A repository may set a ceiling per checkpoint in its configuration. |
-| Journal | Every checkpoint writes events in the domain model's structure. A local run buffers events and flushes them on push and on a timer. The orphan branch on the code host is the default sink. An object store with an S3-compatible interface, the interface Amazon's object store made common, is an optional second sink. When both are configured, both receive every write. |
+| Journal | Every checkpoint writes events in the domain model's structure. A local run buffers events and flushes them on push and on a timer. The orphan branch on the code host, a branch that shares no history with the code, is the default sink. An object store with an S3-compatible interface, the interface Amazon's object store made common, is an optional second sink. When both are configured, both receive every write. |
 | Required checks | Only the aggregation check is required. It reads each adopter job's conclusion and fails when one is missing without a path filter's excuse. Checks run in parallel and the aggregation runs last. |
 | Slots | A slot counts as filled by the adopter's own check only when the check recogniser reads that it is at least as strong as the factory's. Where no recogniser exists, a slot attestation fills it and is reported as such. A periodic audit compares attestations with completed runs. |
 | Empty slots | The factory fills an empty slot with its own default when it has one. A slot only the adopter can fill, such as architecture tests, reports at warning until the adopter raises it to error. |
@@ -221,7 +221,7 @@ recognise = [
 
 A plain build and test run fills none of the stronger slots. For .NET the lint slot wants analysers at the latest level with warnings treated as errors, plus a style analyser package. The format slot wants a format check that fails on drift. The architecture slot wants a test project that references an architecture-testing library. The integration slot wants a test project marked as integration by trait or by name. Each of those is a fact in a project file, a props file or a workflow file. The check recogniser reads those files and nothing else on a pull request.
 
-The catalogue page is rendered from the same files in CI, so the list has one source and the page cannot drift.
+The catalogue page is rendered from the same files in continuous integration (CI), so the list has one source and the page cannot drift.
 
 ## Deployment into a repository
 

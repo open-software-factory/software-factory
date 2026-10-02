@@ -24,16 +24,16 @@ An adopting repository runs a linter, a formatter and a test suite through its o
 
 | Option | What it meant | Why it was set aside |
 |---|---|---|
-| One table per slot | Everything about a slot under its name. | Taken. It answers the factory's question in one lookup and works with no CI at all. |
+| One table per slot | Everything about a slot under its name. | Taken. It answers the factory's question in one lookup and works with no continuous integration (CI) at all. |
 | One table per CI job | The file reads like the workflow and each job names the slots it fills. | The factory has to invert it, and levels and attestations need a second shape. |
-| Almost no file | Everything inferred from workflow files, with attestations as comments in YAML. | Attestations lose their reason and date, and a repository with no CI has nowhere to put them. |
+| Almost no file | Everything inferred from workflow files, with attestations as comments in YAML (a plain-text configuration format). | Attestations lose their reason and date, and a repository with no CI has nowhere to put them. |
 
 **Where the shipped defaults and the recogniser rules live.**
 
 | Option | What it meant | Why it was set aside |
 |---|---|---|
 | One [TOML](https://toml.io) data file (a plain-text configuration format) per ecosystem inside the tool | Each entry holds the task shape, the slot, the checkpoints and the recogniser predicates from a small fixed set. | Taken. Adding a check is a data change and the catalogue is rendered from one source. |
-| Rust code per ecosystem | A trait with a method for defaults and one for recognition. | Adding a check means a release, and the catalogue needs a generator that reads code. |
+| Rust code per ecosystem | A Rust trait (a shared interface) with a method for defaults and one for recognition. | Adding a check means a release, and the catalogue needs a generator that reads code. |
 | Moon project fragments the tool copies in | The default is a real moon file the tool copies into the adopter's tree. | Two files per ecosystem drift apart, and the adopter's tree gains files to keep in sync. |
 
 **How the checks reach an adopter's repository, and survive a factory release.**

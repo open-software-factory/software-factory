@@ -30,7 +30,7 @@ A pull request in an adopting repository has the adopter's own jobs, the factory
 
 The aggregation is the one required factory check on a pull request. It runs as a generated workflow in the adopter's repository after every workflow on the commit finishes. It lists the check runs on the commit and waits while one is still running. When every check is done it reads each conclusion, downloads the artifacts, hands each file to the reader that recognises its content, takes the check recogniser's slot states, applies levels and suppressions, writes the checkpoint-complete event, posts the one required check, and flushes the journal.
 
-The readers detect a result file by content. The first formats are JUnit XML (the test-result format most runners can write), TRX (the .NET test-result format), xUnit XML (the result format of the xUnit test framework for .NET), the coverage formats Cobertura, LCOV and JaCoCo (the Java coverage tool's own format), SARIF (the static-analysis results interchange format) and CTRF (a common test-report format in JSON). A glob in `osf.toml` narrows the scan.
+The readers detect a result file by content. The first formats are JUnit XML (the test-result format most runners can write), TRX (the test-result format of [.NET](https://dotnet.microsoft.com/), Microsoft's application platform), xUnit XML (the result format of the xUnit test framework for .NET), the coverage formats Cobertura, LCOV and JaCoCo (the Java coverage tool's own format), SARIF (the static-analysis results interchange format) and CTRF (a common test-report format in JSON). A glob in `osf.toml` narrows the scan.
 
 The pull-request status block gets one line per slot only when the slot's state differs from the base branch.
 
@@ -40,5 +40,5 @@ A job that did not run because its path filter excluded the change is reported a
 
 - The ruleset on main requires the aggregation check and resolved review threads. It does not name an adopter's own job directly. The aggregation reads each job's conclusion instead, and fails whenever one is missing for a reason other than its own path filter. A job a path filter skips is never a required status check in the ruleset. So it can never block merging the way a directly required job can.
 - One concurrency group per commit lets one aggregation run at a time, and a later one supersedes.
-- The aggregation cannot advance a state until the journal reaches its sink, per [decision 0009 (journal store and sinks)](0009-journal-store-and-sinks.md), so a flush failure in CI fails the aggregation.
+- The aggregation cannot advance a state until the journal reaches its sink, per [decision 0009 (journal store and sinks)](0009-journal-store-and-sinks.md), so a flush failure in continuous integration fails the aggregation.
 - A result-file format enters as one reader with a corpus of real files, stored without extensions.
