@@ -1,4 +1,4 @@
-# Build output. The consumer builds it with `npm run build`.
+# Build output. The consumer builds it with `pnpm run build`.
 dist/
 
 # Installed dependencies.

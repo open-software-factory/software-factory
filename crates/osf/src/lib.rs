@@ -4,14 +4,16 @@
 //! runs, instead of shelling out to it.
 
 pub mod agents;
+pub mod assets;
 pub mod config;
 pub mod exclude;
-mod git;
+pub mod git;
 pub mod hook;
 pub mod lints;
 pub mod repository;
 pub mod review;
 pub mod risk;
 pub mod scan;
+pub mod section;
 pub mod status;
 pub mod verify;

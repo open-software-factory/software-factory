@@ -45,6 +45,27 @@ A suppression with no reason is itself an error. Suppressions are reported and
 counted, and the checks that run on a pull request ignore them, so nothing is
 hidden from review.
 
+## Pull requests from a fork
+
+A pull request from a fork still gets every check. Its status block
+prints in the job summary instead of the description, which a
+maintainer fills in with a push or after merge.
+
+## Review aids on a pull request
+
+A pull request that changes code gets a pr-lens diagram and a change
+outline, both in its description. A pull request that is part of a stack
+also gets the git-town stack view.
+
+- pr-lens draws the change as a diagram. It needs a model key: add a
+  `review` environment to the repository, then add a `DEEPSEEK_API_KEY`
+  secret to it. Set the `PR_LENS_PROVIDER` repository variable to
+  `openai` or `anthropic` to use an `OPENAI_API_KEY` or an
+  `ANTHROPIC_API_KEY` secret instead. With no key, the section says so
+  instead of drawing anything.
+- The change outline needs no key and no setup.
+- The git-town stack view needs no key and no setup.
+
 ## Commit messages
 
 Write the subject in the present tense, and do not end it with a full stop.
