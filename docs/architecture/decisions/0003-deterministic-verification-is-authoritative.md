@@ -27,7 +27,7 @@ Four words, each with one job:
 
 ### Two rules every verifier and every reader of evidence follows
 
-**A read distinguishes "could not read" from "read, and found nothing".** A verifier that could not run reports a failure to run, and no such report ever counts as a pass. A reader of a tracker, a forge or a store returns "unknown" when it could not read and an empty result when it read and there was nothing. The two are different facts and are recorded differently.
+**A read distinguishes a failed read from an empty one.** A verifier that could not run reports a failure to run, and no such report ever counts as a pass. A reader of a tracker, a forge or a store returns unknown when it could not read and an empty result when it read and there was nothing. The two are different facts and are recorded differently.
 
 **Green must be earned.** A change with no declared test command is held. A test suite whose collected test count shrinks between the base and the change does not pass on count alone; the shrink is a finding. A suppression added in a change (a lint or type-check silencer) is itself a finding for review. An empty result from an empty input is not a pass.
 

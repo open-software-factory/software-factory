@@ -254,7 +254,7 @@ Each check still writes its own verification event. When the aggregation finishe
 | unit-tests | this repository's Unit Tests job | pass | 412 tests, 0 failed | observed |
 | architecture-tests | empty, warning | skipped | | |
 | contract-tests | slot attestation, 2026-09-22 | pass | | reported |
-| review | second-opinion review, round 2 | 1 thread open | 1 | reported |
+| review | second-opinion review, second round | 1 thread open | 1 | reported |
 
 The result-file readers detect a file by content. The formats they read are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. JUnit XML is the test-result format most runners can write. TRX is the .NET test-result format. The coverage formats are Cobertura, LCOV and JaCoCo. JaCoCo is the Java coverage tool's own format. CTRF is a common test-report format in JSON. A glob in `osf.toml` narrows the scan. A job with a known conclusion and no readable file still counts as passed or failed.
 
@@ -299,7 +299,7 @@ A suppression the ecosystem's own tool understands keeps working for that tool, 
 | Rendering would overwrite a file the adopter already has under the same name | The sync command refuses and names the file. | Nothing. The sync did not run. |
 | The flush cannot reach the branch or the store | Locally the buffer keeps the events and the next flush retries. In the pull-request checkpoint the aggregation fails, because evidence must be durable before the state changes. | Locally, a gap event at the next successful flush. In CI, the failed aggregation. |
 | Two aggregation runs start on the same commit | A concurrency group per commit lets one run at a time, and the later one supersedes. | One checkpoint-complete event per commit. |
-| The harness sends no text in its hook reply, as one bridge does today | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
+| The harness sends no text in its hook reply, as one bridge currently does | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
 
 ## Testing
 

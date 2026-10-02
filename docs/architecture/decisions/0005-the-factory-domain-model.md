@@ -40,7 +40,7 @@ Only observed evidence may carry a "verified by" attribution. A finding at a low
 
 ### Events are a core part of the model
 
-A state change is an event. The entity tables above are projections of the event stream rather than a second store. One envelope, versioned, one event per line:
+A state change is an event. The entity and evidence-grade tables are projections of the event stream rather than a second store. One envelope, versioned, one event per line:
 
 | Field | Holds |
 |---|---|
@@ -65,6 +65,6 @@ A run's event journal is hash-chained: each event carries the hash of the one be
 ## Consequences
 
 - The event schema is the first contract written, before any verifier, and lives beside the code that emits it.
-- The console's provisional state vocabulary is replaced by the lifecycle and grades above.
-- A provider adapter's fidelity is stated in its own terms: which entities it can read, which it cannot, and which edges it drops, following the read rule in decision 0003.
-- The model says nothing about orchestration, sandboxes or the work-item provider. Those are edges, recorded when their first adapter ships, per decision 0002.
+- The console's provisional state vocabulary is replaced by the lifecycle states and evidence grades this record defines.
+- A provider adapter's fidelity is stated in its own terms: which entities it can read, which it cannot, and which edges it drops, following the read rule in [decision 0003](0003-deterministic-verification-is-authoritative.md).
+- The model says nothing about orchestration, sandboxes or the work-item provider. Those are edges, recorded when their first adapter ships, per [decision 0002](0002-provider-neutral-process-boundaries.md).

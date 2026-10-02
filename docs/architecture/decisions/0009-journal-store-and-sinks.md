@@ -6,7 +6,7 @@ Date: 2026-09-20
 
 ## Context
 
-Decision 0005 makes the event journal the record: entity tables are projections of it, and a run's journal is hash-chained. It does not say where the journal is written or how a reader other than the writer reaches it. The smallest working engine needs both before its first run.
+[Decision 0005](0005-the-factory-domain-model.md) makes the event journal the record: entity tables are projections of it, and a run's journal is hash-chained. It does not say where the journal is written or how a reader other than the writer reaches it. The smallest working engine needs both before its first run.
 
 ## Decision
 
