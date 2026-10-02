@@ -1,0 +1,1218 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-02T16:23:41.066Z",
+  "title": "Durable-text lint rules: count-word and relative-time",
+  "summary": "Adds two deterministic writing-lint rules that guard text which has to stay true after it is written. `count-word` (error) flags a count of things such as \"three stages\" or \"5 checkpoints\", and `relative-time` (warning) flags words that point at the moment of reading such as `today`, `now`, `currently` and `still`. Both read the sentence's words rather than a bare character pattern, both are skipped in a chat transcript, and both are excused by a local absolute date, a source link or note, a stated limit, a past-tense event or a fixed fact. The rest of the diff is the prose sweep the new rules forced across the repository's own documents, plus the rule metadata, the rule registration and a measure test with positive and negative fixtures.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "df3ad10d05d46ba77f9c49bcdc07ea98375e3839",
+      "ref": "9a74cf5d4ab5ae49869a43a7ef94f4c462bbdf2e"
+    },
+    "head": {
+      "sha": "97d40a11f363bfb99a54422a08afd231b95a04aa",
+      "ref": "97d40a11f363bfb99a54422a08afd231b95a04aa"
+    },
+    "pullRequest": {
+      "number": 207,
+      "url": "https://github.com/open-software-factory/software-factory/pull/207"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI surface",
+      "subtitle": "osf commands and hooks",
+      "order": 0,
+      "summary": "The commands a person or an agent runs: the writing lint, the stop hook and the prompt hook."
+    },
+    {
+      "id": "lint",
+      "label": "Writing lint",
+      "subtitle": "crates/osf/src/lints/writing",
+      "order": 1,
+      "summary": "The rule engine: text is split into sentences, each rule reads a sentence, findings are filtered by context and suppression."
+    },
+    {
+      "id": "rules",
+      "label": "Rules",
+      "subtitle": "per-sentence rule set",
+      "order": 2,
+      "summary": "The individual rules. Two are new; the rest are the unchanged neighbours they sit beside."
+    },
+    {
+      "id": "durable",
+      "label": "Durable-text rules",
+      "subtitle": "durable.rs",
+      "order": 3,
+      "summary": "The new module: sentence preparation, the count-word rule and the relative-time rule."
+    },
+    {
+      "id": "tests",
+      "label": "Measure tests",
+      "subtitle": "tests/fixtures/writing-measure",
+      "order": 4,
+      "summary": "Positive and negative fixtures copied from the repository's own documents, scored for precision and recall."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "lint writing, hook stop, hook prompt",
+      "summary": "The command-line entry point. It reads files or standard input, runs the writing lint and prints findings.",
+      "files": [
+        {
+          "path": "crates/osf/README.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hook-stop",
+      "label": "hook stop",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "agent Stop event",
+      "summary": "Reads a coding agent's Stop event and lints the final message. It refuses the stop when the message has errors, and also when the message could not be checked at all.",
+      "files": [
+        {
+          "path": "crates/osf/README.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hook-prompt",
+      "label": "hook prompt",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "prompt-submitted event",
+      "summary": "Prints context for a new turn: a reminder of the writing shapes a model slips into, then any style advice the last stop check stored.",
+      "files": [
+        {
+          "path": "crates/osf/README.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-writing",
+      "label": "lint_writing",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "lint",
+      "subtitle": "crates/osf/src/lints/writing/mod.rs",
+      "summary": "Splits text into paragraphs and sentences, runs the rule set, then filters findings by context and suppression. It now drops count-word and relative-time findings when the context is a transcript.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 38,
+          "endLine": 50
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "per-sentence",
+      "label": "per_sentence",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "lint",
+      "subtitle": "rules.rs",
+      "summary": "Builds the per-sentence rule list and runs it over the document. It now constructs the count-word and relative-time rules from the whole text and pushes them into the list.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 54,
+          "endLine": 62
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rule-ids",
+      "label": "rule_ids",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "lint",
+      "subtitle": "rules.rs",
+      "summary": "The list of rule ids the lint knows. It now names count-word and relative-time.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 66,
+          "endLine": 76
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rule-meta",
+      "label": "RULE_META",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "lint",
+      "subtitle": "meta.rs",
+      "summary": "The documentation block for every rule: what it does, why it is bad, its class, its citation, an example and its coverage. It gained entries for count-word and relative-time, and several existing entries were reworded.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/meta.rs",
+          "startLine": 692,
+          "endLine": 850
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "count-word",
+      "label": "CountWordRule",
+      "kind": "module",
+      "delta": "added",
+      "lane": "durable",
+      "subtitle": "count-word, Level::Error",
+      "summary": "Flags a count of things written in words or digits, such as \"three stages\" or \"5 checkpoints\". It reads a number from two upward, then up to two plain words or adverbs, then a plural noun. Bounds, ranges, \"a dozen\", \"both\", \"a pair of\", hyphen compounds and \"one\" before a list noun are counts too.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs",
+          "startLine": 1,
+          "endLine": 1781
+        }
+      ],
+      "badges": [
+        "new rule",
+        "error level"
+      ]
+    },
+    {
+      "id": "relative-time",
+      "label": "RelativeTimeRule",
+      "kind": "module",
+      "delta": "added",
+      "lane": "durable",
+      "subtitle": "relative-time, Level::Warning",
+      "summary": "Flags a word that points at the time of reading, such as `today`, `now`, `currently`, `this week`, `yet` and `still` where it means time. It stays silent where the word is not about time, such as `now that`, `as soon as` or `still images`.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs",
+          "startLine": 1,
+          "endLine": 1781
+        }
+      ],
+      "badges": [
+        "new rule",
+        "warning level"
+      ]
+    },
+    {
+      "id": "prepare",
+      "label": "prepare",
+      "kind": "function",
+      "delta": "added",
+      "lane": "durable",
+      "subtitle": "sentence preparation",
+      "summary": "Turns a raw sentence into the text the rules read. A code span becomes the word \"code\" unless it holds a date or prose, a link keeps its text and loses its address, a bracketed note is remembered as a source, and every absolute date becomes a marker.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tool-blocks",
+      "label": "tool_blocks",
+      "kind": "function",
+      "delta": "added",
+      "lane": "durable",
+      "subtitle": "osf:NAME:start head=SHA",
+      "summary": "Finds the byte ranges of blocks a tool wrote between osf markers for the names status, tree and pr-lens, when the start marker names a head commit. A count or a time word inside one is a snapshot of that commit, so both rules skip it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "exemptions",
+      "label": "Local exemptions",
+      "kind": "other",
+      "delta": "added",
+      "lane": "durable",
+      "subtitle": "date, source, limit, past event, fixed fact",
+      "summary": "Every exemption covers only the count or the time word it sits with. A date excuses only its own clause. A source excuses only the count it directly backs. A stated limit, a past-tense event and a fixed fact each excuse only their own phrase.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "existing-rules",
+      "label": "Existing per-sentence rules",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "rules",
+      "subtitle": "filler, chat-local-reference, and the rest",
+      "summary": "The rules the new ones sit beside: filler, chat-local-reference, heading-in-short-text, undefined-name, recap-ending and the other per-sentence checks. They are unchanged, but they share the rule list, the context filter and the suppression pass with the new rules.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "measure-test",
+      "label": "writing_measure.rs",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "subtitle": "precision and recall of exactly one",
+      "summary": "Reads the positive and negative fixtures, runs each sentence through the lint, and requires precision and recall of exactly one. It also asserts neither rule runs in a transcript, both hold their level in every durable context, and fenced code is left alone.",
+      "files": [
+        {
+          "path": "crates/osf/tests/writing_measure.rs",
+          "startLine": 1,
+          "endLine": 241
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fixtures",
+      "label": "writing-measure fixtures",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "subtitle": "count-word and relative-time, positive and negative",
+      "summary": "One sentence per line, copied from this repository's own documents wherever one exists. A positive line names the excerpts the rule must report; a negative line must produce nothing.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/writing-measure/count-word.positive.txt"
+        },
+        {
+          "path": "crates/osf/tests/fixtures/writing-measure/count-word.negative.txt"
+        },
+        {
+          "path": "crates/osf/tests/fixtures/writing-measure/relative-time.positive.txt"
+        },
+        {
+          "path": "crates/osf/tests/fixtures/writing-measure/relative-time.negative.txt"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prose-sweep",
+      "label": "Repository prose sweep",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "tests",
+      "subtitle": "docs, READMEs, decision records",
+      "summary": "The repository's own documents were rewritten where the new rules would fire: counts became \"several\" or \"each\", relative times became dates or plain facts, and rule examples were reworded. This is the change the new rules forced on the corpus they run over.",
+      "files": [
+        {
+          "path": "AGENTS.md"
+        },
+        {
+          "path": "crates/osf/README.md"
+        },
+        {
+          "path": "docs/architecture/decisions/0008-the-smallest-working-engine.md"
+        },
+        {
+          "path": "docs/design/design-tracker.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-lint",
+      "from": "osf-cli",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "text, context",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI hands the text and the context to the writing lint.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs"
+        }
+      ]
+    },
+    {
+      "id": "stop-to-lint",
+      "from": "hook-stop",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "final message",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The stop hook lints the agent's final message before deciding whether to refuse the stop.",
+      "files": [
+        {
+          "path": "crates/osf/README.md"
+        }
+      ]
+    },
+    {
+      "id": "prompt-to-lint",
+      "from": "hook-prompt",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "stored advice",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The prompt hook reads the advice the last stop check stored, which came from the same lint.",
+      "files": [
+        {
+          "path": "crates/osf/README.md"
+        }
+      ]
+    },
+    {
+      "id": "lint-to-per-sentence",
+      "from": "lint-writing",
+      "to": "per-sentence",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lint calls the per-sentence pass over the parsed document.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 38,
+          "endLine": 44
+        }
+      ]
+    },
+    {
+      "id": "per-sentence-to-count",
+      "from": "per-sentence",
+      "to": "count-word",
+      "kind": "call",
+      "delta": "added",
+      "label": "whole text",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The per-sentence pass constructs the count-word rule from the document's whole text, so a note after a sentence can source a count in it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 57,
+          "endLine": 58
+        }
+      ]
+    },
+    {
+      "id": "per-sentence-to-time",
+      "from": "per-sentence",
+      "to": "relative-time",
+      "kind": "call",
+      "delta": "added",
+      "label": "whole text",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The per-sentence pass constructs the relative-time rule from the document's whole text, so it can skip tool-written blocks.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 59,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "per-sentence-to-existing",
+      "from": "per-sentence",
+      "to": "existing-rules",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The unchanged rules run in the same pass, over the same sentences.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs"
+        }
+      ]
+    },
+    {
+      "id": "count-to-prepare",
+      "from": "count-word",
+      "to": "prepare",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The count rule prepares each sentence before reading its words.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ]
+    },
+    {
+      "id": "time-to-prepare",
+      "from": "relative-time",
+      "to": "prepare",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The time rule prepares each sentence before matching its words.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ]
+    },
+    {
+      "id": "count-to-blocks",
+      "from": "count-word",
+      "to": "tool-blocks",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The count rule skips a sentence inside a tool-written block for a named head commit.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ]
+    },
+    {
+      "id": "time-to-blocks",
+      "from": "relative-time",
+      "to": "tool-blocks",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The time rule skips a sentence inside a tool-written block for a named head commit.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ]
+    },
+    {
+      "id": "count-to-exemptions",
+      "from": "count-word",
+      "to": "exemptions",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A count is reported only when no local exemption covers it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ]
+    },
+    {
+      "id": "time-to-exemptions",
+      "from": "relative-time",
+      "to": "exemptions",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A time word is reported only when no local exemption covers it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/durable.rs"
+        }
+      ]
+    },
+    {
+      "id": "lint-to-meta",
+      "from": "lint-writing",
+      "to": "rule-meta",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lint's rule ids must have a metadata entry, so the two new rules carry documentation.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/meta.rs"
+        }
+      ]
+    },
+    {
+      "id": "lint-to-ids",
+      "from": "lint-writing",
+      "to": "rule-ids",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lint's known rule ids now include the two new rules.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs"
+        }
+      ]
+    },
+    {
+      "id": "test-to-lint",
+      "from": "measure-test",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The measure test runs each fixture sentence through the lint and counts true and false findings.",
+      "files": [
+        {
+          "path": "crates/osf/tests/writing_measure.rs"
+        }
+      ]
+    },
+    {
+      "id": "test-to-fixtures",
+      "from": "measure-test",
+      "to": "fixtures",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test reads the positive and negative fixture files.",
+      "files": [
+        {
+          "path": "crates/osf/tests/writing_measure.rs"
+        }
+      ]
+    },
+    {
+      "id": "fixtures-to-sweep",
+      "from": "fixtures",
+      "to": "prose-sweep",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Most fixture sentences are copied from the repository's own documents, so the sweep and the fixtures are the same corpus.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/writing-measure/count-word.positive.txt"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "count-word-check",
+      "title": "A sentence through the count-word rule",
+      "summary": "One sentence is prepared, tokenised, scanned for a count, and either excused locally or reported as an error.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "per-sentence",
+          "label": "per_sentence"
+        },
+        {
+          "node": "count-word",
+          "label": "CountWordRule"
+        },
+        {
+          "node": "prepare",
+          "label": "prepare"
+        },
+        {
+          "node": "exemptions",
+          "label": "exemptions"
+        }
+      ],
+      "messages": [
+        {
+          "id": "cw-1",
+          "from": "per-sentence",
+          "to": "count-word",
+          "label": "check(sentence, cfg)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/rules.rs",
+              "startLine": 57,
+              "endLine": 58
+            }
+          ]
+        },
+        {
+          "id": "cw-2",
+          "from": "count-word",
+          "to": "count-word",
+          "label": "inside a tool block? skip",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "A sentence inside an osf:status, osf:tree or osf:pr-lens block with a head commit is a snapshot, so the rule returns no findings.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "cw-3",
+          "from": "count-word",
+          "to": "prepare",
+          "label": "prepare(s.text, expand_code=true)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "Prepared",
+              "shape": "{ text: String, sources: Vec<Source> }",
+              "sample": {
+                "text": "The pipeline has three stages.",
+                "sources": []
+              },
+              "source": {
+                "path": "crates/osf/src/lints/writing/durable.rs"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "cw-4",
+          "from": "prepare",
+          "to": "count-word",
+          "label": "prepared text and sources",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "cw-5",
+          "from": "count-word",
+          "to": "count-word",
+          "label": "tokens, clauses, quotes",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The rule splits the prepared text into whitespace words, clause bounds and quoted spans before looking for a count.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "cw-6",
+          "from": "count-word",
+          "to": "exemptions",
+          "label": "excused(hit)?",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A date in the same clause, a source link or note, a stated limit, a past-tense verb, an estimate or a fixed fact each excuse only the count they sit with.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "cw-7",
+          "from": "exemptions",
+          "to": "count-word",
+          "label": "true or false",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "cw-8",
+          "from": "count-word",
+          "to": "per-sentence",
+          "label": "Finding(count-word, Error, excerpt)",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "The finding carries the owner's remediation text: name the things, or say each, every or these.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "relative-time-check",
+      "title": "A sentence through the relative-time rule",
+      "summary": "One sentence is prepared, matched against the time-word pattern, and each match is judged for whether it is about time.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "per-sentence",
+          "label": "per_sentence"
+        },
+        {
+          "node": "relative-time",
+          "label": "RelativeTimeRule"
+        },
+        {
+          "node": "prepare",
+          "label": "prepare"
+        },
+        {
+          "node": "exemptions",
+          "label": "exemptions"
+        }
+      ],
+      "messages": [
+        {
+          "id": "rt-1",
+          "from": "per-sentence",
+          "to": "relative-time",
+          "label": "check(sentence, cfg)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/rules.rs",
+              "startLine": 59,
+              "endLine": 60
+            }
+          ]
+        },
+        {
+          "id": "rt-2",
+          "from": "relative-time",
+          "to": "relative-time",
+          "label": "inside a tool block? skip",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The same tool-block skip applies, so a status or tree block written for a head commit is left alone.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "rt-3",
+          "from": "relative-time",
+          "to": "prepare",
+          "label": "prepare(s.text, expand_code=false)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "Prepared",
+              "shape": "{ text: String, sources: Vec<Source> }",
+              "sample": {
+                "text": "The cache is currently disabled.",
+                "sources": []
+              },
+              "source": {
+                "path": "crates/osf/src/lints/writing/durable.rs"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "rt-4",
+          "from": "prepare",
+          "to": "relative-time",
+          "label": "prepared text",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "rt-5",
+          "from": "relative-time",
+          "to": "relative-time",
+          "label": "match the time-word pattern",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The pattern covers today, now, currently, at the moment, this week, recently, soon, yet and still, among others.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "rt-6",
+          "from": "relative-time",
+          "to": "exemptions",
+          "label": "date in clause? is_time_sense?",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A date in the same clause excuses the word. Otherwise the words around it decide whether it is about time, so `now that`, `as soon as` and `still images` pass.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "rt-7",
+          "from": "exemptions",
+          "to": "relative-time",
+          "label": "true or false",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        },
+        {
+          "id": "rt-8",
+          "from": "relative-time",
+          "to": "per-sentence",
+          "label": "Finding(relative-time, Warning, excerpt)",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "The finding carries the remediation: state the date, or state the fact without a time word.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/durable.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 69,
+    "additions": 2705,
+    "deletions": 349,
+    "chips": [
+      {
+        "label": "New rules",
+        "value": "2",
+        "tone": "added"
+      },
+      {
+        "label": "New rule module",
+        "value": "1781 lines",
+        "tone": "added"
+      },
+      {
+        "label": "Measure fixtures",
+        "value": "175 sentences",
+        "tone": "added"
+      },
+      {
+        "label": "Precision and recall",
+        "value": "1.0",
+        "tone": "hero"
+      },
+      {
+        "label": "Docs swept",
+        "value": "60+ files",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "writing-lint",
+      "title": "Writing lint",
+      "lens": "architecture",
+      "summary": "The lint as it stands after the change: the CLI and hooks call it, it runs the per-sentence rule set, and the two new durable-text rules sit beside the existing ones.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "durable-rules",
+      "title": "Inside the durable-text rules",
+      "lens": "architecture",
+      "summary": "The new module's internals: sentence preparation, the tool-block skip, and the local exemptions both rules share.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "count-word",
+          "relative-time",
+          "prepare",
+          "tool-blocks",
+          "exemptions"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "measure-tests",
+          "title": "Measure tests",
+          "lens": "architecture",
+          "summary": "The test that scores the two rules against fixtures copied from the repository's own documents.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "measure-test",
+              "fixtures",
+              "prose-sweep",
+              "lint-writing"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "count-word-flow",
+      "title": "Count-word check",
+      "lens": "data-flow",
+      "summary": "One sentence through the count-word rule, from the per-sentence pass to a finding or nothing.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "count-word-check"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "relative-time-flow",
+      "title": "Relative-time check",
+      "lens": "data-flow",
+      "summary": "One sentence through the relative-time rule, from the per-sentence pass to a finding or nothing.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "relative-time-check"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "w1",
+        "heading": "Two new rules",
+        "body": "count-word and relative-time join the per-sentence rule set.",
+        "stage": {
+          "kind": "view",
+          "view": "writing-lint"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "count-word",
+            "relative-time",
+            "per-sentence"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "w2",
+        "heading": "Registered and documented",
+        "body": "The rule list and the metadata block both name the new rules.",
+        "stage": {
+          "kind": "view",
+          "view": "writing-lint"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "rule-ids",
+            "rule-meta",
+            "lint-writing"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "w3",
+        "heading": "A count is read",
+        "body": "The count rule prepares the sentence, then looks for a number and a plural noun.",
+        "stage": {
+          "kind": "flow",
+          "flow": "count-word-check"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "cw-1",
+            "cw-3",
+            "cw-5"
+          ]
+        }
+      },
+      {
+        "id": "w4",
+        "heading": "Local exemptions",
+        "body": "A date, a source, a limit, a past event or a fixed fact excuses only its own count.",
+        "stage": {
+          "kind": "flow",
+          "flow": "count-word-check"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "cw-6",
+            "cw-7",
+            "cw-8"
+          ]
+        }
+      },
+      {
+        "id": "w5",
+        "heading": "A time word is judged",
+        "body": "The time rule matches the pattern, then reads the words around each match.",
+        "stage": {
+          "kind": "flow",
+          "flow": "relative-time-check"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "rt-1",
+            "rt-5",
+            "rt-6"
+          ]
+        }
+      },
+      {
+        "id": "w6",
+        "heading": "Tool blocks are skipped",
+        "body": "Both rules skip a status, tree or pr-lens block written for a head commit.",
+        "stage": {
+          "kind": "view",
+          "view": "durable-rules"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "tool-blocks",
+            "count-word",
+            "relative-time"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "w7",
+        "heading": "Measured on the corpus",
+        "body": "The fixtures are the repository's own sentences, scored for precision and recall.",
+        "stage": {
+          "kind": "view",
+          "view": "measure-tests"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "measure-test",
+            "fixtures",
+            "prose-sweep"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      }
+    ]
+  }
+}

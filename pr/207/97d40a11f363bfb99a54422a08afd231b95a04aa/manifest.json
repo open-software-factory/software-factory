@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "97d40a11f363bfb99a54422a08afd231b95a04aa",
+    "contentHash": "6149d562f3bca63a268a3a54d9683c93"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "writing-lint-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writing-lint",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b48d1bc335d3632c69c6eb1bb42c1387",
+      "bytes": 26936,
+      "width": 2180,
+      "height": 790,
+      "animated": false,
+      "path": "writing-lint-light-b48d1bc335d3632c69c6eb1bb42c1387.svg"
+    },
+    {
+      "id": "writing-lint-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writing-lint",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bc51fb5f6f492f700f6002fa93d2e83f",
+      "bytes": 27278,
+      "width": 2180,
+      "height": 790,
+      "animated": false,
+      "path": "writing-lint-dark-bc51fb5f6f492f700f6002fa93d2e83f.svg"
+    },
+    {
+      "id": "durable-rules-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "durable-rules",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5227643b5fd1874c692e82cfc714c5f4",
+      "bytes": 9966,
+      "width": 456,
+      "height": 428,
+      "animated": false,
+      "path": "durable-rules-light-5227643b5fd1874c692e82cfc714c5f4.svg"
+    },
+    {
+      "id": "durable-rules-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "durable-rules",
+      "mediaType": "image/svg+xml",
+      "contentHash": "02d483a796315d9831c191a5bacd092e",
+      "bytes": 10105,
+      "width": 456,
+      "height": 428,
+      "animated": false,
+      "path": "durable-rules-dark-02d483a796315d9831c191a5bacd092e.svg"
+    },
+    {
+      "id": "measure-tests-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "measure-tests",
+      "mediaType": "image/svg+xml",
+      "contentHash": "63f2a256302914969635bbaa708cc58d",
+      "bytes": 7655,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "measure-tests-light-63f2a256302914969635bbaa708cc58d.svg"
+    },
+    {
+      "id": "measure-tests-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "measure-tests",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9244550ad3f1e9f4bd92b29de70444e1",
+      "bytes": 7746,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "measure-tests-dark-9244550ad3f1e9f4bd92b29de70444e1.svg"
+    },
+    {
+      "id": "count-word-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "count-word-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2ffeef1c40610413a344192304f6c9cc",
+      "bytes": 14765,
+      "width": 1536,
+      "height": 483,
+      "animated": true,
+      "path": "count-word-flow-light-2ffeef1c40610413a344192304f6c9cc.svg"
+    },
+    {
+      "id": "count-word-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "count-word-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "565f5c950e49c2cd1a3d53a54765cd3a",
+      "bytes": 14916,
+      "width": 1536,
+      "height": 483,
+      "animated": true,
+      "path": "count-word-flow-dark-565f5c950e49c2cd1a3d53a54765cd3a.svg"
+    },
+    {
+      "id": "relative-time-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "relative-time-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "50f4916cb6dc0b9c526de5667bcf9cca",
+      "bytes": 14798,
+      "width": 1536,
+      "height": 483,
+      "animated": true,
+      "path": "relative-time-flow-light-50f4916cb6dc0b9c526de5667bcf9cca.svg"
+    },
+    {
+      "id": "relative-time-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "relative-time-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1de6173844ca2d031cb9cc84e07ced1d",
+      "bytes": 14949,
+      "width": 1536,
+      "height": 483,
+      "animated": true,
+      "path": "relative-time-flow-dark-1de6173844ca2d031cb9cc84e07ced1d.svg"
+    }
+  ]
+}
