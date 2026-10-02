@@ -167,6 +167,7 @@ jobs:
           MODEL: ${{ vars.PR_LENS_MODEL || steps.provider.outputs.default_model }}
         run: |
           set -uo pipefail
+          echo "the model call failed before it reported a reason" > "${RUNNER_TEMP}/analyze-reason.txt"
           npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
             --base "${{ github.event.pull_request.base.sha }}" \
             --head "${{ github.event.pull_request.head.sha }}" \
@@ -188,7 +189,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          reason="$(head -c 300 "${RUNNER_TEMP}/analyze-reason.txt")"
+          reason="no reason was recorded"
+          if [ -s "${RUNNER_TEMP}/analyze-reason.txt" ]; then
+            reason="$(head -c 300 "${RUNNER_TEMP}/analyze-reason.txt")"
+          fi
           printf 'pr-lens could not draw a diagram for this push. The model call failed: %s\n' "${reason}" > "${RUNNER_TEMP}/section.md"
           ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
 
