@@ -1,0 +1,1164 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-02T10:10:29.125Z",
+  "title": "Docs cross-linking and copy-edit pass across the factory corpus",
+  "summary": "A repository-wide editorial pass over the documentation corpus, plus two comment-only edits in the Rust crate. The substantive change is navigational: bare references to sibling decision records (\"decision 0003\", \"decision 0005\") become relative Markdown links, and several documents gain links to the product decision and vision documents they depend on. Alongside that, prose is tightened throughout — quoted phrases lose their scare quotes, section headings gain colons or descriptive names, and a few tables are restructured (SkillEvaluator's three tiers, the security-phase table). No runtime behaviour changes: the only code touched is two doc comments in `crates/osf/src/hook.rs` and two in `crates/osf/tests/skill_lint.rs`, which drop a stale \"Change N:\" prefix.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "0311169c9dbdd02d31757d0a87b3e71a05e45231",
+      "ref": "0311169c9dbdd02d31757d0a87b3e71a05e45231"
+    },
+    "head": {
+      "sha": "7749ac757c9ab03bbb7c850287b67efb6098867e",
+      "ref": "7749ac757c9ab03bbb7c850287b67efb6098867e"
+    },
+    "pullRequest": {
+      "number": 205,
+      "url": "https://github.com/open-software-factory/software-factory/pull/205"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "docs-corpus",
+      "label": "Documentation corpus",
+      "subtitle": "Markdown under docs/ and the repo root",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The vision, architecture, product and research documents that carry the project's decisions and vocabulary. Every file here was edited, but only the cross-reference edits change what a reader can navigate to."
+    },
+    {
+      "id": "decision-records",
+      "label": "Decision records",
+      "subtitle": "docs/architecture/decisions and docs/product/decisions",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The numbered ADRs and product decisions. They are the link targets the rest of the corpus now points at, and they themselves gained links to their neighbours."
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "subtitle": "crates/osf",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The Rust command-line tool. Only test doc comments changed; no executable code was touched."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "readme",
+      "label": "README.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs-corpus",
+      "group": "root-docs",
+      "subtitle": "Project entry point",
+      "summary": "The one-line description of what `osf` is changes from \"what runs today\" to \"what exists now\", matching the tool's actual scope.",
+      "files": [
+        {
+          "path": "README.md",
+          "startLine": 7,
+          "endLine": 7
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "contributing",
+      "label": "CONTRIBUTING.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs-corpus",
+      "group": "root-docs",
+      "subtitle": "Contribution guide",
+      "summary": "The clause-4 sentence now links to CLA.md so a contributor can read the clause before accepting the agreement.",
+      "files": [
+        {
+          "path": "CONTRIBUTING.md",
+          "startLine": 120,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "vision-docs",
+      "label": "Vision documents",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs-corpus",
+      "group": "vision",
+      "subtitle": "docs/vision",
+      "summary": "The agent-native operating model, the automated SPDLC/SDLC vision and the product lifecycle. Cross-references between them become real links, and phase names gain descriptive suffixes (\"Phase 3: Implementation and testability\").",
+      "files": [
+        {
+          "path": "docs/vision/agent-native-operating-model.md"
+        },
+        {
+          "path": "docs/vision/automated-spdlc-sdlc-vision.md"
+        },
+        {
+          "path": "docs/vision/product-lifecycle.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "architecture-docs",
+      "label": "Architecture documents",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs-corpus",
+      "group": "architecture",
+      "subtitle": "docs/architecture",
+      "summary": "The smallest-working-engine design, the execution-and-verification design, the verification seam, the draft vocabulary and the open questions. Bare decision numbers become relative links; stage headings gain colons.",
+      "files": [
+        {
+          "path": "docs/architecture/smallest-working-engine.md"
+        },
+        {
+          "path": "docs/architecture/execution-and-verification.md"
+        },
+        {
+          "path": "docs/architecture/verification-seam.md"
+        },
+        {
+          "path": "docs/architecture/draft-factory-vocabulary.md"
+        },
+        {
+          "path": "docs/architecture/open-questions.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "product-docs",
+      "label": "Product documents",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs-corpus",
+      "group": "product",
+      "subtitle": "docs/product",
+      "summary": "The operator-persona decision and the UX vision. The persona record now links to the architecture decision it maps its vocabulary onto.",
+      "files": [
+        {
+          "path": "docs/product/decisions/0002-operator-persona-and-product-vocabulary.md"
+        },
+        {
+          "path": "docs/product/ux/factory-ux-vision.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "research-docs",
+      "label": "Research notes",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs-corpus",
+      "group": "research",
+      "subtitle": "docs/research",
+      "summary": "The skill-lint survey, the change-risk classification survey, the AHP/ACP direction note and the UX research notes. The skill-lint survey gains a three-tier table for SkillEvaluator; the risk survey's reference sections lose their section numbers.",
+      "files": [
+        {
+          "path": "docs/research/2026-09-15-skill-lint-validation-and-evaluation.md"
+        },
+        {
+          "path": "docs/research/2026-09-17-change-risk-classification.md"
+        },
+        {
+          "path": "docs/research/ahp-acp-architecture-direction.md"
+        },
+        {
+          "path": "docs/research/ux/agent-built-ui-lessons.md"
+        },
+        {
+          "path": "docs/research/ux/benchmark/benchmark-design.md"
+        },
+        {
+          "path": "docs/research/ux/design-workflow-landscape.md"
+        },
+        {
+          "path": "docs/research/ux/prototypes/README.md"
+        },
+        {
+          "path": "docs/research/ux/ux-references.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-index",
+      "label": "ADR index",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "docs/architecture/decisions/README.md",
+      "summary": "The table of decision records. Its summary of decision 0003 is reworded to match the record's new phrasing.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/README.md",
+          "startLine": 13,
+          "endLine": 13
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0001",
+      "label": "ADR 0001: Rust for the engine",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0001-rust-for-the-factory-engine.md",
+      "summary": "Gains links to product decision 0001 and to ADRs 0002, 0003, 0006 and 0007 wherever those were previously named by number alone.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md",
+          "startLine": 11,
+          "endLine": 23
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0002",
+      "label": "ADR 0002: Provider-neutral process boundaries",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0002-provider-neutral-process-boundaries.md",
+      "summary": "Not edited by this change, but it is the new link target for ADRs 0001, 0005, 0006, 0008, 0010 and the open-questions list. It is the record the corpus most often refers to by number.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0002-provider-neutral-process-boundaries.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0003",
+      "label": "ADR 0003: Deterministic verification",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0003-deterministic-verification-is-authoritative.md",
+      "summary": "The read rule is reworded from \"could not read\" versus \"read, and found nothing\" to \"a failed read\" versus \"an empty one\". This is the phrasing the rest of the corpus now quotes.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md",
+          "startLine": 30,
+          "endLine": 30
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0004",
+      "label": "ADR 0004: Protocol-independent core",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0004-protocol-independent-core-with-ahp-acp-edges.md",
+      "summary": "Not edited by this change, but it is the new link target for ADR 0007 and ADR 0010 and for the smallest-working-engine design, which previously named it by number.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0004-protocol-independent-core-with-ahp-acp-edges.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0005",
+      "label": "ADR 0005: The factory domain model",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0005-the-factory-domain-model.md",
+      "summary": "The projection sentence now names the entity and evidence-grade tables explicitly, and the consequences link to ADRs 0002 and 0003.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0005-the-factory-domain-model.md",
+          "startLine": 43,
+          "endLine": 68
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0006",
+      "label": "ADR 0006: Distribution and packaging",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0006-distribution-and-packaging.md",
+      "summary": "The sandbox-and-platform paragraph links to ADR 0002.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0006-distribution-and-packaging.md",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0007",
+      "label": "ADR 0007: Console stack",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0007-console-stack.md",
+      "summary": "Links to product decision 0001 and to ADRs 0004 and 0005 replace bare decision numbers.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0007-console-stack.md",
+          "startLine": 9,
+          "endLine": 26
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0008",
+      "label": "ADR 0008: The smallest working engine",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0008-the-smallest-working-engine.md",
+      "summary": "The context and boundary paragraphs link to ADRs 0003 and 0005, and the quoted document title loses its quotation marks.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0008-the-smallest-working-engine.md",
+          "startLine": 9,
+          "endLine": 17
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0009",
+      "label": "ADR 0009: Journal store and sinks",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0009-journal-store-and-sinks.md",
+      "summary": "The context paragraph links to ADR 0005.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0009-journal-store-and-sinks.md",
+          "startLine": 9,
+          "endLine": 9
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-0010",
+      "label": "ADR 0010: First adapters",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "architecture-decisions",
+      "subtitle": "0010-first-tracker-sandbox-and-harness-adapters.md",
+      "summary": "Links to ADRs 0002, 0003 and 0004 replace bare decision numbers in the context, the tracker and harness paragraphs, and the consequences.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0010-first-tracker-sandbox-and-harness-adapters.md",
+          "startLine": 9,
+          "endLine": 25
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "product-decision-0001",
+      "label": "Product decision 0001",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "decision-records",
+      "group": "product-decisions",
+      "subtitle": "0001-factory-ui-is-an-operator-console.md",
+      "summary": "Not edited by this change, but it is the new link target for ADRs 0001 and 0007 and for the operator-persona record. Its existence is what makes those links resolvable.",
+      "files": [
+        {
+          "path": "docs/product/decisions/0001-factory-ui-is-an-operator-console.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "product-decision-0002",
+      "label": "Product decision 0002: Operator persona",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "decision-records",
+      "group": "product-decisions",
+      "subtitle": "0002-operator-persona-and-product-vocabulary.md",
+      "summary": "The vocabulary-mapping paragraph links to architecture decision 0005, and the blocked-cause row is rewritten as prose rather than a quoted list.",
+      "files": [
+        {
+          "path": "docs/product/decisions/0002-operator-persona-and-product-vocabulary.md",
+          "startLine": 25,
+          "endLine": 52
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hook-tests",
+      "label": "hook.rs test comments",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf-crate",
+      "group": "osf-src",
+      "subtitle": "crates/osf/src/hook.rs",
+      "summary": "Two doc comments on stop-hook tests drop the stale \"Change 3:\" prefix. The test bodies are untouched.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 614,
+          "endLine": 614
+        },
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 659,
+          "endLine": 659
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-lint-tests",
+      "label": "skill_lint.rs test comments",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf-crate",
+      "group": "osf-tests",
+      "subtitle": "crates/osf/tests/skill_lint.rs",
+      "summary": "Two doc comments on skill-lint integration tests drop their \"Change 1:\" and \"Change 2:\" prefixes and rewrap. The assertions are untouched.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 144,
+          "endLine": 154
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "adr-0001-to-product-0001",
+      "from": "adr-0001",
+      "to": "product-decision-0001",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The Rust-language record now points at the product decision that made the console an operator control surface, so a reader can follow the reasoning without searching.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md",
+          "startLine": 11,
+          "endLine": 11
+        }
+      ]
+    },
+    {
+      "id": "adr-0001-to-adr-0007",
+      "from": "adr-0001",
+      "to": "adr-0007",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The console-stack decision is now a link rather than a bare number.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md",
+          "startLine": 11,
+          "endLine": 11
+        }
+      ]
+    },
+    {
+      "id": "adr-0001-to-adr-0003",
+      "from": "adr-0001",
+      "to": "adr-0003",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The verification-authority decision is now a link.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md",
+          "startLine": 11,
+          "endLine": 11
+        }
+      ]
+    },
+    {
+      "id": "adr-0001-to-adr-0002",
+      "from": "adr-0001",
+      "to": "adr-0002",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The provider-boundary decision is now a link in the consequences.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "adr-0001-to-adr-0006",
+      "from": "adr-0001",
+      "to": "adr-0006",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The distribution decision is now a link in the consequences.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md",
+          "startLine": 23,
+          "endLine": 23
+        }
+      ]
+    },
+    {
+      "id": "adr-0007-to-product-0001",
+      "from": "adr-0007",
+      "to": "product-decision-0001",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The console-stack record links to the product decision that scopes the console.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0007-console-stack.md",
+          "startLine": 9,
+          "endLine": 9
+        }
+      ]
+    },
+    {
+      "id": "adr-0007-to-adr-0005",
+      "from": "adr-0007",
+      "to": "adr-0005",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The projection sentence now links to the domain model it projects.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0007-console-stack.md",
+          "startLine": 19,
+          "endLine": 19
+        }
+      ]
+    },
+    {
+      "id": "adr-0007-to-adr-0004",
+      "from": "adr-0007",
+      "to": "adr-0004",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The agent-session-protocol edge decision is now a link.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0007-console-stack.md",
+          "startLine": 24,
+          "endLine": 24
+        }
+      ]
+    },
+    {
+      "id": "adr-0005-to-adr-0003",
+      "from": "adr-0005",
+      "to": "adr-0003",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter-fidelity consequence links to the read rule it follows.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0005-the-factory-domain-model.md",
+          "startLine": 68,
+          "endLine": 68
+        }
+      ]
+    },
+    {
+      "id": "adr-0005-to-adr-0002",
+      "from": "adr-0005",
+      "to": "adr-0002",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The edges consequence links to the provider-boundary decision.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0005-the-factory-domain-model.md",
+          "startLine": 68,
+          "endLine": 68
+        }
+      ]
+    },
+    {
+      "id": "adr-0008-to-adr-0005",
+      "from": "adr-0008",
+      "to": "adr-0005",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The smallest-working-engine record links to the domain model it builds against.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0008-the-smallest-working-engine.md",
+          "startLine": 9,
+          "endLine": 9
+        }
+      ]
+    },
+    {
+      "id": "adr-0008-to-adr-0003",
+      "from": "adr-0008",
+      "to": "adr-0003",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The boundary paragraph links to the policy decision it adopts.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0008-the-smallest-working-engine.md",
+          "startLine": 17,
+          "endLine": 17
+        }
+      ]
+    },
+    {
+      "id": "adr-0009-to-adr-0005",
+      "from": "adr-0009",
+      "to": "adr-0005",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The journal-store record links to the domain model that makes the journal the record.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0009-journal-store-and-sinks.md",
+          "startLine": 9,
+          "endLine": 9
+        }
+      ]
+    },
+    {
+      "id": "adr-0010-to-adr-0002",
+      "from": "adr-0010",
+      "to": "adr-0002",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The first-adapters record links to the provider-boundary decision twice: in the context and in the consequences.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0010-first-tracker-sandbox-and-harness-adapters.md",
+          "startLine": 9,
+          "endLine": 25
+        }
+      ]
+    },
+    {
+      "id": "adr-0010-to-adr-0003",
+      "from": "adr-0010",
+      "to": "adr-0003",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The tracker paragraph links to the read rule the adapter follows.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0010-first-tracker-sandbox-and-harness-adapters.md",
+          "startLine": 13,
+          "endLine": 13
+        }
+      ]
+    },
+    {
+      "id": "adr-0010-to-adr-0004",
+      "from": "adr-0010",
+      "to": "adr-0004",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The harness paragraph links to the protocol-edge decision.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0010-first-tracker-sandbox-and-harness-adapters.md",
+          "startLine": 19,
+          "endLine": 19
+        }
+      ]
+    },
+    {
+      "id": "product-0002-to-adr-0005",
+      "from": "product-decision-0002",
+      "to": "adr-0005",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The product vocabulary table now links to the architecture domain model it maps onto.",
+      "files": [
+        {
+          "path": "docs/product/decisions/0002-operator-persona-and-product-vocabulary.md",
+          "startLine": 25,
+          "endLine": 25
+        }
+      ]
+    },
+    {
+      "id": "architecture-docs-to-adr-0003",
+      "from": "architecture-docs",
+      "to": "adr-0003",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The smallest-working-engine design and the open-questions list now link to the verification-authority decision instead of naming it by number.",
+      "files": [
+        {
+          "path": "docs/architecture/smallest-working-engine.md",
+          "startLine": 21,
+          "endLine": 21
+        },
+        {
+          "path": "docs/architecture/open-questions.md",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "architecture-docs-to-adr-0005",
+      "from": "architecture-docs",
+      "to": "adr-0005",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The smallest-working-engine design and the draft vocabulary link to the domain model in several places.",
+      "files": [
+        {
+          "path": "docs/architecture/smallest-working-engine.md",
+          "startLine": 70,
+          "endLine": 93
+        },
+        {
+          "path": "docs/architecture/draft-factory-vocabulary.md",
+          "startLine": 119,
+          "endLine": 119
+        }
+      ]
+    },
+    {
+      "id": "architecture-docs-to-adr-0002",
+      "from": "architecture-docs",
+      "to": "adr-0002",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The open-questions list links to the provider-boundary decision when it names the sandbox as a provider.",
+      "files": [
+        {
+          "path": "docs/architecture/open-questions.md",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "architecture-docs-to-adr-0004",
+      "from": "architecture-docs",
+      "to": "adr-0004",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The smallest-working-engine design links to the protocol-edge decision in its out-of-scope table.",
+      "files": [
+        {
+          "path": "docs/architecture/smallest-working-engine.md",
+          "startLine": 34,
+          "endLine": 34
+        }
+      ]
+    },
+    {
+      "id": "architecture-docs-to-adr-0009",
+      "from": "architecture-docs",
+      "to": "adr-0009",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "already linked",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The journal row already pointed at the journal-store decision before this change; it is the model the new links follow.",
+      "files": [
+        {
+          "path": "docs/architecture/smallest-working-engine.md",
+          "startLine": 49,
+          "endLine": 49
+        }
+      ]
+    },
+    {
+      "id": "vision-docs-to-vision-docs",
+      "from": "vision-docs",
+      "to": "vision-docs",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "internal links",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The agent-native operating model and the product lifecycle now link to the automated SPDLC/SDLC vision document rather than naming it in prose.",
+      "files": [
+        {
+          "path": "docs/vision/agent-native-operating-model.md",
+          "startLine": 119,
+          "endLine": 162
+        },
+        {
+          "path": "docs/vision/product-lifecycle.md",
+          "startLine": 228,
+          "endLine": 228
+        }
+      ]
+    },
+    {
+      "id": "contributing-to-cla",
+      "from": "contributing",
+      "to": "contributing",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "links to CLA.md",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The clause-4 sentence links to the contributor licence agreement so the clause can be read in place.",
+      "files": [
+        {
+          "path": "CONTRIBUTING.md",
+          "startLine": 120,
+          "endLine": 120
+        }
+      ]
+    },
+    {
+      "id": "hook-tests-to-skill-lint-tests",
+      "from": "hook-tests",
+      "to": "skill-lint-tests",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "same crate",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Both test files live in the osf crate and both received the same comment-only edit; neither depends on the other.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs"
+        },
+        {
+          "path": "crates/osf/tests/skill_lint.rs"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "reader-follows-decision-link",
+      "title": "A reader follows a decision reference",
+      "summary": "The path this change is really about: a reader hits a bare \"decision 0003\" in a design document, and instead of searching the repository they click through to the record and then to the record it depends on.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "architecture-docs",
+          "label": "Design document"
+        },
+        {
+          "node": "adr-0003",
+          "label": "ADR 0003"
+        },
+        {
+          "node": "adr-0005",
+          "label": "ADR 0005"
+        }
+      ],
+      "messages": [
+        {
+          "id": "reader-opens-design",
+          "from": "architecture-docs",
+          "to": "architecture-docs",
+          "label": "Reader opens the smallest-working-engine design",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The design document is the entry point; its policy paragraph is where the reference appears.",
+          "files": [
+            {
+              "path": "docs/architecture/smallest-working-engine.md",
+              "startLine": 21,
+              "endLine": 21
+            }
+          ]
+        },
+        {
+          "id": "design-to-adr-0003",
+          "from": "architecture-docs",
+          "to": "adr-0003",
+          "label": "Clicks the decision 0003 link",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Before this change the reader had to search for the record by number.",
+          "files": [
+            {
+              "path": "docs/architecture/smallest-working-engine.md",
+              "startLine": 21,
+              "endLine": 21
+            }
+          ]
+        },
+        {
+          "id": "adr-0003-to-adr-0005",
+          "from": "adr-0003",
+          "to": "adr-0005",
+          "label": "Follows the domain-model reference",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The record already linked onward; the new inbound link is what makes the chain reachable from the design document.",
+          "files": [
+            {
+              "path": "docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 31,
+    "additions": 127,
+    "deletions": 121,
+    "chips": [
+      {
+        "label": "Files touched",
+        "value": "31",
+        "tone": "neutral"
+      },
+      {
+        "label": "Code files changed",
+        "value": "2",
+        "tone": "neutral"
+      },
+      {
+        "label": "New cross-links",
+        "value": "20+",
+        "tone": "added"
+      },
+      {
+        "label": "Behaviour changes",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "corpus-overview",
+      "title": "Documentation corpus and its decision records",
+      "lens": "architecture",
+      "summary": "The whole change in one picture: the documentation corpus on the left, the decision records it now links into on the right, and the osf crate below with its comment-only edits.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "decision-link-graph",
+      "title": "Which records now link to which",
+      "lens": "architecture",
+      "summary": "The decision records and the links this change added between them. The hero edge is ADR 0001 pointing at product decision 0001, the reference that was previously unresolvable from the record.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "decision-records"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "osf-crate-detail",
+      "title": "The osf crate edits",
+      "lens": "architecture",
+      "summary": "The only code in the diff. Two test files, four doc comments, no assertions or logic touched.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "osf-crate"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-corpus",
+        "heading": "The corpus, not the code",
+        "body": "Thirty-one files, but only two are Rust, and those are comments.",
+        "stage": {
+          "kind": "view",
+          "view": "corpus-overview"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [
+            "docs-corpus",
+            "decision-records"
+          ],
+          "nodes": [],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-links",
+        "heading": "Bare numbers become links",
+        "body": "\"decision 0003\" in prose becomes a relative link a reader can click.",
+        "stage": {
+          "kind": "view",
+          "view": "decision-link-graph"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "adr-0001",
+            "product-decision-0001",
+            "adr-0007",
+            "adr-0005"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-code",
+        "heading": "The code edits are comments",
+        "body": "Four doc comments lose a stale \"Change N:\" prefix. Nothing else moves.",
+        "stage": {
+          "kind": "view",
+          "view": "osf-crate-detail"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "hook-tests",
+            "skill-lint-tests"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-flow",
+        "heading": "What a reader gains",
+        "body": "A design document now leads to the record, and the record leads onward.",
+        "stage": {
+          "kind": "flow",
+          "flow": "reader-follows-decision-link"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}

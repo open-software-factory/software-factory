@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "7749ac757c9ab03bbb7c850287b67efb6098867e",
+    "contentHash": "cf0afdb0252b1ef29ed688b34c6b4ab0"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "corpus-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "corpus-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a3637db3f48737170681d1bf25e8f607",
+      "bytes": 37637,
+      "width": 1374,
+      "height": 1112,
+      "animated": false,
+      "path": "corpus-overview-light-a3637db3f48737170681d1bf25e8f607.svg"
+    },
+    {
+      "id": "corpus-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "corpus-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6394110c36ec87efd4f950e6d980626d",
+      "bytes": 38085,
+      "width": 1374,
+      "height": 1112,
+      "animated": false,
+      "path": "corpus-overview-dark-6394110c36ec87efd4f950e6d980626d.svg"
+    },
+    {
+      "id": "decision-link-graph-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "decision-link-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bc6cb57a13ddd6f40841e4ea95bbf027",
+      "bytes": 24815,
+      "width": 618,
+      "height": 1102,
+      "animated": false,
+      "path": "decision-link-graph-light-bc6cb57a13ddd6f40841e4ea95bbf027.svg"
+    },
+    {
+      "id": "decision-link-graph-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "decision-link-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3f5ac9eb3ce26fd42173e43bd033f2a3",
+      "bytes": 25079,
+      "width": 618,
+      "height": 1102,
+      "animated": false,
+      "path": "decision-link-graph-dark-3f5ac9eb3ce26fd42173e43bd033f2a3.svg"
+    },
+    {
+      "id": "osf-crate-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "osf-crate-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "65edf1776739fdd402347595284ab0fd",
+      "bytes": 5155,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "osf-crate-detail-light-65edf1776739fdd402347595284ab0fd.svg"
+    },
+    {
+      "id": "osf-crate-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "osf-crate-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "44f87fc437502d87af86392fab3ab199",
+      "bytes": 5202,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "osf-crate-detail-dark-44f87fc437502d87af86392fab3ab199.svg"
+    }
+  ]
+}

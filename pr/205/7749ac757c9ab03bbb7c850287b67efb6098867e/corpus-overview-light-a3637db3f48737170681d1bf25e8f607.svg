@@ -1,0 +1,204 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1374 1112" width="1374" height="1112" role="img" aria-label="Documentation corpus and its decision records" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Documentation corpus and its decision records</title>
+<desc>The whole change in one picture: the documentation corpus on the left, the decision records it now links into on the right, and the osf crate below with its comment-only edits.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1374" height="1112" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1374" height="1112" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="1052" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">DOCUMENTATION CORPUS · MARKDOWN UNDER DOCS/ A…</text>
+<rect class="lanebox" x="500" y="44" width="404" height="1052" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="516" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">DECISION RECORDS · DOCS/ARCHITECTURE/DECISIONS…</text>
+<rect class="lanebox" x="954" y="44" width="404" height="1052" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="970" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">OSF CRATE · CRATES/OSF</text></g>
+<g><path class="glow" stroke="#1f883d" d="M888,123 L901,123 C908.18,123 914,128.82 914,136 L914,794 C914,801.18 908.18,807 901,807 L888,807" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M888,123 L901,123 C908.18,123 914,128.82 914,136 L914,794 C914,801.18 908.18,807 901,807 L888,807" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25"/>
+<path class="edge edge-added" d="M888,114.5 L896,114.5 C900.42,114.5 904,118.08 904,122.5 L904,571 C904,575.42 900.42,579 896,579 L888,579" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,140 L911,140 C923.7,140 934,150.3 934,163 L934,1014 C934,1026.7 923.7,1037 911,1037 L888,1037" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,131.5 L906,131.5 C915.94,131.5 924,139.56 924,149.5 L924,964 C924,982.78 908.78,998 890,998 L614,998 C609.58,998 606,1001.58 606,1006 L606,1014" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,106 L891,106 C892.66,106 894,107.34 894,109 L894,462 C894,463.66 892.66,465 891,465 L888,465" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M516,571 L488,571 C472.54,571 460,583.54 460,599 L460,779 C460,794.46 472.54,807 488,807 L516,807" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M516,587 L498,587 C488.06,587 480,595.06 480,605 L480,911.5 C480,921.44 488.06,929.5 498,929.5 L516,929.5" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M702,610 L702,662" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M702,952 L702,965 C702,972.18 707.82,978 715,978 L796,978 C805.94,978 814,986.06 814,996 L814,1014" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M702,952 L702,970 C702,979.94 693.94,988 684,988 L603,988 C595.82,988 590,993.82 590,1001 L590,1014" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M516,343 L454,343 C435.22,343 420,358.22 420,377 L420,878.5 C420,897.28 435.22,912.5 454,912.5 L516,912.5" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M516,359 L464,359 C445.22,359 430,374.22 430,393 L430,934 C430,952.78 445.22,968 464,968 L759,968 C771.7,968 782,978.3 782,991 L782,1014" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M516,473 L474,473 C455.22,473 440,488.22 440,507 L440,887 C440,905.78 455.22,921 474,921 L516,921" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,351 L921,351 C939.23,351 954,365.77 954,384 L954,974 C954,992.78 938.78,1008 920,1008 L625,1008 C623.34,1008 622,1009.34 622,1011 L622,1014" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,367 L930,367 C948.78,367 964,382.22 964,401 L964,1019 C964,1037.78 948.78,1053 930,1053 L888,1053" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M888,335 L916,335 C931.46,335 944,347.54 944,363 L944,665 C944,680.46 931.46,693 916,693 L888,693" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M516,237 L444,237 C425.22,237 410,252.22 410,271 L410,870 C410,888.78 425.22,904 444,904 L516,904" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,587.5 L456,587.5 C474.78,587.5 490,602.72 490,621.5 L490,924 C490,942.78 505.22,958 524,958 L770,958 C785.46,958 798,970.54 798,986 L798,1014" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,579 L437,579 C455.23,579 470,593.77 470,612 L470,915 C470,927.7 480.3,938 493,938 L516,938" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,596 L466,596 C484.78,596 500,611.22 500,630 L500,1037 C500,1041.42 503.58,1045 508,1045 L516,1045" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,570.5 L427,570.5 C439.7,570.5 450,580.8 450,593.5 L450,660 C450,678.23 464.77,693 483,693 L516,693" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-neutral faded context" d="M404,562 L476,562 C494.78,562 510,546.78 510,528 L510,460 C510,458.34 511.34,457 513,457 L516,457" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.45"/>
+<path class="edge edge-added faded" d="M404,226.67 C434,215.67 434,258.33 404,247.33" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5" opacity="0.45"/>
+<path class="edge edge-added faded" d="M404,112.67 C434,101.67 434,144.33 404,133.33" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5" opacity="0.45"/>
+<path class="edge edge-neutral faded context" d="M1156,154 L1156,206" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.45"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="54" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="59" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="64" cy="123" r="1.8"/></g>
+<text class="ntitle" x="82" y="119" font-size="11.5" font-weight="600" fill="#1f2328">README.md</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">Project entry point</text>
+<g class="bdg bdg-modified"><rect x="138.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="171.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="224" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="238" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="246" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="251" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="256" cy="123" r="1.8"/></g>
+<text class="ntitle" x="274" y="119" font-size="11.5" font-weight="600" fill="#1f2328">CONTRIBUTING.md</text>
+<text class="nsub" x="274" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">Contribution guide</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="54" cy="237" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="59" cy="237" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="64" cy="237" r="1.8"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#1f2328">Vision documents</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/vision</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="320" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="54" cy="351" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="59" cy="351" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="64" cy="351" r="1.8"/></g>
+<text class="ntitle" x="82" y="347" font-size="13" font-weight="600" fill="#1f2328">Product documents</text>
+<text class="nsub" x="82" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/product</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="312" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="434" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="54" cy="465" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="59" cy="465" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="64" cy="465" r="1.8"/></g>
+<text class="ntitle" x="82" y="461" font-size="13" font-weight="600" fill="#1f2328">Research notes</text>
+<text class="nsub" x="82" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/research</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="426" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="548" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="566" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="54" cy="579" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="59" cy="579" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="64" cy="579" r="1.8"/></g>
+<text class="ntitle" x="82" y="575" font-size="13" font-weight="600" fill="#1f2328">Architecture documents</text>
+<text class="nsub" x="82" y="593" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="540" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="516" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="123" r="1.8"/></g>
+<text class="ntitle" x="566" y="119" font-size="11.5" font-weight="600" fill="#1f2328">ADR index</text>
+<text class="nsub" x="566" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">docs/architecture/d…</text>
+<g class="bdg bdg-modified"><rect x="622.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="655.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="708" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="722" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="730" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="735" cy="123" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="740" cy="123" r="1.8"/></g>
+<text class="ntitle" x="758" y="119" font-size="10.5" font-weight="600" fill="#1f2328">ADR 0001: Rust for th…</text>
+<text class="nsub" x="758" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0001-rust-for-the-f…</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="847.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="516" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="237" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="237" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="237" r="1.8"/></g>
+<text class="ntitle" x="566" y="233" font-size="13" font-weight="600" fill="#1f2328">Product decision 0002: Operator persona</text>
+<text class="nsub" x="566" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0002-operator-persona-and-product-vocabulary.md</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="847.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="516" y="320" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="351" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="351" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="351" r="1.8"/></g>
+<text class="ntitle" x="566" y="347" font-size="10.5" font-weight="600" fill="#1f2328">ADR 0008: The small…</text>
+<text class="nsub" x="566" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0008-the-smallest-w…</text>
+<g class="bdg bdg-modified"><rect x="622.38" y="312" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="655.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="708" y="320" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="722" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="730" cy="351" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="735" cy="351" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="740" cy="351" r="1.8"/></g>
+<text class="ntitle" x="758" y="347" font-size="10.5" font-weight="600" fill="#1f2328">ADR 0010: First adap…</text>
+<text class="nsub" x="758" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0010-first-tracker-…</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="312" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="847.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="516" y="434" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="465" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="465" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="465" r="1.8"/></g>
+<text class="ntitle" x="566" y="461" font-size="10.5" font-weight="600" fill="#1f2328">ADR 0009: Journal st…</text>
+<text class="nsub" x="566" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0009-journal-store-…</text>
+<g class="bdg bdg-modified"><rect x="622.38" y="426" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="655.69" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="708" y="434" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="722" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="730" cy="465" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="735" cy="465" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="740" cy="465" r="1.8"/></g>
+<text class="ntitle" x="758" y="461" font-size="10.5" font-weight="600" fill="#1f2328">ADR 0006: Distributio…</text>
+<text class="nsub" x="758" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0006-distribution-a…</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="426" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="847.69" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="516" y="548" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="566" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="579" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="579" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="579" r="1.8"/></g>
+<text class="ntitle" x="566" y="575" font-size="13" font-weight="600" fill="#1f2328">ADR 0007: Console stack</text>
+<text class="nsub" x="566" y="593" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0007-console-stack.md</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="540" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="847.69" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="516" y="662" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="530" y="680" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="693" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="693" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="693" r="1.8"/></g>
+<text class="ntitle" x="566" y="689" font-size="13" font-weight="600" fill="#1f2328">ADR 0004: Protocol-independent core</text>
+<text class="nsub" x="566" y="707" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0004-protocol-independent-core-with-ahp-acp-edges.md</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="516" y="776" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="530" y="794" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="807" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="807" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="807" r="1.8"/></g>
+<text class="ntitle" x="566" y="803" font-size="13" font-weight="600" fill="#1f2328">Product decision 0001</text>
+<text class="nsub" x="566" y="821" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0001-factory-ui-is-an-operator-console.md</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="516" y="890" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="530" y="908" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="921" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="921" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="921" r="1.8"/></g>
+<text class="ntitle" x="566" y="917" font-size="13" font-weight="600" fill="#1f2328">ADR 0005: The factory domain model</text>
+<text class="nsub" x="566" y="935" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0005-the-factory-domain-model.md</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="882" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="847.69" y="893" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="516" y="1014" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="530" y="1032" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="538" cy="1045" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="543" cy="1045" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="548" cy="1045" r="1.8"/></g>
+<text class="ntitle" x="566" y="1041" font-size="10.5" font-weight="600" fill="#1f2328">ADR 0002: Provider-n…</text>
+<text class="nsub" x="566" y="1059" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0002-provider-neutr…</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="708" y="1014" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="722" y="1032" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="730" cy="1045" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="735" cy="1045" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="740" cy="1045" r="1.8"/></g>
+<text class="ntitle" x="758" y="1041" font-size="10.5" font-weight="600" fill="#1f2328">ADR 0003: Determini…</text>
+<text class="nsub" x="758" y="1059" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0003-deterministic-…</text>
+<g class="bdg bdg-modified"><rect x="814.38" y="1006" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="847.69" y="1017" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="970" y="92" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="984" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M991,123 l4,4 l8,-8" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1020" y="119" font-size="13" font-weight="600" fill="#1f2328">hook.rs test comments</text>
+<text class="nsub" x="1020" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">crates/osf/src/hook.rs</text>
+<g class="bdg bdg-modified"><rect x="1268.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1301.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="970" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="984" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M991,237 l4,4 l8,-8" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1020" y="233" font-size="13" font-weight="600" fill="#1f2328">skill_lint.rs test comments</text>
+<text class="nsub" x="1020" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">crates/osf/tests/skill_lint.rs</text>
+<g class="bdg bdg-modified"><rect x="1268.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1301.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g></g>
+<g><g><rect class="lpill" x="876.66" y="622" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="900.33" y="633" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="866.66" y="508" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="890.33" y="519" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="924" y="319" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="947.67" y="330" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="886.66" y="850" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="910.33" y="861" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="856.66" y="280" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="880.33" y="291" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="422.66" y="694" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="446.33" y="705" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="442.66" y="808" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="466.33" y="819" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="678.33" y="628.5" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="702" y="639.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="721.66" y="970.5" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="745.33" y="981.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="619.83" y="980.5" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="643.5" y="991.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="430.33" y="335.5" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="454" y="346.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="420" y="457" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="443.67" y="468" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="430" y="546" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="453.67" y="557" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="944" y="671.5" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="967.67" y="682.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="954" y="702.5" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="977.67" y="713.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="934" y="506.5" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="957.67" y="517.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="372.66" y="513" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="396.33" y="524" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="480" y="749" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="503.67" y="760" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="432.66" y="833" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="456.33" y="844" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="490" y="850" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="513.67" y="861" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="412.66" y="619.25" width="47.34" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="436.33" y="630.25" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to</text></g>
+<g><rect class="lpill" x="470.94" y="520.5" width="78.12" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="510" y="531.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">already linked</text></g>
+<g><rect class="lpill" x="416.5" y="229.5" width="71.96" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="452.48" y="240.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">internal links</text></g>
+<g><rect class="lpill" x="416.5" y="115.5" width="86.51" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="459.76" y="126.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">links to CLA.md</text></g>
+<g><rect class="lpill" x="1123.1" y="172.5" width="65.81" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="1156" y="183.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">same crate</text></g></g>
+</svg>
