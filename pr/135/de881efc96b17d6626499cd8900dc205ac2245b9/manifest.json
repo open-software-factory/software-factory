@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "de881efc96b17d6626499cd8900dc205ac2245b9",
+    "contentHash": "d3a2907d2cd71b03346d48d1074004ff"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "checkpoint-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "checkpoint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e0ff2a0ef6b50d902c622399b28228c0",
+      "bytes": 32296,
+      "width": 2162,
+      "height": 874,
+      "animated": false,
+      "path": "checkpoint-architecture-light-e0ff2a0ef6b50d902c622399b28228c0.svg"
+    },
+    {
+      "id": "checkpoint-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "checkpoint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bb37f1ce55f5389d1ea3a7f8b058ecba",
+      "bytes": 32674,
+      "width": 2162,
+      "height": 874,
+      "animated": false,
+      "path": "checkpoint-architecture-dark-bb37f1ce55f5389d1ea3a7f8b058ecba.svg"
+    },
+    {
+      "id": "runner-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "runner-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6ff4503e729b4519127a5afee5b8a0a8",
+      "bytes": 11826,
+      "width": 1369,
+      "height": 304,
+      "animated": false,
+      "path": "runner-internals-light-6ff4503e729b4519127a5afee5b8a0a8.svg"
+    },
+    {
+      "id": "runner-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "runner-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f65897300ee28008a7d7ec833a101f3b",
+      "bytes": 11960,
+      "width": 1369,
+      "height": 304,
+      "animated": false,
+      "path": "runner-internals-dark-f65897300ee28008a7d7ec833a101f3b.svg"
+    },
+    {
+      "id": "moon-adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "moon-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a2404ba9db48cca1faff7bf3634e728a",
+      "bytes": 7080,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "moon-adapter-internals-light-a2404ba9db48cca1faff7bf3634e728a.svg"
+    },
+    {
+      "id": "moon-adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "moon-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4e7c77e04c9e53658a0eccb655545279",
+      "bytes": 7147,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "moon-adapter-internals-dark-4e7c77e04c9e53658a0eccb655545279.svg"
+    }
+  ]
+}

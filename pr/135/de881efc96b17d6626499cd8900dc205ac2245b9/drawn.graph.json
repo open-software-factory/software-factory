@@ -1,0 +1,895 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-02T06:36:59.343Z",
+  "title": "osf verify becomes a moon-driven checkpoint runner",
+  "summary": "`osf verify` stops running checks in-process and becomes a checkpoint runner: it selects this repository's moon tasks by tag (`osf-hook`, `osf-pre-commit`, `osf-pre-push`, `osf-pull-request`), hands moon the affected file list, reads moon's run report back, and journals one hash-chained verification event per task plus a checkpoint-complete event. A new `osf check <name>` command exposes each individual check (scan, scan-staged, lint-writing, lint-skill, scan-commits) so a moon task can run it alone and write SARIF; `osf hook post-tool` runs the hook checkpoint on the file an agent just wrote and refuses the write on an error. Alongside it, git calls are made hermetic against an inherited `GIT_DIR`/`GIT_INDEX_FILE`, `osf hooks install` writes hook scripts outside the repository and points `core.hooksPath` at them, and moon is pinned into the devcontainer and CI.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "f9bb9618ffb278731f21a53e06906d503a3a0d17",
+      "ref": "f9bb9618ffb278731f21a53e06906d503a3a0d17"
+    },
+    "head": {
+      "sha": "de881efc96b17d6626499cd8900dc205ac2245b9",
+      "ref": "de881efc96b17d6626499cd8900dc205ac2245b9"
+    },
+    "pullRequest": {
+      "number": 135,
+      "url": "https://github.com/open-software-factory/software-factory/pull/135"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "entrypoints",
+      "label": "Entry points",
+      "subtitle": "git hooks, agent hooks, CI",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The surfaces that call osf: the installed git hook scripts, the agent's PostToolUse hook, and the CI checkpoint job."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The binary itself: verify, check, hook post-tool, hooks install, and the git layer every one of them calls."
+    },
+    {
+      "id": "runner",
+      "label": "Checkpoint runner",
+      "subtitle": "checkpoint.rs, moon.rs, journal.rs",
+      "order": 2,
+      "delta": "added",
+      "summary": "New in this change: resolves the file list, drives moon, reads its run report, and writes the hash-chained journal."
+    },
+    {
+      "id": "moon",
+      "label": "moon workspace",
+      "subtitle": ".moon, .osf/moon.yml",
+      "order": 3,
+      "delta": "added",
+      "summary": "The task graph the runner selects from, and the moon CLI that executes it."
+    },
+    {
+      "id": "evidence",
+      "label": "Evidence",
+      "subtitle": "journal buffer, SARIF, git config",
+      "order": 4,
+      "delta": "added",
+      "summary": "What a run leaves behind: the journal buffer, per-task SARIF under .osf/out, and the repository's core.hooksPath."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "git-hooks",
+      "label": "Installed git hooks",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "entrypoints",
+      "subtitle": "pre-commit, commit-msg, pre-push",
+      "summary": "Scripts written by `osf hooks install` into a folder outside the repository; each execs osf with a checkpoint name. The devcontainer's own tracked hooks changed from `verify --stage` to `verify --checkpoint`.",
+      "files": [
+        {
+          "path": ".devcontainer/githooks/pre-commit"
+        },
+        {
+          "path": ".devcontainer/githooks/pre-push"
+        },
+        {
+          "path": "crates/osf/src/githooks.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "post-tool-hook",
+      "label": "Agent PostToolUse hook",
+      "kind": "route",
+      "delta": "added",
+      "lane": "entrypoints",
+      "subtitle": "osf hook post-tool",
+      "summary": "Reads a tool event on stdin, finds the written path, and runs the hook checkpoint on that one file, refusing the write on an error finding.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 370
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-checkpoint",
+      "label": "CI checkpoint job",
+      "kind": "job",
+      "delta": "added",
+      "lane": "entrypoints",
+      "subtitle": "pull_request only",
+      "summary": "Builds osf, installs moon, fetches the base ref, and runs `osf verify --checkpoint pull-request --base origin/<base>`, uploading the journal buffer and .osf/out as evidence.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 285
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "verify-cmd",
+      "label": "osf verify",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "--checkpoint | --stage",
+      "summary": "No longer runs checks itself: detects adoption, resolves the checkpoint, and delegates to the runner. `--stage` remains as a deprecated alias.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1414
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-cmd",
+      "label": "osf check <name>",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "scan, scan-staged, lint-writing, lint-skill, scan-commits",
+      "summary": "Runs one check over an explicit file list (or the list named by OSF_FILES_FROM) and writes SARIF to --sarif-out. This is what each moon task invokes.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs"
+        },
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1080
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hooks-install",
+      "label": "osf hooks install",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "--check",
+      "summary": "Writes the three hook scripts to a folder beside the journal state dir and sets core.hooksPath in the repository's local git config; --check reports whether it is already pointed there.",
+      "files": [
+        {
+          "path": "crates/osf/src/githooks.rs",
+          "startLine": 100
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-layer",
+      "label": "git layer",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "scrub_git_env_for_dir",
+      "summary": "Every git call now removes inherited repository-locating GIT_* variables, keeps GIT_INDEX_FILE only when it lies inside the target's own git dir, and forces LC_ALL=C. Adds upstream_ref, staged_blob_hash, unstaged_files, repo_root_if_any and local config get/set.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 23
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "checkpoint-runner",
+      "label": "checkpoint::run",
+      "kind": "module",
+      "delta": "added",
+      "lane": "runner",
+      "subtitle": "Request -> Summary",
+      "summary": "Resolves the base and file list per checkpoint, writes OSF_FILES_FROM, opens the journal, clears stale SARIF, runs moon, and folds the run report into per-task verification events plus a checkpoint-complete event.",
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 1
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption",
+      "label": "detect_adoption",
+      "kind": "function",
+      "delta": "added",
+      "lane": "runner",
+      "subtitle": ".osf/moon.yml is the marker",
+      "summary": "Decides whether a folder has adopted osf: adopted, adopted-but-broken (osf.toml without .osf/moon.yml), not adopted, or could not run. Both verify and hook post-tool call it first.",
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "moon-adapter",
+      "label": "moon adapter",
+      "kind": "module",
+      "delta": "added",
+      "lane": "runner",
+      "subtitle": "moon run :#<tag> --affected --stdin",
+      "summary": "Spawns moon, feeds the affected file list on stdin, enforces a minimum version and a timeout with a process-tree kill, and parses runReport.json into per-task outcomes. Holds a lock on moon's single shared run report path.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 1
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal",
+      "label": "journal",
+      "kind": "datastore",
+      "delta": "added",
+      "lane": "runner",
+      "subtitle": "hash-chained JSONL",
+      "summary": "Appends one event per line to <state_dir>/buffer/<run>.jsonl, each carrying the previous event's hash. Wall-clock time and task durations are excluded from the hash so two identical runs agree.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 1
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "moon-cli",
+      "label": "moon CLI",
+      "kind": "external",
+      "delta": "added",
+      "lane": "moon",
+      "subtitle": "pinned 2.5.5",
+      "summary": "Installed by checksum in the devcontainer and by a composite action in CI. Executes the tagged tasks and writes .moon/cache/runReport.json.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 48
+        },
+        {
+          "path": ".github/actions/install-moon/action.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "moon-yml",
+      "label": ".osf/moon.yml",
+      "kind": "config",
+      "delta": "added",
+      "lane": "moon",
+      "subtitle": "tagged check tasks",
+      "summary": "Defines one task per check per checkpoint, each tagged osf-hook / osf-pre-commit / osf-pre-push / osf-pull-request, plus fmt, clippy, test and test-nested. A shared ignored-dirs file group keeps git-ignored folders out of every wide-glob task's cache fingerprint.",
+      "files": [
+        {
+          "path": ".osf/moon.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workspace-yml",
+      "label": ".moon/workspace.yml",
+      "kind": "config",
+      "delta": "added",
+      "lane": "moon",
+      "subtitle": "projects: osf -> .osf",
+      "summary": "Declares the single osf project and the git VCS client with main as the default branch.",
+      "files": [
+        {
+          "path": ".moon/workspace.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal-buffer",
+      "label": "journal buffer",
+      "kind": "datastore",
+      "delta": "added",
+      "lane": "evidence",
+      "subtitle": "<state_dir>/buffer/*.jsonl",
+      "summary": "The local evidence a checkpoint leaves: one file per run, each a hash chain. CI uploads it as an artifact.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sarif-out",
+      "label": ".osf/out/*.sarif",
+      "kind": "datastore",
+      "delta": "added",
+      "lane": "evidence",
+      "subtitle": "one file per task",
+      "summary": "Each check task writes its findings as SARIF 2.1.0 here; the runner deletes stale files before a run and reads the fresh ones back to count findings.",
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hooks-path",
+      "label": "core.hooksPath",
+      "kind": "config",
+      "delta": "added",
+      "lane": "evidence",
+      "subtitle": "repository-local git config",
+      "summary": "Set by `osf hooks install` to the folder holding osf's own hook scripts, so git runs them instead of any tracked hooks folder.",
+      "files": [
+        {
+          "path": "crates/osf/src/githooks.rs",
+          "startLine": 120
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "git-hooks-to-verify",
+      "from": "git-hooks",
+      "to": "verify-cmd",
+      "kind": "call",
+      "delta": "modified",
+      "label": "osf verify --checkpoint",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The installed scripts now name a checkpoint rather than a stage.",
+      "files": [
+        {
+          "path": "crates/osf/src/githooks.rs",
+          "startLine": 40
+        }
+      ]
+    },
+    {
+      "id": "post-tool-to-checkpoint",
+      "from": "post-tool-hook",
+      "to": "checkpoint-runner",
+      "kind": "call",
+      "delta": "added",
+      "label": "hook checkpoint on one file",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The agent hook path: a written file is checked immediately, and a failure refuses the write.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 380
+        }
+      ]
+    },
+    {
+      "id": "ci-to-verify",
+      "from": "ci-checkpoint",
+      "to": "verify-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "--checkpoint pull-request",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 330
+        }
+      ]
+    },
+    {
+      "id": "verify-to-checkpoint",
+      "from": "verify-cmd",
+      "to": "checkpoint-runner",
+      "kind": "call",
+      "delta": "added",
+      "label": "Request",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The core of the change: verify no longer runs checks, it asks the runner to.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1440
+        }
+      ]
+    },
+    {
+      "id": "verify-to-adoption",
+      "from": "verify-cmd",
+      "to": "adoption",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1415
+        }
+      ]
+    },
+    {
+      "id": "post-tool-to-adoption",
+      "from": "post-tool-hook",
+      "to": "adoption",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 400
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-to-moon-adapter",
+      "from": "checkpoint-runner",
+      "to": "moon-adapter",
+      "kind": "call",
+      "delta": "added",
+      "label": "Invocation",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 700
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-to-journal",
+      "from": "checkpoint-runner",
+      "to": "journal",
+      "kind": "data",
+      "delta": "added",
+      "label": "verification + checkpoint-complete",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 560
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-to-sarif",
+      "from": "checkpoint-runner",
+      "to": "sarif-out",
+      "kind": "data",
+      "delta": "added",
+      "label": "clear stale, read fresh",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 300
+        }
+      ]
+    },
+    {
+      "id": "moon-adapter-to-moon-cli",
+      "from": "moon-adapter",
+      "to": "moon-cli",
+      "kind": "other",
+      "delta": "added",
+      "label": "spawn, stdin file list",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 250
+        }
+      ]
+    },
+    {
+      "id": "moon-cli-to-moon-yml",
+      "from": "moon-cli",
+      "to": "moon-yml",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "tag selection",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "moon-yml-to-workspace-yml",
+      "from": "moon-yml",
+      "to": "workspace-yml",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "moon-cli-to-check-cmd",
+      "from": "moon-cli",
+      "to": "check-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "osf check <name>",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each tagged task's command is an `osf check` invocation; moon runs it and captures its exit code and output.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 30
+        }
+      ]
+    },
+    {
+      "id": "check-cmd-to-git-layer",
+      "from": "check-cmd",
+      "to": "git-layer",
+      "kind": "call",
+      "delta": "added",
+      "label": "staged_content / content_at",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 120
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-to-git-layer",
+      "from": "checkpoint-runner",
+      "to": "git-layer",
+      "kind": "call",
+      "delta": "added",
+      "label": "staged/changed/tracked files",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 200
+        }
+      ]
+    },
+    {
+      "id": "hooks-install-to-git-layer",
+      "from": "hooks-install",
+      "to": "git-layer",
+      "kind": "call",
+      "delta": "added",
+      "label": "config_set_local",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/githooks.rs",
+          "startLine": 120
+        }
+      ]
+    },
+    {
+      "id": "hooks-install-to-hooks-path",
+      "from": "hooks-install",
+      "to": "hooks-path",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "journal-to-journal-buffer",
+      "from": "journal",
+      "to": "journal-buffer",
+      "kind": "data",
+      "delta": "added",
+      "label": "append one JSON line",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 200
+        }
+      ]
+    },
+    {
+      "id": "git-hooks-to-hooks-path",
+      "from": "git-hooks",
+      "to": "hooks-path",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "git reads core.hooksPath",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "hook-post-tool-flow",
+      "title": "An agent writes a file: hook checkpoint",
+      "summary": "The PostToolUse path: one written file is checked on disk at the hook checkpoint, and a failure refuses the write.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "post-tool-hook",
+          "label": "PostToolUse"
+        },
+        {
+          "node": "checkpoint-runner",
+          "label": "checkpoint"
+        },
+        {
+          "node": "moon-adapter",
+          "label": "moon adapter"
+        },
+        {
+          "node": "moon-cli",
+          "label": "moon"
+        },
+        {
+          "node": "check-cmd",
+          "label": "osf check"
+        },
+        {
+          "node": "journal",
+          "label": "journal"
+        }
+      ],
+      "messages": [
+        {
+          "id": "pt-read-event",
+          "from": "post-tool-hook",
+          "to": "post-tool-hook",
+          "label": "read tool event, find written path",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 380
+            }
+          ]
+        },
+        {
+          "id": "pt-adopt",
+          "from": "post-tool-hook",
+          "to": "checkpoint-runner",
+          "label": "detect_adoption(parent of written file)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 400
+            }
+          ]
+        },
+        {
+          "id": "pt-run",
+          "from": "post-tool-hook",
+          "to": "checkpoint-runner",
+          "label": "run(hook, files=[rel])",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 430
+            }
+          ]
+        },
+        {
+          "id": "pt-moon",
+          "from": "checkpoint-runner",
+          "to": "moon-adapter",
+          "label": "moon run :#osf-hook --affected --stdin",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/checkpoint.rs",
+              "startLine": 700
+            }
+          ]
+        },
+        {
+          "id": "pt-spawn",
+          "from": "moon-adapter",
+          "to": "moon-cli",
+          "label": "spawn, write file list to stdin",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/moon.rs",
+              "startLine": 250
+            }
+          ]
+        },
+        {
+          "id": "pt-check",
+          "from": "moon-cli",
+          "to": "check-cmd",
+          "label": "osf check scan --checkpoint hook",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "repeat": 1,
+          "files": [
+            {
+              "path": ".osf/moon.yml",
+              "startLine": 30
+            }
+          ]
+        },
+        {
+          "id": "pt-sarif",
+          "from": "check-cmd",
+          "to": "check-cmd",
+          "label": "write .osf/out/<task>.sarif",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1120
+            }
+          ]
+        },
+        {
+          "id": "pt-report",
+          "from": "moon-cli",
+          "to": "moon-adapter",
+          "label": ".moon/cache/runReport.json",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/moon.rs",
+              "startLine": 300
+            }
+          ]
+        },
+        {
+          "id": "pt-journal",
+          "from": "checkpoint-runner",
+          "to": "journal",
+          "label": "one verification event per task",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/checkpoint.rs",
+              "startLine": 560
+            }
+          ]
+        },
+        {
+          "id": "pt-refuse",
+          "from": "checkpoint-runner",
+          "to": "post-tool-hook",
+          "label": "Failed -> refuse the write",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 450
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 48,
+    "additions": 9534,
+    "deletions": 1094,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "checkpoint-architecture",
+      "title": "Checkpoint architecture",
+      "lens": "architecture",
+      "summary": "How a checkpoint reaches moon and what it leaves behind.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "runner-internals",
+          "title": "Inside the checkpoint runner",
+          "lens": "architecture",
+          "summary": "The runner's own pieces: adoption, base and file resolution, the moon adapter, and the journal.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "checkpoint-runner",
+              "adoption",
+              "moon-adapter",
+              "journal",
+              "sarif-out",
+              "git-layer"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": [
+            {
+              "id": "moon-adapter-internals",
+              "title": "Inside the moon adapter",
+              "lens": "architecture",
+              "summary": "Version gate, run-report lock, spawn with stdin, timeout tree-kill, and run-report parsing.",
+              "scope": {
+                "kind": "selection",
+                "lanes": [],
+                "nodes": [
+                  "moon-adapter",
+                  "moon-cli",
+                  "sarif-out"
+                ],
+                "edges": [],
+                "flows": []
+              },
+              "defaultOpen": false,
+              "children": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
