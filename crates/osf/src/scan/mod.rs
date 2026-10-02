@@ -503,7 +503,8 @@ fn resolve_and_explain(findings: &mut [Finding], context: Context) {
         let Some(meta) = rule_meta(f.rule) else {
             continue;
         };
-        let (level, remediation) = resolve(meta.class, meta.group, context, meta.exception);
+        let (level, remediation) =
+            resolve(meta.class, meta.group, context, meta.exception, f.evidence);
         f.level = level;
         f.remediation = remediation;
         f.message = format!("{} (see `osf explain {}`)", f.message, f.rule);
