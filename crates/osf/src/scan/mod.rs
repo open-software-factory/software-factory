@@ -402,7 +402,7 @@ fn secret_shape_pattern() -> &'static Regex {
             r"|\bsk-ant-[A-Za-z0-9_\-]{20,}\b",
             r"|\bsk-[A-Za-z0-9]{20,}\b",
             r"|\bxox[baprs]-[A-Za-z0-9\-]{10,}\b",
-            r#"|\b(?:[A-Z][A-Z0-9]*_)*(?:KEY|TOKEN|SECRET|PASSWORD)\b\s*[:=]\s*(?:'([^'\s]{8,})'|"([^"\s]{8,})")"#,
+            r#"|\b((?:[A-Z][A-Z0-9]*_)*(?:KEY|TOKEN|SECRET|PASSWORD))\b\s*[:=]\s*(?:'([^'\s]{8,})'|"([^"\s]{8,})")"#,
         ),
     )
 }
@@ -428,9 +428,9 @@ fn placeholder_value_pattern() -> &'static Regex {
 }
 
 /// Whether a secret-shaped match is a known placeholder rather than a real
-/// secret: `whole` is the full match, `value` is the quoted value when the
-/// match came from the assignment shape.
-fn is_known_placeholder(whole: &str, value: Option<&str>) -> bool {
+/// secret: `whole` is the full match, `name` and `value` are the assigned
+/// name and its quoted value when the match came from the assignment shape.
+fn is_known_placeholder(whole: &str, name: Option<&str>, value: Option<&str>) -> bool {
     if KNOWN_PLACEHOLDER_LITERALS.contains(&whole) {
         return true;
     }
@@ -438,8 +438,18 @@ fn is_known_placeholder(whole: &str, value: Option<&str>) -> bool {
         KNOWN_PLACEHOLDER_LITERALS.contains(&v)
             || placeholder_value_pattern().is_match(v)
             || is_reference_value(v)
-            || is_readable_slug(v)
+            || (name.is_some_and(is_storage_key_name) && is_readable_slug(v))
     })
+}
+
+/// A name ending in `KEY` that is not a credential-style name: no word of it
+/// is `API`, `PRIVATE`, `SECRET`, `ACCESS`, `AUTH`, `PASSWORD`, `PASSWD`,
+/// `PASS` or `TOKEN`. Only such a name may hold a slug value unflagged.
+fn is_storage_key_name(name: &str) -> bool {
+    const CREDENTIAL_WORDS: &[&str] = &[
+        "API", "PRIVATE", "SECRET", "ACCESS", "AUTH", "PASSWORD", "PASSWD", "PASS", "TOKEN",
+    ];
+    name.ends_with("KEY") && !name.split('_').any(|word| CREDENTIAL_WORDS.contains(&word))
 }
 
 /// A value that names a variable or an expression, such as `${NAME}`,
@@ -453,7 +463,8 @@ fn is_reference_value(value: &str) -> bool {
     .is_match(value)
 }
 
-/// A lowercase slug such as `od-factory-float`: only lowercase letters,
+/// A lowercase slug such as `od-factory-float`, exempt only under a storage
+/// key name (see [`is_storage_key_name`]): only lowercase letters,
 /// digits, hyphens, underscores and dots, and every part between separators
 /// reads as a word or a short label. A part of five or more characters that
 /// mixes in digits, or a letters-only part over 15 characters, looks random,
@@ -491,8 +502,9 @@ fn secret_line_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
     for (line, content) in lines(text) {
         let real = pattern.captures_iter(content).any(|caps| {
             let whole = caps.get(0).map_or("", |m| m.as_str());
-            let value = caps.get(1).or_else(|| caps.get(2)).map(|m| m.as_str());
-            !is_known_placeholder(whole, value)
+            let name = caps.get(1).map(|m| m.as_str());
+            let value = caps.get(2).or_else(|| caps.get(3)).map(|m| m.as_str());
+            !is_known_placeholder(whole, name, value)
         });
         if real {
             out.push(finding(

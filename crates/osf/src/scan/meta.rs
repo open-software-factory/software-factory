@@ -187,7 +187,11 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               word that merely ends in one of these strings, such as `MONKEY`. An assigned value \
               that is a lowercase slug (only lowercase letters, digits, hyphens, underscores \
               and dots, every part a word or a short label) is a name, not a secret, so a \
-              browser storage key such as `od-factory-float` is not flagged. A value that is a \
+              browser storage key such as `od-factory-float` is not flagged, but only when the \
+              assigned name ends in `KEY` and has no `_`-separated word `API`, `PRIVATE`, \
+              `SECRET`, `ACCESS`, `AUTH`, `PASSWORD`, `PASSWD`, `PASS` or `TOKEN`, so \
+              `STORAGE_KEY` is covered and `API_KEY` or `DATABASE_PASSWORD` is not. A slug \
+              assigned to any other name stays flagged. A value that is a \
               variable or expression reference, such as `${NAME}`, `$NAME` or \
               `${{ secrets.X }}`, is not flagged either. A long random string, a slug with a \
               random-looking part, and every known token prefix stay flagged. A secret shape \

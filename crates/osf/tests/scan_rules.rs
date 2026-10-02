@@ -626,6 +626,43 @@ fn a_lowercase_slug_value_does_not_fire_scan_secret() {
     }
 }
 
+/// A slug is only a name under a storage key name: under a credential-style
+/// name it is still a literal secret.
+#[test]
+fn a_slug_under_a_credential_style_name_still_fires_scan_secret() {
+    let (_repo, rules) = rules();
+    for name in [
+        "DATABASE_PASSWORD",
+        "ADMIN_PASSWORD",
+        "SESSION_SECRET",
+        "GITHUB_TOKEN",
+        "API_KEY",
+        "STRIPE_API_KEY",
+        "PRIVATE_KEY",
+        "SECRET_KEY",
+        "ACCESS_KEY",
+        "AUTH_KEY",
+        "TOKEN_KEY",
+        "PASSWORD_KEY",
+    ] {
+        let text = format!("{name} = \"correct-horse-battery-staple\"\n");
+        let found = rules.scan_text(&text, Context::Document);
+        assert_eq!(rule_ids(&found), vec!["scan-secret"], "{name}: {found:?}");
+    }
+}
+
+#[test]
+fn a_slug_under_a_plain_key_name_does_not_fire_with_either_quote_style() {
+    let (_repo, rules) = rules();
+    for text in [
+        "FLOAT_KEY = 'od-factory-float'\n",
+        "STORAGE_KEY = \"od-factory-shell\"\n",
+    ] {
+        let found = rules.scan_text(text, Context::Document);
+        assert!(rule_ids(&found).is_empty(), "{text}: {found:?}");
+    }
+}
+
 #[test]
 fn a_variable_or_expression_reference_value_does_not_fire_scan_secret() {
     let (_repo, rules) = rules();
