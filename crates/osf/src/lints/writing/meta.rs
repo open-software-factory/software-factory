@@ -721,21 +721,25 @@ pub const RULE_META: &[RuleMeta] = &[
          Good: The pipeline runs build, test, and deploy.\n\
          ### Coverage\n\
          It covers English text, a spelled number or digits from two upward, \
-         and a plural noun after it. It leaves these alone. A measure or a \
-         unit, such as `10 minutes` or `5 s`. A version. A date, and any \
-         sentence that carries a date, because a dated record stays true. A \
-         number inside a quotation, inside code, or after a label such as \
-         `Phase 2`. A bound, a range or an estimate, such as `at least \
-         four`, `up to 20` or `30 to 100`, which stays true when a list \
-         changes. A sentence that links to a source or cites one, and a \
-         table cell in a row that does. A fixed fact that cannot change: a \
+         and a plural noun after it.\n\
+         It leaves these alone. A measure or a unit, such as `10 minutes` \
+         or `5 s`. A version. A date, and any sentence that carries a date, \
+         because a dated record stays true. A number inside a quotation, \
+         inside code, or after a label such as `Phase 2`.\n\
+         It also leaves a bound, a range or an estimate, such as `at least \
+         four`, `up to 20` or `30 to 100`. Each stays true when a list \
+         changes. A sentence that links to a source or cites one passes. So \
+         does a sentence that a citation note follows, and a table cell in \
+         a row that links one.\n\
+         A fixed fact that cannot change passes too. Examples are a \
          hyphenated compound such as `two-factor`, the `primary colours`, \
          the `states of matter`, and `two states` in a sentence about \
          binary. The word `one` is never read as a count, so `one of`, \
-         `one place` and `each one` pass. It does not cover `both`, \
-         `several`, `a couple of`, a number joined to its noun by a \
-         hyphen, or a count with no noun after it. The check is \
-         deterministic, with no model.",
+         `one place` and `each one` pass.\n\
+         It does not cover `both`, `several` or `a couple of`. It does not \
+         read a number joined to its noun by a hyphen. It does not read a \
+         number followed by an adverb, or a count with no noun after it. \
+         The check is deterministic, with no model.",
         Exception::FixedLevel(Level::Error)
     ),
     rule_meta!(

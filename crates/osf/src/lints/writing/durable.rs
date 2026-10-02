@@ -96,6 +96,17 @@ fn cites_a_source(raw: &str) -> bool {
     .is_match(raw)
 }
 
+/// Whether the text right after a sentence opens with a citation, such as
+/// `[reported: source]`, the way a note follows the claim it supports.
+fn leads_a_citation(after: &str) -> bool {
+    static NOTE: OnceLock<Regex> = OnceLock::new();
+    re(
+        &NOTE,
+        r"(?i)^\s*(?:\[(?:reported|source|sources|cited)\b|\[\d+(?:\s*[,-]\s*\d+)*\]|\[\^)",
+    )
+    .is_match(after)
+}
+
 /// Whether the text carries an absolute date: a year-month-day date, a
 /// month name with a day or a year, or a four-digit year.
 fn has_absolute_date(text: &str) -> bool {
@@ -282,8 +293,30 @@ const MEASURES: &[&str] = &[
 
 /// Unit abbreviations that can follow a number: "20 px", "5 s".
 const UNITS: &[&str] = &[
-    "px", "pt", "em", "rem", "ms", "s", "h", "m", "kb", "mb", "gb", "tb", "hz", "fps", "dpi", "vh",
-    "vw", "cm", "mm", "kg", "g", "x",
+    "px",
+    "pt",
+    "em",
+    "rem",
+    "ms",
+    "s",
+    "h",
+    "m",
+    "kb",
+    "mb",
+    "gb",
+    "tb",
+    "hz",
+    "fps",
+    "dpi",
+    "vh",
+    "vw",
+    "cm",
+    "mm",
+    "kg",
+    "g",
+    "x",
+    "percent",
+    "percentage",
 ];
 
 /// Words that name a position when they stand before a number: "Phase 2".
@@ -340,6 +373,7 @@ const LABELS: &[&str] = &[
     "sprint",
     "milestone",
     "rfc",
+    "layer",
 ];
 
 /// Whether a bound, an estimate or a range sits around the number at `i`.
@@ -359,19 +393,25 @@ fn is_bounded(toks: &[Tok<'_>], i: usize) -> bool {
                 | "over"
                 | "below"
                 | "above"
-                | "around"
-                | "about"
                 | "approximately"
                 | "roughly"
                 | "nearly"
                 | "almost"
+                | "exceed"
                 | "exceeding"
                 | "exceeds"
-                | "between"
         ) || matches!(
             p.raw,
             "\u{2264}" | "\u{2265}" | "<" | ">" | "~" | "<=" | ">=" | "\u{2248}"
         ) {
+            return true;
+        }
+        // "About 20" is an estimate. "Built around two loops" is not, so a
+        // spelled number after "about" or "around" is still read as a count.
+        let digits = toks
+            .get(i)
+            .is_some_and(|t| t.core.starts_with(|c: char| c.is_ascii_digit()));
+        if matches!(word, "about" | "around") && digits {
             return true;
         }
         let prev2_word = prev2.map(|t| t.core.as_str());
@@ -419,21 +459,24 @@ fn is_fixed_fact(number: &str, phrase: &str, sentence: &str) -> bool {
 /// A count word is flagged: a spelled or written number from two up, then
 /// up to two ordinary words, then a plural noun, as in "three stages".
 ///
-/// It holds the source lines of the whole text, so a count in a table cell
-/// is excused when a link to a source sits anywhere in the same row.
+/// It holds the whole text, so a count in a table cell is excused when a
+/// link to a source sits anywhere in the same row, and a count is excused
+/// when a citation note follows its sentence.
 pub struct CountWordRule<'a> {
+    text: &'a str,
     lines: Vec<&'a str>,
 }
 
 impl<'a> CountWordRule<'a> {
     pub fn new(text: &'a str) -> Self {
         CountWordRule {
+            text,
             lines: text.lines().collect(),
         }
     }
 
     fn cited(&self, s: &TextUnit) -> bool {
-        if cites_a_source(&s.text) {
+        if cites_a_source(&s.text) || self.text.get(s.span.end..).is_some_and(leads_a_citation) {
             return true;
         }
         s.in_table
@@ -724,6 +767,15 @@ mod tests {
         assert_eq!(
             excerpts("count-word", "There are four reasons."),
             vec!["four reasons"]
+        );
+    }
+
+    #[test]
+    fn about_a_digit_estimate_is_not_a_count_but_around_a_spelled_number_is() {
+        assert!(excerpts("count-word", "It has about 20 children.").is_empty());
+        assert_eq!(
+            excerpts("count-word", "It is built around two concurrent loops."),
+            vec!["two concurrent loops"]
         );
     }
 

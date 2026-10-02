@@ -32,3 +32,4 @@ This created two problems. ||| two problems ||| docs/design/design-tracker.md:43
 Two bug reports came from the owner. ||| Two bug reports ||| docs/design/design-tracker.md:334
 Version 1.1 split each entity into two parts: ||| two parts ||| docs/architecture/draft-factory-vocabulary.md:52
 Fourteen standard features. ||| Fourteen standard features ||| docs/research/2026-09-17-change-risk-classification.md:41
+The lab bar switches between three things the orb can open. ||| three things ||| docs/design/design-tracker.md:197

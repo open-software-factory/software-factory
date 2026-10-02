@@ -30,6 +30,9 @@ The target slot then dictates each one's mode. ||| docs/design/components.md:183
 Perf at 100 to 500 elements ||| docs/design/survey/03-canvas-graph.md:25
 A hand-rolled SVG, what Floor is today, stays viable for a loop with under about 40 nodes and no free panning. ||| docs/design/design-tracker.md:660
 The default is 125 %. ||| docs/design/DESIGN.md:575
+These are the Layer 1 and Layer 2 primitives named in `components.md`. ||| docs/design/survey/01-behaviour-libraries.md:3
+about 14 percent of executables cancelled; 41 percent false positives on large services ||| docs/research/2026-09-17-change-risk-classification.md:66
+Few-shot sentence-embedding classifiers of 110 to 355 million parameters matched a large model trained on 3,000 examples with 8 examples per class. [reported: SetFit] ||| docs/research/2026-09-17-change-risk-classification.md:122
 Two-factor sign-in asks for a code. ||| owner-example
 A pair of keys signs and verifies. ||| owner-example
 A binary digit has two states. ||| owner-example
