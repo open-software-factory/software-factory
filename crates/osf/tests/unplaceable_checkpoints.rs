@@ -164,6 +164,35 @@ fn the_prompt_hook_never_names_a_deleted_rule_id() {
     }
 }
 
+/// The retired labels variable is ignored with a one-line notice, never in silence.
+#[test]
+fn the_retired_chat_local_labels_variable_prints_a_notice_naming_its_replacement() {
+    let repo = TempRepo::new("retired-env");
+    let home = isolated_home("retired-env");
+    repo.write("note.md", "Version 2 of the cache is faster.\n");
+    let run = |set: bool| {
+        let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_osf"));
+        cmd.current_dir(&repo.dir)
+            .env("HOME", &home)
+            .env("USERPROFILE", &home)
+            .env_remove("OSF_CONFIG")
+            .env_remove("OSF_WRITING_CHAT_LOCAL_LABELS")
+            .args(["lint", "writing", "--format", "human", "note.md"]);
+        if set {
+            cmd.env("OSF_WRITING_CHAT_LOCAL_LABELS", "version");
+        }
+        cmd.output().expect("osf runs")
+    };
+    let with = String::from_utf8_lossy(&run(true).stderr).into_owned();
+    assert!(
+        with.contains("OSF_WRITING_CHAT_LOCAL_LABELS is retired"),
+        "{with}"
+    );
+    assert!(with.contains("OSF_WRITING_MUST_EXPLAIN_NAMES"), "{with}");
+    let without = String::from_utf8_lossy(&run(false).stderr).into_owned();
+    assert!(!without.contains("retired"), "{without}");
+}
+
 /// `osf explain` on a retired rule id must name the replacement, never the bare "no such rule" error.
 #[test]
 fn explaining_a_retired_rule_id_points_to_its_replacement() {
