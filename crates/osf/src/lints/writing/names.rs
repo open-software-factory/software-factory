@@ -197,6 +197,13 @@ pub const BUILT_IN: &[&str] = &[
     "Studio",
     "Code",
     "VS",
+    // frameworks, design systems and standards a version number follows
+    "React",
+    "Vite",
+    "Tauri",
+    "Material",
+    "Fluent",
+    "RFC",
     // coding agents and vendors
     "Claude",
     "Sonnet",

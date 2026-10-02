@@ -32,6 +32,81 @@ pub(super) const NON_LABEL_WORDS: &[&str] = &[
     "my", "our",
 ];
 
+/// A unit that follows a number: size, time, data, angle, frequency or share. The number is a quantity.
+const UNIT_WORDS: &[&str] = &[
+    "px", "pt", "em", "rem", "vh", "vw", "dp", "dpi", "pixel", "pixels", "ms", "s", "sec", "secs",
+    "second", "seconds", "min", "mins", "minute", "minutes", "h", "hr", "hrs", "hour", "hours",
+    "day", "days", "week", "weeks", "month", "months", "year", "years", "b", "kb", "mb", "gb",
+    "tb", "kib", "mib", "gib", "byte", "bytes", "hz", "khz", "mhz", "ghz", "fps", "deg", "degree",
+    "degrees", "percent",
+];
+
+/// Words that bring a number in as an amount, a bound or an approximation, never a label.
+const QUANTITY_WORDS: &[&str] = &[
+    "about",
+    "approximately",
+    "around",
+    "roughly",
+    "nearly",
+    "almost",
+    "circa",
+    "least",
+    "most",
+    "more",
+    "less",
+    "fewer",
+    "beyond",
+    "within",
+    "across",
+    "exceed",
+    "exceeds",
+    "exceeding",
+    "plus",
+    "minus",
+    "only",
+    "just",
+    "all",
+    "both",
+    "each",
+    "every",
+    "total",
+    "totalling",
+    "totaling",
+    "spanning",
+    "cover",
+    "covers",
+    "covering",
+];
+
+/// Names of a measured property, so the number after one is its value.
+const DIMENSION_WORDS: &[&str] = &[
+    "size",
+    "width",
+    "height",
+    "depth",
+    "length",
+    "scale",
+    "zoom",
+    "opacity",
+    "weight",
+    "radius",
+    "padding",
+    "margin",
+    "gap",
+    "duration",
+    "delay",
+    "speed",
+    "rate",
+    "offset",
+    "limit",
+    "threshold",
+    "count",
+    "score",
+];
+
+/// A word that says the number after it is a release number.
+const VERSION_WORDS: &[&str] = &["version", "ver", "v"];
+
 pub(super) const MONTHS: &[&str] = &[
     "january",
     "february",
@@ -85,8 +160,8 @@ pub fn candidates(
     let quotes = quoted_spans(&unit.text, &sentence_spans);
     let masked = mask_quotes(&unit.text, &quotes);
     let mut out = Vec::new();
-    out.extend(number_candidates(&masked, known));
-    out.extend(phrase_candidates(&masked, cfg));
+    out.extend(number_candidates(unit, &masked, known));
+    out.extend(phrase_candidates(&masked, &unit.text, cfg));
     out.extend(time_candidates(&masked, context));
     out.extend(name_candidates(
         unit,
@@ -260,7 +335,7 @@ fn mask_quotes(text: &str, spans: &[QuotedSpan]) -> String {
     super::rules::mask_ranges(text, &ranges)
 }
 
-fn number_candidates(text: &str, known: &KnownNames) -> Vec<Candidate> {
+fn number_candidates(unit: &TextUnit, text: &str, known: &KnownNames) -> Vec<Candidate> {
     static HASH_REPO: OnceLock<Regex> = OnceLock::new();
     static HASH_BARE: OnceLock<Regex> = OnceLock::new();
     static WORD_NUMBER: OnceLock<Regex> = OnceLock::new();
@@ -288,7 +363,7 @@ fn number_candidates(text: &str, known: &KnownNames) -> Vec<Candidate> {
     out.extend(
         word_number
             .captures_iter(text)
-            .filter_map(|c| word_number_candidate(text, &c, known)),
+            .filter_map(|c| word_number_candidate(unit, text, &c, known)),
     );
 
     let word_bracket = super::rules::re(
@@ -324,8 +399,10 @@ fn is_known_name_head(known: &KnownNames, word: &str) -> bool {
         .any(|form| known.contains(&form) && !super::names::is_generic_word(&form))
 }
 
-/// A word and a plain integer, unless it is a version, a range, a known name, or a month and day.
+/// A word and a plain integer, unless it is a version, a range, a known name, a month and day,
+/// or a measure, a size or a coordinate.
 fn word_number_candidate(
+    unit: &TextUnit,
     text: &str,
     c: &regex::Captures<'_>,
     known: &KnownNames,
@@ -340,14 +417,21 @@ fn word_number_candidate(
     if number.as_str().contains('.') || looks_like_a_year(number.as_str()) {
         return None;
     }
-    if is_percent_quantity(text, number.end()) {
+    let after = text.get(number.end()..).unwrap_or("");
+    if is_percent_quantity(text, number.end()) || is_a_range_end(after) {
         return None;
     }
-    let mut after = text.get(number.end()..).unwrap_or("").chars();
-    if after.next() == Some('-') && after.next().is_some_and(|ch| ch.is_ascii_digit()) {
+    if continues_the_number(after) || is_a_citation_volume(after) || is_followed_by_a_unit(after) {
+        return None;
+    }
+    if is_a_measured_value(text, word, &word_lower) {
         return None;
     }
     if is_known_name_head(known, word.as_str()) {
+        return None;
+    }
+    if is_a_label_value_item(unit, after) || is_a_defining_heading(unit, text, whole.start(), after)
+    {
         return None;
     }
     Some(Candidate {
@@ -355,6 +439,90 @@ fn word_number_candidate(
         text: whole.as_str().to_string(),
         range: whole.range(),
     })
+}
+
+/// A hyphenated range such as `12-15`.
+fn is_a_range_end(after: &str) -> bool {
+    let mut chars = after.chars();
+    chars.next() == Some('-') && chars.next().is_some_and(|ch| ch.is_ascii_digit())
+}
+
+/// A digit run cut short of a longer number: `1.88M`, `1,000`, `1.x`, `30+`.
+fn continues_the_number(after: &str) -> bool {
+    let mut chars = after.chars();
+    match chars.next() {
+        Some('+') => true,
+        Some('.') => chars
+            .next()
+            .is_some_and(|c| c.is_ascii_digit() || c == 'x' || c == '*'),
+        Some(',') => after
+            .get(1..4)
+            .is_some_and(|d| d.chars().all(|c| c.is_ascii_digit())),
+        _ => false,
+    }
+}
+
+/// A journal's `volume(issue)`, such as `5(2)`.
+fn is_a_citation_volume(after: &str) -> bool {
+    after
+        .strip_prefix('(')
+        .and_then(|rest| rest.split_once(')'))
+        .is_some_and(|(inner, _)| !inner.is_empty() && inner.chars().all(|c| c.is_ascii_digit()))
+}
+
+/// The word right after a number, with any punctuation trimmed off and in lower case.
+fn next_word(after: &str) -> String {
+    after
+        .split_whitespace()
+        .next()
+        .unwrap_or("")
+        .trim_matches(|c: char| !c.is_alphanumeric())
+        .to_lowercase()
+}
+
+/// Whether a unit follows the number: `5 s`, `44 px`, `24 hours`, `12 degrees`.
+fn is_followed_by_a_unit(after: &str) -> bool {
+    UNIT_WORDS.contains(&next_word(after).as_str())
+}
+
+/// Whether the word before the number marks it as a quantity, a size, a version or a coordinate, not a label.
+fn is_a_measured_value(text: &str, word: regex::Match<'_>, word_lower: &str) -> bool {
+    let is_quantity_word = QUANTITY_WORDS.contains(&word_lower)
+        || DIMENSION_WORDS.contains(&word_lower)
+        || VERSION_WORDS.contains(&word_lower);
+    let is_a_single_letter = word.as_str().chars().count() == 1;
+    let joins_a_hyphenated_name = text
+        .get(..word.start())
+        .is_some_and(|before| before.ends_with('-') && before.len() > 1);
+    let is_a_participle =
+        word_lower.len() >= 5 && word_lower.ends_with("ed") && !word_lower.ends_with("eed");
+    is_quantity_word || is_a_single_letter || joins_a_hyphenated_name || is_a_participle
+}
+
+/// A list item that is only a lower-case label and a number, such as `compact rail 60`.
+fn is_a_label_value_item(unit: &TextUnit, after: &str) -> bool {
+    let item = unit.text.trim();
+    let label_words = item
+        .trim_end_matches(|c: char| c.is_ascii_digit())
+        .trim_end();
+    unit.in_list_item
+        && after.trim().is_empty()
+        && item.chars().next().is_some_and(char::is_lowercase)
+        && label_words.split(' ').count() <= 3
+        && label_words.chars().all(|c| c.is_alphabetic() || c == ' ')
+}
+
+/// A heading that opens with a numbered label and then names it, such as `Stage 1 Local checks`.
+fn is_a_defining_heading(unit: &TextUnit, text: &str, start: usize, after: &str) -> bool {
+    let only_markup_before = text
+        .get(..start)
+        .is_some_and(|before| before.chars().all(|c| !c.is_alphanumeric()));
+    let names_it = after
+        .trim_start_matches(|c: char| c == ':' || c.is_whitespace())
+        .chars()
+        .next()
+        .is_some_and(char::is_alphabetic);
+    unit.is_heading && only_markup_before && names_it
 }
 
 /// Whether `number` is a plain four-digit value in a plausible calendar-year
@@ -366,15 +534,14 @@ fn looks_like_a_year(number: &str) -> bool {
             .is_ok_and(|n| (1900..=2099).contains(&n))
 }
 
-/// Whether the text right after a number's end is a percent sign or the
-/// word "percent": a quantity, never a label, whatever word comes before it.
+/// Whether the text right after a number's end is a percent sign, with or without a space,
+/// or the word "percent": a quantity, never a label, whatever word comes before it.
 fn is_percent_quantity(text: &str, number_end: usize) -> bool {
-    let after = text.get(number_end..).unwrap_or("");
+    let after = text.get(number_end..).unwrap_or("").trim_start();
     if after.starts_with('%') {
         return true;
     }
     after
-        .trim_start()
         .strip_prefix("percent")
         .is_some_and(|rest| !rest.starts_with(|c: char| c.is_alphanumeric()))
 }
@@ -384,7 +551,14 @@ fn word_bracket_candidate(c: &regex::Captures<'_>, known: &KnownNames) -> Option
     let whole = c.get(0)?;
     let word = c.get(1)?;
     let word_lower = word.as_str().to_lowercase();
-    if NON_LABEL_WORDS.contains(&word_lower.as_str()) || is_known_name_head(known, word.as_str()) {
+    let attached = !whole
+        .as_str()
+        .get(word.as_str().len()..)
+        .is_some_and(|gap| gap.starts_with(char::is_whitespace));
+    if attached
+        || NON_LABEL_WORDS.contains(&word_lower.as_str())
+        || is_known_name_head(known, word.as_str())
+    {
         return None;
     }
     Some(Candidate {
@@ -394,7 +568,7 @@ fn word_bracket_candidate(c: &regex::Captures<'_>, known: &KnownNames) -> Option
     })
 }
 
-fn phrase_candidates(text: &str, cfg: &WritingConfig) -> Vec<Candidate> {
+fn phrase_candidates(text: &str, raw: &str, cfg: &WritingConfig) -> Vec<Candidate> {
     let mut alternatives: Vec<String> = cfg
         .chat_local_phrases
         .iter()
@@ -409,7 +583,7 @@ fn phrase_candidates(text: &str, cfg: &WritingConfig) -> Vec<Candidate> {
             range: m.range(),
         }));
     }
-    out.extend(above_reference_candidates(text));
+    out.extend(above_reference_candidates(text, raw));
     out
 }
 
@@ -428,29 +602,71 @@ fn cached_phrase_regex(alternatives: &[String]) -> Option<Regex> {
     Some(re)
 }
 
-/// `above` as a reference, told apart from the preposition by a determiner or number right after it.
-fn above_reference_candidates(text: &str) -> Vec<Candidate> {
-    const OBJECT_DETERMINERS: &[&str] = &["a", "an", "the"];
+/// Words that can follow a reference `above` and start the rest of the clause, never an object of the preposition.
+const CLAUSE_FOLLOWERS: &[&str] = &[
+    "and", "or", "but", "before", "after", "for", "in", "is", "are", "was", "were", "to", "as",
+    "if", "when", "which", "with", "on", "by", "from", "so", "then", "because", "since", "until",
+    "while", "can", "will", "should", "must", "may", "has", "have", "had", "do", "does", "did",
+    "not", "also",
+];
+
+/// `above` as a reference to earlier text, told apart from the preposition by what follows it.
+/// A reference closes its clause: the text ends, a punctuation mark follows, or a conjunction or
+/// auxiliary word follows. A preposition takes an object, such as `above the line`, `above it` or
+/// `above everything`. A sentence that also says `below` is a spatial pair, never a reference.
+fn above_reference_candidates(text: &str, raw: &str) -> Vec<Candidate> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = super::rules::re(&RE, r"(?i)\babove\b");
     re.find_iter(text)
-        .filter_map(|m| {
-            let rest = text.get(m.end()..).unwrap_or("").trim_start();
-            let next_word = rest
-                .split_whitespace()
-                .next()
-                .unwrap_or("")
-                .trim_matches(|c: char| !c.is_alphanumeric())
-                .to_lowercase();
-            let is_object = OBJECT_DETERMINERS.contains(&next_word.as_str())
-                || next_word.chars().next().is_some_and(|c| c.is_ascii_digit());
-            (!is_object).then(|| Candidate {
-                kind: Kind::Phrase,
-                text: m.as_str().to_string(),
-                range: m.range(),
-            })
+        .filter(|m| {
+            let rest = text.get(m.end()..).unwrap_or("");
+            let raw_rest = raw.get(m.end()..).unwrap_or("");
+            closes_a_clause(rest, raw_rest) && !is_spatial_pair(rest)
+        })
+        .map(|m| Candidate {
+            kind: Kind::Phrase,
+            text: m.as_str().to_string(),
+            range: m.range(),
         })
         .collect()
+}
+
+/// Whether `rest`, the text after a word, ends the clause or opens the next one. `raw_rest` is the
+/// same text before any quoted or code span was blanked, so a span right after the word is an object.
+fn closes_a_clause(rest: &str, raw_rest: &str) -> bool {
+    let trimmed = rest.trim_start();
+    if raw_rest
+        .trim_start()
+        .starts_with(['`', '"', '\'', '\u{201C}', '\u{2018}'])
+    {
+        return false;
+    }
+    match trimmed.chars().next() {
+        None => true,
+        Some(c) if c.is_alphanumeric() => {
+            let word = next_word(trimmed);
+            let after_word = trimmed
+                .split_once(char::is_whitespace)
+                .map_or("", |(_, r)| r);
+            CLAUSE_FOLLOWERS.contains(&word.as_str())
+                || (word.len() >= 5
+                    && word.ends_with("ed")
+                    && !word.ends_with("eed")
+                    && closes_a_clause(after_word, after_word))
+        }
+        Some(c) => matches!(
+            c,
+            '.' | ',' | ';' | ':' | '!' | '?' | ')' | '|' | '\u{2014}' | '\u{2013}'
+        ),
+    }
+}
+
+/// Whether the sentence goes on to say `below`, the other half of a pair of places.
+fn is_spatial_pair(rest: &str) -> bool {
+    let sentence = rest.split(['.', '!', '?', '|', '\n']).next().unwrap_or("");
+    sentence
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|w| w.eq_ignore_ascii_case("below"))
 }
 
 fn time_candidates(text: &str, context: Context) -> Vec<Candidate> {
@@ -906,6 +1122,171 @@ mod tests {
         .all(|k| *k != Kind::Number));
     }
 
+    // --- number: measures, sizes and coordinates are never labels ---
+
+    fn has_no_number(text: &str) -> bool {
+        kinds(text, Context::Document)
+            .iter()
+            .all(|k| *k != Kind::Number)
+    }
+
+    #[test]
+    fn number_excludes_a_number_followed_by_a_unit() {
+        assert!(has_no_number("Elapsed time shows once it passes 5 s."));
+        assert!(has_no_number("Beyond 24 hours, use the absolute date."));
+        assert!(has_no_number("Dense rows may be 28 px minimum."));
+        assert!(has_no_number(
+            "The sector now runs 12 degrees past its end."
+        ));
+        assert!(has_no_number(
+            "It waited a fixed 200 ms before the next frame."
+        ));
+    }
+
+    #[test]
+    fn number_excludes_a_percent_with_a_space() {
+        assert!(has_no_number("They found 125 % zoom easier to read."));
+    }
+
+    #[test]
+    fn number_excludes_a_number_after_a_quantity_or_dimension_word() {
+        assert!(has_no_number("Use at most 3 significant digits."));
+        assert!(has_no_number("Shell suites cover 25 rows, all passing."));
+        assert!(has_no_number("Add plus 1 more for the keyed offset."));
+        assert!(has_no_number("It stays pinned near opacity 0 throughout."));
+        assert!(has_no_number("Set the stage width 720 first."));
+    }
+
+    #[test]
+    fn number_excludes_a_digit_run_cut_short_of_a_longer_number() {
+        assert!(has_no_number("The graph holds 1,000 nodes."));
+        assert!(has_no_number("The corpus holds 1.88M files."));
+        assert!(has_no_number("The package ships 30+ plugins."));
+        assert!(has_no_number("Lint with oxlint 1.x for speed."));
+    }
+
+    #[test]
+    fn number_excludes_a_release_a_coordinate_and_a_package_version() {
+        assert!(has_no_number("Version 7 beta added tabs."));
+        assert!(has_no_number(
+            "Chrome and Edge from version 113 support it."
+        ));
+        assert!(has_no_number("The panes measure L 382 and R 358."));
+        assert!(has_no_number(
+            "It drags in react-spring 8 and Material-UI 4."
+        ));
+    }
+
+    #[test]
+    fn number_excludes_a_result_after_a_past_tense_verb() {
+        assert!(has_no_number("The registry returned 404 on fetch."));
+    }
+
+    #[test]
+    fn number_excludes_a_citation_volume_and_issue() {
+        assert!(has_no_number("See Technical Journal 5(2) for the study."));
+    }
+
+    #[test]
+    fn number_excludes_a_known_framework_followed_by_a_version() {
+        assert!(has_no_number("The build moves to Vite 8 and React 19 now."));
+        assert!(has_no_number("Patches follow RFC 6902 exactly."));
+    }
+
+    #[test]
+    fn number_excludes_a_bracket_joined_to_its_word() {
+        assert!(has_no_number("The cell reads Agent(s) executing."));
+        assert!(has(
+            "The outage traced back to mechanism (b).",
+            Kind::Number,
+            "mechanism (b)"
+        ));
+    }
+
+    fn paragraph_in(text: &str, in_list_item: bool, is_heading: bool) -> TextUnit {
+        let mut unit = paragraph(text);
+        unit.in_list_item = in_list_item;
+        unit.is_heading = is_heading;
+        unit
+    }
+
+    fn number_candidate_count(unit: &TextUnit) -> usize {
+        candidates(
+            unit,
+            &WritingConfig::default(),
+            &known(),
+            Context::Document,
+            &HashMap::new(),
+        )
+        .iter()
+        .filter(|c| c.kind == Kind::Number)
+        .count()
+    }
+
+    #[test]
+    fn number_excludes_a_list_item_that_is_only_a_label_and_a_value() {
+        assert_eq!(
+            number_candidate_count(&paragraph_in("compact rail 60", true, false)),
+            0
+        );
+        assert_eq!(
+            number_candidate_count(&paragraph_in("centre floor 700", true, false)),
+            0
+        );
+        assert_eq!(
+            number_candidate_count(&paragraph_in("compact rail 60", false, false)),
+            1
+        );
+        assert_eq!(
+            number_candidate_count(&paragraph_in("Phase 2", true, false)),
+            1
+        );
+        assert_eq!(
+            number_candidate_count(&paragraph_in("see step 4 now", true, false)),
+            1
+        );
+    }
+
+    #[test]
+    fn number_excludes_a_heading_that_defines_its_own_label() {
+        assert_eq!(
+            number_candidate_count(&paragraph_in("Stage 1 Local checks", false, true)),
+            0
+        );
+        assert_eq!(
+            number_candidate_count(&paragraph_in("Phase 3: Implementation", false, true)),
+            0
+        );
+        assert_eq!(
+            number_candidate_count(&paragraph_in("Stage 2", false, true)),
+            1
+        );
+        assert_eq!(
+            number_candidate_count(&paragraph_in("Notes on Stage 1 checks", false, true)),
+            1
+        );
+        assert_eq!(
+            number_candidate_count(&paragraph_in("Stage 1 Local checks", false, false)),
+            1
+        );
+    }
+
+    /// A measure word never hides a real label: the labels the fixtures name still fire.
+    #[test]
+    fn number_still_fires_on_a_label_next_to_a_measure() {
+        assert!(has(
+            "Layers 1 and 2 carry the behaviours.",
+            Kind::Number,
+            "Layers 1"
+        ));
+        assert!(has("Use Layer 2 for 5 s at most.", Kind::Number, "Layer 2"));
+        assert!(has(
+            "Control 1 swaps live to the constant.",
+            Kind::Number,
+            "Control 1"
+        ));
+    }
+
     // --- phrase: shapes ---
 
     #[test]
@@ -948,6 +1329,68 @@ mod tests {
         assert!(kinds("It runs fine above 10 minutes.", Context::Document)
             .iter()
             .all(|k| *k != Kind::Phrase));
+    }
+
+    fn has_no_phrase(text: &str) -> bool {
+        kinds(text, Context::Document)
+            .iter()
+            .all(|k| *k != Kind::Phrase)
+    }
+
+    /// A position in a stack takes an object, so `above it`, `above everything` and `above threshold` are never references.
+    #[test]
+    fn phrase_above_taking_any_object_is_a_position_not_a_reference() {
+        assert!(has_no_phrase("Bring every branch above it up to date."));
+        assert!(has_no_phrase("The orb floats above everything in the app."));
+        assert!(has_no_phrase(
+            "It stays above overlays but below the dialog."
+        ));
+        assert!(has_no_phrase("Flag a cost anomaly above threshold."));
+        assert!(has_no_phrase("Node fills sit 1.5 tones above bg."));
+        assert!(has_no_phrase("Panels above canvas use a shadow."));
+        assert!(has_no_phrase("The word above `canvas` is a position."));
+        assert!(has_no_phrase("Keep the volume above recommended limits."));
+    }
+
+    #[test]
+    fn phrase_above_paired_with_below_is_a_pair_of_places() {
+        assert!(has_no_phrase(
+            "The nav reads as primary navigation above, and secondary surfaces below."
+        ));
+    }
+
+    #[test]
+    fn phrase_above_closing_its_clause_is_a_reference() {
+        assert!(has(
+            "It keeps a record of all of the above.",
+            Kind::Phrase,
+            "above"
+        ));
+        assert!(has(
+            "Once the above is done, ship it.",
+            Kind::Phrase,
+            "above"
+        ));
+        assert!(has(
+            "It is the layer described above.",
+            Kind::Phrase,
+            "above"
+        ));
+        assert!(has(
+            "Use the options above, not the old ones.",
+            Kind::Phrase,
+            "above"
+        ));
+        assert!(has(
+            "Snap-to-edge, which the plan above recommended, is one option.",
+            Kind::Phrase,
+            "above"
+        ));
+        assert!(has(
+            "| Record | all of the above | permanent |",
+            Kind::Phrase,
+            "above"
+        ));
     }
 
     #[test]
