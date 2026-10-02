@@ -267,7 +267,7 @@ Potential signals:
 
 Report runway in operational terms:
 
-> 11.4 hours autonomous runway. At current throughput the implementation pool is likely to become work-starved at 06:42. Items are blocked by human decisions; some could become executable with small clarifications.
+> 11.4 hours autonomous runway. At current throughput the implementation pool is likely to become work-starved at 06:42. Several items are blocked by human decisions; a few could become executable with small clarifications.
 
 ## 4. Ambient operator assistant
 

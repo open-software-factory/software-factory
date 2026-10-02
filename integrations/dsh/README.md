@@ -110,7 +110,7 @@ pnpm run test
 `check` type-checks the source without emitting, lints it, and checks its
 formatting. `test` builds, then runs the compiled tests in `dist/test/`.
 
-Both scripts run with `dist` as the working directory for the actual test
+Each script runs with `dist` as the working directory for the actual test
 invocation, `node --test` with no path argument. Node finds every
 `*.test.js` under the current directory on its own; a directory path handed
 to `node --test` (`dist/test`, or even the bare word `test`) is read as a

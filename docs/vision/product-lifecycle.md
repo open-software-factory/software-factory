@@ -4,7 +4,7 @@ The outer loop: discovery, validation, experimentation, launch, measurement and 
 
 Status: living draft
 
-This is the second document in a three-part set. The Agent-Native Operating Model establishes the two-loop vision and operating model. This document covers the outer product lifecycle. The Automated SPDLC / SDLC covers the inner engineering lifecycle. Read all three together; this document references the others where the loops connect.
+This is the second document in a set. The Agent-Native Operating Model establishes the two-loop vision and operating model. This document covers the outer product lifecycle. The Automated SPDLC / SDLC covers the inner engineering lifecycle. Read them together; this document references the others where the loops connect.
 
 ## Why the product loop matters more when agents build
 

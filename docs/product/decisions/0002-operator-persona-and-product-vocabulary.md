@@ -12,7 +12,7 @@ In August 2026 four agent-built consoles printed builder doctrine as UI labels. 
 
 ### The operator
 
-The operator is an engineer who runs the factory and owns what it produces. At first that is one developer running the factory over their own repositories. Later it is a senior engineer or a lead accountable for a handful of repositories. The words are the same at both scales.
+The operator is an engineer who runs the factory and owns what it produces. At first that is one developer running the factory over their own repositories. Later it is a senior engineer or a lead accountable for a handful of repositories. The words are the same at each scale.
 
 Their role has moved from writing every change to operating and managing the agents that write them. The value the product gives them is observability of the whole software lifecycle: rich live views, alerts, and history, so they can see and steer everything the factory does.
 
