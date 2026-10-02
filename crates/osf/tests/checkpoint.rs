@@ -1188,6 +1188,47 @@ fn a_run_report_with_no_task_at_all_is_could_not_run() {
     );
 }
 
+/// Another run holds the report lock. This run must wait for it, give up at
+/// its own timeout, and leave the SARIF files alone: clearing them before it
+/// owns the lock would delete the other run's findings.
+#[test]
+fn a_run_waiting_for_the_report_lock_leaves_the_sarif_files_alone() {
+    let repo = TempRepo::new("cp-lock-before-clear");
+    repo.write(".osf/moon.yml", "tasks: {}\n");
+    repo.write("README.md", "init\n");
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("change");
+    let moon = write_fake_moon(&repo);
+    write_fake_moon_report(&repo, "");
+    repo.write(
+        "fake-moon-query.json",
+        r#"{"tasks":{"osf":{"probe":{"target":"osf:probe","tags":["osf-pre-push"]}}}}"#,
+    );
+    repo.write(".osf/out/probe.sarif", "{}");
+    repo.write(".moon/cache/osf-run-report.lock", "");
+    let home = isolated_home("cp-lock-before-clear");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", moon.to_str().expect("utf8 path"))],
+        &[
+            "verify",
+            "--checkpoint",
+            "pre-push",
+            "--base",
+            &base,
+            "--timeout-secs",
+            "1",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        repo.dir.join(".osf/out/probe.sarif").is_file(),
+        "the stale SARIF was cleared while another run held the lock: {out:?}"
+    );
+}
+
 /// A script containing a shell-quoted argument must survive being embedded
 /// in a single-quoted YAML scalar: YAML represents one literal quote there
 /// as two, so the helper must double every quote in the script, not just

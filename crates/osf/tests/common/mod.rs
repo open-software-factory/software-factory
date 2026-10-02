@@ -218,12 +218,16 @@ impl Drop for BareRepo {
 }
 
 /// A fake `moon` for `OSF_MOON`: it copies [`write_fake_moon_report`]'s file into `.moon/cache/runReport.json` for `run`.
+/// `query` prints `fake-moon-query.json` when the repository has one; with `fake-moon-query-fails-after-first` present, every `query` after the first exits 1.
 #[cfg(windows)]
 pub fn write_fake_moon(repo: &TempRepo) -> PathBuf {
     let path = repo.dir.join("fake-moon.cmd");
     let script = "@echo off\r\n\
         if \"%~1\"==\"--version\" (\r\n  echo moon 2.5.5\r\n  exit /b 0\r\n)\r\n\
-        if \"%~1\"==\"query\" (\r\n  echo {\"tasks\":{}}\r\n  exit /b 0\r\n)\r\n\
+        if \"%~1\"==\"query\" (\r\n  \
+        if exist fake-moon-query-fails-after-first if exist .fake-moon-queried (echo query failed 1>&2 & exit /b 1)\r\n  \
+        echo.> .fake-moon-queried\r\n  \
+        if exist fake-moon-query.json (type fake-moon-query.json) else (echo {\"tasks\":{}})\r\n  exit /b 0\r\n)\r\n\
         if \"%~1\"==\"run\" (\r\n  more > nul\r\n  if not exist \".moon\\cache\" mkdir \".moon\\cache\"\r\n  copy /y \"fake-moon-report.json\" \".moon\\cache\\runReport.json\" > nul\r\n  exit /b 0\r\n)\r\n\
         exit /b 1\r\n";
     std::fs::write(&path, script).expect("fake moon script writes");
@@ -237,7 +241,7 @@ pub fn write_fake_moon(repo: &TempRepo) -> PathBuf {
     let path = repo.dir.join("fake-moon.sh");
     let script = "#!/bin/sh\ncase \"$1\" in\n  \
         --version) echo 'moon 2.5.5'; exit 0 ;;\n  \
-        query) echo '{\"tasks\":{}}'; exit 0 ;;\n  \
+        query) if [ -f fake-moon-query-fails-after-first ] && [ -f .fake-moon-queried ]; then echo 'query failed' >&2; exit 1; fi; touch .fake-moon-queried; if [ -f fake-moon-query.json ]; then cat fake-moon-query.json; else echo '{\"tasks\":{}}'; fi; exit 0 ;;\n  \
         run) cat > /dev/null; mkdir -p .moon/cache; cp fake-moon-report.json .moon/cache/runReport.json; exit 0 ;;\n  \
         *) exit 1 ;;\nesac\n";
     std::fs::write(&path, script).expect("fake moon script writes");

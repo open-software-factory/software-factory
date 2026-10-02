@@ -1097,6 +1097,23 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
         );
     }
 
+    // One lock spans clearing the SARIF files, the moon run, and reading the report and the SARIF back.
+    let report_lock = match moon::ReportLock::acquire(req.root, moon::lock_wait(req.timeout)) {
+        Ok(lock) => lock,
+        Err(e) => {
+            cleanup_files_from(&files_path);
+            return moon_could_not_run_summary(
+                req,
+                &mut journal,
+                commit,
+                label,
+                error_findings,
+                journal_error,
+                &e,
+            );
+        }
+    };
+
     if let Err(e) = clear_stale_sarif(req.root, req.checkpoint.tag()) {
         cleanup_files_from(&files_path);
         return stale_sarif_could_not_run(
@@ -1124,15 +1141,41 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
             .collect();
 
     let target = format!(":#{}", req.checkpoint.tag());
-    let outcome = moon::run(&Invocation {
-        root: req.root,
-        targets: std::slice::from_ref(&target),
-        files: &files,
-        env: &env,
-        timeout: req.timeout,
-    });
+    let outcome = moon::run_holding(
+        &Invocation {
+            root: req.root,
+            targets: std::slice::from_ref(&target),
+            files: &files,
+            env: &env,
+            timeout: req.timeout,
+        },
+        &report_lock,
+    );
     cleanup_files_from(&files_path);
 
+    summarise_outcome(
+        req,
+        outcome,
+        journal,
+        commit,
+        &task_slots,
+        error_findings,
+        journal_error,
+    )
+}
+
+/// The [`Summary`] for what moon reported, built while [`run`] still holds the report lock so the SARIF files it reads are this run's own.
+#[allow(clippy::too_many_arguments)]
+fn summarise_outcome(
+    req: &Request,
+    outcome: Outcome,
+    mut journal: Option<Journal>,
+    commit: Option<String>,
+    task_slots: &std::collections::BTreeMap<String, Option<String>>,
+    error_findings: Vec<String>,
+    journal_error: Option<String>,
+) -> Summary {
+    let label = req.checkpoint.label();
     match outcome {
         Outcome::NothingAffected => finish(
             &mut journal,
@@ -1150,7 +1193,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
             commit,
             label,
             &tasks,
-            &task_slots,
+            task_slots,
             error_findings,
             journal_error,
         ),
@@ -1260,6 +1303,31 @@ mod tests {
         assert!(ran_could_not_run(Checkpoint::Hook, &tasks).is_none());
         let empty: Vec<TaskOutcome> = Vec::new();
         assert!(ran_could_not_run(Checkpoint::Hook, &empty).is_none());
+    }
+
+    /// Another invocation holds the report lock: this one must wait for it
+    /// before touching any SARIF file, and give up at its own timeout.
+    #[test]
+    fn a_held_report_lock_stops_the_run_before_it_clears_any_sarif() {
+        let root = TempDir::new("osf-checkpoint-lock-before-clear");
+        let state = TempDir::new("osf-checkpoint-lock-before-clear-state");
+        let _held = moon::ReportLock::acquire(&root, std::time::Duration::from_secs(30))
+            .expect("the first acquire succeeds");
+        write_sarif(&root, "probe", "{}");
+        let req = Request {
+            root: &root,
+            checkpoint: Checkpoint::Hook,
+            base: None,
+            files: Some(vec!["a.md".to_string()]),
+            timeout: Some(std::time::Duration::from_millis(300)),
+            remote: None,
+        };
+        let summary = run(&req, &state);
+        assert_eq!(summary.result, CheckResult::CouldNotRun);
+        assert!(
+            root.join(".osf").join("out").join("probe.sarif").is_file(),
+            "the stale SARIF was cleared while another run held the lock"
+        );
     }
 
     /// Writes `.osf/out/<id>.sarif` under `root` with raw `content`.
