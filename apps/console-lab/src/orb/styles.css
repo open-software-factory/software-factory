@@ -1,0 +1,61 @@
+  /*
+    A lab for the floating orb (survey/07-floating-orb.md). The bar at the top
+    is scaffolding: it switches variants so they can be judged over real-ish
+    content. Everything below the bar is the "stage" the orb roams in.
+  */
+  :root {
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+    --t-body: 13px; --t-cap: 11px; --t-label: 11px; --t-section: 15px;
+    --space-2: 8px; --space-3: 12px; --space-4: 16px;
+    --r-control: 2px; --r-panel: 4.5px; --r-overlay: 6px;
+    --dur-micro: 120ms; --dur-panel: 200ms; --dur-transform: 280ms;
+    --ease: cubic-bezier(0.2, 0, 0.2, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font: var(--t-body)/1.45 var(--font-sans); background: var(--bg); color: var(--fg); overflow: hidden; }
+  #root { height: 100%; display: flex; flex-direction: column; }
+
+  .labbar { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); background: var(--lab-bg); border-bottom: 1px solid var(--border-subtle); font-size: var(--t-cap); }
+  .labbar .group { display: inline-flex; align-items: center; gap: 4px; }
+  .labbar .group > span { color: var(--fg-muted); font-family: var(--font-mono); letter-spacing: .04em; margin-right: 4px; }
+  .labbar button { appearance: none; border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--fg); border-radius: var(--r-control); padding: 3px 9px; font: inherit; cursor: pointer; }
+  .labbar button[aria-pressed="true"] { background: var(--accent-quiet); color: var(--fg-strong); border-color: var(--accent); }
+  .labbar .log { margin-left: auto; font-family: var(--font-mono); color: var(--fg-muted); }
+  .labbar .log b { color: var(--fg-strong); font-weight: 500; }
+
+  .stage { position: relative; flex: 1; overflow: hidden; background: var(--stage-backdrop); padding: var(--space-4); display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-3); align-content: start; }
+  .card { background: var(--surface-1); border: 1px solid var(--border-subtle); border-radius: var(--r-panel); padding: var(--space-3); box-shadow: var(--pane-sheen); min-height: 120px; }
+  .card h3 { margin: 0 0 6px; font-size: var(--t-section); font-weight: 500; color: var(--fg-strong); }
+  .card p { margin: 0; color: var(--fg-muted); }
+  .hint { grid-column: 1 / -1; color: var(--fg-faint); font-family: var(--font-mono); font-size: var(--t-cap); }
+
+  /* Panel contents: a mini chat and a voice panel, the two things the orb opens as a panel. */
+  .pane-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--border-subtle); }
+  .pane-title { flex: 1; font-weight: 500; color: var(--fg-strong); }
+  .pane-head .modes { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-control); overflow: hidden; }
+  .pane-head .modes button { appearance: none; border: 0; background: var(--surface-1); color: var(--fg-muted); font: inherit; font-size: var(--t-cap); padding: 3px 8px; cursor: pointer; }
+  .pane-head .modes button + button { border-left: 1px solid var(--border-strong); }
+  .pane-head .modes button[aria-pressed="true"] { background: var(--accent-quiet); color: var(--fg-strong); }
+  .overlay-close { appearance: none; border: 0; background: transparent; color: var(--fg-muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 4px; border-radius: var(--r-control); }
+  .overlay-close:hover { background: var(--surface-3); color: var(--fg-strong); }
+  .chat { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); }
+  .chat .msg { padding: 6px 10px; border-radius: var(--r-panel); background: var(--surface-2); max-width: 85%; }
+  .chat .msg.me { align-self: flex-end; background: var(--accent-quiet); color: var(--fg-strong); }
+  .chat input { font: inherit; padding: 6px 8px; border: 1px solid var(--border-strong); background: var(--surface-1); color: var(--fg); border-radius: var(--r-control); }
+  .chat input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .voice { display: grid; place-items: center; gap: var(--space-3); padding: var(--space-4); }
+  .voice .meter { display: flex; gap: 4px; align-items: flex-end; height: 32px; }
+  .voice .meter i { width: 5px; background: var(--accent); border-radius: 2px; animation: bar 900ms var(--ease) infinite alternate; }
+  .voice .meter i:nth-child(2) { animation-delay: 120ms; } .voice .meter i:nth-child(3) { animation-delay: 240ms; }
+  .voice .meter i:nth-child(4) { animation-delay: 360ms; } .voice .meter i:nth-child(5) { animation-delay: 480ms; }
+  @keyframes bar { from { height: 6px; } to { height: 32px; } }
+  .voice button { appearance: none; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--fg-strong); border-radius: 999px; padding: 6px 14px; font: inherit; cursor: pointer; }
+
+  /* od:theme-exempt:start
+     Diagnostics carry their own colours on purpose: they have to stay legible
+     when the theme itself is what broke. Everything else must use tokens. */
+  #fatal { position: fixed; inset: 16px; z-index: 999; overflow: auto; padding: 20px; background: oklch(0.2 0.05 25); border: 1px solid oklch(0.72 0.15 25); color: oklch(0.93 0.03 25); border-radius: var(--r-panel); font: 13px/1.5 var(--font-mono); white-space: pre-wrap; }
+  #selftest { position: fixed; left: 10px; top: 36px; z-index: 9999; margin: 0; padding: 10px 12px; background: oklch(0.16 0.02 210); color: oklch(0.92 0.02 210); border: 1px solid oklch(0.78 0.10 170); border-radius: var(--r-panel); font: 11px/1.5 var(--font-mono); white-space: pre; }
+  /* od:theme-exempt:end */

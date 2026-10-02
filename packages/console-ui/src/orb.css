@@ -1,0 +1,66 @@
+/* FloatingOrb — above everything, positioned by its centre. Tokens only. */
+/* Clipped to its bounds so a plate reaching past a corner cannot make the host scroll. */
+/* Above floats (940) and below a modal (950): the P0 decision still covers it. */
+.od-orb-layer { position: absolute; inset: 0; z-index: 945; pointer-events: none; overflow: hidden; }
+.od-orb-layer > * { pointer-events: auto; }
+.od-orb {
+  position: absolute; z-index: 2; transform: translate(-50%, -50%);
+  appearance: none; border: 1px solid var(--border-strong); border-radius: 50%; cursor: grab;
+  background: radial-gradient(circle at 35% 30%, var(--surface-3), var(--surface-2) 55%, var(--surface-1));
+  color: var(--fg-strong);
+  box-shadow: 0 10px 28px var(--shadow-ambient), 0 2px 6px var(--shadow-key), var(--pane-sheen);
+  display: grid; place-items: center; touch-action: none; user-select: none;
+  transition: transform var(--dur-micro) var(--ease), box-shadow var(--dur-micro) var(--ease);
+}
+.od-orb:hover { box-shadow: 0 14px 34px var(--shadow-ambient), 0 3px 8px var(--shadow-key), var(--pane-sheen); }
+/* Pressed: it sinks — smaller, tighter shadow, a touch darker — the "3D" is depth, not bevels. */
+.od-orb[data-pressed="true"] { transform: translate(-50%, -50%) scale(.94); box-shadow: 0 4px 12px var(--shadow-ambient), inset 0 2px 6px var(--shadow-key); }
+.od-orb[data-dragging="true"] { cursor: grabbing; transition: none; }
+.od-orb[data-open="true"] { border-color: var(--accent); }
+.od-orb:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.od-orb-face { font-size: 1.375rem; line-height: 1; color: var(--fg); }
+.od-orb[data-open="true"] .od-orb-face { color: var(--accent); }
+
+/* Radial: the wrap sits on the orb's centre; each item is rotated out along its spoke
+   then counter-rotated so the label stays upright. */
+.od-orb-ringwrap { position: absolute; width: 0; height: 0; z-index: 1; }
+.od-orb-ring { position: absolute; left: 0; top: 0; outline: none; }
+/* Plate variant: an opaque disc or sector under the items, so nothing shows through. */
+.od-orb-plated { position: absolute; left: 0; top: 0; }
+.od-orb-plate { position: absolute; overflow: visible; filter: drop-shadow(0 12px 28px var(--shadow-ambient)) drop-shadow(0 2px 6px var(--shadow-key)); }
+.od-orb-plate path { fill: var(--surface-1); stroke: var(--border-strong); stroke-width: 1; }
+.od-orb-ring[data-ring="plate"] .od-orb-item { box-shadow: none; background: var(--surface-2); }
+.od-orb-ring[data-ring="plate"] .od-orb-item[data-hovered], .od-orb-ring[data-ring="plate"] .od-orb-item[data-focused] { background: color-mix(in oklch, var(--accent) 16%, var(--surface-2)); }
+/* Glyph and label both live inside the disc, so an item needs no room beyond its own edge. */
+.od-orb-item {
+  position: absolute; left: 0; top: 0; width: 3.5rem; height: 3.5rem; margin: -1.75rem 0 0 -1.75rem;
+  transform: rotate(var(--angle)) translate(var(--radius)) rotate(calc(-1 * var(--angle)));
+  border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; outline: none;
+  background: var(--surface-2); color: var(--fg); border: 1px solid var(--border-subtle);
+  box-shadow: 0 6px 18px var(--shadow-ambient);
+  text-align: center;
+}
+.od-orb-item .od-orb-glyph { font-size: 1rem; line-height: 1; }
+.od-orb-item .od-orb-label { max-width: 3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.5625rem; line-height: 1; color: var(--fg-muted); font-family: var(--font-mono); letter-spacing: .02em; }
+.od-orb-item[data-hovered], .od-orb-item[data-focused] { background: color-mix(in oklch, var(--accent) 16%, var(--surface-2)); color: var(--fg-strong); border-color: color-mix(in oklch, var(--accent) 40%, transparent); }
+.od-orb-item[data-focused] .od-orb-label { color: var(--fg); }
+.od-orb-item[data-focus-visible] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.od-orb-item[data-pressed] { transform: rotate(var(--angle)) translate(var(--radius)) rotate(calc(-1 * var(--angle))) scale(.94); }
+/* The view the operator is in: the one accent, as the nav rail marks it. */
+.od-orb-item[data-current="true"] { border-color: var(--accent); }
+.od-orb-item[data-current="true"] .od-orb-glyph { color: var(--accent); }
+/* A submenu wears a small badge at its shoulder, not a loose mark in the disc. */
+.od-orb-item[data-has-children="true"]::after {
+  content: '›'; position: absolute; right: -0.1875rem; top: -0.1875rem; width: 1rem; height: 1rem; border-radius: 50%;
+  background: var(--surface-3); border: 1px solid var(--border-strong); color: var(--fg-muted);
+  font-size: 0.75rem; line-height: 0.8125rem; text-align: center; font-family: var(--font-sans);
+}
+
+/* Regular menu beside the orb. */
+.od-orb-list { min-width: 12.5rem; }
+.od-orb-glyph.small { width: 1.125rem; text-align: center; font-size: 0.8125rem; color: var(--fg-muted); }
+
+/* Panel: a small floating surface for the assistant or voice. */
+.od-orb-panel { width: min(22.5rem, 90vw); }
+.od-orb-panel .od-popover-dialog { padding: 0; }
