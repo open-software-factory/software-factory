@@ -6,7 +6,7 @@ Date: 2026-09-20
 
 ## Context
 
-Work items and documents named "the smallest working engine" and none defined it. The domain model in decision 0005 is accepted and unbuilt. The choice of first job decides which parts of that model are tested first, and everything after it is built against that job.
+On 2026-09-20, six work items and three documents named "the smallest working engine" and none defined it. The domain model in decision 0005 is accepted and unbuilt. The choice of first job decides which parts of that model are tested first, and everything after it is built against that job.
 
 These shapes were considered. Verifying one change and recording the evidence would have tested the journal and the policy and left the run, the sandbox and the harness untouched. A journal with a console view over it would have tested less. Taking one work item to a pull request without a person tests the whole model at once, on one item, in one sandbox.
 

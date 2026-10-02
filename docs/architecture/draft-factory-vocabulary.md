@@ -27,7 +27,7 @@ Every entity has a stable string ID. Relationships use an identifier and never a
 | Runner | id, platform (windows-x64, linux-x64, linux-arm64, macos-arm64), location (local, remote), current work item | available, busy, stale |
 | Deployment | id, repository, work item, pull request, check IDs, environment (staging, production) | pending, deploying, deployed, rolled-back |
 | Attention item | id, severity (critical, high, medium, low), title, related IDs | active or resolved |
-| Evidence | id, kind (intent, specification, verification, production-outcome), summary, related IDs | known or unknown |
+| Evidence | id, kind (intent, specification, verification, production-outcome), summary, related IDs | known or pending |
 | Trace link | id, from (kind, id), to (kind, id), relation (informs, implements, verifies, deploys, observes) | none |
 | Design decision | id, title, rationale, intent, related pull requests | none |
 | Operator choice | id, design decision, action, impact, confidence, reversibility, missing knowledge | verified |
@@ -89,12 +89,12 @@ Fictional setting: the repositories of a portfolio product (investor app, portfo
 
 | Step | What is true | State change |
 |---|---|---|
-| Calm | Routine autonomous work. All repositories healthy, no active attention, no containment, no decision. All deployments already live. | Initial state. |
+| Calm | Routine autonomous work. All repositories healthy, no active attention, no containment, no decision. As of 2026-09-05, three deployments already live. | Initial state. |
 | Reconciliation breach | The post-deployment replay gate fails. Fictional portfolios show inconsistent totals. | Portfolio API goes to attention-required. Replay check fails. Critical attention item raised. Breach and replay evidence become known. |
 | Contained | Automation halts rollout, pauses generation, quarantines the queue and preserves snapshots. No rollback has happened. | The containment actions completed. |
 | Investigating | A verification session finds the missing cross-service ordering case. | Availability is streaming. |
 | Decision required | Verified options are offered, each with impact, confidence, reversibility and missing knowledge. | Pending decision is required. |
-| Rollback applied (branch A) | Deployments are rolled back. Affected portfolios stay stale until safe resync. | Deployments rolled-back. Decision approved. |
+| Rollback applied (branch A) | Deployments are rolled back. Affected portfolios stay stale until safe resync. | As of 2026-09-05, three deployments rolled-back. Decision approved. |
 | Forward fix approved (branch B) | The forward fix and controlled replay begin. | Decision approved. Availability is streaming. |
 | Recovering | Corrected artifacts move through verification. | Replay check running. |
 | Recovered | Recovery is complete. Evidence stays available. | Portfolio API healthy. Replay check passed. Decision cleared. |

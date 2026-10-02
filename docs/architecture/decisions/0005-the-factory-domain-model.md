@@ -6,7 +6,7 @@ Date: 2026-09-15.
 
 ## Context
 
-The operator console's design work stalled on exactly this: its state vocabulary is marked provisional, to be re-derived from the domain model when it lands. Every verifier, reporter, policy and console view needs one shared model.
+The operator console's design work stalled on exactly this: its state vocabulary is marked provisional, to be re-derived from the domain model when it lands. Every verifier, reporter, policy and console view needs a shared model.
 
 ## Decision
 

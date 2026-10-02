@@ -251,7 +251,7 @@ Each check writes its own verification event. When the aggregation finishes, it 
 | Slot | Filled by | Result | Findings | Grade |
 | --- | --- | --- | --- | --- |
 | lint | this repository's Build job, check recogniser confirmed | pass | 0 | observed |
-| unit-tests | this repository's Unit Tests job | pass | all tests passed | observed |
+| unit-tests | this repository's Unit Tests job | pass | "412 tests, 0 failed" | observed |
 | architecture-tests | empty, warning | skipped | | |
 | contract-tests | slot attestation, 2026-09-22 | pass | | reported |
 | review | second-opinion review, round 2 | 1 thread open | 1 | reported |
@@ -293,7 +293,7 @@ A suppression the ecosystem's own tool understands keeps working for that tool, 
 | An adopter's job was cancelled, or its check run is absent for any other reason | The slot is unknown. The aggregation fails. | The slot row says "could not read", with the job name. |
 | A workflow or project file the check recogniser needs does not parse | The slot is unknown, at error level. | The slot row says "could not read", with the file and the error. |
 | A result file is missing or unreadable for a slot that expects one | Warning on the first pull request, error once the adopter confirms the slot. The conclusion decides pass or fail. | The slot row carries the conclusion and the note "no readable results". |
-| A test count shrinks between the base and the change | A finding for review, as the existing rule says. | A finding with both counts. |
+| A test count shrinks between the base and the change | A finding for review, as the existing rule says. | A finding with the base count and the change count. |
 | A suppression has expired, or a change adds a native suppression | A finding. | A finding naming the marker and its expiry. |
 | A generated file was edited by hand | The drift gate fails and its message names the key in `osf.toml` or the tag on a moon task where the change belongs. | A verification event from the drift check. |
 | Rendering would overwrite a file the adopter already has under the same name | The sync command refuses and names the file. | Nothing. The sync did not run. |
@@ -334,7 +334,7 @@ Each one records the options weighed and the option taken.
 | --- | --- |
 | The check is the unit | Tagged moon tasks, checkpoints, the name checkpoint, moon under every factory check, no fixed budget. |
 | Slots, check recognisers and slot attestations | At least as strong, the level of an empty slot, the slot tables in `osf.toml`. |
-| The aggregation check | Parallel checks with one final check, run in the adopter's repository, results found by content, reviews as reported checks. |
+| The aggregation check | Parallel checks with a final check, run in the adopter's repository, results found by content, reviews as reported checks. |
 | The journal at every checkpoint | Local buffer, flush on push and on a timer, orphan branch and object store as sinks, transcripts on the same path. |
 | Suppressions | The factory marker and the native markers, each with a reason and an expiry where the form allows. |
 

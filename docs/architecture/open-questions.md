@@ -60,7 +60,7 @@ See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-archit
 - Which meta-loop recommendations can be generated automatically?
 
 ## External systems
-- Backlog: which tracker does an adopter bring? Candidates are GitHub issues and projects, Linear and Jira, both hosted issue trackers, a Markdown file, or something of their own.
+- Backlog: which tracker does an adopter bring? Candidates are GitHub issues and projects, Linear and Jira, which are hosted issue trackers, a Markdown file, or something of their own.
 - SCM/forge: GitHub first but provider-neutral?
 - Agent surfaces: Codex, Pi, OpenCode, Claude Code and others.
 - Coding-agent harness control: ACP first where supported, with provider-native adapters where necessary.

@@ -44,7 +44,7 @@ This loop carries forward the rule in [decision 0003](decisions/0003-determinist
 An adopter who wants the review gate needs these things:
 
 - the verifier app's ID and its key
-- one environment, named `review`, holding the model keys
+- one environment, named `review`, holding the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` model keys
 - branch protection that requires the review job
 
 ## Future work
