@@ -67,7 +67,7 @@ Every pairing we rely on is asserted:
 | Secondary text | 4.5:1 | All five surfaces, both themes |
 | Faint text and every meaning-carrying colour | 3:1 | All five surfaces, both themes |
 
-**A surface declares, the slot decides.** A `SurfaceSpec` states its width appetite (`min`/`max`), whether it survives rail width (`canRail`), where it starts (`home`), and which slots it will accept (`accepts`). The shell negotiates against those declarations rather than hard-coding placements. `accepts` is permissive now. Every surface takes every slot. That is deliberate, until real views show which placements are wrong.
+**A surface declares, the slot decides.** A `SurfaceSpec` states its width appetite (`min`/`max`), whether it survives rail width (`canRail`), where it starts (`home`), and which slots it will accept (`accepts`). The shell negotiates against those declarations rather than hard-coding placements. `accepts` is permissive. Every surface takes every slot. That is deliberate, until real views show which placements are wrong.
 
 ### One representation per state
 

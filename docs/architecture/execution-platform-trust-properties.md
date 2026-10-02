@@ -36,12 +36,12 @@ This loop carries forward the rule in [decision 0003](decisions/0003-determinist
 | Egress control | Only listed hosts are reachable from the job. | harden-runner, in block mode. | Minimum (built in) |
 | Outside approval | A person approves a run that comes from outside the project, before it can use trusted keys. | Off by default. `OSF_REVIEW_FORKS`, plus a protected fork-review environment, turn it on. | Recommended |
 | Short-lived identity | The verifier posts its result with a token that expires soon. | An app token, minted fresh for each job. | Minimum |
-| Key never exposed | The job can use a key. The job never reads the key's value. | Currently, this is not met on GitHub-hosted runners. A later option is a self-hosted, ephemeral runner with a proxy on the host. The proxy adds the key to model API requests. The job itself never sees the key. | Future |
+| Key never exposed | The job can use a key. The job never reads the key's value. | As of 2026-09-30, this is not met on GitHub-hosted runners. A later option is a self-hosted, ephemeral runner with a proxy on the host. The proxy adds the key to model API requests. The job itself never sees the key. | Future |
 | Least privilege for the builder | The builder app cannot change a setting a gate later reads. | Remove `actions_variables: write` from the builder app. | Recommended |
 
-## Current adopter minimum for the review gate
+## Adopter minimum for the review gate
 
-An adopter who wants the review gate currently needs three things:
+As of 2026-09-30, an adopter who wants the review gate needs three things:
 
 - the verifier app's ID and its key
 - one environment, named `review`, holding two model keys

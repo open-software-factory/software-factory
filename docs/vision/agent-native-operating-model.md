@@ -246,7 +246,7 @@ The meta-loop lets the system review and improve its own operation.
 
 ### 7.1 Why the meta-loop is infrastructure
 
-Product discovery, engineering execution and architectural governance all degrade without maintenance. Gates drift out of calibration. LLM capabilities improve faster than prompts are updated. Tools are superseded. Thresholds that were right six months ago produce noise now.
+Product discovery, engineering execution and architectural governance all degrade without maintenance. Gates drift out of calibration. LLM capabilities improve faster than prompts are updated. Tools are superseded. Thresholds that were right when set drift into producing noise.
 
 The meta-loop maintains the automation layer so the other loops continue to work correctly.
 

@@ -299,7 +299,7 @@ A suppression the ecosystem's own tool understands keeps working for that tool, 
 | Rendering would overwrite a file the adopter already has under the same name | The sync command refuses and names the file. | Nothing. The sync did not run. |
 | The flush cannot reach the branch or the store | Locally the buffer keeps the events and the next flush retries. In the pull-request checkpoint the aggregation fails, because evidence must be durable before the state changes. | Locally, a gap event at the next successful flush. In CI, the failed aggregation. |
 | Two aggregation runs start on the same commit | A concurrency group per commit lets one run at a time, and the later one supersedes. | One checkpoint-complete event per commit. |
-| The harness sends no text in its hook reply, as one bridge currently does | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
+| The harness sends no text in its hook reply, as one bridge did on 2026-09-22 | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
 
 ## Testing
 

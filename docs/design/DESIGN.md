@@ -124,7 +124,7 @@ Every chart, card or cluster must complete one sentence: *"I look at this when I
 
 ### 3.2 Shell rules
 
-- The product vision defines six surfaces. These are **Command/Attention** (attention feed), **Factory Floor**, **Work Graphs**, **Flight Recorder**, **Factory Runway** (capacity outlook), and **Factory Intelligence**. §2.3 maps their densities. Whether they collapse into a few modes, as Direction B does now, is **not settled**. Or they may earn nav destinations of their own [O, previously tagged E]. The current working shape is a small set of modes. Everything else is a **lens**, a **layer**, or a **dock**.
+- The product vision defines six surfaces. These are **Command/Attention** (attention feed), **Factory Floor**, **Work Graphs**, **Flight Recorder**, **Factory Runway** (capacity outlook), and **Factory Intelligence**. §2.3 maps their densities. Whether they collapse into a few modes, as Direction B does, is **not settled**. Or they may earn nav destinations of their own [O, previously tagged E]. The current working shape is a small set of modes. Everything else is a **lens**, a **layer**, or a **dock**.
 - Exactly one home for human attention [C]: the attention strip or layer. Attention never scatters across surfaces.
 - Selection is the thread. A focused entity, such as a work item, a cluster, or a gate, persists across lens and mode changes [E same-truth, C mechanism].
 - The ambient operator is a cross-cutting modality: command palette, context action, annotation, generated view. It is not a surface and not a chat tab [E]. Its transport is [O].

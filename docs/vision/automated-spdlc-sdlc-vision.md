@@ -4,7 +4,7 @@ A vision for automating software and product delivery.
 
 Status: living draft
 
-This document describes an aspirational direction for end-to-end automation of the product and software-delivery lifecycle. Some parts are not achievable yet and will change as LLMs and deterministic tools improve. The goal is to remove tedious, low-judgment work and concentrate human attention on direction, taste and decisions.
+This document describes an aspirational direction for end-to-end automation of the product and software-delivery lifecycle. Some parts are out of reach and will change as LLMs and deterministic tools improve. The goal is to remove tedious, low-judgment work and concentrate human attention on direction, taste and decisions.
 
 ## 0. Engineering principles
 
@@ -34,7 +34,7 @@ These principles survive, but their mechanism has changed. The new mechanism exp
 
 The traditional justification: humans read code and names communicate intent. A well-named variable or function is the fastest documentation.
 
-The agent-native justification: the L in LLM is language. Models are trained predominantly on human-readable code. Agent comprehension of code currently tracks human readability because the training data makes them closely related. “Write code an agent can understand” and “write code a human can understand” currently produce the same answer.
+The agent-native justification: the L in LLM is language. Models are trained predominantly on human-readable code. Agent comprehension of code currently tracks human readability because the training data makes them closely related. “Write code an agent can understand” and “write code a human can understand” produce the same answer.
 
 This equivalence depends on training data rather than anything fundamental about agents. Most existing and foreseeable code is human-readable, so models will continue to train on it. Human readability therefore remains the best available proxy for agent readability, even if the equivalence is not permanent.
 

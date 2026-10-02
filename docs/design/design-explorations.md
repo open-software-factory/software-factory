@@ -52,7 +52,7 @@ Verdicts work like this. `covered` means we hold an opinion, even if exact value
 
 ### Classic dimensions
 
-| Dimension | Codified by | Us now | Verdict |
+| Dimension | Codified by | Our position | Verdict |
 |---|---|---|---|
 | Principles & product character | all | `DESIGN.md` §1 | covered |
 | Information hierarchy & density | Carbon, Fluent | §2 + component modes | covered, stronger than most |
@@ -77,7 +77,7 @@ Verdicts work like this. `covered` means we hold an opinion, even if exact value
 
 ### Agent-UX dimensions (2026 guidance)
 
-| Dimension | Us now | Verdict |
+| Dimension | Our position | Verdict |
 |---|---|---|
 | Agent activity transparency, "what is it doing now" | AgentPin, RecorderTimeline, §11.7 | covered |
 | Provenance, evidence, confidence display | §11.8, ProvenanceChip, ConfidenceTag | covered, ahead of the reference set |

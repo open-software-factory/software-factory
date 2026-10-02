@@ -76,7 +76,7 @@ Google, Meta, Microsoft, Amazon, Slack and Netflix are the large software compan
 - Every system admits false positives and keeps a person or a slower check behind it.
 - A safety gate is software too. One published outage came from a bug in the tool meant to stop the bad change.
 
-## 5. Facts a program can read from a change set right now
+## 5. Facts a program can read from a change set
 
 An inventory of deterministic tools, grouped by the fact they report. Every tool listed runs offline unless marked. Maturity was checked in September 2026.
 
