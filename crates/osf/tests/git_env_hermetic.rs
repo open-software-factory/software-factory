@@ -102,7 +102,7 @@ fn checkpoint_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     assert_eq!(before, after, "the sentinel's config changed");
 }
 
-/// `risk::assess` takes an explicit folder, but every git call it made ran
+/// `changeset_risk::assess` takes an explicit folder, but every git call it made ran
 /// unscrubbed, so an inherited `GIT_DIR` (the same shape a real pre-push
 /// hook running `cargo test` leaves on the process) redirected it to the
 /// wrong repository and the wrong tier.
@@ -111,7 +111,7 @@ fn checkpoint_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
 fn risk_tests_never_touch_a_sentinel_pointed_to_by_git_dir() {
     let sentinel = Sentinel::new("risk");
     let before = sentinel.config_bytes();
-    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--test", "risk"]);
+    run_cargo_test_under_sentinel_git_env(&sentinel, &["-p", "osf", "--test", "changeset_risk"]);
     let after = sentinel.config_bytes();
     assert_eq!(before, after, "the sentinel's config changed");
 }
