@@ -1,0 +1,44 @@
+// Each line: sentence ||| expected excerpts, separated by ; ||| source.
+// Every sentence names a time that moves with the reader, so the rule must flag it.
+// A source that starts with constructed is a sentence this repository's docs do not hold.
+There is no runnable factory yet. ||| yet ||| README.md:7
+What runs today is `osf`, a command-line tool. ||| today ||| README.md:7
+None of this exists yet. ||| yet ||| docs/architecture/execution-platform-trust-properties.md:52
+It does not enforce anything yet. ||| yet ||| docs/architecture/execution-platform-trust-properties.md:60
+## Adopter minimum today, for the review gate ||| today ||| docs/architecture/execution-platform-trust-properties.md:42
+An adopter who wants the review gate needs three things today: ||| today ||| docs/architecture/execution-platform-trust-properties.md:44
+- OSF can evolve toward REAPI without committing to remote infrastructure now. ||| now ||| docs/architecture/execution-and-verification.md:293
+Keep the first implementation small enough that its abstractions can still be deleted cheaply. ||| still ||| AGENTS.md:55
+A pull request from a fork still gets every check. ||| still ||| CONTRIBUTING.md:50
+Where a family has no answer above, the engine has not reached it yet. ||| yet ||| docs/architecture/draft-factory-vocabulary.md:121
+Motion currently follows §5.1.5. ||| currently ||| docs/design/DESIGN.md:796
+It runs client-side now. ||| now ||| docs/design/components.md:110
+Today, this is not met on GitHub-hosted runners. ||| Today ||| docs/architecture/execution-platform-trust-properties.md:39
+Nothing filters by it yet. ||| yet ||| docs/design/design-tracker.md:77
+Today there is a v1 draggable orb in `apps/console-lab/shell.html`, with a fixed menu. ||| Today ||| docs/design/design-tracker.md:173
+The owner still must answer Q12. ||| still ||| docs/design/design-tracker.md:183
+Per-view memory now carries which panels are open and which is active. ||| now ||| docs/design/design-tracker.md:133
+Currently appears with no motion ||| Currently ||| docs/design/design-tracker.md:689
+Keep a copy of every discarded direction in this file at the moment it is discarded. ||| at the moment ||| docs/design/design-explorations.md:9
+Why did review rework rise this week? ||| this week ||| docs/product/ux/factory-ux-vision.md:217
+Patterns that required human judgment last year can be expressed as rules this year. ||| last year;this year ||| docs/vision/agent-native-operating-model.md:343
+None is currently justified merely to improve caching. ||| currently ||| docs/research/2026-09-18-moon-as-osf-execution-substrate.md:119
+The rule now is this. ||| now ||| docs/design/design-tracker.md:338
+**If the framework decision needs to happen now or soon**, use React Aria Components for the full Layer 1 and Layer 2 set. ||| now;soon ||| docs/design/survey/01-behaviour-libraries.md:41
+If one is still running, it stops and waits for the next finish. ||| still ||| docs/architecture/verification-seam.md:142
+Thresholds that were right six months ago produce noise today. ||| today ||| docs/vision/agent-native-operating-model.md:249
+Write "cause not yet determined." ||| yet ||| docs/design/DESIGN.md:293
+Applying the shared token layer back to the older floor is not yet verified ||| yet ||| docs/design/design-tracker.md:687
+A7 (per-list filter) does not belong in the shell for now. ||| for now ||| docs/design/design-tracker.md:621
+Because of this, the nav derives each item's section from where that surface sits right now. ||| right now ||| docs/design/DESIGN.md:231
+The new cache beats the old one on every benchmark we tried this month. ||| this month ||| crates/osf/tests/fixtures/writing/aphorism-negative.md:1
+The team will decide next week. ||| next week ||| crates/osf/tests/fixtures/writing/contrast-pair-negative.md:1
+Most teams run the check nightly nowadays. ||| nowadays ||| constructed
+Build times have improved lately. ||| lately ||| constructed
+As of now, the check is advisory. ||| As of now ||| constructed
+At present the cache is disabled. ||| At present ||| constructed
+These days the cache is off by default. ||| These days ||| constructed
+To date the cache has never been enabled. ||| To date ||| constructed
+The team met recently. ||| recently ||| constructed
+We shipped the parser yesterday and will ship the printer tomorrow. ||| yesterday;tomorrow ||| constructed
+Tonight's build is red. ||| Tonight ||| constructed

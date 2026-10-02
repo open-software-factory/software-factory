@@ -1,0 +1,26 @@
+// Each line: sentence ||| source. The rule must not flag any of them.
+// A source that starts with constructed is a sentence this repository's docs do not hold.
+After a change lands lower in a stack, run `git town sync` to bring every branch above it up to date. ||| AGENTS.md:45
+2026 ecosystem shifts recorded: Radix's pace has slowed, and shadcn now defaults to Base UI. ||| docs/design/survey/00-synthesis.md:31
+Notably, Amazon's older NLU Evaluation feature was deprecated in August 2026, so documentation or articles recommending that specific tool are now stale. ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:71
+Despite the amount of 2026 activity, **skill-lint is not yet a settled engineering discipline**. ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:218
+This reflects browser and engine support as of September 4, 2026. ||| docs/design/survey/06-workspace-spike.md:26
+Kimi K3 should enter as soon as the operator's access becomes available. ||| docs/research/ux/design-workflow-landscape.md:188
+### Q20: where the design work lives now that the factory repo is public (opened `2026-09-21`) ||| docs/design/design-tracker.md:318
+### Placed surfaces now win over per-view memory (fix, `2026-09-25`) ||| docs/design/design-tracker.md:332
+Unknowns stay unknown. ||| docs/design/DESIGN.md:293
+Attention reveal is a short pulse + steady halo, then stillness [C]. ||| docs/design/DESIGN.md:796
+Collected millions of files, including roughly 1.88M distinct contents, from hundreds of thousands of repositories as of July 2026. ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:134
+The team retired these on 10 September 2026. ||| docs/design/design-explorations.md:25
+Port and disabled control done 2026-09-11, with the adapter still open. ||| constructed
+Now that the cache is warm, run the build again. ||| constructed
+Run the build now and then to check the cache. ||| constructed
+The check is simple yet thorough. ||| constructed
+Now, run the build. ||| constructed
+Still, the cache works. ||| constructed
+The new cache is still larger than the old one. ||| constructed
+Keep the pointer still. ||| constructed
+The tool knows what to do. ||| constructed
+Known issues are listed in the tracker. ||| constructed
+Start the job as soon as the cache is ready. ||| constructed
+The wire protocol was frozen in 2025, and the old format is still read. ||| constructed

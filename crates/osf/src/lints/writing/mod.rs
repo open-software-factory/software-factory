@@ -2,9 +2,11 @@
 //!
 //! Text is split into paragraphs and sentences. Fenced code, tables, HTML
 //! comments, inline code and a `---`-delimited front-matter block are never
-//! checked. Every rule has an id, a level and a one-line message that names
+//! checked. `count-word` and `relative-time` run only on text that lasts, so
+//! never in a transcript. Every rule has an id, a level and a one-line message that names
 //! the offending text.
 
+pub(super) mod durable;
 pub(super) mod meta;
 pub(super) mod names;
 pub(super) mod rules;
@@ -38,6 +40,11 @@ pub fn lint_writing(
     rules::per_sentence(&doc, cfg, fast_only, &mut findings);
     rules::undefined_names(&doc, known, cfg, &mut findings);
     rules::recap_ending(&doc, cfg, &mut findings);
+    // A transcript is not kept, so a count or a time word in it goes stale
+    // with nothing to repair. Only text that lasts is held to these rules.
+    if matches!(context, Context::Transcript) {
+        findings.retain(|f| !matches!(f.rule, "count-word" | "relative-time"));
+    }
     apply_context(&mut findings, context);
     let mut findings = if no_suppress {
         findings

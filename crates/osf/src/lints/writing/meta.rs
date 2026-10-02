@@ -71,7 +71,7 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: Fixed in #125 today.\n\
          Good: Fixed in [open-software-factory/software-factory#125 (the login \
-         crash)](https://example.com/125) today."
+         crash)](https://example.com/125)."
     ),
     rule_meta!(
         "reference-without-label",
@@ -91,7 +91,7 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: The fix landed in open-software-factory/software-factory#125 today.\n\
          Good: The fix landed in [open-software-factory/software-factory#125 \
-         (the login crash)](https://example.com/125) today."
+         (the login crash)](https://example.com/125)."
     ),
     rule_meta!(
         "reference-without-link",
@@ -110,8 +110,8 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: open-software-factory/software-factory#125 (the login crash) is now fixed.\n\
-         Good: [open-software-factory/software-factory#125 (the login crash)](https://example.com/125) is now fixed.",
+         Bad: open-software-factory/software-factory#125 (the login crash) is fixed.\n\
+         Good: [open-software-factory/software-factory#125 (the login crash)](https://example.com/125) is fixed.",
         Exception::FixedLevel(Level::Warning)
     ),
     rule_meta!(
@@ -212,7 +212,7 @@ pub const RULE_META: &[RuleMeta] = &[
          runner ran out of disk space, which happened because the cache grew \
          past the volume limit set last month.\n\
          Good: The build failed. The test step timed out. The runner ran out \
-         of disk space, because the cache grew past last month's volume limit."
+         of disk space, because the cache grew past the volume limit."
     ),
     rule_meta!(
         "em-dash",
@@ -222,7 +222,7 @@ pub const RULE_META: &[RuleMeta] = &[
         "### What it does\n\
          Flags an em dash, an en dash, or a spaced double hyphen.\n\
          ### Why it is bad\n\
-         An em dash often joins two ideas that would read better as two \
+         An em dash often joins ideas that would read better as separate \
          sentences. It also reads, to many people, as a sign the text was \
          written by a language model rather than a person.\n\
          ### Class\n\
@@ -260,9 +260,9 @@ pub const RULE_META: &[RuleMeta] = &[
         "### What it does\n\
          Flags a semicolon followed by a space, outside a table cell.\n\
          ### Why it is bad\n\
-         A semicolon usually joins two sentences that should be separate. \
-         Two short sentences are easier to read than one joined by a \
-         semicolon.\n\
+         A semicolon usually joins sentences that should be separate. \
+         Short sentences are easier to read than one long sentence joined \
+         by a semicolon.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
@@ -307,7 +307,7 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: It ran 12 axes over 3 rounds in 41 minutes.\n\
-         Good: It ran 12 axes. See the table for the round count and the time."
+         Good: It ran every axis. See the table for the round count and the time."
     ),
     rule_meta!(
         "bold-sentence",
@@ -345,7 +345,7 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: The fix (which took three days because the failure only showed \
          up under load) shipped today.\n\
-         Good: The fix shipped today. It took three days, because the \
+         Good: The fix shipped on Friday. It took three days, because the \
          failure only showed up under load."
     ),
     rule_meta!(
@@ -496,7 +496,7 @@ pub const RULE_META: &[RuleMeta] = &[
          uncomfortable truth`.\n\
          ### Why it is bad\n\
          These phrases announce that a point is coming instead of making \
-         it. Removing them costs the reader nothing, since the point still \
+         it. Removing them costs the reader nothing, since the point \
          follows.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
@@ -669,7 +669,7 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: The fix was small. The risk was low. It shipped today.\n\
-         Good: The fix was small, the risk was low, and it shipped today.\n\
+         Good: The fix was small, the risk was low, and it shipped on Friday.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."
@@ -692,10 +692,91 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: The fix shipped today, highlighting the value of a second \
          reviewer.\n\
-         Good: The fix shipped today. A second reviewer caught the bug.\n\
+         Good: The fix shipped on Friday. A second reviewer caught the bug.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."
+    ),
+    rule_meta!(
+        "count-word",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a count of things, written in words or in digits, such as \
+         `three stages` or `5 checkpoints`. It reads a number from two \
+         upward, then up to two plain words, then a plural noun. It runs on \
+         text that lasts: a document, a skill, a commit message, and a \
+         pull request or issue body. It never runs on a chat transcript.\n\
+         ### Why it is bad\n\
+         A count goes stale when an item is added or removed. The heading or \
+         the summary then says one thing and the list says another, and the \
+         reader cannot tell which is right.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: The pipeline has three stages, build, test, and deploy.\n\
+         Good: The pipeline runs build, test, and deploy.\n\
+         ### Coverage\n\
+         It covers English text, a spelled number or digits from two upward, \
+         and a plural noun after it. It leaves these alone. A measure or a \
+         unit, such as `10 minutes` or `5 s`. A version. A date, and any \
+         sentence that carries a date, because a dated record stays true. A \
+         number inside a quotation, inside code, or after a label such as \
+         `Phase 2`. A bound, a range or an estimate, such as `at least \
+         four`, `up to 20` or `30 to 100`, which stays true when a list \
+         changes. A sentence that links to a source or cites one, and a \
+         table cell in a row that does. A fixed fact that cannot change: a \
+         hyphenated compound such as `two-factor`, the `primary colours`, \
+         the `states of matter`, and `two states` in a sentence about \
+         binary. The word `one` is never read as a count, so `one of`, \
+         `one place` and `each one` pass. It does not cover `both`, \
+         `several`, `a couple of`, a number joined to its noun by a \
+         hyphen, or a count with no noun after it. The check is \
+         deterministic, with no model.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "relative-time",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a word that points at the time of reading. The core list is \
+         `today`, `now`, `currently`, `at the moment`, `this week`, `this \
+         month`, `this year`, `last year`, `recently`, `soon`, `lately`, \
+         `nowadays`, `as of now`, `yet`, and `still` where it means time.\n\
+         It also reads `right now`, `for now`, `at present`, `these days`, \
+         `to date`, `presently`, `tonight`, `yesterday`, `tomorrow`, \
+         `next week`, `last month`, `next year` and the like.\n\
+         It runs on text that lasts. It skips a chat transcript. It is a \
+         warning in every context where it runs.\n\
+         ### Why it is bad\n\
+         A relative time word names a different moment for each reader. The \
+         sentence was true on the day it was written and may be false on the \
+         day it is read.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: The cache is currently disabled.\n\
+         Good: The cache is disabled by default.\n\
+         ### Coverage\n\
+         It covers English text and the words above. It stays silent when \
+         the same sentence carries an absolute date. That means a year, \
+         month and day, a month with a day or a year, a four-digit year, or \
+         `as of` a date.\n\
+         It also stays silent where the word is not about time. Those cases \
+         are `now that`, `now and then`, `as soon as`, `up to date`, an \
+         opening `Now,` or `Still,`, and `still` before a comparative, after \
+         `stand` or `keep`, or ending a clause. A plain conjunction `yet` \
+         passes too.\n\
+         It does not cover a phrase such as `a few days ago` or a word such \
+         as `new` or `latest`. The check is deterministic, with no model.",
+        Exception::FixedLevel(Level::Warning)
     ),
     rule_meta!(
         "recap-ending",

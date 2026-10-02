@@ -1,4 +1,4 @@
-It is not clear yet. The team will decide next week.
+It is not clear. The team will decide on Friday.
 
 <!-- osf-expect
 -->
