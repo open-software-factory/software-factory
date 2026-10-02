@@ -149,6 +149,32 @@ fn replaces_an_existing_section_through_a_fake_gh() {
 }
 
 #[test]
+fn an_empty_head_falls_back_to_the_pull_requests_head() {
+    let fake = FakeGh::new("write-empty-head", "Intro.\n");
+    let content = fake.dir.join("content.md");
+    fs::write(&content, "The outline.\n").expect("writes the content file");
+
+    let output = fake.run_osf(&[
+        "pr",
+        "section",
+        "write",
+        "--pr",
+        "7",
+        "--name",
+        "outline",
+        "--head",
+        "",
+        "--file",
+        content.to_str().expect("a utf-8 path"),
+    ]);
+    assert_ok(&output);
+    assert_eq!(
+        fake.written_body(),
+        "Intro.\n\n<!-- osf:outline:start head=cafe1234cafe1234 -->\nThe outline.\n<!-- osf:outline:end -->\n"
+    );
+}
+
+#[test]
 fn replaces_an_old_style_pr_lens_block_without_leaving_a_duplicate() {
     let fake = FakeGh::new(
         "write-migrate",

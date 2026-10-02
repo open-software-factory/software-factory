@@ -1770,8 +1770,8 @@ fn pr_section_write_cmd(args: &SectionWriteArgs) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let head = match &args.head {
-        Some(h) => h.clone(),
+    let head = match args.head.as_deref().filter(|h| !h.is_empty()) {
+        Some(h) => h.to_string(),
         None => match section::fetch_head_sha(repo, args.pr) {
             Ok(h) => h,
             Err(e) => {
