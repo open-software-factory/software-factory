@@ -244,7 +244,7 @@ The hook wiring for each harness is rendered into the sandbox's managed harness 
 
 ## The aggregation
 
-The aggregation is the one required check that reads every other check on the commit and decides. It runs as a workflow in the adopter's repository. A job on the first code host can wait only on jobs inside its own workflow, and an adopter's checks may span several workflows. It re-runs each time a workflow finishes, so it converges without polling. It reads the check runs on the commit through the repository's own token, and it posts its result as one check.
+The aggregation is the one required check that reads every other check on the commit and decides. It runs as a workflow in the adopter's repository after every workflow on the commit finishes. A job on the first code host can wait only on jobs inside its own workflow, and an adopter's checks may span several workflows. It lists the check runs on the commit through the repository's own token and waits while one is still running, so it converges without polling. It posts its result as one check.
 
 Each check still writes its own verification event. When the aggregation finishes, it writes one checkpoint-complete event that carries the slot table as data. The check run's summary on the code host is a rendering of that event. The event is the one source, and every view renders it. The pull-request status block gets one line per slot only when the slot's state differs from the base branch. A quiet pull request shows nothing new.
 
