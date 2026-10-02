@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "819a31875728ed44f1ab51eeefc001188ebaf8b4",
+    "contentHash": "a2d220db3c98a5d499b29e74490d22f2"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "99c9ee6ab21b105df47f513124a9bcc9",
+      "bytes": 25813,
+      "width": 1798,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-light-99c9ee6ab21b105df47f513124a9bcc9.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2550b2422dd842e4a479318ddade6484",
+      "bytes": 26129,
+      "width": 1798,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-dark-2550b2422dd842e4a479318ddade6484.svg"
+    },
+    {
+      "id": "reference-engine-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reference-engine-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "acb2d059aa688edc8d27bb00e7656124",
+      "bytes": 8534,
+      "width": 436,
+      "height": 418,
+      "animated": false,
+      "path": "reference-engine-detail-light-acb2d059aa688edc8d27bb00e7656124.svg"
+    },
+    {
+      "id": "reference-engine-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reference-engine-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ec87d782e6e71522fd91d412de217587",
+      "bytes": 8624,
+      "width": 436,
+      "height": 418,
+      "animated": false,
+      "path": "reference-engine-detail-dark-ec87d782e6e71522fd91d412de217587.svg"
+    },
+    {
+      "id": "stop-hook-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "stop-hook-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d8c7e2ba7f404b612bd435a89c66858b",
+      "bytes": 14741,
+      "width": 1751,
+      "height": 429,
+      "animated": true,
+      "path": "stop-hook-flow-light-d8c7e2ba7f404b612bd435a89c66858b.svg"
+    },
+    {
+      "id": "stop-hook-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "stop-hook-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1db698ea9491445058132ca1793e666a",
+      "bytes": 14888,
+      "width": 1751,
+      "height": 429,
+      "animated": true,
+      "path": "stop-hook-flow-dark-1db698ea9491445058132ca1793e666a.svg"
+    }
+  ]
+}

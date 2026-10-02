@@ -1,0 +1,681 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-02T10:42:08.279Z",
+  "title": "One rule for unplaceable references",
+  "summary": "Replaces six overlapping reference rules (bare-reference, reference-without-label, reference-without-link, chat-local-reference, undefined-name, undefined-name-at-start) with a single `unplaceable-reference` rule backed by a new candidate engine in `crates/osf/src/lints/writing/reference.rs`. The engine extracts Number, Phrase, Time and Name candidates from a paragraph, then decides whether the paragraph itself places each one (a link, a bracketed or colon description, a repository or file name, a known name, a definer sentence, an absolute date). Findings carry an `Evidence` value, and `osf-lint-core::resolve` now takes that evidence: statistical evidence (a guessed name, a quoted term) always resolves to Warning/Advise and can never refuse a reply, while deterministic findings keep the class-and-group matrix. A 66-fixture precision/recall harness and end-to-end stop-hook, commit-message and prompt-hook tests pin the behaviour.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "59512686f73ef83fe874da3ef7123ef4542e67c2",
+      "ref": "59512686f73ef83fe874da3ef7123ef4542e67c2"
+    },
+    "head": {
+      "sha": "819a31875728ed44f1ab51eeefc001188ebaf8b4",
+      "ref": "819a31875728ed44f1ab51eeefc001188ebaf8b4"
+    },
+    "pullRequest": {
+      "number": 203,
+      "url": "https://github.com/open-software-factory/software-factory/pull/203"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "Entry points",
+      "subtitle": "hooks, CLI, scan",
+      "order": 0,
+      "summary": "The surfaces that hand text to the writing lint: the stop hook, the commit-message check, the prompt hook and the scan command."
+    },
+    {
+      "id": "lint",
+      "label": "Writing lint",
+      "subtitle": "crates/osf/src/lints",
+      "order": 1,
+      "summary": "The rule engine: candidate extraction, placement judgment, and the older rules that still run beside the new one."
+    },
+    {
+      "id": "core",
+      "label": "Lint core",
+      "subtitle": "crates/osf-lint-core",
+      "order": 2,
+      "summary": "Shared types and the level/remediation resolver that now consults a finding's evidence."
+    },
+    {
+      "id": "fixtures",
+      "label": "Fixtures and tests",
+      "subtitle": "tests/fixtures/writing/unplaceable",
+      "order": 3,
+      "summary": "The labelled corpus and the harnesses that measure precision and recall and prove the hooks behave."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "stop-hook",
+      "label": "Stop hook",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "entry",
+      "subtitle": "crates/osf/src/hook.rs",
+      "summary": "Reads the last assistant message from stdin and decides whether to refuse the reply. A new test pins that a reply whose only finding is a weak-evidence name is not refused.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 823
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-check",
+      "label": "Commit-message check",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "entry",
+      "subtitle": "osf lint writing --context commit",
+      "summary": "Runs the writing lint over a commit message file. Its verify test now expects two errors, since the old chat-local rule and the new rule both fire until the old one is retired.",
+      "files": [
+        {
+          "path": "crates/osf/tests/verify.rs",
+          "startLine": 81
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prompt-hook",
+      "label": "Prompt hook",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "entry",
+      "subtitle": "osf hook prompt",
+      "summary": "Prints the reminder shown on every prompt. A new end-to-end test asserts it never names one of the six retired rule ids.",
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_checkpoints.rs",
+          "startLine": 148
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-resolve",
+      "label": "Scan resolve-and-explain",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "entry",
+      "subtitle": "crates/osf/src/scan/mod.rs",
+      "summary": "Resolves each scan finding's level and remediation, now passing the finding's own evidence into the shared resolver.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 503
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-writing",
+      "label": "lint_writing",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "lint",
+      "subtitle": "crates/osf/src/lints/writing/mod.rs",
+      "summary": "The writing lint entry point. It now calls the new unplaceable_reference rule after undefined_names, and apply_context passes evidence through to the resolver for the new rule only.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 38
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unplaceable-rule",
+      "label": "unplaceable_reference",
+      "kind": "function",
+      "delta": "added",
+      "lane": "lint",
+      "subtitle": "crates/osf/src/lints/writing/rules.rs",
+      "summary": "The new rule. It gathers candidates per paragraph, picks one paragraph to report each repeated name from, and emits a finding for every candidate the paragraph does not place.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 633
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reference-engine",
+      "label": "reference.rs",
+      "kind": "module",
+      "delta": "added",
+      "lane": "lint",
+      "subtitle": "candidate extraction",
+      "summary": "The new 1831-line module. It finds Number, Phrase, Time and Name candidates, masks quoted and backticked spans, and keeps the longest candidate per kind when two overlap.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/reference.rs",
+          "startLine": 1
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "placement",
+      "label": "Placement judgment",
+      "kind": "function",
+      "delta": "added",
+      "lane": "lint",
+      "subtitle": "is_placed and helpers",
+      "summary": "Decides whether a paragraph places a candidate: a link, a bracketed or colon description of two real words, a repository or file name in the same sentence, a known name, a definer sentence, or an absolute date.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 760
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "names",
+      "label": "names.rs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lint",
+      "subtitle": "known and generic words",
+      "summary": "Adds is_generic_word and extends the built-in name list with frameworks, design systems and model tiers such as React, Vite, Sonnet and Opus.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/names.rs",
+          "startLine": 76
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-meta",
+      "label": "Writing rule metadata",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lint",
+      "subtitle": "crates/osf/src/lints/writing/meta.rs",
+      "summary": "Adds the unplaceable-reference rule doc and threads Evidence through RuleMeta::resolve. Several example strings were reworded to avoid tripping the new rule.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/meta.rs",
+          "startLine": 22
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve",
+      "label": "resolve",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "crates/osf-lint-core/src/meta.rs",
+      "summary": "The shared level-and-remediation resolver. It now takes an Evidence argument and returns Warning/Advise immediately for statistical evidence, before any class, group, context or exception is consulted.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/meta.rs",
+          "startLine": 93
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-resolve",
+      "label": "Skill resolve-and-explain",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "core",
+      "subtitle": "crates/osf/src/lints/skill.rs",
+      "summary": "Passes each skill finding's evidence into the shared resolver, so a statistical skill finding is advisory too.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/skill.rs",
+          "startLine": 247
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fixture-corpus",
+      "label": "Unplaceable fixtures",
+      "kind": "test",
+      "delta": "added",
+      "lane": "fixtures",
+      "subtitle": "66 labelled markdown files",
+      "summary": "Each fixture carries an osf-unplaceable header naming its label, kind, target and reason. Placeable fixtures must yield no finding on the target; unplaceable ones must.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/writing/unplaceable/number-fix-unplaceable.md",
+          "startLine": 1
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "measure-harness",
+      "label": "Precision/recall measure",
+      "kind": "test",
+      "delta": "added",
+      "lane": "fixtures",
+      "subtitle": "crates/osf/tests/unplaceable_measure.rs",
+      "summary": "Runs the lint over every fixture, tallies true and false positives and negatives per kind, and requires 100% precision and recall with no stray findings.",
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_measure.rs",
+          "startLine": 1
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "checkpoint-tests",
+      "label": "Checkpoint tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "fixtures",
+      "subtitle": "crates/osf/tests/unplaceable_checkpoints.rs",
+      "summary": "End-to-end tests against the compiled binary: a bare fix number refuses the stop, a quoted example does not, and a relative time passes in a reply but fails a commit message.",
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_checkpoints.rs",
+          "startLine": 1
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "stop-hook-to-lint",
+      "from": "stop-hook",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "last assistant message",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The stop hook runs the writing lint over the reply before deciding whether to refuse it.",
+      "files": []
+    },
+    {
+      "id": "commit-check-to-lint",
+      "from": "commit-check",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "commit message",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The commit-message check runs the same lint in commit context.",
+      "files": []
+    },
+    {
+      "id": "scan-to-resolve",
+      "from": "scan-resolve",
+      "to": "resolve",
+      "kind": "call",
+      "delta": "modified",
+      "label": "evidence",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Scan findings now carry their evidence into the resolver.",
+      "files": []
+    },
+    {
+      "id": "lint-to-unplaceable",
+      "from": "lint-writing",
+      "to": "unplaceable-rule",
+      "kind": "call",
+      "delta": "added",
+      "label": "per paragraph",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new rule is called after undefined_names and before recap_ending, so its findings join the same pipeline.",
+      "files": []
+    },
+    {
+      "id": "unplaceable-to-reference",
+      "from": "unplaceable-rule",
+      "to": "reference-engine",
+      "kind": "call",
+      "delta": "added",
+      "label": "candidates()",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The rule asks the engine for every candidate in a paragraph, then judges placement itself.",
+      "files": []
+    },
+    {
+      "id": "unplaceable-to-placement",
+      "from": "unplaceable-rule",
+      "to": "placement",
+      "kind": "call",
+      "delta": "added",
+      "label": "is_placed()",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each candidate is tested against the paragraph's own text before a finding is emitted.",
+      "files": []
+    },
+    {
+      "id": "reference-to-names",
+      "from": "reference-engine",
+      "to": "names",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "is_generic_word",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The engine uses the generic-word check to decide whether a known name really excludes the number after it.",
+      "files": []
+    },
+    {
+      "id": "lint-to-resolve",
+      "from": "lint-writing",
+      "to": "resolve",
+      "kind": "call",
+      "delta": "modified",
+      "label": "evidence",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "apply_context passes evidence through for the new rule and Deterministic for the older ones.",
+      "files": []
+    },
+    {
+      "id": "skill-to-resolve",
+      "from": "skill-resolve",
+      "to": "resolve",
+      "kind": "call",
+      "delta": "modified",
+      "label": "evidence",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Skill findings pass their own evidence into the shared resolver.",
+      "files": []
+    },
+    {
+      "id": "meta-to-resolve",
+      "from": "writing-meta",
+      "to": "resolve",
+      "kind": "call",
+      "delta": "modified",
+      "label": "RuleMeta::resolve",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Rule metadata resolution now forwards the evidence argument.",
+      "files": []
+    },
+    {
+      "id": "measure-to-lint",
+      "from": "measure-harness",
+      "to": "lint-writing",
+      "kind": "call",
+      "delta": "added",
+      "label": "lint_writing()",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The measure harness runs the lint over every fixture and tallies the results.",
+      "files": []
+    },
+    {
+      "id": "checkpoints-to-stop",
+      "from": "checkpoint-tests",
+      "to": "stop-hook",
+      "kind": "call",
+      "delta": "added",
+      "label": "hook stop",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The checkpoint tests spawn the compiled binary and feed it a stop event on stdin.",
+      "files": []
+    },
+    {
+      "id": "fixtures-to-measure",
+      "from": "fixture-corpus",
+      "to": "measure-harness",
+      "kind": "data",
+      "delta": "added",
+      "label": "label, kind, target",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each fixture's header supplies the expected label and target the harness scores against.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "stop-hook-refusal",
+      "title": "A reply through the stop hook",
+      "summary": "How a reply reaches the new rule and how its evidence decides whether the hook refuses.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "stop-hook",
+          "label": "Stop hook"
+        },
+        {
+          "node": "lint-writing",
+          "label": "lint_writing"
+        },
+        {
+          "node": "unplaceable-rule",
+          "label": "unplaceable_reference"
+        },
+        {
+          "node": "reference-engine",
+          "label": "reference.rs"
+        },
+        {
+          "node": "resolve",
+          "label": "resolve"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-event",
+          "from": "stop-hook",
+          "to": "stop-hook",
+          "label": "read last_assistant_message",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 823
+            }
+          ]
+        },
+        {
+          "id": "run-lint",
+          "from": "stop-hook",
+          "to": "lint-writing",
+          "label": "lint the reply",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/mod.rs",
+              "startLine": 38
+            }
+          ]
+        },
+        {
+          "id": "extract",
+          "from": "lint-writing",
+          "to": "reference-engine",
+          "label": "candidates(paragraph)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/reference.rs",
+              "startLine": 1
+            }
+          ]
+        },
+        {
+          "id": "judge",
+          "from": "reference-engine",
+          "to": "unplaceable-rule",
+          "label": "Number, Phrase, Time, Name",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/rules.rs",
+              "startLine": 633
+            }
+          ]
+        },
+        {
+          "id": "finding",
+          "from": "unplaceable-rule",
+          "to": "lint-writing",
+          "label": "unplaced finding + evidence",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/rules.rs",
+              "startLine": 760
+            }
+          ]
+        },
+        {
+          "id": "resolve-evidence",
+          "from": "lint-writing",
+          "to": "resolve",
+          "label": "evidence",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Statistical evidence returns Warning/Advise before the class-and-group matrix is consulted.",
+          "files": [
+            {
+              "path": "crates/osf-lint-core/src/meta.rs",
+              "startLine": 93
+            }
+          ]
+        },
+        {
+          "id": "verdict",
+          "from": "resolve",
+          "to": "stop-hook",
+          "label": "level, remediation",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 823
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 85,
+    "additions": 4023,
+    "deletions": 47,
+    "chips": [
+      {
+        "label": "Rules replaced",
+        "value": "6 → 1",
+        "tone": "hero"
+      },
+      {
+        "label": "New fixtures",
+        "value": "66",
+        "tone": "added"
+      },
+      {
+        "label": "New engine",
+        "value": "1831 lines",
+        "tone": "added"
+      },
+      {
+        "label": "Required precision",
+        "value": "100%",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Writing lint architecture",
+      "lens": "architecture",
+      "summary": "The entry points that run the writing lint, the lint's own modules, the shared resolver, and the fixture harnesses that pin the new rule.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "reference-engine-detail",
+          "title": "Inside the reference engine",
+          "lens": "architecture",
+          "summary": "The candidate extraction and placement judgment that make up the new rule.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "unplaceable-rule",
+              "reference-engine",
+              "placement",
+              "names"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "stop-hook-flow",
+      "title": "Stop-hook data flow",
+      "lens": "data-flow",
+      "summary": "One reply's path from the stop hook through candidate extraction and placement to the evidence-aware resolver.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "stop-hook-refusal"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
