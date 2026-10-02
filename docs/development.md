@@ -230,7 +230,8 @@ create it. Set up this short list, then the check is live.
 - The `review` environment itself, holding at least two of these keys:
   `secrets.OPENAI_API_KEY`, `secrets.CLAUDE_CODE_OAUTH_TOKEN` (or
   `secrets.ANTHROPIC_API_KEY`), `secrets.OPENROUTER_API_KEY`. Each key
-  belongs to one reviewer job. `osf` itself reads a key only to remove its
+  belongs to one reviewer job. The codex job gives `secrets.OPENAI_API_KEY`
+  to codex as `CODEX_API_KEY`. `osf` itself reads a key only to remove its
   value from answers.
 - Branch protection that requires the `review` job. Require every
   conversation resolved too, so a person still looks at each finding.
@@ -333,7 +334,7 @@ family.
 
 | Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
 |---|---|---|---|---|
-| `codex` | openai | its own default | `OPENAI_API_KEY` (or `CODEX_API_KEY`) | `--sandbox read-only`, from `codex exec --help` |
+| `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--sandbox read-only`, from `codex exec --help` |
 | `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
 | `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
 | `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |

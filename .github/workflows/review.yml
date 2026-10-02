@@ -153,7 +153,8 @@ jobs:
       # data, never a place this job writes to.
       - name: Run this reviewer, reading the pull request's tree as data
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # `codex exec` signs in with CODEX_API_KEY; it does not read OPENAI_API_KEY.
+          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
@@ -161,7 +162,7 @@ jobs:
           -v "${{ github.workspace }}/pr:/pr:ro"
           -v "${{ github.workspace }}/out:/out"
           -w /pr
-          -e OPENAI_API_KEY
+          -e CODEX_API_KEY
           ghcr.io/open-software-factory/devcontainer:main
           /osf-bin/osf review run
           --reviewer codex

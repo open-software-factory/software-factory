@@ -406,7 +406,8 @@ pub const AGENTS: &[Agent] = &[
             schema_as: SchemaArg::Path,
             answer_pointer: "",
             model_flag: Some("--model"),
-            credential_env: &["OPENAI_API_KEY", "CODEX_API_KEY"],
+            // `CODEX_API_KEY` is the variable `codex exec` reads; it does not read `OPENAI_API_KEY`.
+            credential_env: &["CODEX_API_KEY"],
             login_paths: &[".codex/auth.json"],
         }),
     },
@@ -906,6 +907,16 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn codex_reads_the_variable_its_exec_command_reads() {
+        let review = AGENTS
+            .iter()
+            .find(|a| a.name == "codex")
+            .and_then(|a| a.review.as_ref())
+            .expect("codex reviews");
+        assert_eq!(review.credential_env, &["CODEX_API_KEY"]);
     }
 
     #[test]

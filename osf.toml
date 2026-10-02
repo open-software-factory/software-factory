@@ -39,9 +39,9 @@ builder = "dsh"
 # reviewer's family to differ from the builder's.
 #
 # dsh documents no read-only mode, so it cannot review. The review
-# environment holds OPENAI_API_KEY, CLAUDE_CODE_OAUTH_TOKEN and
-# OPENROUTER_API_KEY. Each agent's list entry names the only variables its
-# reviewer sees.
+# environment holds OPENAI_API_KEY (passed to codex as CODEX_API_KEY),
+# CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each agent's list entry
+# names the only variables its reviewer sees.
 reviewers = ["codex", "claude", "opencode"]
 
 # A model per agent. An agent left out uses its own default model, and dsh
