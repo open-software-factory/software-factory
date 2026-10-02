@@ -62,9 +62,9 @@ struct Frontmatter {
     body_start: usize,
 }
 
-/// Reads `<dir>/SKILL.md` and runs every kept skill rule over it, the
-/// writing lint over its body, and the script-pin check over every script
-/// under `<dir>/scripts`.
+/// Reads `<dir>/SKILL.md` from disk and runs [`lint_skill_text`] over it.
+/// Used only by the standalone `osf lint skill` command, which has no
+/// checkpoint of its own and always reads the working tree.
 ///
 /// # Errors
 ///
@@ -78,7 +78,26 @@ pub fn lint_skill(
     let path = dir.join("SKILL.md");
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let lines: Vec<&str> = text.lines().collect();
+    Ok(lint_skill_text(dir, &text, cfg, known, writing))
+}
+
+/// Runs every kept skill rule over `skill_md`, the writing lint over its
+/// body, and the script-pin check over every script under `<dir>/scripts`.
+/// `skill_md` is the caller's own already-resolved content of
+/// `<dir>/SKILL.md`, never read from disk here: `check.rs`'s checkpoint-aware
+/// `lint_skill_files` passes the committed content at every checkpoint but
+/// the hook, so a pre-push checkpoint lints the source actually being
+/// pushed, not whatever an unstaged working-tree edit left behind.
+#[must_use]
+pub fn lint_skill_text(
+    dir: &Path,
+    skill_md: &str,
+    cfg: &SkillConfig,
+    known: &KnownNames,
+    writing: &WritingConfig,
+) -> Vec<SkillFinding> {
+    let path = dir.join("SKILL.md");
+    let lines: Vec<&str> = skill_md.lines().collect();
 
     // A duplicate key and an unclosed block are both reported by the agnix
     // engine, so no rule here repeats them and one defect gives one error.
@@ -100,7 +119,7 @@ pub fn lint_skill(
     out.extend(body_writing_findings(&lines, fm.body_start, known, writing));
     out.extend(script_findings(dir));
     out.extend(
-        super::agnix::lint_file(&path, dir)
+        super::agnix::lint_text(&path, skill_md, dir)
             .into_iter()
             .map(|finding| SkillFinding {
                 file: "SKILL.md".to_string(),
@@ -115,7 +134,7 @@ pub fn lint_skill(
             b.finding.rule,
         ))
     });
-    Ok(out)
+    out
 }
 
 /// Runs [`lint_skill`], then applies the same declared-fixture contract the
@@ -140,7 +159,7 @@ pub fn lint_skill(
 /// warning: the folder is still linted as normal.
 ///
 /// # Errors
-/// Returns `Err` under the same conditions as [`lint_skill`].
+/// Returns `Err` when `SKILL.md` cannot be read.
 pub fn lint_skill_checked(
     dir: &Path,
     label: &str,
@@ -148,12 +167,29 @@ pub fn lint_skill_checked(
     known: &KnownNames,
     writing: &WritingConfig,
 ) -> Result<Vec<SkillFinding>, String> {
-    let findings = lint_skill(dir, cfg, known, writing)?;
-    let marker_path = dir.join("SKILL.md");
-    let text = std::fs::read_to_string(&marker_path)
-        .map_err(|e| format!("cannot read {}: {e}", marker_path.display()))?;
-    let Some(expected) = osf_lint_core::parse_skill_expectation(&text) else {
-        return Ok(findings);
+    let path = dir.join("SKILL.md");
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    Ok(lint_skill_checked_text(
+        dir, label, &text, cfg, known, writing,
+    ))
+}
+
+/// As [`lint_skill_checked`], but `skill_md` is the caller's own
+/// already-resolved content of `<dir>/SKILL.md`: the checkpoint-aware
+/// counterpart `check.rs`'s `lint_skill_files` calls.
+#[must_use]
+pub fn lint_skill_checked_text(
+    dir: &Path,
+    label: &str,
+    skill_md: &str,
+    cfg: &SkillConfig,
+    known: &KnownNames,
+    writing: &WritingConfig,
+) -> Vec<SkillFinding> {
+    let findings = lint_skill_text(dir, skill_md, cfg, known, writing);
+    let Some(expected) = osf_lint_core::parse_skill_expectation(skill_md) else {
+        return findings;
     };
     if !super::is_fixture_path(label) {
         let mut findings = findings;
@@ -161,7 +197,7 @@ pub fn lint_skill_checked(
             file: "SKILL.md".to_string(),
             finding: outside_fixtures_warning(),
         });
-        return Ok(findings);
+        return findings;
     }
     let forbidden: BTreeSet<String> = expected
         .values()
@@ -170,7 +206,7 @@ pub fn lint_skill_checked(
         .cloned()
         .collect();
     if !forbidden.is_empty() {
-        return Ok(forbidden_scan_rule_findings(forbidden));
+        return forbidden_scan_rule_findings(forbidden);
     }
     let actual: Vec<(&str, &str)> = findings
         .iter()
@@ -178,9 +214,9 @@ pub fn lint_skill_checked(
         .collect();
     let mismatch = osf_lint_core::check_skill(&expected, actual);
     if mismatch.is_empty() {
-        return Ok(Vec::new());
+        return Vec::new();
     }
-    Ok(expectation_findings(&mismatch))
+    expectation_findings(&mismatch)
 }
 
 /// A warning that an `osf-expect-skill` marker outside a `tests/fixtures`

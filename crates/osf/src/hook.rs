@@ -468,6 +468,7 @@ fn post_tool_with_input(
         base: None,
         files: Some(vec![rel]),
         timeout: Some(timeout),
+        remote: None,
     };
     let summary = crate::checkpoint::run(&req, &state_dir);
     if let Some(err) = &summary.journal_error {
@@ -537,13 +538,21 @@ fn written_file_parent(absolute: &Path) -> PathBuf {
 /// `absolute` made repository-relative to `root`, with forward slashes.
 /// `None` when it leaves `root` entirely: a path outside the repository
 /// the adoption check found must never read back as one inside it.
+///
+/// Canonicalisation runs first, and decides the answer whenever both sides
+/// resolve: a path that is lexically inside `root` but is actually a
+/// symlink to somewhere else must fail this check, not pass it on the
+/// strength of its own un-followed name. The lexical check only runs as a
+/// fallback, for a path that does not exist yet — such as a file about to
+/// be created — where canonicalisation has nothing to resolve.
 fn repo_relative(root: &Path, absolute: &Path) -> Option<String> {
-    if let Ok(rel) = absolute.strip_prefix(root) {
+    if let (Ok(root_canon), Ok(candidate_canon)) =
+        (std::fs::canonicalize(root), std::fs::canonicalize(absolute))
+    {
+        let rel = candidate_canon.strip_prefix(&root_canon).ok()?;
         return Some(rel.to_string_lossy().replace('\\', "/"));
     }
-    let root_canon = std::fs::canonicalize(root).ok()?;
-    let candidate_canon = std::fs::canonicalize(absolute).ok()?;
-    let rel = candidate_canon.strip_prefix(&root_canon).ok()?;
+    let rel = absolute.strip_prefix(root).ok()?;
     Some(rel.to_string_lossy().replace('\\', "/"))
 }
 
@@ -667,6 +676,45 @@ fn store_advice(session: &str, findings: &[&lints::Finding]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
+
+    /// A path lexically inside the repository that is actually a symlink to
+    /// somewhere else must not be accepted as repository-relative: the
+    /// canonical check, which follows the symlink, must run and must be the
+    /// one that decides, not a lexical prefix match that never looks.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_escaping_the_repository_is_not_repo_relative() {
+        let root = TempDir::new("osf-repo-relative-symlink-root");
+        let outside = TempDir::new("osf-repo-relative-symlink-outside");
+        let target = outside.join("secret.md");
+        std::fs::write(&target, "outside content\n").expect("outside file writes");
+        let link = root.join("link.md");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink creates");
+        assert!(repo_relative(&root, &link).is_none());
+    }
+
+    /// An ordinary file inside the repository, no symlink involved, is
+    /// still repository-relative once canonicalisation runs first.
+    #[test]
+    fn a_plain_file_inside_the_repository_is_still_repo_relative() {
+        let root = TempDir::new("osf-repo-relative-plain-root");
+        let path = root.join("notes.md");
+        std::fs::write(&path, "content\n").expect("file writes");
+        assert_eq!(repo_relative(&root, &path).as_deref(), Some("notes.md"));
+    }
+
+    /// A path that does not exist yet falls back to the lexical check,
+    /// since canonicalisation has nothing on disk to resolve.
+    #[test]
+    fn a_path_that_does_not_exist_yet_falls_back_to_the_lexical_check() {
+        let root = TempDir::new("osf-repo-relative-missing-root");
+        let path = root.join("not-written-yet.md");
+        assert_eq!(
+            repo_relative(&root, &path).as_deref(),
+            Some("not-written-yet.md")
+        );
+    }
 
     #[test]
     fn reads_claude_transcript_shape() {

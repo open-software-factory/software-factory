@@ -50,7 +50,7 @@ A slot is a named kind of check the factory expects. A slot is filled by the fac
 
 The configuration file `osf.toml` has one table per slot. An organisation-wide file with the same shape sits above it, and the repository file overrides one key at a time.
 
-The defaults are one TOML file per ecosystem inside the tool. The order is Rust, .NET, Java, TypeScript, Python and Go. The first two ship together, and each of the rest enters when a real repository drives it. The catalogue page is rendered from these files.
+The defaults are one TOML file per ecosystem inside the tool, one for each ecosystem in the shared list in [how the factory reaches a repository](../how-the-factory-reaches-a-repository.md). Rust and .NET ship together first, and each of the rest enters when a real repository drives it. The catalogue page is rendered from these files.
 
 The tool renders the files it owns into the adopter's repository. A daily task opens a pull request under the builder identity when a new factory release exists. The drift gate fails on a hand edit and names the key or the tag where the change belongs.
 
@@ -58,7 +58,7 @@ The two-word forms are the vocabulary. "Check recogniser" and "slot attestation"
 
 ## Consequences
 
-- The adopter's tree gains a small set of generated files and one configuration file, and nothing else.
+- An adopter that takes up the checkpoint seam this record describes has its tree gain a small set of generated files and one configuration file. A repository that wants only [decision 0006](0006-distribution-and-packaging.md)'s ecosystem detection still needs no file at all.
 - A periodic audit on the schedule compares slot attestations with completed runs, so an attestation does not stand on its own for long.
 - A new predicate kind for the recogniser is added to the tool once, with its tests, and every ecosystem file may then use it.
 - The stage template file proposed in [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26) is replaced by the tags on moon tasks and the slot tables.

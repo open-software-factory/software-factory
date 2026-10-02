@@ -1,0 +1,23 @@
+{
+  "defaultActive": "floor",
+  "groups": [
+    {
+      "name": "Views",
+      "kind": "view",
+      "items": [
+        { "id": "floor", "label": "Floor", "count": "136", "opensView": true },
+        { "id": "board", "label": "Board", "count": "279", "opensView": true },
+        { "id": "runway", "label": "Runway", "count": "6", "opensView": true }
+      ]
+    },
+    {
+      "name": "Panels",
+      "kind": "panel",
+      "items": [
+        { "id": "attention", "label": "Attention", "count": "3", "slot": "left", "opensView": false },
+        { "id": "recorder", "label": "Flight recorder", "count": "", "slot": "bottom", "opensView": false },
+        { "id": "logs", "label": "Run output", "count": "", "slot": "right", "opensView": false }
+      ]
+    }
+  ]
+}

@@ -5,12 +5,13 @@
 
 pub mod agents;
 pub mod answer;
+pub mod assets;
 pub mod builder;
 pub mod check;
 pub mod checkpoint;
 pub mod config;
 pub mod exclude;
-mod git;
+pub mod git;
 pub use git::{scrub_git_env, scrub_git_env_for_dir};
 pub mod githooks;
 pub mod hook;
@@ -28,6 +29,7 @@ pub mod review_run;
 pub mod reviewers;
 pub mod risk;
 pub mod scan;
+pub mod section;
 pub mod status;
 #[cfg(test)]
 mod test_support;

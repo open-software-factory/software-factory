@@ -49,6 +49,10 @@ pub struct CheckpointComplete {
     pub commit: Option<String>,
     pub result: CheckResult,
     pub checks: u32,
+    /// Slot name to that slot's result, decisions 0012-0014: a `BTreeMap`
+    /// so its JSON key order, and so its place in the replay hash, never
+    /// depends on the order tasks happened to run in.
+    pub slots: std::collections::BTreeMap<String, CheckResult>,
 }
 
 /// One reviewer's outcome for one lens: its own scores and findings, or the
@@ -140,21 +144,46 @@ fn to_hex(bytes: &[u8]) -> String {
     out
 }
 
-/// The event's SHA-256 hex digest over `prev_hash`, `run`, `actor`, and the
-/// canonical JSON of `payload`. "Canonical" here means `serde_json::to_string`
-/// of the `Payload` value: field order is fixed by the struct declaration, so
-/// it is stable. Wall-clock time is excluded, as decision 0005 requires.
+/// `payload` with every value decision 0005 excludes from the replay hash
+/// neutralised. The run identifier is not hashed at all, since it is built
+/// from the wall-clock time the run started and the process id, and names
+/// nothing about what the run decided. A verification's own `duration_ms`
+/// varies run to run even when every decision is identical, so it is
+/// zeroed here, and a review answer's `transcript` path, a per-run temporary
+/// location, is dropped; the real values still reach the stored event untouched,
+/// since this is only ever used to compute a hash.
+fn replay_payload(payload: &Payload) -> Payload {
+    match payload {
+        Payload::Verification(v) => Payload::Verification(Verification {
+            duration_ms: 0,
+            ..v.clone()
+        }),
+        Payload::ReviewAnswer(a) => Payload::ReviewAnswer(ReviewAnswer {
+            transcript: None,
+            ..a.clone()
+        }),
+        Payload::CheckpointComplete(_) | Payload::ReviewDecision(_) => payload.clone(),
+    }
+}
+
+/// The event's SHA-256 hex digest over `prev_hash`, `actor`, and the
+/// canonical JSON of [`replay_payload`]'s neutralised `payload`.
+/// "Canonical" here means `serde_json::to_string` of the `Payload` value:
+/// field order is fixed by the struct declaration, so it is stable. Wall
+/// clock time and timing variance are excluded, as decision 0005 requires:
+/// two runs with identical inputs and identical decisions must produce an
+/// identical head hash, including runs whose own run identifiers and task
+/// durations necessarily differ.
 ///
 /// # Panics
 /// Never in practice: `Payload` holds no maps and no non-finite floats, so
 /// `serde_json::to_string` cannot fail on it.
 #[must_use]
-pub fn event_hash(prev_hash: &str, run: &str, actor: &str, payload: &Payload) -> String {
-    let payload_json = serde_json::to_string(payload).expect("Payload always serialises to JSON");
+pub fn event_hash(prev_hash: &str, actor: &str, payload: &Payload) -> String {
+    let payload_json =
+        serde_json::to_string(&replay_payload(payload)).expect("Payload always serialises to JSON");
     let mut hasher = Sha256::new();
     hasher.update(prev_hash.as_bytes());
-    hasher.update(b"\n");
-    hasher.update(run.as_bytes());
     hasher.update(b"\n");
     hasher.update(actor.as_bytes());
     hasher.update(b"\n");
@@ -245,7 +274,7 @@ impl Journal {
         timestamp_ms: u64,
         payload: Payload,
     ) -> Result<Event, String> {
-        let hash = event_hash(&self.last_hash, &self.run, actor, &payload);
+        let hash = event_hash(&self.last_hash, actor, &payload);
         let event = Event {
             schema_version: SCHEMA_VERSION,
             run: self.run.clone(),
@@ -309,6 +338,76 @@ mod tests {
             .expect("append")
             .hash;
         assert_eq!(ha, hb);
+    }
+
+    fn verification_with_duration(check: &str, duration_ms: u64) -> Payload {
+        match verification(check) {
+            Payload::Verification(v) => Payload::Verification(Verification { duration_ms, ..v }),
+            other @ (Payload::CheckpointComplete(_)
+            | Payload::ReviewAnswer(_)
+            | Payload::ReviewDecision(_)) => other,
+        }
+    }
+
+    /// `checkpoint.rs` builds a run id from the checkpoint label, the
+    /// wall-clock start time and the process id, so two runs of the same
+    /// unchanged checkpoint never share one: decision 0005 requires their
+    /// head hashes to still match, which the run id being left out of
+    /// [`event_hash`] is what makes possible. A different task duration
+    /// each run, as a real rerun always has, must not break the match
+    /// either.
+    #[test]
+    fn two_runs_with_different_run_ids_and_durations_have_the_same_head_hash() {
+        let a_dir = TempDir::new("osf-journal-run-id-a");
+        let b_dir = TempDir::new("osf-journal-run-id-b");
+        let mut a = Journal::open(&a_dir, "pre-push-1000-111").expect("open");
+        let mut b = Journal::open(&b_dir, "pre-push-2000-222").expect("open");
+        a.append("osf", 1, verification_with_duration("scan", 12))
+            .expect("append");
+        let ha = a
+            .append("osf", 2, verification_with_duration("fmt", 34))
+            .expect("append")
+            .hash;
+        b.append("osf", 900, verification_with_duration("scan", 56))
+            .expect("append");
+        let hb = b
+            .append("osf", 901, verification_with_duration("fmt", 78))
+            .expect("append")
+            .hash;
+        assert_eq!(ha, hb);
+    }
+
+    fn review_answer(transcript: Option<&str>) -> Payload {
+        Payload::ReviewAnswer(ReviewAnswer {
+            lens: "correctness".into(),
+            reviewer: "reviewer-a".into(),
+            family: "family-a".into(),
+            model: None,
+            result: "answered".into(),
+            scores: BTreeMap::new(),
+            findings_kept: 1,
+            findings_dropped: 0,
+            transcript: transcript.map(str::to_string),
+            reason: None,
+            grade: "reported".into(),
+            round: 1,
+        })
+    }
+
+    /// The transcript path names a temporary file that differs on every run,
+    /// so it must not reach the replay hash; a decided value still does.
+    #[test]
+    fn a_review_answer_hashes_the_same_whatever_its_transcript_path() {
+        let a = event_hash("0", "osf", &review_answer(Some("/tmp/run-1/a.log")));
+        let b = event_hash("0", "osf", &review_answer(Some("/tmp/run-2/b.log")));
+        let none = event_hash("0", "osf", &review_answer(None));
+        assert_eq!(a, b);
+        assert_eq!(a, none);
+        let Payload::ReviewAnswer(mut changed) = review_answer(None) else {
+            unreachable!("review_answer builds a ReviewAnswer");
+        };
+        changed.findings_kept = 2;
+        assert_ne!(a, event_hash("0", "osf", &Payload::ReviewAnswer(changed)));
     }
 
     #[test]

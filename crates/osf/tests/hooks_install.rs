@@ -201,7 +201,12 @@ fn a_real_git_push_runs_the_pre_push_checkpoint() {
     let repo = TempRepo::with_moon_workspace("hooks-install-push");
     repo.write("README.md", "a clean repository\n");
     repo.commit("base");
-    repo.track_origin_main();
+    // Pins a tracking ref for the remote this test actually pushes to
+    // below ("scratch"), the way a real fetch from it would: pre-push
+    // reads the real remote name from git's own hook argument, so its
+    // fallback base must be resolved against that same remote, not an
+    // "origin" this test never configures.
+    repo.git(&["update-ref", "refs/remotes/scratch/main", "HEAD"]);
 
     let install = run_osf_with_env(&repo.dir, &home, &[], &["hooks", "install"]);
     assert!(
@@ -235,12 +240,39 @@ fn a_real_git_push_runs_the_pre_push_checkpoint() {
         String::from_utf8_lossy(&push.stderr)
     );
 
+    // A journal entry alone is consistent with the checkpoint genuinely
+    // running, or with the no-op bug this push is shaped to catch: pushing
+    // `main` to `main` with no explicit `--base` once meant the default
+    // base was the local branch itself, an empty diff, and a journal entry
+    // for a run that checked nothing at all. At least one verification
+    // event is proof a task actually ran against the pushed change.
+    let events = journal_events_for_run_prefixed("pre-push-", &home);
     assert!(
-        journal_has_run_prefixed("pre-push-", &home),
-        "expected a pre-push checkpoint journal entry"
+        events.iter().any(|e| e["event_type"] == "verification"),
+        "expected at least one verification event, proving a task ran against the pushed change: {events:?}"
     );
 
     let _ = std::fs::remove_dir_all(&bare_dir);
+}
+
+/// `prefix`'s one journal buffer file under `home`'s state directory,
+/// parsed as one JSON value per line. Panics when no such file exists.
+fn journal_events_for_run_prefixed(prefix: &str, home: &Path) -> Vec<serde_json::Value> {
+    let buffer_dir = home.join(".osf").join("state").join("buffer");
+    let path = std::fs::read_dir(&buffer_dir)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", buffer_dir.display()))
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().starts_with(prefix))
+        })
+        .unwrap_or_else(|| panic!("no journal buffer file starts with {prefix}"));
+    std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()))
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("journal line is JSON"))
+        .collect()
 }
 
 /// A global `core.hooksPath`, with nothing set locally in the repository

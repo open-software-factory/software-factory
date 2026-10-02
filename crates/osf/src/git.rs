@@ -228,6 +228,22 @@ pub fn staged_content(dir: &Path, path: &str) -> Result<Vec<u8>, GitError> {
     run(dir, &["show", &format!(":{path}")])
 }
 
+/// The blob hash git would commit for `path` if the index were committed
+/// right now: the stage-0 entry `git ls-files --stage` already carries,
+/// cheaper than hashing the staged content itself and just as sensitive to
+/// an index-only change nothing on disk shows.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `path` is not staged.
+pub fn staged_blob_hash(dir: &Path, path: &str) -> Result<String, GitError> {
+    let text = run_text(dir, &["ls-files", "--stage", "--", path])?;
+    text.lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .map(str::to_string)
+        .ok_or_else(|| GitError(format!("{path} is not staged")))
+}
+
 /// The content of `path` as it is at `rev`.
 ///
 /// # Errors
@@ -258,6 +274,37 @@ pub fn default_branch(dir: &Path) -> Result<String, GitError> {
     Err(GitError(
         "cannot find a default branch: no origin/HEAD, no main, no master".to_string(),
     ))
+}
+
+/// The ref a `git push` with no explicit refspec actually pushes against:
+/// the current branch's configured upstream (`@{u}`) when one is set;
+/// otherwise `<remote>/<default-branch>` (`remote` defaulting to `origin`),
+/// when that ref actually exists; otherwise the local default branch's own
+/// name, the same ref [`default_branch`] itself returns. Diffing against
+/// that local name compares a branch to itself when the push is made from
+/// that same branch, which is always empty — the bug this exists to avoid
+/// — but it is the only ref left to offer a repository with no upstream
+/// configured and no remote-tracking state at all, such as one that has
+/// never fetched from the remote it is about to push to for the first time.
+///
+/// # Errors
+/// Returns an error when [`default_branch`] cannot find one.
+pub fn upstream_ref(dir: &Path, remote: Option<&str>) -> Result<String, GitError> {
+    if let Ok(text) = run_text(
+        dir,
+        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    ) {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            return Ok(trimmed.to_string());
+        }
+    }
+    let branch = default_branch(dir)?;
+    let remote_tracking = format!("{}/{branch}", remote.unwrap_or("origin"));
+    if commit_exists(dir, &remote_tracking) {
+        return Ok(remote_tracking);
+    }
+    Ok(branch)
 }
 
 /// The `origin` remote, split into the host it lives on, the owner, and
@@ -587,6 +634,79 @@ mod tests {
             "git init failed for {}: {}",
             dir.display(),
             String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    /// Runs `git` in `dir`, asserting success, GIT_* scrubbed first.
+    fn run_ok(dir: &Path, args: &[&str]) {
+        let mut command = Command::new("git");
+        command.current_dir(dir).args(args);
+        scrub_git_env(&mut command);
+        let out = command.output().expect("git runs");
+        assert!(
+            out.status.success(),
+            "git {args:?} failed in {}: {}",
+            dir.display(),
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    /// `git init -q -b main`, a commit, and `user.*` config, so a test can
+    /// commit without depending on the ambient `init.defaultBranch`.
+    fn init_repo_on_main(dir: &Path) {
+        let mut command = Command::new("git");
+        command
+            .arg("init")
+            .arg("--quiet")
+            .arg("-b")
+            .arg("main")
+            .arg(dir);
+        scrub_git_env(&mut command);
+        assert!(command.output().expect("git init runs").status.success());
+        run_ok(dir, &["config", "user.email", "test@example.com"]);
+        run_ok(dir, &["config", "user.name", "Test"]);
+        std::fs::write(dir.join("a.txt"), "a\n").expect("file writes");
+        run_ok(dir, &["add", "a.txt"]);
+        run_ok(dir, &["commit", "-q", "-m", "base"]);
+    }
+
+    /// With no upstream configured, a remote-tracking ref that actually
+    /// exists (pinned here with `update-ref`, the same way a real fetch
+    /// would create it) is preferred over the local branch's own name.
+    #[test]
+    fn upstream_ref_prefers_an_existing_remote_tracking_ref_over_the_local_branch() {
+        let dir = TempDir::new("osf-git-test-upstream-tracking-exists");
+        init_repo_on_main(&dir);
+        run_ok(&dir, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        assert_eq!(upstream_ref(&dir, None).expect("resolves"), "origin/main");
+    }
+
+    /// With no upstream configured and no remote-tracking ref for the
+    /// named remote either, the local default branch's own name is the
+    /// only ref left to offer — the pre-fix behaviour, kept as a fallback
+    /// for a repository that has never fetched from the remote it is
+    /// about to push to.
+    #[test]
+    fn upstream_ref_falls_back_to_the_local_branch_with_no_remote_tracking_state() {
+        let dir = TempDir::new("osf-git-test-upstream-no-tracking");
+        init_repo_on_main(&dir);
+        assert_eq!(
+            upstream_ref(&dir, Some("scratch")).expect("resolves"),
+            "main"
+        );
+    }
+
+    /// A remote name the caller gives, from the pre-push hook's own first
+    /// argument, is used over the `origin` default when its tracking ref
+    /// exists.
+    #[test]
+    fn upstream_ref_uses_the_given_remote_name_when_its_tracking_ref_exists() {
+        let dir = TempDir::new("osf-git-test-upstream-named-remote");
+        init_repo_on_main(&dir);
+        run_ok(&dir, &["update-ref", "refs/remotes/scratch/main", "HEAD"]);
+        assert_eq!(
+            upstream_ref(&dir, Some("scratch")).expect("resolves"),
+            "scratch/main"
         );
     }
 

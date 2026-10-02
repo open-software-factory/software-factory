@@ -1,0 +1,18 @@
+{
+  "title": "Timeline",
+  "playheadPercent": 88,
+  "scale": ["−2 h", "−90 m", "−60 m", "−30 m", "now"],
+  "events": [
+    { "at": 8, "state": "ok", "label": "SF-151 merged" },
+    { "at": 17, "state": "ok", "label": "SF-144 review opened" },
+    { "at": 26, "state": "active", "label": "SF-147 started" },
+    { "at": 34, "state": "blocked", "label": "Review gate waiting" },
+    { "at": 41, "state": "ok", "label": "search index shipped" },
+    { "at": 52, "state": "fail", "label": "CI gate unit-tests failed" },
+    { "at": 58, "state": "active", "label": "SF-149 started" },
+    { "at": 66, "state": "ok", "label": "refunds shipped" },
+    { "at": 74, "state": "blocked", "label": "SF-153 needs you" },
+    { "at": 81, "state": "ok", "label": "canary healthy" },
+    { "at": 88, "state": "active", "label": "canary 5% traffic" }
+  ]
+}

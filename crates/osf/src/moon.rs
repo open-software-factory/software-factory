@@ -206,6 +206,68 @@ fn clear_report(root: &Path) -> Result<(), String> {
     }
 }
 
+/// The lock file naming moon's own `runReport.json`, which moon writes to
+/// one fixed path per workspace with no per-invocation namespacing of its
+/// own. How long [`ReportLock::acquire`] waits for it before giving up:
+/// long enough for a real checkpoint run, short enough that a crashed
+/// holder cannot wedge every later invocation forever.
+const REPORT_LOCK_WAIT: Duration = Duration::from_secs(300);
+const REPORT_LOCK_POLL: Duration = Duration::from_millis(100);
+
+/// Holds the one lock moon's shared `runReport.json` needs: without it, two
+/// checkpoint invocations racing on the same workspace can clear, read or
+/// overwrite each other's report mid-run, since moon has no flag or
+/// environment variable that gives a run its own report path. Acquired for
+/// exactly the span this adapter owns that file — clearing it, running
+/// moon, and reading the result back — and released on every exit from
+/// [`run`], including an early one, since [`Drop`] removes the lock file.
+struct ReportLock {
+    path: PathBuf,
+}
+
+impl ReportLock {
+    fn acquire(root: &Path) -> Result<ReportLock, String> {
+        let path = root.join(".moon").join("cache").join("osf-run-report.lock");
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+        }
+        let deadline = std::time::Instant::now() + REPORT_LOCK_WAIT;
+        loop {
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+            {
+                Ok(_) => return Ok(ReportLock { path }),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(format!(
+                            "cannot acquire the moon run-report lock at {}: held for longer than \
+                             {}s; a previous invocation may have crashed",
+                            path.display(),
+                            REPORT_LOCK_WAIT.as_secs()
+                        ));
+                    }
+                    std::thread::sleep(REPORT_LOCK_POLL);
+                }
+                Err(e) => {
+                    return Err(format!(
+                        "cannot create the moon run-report lock {}: {e}",
+                        path.display()
+                    ))
+                }
+            }
+        }
+    }
+}
+
+impl Drop for ReportLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 /// Runs `moon run <targets> --affected --stdin` for `inv`.
 #[must_use]
 pub fn run(inv: &Invocation) -> Outcome {
@@ -219,6 +281,10 @@ pub fn run(inv: &Invocation) -> Outcome {
         }
         Err(e) => return Outcome::CouldNotRun(e),
     }
+    let _report_lock = match ReportLock::acquire(inv.root) {
+        Ok(l) => l,
+        Err(e) => return Outcome::CouldNotRun(e),
+    };
     if let Err(e) = clear_report(inv.root) {
         return Outcome::CouldNotRun(e);
     }
@@ -323,16 +389,27 @@ fn read_all(pipe: &mut impl std::io::Read) -> String {
     buf
 }
 
-/// The moon targets tagged `tag`, from `moon query tasks --tags <tag>`.
-/// Moon itself decides tag membership across every project in the
-/// workspace, so this reads exactly the set `moon run :#<tag>` is about to
-/// select, rather than this crate guessing at it by re-reading a project's
-/// own YAML.
+/// One task `moon query tasks` named: its target, and the slot its own
+/// `osf-slot-*` tag names (decisions 0012-0014), when it carries one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TaskSlot {
+    pub target: String,
+    pub slot: Option<String>,
+}
+
+/// The prefix an `osf-slot-*` moon tag carries before the slot's own name.
+const SLOT_TAG_PREFIX: &str = "osf-slot-";
+
+/// The moon tasks tagged `tag`, each with its slot, from `moon query tasks
+/// --tags <tag>`. Moon itself decides tag membership across every project
+/// in the workspace, so this reads exactly the set `moon run :#<tag>` is
+/// about to select, rather than this crate guessing at it by re-reading a
+/// project's own YAML.
 ///
 /// # Errors
 /// Returns an error when moon cannot run, exits non-zero, or its output
 /// does not parse.
-pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, String> {
+pub fn task_slots_for_tag(root: &Path, tag: &str) -> Result<Vec<TaskSlot>, String> {
     let mut command = Command::new(moon_binary());
     command
         .args(["query", "tasks", "--tags", tag])
@@ -350,27 +427,50 @@ pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, Strin
     parse_query_tasks(&String::from_utf8_lossy(&output.stdout))
 }
 
-/// Parses `moon query tasks`' JSON: one target per task, across every
-/// project the query returned.
-fn parse_query_tasks(json: &str) -> Result<Vec<String>, String> {
+/// The moon targets tagged `tag`: [`task_slots_for_tag`], targets only,
+/// for every caller that has no use for a task's slot.
+///
+/// # Errors
+/// Returns an error under the same conditions as [`task_slots_for_tag`].
+pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, String> {
+    Ok(task_slots_for_tag(root, tag)?
+        .into_iter()
+        .map(|t| t.target)
+        .collect())
+}
+
+/// Parses `moon query tasks`' JSON: one target, and its slot if it has
+/// one, per task, across every project the query returned.
+fn parse_query_tasks(json: &str) -> Result<Vec<TaskSlot>, String> {
     let value: serde_json::Value = serde_json::from_str(json)
         .map_err(|e| format!("moon query tasks output is not JSON: {e}"))?;
     let projects = value
         .get("tasks")
         .and_then(serde_json::Value::as_object)
         .ok_or("moon query tasks output has no tasks object")?;
-    let mut targets = Vec::new();
+    let mut out = Vec::new();
     for tasks in projects.values() {
         let Some(tasks) = tasks.as_object() else {
             continue;
         };
         for task in tasks.values() {
-            if let Some(target) = task.get("target").and_then(serde_json::Value::as_str) {
-                targets.push(target.to_string());
-            }
+            let Some(target) = task.get("target").and_then(serde_json::Value::as_str) else {
+                continue;
+            };
+            let slot = task
+                .get("tags")
+                .and_then(serde_json::Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(serde_json::Value::as_str)
+                .find_map(|t| t.strip_prefix(SLOT_TAG_PREFIX).map(str::to_string));
+            out.push(TaskSlot {
+                target: target.to_string(),
+                slot,
+            });
         }
     }
-    Ok(targets)
+    Ok(out)
 }
 
 /// Parses moon's `runReport.json`, one [`TaskOutcome`] per target moon was
@@ -726,6 +826,32 @@ mod tests {
         }
     }
 
+    /// Two invocations against the same root never hold the run-report
+    /// lock at once: the second's `acquire` must not return until the
+    /// first's guard is dropped, which is what stops it reading or
+    /// clearing the other's `runReport.json` mid-run.
+    #[test]
+    fn a_second_lock_acquire_waits_for_the_first_to_drop() {
+        let root = TempDir::new("osf-moon-report-lock");
+        let first = ReportLock::acquire(&root).expect("first acquire");
+        let root_for_thread = root.to_path_buf();
+        let released_at = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let released_at_writer = released_at.clone();
+        let handle = std::thread::spawn(move || {
+            let started = std::time::Instant::now();
+            let _second = ReportLock::acquire(&root_for_thread).expect("second acquire");
+            *released_at_writer.lock().expect("lock") = Some(started.elapsed());
+        });
+        std::thread::sleep(Duration::from_millis(250));
+        drop(first);
+        handle.join().expect("thread joins");
+        let waited = released_at.lock().expect("lock").expect("recorded a wait");
+        assert!(
+            waited >= Duration::from_millis(200),
+            "the second acquire returned after only {waited:?}, before the first was dropped"
+        );
+    }
+
     #[test]
     fn moon_s_own_version_output_parses() {
         assert_eq!(parse_version("moon 2.5.5"), Some((2, 5, 5)));
@@ -740,8 +866,31 @@ mod tests {
 
     #[test]
     fn the_captured_query_parses_into_one_target_per_task() {
-        let targets = parse_query_tasks(QUERY_TASKS).expect("query parses");
-        assert_eq!(targets, vec!["osf:probe".to_string()]);
+        let tasks = parse_query_tasks(QUERY_TASKS).expect("query parses");
+        assert_eq!(
+            tasks,
+            vec![TaskSlot {
+                target: "osf:probe".to_string(),
+                slot: Some("probe".to_string()),
+            }]
+        );
+    }
+
+    /// A task with no `osf-slot-*` tag at all names no slot, rather than
+    /// the query failing or defaulting to one that is not really there.
+    #[test]
+    fn a_task_with_no_slot_tag_has_no_slot() {
+        let tasks = parse_query_tasks(
+            r#"{"tasks":{"osf":{"fmt":{"target":"osf:fmt","tags":["osf-pre-commit"]}}}}"#,
+        )
+        .expect("query parses");
+        assert_eq!(
+            tasks,
+            vec![TaskSlot {
+                target: "osf:fmt".to_string(),
+                slot: None
+            }]
+        );
     }
 
     #[test]

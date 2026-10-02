@@ -32,11 +32,12 @@ drive the other hook events from a hook file.
 ## Building it
 
 The source is TypeScript under `src/`, compiled to `dist/` before use. `dist/`
-is not committed; the consumer builds it.
+is not committed; the consumer builds it. This repository is a pnpm
+workspace, so `pnpm install` here installs from the root lock file.
 
 ```
-npm ci
-npm run build
+pnpm install
+pnpm run build
 ```
 
 `main`, `exports`, and the patch this package ships all point at `dist/`, so
@@ -102,8 +103,8 @@ to check, and no warning.
 ## Checking it
 
 ```
-npm run check
-npm run test
+pnpm run check
+pnpm run test
 ```
 
 `check` type-checks the source without emitting, lints it, and checks its

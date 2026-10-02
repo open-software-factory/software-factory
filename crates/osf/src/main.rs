@@ -1,7 +1,7 @@
 use osf::status::GhClient;
 use osf::{
-    answer, check, checkpoint, config, exclude, githooks, hook, journal, lints, reducer, review,
-    review_run, reviewers, risk, scan, status, verify,
+    answer, assets, check, checkpoint, config, exclude, git, githooks, hook, journal, lints,
+    reducer, review, review_run, reviewers, risk, scan, section, status, verify,
 };
 
 use clap::parser::ValueSource;
@@ -121,6 +121,16 @@ enum Command {
         #[command(subcommand)]
         action: HooksAction,
     },
+    /// Read or change a pull request's description.
+    Pr {
+        #[command(subcommand)]
+        action: PrAction,
+    },
+    /// Publish built files to a data branch.
+    Assets {
+        #[command(subcommand)]
+        action: AssetsAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -135,6 +145,72 @@ struct HooksInstallArgs {
     /// instead of installing anything. Exits non-zero when they do not.
     #[arg(long)]
     check: bool,
+}
+
+#[derive(Subcommand)]
+enum AssetsAction {
+    /// Push a folder's files to a path on a branch, creating the branch as
+    /// an orphan the first time, and print the raw content web address.
+    Publish(AssetsPublishArgs),
+}
+
+#[derive(Args)]
+struct AssetsPublishArgs {
+    /// The branch to publish to, created as an orphan if it does not exist.
+    #[arg(long)]
+    branch: String,
+    /// The path prefix within that branch the folder's files land under.
+    #[arg(long)]
+    path: String,
+    /// The local folder whose files (not subfolders) are published.
+    #[arg(long)]
+    dir: PathBuf,
+    /// The repository, as `owner/name`. Read from the current directory's
+    /// `origin` remote when not given.
+    #[arg(long)]
+    repo: Option<String>,
+    /// Push to this remote instead of the repository's own origin, with no
+    /// GitHub authentication. For a test against a local repository.
+    #[arg(long, hide = true)]
+    remote: Option<String>,
+    /// How many times to retry the publish when it loses a race with
+    /// another run pushing to the same branch.
+    #[arg(long, default_value_t = 5)]
+    max_attempts: u32,
+}
+
+#[derive(Subcommand)]
+enum PrAction {
+    /// Work with one marked section of a pull request description.
+    Section {
+        #[command(subcommand)]
+        action: SectionAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum SectionAction {
+    /// Replace one marked section of a pull request description, or
+    /// append it when the markers are not there yet.
+    Write(SectionWriteArgs),
+}
+
+#[derive(Args)]
+struct SectionWriteArgs {
+    /// The pull request number.
+    #[arg(long)]
+    pr: u64,
+    /// The section's name: the markers are `<!-- osf:<name>:start -->` and
+    /// `<!-- osf:<name>:end -->`.
+    #[arg(long)]
+    name: String,
+    /// Path to a file holding the section's content, in Markdown.
+    #[arg(long)]
+    file: PathBuf,
+    /// The repository, as `owner/name`. Left to `gh`'s own detection of the
+    /// current repository when not given.
+    #[arg(long)]
+    repo: Option<String>,
 }
 
 #[derive(Args)]
@@ -411,9 +487,10 @@ struct VerifyArgs {
     /// How long to let moon run before it is killed, in seconds. No limit when absent.
     #[arg(long)]
     timeout_secs: Option<u64>,
-    /// Extra positional arguments a git hook passes (pre-push's remote name and URL), swallowed so a real hook call is never refused.
+    /// Extra positional arguments a git hook passes: pre-push's remote name
+    /// (its first entry, read as the remote `verify_cmd` resolves a
+    /// fallback base against) and URL, so a real hook call is never refused.
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
-    #[allow(dead_code)]
     hook_args: Vec<String>,
 }
 
@@ -615,6 +692,15 @@ fn main() -> ExitCode {
         Command::Hooks {
             action: HooksAction::Install(args),
         } => hooks_install_cmd(args),
+        Command::Pr {
+            action:
+                PrAction::Section {
+                    action: SectionAction::Write(args),
+                },
+        } => pr_section_write_cmd(args),
+        Command::Assets {
+            action: AssetsAction::Publish(args),
+        } => assets_publish_cmd(args),
     }
 }
 
@@ -1453,6 +1539,7 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
         base: args.base.clone(),
         files,
         timeout: args.timeout_secs.map(std::time::Duration::from_secs),
+        remote: args.hook_args.first().cloned(),
     };
     let summary = checkpoint::run(&req, &state_dir);
     for line in &summary.lines {
@@ -2198,6 +2285,104 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
     }
     let outcome = post_plan(&args.repo, args.pr, &plan, &head_sha);
     report_outcome(outcome, args, &head_sha)
+}
+
+fn pr_section_write_cmd(args: &SectionWriteArgs) -> ExitCode {
+    let content = match std::fs::read_to_string(&args.file) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("osf: cannot read {}: {e}", args.file.display());
+            return ExitCode::from(2);
+        }
+    };
+    let repo = args.repo.as_deref();
+    let body = match section::fetch_body(repo, args.pr) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let new_body = match section::apply(&body, &args.name, &content) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    match section::write_body(repo, args.pr, &new_body) {
+        Ok(()) => {
+            println!(
+                "osf pr section write: wrote '{}' on pull request #{}",
+                args.name, args.pr
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// The remote to clone from and push to, and the `owner/name` label for the
+/// printed raw content address: `--repo` and `--remote` verbatim when
+/// given, else both read from the current directory's `origin` remote.
+fn resolve_assets_target(
+    repo: Option<&str>,
+    remote: Option<&str>,
+) -> Result<(String, String), String> {
+    if let (Some(repo), Some(remote)) = (repo, remote) {
+        return Ok((repo.to_string(), remote.to_string()));
+    }
+    let origin = git::remote(Path::new("."))
+        .map_err(|e| format!("cannot read the origin remote to fill in --repo or --remote: {e}"))?;
+    let resolved_repo = repo.map_or_else(
+        || format!("{}/{}", origin.owner, origin.name),
+        str::to_string,
+    );
+    let resolved_remote = remote.map_or_else(
+        || {
+            format!(
+                "https://{}/{}/{}.git",
+                origin.host, origin.owner, origin.name
+            )
+        },
+        str::to_string,
+    );
+    Ok((resolved_repo, resolved_remote))
+}
+
+fn assets_publish_cmd(args: &AssetsPublishArgs) -> ExitCode {
+    let (repo, remote) = match resolve_assets_target(args.repo.as_deref(), args.remote.as_deref()) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let token = std::env::var("GITHUB_TOKEN")
+        .ok()
+        .or_else(|| std::env::var("GH_TOKEN").ok());
+    let publish_args = assets::PublishArgs {
+        remote: &remote,
+        repo: &repo,
+        branch: &args.branch,
+        path: &args.path,
+        dir: &args.dir,
+        token: token.as_deref(),
+        max_attempts: args.max_attempts,
+    };
+    match assets::publish(&publish_args) {
+        Ok(url) => {
+            println!("{url}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(1)
+        }
+    }
 }
 
 #[cfg(test)]
