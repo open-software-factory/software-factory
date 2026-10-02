@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "e1abe56df8bf736c221d25b5441b2a85f5c7597c",
+    "contentHash": "7085f27b503f883d68dbc978395fd725"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c4de6ba6eed5c0a4061e00801ca4a018",
+      "bytes": 25745,
+      "width": 1708,
+      "height": 676,
+      "animated": false,
+      "path": "architecture-overview-light-c4de6ba6eed5c0a4061e00801ca4a018.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5bda8f7536a5f8fb08c228af35206764",
+      "bytes": 26178,
+      "width": 1708,
+      "height": 676,
+      "animated": false,
+      "path": "architecture-overview-dark-5bda8f7536a5f8fb08c228af35206764.svg"
+    },
+    {
+      "id": "config-resolution-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "config-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "537e3939e4f4b3bdba9ea2314fc70c24",
+      "bytes": 10919,
+      "width": 870,
+      "height": 512,
+      "animated": false,
+      "path": "config-resolution-light-537e3939e4f4b3bdba9ea2314fc70c24.svg"
+    },
+    {
+      "id": "config-resolution-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "config-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "659a7635f92c70b394b5bbbba607d0e0",
+      "bytes": 11078,
+      "width": 870,
+      "height": 512,
+      "animated": false,
+      "path": "config-resolution-dark-659a7635f92c70b394b5bbbba607d0e0.svg"
+    },
+    {
+      "id": "rule-collapse-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "rule-collapse",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a32ee12130815f8f6c03a0a0b903a0fc",
+      "bytes": 9544,
+      "width": 446,
+      "height": 606,
+      "animated": false,
+      "path": "rule-collapse-light-a32ee12130815f8f6c03a0a0b903a0fc.svg"
+    },
+    {
+      "id": "rule-collapse-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "rule-collapse",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8bfca7bcaa140d1f9b451f1bf1adff2d",
+      "bytes": 9681,
+      "width": 446,
+      "height": 606,
+      "animated": false,
+      "path": "rule-collapse-dark-8bfca7bcaa140d1f9b451f1bf1adff2d.svg"
+    },
+    {
+      "id": "retirement-plumbing-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "retirement-plumbing",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ecb0b4ec0593ed486c08257bb8dae083",
+      "bytes": 9374,
+      "width": 1284,
+      "height": 294,
+      "animated": false,
+      "path": "retirement-plumbing-light-ecb0b4ec0593ed486c08257bb8dae083.svg"
+    },
+    {
+      "id": "retirement-plumbing-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "retirement-plumbing",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a9ef73975bb7de2e78139d28099d0786",
+      "bytes": 9512,
+      "width": 1284,
+      "height": 294,
+      "animated": false,
+      "path": "retirement-plumbing-dark-a9ef73975bb7de2e78139d28099d0786.svg"
+    },
+    {
+      "id": "retired-id-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "retired-id-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3f737aeae8355ad61ea0ad94c2e42dd4",
+      "bytes": 15868,
+      "width": 1751,
+      "height": 521,
+      "animated": true,
+      "path": "retired-id-flow-light-3f737aeae8355ad61ea0ad94c2e42dd4.svg"
+    },
+    {
+      "id": "retired-id-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "retired-id-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e2c8f703fd5859ad1dc6f79a36b71327",
+      "bytes": 16028,
+      "width": 1751,
+      "height": 521,
+      "animated": true,
+      "path": "retired-id-flow-dark-e2c8f703fd5859ad1dc6f79a36b71327.svg"
+    }
+  ]
+}

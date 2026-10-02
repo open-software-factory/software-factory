@@ -1,0 +1,832 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-02T14:56:15.423Z",
+  "title": "Six writing rules collapse into unplaceable-reference",
+  "summary": "This change retires six writing-lint rule ids — bare-reference, reference-without-label, reference-without-link, chat-local-reference, undefined-name and undefined-name-at-start — and folds all of them into the single existing rule unplaceable-reference. The rule now also carries the old link warning: a labelled repo reference with no Markdown link is placed but still warns. Because the old ids are gone, every place a user could still name one — a suppression marker, a writing.levels override, an osf-expect declaration, osf explain, or the OSF_WRITING_CHAT_LOCAL_LABELS environment variable — now reports an error or notice that names unplaceable-reference instead of failing silently. The config key writing.chat_local_labels is removed outright, and the stop hook loads config through a new path that keeps the retired-variable notice out of the text an agent reads as its next instruction.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "99ffc1b2c4c65365620848a0dc452be6defd8854",
+      "ref": "99ffc1b2c4c65365620848a0dc452be6defd8854"
+    },
+    "head": {
+      "sha": "e1abe56df8bf736c221d25b5441b2a85f5c7597c",
+      "ref": "e1abe56df8bf736c221d25b5441b2a85f5c7597c"
+    },
+    "pullRequest": {
+      "number": 204,
+      "url": "https://github.com/open-software-factory/software-factory/pull/204"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI entry points",
+      "subtitle": "osf binary",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The commands a person or an agent invokes: lint, verify, explain, and the stop hook."
+    },
+    {
+      "id": "config",
+      "label": "Config resolution",
+      "subtitle": "file, env, flags, gate",
+      "order": 1,
+      "delta": "modified",
+      "summary": "Layers the config file, environment variables and flags into one resolved WritingConfig, and now refuses retired keys and announces retired variables."
+    },
+    {
+      "id": "lint",
+      "label": "Writing lint",
+      "subtitle": "crates/osf/src/lints",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The rule set itself: one unplaceable-reference rule now covers references, chat-local phrases and undefined names."
+    },
+    {
+      "id": "core",
+      "label": "Lint core",
+      "subtitle": "crates/osf-lint-core",
+      "order": 3,
+      "delta": "modified",
+      "summary": "Shared machinery: suppression markers, expectation checking, and the human/SARIF renderers."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "main.rs",
+      "summary": "Dispatches every subcommand. explain now short-circuits a retired rule id and points at its replacement instead of printing 'no such rule'.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 651,
+          "endLine": 665
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-writing-cmd",
+      "label": "osf lint writing",
+      "kind": "route",
+      "delta": "modified",
+      "lane": "cli",
+      "summary": "The command a person runs. It loads config with the retired-variable notice enabled, so a stale OSF_WRITING_CHAT_LOCAL_LABELS is announced on stderr.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hook-stop",
+      "label": "osf hook stop",
+      "kind": "route",
+      "delta": "modified",
+      "lane": "cli",
+      "summary": "The agent-facing refusal path. It now loads config through load_for_hook, which suppresses the retired-variable notice so it never lands in the text an agent reads as its next instruction.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 588,
+          "endLine": 600
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "verify",
+      "label": "osf verify",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "cli",
+      "summary": "Pre-commit and pre-push checks. Its declared-fixture check now passes RETIRED_RULE_IDS and emits expectation-retired-rule findings.",
+      "files": [
+        {
+          "path": "crates/osf/src/verify.rs",
+          "startLine": 351,
+          "endLine": 388
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-load",
+      "label": "config::load",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "load_announcing(.., announce_retired)",
+      "summary": "The single loader behind both entry points. It applies env, then rejects a writing.levels key naming a retired rule and rewrites the unknown-key error for writing.chat_local_labels.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 454,
+          "endLine": 515
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "load-for-hook",
+      "label": "config::load_for_hook",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "summary": "New thin wrapper: no flags, no gate, and announce_retired false, so a hook's stderr stays clean of migration notices.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 462,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "retired-env-notices",
+      "label": "retired_env_notices",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "summary": "Builds one notice line per retired environment variable that is set, naming the replacements. Called only when announce_retired is true.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 336,
+          "endLine": 352
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reject-retired-levels",
+      "label": "reject_retired_levels",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "summary": "Turns a writing.levels entry keyed by any retired rule id into a hard config error naming unplaceable-reference, rather than a silent no-op.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 518,
+          "endLine": 548
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-config",
+      "label": "WritingConfig",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "chat_local_labels removed",
+      "summary": "The chat_local_labels field and its default list are gone; the env field mapping for OSF_WRITING_CHAT_LOCAL_LABELS is gone with it.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 66,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "retired-rule-ids",
+      "label": "RETIRED_RULE_IDS",
+      "kind": "config",
+      "delta": "added",
+      "lane": "lint",
+      "subtitle": "6 old ids -> unplaceable-reference",
+      "summary": "The single table every migration path reads: suppression validation, level overrides, expectation checks and osf explain all consult it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/mod.rs",
+          "startLine": 64,
+          "endLine": 76
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-writing",
+      "label": "lint_writing",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "lint",
+      "summary": "No longer calls undefined_names; runs unplaceable_reference and passes RETIRED_RULE_IDS into apply_suppressions. apply_context now resolves every rule from its own evidence, with no special case for unplaceable-reference.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 37,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unplaceable-rule",
+      "label": "unplaceable_reference",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "lint",
+      "summary": "The surviving rule. It now emits a warning for a labelled repo reference with no link, via the new unlinked_finding helper, absorbing the retired reference-without-link behaviour.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 414,
+          "endLine": 445
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unlinked-finding",
+      "label": "unlinked_finding",
+      "kind": "function",
+      "delta": "added",
+      "lane": "lint",
+      "summary": "Returns a warning-level unplaceable-reference finding when a repo-qualified number is placed but not wrapped in a Markdown link.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 428,
+          "endLine": 440
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rule-meta",
+      "label": "RULE_META",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "lint",
+      "summary": "Six rule_meta entries are deleted; the unplaceable-reference entry gains a sentence about the unlinked-reference warning.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/meta.rs",
+          "startLine": 55,
+          "endLine": 100
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "apply-suppressions",
+      "label": "apply_suppressions",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "core",
+      "summary": "Takes a retired_rules slice and threads it into validate_ids, so a suppression naming a retired id still errors but the message names the replacement.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/suppress.rs",
+          "startLine": 285,
+          "endLine": 305
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "validate-ids",
+      "label": "validate_ids",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "core",
+      "summary": "Looks an unknown id up in the retired table and rewrites the diagnostic to say the rule was replaced, instead of a bare 'not a rule id'.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/suppress.rs",
+          "startLine": 155,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "expectation-check",
+      "label": "expectation::check",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "core",
+      "summary": "Gains a retired_rules parameter and a retired field on Mismatch. A declared retired id is reported on its own, and its replacement firing is not also reported as unexpected.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs",
+          "startLine": 55,
+          "endLine": 130
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "expectation-findings",
+      "label": "expectation_findings",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "summary": "Renders each retired declaration as an expectation-retired-rule error naming the replacement, chained after missing and unexpected.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 791,
+          "endLine": 830
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fixtures",
+      "label": "writing fixtures",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "lint",
+      "summary": "The chat-local-named-label pair is deleted, a new unlinked-reference fixture is added, and the remaining fixtures drop their now-retired osf-expect ids.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/writing/unplaceable/number-repo-qualified-unlinked-unplaceable.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-config",
+      "from": "osf-cli",
+      "to": "config-load",
+      "kind": "call",
+      "delta": "modified",
+      "label": "load / load_for_hook",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Both entry points reach the same loader; only the announce_retired flag differs.",
+      "files": []
+    },
+    {
+      "id": "hook-to-load-for-hook",
+      "from": "hook-stop",
+      "to": "load-for-hook",
+      "kind": "call",
+      "delta": "added",
+      "label": "no retired notice",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The hook path deliberately takes the quiet loader so migration chatter never reaches an agent's next instruction.",
+      "files": []
+    },
+    {
+      "id": "lint-cmd-to-config",
+      "from": "lint-writing-cmd",
+      "to": "config-load",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The person-facing path takes the announcing loader.",
+      "files": []
+    },
+    {
+      "id": "config-to-retired-env",
+      "from": "config-load",
+      "to": "retired-env-notices",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Only when announce_retired is true.",
+      "files": []
+    },
+    {
+      "id": "config-to-reject-levels",
+      "from": "config-load",
+      "to": "reject-retired-levels",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Runs after the layered config is finished, before the result is returned.",
+      "files": []
+    },
+    {
+      "id": "config-to-writing-config",
+      "from": "config-load",
+      "to": "writing-config",
+      "kind": "data",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Produces the resolved WritingConfig, now without chat_local_labels.",
+      "files": []
+    },
+    {
+      "id": "lint-writing-to-unplaceable",
+      "from": "lint-writing",
+      "to": "unplaceable-rule",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The one surviving reference-and-name rule.",
+      "files": []
+    },
+    {
+      "id": "unplaceable-to-unlinked",
+      "from": "unplaceable-rule",
+      "to": "unlinked-finding",
+      "kind": "call",
+      "delta": "added",
+      "label": "placed but unlinked",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The absorbed behaviour: a labelled repo reference with no link warns instead of passing silently.",
+      "files": []
+    },
+    {
+      "id": "lint-writing-to-suppress",
+      "from": "lint-writing",
+      "to": "apply-suppressions",
+      "kind": "call",
+      "delta": "modified",
+      "label": "RETIRED_RULE_IDS",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Suppression validation now knows which ids are retired.",
+      "files": []
+    },
+    {
+      "id": "suppress-to-validate",
+      "from": "apply-suppressions",
+      "to": "validate-ids",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Threads the retired table into per-marker id validation.",
+      "files": []
+    },
+    {
+      "id": "lint-to-retired-ids",
+      "from": "lint-writing",
+      "to": "retired-rule-ids",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Reads the shared retirement table.",
+      "files": []
+    },
+    {
+      "id": "verify-to-expectation",
+      "from": "verify",
+      "to": "expectation-check",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Declared fixtures are checked with the retired table.",
+      "files": []
+    },
+    {
+      "id": "verify-to-expectation-findings",
+      "from": "verify",
+      "to": "expectation-findings",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Retired declarations become expectation-retired-rule errors.",
+      "files": []
+    },
+    {
+      "id": "cli-to-retired-ids",
+      "from": "osf-cli",
+      "to": "retired-rule-ids",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "osf explain consults the table before reporting 'no such rule'.",
+      "files": []
+    },
+    {
+      "id": "lint-to-meta",
+      "from": "lint-writing",
+      "to": "rule-meta",
+      "kind": "data",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Level and remediation are resolved from the surviving metadata.",
+      "files": []
+    },
+    {
+      "id": "fixtures-to-lint",
+      "from": "fixtures",
+      "to": "lint-writing",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Fixtures declare the ids the lint now produces.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "retired-id-migration",
+      "title": "A retired rule id is named, and the tool answers with its replacement",
+      "summary": "Four entry points where a user can still write one of the six retired ids, and what each now says instead of failing silently.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "osf-cli",
+          "label": "osf"
+        },
+        {
+          "node": "config-load",
+          "label": "config"
+        },
+        {
+          "node": "lint-writing",
+          "label": "lint_writing"
+        },
+        {
+          "node": "apply-suppressions",
+          "label": "suppressions"
+        },
+        {
+          "node": "expectation-check",
+          "label": "expectation"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m1",
+          "from": "osf-cli",
+          "to": "config-load",
+          "label": "load config",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 454,
+              "endLine": 470
+            }
+          ]
+        },
+        {
+          "id": "m2",
+          "from": "config-load",
+          "to": "config-load",
+          "label": "writing.levels names a retired id",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "reject_retired_levels returns an error naming unplaceable-reference instead of letting the level silently do nothing.",
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 518,
+              "endLine": 548
+            }
+          ]
+        },
+        {
+          "id": "m3",
+          "from": "config-load",
+          "to": "osf-cli",
+          "label": "config error",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "m4",
+          "from": "osf-cli",
+          "to": "lint-writing",
+          "label": "lint the text",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "m5",
+          "from": "lint-writing",
+          "to": "apply-suppressions",
+          "label": "findings + RETIRED_RULE_IDS",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/mod.rs",
+              "startLine": 44,
+              "endLine": 52
+            }
+          ]
+        },
+        {
+          "id": "m6",
+          "from": "apply-suppressions",
+          "to": "apply-suppressions",
+          "label": "marker names bare-reference",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Still an error, but the message says it was replaced by unplaceable-reference.",
+          "files": [
+            {
+              "path": "crates/osf-lint-core/src/suppress.rs",
+              "startLine": 155,
+              "endLine": 190
+            }
+          ]
+        },
+        {
+          "id": "m7",
+          "from": "lint-writing",
+          "to": "expectation-check",
+          "label": "declared ids vs findings",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf-lint-core/src/expectation.rs",
+              "startLine": 80,
+              "endLine": 130
+            }
+          ]
+        },
+        {
+          "id": "m8",
+          "from": "expectation-check",
+          "to": "lint-writing",
+          "label": "Mismatch.retired",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "A retired declaration is reported on its own; its replacement firing is not also flagged unexpected.",
+          "files": []
+        },
+        {
+          "id": "m9",
+          "from": "lint-writing",
+          "to": "osf-cli",
+          "label": "findings",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 36,
+    "additions": 728,
+    "deletions": 865,
+    "chips": [
+      {
+        "label": "Rules retired",
+        "value": "6 -> 1",
+        "tone": "removed"
+      },
+      {
+        "label": "Migration paths",
+        "value": "5",
+        "tone": "added"
+      },
+      {
+        "label": "Config keys removed",
+        "value": "1",
+        "tone": "removed"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Writing lint after the rule collapse",
+      "lens": "architecture",
+      "summary": "The CLI, config resolution, the writing rule set and the shared lint core, with the retirement table as the hub every migration path reads.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "config-resolution",
+          "title": "Config resolution and the retired-variable notice",
+          "lens": "architecture",
+          "summary": "How load and load_for_hook diverge, and where retired keys and variables are caught.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "config-load",
+              "load-for-hook",
+              "retired-env-notices",
+              "reject-retired-levels",
+              "writing-config",
+              "lint-writing-cmd",
+              "hook-stop"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "rule-collapse",
+          "title": "The rule set after the collapse",
+          "lens": "architecture",
+          "summary": "One rule now covers references, chat-local phrases and undefined names, and carries the old link warning.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "lint-writing",
+              "unplaceable-rule",
+              "unlinked-finding",
+              "rule-meta",
+              "retired-rule-ids",
+              "fixtures"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "retirement-plumbing",
+          "title": "Retirement plumbing in lint core",
+          "lens": "architecture",
+          "summary": "How the retired table reaches suppression validation and expectation checking.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "apply-suppressions",
+              "validate-ids",
+              "expectation-check",
+              "expectation-findings",
+              "verify",
+              "retired-rule-ids"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "retired-id-flow",
+      "title": "Retired rule id migration",
+      "lens": "data-flow",
+      "summary": "What happens when a user still names one of the six retired ids.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "retired-id-migration"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
