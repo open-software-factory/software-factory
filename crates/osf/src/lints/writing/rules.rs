@@ -813,6 +813,7 @@ fn number_is_placed(
             .any(|item| item.text.trim().to_lowercase().starts_with(&wanted));
     }
     repo_named_in_same_sentence(candidate, local_sentences)
+        || file_named_in_same_sentence(candidate, local_sentences)
         || file_path_names_it(text, candidate)
         || has_qualifying_description(candidate, local_sentences, all_candidates)
 }
@@ -924,6 +925,17 @@ fn repo_named_in_same_sentence(candidate: &Candidate, local_sentences: &[TextUni
     let repo_slug = re(&REPO_SLUG, r"\b[\w.-]+/[\w.-]+\b");
     containing_sentence(local_sentences, candidate.range.start)
         .is_some_and(|s| repo_slug.is_match(&s.text))
+}
+
+/// A file name, such as `components.md`, in the candidate's own sentence says where the numbered thing lives.
+fn file_named_in_same_sentence(candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
+    static FILE_NAME: OnceLock<Regex> = OnceLock::new();
+    let file_name = re(
+        &FILE_NAME,
+        r"\b[\w-]+(?:\.[\w-]+)*\.(?:md|rs|toml|json|ya?ml|html|css|tsx?|jsx?|sh|txt)\b",
+    );
+    containing_sentence(local_sentences, candidate.range.start)
+        .is_some_and(|s| file_name.is_match(&s.text))
 }
 
 /// Whether a file-path-shaped token elsewhere in the paragraph contains the candidate's own digits.
@@ -2009,6 +2021,20 @@ mod unplaceable_reference_tests {
     fn a_file_path_containing_the_number_places_it() {
         let t = "The retry policy follows decision 0003, in docs/decisions/0003-retry.md.";
         assert!(is_placed(t, "decision 0003"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_file_name_in_the_same_sentence_places_a_numbered_label() {
+        let t = "The primitive is scoped in `components.md` layer 1.";
+        assert!(is_placed(t, "layer 1"), "{:?}", find(t));
+        let t = "The survey covers a primitive that components.md places in layer 1.";
+        assert!(is_placed(t, "layer 1"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_file_name_in_another_sentence_does_not_place_a_numbered_label() {
+        let t = "The primitive sits in layer 1. See components.md for the rest.";
+        assert!(!is_placed(t, "layer 1"), "{:?}", find(t));
     }
 
     #[test]
