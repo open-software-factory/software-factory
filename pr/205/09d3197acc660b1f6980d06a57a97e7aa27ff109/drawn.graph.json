@@ -1,0 +1,494 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-docs-prose-lint-sweep",
+  "generatedAt": "2026-10-02T10:59:53.411Z",
+  "title": "Prose lint sweep across docs, skills and osf test comments",
+  "summary": "A repository-wide prose and reference cleanup. The `osf` prose linter's rules were tightened, and this change brings the repository's own Markdown and Rust doc comments into line with them: vague time words ('today', 'currently') are replaced with concrete ones, bare 'decision NNNN' references become relative Markdown links, quoted UI strings lose their scare quotes, and a few long sentences are split. Two Rust test files change only in doc comments; no executable code changes. The one substantive content edit is in the skill-lint research note, where SkillEvaluator's three tiers become a table and a few numeric claims are reworded.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "5c9a66c5807413ceddef55b5ae7a00e5fcbd1ef1",
+      "ref": "5c9a66c5807413ceddef55b5ae7a00e5fcbd1ef1"
+    },
+    "head": {
+      "sha": "09d3197acc660b1f6980d06a57a97e7aa27ff109",
+      "ref": "09d3197acc660b1f6980d06a57a97e7aa27ff109"
+    },
+    "pullRequest": {
+      "number": 205,
+      "url": "https://github.com/open-software-factory/software-factory/pull/205"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "authoring",
+      "label": "Authoring surface",
+      "subtitle": "Markdown, skills and Rust doc comments",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The prose that the linter reads: repository docs, skill files and the doc comments on Rust tests."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "The command-line tool that lints prose and skill files, scans for forbidden text, reports change risk and maintains the pull-request status block."
+    },
+    {
+      "id": "lint-engine",
+      "label": "Lint engine",
+      "subtitle": "Rules and findings",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The rule set that turns a document into findings, and the line mapping that points a finding at the real line in the source file."
+    },
+    {
+      "id": "ci",
+      "label": "Continuous integration",
+      "subtitle": "GitHub Actions",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "Where the lint runs authoritatively, under a token no agent holds, behind branch protection."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "docs-corpus",
+      "label": "Documentation corpus",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "authoring",
+      "group": "markdown",
+      "subtitle": "docs/**, README, CONTRIBUTING",
+      "summary": "The architecture, design, product, research and vision documents. This change rewrites vague time words, converts bare decision references into relative links, removes scare quotes and splits long sentences.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md"
+        },
+        {
+          "path": "docs/architecture/smallest-working-engine.md"
+        },
+        {
+          "path": "docs/design/design-tracker.md"
+        },
+        {
+          "path": "docs/research/2026-09-17-change-risk-classification.md"
+        },
+        {
+          "path": "docs/vision/automated-spdlc-sdlc-vision.md"
+        }
+      ],
+      "badges": [
+        "~40 files"
+      ]
+    },
+    {
+      "id": "skill-files",
+      "label": "Skill files",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "authoring",
+      "group": "markdown",
+      "subtitle": "skills/**/SKILL.md",
+      "summary": "The pr-outline skill's step 6 now names the file tree and the diff block instead of referring back to step numbers, so the instruction survives reordering.",
+      "files": [
+        {
+          "path": "skills/pr-outline/SKILL.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hook-tests",
+      "label": "hook.rs test comments",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "authoring",
+      "group": "rust",
+      "subtitle": "crates/osf/src/hook.rs",
+      "summary": "Two doc comments lose their 'Change 3:' prefix. The test bodies, names and assertions are untouched.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 611,
+          "endLine": 660
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-lint-tests",
+      "label": "skill_lint.rs test comments",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "authoring",
+      "group": "rust",
+      "subtitle": "crates/osf/tests/skill_lint.rs",
+      "summary": "Two doc comments lose their 'Change 1:' and 'Change 2:' prefixes and are rewrapped. The fixtures and assertions are untouched.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 141,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-binary",
+      "label": "osf",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "cargo run -p osf",
+      "summary": "The only runnable artifact today. It lints prose and skill files, scans for text that must never reach a public repository, reports change risk and keeps a status block on a pull request.",
+      "files": [
+        {
+          "path": "README.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prose-lint",
+      "label": "Prose lint",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "lint-engine",
+      "subtitle": "writing rules over the body",
+      "summary": "Reads a document's body and reports findings such as long sentences and vague time words. The rules are what this change is conforming to, not what it changes.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 151,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-lint",
+      "label": "Skill lint",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "lint-engine",
+      "subtitle": "frontmatter and body",
+      "summary": "Validates a SKILL.md: structure, headings, frontmatter and the writing rules over the body. A finding's line must point at the real line in the file, past a folded description.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 141,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "line-mapping",
+      "label": "Line mapping",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "lint-engine",
+      "subtitle": "body offset to file line",
+      "summary": "Translates a position inside the extracted body back to the line number a reader would see in SKILL.md. The test that guards it is one of the two whose comment changed.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 151,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "Lint workflow",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "GitHub Actions",
+      "summary": "Runs the lint over the repository on every pull request. This change is the corpus catching up with what that job already enforces.",
+      "files": [
+        {
+          "path": "CONTRIBUTING.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "docs-to-prose-lint",
+      "from": "docs-corpus",
+      "to": "prose-lint",
+      "kind": "data",
+      "delta": "modified",
+      "label": "documents",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The documentation corpus is the input the prose rules read. Every rewrite in this change is a document being made to satisfy a rule that already existed.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md"
+        }
+      ]
+    },
+    {
+      "id": "skills-to-skill-lint",
+      "from": "skill-files",
+      "to": "skill-lint",
+      "kind": "data",
+      "delta": "modified",
+      "label": "SKILL.md",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Skill files are linted as structured text with headings, frontmatter and a body. The pr-outline edit is a skill file being made to read unambiguously.",
+      "files": [
+        {
+          "path": "skills/pr-outline/SKILL.md"
+        }
+      ]
+    },
+    {
+      "id": "skill-lint-to-line-mapping",
+      "from": "skill-lint",
+      "to": "line-mapping",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The skill lint asks the line mapping where a body finding really sits in the file.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 151,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "hook-tests-to-osf-binary",
+      "from": "hook-tests",
+      "to": "osf-binary",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The hook tests exercise the stop-hook and prompt behaviour of the osf binary. Only their doc comments changed.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 611,
+          "endLine": 660
+        }
+      ]
+    },
+    {
+      "id": "skill-lint-tests-to-skill-lint",
+      "from": "skill-lint-tests",
+      "to": "skill-lint",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration tests drive the skill lint over fixtures. Only their doc comments changed.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 141,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "ci-to-osf-binary",
+      "from": "ci-workflow",
+      "to": "osf-binary",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "cargo run -p osf",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Continuous integration runs the osf binary under the workflow's own token, which no agent holds. That run is the authority.",
+      "files": [
+        {
+          "path": "CONTRIBUTING.md"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "prose-lint-run",
+      "title": "A document passes through the prose lint",
+      "summary": "What happens when the linter reads one of the documents this change rewrote. The rules are unchanged; the document is what moved.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "docs-corpus",
+          "label": "Document"
+        },
+        {
+          "node": "prose-lint",
+          "label": "Prose lint"
+        },
+        {
+          "node": "line-mapping",
+          "label": "Line mapping"
+        },
+        {
+          "node": "ci-workflow",
+          "label": "CI"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-document",
+          "from": "docs-corpus",
+          "to": "prose-lint",
+          "label": "read body",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The linter extracts the body, skipping frontmatter and fenced code.",
+          "files": [
+            {
+              "path": "docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md"
+            }
+          ]
+        },
+        {
+          "id": "apply-rules",
+          "from": "prose-lint",
+          "to": "prose-lint",
+          "label": "apply writing rules",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Long sentences, vague time words and similar rules run over the extracted body.",
+          "files": [
+            {
+              "path": "crates/osf/tests/skill_lint.rs",
+              "startLine": 151,
+              "endLine": 160
+            }
+          ]
+        },
+        {
+          "id": "map-line",
+          "from": "prose-lint",
+          "to": "line-mapping",
+          "label": "body offset",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "A finding inside the body is mapped back to the line a reader would see in the file.",
+          "files": [
+            {
+              "path": "crates/osf/tests/skill_lint.rs",
+              "startLine": 151,
+              "endLine": 160
+            }
+          ]
+        },
+        {
+          "id": "return-findings",
+          "from": "line-mapping",
+          "to": "prose-lint",
+          "label": "file line",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "report",
+          "from": "prose-lint",
+          "to": "ci-workflow",
+          "label": "findings, exit status",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "In continuous integration the exit status is what gates the pull request.",
+          "files": [
+            {
+              "path": "CONTRIBUTING.md"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 45,
+    "additions": 183,
+    "deletions": 177,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "context",
+      "title": "Where the lint sits",
+      "lens": "architecture",
+      "summary": "The authoring surface on the left, the osf tool and its rules in the middle, continuous integration on the right. This change touches only the leftmost lane.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "lint-internals",
+      "title": "Inside the lint engine",
+      "lens": "architecture",
+      "summary": "The two rule sets and the line mapping they share. None of these changed; they are the contract the rewritten prose is being made to satisfy.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "prose-lint",
+          "skill-lint",
+          "line-mapping",
+          "osf-binary"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "prose-lint-flow",
+      "title": "A document through the prose lint",
+      "lens": "data-flow",
+      "summary": "Read, apply rules, map the finding back to a real file line, report. The document is the only thing that moved.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "prose-lint-run"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

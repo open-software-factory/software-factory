@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-docs-prose-lint-sweep",
+    "headSha": "09d3197acc660b1f6980d06a57a97e7aa27ff109",
+    "contentHash": "d33789b2b3b09f43eae15cea4d85a538"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3286b114e3561863fe9e9c100dc0ff92",
+      "bytes": 15264,
+      "width": 1708,
+      "height": 428,
+      "animated": false,
+      "path": "context-light-3286b114e3561863fe9e9c100dc0ff92.svg"
+    },
+    {
+      "id": "context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "59af42fa8b3df261ba92af88a8ed9539",
+      "bytes": 15426,
+      "width": 1708,
+      "height": 428,
+      "animated": false,
+      "path": "context-dark-59af42fa8b3df261ba92af88a8ed9539.svg"
+    },
+    {
+      "id": "lint-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "lint-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "12668be17f869d6e552092d721bd2bfa",
+      "bytes": 6294,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "lint-internals-light-12668be17f869d6e552092d721bd2bfa.svg"
+    },
+    {
+      "id": "lint-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "lint-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ef45793b456b6c153acdeeba99c885f7",
+      "bytes": 6339,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "lint-internals-dark-ef45793b456b6c153acdeeba99c885f7.svg"
+    },
+    {
+      "id": "prose-lint-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "prose-lint-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a53f3d17cde930bd15242daddfe797c6",
+      "bytes": 11106,
+      "width": 1216,
+      "height": 353,
+      "animated": true,
+      "path": "prose-lint-flow-light-a53f3d17cde930bd15242daddfe797c6.svg"
+    },
+    {
+      "id": "prose-lint-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "prose-lint-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c02422263ec0b6262350ab786d35216a",
+      "bytes": 11210,
+      "width": 1216,
+      "height": 353,
+      "animated": true,
+      "path": "prose-lint-flow-dark-c02422263ec0b6262350ab786d35216a.svg"
+    }
+  ]
+}
