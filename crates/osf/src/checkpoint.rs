@@ -398,14 +398,17 @@ fn sarif_outcome(root: &Path, target: &str) -> SarifOutcome {
 /// read as this run's result. Deletes `.osf/out/<task-id>.sarif` for every
 /// task tagged `tag` before moon runs, reading the task set from moon's own
 /// `query tasks` rather than this crate's guess at what a project file's
-/// tags resolve to.
-fn clear_stale_sarif(root: &Path, tag: &str) -> Result<(), String> {
-    let targets = moon::task_targets_for_tag(root, tag)?;
-    for target in &targets {
+/// tags resolve to. Returns each of those tasks with its slot, from the same query.
+fn clear_stale_sarif(
+    root: &Path,
+    tag: &str,
+) -> Result<std::collections::BTreeMap<String, Option<String>>, String> {
+    let tasks = moon::task_slots_for_tag(root, tag)?;
+    for task in &tasks {
         let path = root
             .join(".osf")
             .join("out")
-            .join(format!("{}.sarif", task_id(target)));
+            .join(format!("{}.sarif", task_id(&task.target)));
         match std::fs::remove_file(&path) {
             Ok(()) => {}
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -417,7 +420,7 @@ fn clear_stale_sarif(root: &Path, tag: &str) -> Result<(), String> {
             }
         }
     }
-    Ok(())
+    Ok(tasks.into_iter().map(|t| (t.target, t.slot)).collect())
 }
 
 /// A failed task's own output must be visible, capped so one
@@ -1114,31 +1117,22 @@ pub fn run(req: &Request, state_dir: &Path) -> Summary {
         }
     };
 
-    if let Err(e) = clear_stale_sarif(req.root, req.checkpoint.tag()) {
-        cleanup_files_from(&files_path);
-        return stale_sarif_could_not_run(
-            req,
-            &mut journal,
-            commit,
-            label,
-            error_findings,
-            journal_error,
-            &e,
-        );
-    }
-
-    // A query failure here never blocks the checkpoint on its own: every
-    // other moon query on this path (`clear_stale_sarif`,
-    // `append_unset_verifications`) already fails the run on its own terms
-    // when moon cannot answer at all. Degrading to no slots just means
-    // every task's own verification event names no slot, same as a task
-    // that genuinely carries no `osf-slot-*` tag.
-    let task_slots: std::collections::BTreeMap<String, Option<String>> =
-        moon::task_slots_for_tag(req.root, req.checkpoint.tag())
-            .unwrap_or_default()
-            .into_iter()
-            .map(|t| (t.target, t.slot))
-            .collect();
+    // One task query serves both the SARIF clearing and the slot table, so a failed query is never hidden.
+    let task_slots = match clear_stale_sarif(req.root, req.checkpoint.tag()) {
+        Ok(slots) => slots,
+        Err(e) => {
+            cleanup_files_from(&files_path);
+            return stale_sarif_could_not_run(
+                req,
+                &mut journal,
+                commit,
+                label,
+                error_findings,
+                journal_error,
+                &e,
+            );
+        }
+    };
 
     let target = format!(":#{}", req.checkpoint.tag());
     let outcome = moon::run_holding(

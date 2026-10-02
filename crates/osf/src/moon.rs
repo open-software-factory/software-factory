@@ -456,18 +456,6 @@ pub fn task_slots_for_tag(root: &Path, tag: &str) -> Result<Vec<TaskSlot>, Strin
     parse_query_tasks(&String::from_utf8_lossy(&output.stdout))
 }
 
-/// The moon targets tagged `tag`: [`task_slots_for_tag`], targets only,
-/// for every caller that has no use for a task's slot.
-///
-/// # Errors
-/// Returns an error under the same conditions as [`task_slots_for_tag`].
-pub fn task_targets_for_tag(root: &Path, tag: &str) -> Result<Vec<String>, String> {
-    Ok(task_slots_for_tag(root, tag)?
-        .into_iter()
-        .map(|t| t.target)
-        .collect())
-}
-
 /// Parses `moon query tasks`' JSON: one target, and its slot if it has
 /// one, per task, across every project the query returned.
 fn parse_query_tasks(json: &str) -> Result<Vec<TaskSlot>, String> {

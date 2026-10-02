@@ -1229,6 +1229,54 @@ fn a_run_waiting_for_the_report_lock_leaves_the_sarif_files_alone() {
     );
 }
 
+/// The task list is read once. A later failing query must neither change
+/// the journalled slot nor hide behind an empty slot table.
+#[cfg(unix)]
+#[test]
+fn a_task_slot_comes_from_the_one_task_query_the_run_makes() {
+    let repo = TempRepo::new("cp-slot-one-query");
+    repo.write(".osf/moon.yml", "tasks: {}\n");
+    repo.write("README.md", "init\n");
+    let base = repo.commit("base");
+    repo.write("guide.md", "Hello.\n");
+    repo.commit("change");
+    let moon = write_fake_moon(&repo);
+    write_fake_moon_report(&repo, r#""osf:probe":{"state":"passed"}"#);
+    repo.write(
+        "fake-moon-query.json",
+        r#"{"tasks":{"osf":{"probe":{"target":"osf:probe","tags":["osf-pre-push","osf-slot-probe"]}}}}"#,
+    );
+    repo.write("fake-moon-query-fails-after-first", "");
+    let home = isolated_home("cp-slot-one-query");
+    let out = run_osf_with_env(
+        &repo.dir,
+        &home,
+        &[("OSF_MOON", moon.to_str().expect("utf8 path"))],
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    let buffer = std::fs::read_dir(state(&home).join("buffer"))
+        .expect("buffer")
+        .next()
+        .expect("one file")
+        .expect("entry")
+        .path();
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+        .expect("read")
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("json"))
+        .collect();
+    let verification = lines
+        .iter()
+        .find(|e| e["event_type"] == "verification")
+        .expect("a verification event");
+    let slot = verification
+        .get("payload")
+        .and_then(|p| p.get("slot"))
+        .and_then(serde_json::Value::as_str);
+    assert_eq!(slot, Some("probe"), "{verification}");
+}
+
 /// A script containing a shell-quoted argument must survive being embedded
 /// in a single-quoted YAML scalar: YAML represents one literal quote there
 /// as two, so the helper must double every quote in the script, not just
