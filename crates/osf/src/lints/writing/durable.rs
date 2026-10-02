@@ -2,11 +2,14 @@
 //! word, such as "three stages", and a relative time word, such as "now".
 //! Both read the sentence's words, not a bare pattern over its characters.
 //! The caller skips both in a transcript, which is not kept.
+//!
+//! Every exemption is local. A date, a source and a fixed fact excuse only
+//! the count or the time word they sit with, never the rest of the sentence.
 
 use crate::config::WritingConfig;
-use osf_lint_core::segment::{reduce_inline, TextUnit};
+use osf_lint_core::segment::TextUnit;
 use osf_lint_core::{Finding, Level, Rule, Scope};
-use regex::Regex;
+use regex::{Captures, Regex};
 use std::ops::Range;
 use std::sync::OnceLock;
 
@@ -29,6 +32,13 @@ struct Tok<'a> {
     prefix: &'a str,
     /// What came after the word's letters, such as a comma.
     suffix: &'a str,
+}
+
+impl Tok<'_> {
+    /// Where the word's letters end, before any punctuation after them.
+    fn end(&self) -> usize {
+        self.start + self.raw.len() - self.suffix.len()
+    }
 }
 
 fn tokens(text: &str) -> Vec<Tok<'_>> {
@@ -75,31 +85,175 @@ fn quoted_spans(text: &str) -> Vec<Range<usize>> {
     spans
 }
 
-/// The source text without the web address of each Markdown link, so a
-/// date inside an address is never read as a date in the prose.
-fn without_link_targets(raw: &str) -> String {
-    static TARGET: OnceLock<Regex> = OnceLock::new();
-    re(&TARGET, r"\]\([^)]*\)")
-        .replace_all(raw, "]")
+// ---------------------------------------------------------------------------
+// The prepared sentence: dates, links, notes and clauses
+// ---------------------------------------------------------------------------
+
+/// Replaces an absolute date in the prepared text, so a clause can tell
+/// whether it carries one.
+const DATE_MARK: &str = "DATEMARK";
+
+/// The tool-written blocks that are a snapshot of a head commit.
+const TOOL_BLOCKS: &[&str] = &["status", "tree", "pr-lens"];
+
+/// A source note: a footnote, a numbered citation, or a bracketed `reported:`
+/// or `source:` note.
+macro_rules! note_pattern {
+    () => {
+        r"\[\^[^\]]+\]|\[\d+(?:\s*[,-]\s*\d+)*\]|\[(?:reported|source|sources|cited)\b[^\]]*\]"
+    };
+}
+
+/// A link or a note in the prepared text, and whether it is a note.
+struct Source {
+    range: Range<usize>,
+    note: bool,
+}
+
+/// A sentence with its code spans, link addresses and dates dealt with.
+struct Prepared {
+    text: String,
+    sources: Vec<Source>,
+}
+
+/// The text with every absolute date replaced by [`DATE_MARK`]: a year-month-day
+/// date, a month name with a day or a year, or a four-digit year.
+fn mark_dates(text: &str) -> String {
+    static MONTH: OnceLock<Regex> = OnceLock::new();
+    static ISO: OnceLock<Regex> = OnceLock::new();
+    static YEAR: OnceLock<Regex> = OnceLock::new();
+    let iso = re(&ISO, r"\b\d{4}-\d{2}-\d{2}\b").replace_all(text, DATE_MARK);
+    let month = re(
+        &MONTH,
+        r"(?i)\b(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(?:\d{1,2}(?:st|nd|rd|th)?\b|\d{4}\b)|\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b)",
+    )
+    .replace_all(&iso, DATE_MARK);
+    re(&YEAR, r"(^|[^\w-])(?:19\d\d|20\d\d|2100)([^\w-]|$)")
+        .replace_all(&month, |c: &Captures| {
+            format!("{}{DATE_MARK}{}", &c[1], &c[2])
+        })
         .into_owned()
 }
 
-/// A link to a source, a footnote, a numbered citation, or a bracketed
-/// `reported:` or `source:` note: the text then reports a fact that someone
-/// else stated, and the figure is theirs.
-fn cites_a_source(raw: &str) -> bool {
-    static CITE: OnceLock<Regex> = OnceLock::new();
+/// Whether the text of a code span reads as English words, such as
+/// `three stages`, and not as an identifier or a command line.
+fn prose_like(code: &str) -> bool {
+    let words: Vec<&str> = code.split_whitespace().collect();
+    words.len() >= 2
+        && words.iter().all(|w| {
+            w.starts_with(|c: char| c.is_ascii_alphanumeric())
+                && w.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || "'-,.".contains(c))
+        })
+        && words
+            .iter()
+            .any(|w| w.chars().all(|c| c.is_ascii_alphabetic()))
+}
+
+/// The sentence as the rules read it. A code span becomes the word "code",
+/// unless it holds a date, or holds prose and `expand_code` is set. A link
+/// keeps its text and loses its address, and its text is remembered as a
+/// source. A bracketed note is remembered as a source too. Each date becomes
+/// [`DATE_MARK`].
+fn prepare(raw: &str, expand_code: bool) -> Prepared {
+    static CODE: OnceLock<Regex> = OnceLock::new();
+    static LINK: OnceLock<Regex> = OnceLock::new();
+    static STARS: OnceLock<Regex> = OnceLock::new();
+    static UNDERSCORE: OnceLock<Regex> = OnceLock::new();
+    static NOTE: OnceLock<Regex> = OnceLock::new();
+    let spans = re(&CODE, r"`[^`]*`").replace_all(raw, |c: &Captures| {
+        let inner = c[0].trim_matches('`');
+        if mark_dates(inner) != inner || (expand_code && prose_like(inner)) {
+            inner.to_string()
+        } else {
+            "code".to_string()
+        }
+    });
+    let linked = re(&LINK, r"\[([^\]]*)\]\([^)]*\)").replace_all(&spans, "\u{1}$1\u{2}");
+    let plain = re(&STARS, r"\*+").replace_all(&linked, "");
+    let plain = re(&UNDERSCORE, r"(^|[^\w])_+|_+([^\w]|$)").replace_all(&plain, "$1$2");
+    let marked = mark_dates(&plain);
+    let mut text = String::with_capacity(marked.len());
+    let mut sources = Vec::new();
+    let mut open = 0;
+    for c in marked.chars() {
+        match c {
+            '\u{1}' => open = text.len(),
+            '\u{2}' => sources.push(Source {
+                range: open..text.len(),
+                note: false,
+            }),
+            _ => text.push(c),
+        }
+    }
+    let notes = re(&NOTE, concat!("(?i)", note_pattern!()));
+    sources.extend(notes.find_iter(&text).map(|m| Source {
+        range: m.range(),
+        note: true,
+    }));
+    Prepared { text, sources }
+}
+
+/// The clauses of a sentence: a semicolon, a colon, a dash, or a comma
+/// before a conjunction ends one. A date excuses only the clause it is in.
+fn clause_bounds(text: &str) -> Vec<Range<usize>> {
+    static SPLIT: OnceLock<Regex> = OnceLock::new();
+    let split = re(
+        &SPLIT,
+        r"(?i);|:\s|[\u{2014}\u{2013}]|,\s+(?:but|and|or|yet|so|while|whereas|although|though)\b",
+    );
+    let mut out = Vec::new();
+    let mut from = 0;
+    for m in split.find_iter(text) {
+        out.push(from..m.start());
+        from = m.end();
+    }
+    out.push(from..text.len());
+    out
+}
+
+fn clause_at(clauses: &[Range<usize>], pos: usize) -> Range<usize> {
+    clauses
+        .iter()
+        .find(|r| r.contains(&pos))
+        .or_else(|| clauses.last())
+        .cloned()
+        .unwrap_or(0..0)
+}
+
+/// Whether the clause around `pos` carries an absolute date.
+fn clause_has_date(text: &str, clauses: &[Range<usize>], pos: usize) -> bool {
+    text.get(clause_at(clauses, pos))
+        .is_some_and(|c| c.contains(DATE_MARK))
+}
+
+/// Whether a table row links a source or carries a note.
+fn row_has_source(row: &str) -> bool {
+    static SOURCE: OnceLock<Regex> = OnceLock::new();
+    re(&SOURCE, concat!(r"(?i)\]\(https?://|", note_pattern!())).is_match(row)
+}
+
+/// Whether the text right after a sentence is a source note that ends its
+/// line, as in `[reported: source]`. A note followed by more text on its
+/// line belongs to that text, not to the sentence before it.
+fn trailing_note(after: &str) -> bool {
+    static NOTE: OnceLock<Regex> = OnceLock::new();
     re(
-        &CITE,
-        r"(?i)\]\(https?://|\[\^[^\]]+\]|\[\d+(?:\s*[,-]\s*\d+)*\]|\[(?:reported|source|sources|cited)\b[^\]]*\]",
+        &NOTE,
+        concat!(
+            r"(?i)^[ \t]*(?:\r?\n[ \t]*)?(?:",
+            note_pattern!(),
+            r")[ \t]*(?:\r?\n|$)"
+        ),
     )
-    .is_match(raw)
+    .is_match(after)
 }
 
 /// The byte ranges of every block a tool wrote between `<!-- osf:NAME:start
-/// head=SHA -->` and `<!-- osf:NAME:end -->`. The start marker names the head
-/// commit the block was written for, so a count or a time word in it is a
-/// snapshot of that commit, not a claim for a reader later.
+/// head=SHA -->` and `<!-- osf:NAME:end -->`, for the names in
+/// [`TOOL_BLOCKS`]. The start marker names the head commit the block was
+/// written for, so a count or a time word in it is a snapshot of that commit,
+/// not a claim for a reader later. A block with any other name is read.
 fn tool_blocks(text: &str) -> Vec<Range<usize>> {
     static START: OnceLock<Regex> = OnceLock::new();
     let start = re(
@@ -111,6 +265,9 @@ fn tool_blocks(text: &str) -> Vec<Range<usize>> {
         let (Some(open), Some(name)) = (caps.get(0), caps.get(1)) else {
             continue;
         };
+        if !TOOL_BLOCKS.contains(&name.as_str()) {
+            continue;
+        }
         let close = format!("<!-- osf:{}:end -->", name.as_str());
         let from = open.end();
         if let Some(len) = text.get(from..).and_then(|rest| rest.find(&close)) {
@@ -125,50 +282,12 @@ fn inside_a_block(blocks: &[Range<usize>], s: &TextUnit) -> bool {
     blocks.iter().any(|b| b.contains(&s.span.start))
 }
 
-/// Whether the text right after a sentence opens with a citation, such as
-/// `[reported: source]`, the way a note follows the claim it supports.
-fn leads_a_citation(after: &str) -> bool {
-    static NOTE: OnceLock<Regex> = OnceLock::new();
-    re(
-        &NOTE,
-        r"(?i)^\s*(?:\[(?:reported|source|sources|cited)\b|\[\d+(?:\s*[,-]\s*\d+)*\]|\[\^)",
-    )
-    .is_match(after)
-}
-
-/// Whether the text carries an absolute date: a year-month-day date, a
-/// month name with a day or a year, or a four-digit year.
-fn has_absolute_date(text: &str) -> bool {
-    static MONTH: OnceLock<Regex> = OnceLock::new();
-    static ISO: OnceLock<Regex> = OnceLock::new();
-    if re(&ISO, r"\b\d{4}-\d{2}-\d{2}\b").is_match(text) {
-        return true;
-    }
-    let month = re(
-        &MONTH,
-        r"(?i)\b(?:(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(?:\d{1,2}(?:st|nd|rd|th)?\b|\d{4}\b)|\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b)",
-    );
-    if month.is_match(text) {
-        return true;
-    }
-    tokens(text).iter().any(|t| {
-        t.suffix.chars().all(|c| !c.is_alphanumeric())
-            && t.prefix.chars().all(|c| !c.is_alphanumeric())
-            && t.core.len() == 4
-            && t.core
-                .parse::<u32>()
-                .is_ok_and(|n| (1900..=2100).contains(&n))
-    })
-}
-
 // ---------------------------------------------------------------------------
 // count-word
 // ---------------------------------------------------------------------------
 
-/// Spelled numbers from two up. "One" is left out on purpose: "one place"
-/// names a single thing, it does not count a list, and "one of" and
-/// "each one" are everyday grammar. A later count in the same sentence is
-/// still read.
+/// Spelled numbers from two up. "One" is read only in a narrow pattern, see
+/// [`one_count`].
 fn is_spelled_count(core: &str) -> bool {
     static SPELLED: OnceLock<Regex> = OnceLock::new();
     re(
@@ -266,7 +385,7 @@ fn is_plural_noun(core: &str) -> bool {
 
 /// What a number measures rather than counts: time, size, a limit on text,
 /// a rate. A measure is true for as long as it is measured, not as long as
-/// a list stays the same.
+/// a list stays the same. "Points" is not here: it counts a list.
 const MEASURES: &[&str] = &[
     "seconds",
     "minutes",
@@ -294,7 +413,6 @@ const MEASURES: &[&str] = &[
     "digits",
     "places",
     "times",
-    "points",
     "pixels",
     "degrees",
     "cents",
@@ -318,6 +436,51 @@ const MEASURES: &[&str] = &[
     "percent",
     "hertz",
     "bps",
+    "frames",
+];
+
+/// What a policy caps or a run consumes. A bound or a range before one of
+/// these is a limit and passes: "at most 3 retries", "up to 20 files".
+/// Before any other plural noun a bound is a count, because the list it
+/// counts can change and break the bound.
+const LIMIT_NOUNS: &[&str] = &[
+    "retries",
+    "attempts",
+    "tries",
+    "requests",
+    "calls",
+    "files",
+    "items",
+    "rows",
+    "entries",
+    "results",
+    "records",
+    "jobs",
+    "runs",
+    "workers",
+    "threads",
+    "connections",
+    "failures",
+    "errors",
+    "warnings",
+    "findings",
+    "comments",
+    "messages",
+    "events",
+    "commits",
+    "approvals",
+    "approvers",
+    "reviewers",
+    "reviews",
+    "votes",
+    "units",
+    "nodes",
+    "elements",
+    "iterations",
+    "rounds",
+    "uses",
+    "cycles",
+    "questions",
 ];
 
 /// Unit abbreviations that can follow a number: "20 px", "5 s".
@@ -348,7 +511,7 @@ const UNITS: &[&str] = &[
     "percentage",
 ];
 
-/// Words that name a position when they stand before a number: "Phase 2".
+/// Words that name a position when they stand right before a number: "Phase 2".
 const LABELS: &[&str] = &[
     "phase",
     "step",
@@ -405,11 +568,169 @@ const LABELS: &[&str] = &[
     "layer",
 ];
 
-/// Whether a bound, an estimate or a range sits around the number at `i`.
-/// "At least four" stays true when a fifth is added. "At most four" and "up
-/// to four" state a limit, not a count. "About four" and "30 to 100" are
-/// estimates. None of these goes stale when a list changes.
-fn is_bounded(toks: &[Tok<'_>], i: usize) -> bool {
+/// Nouns that label a number only when a verb ends the label: "Choice 3
+/// works best." They are ordinary nouns before a plural, as in "plan three
+/// stages", so they do not label a number that counts something.
+const WEAK_LABELS: &[&str] = &[
+    "choice",
+    "plan",
+    "approach",
+    "scenario",
+    "example",
+    "model",
+    "design",
+    "proposal",
+    "variant",
+    "alternative",
+    "experiment",
+    "test",
+    "trial",
+    "candidate",
+    "direction",
+    "strategy",
+];
+
+/// Third-person verbs that can follow a label and a number.
+const VERBS_S: &[&str] = &[
+    "works", "fits", "wins", "holds", "applies", "matters", "performs", "passes", "fails", "runs",
+    "beats", "loses", "needs", "uses", "shows", "makes", "gives", "takes", "offers", "looks",
+    "seems", "stays", "remains", "covers", "handles", "requires", "suits", "serves", "supports",
+    "solves", "helps", "becomes", "comes", "goes", "suffices",
+];
+
+/// Singular nouns for the things a document lists. "Has one manual gate"
+/// counts them. "One place" and "one of" do not.
+const ONE_NOUNS: &[&str] = &[
+    "stage",
+    "gate",
+    "step",
+    "check",
+    "rule",
+    "key",
+    "tier",
+    "layer",
+    "phase",
+    "family",
+    "surface",
+    "runner",
+    "reviewer",
+    "worker",
+    "queue",
+    "model",
+    "agent",
+    "harness",
+    "provider",
+    "adapter",
+    "option",
+    "mode",
+    "state",
+    "role",
+    "field",
+    "column",
+    "tab",
+    "panel",
+    "view",
+    "screen",
+    "flow",
+    "loop",
+    "track",
+    "service",
+    "environment",
+    "deployment",
+    "product",
+    "tool",
+    "command",
+    "test",
+    "reason",
+    "requirement",
+    "criterion",
+    "approach",
+    "alternative",
+    "owner",
+];
+
+/// Words that put a number in a count: "has one", "with one", "needs one".
+const ONE_INTRO: &[&str] = &[
+    "has", "have", "with", "contains", "includes", "needs", "requires", "uses", "holds", "defines",
+    "names", "lists", "adds", "offers",
+];
+
+/// The noun after a hyphen that makes a compound a count: "five-step",
+/// "3-way". A compound such as "two-factor" is a name and passes.
+const HYPHEN_NOUNS: &[&str] = &[
+    "step", "stage", "phase", "tier", "layer", "gate", "way", "level", "pass", "part",
+];
+
+/// Past-tense verbs that do not end in "ed".
+const IRREGULAR_PAST: &[&str] = &[
+    "ran",
+    "held",
+    "built",
+    "made",
+    "found",
+    "wrote",
+    "saw",
+    "took",
+    "gave",
+    "chose",
+    "sent",
+    "kept",
+    "left",
+    "met",
+    "led",
+    "lost",
+    "won",
+    "paid",
+    "said",
+    "told",
+    "knew",
+    "began",
+    "brought",
+    "bought",
+    "caught",
+    "drew",
+    "drove",
+    "felt",
+    "grew",
+    "heard",
+    "sold",
+    "spent",
+    "taught",
+    "thought",
+    "understood",
+];
+
+/// Words that end in "ed" and are not past-tense verbs.
+const NOT_PAST: &[&str] = &[
+    "speed", "indeed", "exceed", "proceed", "succeed", "hundred", "embed",
+];
+
+/// A past-tense verb: it reports an event that is over, so a count after it
+/// is a fact about the past and cannot go stale.
+fn is_past_verb(word: &str) -> bool {
+    IRREGULAR_PAST.contains(&word)
+        || (word.len() >= 5 && word.ends_with("ed") && !NOT_PAST.contains(&word))
+}
+
+/// Whether an estimate sits around the number at `i`: "about 20", "roughly
+/// four". An estimate is not a count.
+fn is_estimate(toks: &[Tok<'_>], i: usize) -> bool {
+    let Some(p) = i.checked_sub(1).and_then(|n| toks.get(n)) else {
+        return false;
+    };
+    let digits = toks
+        .get(i)
+        .is_some_and(|t| t.core.starts_with(|c: char| c.is_ascii_digit()));
+    matches!(
+        p.core.as_str(),
+        "approximately" | "roughly" | "nearly" | "almost"
+    ) || matches!(p.raw, "\u{2248}" | "~")
+        || (matches!(p.core.as_str(), "about" | "around") && digits)
+}
+
+/// Whether a bound or a range sits around the number at `i`: "at least
+/// four", "up to 20", "more than 10", "30 to 100", "two or three".
+fn is_bound(toks: &[Tok<'_>], i: usize) -> bool {
     let at = |n: Option<usize>| n.and_then(|n| toks.get(n));
     let prev = at(i.checked_sub(1));
     let prev2 = at(i.checked_sub(2));
@@ -417,30 +738,9 @@ fn is_bounded(toks: &[Tok<'_>], i: usize) -> bool {
         let word = p.core.as_str();
         if matches!(
             word,
-            "than"
-                | "under"
-                | "over"
-                | "below"
-                | "above"
-                | "approximately"
-                | "roughly"
-                | "nearly"
-                | "almost"
-                | "exceed"
-                | "exceeding"
-                | "exceeds"
-        ) || matches!(
-            p.raw,
-            "\u{2264}" | "\u{2265}" | "<" | ">" | "~" | "<=" | ">=" | "\u{2248}"
-        ) {
-            return true;
-        }
-        // "About 20" is an estimate. "Built around two loops" is not, so a
-        // spelled number after "about" or "around" is still read as a count.
-        let digits = toks
-            .get(i)
-            .is_some_and(|t| t.core.starts_with(|c: char| c.is_ascii_digit()));
-        if matches!(word, "about" | "around") && digits {
+            "than" | "under" | "over" | "below" | "above" | "exceed" | "exceeding" | "exceeds"
+        ) || matches!(p.raw, "\u{2264}" | "\u{2265}" | "<" | ">" | "<=" | ">=")
+        {
             return true;
         }
         let prev2_word = prev2.map(|t| t.core.as_str());
@@ -458,7 +758,7 @@ fn is_bounded(toks: &[Tok<'_>], i: usize) -> bool {
 }
 
 /// Whether the noun at `end` is followed by a bound, as in "15 files or
-/// fewer": a threshold, which stays true when a list changes.
+/// fewer".
 fn is_bounded_after(toks: &[Tok<'_>], end: usize) -> bool {
     toks.get(end + 1).is_some_and(|t| t.core == "or")
         && toks.get(end + 2).is_some_and(|t| {
@@ -469,27 +769,65 @@ fn is_bounded_after(toks: &[Tok<'_>], end: usize) -> bool {
         })
 }
 
-/// Facts that cannot change, so a count of them is safe. Each entry is a
-/// fact in maths, physics, or everyday language, named with the words that
-/// must appear in the counted phrase or its sentence.
-fn is_fixed_fact(number: &str, phrase: &str, sentence: &str) -> bool {
+/// Whether the text says the count is a limit: "limit of two families", or
+/// "two families total".
+fn is_stated_limit(toks: &[Tok<'_>], hit: &Hit) -> bool {
+    let word = |n: Option<usize>| n.and_then(|n| toks.get(n)).map(|t| t.core.as_str());
+    let before = word(hit.first.checked_sub(1));
+    let before2 = word(hit.first.checked_sub(2));
+    let after = word(Some(hit.noun + 1));
+    (before == Some("of")
+        && matches!(
+            before2,
+            Some("limit" | "maximum" | "max" | "minimum" | "min" | "cap" | "budget")
+        ))
+        || (before == Some("at") && before2 == Some("capped"))
+        || matches!(after, Some("total" | "maximum" | "max"))
+        || (after == Some("in") && word(Some(hit.noun + 2)) == Some("total"))
+}
+
+/// Facts that cannot change, so a count of them is safe: maths, geometry,
+/// physics, the calendar and everyday language. Only the counted phrase is
+/// excused. `phrase` runs from the number to the noun, `extended` adds an
+/// "of" and the word after it, and `clause` is the clause around them.
+fn is_fixed_fact(number: &str, noun: &str, phrase: &str, extended: &str, clause: &str) -> bool {
     static BINARY: OnceLock<Regex> = OnceLock::new();
+    static SHAPE: OnceLock<Regex> = OnceLock::new();
     const PHRASES: &[&str] = &[
         "primary colo",
         "cardinal direction",
         "laws of motion",
         "laws of thermodynamics",
         "states of matter",
+        "pair of keys",
+        "seasons",
+        "continents",
+        "hemispheres",
+        "quadrants",
     ];
-    if PHRASES
-        .iter()
-        .any(|p| phrase.contains(p) || sentence.contains(p))
-    {
+    const SHAPE_PARTS: &[&str] = &["sides", "angles", "corners", "vertices", "edges", "faces"];
+    const PAIRS: &[&str] = &[
+        "directions",
+        "ways",
+        "sides",
+        "ends",
+        "axes",
+        "hands",
+        "eyes",
+    ];
+    if PHRASES.iter().any(|p| extended.contains(p)) || (number == "both" && PAIRS.contains(&noun)) {
+        return true;
+    }
+    let shape = re(
+        &SHAPE,
+        r"\b(?:triangle|square|rectangle|rhombus|parallelogram|trapezoid|trapezium|quadrilateral|pentagon|hexagon|octagon|polygon|cube|cuboid|tetrahedron)s?\b",
+    );
+    if SHAPE_PARTS.contains(&noun) && shape.is_match(clause) {
         return true;
     }
     let binary = re(&BINARY, r"\b(?:binary|boolean)\b");
     number == "two"
-        && binary.is_match(sentence)
+        && binary.is_match(clause)
         && [
             "states", "values", "digits", "symbols", "outcomes", "choices",
         ]
@@ -497,107 +835,163 @@ fn is_fixed_fact(number: &str, phrase: &str, sentence: &str) -> bool {
         .any(|n| phrase.ends_with(n))
 }
 
-/// A count word is flagged: a spelled or written number from two up, then
-/// up to two ordinary words, then a plural noun, as in "three stages".
-///
-/// It holds the whole text, so a count in a table cell is excused when a
-/// link to a source sits anywhere in the same row, and a count is excused
-/// when a citation note follows its sentence.
-pub struct CountWordRule<'a> {
-    text: &'a str,
-    lines: Vec<&'a str>,
-    blocks: Vec<Range<usize>>,
+#[derive(Clone, Copy, PartialEq)]
+enum Kind {
+    /// A number then a noun, such as "three stages".
+    Number,
+    /// "A dozen", "both", "a pair of" or "one" then a noun.
+    Other,
+    /// A compound such as "five-step".
+    Hyphen,
 }
 
-impl<'a> CountWordRule<'a> {
-    pub fn new(text: &'a str) -> Self {
-        CountWordRule {
-            text,
-            lines: text.lines().collect(),
-            blocks: tool_blocks(text),
-        }
-    }
-
-    fn cited(&self, s: &TextUnit) -> bool {
-        if cites_a_source(&s.text) || self.text.get(s.span.end..).is_some_and(leads_a_citation) {
-            return true;
-        }
-        s.in_table
-            && s.line
-                .checked_sub(1)
-                .and_then(|n| self.lines.get(n))
-                .is_some_and(|row| cites_a_source(row))
-    }
+/// A count the rule found: the token it starts at, the token that holds the
+/// number, and the token of the noun.
+struct Hit {
+    first: usize,
+    num: usize,
+    noun: usize,
+    kind: Kind,
 }
 
-impl Rule<WritingConfig> for CountWordRule<'_> {
-    fn id(&self) -> &'static str {
-        "count-word"
-    }
+fn prefix_ok(tok: &Tok<'_>) -> bool {
+    tok.prefix
+        .chars()
+        .all(|c| "([{\"'\u{201c}\u{2018}*_".contains(c))
+}
 
-    fn scope(&self) -> Scope {
-        Scope::Sentence
+/// Whether the word before a number labels it: "Phase 2", "#3". A label
+/// labels the number only when no punctuation sits between them, so "At
+/// this stage, three reviewers approve" counts reviewers. A weak label
+/// ("Choice 3 works") labels the number only when a verb follows it.
+fn labels_the_number(toks: &[Tok<'_>], i: usize, prev: &Tok<'_>) -> bool {
+    if prev.raw.ends_with('#') {
+        return true;
     }
+    if !prev.suffix.is_empty() {
+        return false;
+    }
+    let word = prev.core.as_str();
+    LABELS.contains(&word)
+        || (WEAK_LABELS.contains(&word)
+            && toks
+                .get(i + 1)
+                .is_some_and(|n| VERBS_S.contains(&n.core.as_str())))
+}
 
-    fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-        if inside_a_block(&self.blocks, s)
-            || self.cited(s)
-            || has_absolute_date(&without_link_targets(&s.text))
+/// A compound such as "five-step" or "3-way".
+fn hyphen_count(tok: &Tok<'_>, i: usize) -> Option<Hit> {
+    let (number, noun) = tok.core.split_once('-')?;
+    (prefix_ok(tok)
+        && (is_spelled_count(number) || is_digit_count(number))
+        && HYPHEN_NOUNS.contains(&noun))
+    .then_some(Hit {
+        first: i,
+        num: i,
+        noun: i,
+        kind: Kind::Hyphen,
+    })
+}
+
+/// "One" counts a list-like noun after a word that introduces a count, as in
+/// "has one manual gate". It is not a count in "one of", "each one" or "one
+/// place".
+fn one_count(toks: &[Tok<'_>], i: usize, prev: Option<&Tok<'_>>) -> Option<Hit> {
+    if !prev.is_some_and(|p| ONE_INTRO.contains(&p.core.as_str())) {
+        return None;
+    }
+    for k in 1..=2 {
+        let next = toks.get(i + k)?;
+        let before = toks.get(i + k - 1)?;
+        if (k > 1 && !before.suffix.is_empty()) || !next.prefix.is_empty() {
+            return None;
+        }
+        if ONE_NOUNS.contains(&next.core.as_str()) {
+            return Some(Hit {
+                first: i,
+                num: i,
+                noun: i + k,
+                kind: Kind::Other,
+            });
+        }
+        if STOP.contains(&next.core.as_str()) || !is_plain_word(&next.core) {
+            return None;
+        }
+    }
+    None
+}
+
+fn is_plain_word(core: &str) -> bool {
+    !core.is_empty() && core.chars().all(|c| c.is_ascii_alphabetic() || c == '-')
+}
+
+/// A "both" that floats after its subject, as in "they both carry" or "ACP
+/// and AHP both carry", is not a count.
+fn is_floating_both(toks: &[Tok<'_>], i: usize) -> bool {
+    let Some(prev) = i.checked_sub(1).and_then(|n| toks.get(n)) else {
+        return false;
+    };
+    let pronoun = matches!(
+        prev.core.as_str(),
+        "they" | "we" | "you" | "these" | "those" | "them" | "us" | "it"
+    );
+    let name = i > 1
+        && prev
+            .raw
+            .chars()
+            .find(|c| c.is_alphabetic())
+            .is_some_and(char::is_uppercase);
+    pronoun || name
+}
+
+/// The count that starts at the token `i`, if any.
+fn find_count(toks: &[Tok<'_>], i: usize) -> Option<Hit> {
+    let tok = toks.get(i)?;
+    if let Some(hit) = hyphen_count(tok, i) {
+        return Some(hit);
+    }
+    if !prefix_ok(tok) || !tok.suffix.is_empty() {
+        return None;
+    }
+    let prev = i.checked_sub(1).and_then(|p| toks.get(p));
+    let other = |first: usize, noun: Option<usize>| {
+        noun.map(|noun| Hit {
+            first,
+            num: i,
+            noun,
+            kind: Kind::Other,
+        })
+    };
+    match tok.core.as_str() {
+        "dozen" if prev.is_some_and(|p| p.core == "a") => {
+            other(i.saturating_sub(1), counted_noun(toks, i))
+        }
+        "pair"
+            if prev.is_some_and(|p| p.core == "a")
+                && toks.get(i + 1).is_some_and(|n| n.core == "of") =>
         {
-            return vec![];
+            other(i.saturating_sub(1), counted_noun(toks, i + 1))
         }
-        let text = reduce_inline(&s.text);
-        let quotes = quoted_spans(&text);
-        let toks = tokens(&text);
-        let lower = text.to_lowercase();
-        let mut out = Vec::new();
-        for (i, tok) in toks.iter().enumerate() {
-            if !(is_spelled_count(&tok.core) || is_digit_count(&tok.core)) || !tok.suffix.is_empty()
-            {
-                continue;
+        "both" if !is_floating_both(toks, i) => other(i, counted_noun(toks, i)),
+        "one" => one_count(toks, i, prev),
+        core if is_spelled_count(core) || is_digit_count(core) => {
+            if prev.is_some_and(|p| labels_the_number(toks, i, p)) {
+                return None;
             }
-            if !tok
-                .prefix
-                .chars()
-                .all(|c| "([{\"'\u{201c}\u{2018}*_".contains(c))
-                || quotes.iter().any(|q| q.contains(&tok.start))
-                || is_bounded(&toks, i)
-            {
-                continue;
-            }
-            if let Some(prev) = i.checked_sub(1).and_then(|p| toks.get(p)) {
-                if LABELS.contains(&prev.core.as_str()) || prev.raw.ends_with('#') {
-                    continue;
-                }
-            }
-            let Some(end) = counted_noun(&toks, i) else {
-                continue;
-            };
-            let Some(noun) = toks.get(end) else { continue };
-            if MEASURES.contains(&noun.core.as_str()) || is_bounded_after(&toks, end) {
-                continue;
-            }
-            let phrase: Vec<&str> = toks
-                .get(i..=end)
-                .unwrap_or_default()
-                .iter()
-                .map(|t| t.core.as_str())
-                .collect();
-            if is_fixed_fact(&tok.core, &phrase.join(" "), &lower) {
-                continue;
-            }
-            let stop = noun.start + noun.raw.len() - noun.suffix.len();
-            let excerpt = text.get(tok.start..stop).unwrap_or(&tok.core);
-            out.push(Finding::new(
-                "count-word",
-                Level::Error,
-                s.line,
-                COUNT_REMEDIATION.to_string(),
-                excerpt.to_string(),
-            ));
+            counted_noun(toks, i).map(|noun| Hit {
+                first: i,
+                num: i,
+                noun,
+                kind: Kind::Number,
+            })
         }
-        out
+        _ => None,
     }
+}
+
+fn is_adverb(core: &str) -> bool {
+    const NOT_ADVERBS: &[&str] = &["family", "supply", "assembly", "reply", "anomaly"];
+    core.len() > 4 && core.ends_with("ly") && !NOT_ADVERBS.contains(&core)
 }
 
 /// The index of the plural noun a number at `i` counts: the first plural
@@ -614,20 +1008,193 @@ fn counted_noun(toks: &[Tok<'_>], i: usize) -> Option<usize> {
             return None;
         }
         if is_plural_noun(&next.core) {
-            return Some(i + k);
+            // A plural right after an adverb is a verb: "80 universally predicts".
+            return (!(k > 1 && is_adverb(&before.core))).then_some(i + k);
         }
-        let plain = !next.core.is_empty()
-            && !STOP.contains(&next.core.as_str())
-            && !next.core.ends_with("ly")
-            && next
-                .core
-                .chars()
-                .all(|c| c.is_ascii_alphabetic() || c == '-');
-        if !plain {
+        if STOP.contains(&next.core.as_str()) || !is_plain_word(&next.core) {
             return None;
         }
     }
     None
+}
+
+/// A count word is flagged: a spelled or written number from two up, then
+/// up to two ordinary words, then a plural noun, as in "three stages". The
+/// shapes "a dozen", "both", "a pair of", a compound such as "five-step", and
+/// "one" before a list-like noun are counts too.
+///
+/// It holds the whole text, so a note after a sentence can source it. Every
+/// exemption is local to the count it covers.
+pub struct CountWordRule<'a> {
+    text: &'a str,
+    lines: Vec<&'a str>,
+    blocks: Vec<Range<usize>>,
+}
+
+/// One sentence, prepared, with what is needed to excuse a count in it.
+struct Scan<'a> {
+    prep: &'a Prepared,
+    toks: &'a [Tok<'a>],
+    clauses: Vec<Range<usize>>,
+    quotes: Vec<Range<usize>>,
+    /// A source note ends the line right after the sentence.
+    trailing_note: bool,
+    /// The table row of the sentence links a source.
+    row_sourced: bool,
+}
+
+impl Scan<'_> {
+    /// Whether a link or a note directly sources the count: the count sits
+    /// inside the link text, or the link or note sits right next to it.
+    fn sourced(&self, hit: &Hit) -> bool {
+        let (Some(first), Some(noun)) = (self.toks.get(hit.first), self.toks.get(hit.noun)) else {
+            return false;
+        };
+        let text = self.prep.text.as_str();
+        let num_at = self.toks.get(hit.num).map_or(first.start, |t| t.start);
+        let only = |gap: Option<&str>, allowed: &str| {
+            gap.is_some_and(|g| g.chars().all(|c| c.is_whitespace() || allowed.contains(c)))
+        };
+        self.prep.sources.iter().any(|src| {
+            src.range.contains(&num_at)
+                || src.range.contains(&noun.start)
+                || (src.range.start >= noun.end()
+                    && only(text.get(noun.end()..src.range.start), "(),.:;"))
+                || (!src.note
+                    && src.range.end <= first.start
+                    && only(text.get(src.range.end..first.start), "(),:"))
+        })
+    }
+
+    /// Whether the count sits in a table cell that opens with digits, such
+    /// as "11 products", in a row that links a source.
+    fn sourced_figure(&self) -> bool {
+        self.row_sourced && self.toks.first().is_some_and(|t| is_digit_count(&t.core))
+    }
+
+    fn phrase(&self, hit: &Hit) -> (String, String) {
+        let words = |end: usize| {
+            self.toks
+                .get(hit.first..=end)
+                .unwrap_or_default()
+                .iter()
+                .map(|t| t.core.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        };
+        let phrase = words(hit.noun);
+        let of = self.toks.get(hit.noun + 1).is_some_and(|t| t.core == "of")
+            && self.toks.get(hit.noun + 2).is_some();
+        let extended = if of {
+            words(hit.noun + 2)
+        } else {
+            phrase.clone()
+        };
+        (phrase, extended)
+    }
+
+    /// Whether anything excuses the count.
+    fn excused(&self, hit: &Hit) -> bool {
+        let (Some(first), Some(noun)) = (self.toks.get(hit.first), self.toks.get(hit.noun)) else {
+            return true;
+        };
+        let text = self.prep.text.as_str();
+        if self.quotes.iter().any(|q| q.contains(&first.start))
+            || clause_has_date(text, &self.clauses, first.start)
+            || self.sourced(hit)
+            || self.sourced_figure()
+        {
+            return true;
+        }
+        let clause = clause_at(&self.clauses, first.start);
+        if self.trailing_note && self.clauses.last() == Some(&clause) {
+            return true;
+        }
+        let past = hit
+            .first
+            .checked_sub(1)
+            .and_then(|p| self.toks.get(p))
+            .is_some_and(|p| is_past_verb(&p.core));
+        if past || (hit.kind == Kind::Number && is_estimate(self.toks, hit.num)) {
+            return true;
+        }
+        let noun_core = noun.core.as_str();
+        let number = self.toks.get(hit.num).map_or("", |t| t.core.as_str());
+        // "41 points" is a score. "Three points" counts a list.
+        let score = noun_core == "points" && number.starts_with(|c: char| c.is_ascii_digit());
+        if hit.kind != Kind::Hyphen
+            && (MEASURES.contains(&noun_core)
+                || score
+                || is_stated_limit(self.toks, hit)
+                || (LIMIT_NOUNS.contains(&noun_core)
+                    && (is_bound(self.toks, hit.num) || is_bounded_after(self.toks, hit.noun))))
+        {
+            return true;
+        }
+        let (phrase, extended) = self.phrase(hit);
+        let clause_text = text.get(clause).unwrap_or_default().to_lowercase();
+        is_fixed_fact(number, noun_core, &phrase, &extended, &clause_text)
+    }
+}
+
+impl<'a> CountWordRule<'a> {
+    pub fn new(text: &'a str) -> Self {
+        CountWordRule {
+            text,
+            lines: text.lines().collect(),
+            blocks: tool_blocks(text),
+        }
+    }
+
+    fn row_sourced(&self, s: &TextUnit) -> bool {
+        s.in_table
+            && s.line
+                .checked_sub(1)
+                .and_then(|n| self.lines.get(n))
+                .is_some_and(|row| row_has_source(row))
+    }
+}
+
+impl Rule<WritingConfig> for CountWordRule<'_> {
+    fn id(&self) -> &'static str {
+        "count-word"
+    }
+
+    fn scope(&self) -> Scope {
+        Scope::Sentence
+    }
+
+    fn check(&self, s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
+        if inside_a_block(&self.blocks, s) {
+            return vec![];
+        }
+        let prep = prepare(&s.text, true);
+        let toks = tokens(&prep.text);
+        let scan = Scan {
+            prep: &prep,
+            toks: &toks,
+            clauses: clause_bounds(&prep.text),
+            quotes: quoted_spans(&prep.text),
+            trailing_note: self.text.get(s.span.end..).is_some_and(trailing_note),
+            row_sourced: self.row_sourced(s),
+        };
+        (0..toks.len())
+            .filter_map(|i| find_count(&toks, i))
+            .filter(|hit| !scan.excused(hit))
+            .filter_map(|hit| {
+                let first = toks.get(hit.first)?;
+                let noun = toks.get(hit.noun)?;
+                let excerpt = prep.text.get(first.start..noun.end())?;
+                Some(Finding::new(
+                    "count-word",
+                    Level::Error,
+                    s.line,
+                    COUNT_REMEDIATION.to_string(),
+                    excerpt.to_string(),
+                ))
+            })
+            .collect()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -661,17 +1228,61 @@ const NEGATIONS: &[&str] = &[
     "any",
 ];
 
+const MODALS: &[&str] = &["may", "might", "could", "can", "will", "would", "should"];
+
+const COPULAS: &[&str] = &["is", "are", "was", "were", "be", "been", "being", "am"];
+
 const STILL_COMPARATIVE: &[&str] = &[
     "more", "less", "better", "worse", "further", "another", "other", "greater", "larger",
     "smaller", "fewer", "higher", "lower", "bigger", "longer", "shorter", "harder", "easier",
     "simpler", "faster", "slower", "stronger", "weaker",
 ];
 
+/// Words before "still" that make it the adjective, as in "keep still".
 const STILL_ADJECTIVE_AFTER: &[&str] = &[
     "stand", "stands", "stood", "hold", "holds", "keep", "keeps", "stay", "stays", "remain",
     "remains", "sit", "sits", "lie", "lies", "standing", "a", "an", "the", "water", "image",
     "images", "life",
 ];
+
+/// Words after "still" that make it the adjective, as in "still images".
+const STILL_ADJECTIVE_BEFORE: &[&str] = &[
+    "image",
+    "images",
+    "photo",
+    "photos",
+    "photograph",
+    "photographs",
+    "picture",
+    "pictures",
+    "frame",
+    "frames",
+    "shot",
+    "shots",
+    "life",
+    "water",
+    "waters",
+    "air",
+    "wine",
+    "pond",
+];
+
+/// Words after a sentence-opening "Now" that make it a discourse opener:
+/// "Now we turn to installation."
+const NOW_OPENER_NEXT: &[&str] = &[
+    "we", "let", "let's", "lets", "i", "you", "consider", "look", "see", "read", "run", "turn",
+    "move", "go", "take", "open", "add", "check", "install",
+];
+
+/// A third-person present verb, as in "reports": it ends in "s" and is not a
+/// plural noun's look-alike such as "always".
+fn is_present_verb(word: &str) -> bool {
+    word.len() >= 3
+        && word.ends_with('s')
+        && !(word.ends_with("ss") || word.ends_with("us") || word.ends_with("is"))
+        && !NOT_PLURAL.contains(&word)
+        && !STOP.contains(&word)
+}
 
 /// Whether the word the match stands for is about time, given the words
 /// around it. `before` is the sentence's earlier words, nearest first, and
@@ -695,14 +1306,21 @@ fn is_time_sense(word: &str, before: &[String], after: &[String]) -> bool {
                 .iter()
                 .take(3)
                 .any(|w| NEGATIONS.contains(&w.as_str()));
+            // "Never retries yet reports": the word joins two clauses.
+            let joins_clauses =
+                negated && prev.is_some_and(is_present_verb) && next.is_some_and(is_present_verb);
             let as_yet = prev == Some("as");
             let yet_to = next == Some("to");
+            let modal = prev.is_some_and(|p| MODALS.contains(&p));
             let last = after.is_empty();
-            negated || as_yet || yet_to || last
+            (negated && !joins_clauses) || as_yet || yet_to || modal || last
         }
         "still" => {
-            let comparative = next.is_some_and(|n| STILL_COMPARATIVE.contains(&n));
-            let adjective = prev.is_some_and(|p| STILL_ADJECTIVE_AFTER.contains(&p));
+            // "Is still slower than" says the state continues.
+            let continuing = prev.is_some_and(|p| COPULAS.contains(&p));
+            let comparative = !continuing && next.is_some_and(|n| STILL_COMPARATIVE.contains(&n));
+            let adjective = prev.is_some_and(|p| STILL_ADJECTIVE_AFTER.contains(&p))
+                || next.is_some_and(|n| STILL_ADJECTIVE_BEFORE.contains(&n));
             // "Keep it still." ends on the word: that is the adjective, not a time.
             !(comparative || adjective || after.is_empty())
         }
@@ -742,20 +1360,38 @@ impl Rule<WritingConfig> for RelativeTimeRule {
     }
 }
 
+/// Whether a match at token `idx` opens its sentence as a connective, not a
+/// time: "Now, run the build.", "Now we turn to installation.", "Still, it
+/// works."
+fn is_opener(toks: &[Tok<'_>], idx: usize, word: &str, after: &[String]) -> bool {
+    let opens = toks
+        .get(..idx)
+        .is_some_and(|b| b.iter().all(|t| t.core.is_empty()));
+    let comma_after = toks.get(idx).is_some_and(|t| t.suffix.starts_with(','));
+    opens
+        && ((comma_after && matches!(word, "now" | "still"))
+            || (word == "now"
+                && after
+                    .first()
+                    .is_some_and(|n| NOW_OPENER_NEXT.contains(&n.as_str()))))
+}
+
 fn relative_time(s: &TextUnit) -> Vec<Finding> {
     static TIME: OnceLock<Regex> = OnceLock::new();
     let pattern = re(
         &TIME,
         r"(?i)\b(?:as of now|at the moment|right now|for now|at present|these days|to date|(?:this|last|next) (?:week|month|year|quarter)|today|tonight|yesterday|tomorrow|currently|recently|soon|lately|nowadays|presently|now|yet|still)\b",
     );
-    if has_absolute_date(&without_link_targets(&s.text)) {
-        return vec![];
-    }
-    let text = reduce_inline(&s.text);
-    let toks = tokens(&text);
+    let prep = prepare(&s.text, false);
+    let text = prep.text.as_str();
+    let toks = tokens(text);
+    let clauses = clause_bounds(text);
     pattern
-        .find_iter(&text)
+        .find_iter(text)
         .filter(|m| {
+            if clause_has_date(text, &clauses, m.start()) {
+                return false;
+            }
             let word = m.as_str().to_lowercase();
             let Some(idx) = toks.iter().position(|t| t.start + t.raw.len() > m.start()) else {
                 return true;
@@ -774,11 +1410,8 @@ fn relative_time(s: &TextUnit) -> Vec<Finding> {
                 .iter()
                 .map(|t| t.core.clone())
                 .collect();
-            let comma_after = toks
-                .get(idx + phrase_words - 1)
-                .is_some_and(|t| t.suffix.starts_with(','));
-            // A sentence-opening "Now," or "Still," is a connective, not a time.
-            if before.is_empty() && comma_after && matches!(word.as_str(), "now" | "still") {
+            let last_word = idx + phrase_words - 1;
+            if is_opener(&toks, last_word, &word, &after) && phrase_words == 1 {
                 return false;
             }
             is_time_sense(&word, &before, &after)
@@ -817,99 +1450,332 @@ mod tests {
         .collect()
     }
 
+    fn counts(text: &str) -> Vec<String> {
+        excerpts("count-word", text)
+    }
+
+    fn times(text: &str) -> Vec<String> {
+        excerpts("relative-time", text)
+    }
+
     #[test]
     fn a_count_in_a_table_row_that_links_a_source_is_left_alone() {
         let cited = "| Source | Fact |\n|---|---|\n| [Study](https://example.com/s) | 86 tasks across domains |\n";
-        assert!(excerpts("count-word", cited).is_empty());
+        assert!(counts(cited).is_empty());
         let bare = "| Source | Fact |\n|---|---|\n| Study | 86 tasks across domains |\n";
-        assert_eq!(excerpts("count-word", bare), vec!["86 tasks"]);
+        assert_eq!(counts(bare), vec!["86 tasks"]);
+    }
+
+    #[test]
+    fn only_a_figure_cell_in_a_row_with_a_source_link_is_excused() {
+        let head = "| Source | Fact |\n|---|---|\n";
+        let label =
+            format!("{head}| [Authentication](https://example.com/auth) | Three stages |\n");
+        assert_eq!(counts(&label), vec!["Three stages"]);
+        let figure = format!("{head}| [Study](https://example.com/s) | 11 products |\n");
+        assert!(counts(&figure).is_empty());
+        let sentence = format!("{head}| [Study](https://example.com/s) | Covers 11 products |\n");
+        assert_eq!(counts(&sentence), vec!["11 products"]);
+    }
+
+    #[test]
+    fn a_digit_cell_in_a_row_with_a_source_link_is_excused_whole() {
+        let head = "| Source | Fact |\n|---|---|\n";
+        let cell = format!(
+            "{head}| [Study](https://example.com/s) | 86 tasks across 11 domains and 7,308 runs |\n"
+        );
+        assert!(counts(&cell).is_empty());
+    }
+
+    #[test]
+    fn a_stated_limit_passes_but_a_bare_count_does_not() {
+        assert!(counts("Use two families total.").is_empty());
+        assert!(counts("The limit of two families holds.").is_empty());
+        assert!(counts("Keep a maximum of three stages.").is_empty());
+        assert!(counts("Accent has at most 2 uses per screen.").is_empty());
+        assert_eq!(counts("Use two families."), vec!["two families"]);
+    }
+
+    #[test]
+    fn a_score_in_points_is_a_measure_but_spelled_points_count_a_list() {
+        assert!(counts("The score is 74 points.").is_empty());
+        assert_eq!(
+            counts("The proposal has three points."),
+            vec!["three points"]
+        );
+    }
+
+    #[test]
+    fn a_natural_pair_is_a_fixed_fact() {
+        assert!(counts("The link works in both directions.").is_empty());
+        assert!(counts("Pan on both axes.").is_empty());
+        assert_eq!(counts("It supports both themes."), vec!["both themes"]);
+    }
+
+    #[test]
+    fn a_floating_both_is_not_a_count() {
+        assert!(counts("ACP and AHP both carry permissions.").is_empty());
+        assert!(counts("They both carry permissions.").is_empty());
+        assert_eq!(
+            counts("Carry both adaptations forward."),
+            vec!["both adaptations"]
+        );
+    }
+
+    #[test]
+    fn a_verb_after_an_adverb_is_not_a_counted_noun() {
+        assert!(counts("No evidence shows that 80 universally predicts success.").is_empty());
+        assert!(counts("A limit of three stages and a minimum of two gates hold.").is_empty());
     }
 
     #[test]
     fn a_decision_number_is_a_name_not_a_count() {
-        assert!(excerpts("count-word", "Decision 0006 covers the binary.").is_empty());
+        assert!(counts("Decision 0006 covers the binary.").is_empty());
     }
 
     #[test]
     fn a_unit_between_a_number_and_a_noun_ends_the_count() {
-        assert!(excerpts("count-word", "A 20 px badge appears here.").is_empty());
+        assert!(counts("A 20 px badge appears here.").is_empty());
     }
 
     #[test]
-    fn a_bound_or_a_range_is_not_a_count() {
-        assert!(excerpts("count-word", "There are at least four reasons.").is_empty());
-        assert!(excerpts("count-word", "Allow at most three retries.").is_empty());
+    fn a_limit_is_not_a_count_but_a_bound_on_a_list_is() {
+        assert!(counts("Allow at most three retries.").is_empty());
+        assert!(counts("A run reads up to 20 files per run.").is_empty());
+        assert!(counts("Any list with more than 10 items gets a search.").is_empty());
+        assert!(counts("With 15 files or fewer, each file has a row.").is_empty());
+        assert_eq!(counts("There are four reasons."), vec!["four reasons"]);
+    }
+
+    #[test]
+    fn a_bound_or_a_range_on_a_list_is_a_count() {
         assert_eq!(
-            excerpts("count-word", "There are four reasons."),
-            vec!["four reasons"]
+            counts("The pipeline has at least three stages."),
+            vec!["three stages"]
+        );
+        assert_eq!(
+            counts("The pipeline has three to five stages."),
+            vec!["five stages"]
+        );
+        assert_eq!(
+            counts("The pipeline has two or three stages."),
+            vec!["three stages"]
+        );
+        assert_eq!(
+            counts("A review needs at least two reviewers, and no more than four."),
+            Vec::<String>::new()
         );
     }
 
     #[test]
     fn a_block_a_tool_wrote_for_a_head_commit_is_left_alone() {
         let text = "<!-- osf:tree:start head=abc123 -->\nThe tree holds 65 files and is final now.\n<!-- osf:tree:end -->\n\nThe change adds 65 files and is final now.\n";
-        assert_eq!(excerpts("count-word", text), vec!["65 files"]);
-        assert_eq!(excerpts("relative-time", text), vec!["now"]);
+        assert_eq!(counts(text), vec!["65 files"]);
+        assert_eq!(times(text), vec!["now"]);
     }
 
     #[test]
     fn a_block_without_a_head_commit_is_still_read() {
         let text = "<!-- osf:tree:start -->\nThe tree holds 65 files.\n<!-- osf:tree:end -->\n";
-        assert_eq!(excerpts("count-word", text), vec!["65 files"]);
+        assert_eq!(counts(text), vec!["65 files"]);
     }
 
     #[test]
-    fn a_threshold_after_the_noun_is_not_a_count() {
-        assert!(excerpts("count-word", "With 15 files or fewer, each file has a row.").is_empty());
-        assert!(excerpts("count-word", "Review a list of four items or more.").is_empty());
+    fn only_the_blocks_the_tools_write_are_skipped() {
+        let custom = "<!-- osf:custom:start head=abc -->\nThe deployment currently has three active runners.\n<!-- osf:custom:end -->\n";
+        assert_eq!(counts(custom), vec!["three active runners"]);
+        assert_eq!(times(custom), vec!["currently"]);
+        for name in ["status", "tree", "pr-lens"] {
+            let text = format!(
+                "<!-- osf:{name}:start head=abc -->\nThe deployment currently has three active runners.\n<!-- osf:{name}:end -->\n"
+            );
+            assert!(counts(&text).is_empty(), "{name}");
+            assert!(times(&text).is_empty(), "{name}");
+        }
     }
 
     #[test]
     fn about_a_digit_estimate_is_not_a_count_but_around_a_spelled_number_is() {
-        assert!(excerpts("count-word", "It has about 20 children.").is_empty());
+        assert!(counts("It has about 20 children.").is_empty());
         assert_eq!(
-            excerpts("count-word", "It is built around two concurrent loops."),
+            counts("It is built around two concurrent loops."),
             vec!["two concurrent loops"]
         );
     }
 
     #[test]
     fn a_dated_record_is_left_alone() {
-        assert!(excerpts("count-word", "On 2026-10-03 four consoles passed.").is_empty());
-        assert!(excerpts(
-            "relative-time",
-            "As of 2026-10-03 the cache is currently off."
-        )
-        .is_empty());
+        assert!(counts("On 2026-10-03 four consoles passed.").is_empty());
+        assert!(times("As of 2026-10-03 the cache is currently off.").is_empty());
     }
 
     #[test]
-    fn the_word_one_is_never_a_count() {
-        assert!(excerpts("count-word", "Pick one of the places, each one is fine.").is_empty());
+    fn a_date_excuses_only_the_clause_it_is_in() {
+        let text = "The 2026 roadmap is archived, but the pipeline currently has three stages.";
+        assert_eq!(counts(text), vec!["three stages"]);
+        assert_eq!(times(text), vec!["currently"]);
+        let one = "The 2026 roadmap, with three stages, is archived.";
+        assert!(counts(one).is_empty());
+        let after = "The pipeline has three stages; the 2026 roadmap is archived.";
+        assert_eq!(counts(after), vec!["three stages"]);
     }
 
     #[test]
-    fn a_hyphenated_compound_is_not_read() {
-        assert!(excerpts("count-word", "A two-factor check guards the login.").is_empty());
+    fn a_link_excuses_only_the_count_it_sources() {
+        let far = "The pipeline has three stages, with setup covered by [the authentication guide](https://example.com/auth).";
+        assert_eq!(counts(far), vec!["three stages"]);
+        let inside = "The pipeline has [three stages](https://example.com/auth).";
+        assert!(counts(inside).is_empty());
+        let next = "The pipeline has three stages ([guide](https://example.com/auth)).";
+        assert!(counts(next).is_empty());
+        let before = "Per [the guide](https://example.com/auth), three stages run.";
+        assert!(counts(before).is_empty());
+    }
+
+    #[test]
+    fn a_source_note_excuses_a_sentence_only_when_it_ends_its_line() {
+        let more = "The pipeline has three stages. [Source: authentication guide] Token setup is documented separately for users.\n";
+        assert_eq!(counts(more), vec!["three stages"]);
+        let ends = "The pipeline has three stages. [Source: authentication guide]\n";
+        assert!(counts(ends).is_empty());
+        let inline = "The pipeline has three stages [1] and more.";
+        assert!(counts(inline).is_empty());
+        let far = "The pipeline has three stages and runs daily with care [1].";
+        assert_eq!(counts(far), vec!["three stages"]);
+    }
+
+    #[test]
+    fn a_fixed_fact_excuses_only_its_own_phrase() {
+        let text = "The guide explains three primary colors and supports seven plugins.";
+        assert_eq!(counts(text), vec!["seven plugins"]);
+        let swapped = "The guide supports seven plugins and explains three primary colors.";
+        assert_eq!(counts(swapped), vec!["seven plugins"]);
+        assert!(counts("The three primary colours are red, yellow and blue.").is_empty());
+        assert!(counts("The three laws of motion apply here.").is_empty());
+    }
+
+    #[test]
+    fn geometry_and_calendar_facts_are_fixed() {
+        assert!(counts("A triangle has three sides.").is_empty());
+        assert!(counts("A cube has six faces.").is_empty());
+        assert!(counts("The year has four seasons.").is_empty());
+        assert!(counts("A pair of keys signs and verifies.").is_empty());
+        assert_eq!(counts("The tool has three sides."), vec!["three sides"]);
+    }
+
+    #[test]
+    fn a_past_event_is_a_fact() {
+        let text = "The committee interviewed three candidates before choosing Lee.";
+        assert!(counts(text).is_empty());
+        assert_eq!(
+            counts("The committee interviews three candidates."),
+            vec!["three candidates"]
+        );
+    }
+
+    #[test]
+    fn a_label_labels_only_the_number_next_to_it() {
+        assert!(counts("Choice 3 works best.").is_empty());
+        assert!(counts("Phase 2 tasks run after Layer 3 builds.").is_empty());
+        assert_eq!(
+            counts("At this stage, three reviewers approve the release."),
+            vec!["three reviewers"]
+        );
+        assert_eq!(counts("We plan three stages."), vec!["three stages"]);
+    }
+
+    #[test]
+    fn the_word_one_counts_a_list_like_noun_after_a_determiner_pattern() {
+        assert_eq!(
+            counts("The pipeline has one manual gate."),
+            vec!["one manual gate"]
+        );
+        assert!(counts("Pick one of the places, each one is fine.").is_empty());
+        assert!(counts("Keep the rules in one place.").is_empty());
+    }
+
+    #[test]
+    fn other_count_shapes_are_counts() {
+        assert_eq!(
+            counts("The release invokes a dozen checks."),
+            vec!["a dozen checks"]
+        );
+        assert_eq!(
+            counts("Both validation stages run before deployment."),
+            vec!["Both validation stages"]
+        );
+        assert_eq!(
+            counts("The pipeline uses a pair of validation stages."),
+            vec!["a pair of validation stages"]
+        );
+        assert_eq!(
+            counts("The pipeline uses a five-step process."),
+            vec!["five-step"]
+        );
+        assert_eq!(counts("The dispatcher uses 3-way routing."), vec!["3-way"]);
+        assert_eq!(counts("It is a three-stage."), vec!["three-stage"]);
+        assert_eq!(
+            counts("The pipeline has three independently maintained stages."),
+            vec!["three independently maintained stages"]
+        );
+        assert_eq!(
+            counts("The proposal has three points."),
+            vec!["three points"]
+        );
+    }
+
+    #[test]
+    fn a_code_span_is_read_only_when_it_holds_prose() {
+        assert_eq!(
+            counts("The pipeline has `three stages`."),
+            vec!["three stages"]
+        );
+        assert!(counts("Call `three_stages` and `get_two_items()`.").is_empty());
+        assert!(counts("Run `head -n 20 files` first.").is_empty());
+    }
+
+    #[test]
+    fn a_hyphenated_name_is_not_a_count() {
+        assert!(counts("A two-factor check guards the login.").is_empty());
     }
 
     #[test]
     fn a_quoted_figure_is_left_alone() {
-        assert!(excerpts("count-word", "The slogan was \"five whys\" in the source.").is_empty());
+        assert!(counts("The slogan was \"five whys\" in the source.").is_empty());
     }
 
     #[test]
-    fn an_opening_now_with_a_comma_is_not_about_time() {
-        assert!(excerpts("relative-time", "Now, run the build.").is_empty());
-        assert_eq!(excerpts("relative-time", "Run the build now."), vec!["now"]);
+    fn an_opening_now_is_not_about_time() {
+        assert!(times("Now, run the build.").is_empty());
+        assert!(times("Now we turn to installation.").is_empty());
+        assert!(times("Now, we turn to installation.").is_empty());
+        assert_eq!(times("Run the build now."), vec!["now"]);
+        assert_eq!(times("Now the cache is warm."), vec!["Now"]);
     }
 
     #[test]
     fn yet_as_a_conjunction_is_not_about_time() {
-        assert!(excerpts("relative-time", "It is small yet fast.").is_empty());
+        assert!(times("It is small yet fast.").is_empty());
+        assert!(times("The service never retries yet reports every failure.").is_empty());
+        assert_eq!(times("It has not shipped yet."), vec!["yet"]);
+        assert_eq!(times("It may yet succeed."), vec!["yet"]);
+    }
+
+    #[test]
+    fn still_is_time_only_when_it_means_continuing() {
+        assert!(times("The camera captures still images.").is_empty());
+        assert_eq!(times("The server still accepts requests."), vec!["still"]);
         assert_eq!(
-            excerpts("relative-time", "It has not shipped yet."),
-            vec!["yet"]
+            times("The new build is still slower than the old one."),
+            vec!["still"]
         );
+        assert!(times("Keep the pointer still.").is_empty());
+    }
+
+    #[test]
+    fn a_date_excuses_a_time_word_only_in_its_clause() {
+        let text = "The 2026 roadmap is archived, but the cache is still read.";
+        assert_eq!(times(text), vec!["still"]);
+        assert!(times("The format was frozen in 2025 and is still read.").is_empty());
     }
 }

@@ -11,7 +11,6 @@ The advice holds the last turn only, at most twenty lines, and is cleared once p
 Any list with more than 10 items gets a free-text omni-search. ||| docs/design/DESIGN.md:223
 Fixtures use realistic density, 30 to 100 work items. ||| docs/design/DESIGN.md:20
 Durations use at most two units, such as "1 h 20 m". ||| docs/design/DESIGN.md:345
-Human-in-the-loop validation remains necessary for at least four reasons. ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:199
 Decision 0002 keeps the tracker, the sandbox, the platform and the coding agent at the edges and says an interface is defined only when a real implementation requires it. ||| docs/architecture/decisions/0010-first-tracker-sandbox-and-harness-adapters.md:9
 Decision 0006 covers where the binary is installed and how it is protected. ||| docs/architecture/decisions/0001-rust-for-the-factory-engine.md:22
 Decision 0002 treats both as providers. ||| docs/architecture/decisions/0006-distribution-and-packaging.md:38
@@ -23,7 +22,6 @@ Date: 2026-08-16, amended 2026-09-15 with the vocabulary and the two rules below
 Three-zone layout, as in §4.2. ||| docs/design/DESIGN.md:173
 "Six conceptual surfaces" was confusingly unnamed, and is now named in place. ||| docs/design/design-tracker.md:347
 Pills wrapped to two lines, brand text crowded the search ||| docs/design/design-tracker.md:105
-Microsoft publishes AHP client libraries in five languages, including Go, through the [AHP repository](https://github.com/microsoft/agent-host-protocol). ||| docs/research/ahp-acp-architecture-direction.md:304
 A capability may arrive from more than one place, so the more specific source wins. ||| docs/architecture/how-the-factory-reaches-a-repository.md:28
 Recruiting and developing for this role is one of the main people challenges of the agent-native business. ||| docs/vision/agent-native-operating-model.md:196
 The target slot then dictates each one's mode. ||| docs/design/components.md:183
@@ -38,3 +36,11 @@ Two-factor sign-in asks for a code. ||| owner-example
 A pair of keys signs and verifies. ||| owner-example
 A binary digit has two states. ||| owner-example
 The three primary colours are red, yellow and blue. ||| owner-example
+Choice 3 works best. ||| review-207
+A triangle has three sides. ||| review-207
+The committee interviewed three candidates before choosing Lee. ||| review-207
+Keep the rules in one place. ||| review-207
+Call `three_stages` and `get_two_items()` from the script. ||| review-207
+The pipeline reads at most three retries per run. ||| review-207
+This created two problems. ||| docs/design/design-tracker.md:43
+Suite I gained three rows. ||| docs/design/design-tracker.md:55

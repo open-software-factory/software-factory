@@ -761,8 +761,8 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
               Flags the first section of a skill body when it is not step-shaped and it \
               runs past a paragraph count or a word count. Step-shaped means it has no \
               numbered list, no code fence, and no line opening with an imperative verb. \
-              Both limits live in the `[skill]` config section. The compiled defaults are \
-              a paragraph limit of 2 and a word limit of 120.\n\
+              The paragraph limit and the word limit live in the `[skill]` config section. \
+              The compiled defaults are a paragraph limit of 2 and a word limit of 120.\n\
               ### Why it is bad\n\
               A short problem statement before the first step is fine. Past the budget, \
               the opening reads as background an agent must study before it can act. \

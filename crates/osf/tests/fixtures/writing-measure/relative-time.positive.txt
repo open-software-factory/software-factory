@@ -42,3 +42,10 @@ To date the cache has never been enabled. ||| To date ||| constructed
 The team met recently. ||| recently ||| constructed
 We shipped the parser yesterday and will ship the printer tomorrow. ||| yesterday;tomorrow ||| constructed
 Tonight's build is red. ||| Tonight ||| constructed
+The new build is still slower than the old one. ||| still ||| review-207
+It may yet succeed. ||| yet ||| review-207
+The server still accepts requests. ||| still ||| review-207
+The 2026 roadmap is archived, but the pipeline currently has three stages. ||| currently ||| review-207
+The wire protocol was frozen in 2025, and the old format is still read. ||| still ||| constructed
+2026 ecosystem shifts recorded: Radix's pace has slowed, and shadcn now defaults to Base UI. ||| now ||| docs/design/survey/00-synthesis.md:31
+Notably, Amazon's older NLU Evaluation feature was deprecated in August 2026, so documentation or articles recommending that specific tool are now stale. ||| now ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:71

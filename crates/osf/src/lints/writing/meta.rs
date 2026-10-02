@@ -704,8 +704,13 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags a count of things, written in words or in digits, such as \
-         `three stages` or `5 checkpoints`. It reads a number from two \
-         upward, then up to two plain words, then a plural noun. It runs on \
+         \"three stages\" or \"5 checkpoints\". It reads a number from two \
+         upward, then up to two plain words or adverbs, then a plural \
+         noun. A bound or a range is a count too, as in \"at least three \
+         stages\". The shapes \"a dozen\", \"both\", \"a pair of\", \
+         \"five-step\" and \"3-way\" are counts. So is \"one\" before a list \
+         noun, as in \"has one manual gate\". A code span is read only when \
+         it holds prose, such as \"three stages\" in backticks. It runs on \
          text that lasts: a document, a skill, a commit message, and a \
          pull request or issue body. It never runs on a chat transcript.\n\
          ### Why it is bad\n\
@@ -722,27 +727,70 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Coverage\n\
          It covers English text, a spelled number or digits from two upward, \
          and a plural noun after it.\n\
-         It leaves these alone. A measure or a unit, such as `10 minutes` \
-         or `5 s`. A version. A date, and any sentence that carries a date, \
-         because a dated record stays true. A number inside a quotation, \
-         inside code, or after a label such as `Phase 2`.\n\
-         It also leaves a bound, a range or an estimate, such as `at least \
-         four`, `up to 20`, `30 to 100` or `15 files or fewer`. Each stays \
-         true when a list \
-         changes. A sentence that links to a source or cites one passes. So \
-         does a sentence that a citation note follows, and a table cell in \
-         a row that links one.\n\
-         A fixed fact that cannot change passes too. Examples are a \
-         hyphenated compound such as `two-factor`, the `primary colours`, \
-         the `states of matter`, and `two states` in a sentence about \
-         binary. The word `one` is never read as a count, so `one of`, \
-         `one place` and `each one` pass.\n\
-         Text a tool writes between `osf` markers that name a head commit \
-         passes. It is a snapshot of that commit.\n\
-         It does not cover `both`, `several` or `a couple of`. It does not \
-         read a number joined to its noun by a hyphen. It does not read a \
-         number followed by an adverb, or a count with no noun after it. \
-         The check is deterministic, with no model.",
+         It leaves these alone. Every exemption covers only the count it \
+         sits with. It does not cover the rest of the sentence.\n\
+         A measure or a unit, such as `10 minutes`, `5 s` or `3 frames`. A \
+         score in points with digits passes, but \"three points\" counts a \
+         list. A version. A \
+         number inside a quotation, or after a label such as `Phase 2`. A \
+         label labels the number only when no punctuation sits between \
+         them, so \"At this stage, three reviewers approve\" is read. A noun \
+         such as `choice` labels a number only when a verb follows, as in \
+         \"Choice 3 works best\".\n\
+         A date excuses a count in the same clause. A clause ends at a \
+         semicolon, a colon, a dash, or a comma before a conjunction such as \
+         `but` or `and`. A date in another clause does not excuse it.\n\
+         A source excuses only the count it directly backs. The count sits \
+         inside the link text, or a link or a note sits right next to it. A \
+         note that ends its line after a sentence backs the counts in the \
+         last clause of that sentence. A link elsewhere in the sentence \
+         backs nothing. In a table, a row that links a source excuses the \
+         counts in a cell that opens with digits, such as \"11 products\". \
+         A cell that opens with a word is read.\n\
+         A past event passes. A past-tense verb right before the count \
+         marks it. The verb ends in `ed` or is a common irregular such as \
+         `ran` or `found`. An example is \"The committee interviewed three \
+         candidates\".\n\
+         An estimate passes, such as `roughly four`, or `about 20` with \
+         digits. A limit passes. A bound or a range is a limit only when the noun is one \
+         that a policy caps or a run uses up. The nouns are retries, \
+         attempts, tries, requests, calls, files, items, rows, entries, \
+         results, records and jobs. More are runs, workers, threads, \
+         connections, failures, errors, warnings, findings, comments, \
+         messages and events. The last are commits, approvals, approvers, \
+         reviewers, reviews, votes, units, nodes, elements, iterations, \
+         rounds, uses, cycles and questions. Examples that pass are \"at \
+         most 3 retries\" and \"up to 20 files\". Before any other plural \
+         noun a bound is a count, because the list can change and break \
+         it. \"At least three stages\" is read.\n\
+         A count that the text states as a limit passes. The noun is \
+         followed by `total`, or the number follows `limit of`, `maximum \
+         of`, `minimum of` or `capped at`.\n\
+         A `both` that floats after a pronoun or a name, as in \"they both \
+         carry\", is not a count. A plural right after an adverb is a \
+         verb, so \"80 universally predicts\" passes.\n\
+         A fixed fact that cannot change passes too. Only its own phrase \
+         passes. The facts are the primary colours, the cardinal \
+         directions, the laws of motion and the states of matter. Also a \
+         pair of keys, the seasons, the continents, the hemispheres and \
+         the quadrants. A natural pair passes, such as \"both directions\", \
+         \"both ways\", \"both sides\", \"both ends\", \"both axes\", \
+         \"both hands\" and \"both eyes\". Sides, angles, corners, vertices, \
+         edges and faces pass in a clause that names a plane or solid \
+         shape, such as \"A triangle has three sides\". So does \"two \
+         states\" in a clause about binary.\n\
+         A number joined to a noun by a hyphen is a count for some nouns. \
+         These are step, stage, phase, tier, layer, gate, way, level, pass \
+         and part. A name such as `two-factor` passes.\n\
+         The word `one` is a count only after a word such as `has`, `with` \
+         or `needs`. A list noun must follow within two words, \
+         such as `stage`, `gate`, `step`, `rule` or `reviewer`. So `one \
+         of`, `one place` and `each one` pass.\n\
+         Text a tool writes between `osf` markers passes when the marker \
+         names `status`, `tree` or `pr-lens` and a head commit. It is a \
+         snapshot of that commit. A block with any other name is read.\n\
+         It does not cover `several` or `a couple of`, or a count with no \
+         noun after it. The check is deterministic, with no model.",
         Exception::FixedLevel(Level::Error)
     ),
     rule_meta!(
@@ -773,15 +821,24 @@ pub const RULE_META: &[RuleMeta] = &[
          Good: The cache is disabled by default.\n\
          ### Coverage\n\
          It covers English text and the words above. It stays silent when \
-         the same sentence carries an absolute date. That means a year, \
+         the same clause carries an absolute date. That means a year, \
          month and day, a month with a day or a year, a four-digit year, or \
-         `as of` a date. It also stays silent in text a tool writes between \
-         `osf` markers that name a head commit.\n\
+         `as of` a date. A clause ends at a semicolon, a colon, a dash, or \
+         a comma before a conjunction such as `but` or `and`. A date in \
+         another clause does not excuse the word. It also stays silent in \
+         text a tool writes between `osf` markers that name a head commit \
+         and are called `status`, `tree` or `pr-lens`.\n\
          It also stays silent where the word is not about time. Those cases \
-         are `now that`, `now and then`, `as soon as`, `up to date`, an \
-         opening `Now,` or `Still,`, and `still` before a comparative, after \
-         `stand` or `keep`, or ending a clause. A plain conjunction `yet` \
-         passes too.\n\
+         are `now that`, `now and then`, `as soon as`, `up to date`, and an \
+         opening `Now` or `Still` with a comma. An opening `Now` before \
+         `we`, `let`, `I`, `you` or an instruction verb such as `run` or \
+         `see` passes with no comma. `still` passes as an adjective, such \
+         as `still images`, after `stand` or `keep`, or ending a clause. \
+         It passes before a comparative, except right after `is`, `are`, \
+         `was` or `were`, where it says a state continues. A conjunction \
+         `yet` passes, as in `small yet fast`. So does `yet` that joins \
+         clauses after a negation, with a present-tense verb on each side, \
+         as in `never retries yet reports`. `may yet succeed` is read.\n\
          It does not cover a phrase such as `a few days ago` or a word such \
          as `new` or `latest`. The check is deterministic, with no model.",
         Exception::FixedLevel(Level::Warning)

@@ -17,7 +17,6 @@ Two explored alternatives are archived in `design-explorations.md`: direction A 
 The survey checks each candidate against four `DESIGN.md` rules. ||| four code rules ||| docs/design/survey/03-canvas-graph.md:7
 Three fixes were made. ||| Three fixes ||| docs/design/design-tracker.md:225
 Two traps were found only by rendering. ||| Two traps ||| docs/design/design-tracker.md:25
-Suite I gained three rows. ||| three rows ||| docs/design/design-tracker.md:55
 The shell asks a `PopOutPort` for two verbs and a flag. ||| two verbs ||| docs/design/design-tracker.md:149
 Five tracks are complete. ||| Five tracks ||| docs/design/survey/00-synthesis.md:5
 This survey tracks two things. ||| two things ||| docs/design/survey/03-canvas-graph.md:3
@@ -28,8 +27,26 @@ The complete lifecycle spans twelve phases, from discovery through to the meta-l
 There are two caveats when interpreting the defect papers. ||| two caveats ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:138
 Four guards run on every build, each earned by a real failure: ||| Four guards ||| docs/design/design-tracker.md:442
 Three loops begin the set: SDLC, the default. ||| Three loops ||| docs/design/design-tracker.md:641
-This created two problems. ||| two problems ||| docs/design/design-tracker.md:43
 Two bug reports came from the owner. ||| Two bug reports ||| docs/design/design-tracker.md:334
 Version 1.1 split each entity into two parts: ||| two parts ||| docs/architecture/draft-factory-vocabulary.md:52
 Fourteen standard features. ||| Fourteen standard features ||| docs/research/2026-09-17-change-risk-classification.md:41
 The lab bar switches between three things the orb can open. ||| three things ||| docs/design/design-tracker.md:197
+Human-in-the-loop validation remains necessary for at least four reasons. ||| four reasons ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:199
+The 2026 roadmap is archived, but the pipeline currently has three stages. ||| three stages ||| review-207
+The pipeline has three stages, with setup covered by [the authentication guide](https://example.com/auth). ||| three stages ||| review-207
+The pipeline has three stages. [Source: authentication guide] Token setup is documented separately for users. ||| three stages ||| review-207
+The pipeline has at least three stages. ||| three stages ||| review-207
+The pipeline has three to five stages. ||| five stages ||| review-207
+The pipeline has two or three stages. ||| three stages ||| review-207
+The pipeline has one manual gate. ||| one manual gate ||| review-207
+The proposal has three points. ||| three points ||| review-207
+The guide explains three primary colors and supports seven plugins. ||| seven plugins ||| review-207
+The pipeline has three independently maintained stages. ||| three independently maintained stages ||| review-207
+At this stage, three reviewers approve the release. ||| three reviewers ||| review-207
+The release invokes a dozen checks. ||| a dozen checks ||| review-207
+Both validation stages run before deployment. ||| Both validation stages ||| review-207
+The pipeline uses a pair of validation stages. ||| a pair of validation stages ||| review-207
+The pipeline uses a five-step process. ||| five-step ||| review-207
+The dispatcher uses 3-way routing. ||| 3-way ||| review-207
+The pipeline has `three stages`. ||| three stages ||| review-207
+Microsoft publishes AHP client libraries in five languages, including Go, through the [AHP repository](https://github.com/microsoft/agent-host-protocol). ||| five languages ||| docs/research/ahp-acp-architecture-direction.md:304

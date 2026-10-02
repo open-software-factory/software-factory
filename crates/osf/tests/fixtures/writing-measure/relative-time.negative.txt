@@ -1,8 +1,6 @@
 // Each line: sentence ||| source. The rule must not flag any of them.
 // A source that starts with constructed is a sentence this repository's docs do not hold.
 After a change lands lower in a stack, run `git town sync` to bring every branch above it up to date. ||| AGENTS.md:45
-2026 ecosystem shifts recorded: Radix's pace has slowed, and shadcn now defaults to Base UI. ||| docs/design/survey/00-synthesis.md:31
-Notably, Amazon's older NLU Evaluation feature was deprecated in August 2026, so documentation or articles recommending that specific tool are now stale. ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:71
 Despite the amount of 2026 activity, **skill-lint is not yet a settled engineering discipline**. ||| docs/research/2026-09-15-skill-lint-validation-and-evaluation.md:218
 This reflects browser and engine support as of September 4, 2026. ||| docs/design/survey/06-workspace-spike.md:26
 Kimi K3 should enter as soon as the operator's access becomes available. ||| docs/research/ux/design-workflow-landscape.md:188
@@ -18,9 +16,11 @@ Run the build now and then to check the cache. ||| constructed
 The check is simple yet thorough. ||| constructed
 Now, run the build. ||| constructed
 Still, the cache works. ||| constructed
-The new cache is still larger than the old one. ||| constructed
 Keep the pointer still. ||| constructed
 The tool knows what to do. ||| constructed
 Known issues are listed in the tracker. ||| constructed
 Start the job as soon as the cache is ready. ||| constructed
-The wire protocol was frozen in 2025, and the old format is still read. ||| constructed
+The camera captures still images. ||| review-207
+The service never retries yet reports every failure. ||| review-207
+Now we turn to installation. ||| review-207
+The service is small yet fast. ||| review-207
