@@ -414,9 +414,28 @@ pub fn unplaceable_reference(
                 known,
                 &candidates,
             );
-            (!placed).then(|| unplaced_finding(paragraph, candidate, cfg))
+            if placed {
+                unlinked_finding(paragraph, candidate)
+            } else {
+                Some(unplaced_finding(paragraph, candidate, cfg))
+            }
         }));
     }
+}
+
+/// A labelled `owner/repo#N` with no link around it is placed but still warns, as the retired link rule did.
+fn unlinked_finding(paragraph: &TextUnit, candidate: &Candidate) -> Option<Finding> {
+    let is_repo_reference = candidate.kind == Kind::Number && candidate.text.contains('#');
+    (is_repo_reference && !is_linked(&paragraph.text, candidate)).then(|| {
+        finding(
+            paragraph,
+            "unplaceable-reference",
+            Level::Warning,
+            "link the reference so the reader can open it".to_string(),
+            &candidate.text,
+        )
+        .with_evidence(osf_lint_core::Evidence::Statistical)
+    })
 }
 
 /// Keeps every number, phrase and time candidate, but only the first

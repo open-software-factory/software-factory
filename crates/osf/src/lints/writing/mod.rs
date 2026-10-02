@@ -144,11 +144,62 @@ mod tests {
             rules_of("Fixed in open-software-factory/software-factory#125 today."),
             vec!["unplaceable-reference"]
         );
-        assert!(rules_of("Fixed in repo#125 (the canvas fixes) today.").is_empty());
         assert!(
             rules_of("Fixed in [repo#125 (the canvas fixes)](https://example.com) today.")
                 .is_empty()
         );
+    }
+
+    /// The retired link rule warned on a labelled reference with no link; the one rule keeps that warning.
+    /// A labelled and linked reference passes, a labelled and unlinked one warns, and an unlabelled one errors.
+    #[test]
+    fn a_labelled_reference_with_no_link_warns_and_an_unlabelled_one_errors() {
+        let labelled = lint("See software-factory#125 (the canvas fixes) now.");
+        let [warning] = labelled.as_slice() else {
+            panic!("expected one finding: {labelled:?}");
+        };
+        assert_eq!(warning.rule, "unplaceable-reference");
+        assert_eq!(warning.level, Level::Warning, "{warning:?}");
+        assert!(
+            warning.message.contains("link the reference"),
+            "{warning:?}"
+        );
+        assert_eq!(warning.excerpt, "software-factory#125");
+
+        let linked =
+            lint("See [software-factory#125](https://example.com/125) (the canvas fixes) now.");
+        assert!(linked.is_empty(), "{linked:?}");
+
+        let unlabelled = lint("See software-factory#125 now.");
+        let [error] = unlabelled.as_slice() else {
+            panic!("expected one finding: {unlabelled:?}");
+        };
+        assert_eq!(error.level, Level::Error, "{error:?}");
+    }
+
+    /// The link warning is advice in every context, as the retired rule's was.
+    #[test]
+    fn the_link_warning_is_a_warning_in_every_context() {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        for context in [
+            Context::Transcript,
+            Context::Commit,
+            Context::Document,
+            Context::Skill,
+        ] {
+            let found = lint_writing(
+                "See software-factory#125 (the canvas fixes) now.",
+                &known,
+                &WritingConfig::default(),
+                context,
+                false,
+                false,
+            );
+            let [warning] = found.as_slice() else {
+                panic!("{context:?}: expected one finding: {found:?}");
+            };
+            assert_eq!(warning.level, Level::Warning, "{context:?}: {found:?}");
+        }
     }
 
     /// A repo-qualified number is judged per occurrence, not deduped like a
@@ -407,7 +458,7 @@ mod tests {
     fn numbers_in_prose() {
         assert_eq!(
             rules_of("It ran 12 axes over 3 rounds in 41 minutes."),
-            vec!["numbers-in-prose", "unplaceable-reference"]
+            vec!["numbers-in-prose"]
         );
     }
 

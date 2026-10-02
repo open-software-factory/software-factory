@@ -80,7 +80,9 @@ pub const RULE_META: &[RuleMeta] = &[
          is. A quoted \
          term is also placed by an example marker, such as \"such as\" or \
          \"for example\". A phrase such as `as discussed` is never placed. \
-         Using one is always a finding.\n\
+         Using one is always a finding. A repository reference with a \
+         bracketed description but no link is placed, and it still warns \
+         that it needs a link.\n\
          ### Why it is bad\n\
          A reader who was not in the room, or who reads the text later, \
          cannot resolve the reference on their own. The document must carry \
