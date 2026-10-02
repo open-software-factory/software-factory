@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "fe4fb6272397e96d74332b02b7f0809573e98135",
+    "contentHash": "35985355b6174e50b5d42756b5a2d266"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a9e75ef3e98a40ceff501497c68793e6",
+      "bytes": 24715,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-light-a9e75ef3e98a40ceff501497c68793e6.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "857aceeefc06eccf2d22d5abe8447228",
+      "bytes": 25019,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-dark-857aceeefc06eccf2d22d5abe8447228.svg"
+    },
+    {
+      "id": "reference-engine-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reference-engine-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e14afd6ac8a8360116229b2a4679fad5",
+      "bytes": 12911,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "reference-engine-detail-light-e14afd6ac8a8360116229b2a4679fad5.svg"
+    },
+    {
+      "id": "reference-engine-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reference-engine-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0ed0cb9ab7bc1b0ea7a17ede457398c5",
+      "bytes": 13058,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "reference-engine-detail-dark-0ed0cb9ab7bc1b0ea7a17ede457398c5.svg"
+    },
+    {
+      "id": "reply-refusal-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "reply-refusal-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e153b545ee12145048137b833d02df72",
+      "bytes": 14854,
+      "width": 1896,
+      "height": 429,
+      "animated": true,
+      "path": "reply-refusal-flow-view-light-e153b545ee12145048137b833d02df72.svg"
+    },
+    {
+      "id": "reply-refusal-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "reply-refusal-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7d53eb776a37ee7df2955c3155a9086d",
+      "bytes": 15012,
+      "width": 1896,
+      "height": 429,
+      "animated": true,
+      "path": "reply-refusal-flow-view-dark-7d53eb776a37ee7df2955c3155a9086d.svg"
+    }
+  ]
+}
