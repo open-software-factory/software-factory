@@ -29,7 +29,7 @@ This is not fully transparent execution of every agent command. A command execut
 
 The Agent Native Operating Model and Automated SPDLC vision place deterministic tools beneath agent reasoning. Agents implement work; hard gates decide whether the result is safe to advance. The execution layer therefore needs to be fast, cross-platform, language-agnostic, observable and capable of growing toward shared caching and stronger isolation without taking ownership of each language's build semantics.
 
-The original search started with Bazel and Buck2 because they provide sophisticated dependency graphs, hermetic actions, content-addressed caching and remote execution. The investigation changed direction after separating two concerns:
+The original search started with Bazel and Buck2 because they provide sophisticated dependency graphs, hermetic actions, content-addressed caching and remote execution. The investigation changed direction after separating these concerns:
 
 1. **Build semantics:** how .NET, Rust, Go, JavaScript and other ecosystems compile, restore, test and package software.
 2. **Execution semantics:** which tasks should run, in what order, for which changes, under which policy, and whether their results can be reused.
@@ -120,7 +120,7 @@ None is currently justified merely to improve caching.
 
 ## Recommended operating model
 
-Separate execution into two loops.
+Separate execution into an agent inner loop and a factory verification loop.
 
 ### Agent inner loop
 
@@ -224,7 +224,7 @@ OSF -> NativeLink-specific API
 
 NativeLink is a credible optional backend because a single configurable Rust binary can provide CAS, action cache, scheduler and worker roles. [NativeLink architecture](https://docs.nativelink.com/explanations/architecture-deep-dive)
 
-Two qualifications matter:
+These qualifications matter:
 
 1. NativeLink explicitly states that hermeticity is the client's responsibility. Undeclared inputs and network access can make a cache entry incorrect even when content addressing works perfectly. [NativeLink correctness and hermeticity](https://docs.nativelink.com/explanations/correctness-hermeticity)
 2. Current NativeLink releases use FSL-1.1 with an Apache-2.0 future licence after two years. OSF should remain protocol-compatible and backend-neutral rather than taking a NativeLink code dependency. [NativeLink repository and licence](https://github.com/TraceMachina/nativelink)

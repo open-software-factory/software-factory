@@ -38,7 +38,7 @@ Each product word maps to one term of the domain model in architecture decision 
 | Since you last looked | Recap | The arrival summary on every surface. |
 | Agent, by its product name | Actor: harness, model, model family | Shown under the run. The product has no roster of agents. |
 
-The six surfaces are named in the product as Attention, Floor, Work, Recorder, Runway and Insights. The navigation uses the same six words.
+The surfaces are named in the product as Attention, Floor, Work, Recorder, Runway and Insights. The navigation uses the same words.
 
 ### Words that stay off the screen
 

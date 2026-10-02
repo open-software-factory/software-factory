@@ -10,7 +10,7 @@ Between 21 and 24 August 2026 four coding-agent sessions each built a working Re
 
 On 24 August a local forensic review and an independent blind review by GPT-5.6 Sol High examined the outputs. They agreed on the causes. This note keeps what those reviews found, because the benchmark that produced them is dropped and its branches will go.
 
-Screenshots of the four consoles are in [`prototypes/`](prototypes/README.md).
+Screenshots of the consoles are in [`prototypes/`](prototypes/README.md).
 
 ## What went wrong
 
@@ -36,7 +36,7 @@ These are the transferable lessons. Each one is a candidate rule awaiting a deci
 2. **Keep evaluator and test controls out of product surfaces.** Drive test states through query parameters or a test-only interface. Enforce the boundary with a source-level test so product code cannot import it.
 3. **Give the UI only what is true now.** A snapshot must contain no future events. Calm means calm in the data as well as in the copy. See [`../../architecture/draft-factory-vocabulary.md`](../../architecture/draft-factory-vocabulary.md).
 4. **Every offered decision must be genuinely open.** Both branches need real, testable consequences.
-5. **Add semantic gates next to mechanical ones.** Assert facts about state, not only about the DOM: calm has zero critical attention and no recovery controls; both decision options and their four dimensions are visible in the initial viewport; the intent-to-outcome chain is complete; evidence actions open evidence.
+5. **Add semantic gates next to mechanical ones.** Assert facts about state, not only about the DOM: calm has zero critical attention and no recovery controls; both decision options and their dimensions are visible in the initial viewport; the intent-to-outcome chain is complete; evidence actions open evidence.
 6. **Scan visible copy for prohibited terms.** A deterministic check that fails on known evaluator and doctrine phrases in visible text and accessible names catches the class of error mechanically. It does not replace human review of clarity.
 7. **Treat passing deterministic gates as necessary and still short of sufficient.** This is a concrete case for the open question about how deterministic gates and review signals compose. The deterministic result stays authoritative for its scope, and its scope was narrower than the requirement.
 8. **Score process cost as an outcome.** The workflow lane used materially more time and tokens. Operator corrections, retries and elapsed time all count as results.
@@ -47,7 +47,7 @@ These are the transferable lessons. Each one is a candidate rule awaiting a deci
 - A fixture with stable IDs and enough connected entities supported serious traceability work.
 - A separate contract surface, distinct from the product surface, was the right shape.
 - Converting an operator complaint into a deterministic acceptance check worked. The "decision is below the fold" complaint became a geometry assertion.
-- Comparing a local review against a blind independent review found three material problems the first review under-weighted. It is a cheap pattern for any future design review.
+- Comparing a local review against a blind independent review found material problems the first review under-weighted. It is a cheap pattern for any future design review.
 
 ## Toolchain that worked
 

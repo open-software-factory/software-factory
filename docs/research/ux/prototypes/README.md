@@ -4,9 +4,9 @@ Status: visual reference only
 
 Date: captured 21 and 23 August 2026
 
-These are screenshots of four working React prototypes of the operator console. Coding agents built them from the frozen UX vision, design principles and one incident scenario. Each prototype was a few thousand lines and passed the full deterministic gate set. The code is not kept. The screenshots are kept as reference for the visual direction and for the failure modes described in [`../agent-built-ui-lessons.md`](../agent-built-ui-lessons.md).
+These are screenshots of working React prototypes of the operator console. Coding agents built them from the frozen UX vision, design principles and one incident scenario. Each prototype was a few thousand lines and passed the full deterministic gate set. The code is not kept. The screenshots are kept as reference for the visual direction and for the failure modes described in [`../agent-built-ui-lessons.md`](../agent-built-ui-lessons.md).
 
-Every prototype shows the same three moments at 1536 by 960: `calm`, `decision-required` and `recovered`. The scenario is described in [`../../../architecture/draft-factory-vocabulary.md`](../../../architecture/draft-factory-vocabulary.md).
+Every prototype shows the same moments at 1536 by 960: `calm`, `decision-required` and `recovered`. The scenario is described in [`../../../architecture/draft-factory-vocabulary.md`](../../../architecture/draft-factory-vocabulary.md).
 
 | Folder | Model | Direction | Design workflow |
 |---|---|---|---|
@@ -15,7 +15,7 @@ Every prototype shows the same three moments at 1536 by 960: `calm`, `decision-r
 | `gpt-5-6-luna-floor-as-territory/` | GPT-5.6 Luna, max reasoning | A, "The Floor as Territory" | None |
 | `gpt-5-6-luna-floor-first/` | GPT-5.6 Luna, max reasoning | B, "Floor First" | Trystan-SA design system prompt |
 
-## The two directions
+## The directions
 
 **The Floor as Territory.** One continuous zoomable plane. Repositories are territories. The incident is a highlighted route across the floor. Attention and decision panels sit beside the floor.
 

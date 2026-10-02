@@ -51,7 +51,7 @@ These principles address the problem of building products for people under uncer
 
 Teams consistently underinvested in these valuable practices because their cost was too high relative to delivery pressure.
 
-In an agent-native world, two things change. First, delivery pressure from engineering capacity is removed as a forcing function. Second, the automation layer reduces the cost of several of these practices directly.
+In an agent-native world, these things change. First, delivery pressure from engineering capacity is removed as a forcing function. Second, the automation layer reduces the cost of several of these practices directly.
 
 | Practice                               | Always Known to Be Valuable                                                                                                                        | Why It Was Underinvested                                                                                           | Why It Is Now Achievable                                                                                                                        |
 |--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -327,7 +327,7 @@ Every feature designed as an experiment, which in this operating model is most f
 
 ### 7.2 Measurement tooling
 
-The measurement infrastructure serves two purposes: closing individual experiments and feeding continuous discovery. Usage data that closes one experiment becomes the signal that surfaces the next problem.
+The measurement infrastructure serves these purposes: closing individual experiments and feeding continuous discovery. Usage data that closes one experiment becomes the signal that surfaces the next problem.
 
 | Tool             | Primary Use                                                                                                   | Strength                                                                                                           |
 |----------------------|-------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
@@ -401,7 +401,7 @@ The following tools support the outer loop at different automation levels.
 
 ### 9.3 Feedback and prioritisation
 
-Five products appear below, in four categories. Canny is a board where users post requests and vote on them. ProductBoard is a planning tool. Linear is an issue tracker. Intercom is a customer-messaging platform. Zendesk is a support-ticketing platform.
+These products appear below, grouped by category. Canny is a board where users post requests and vote on them. ProductBoard is a planning tool. Linear is an issue tracker. Intercom is a customer-messaging platform. Zendesk is a support-ticketing platform.
 
 | Tool           | Category        | Key Capability                                                                                                                                                           |
 |--------------------|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
