@@ -2,7 +2,7 @@
 
 mod common;
 
-use common::{isolated_home, run_osf, run_osf_with_stdin, TempRepo};
+use common::{isolated_home, run_osf, run_osf_with_stdin, run_osf_with_stdin_env, TempRepo};
 
 /// The six rule ids this branch deleted, replaced by one id.
 const DELETED_RULE_IDS: &[&str] = &[
@@ -76,6 +76,55 @@ fn a_relative_time_in_a_reply_is_not_refused() {
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(!is_refused(&out), "should not refuse: {stderr}");
+}
+
+/// The retired-variable notice never reaches the refusal text an agent reads as its next instruction.
+#[test]
+fn the_retired_labels_notice_stays_out_of_the_stop_hook_output() {
+    let repo = TempRepo::new("stop-retired-notice");
+    let home = isolated_home("stop-retired-notice");
+    let event = stop_event(
+        "e2e-unplaceable-stop-retired-notice",
+        "Deploying fix 5 cleared the stuck queue.",
+    );
+    let out = run_osf_with_stdin_env(
+        &repo.dir,
+        &home,
+        &["hook", "stop"],
+        &event,
+        &[("OSF_WRITING_CHAT_LOCAL_LABELS", "version")],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(is_refused(&out), "expected a refusal: {out:?}");
+    assert!(stderr.contains("unplaceable-reference"), "{stderr}");
+    assert!(!stderr.contains("retired"), "{stderr}");
+    assert!(
+        !stderr.contains("OSF_WRITING_CHAT_LOCAL_LABELS"),
+        "{stderr}"
+    );
+}
+
+/// A command that prints for a person, not an agent, still shows the notice.
+#[test]
+fn the_retired_labels_notice_still_shows_for_the_lint_command() {
+    let repo = TempRepo::new("lint-retired-notice");
+    let home = isolated_home("lint-retired-notice");
+    let path = repo.dir.join("note.md");
+    std::fs::write(&path, "A clean note.\n").expect("note writes");
+    let out = run_osf_with_stdin_env(
+        &repo.dir,
+        &home,
+        &[
+            "lint",
+            "writing",
+            path.to_str().expect("temp path is valid UTF-8"),
+        ],
+        "",
+        &[("OSF_WRITING_CHAT_LOCAL_LABELS", "version")],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(stderr.contains("OSF_WRITING_CHAT_LOCAL_LABELS"), "{stderr}");
+    assert!(stderr.contains("retired"), "{stderr}");
 }
 
 fn commit_message_check(case: &str, message: &str) -> std::process::Output {

@@ -588,7 +588,7 @@ fn main() -> ExitCode {
         Command::Hook {
             event: HookEvent::Stop(args),
         } => {
-            let loaded = match config::load(cli.config.as_deref(), &[], &[], false) {
+            let loaded = match config::load_for_hook(cli.config.as_deref()) {
                 Ok(l) => l,
                 Err(e) => {
                     eprintln!("osf: {e}");

@@ -65,19 +65,31 @@ pub const RULE_META: &[RuleMeta] = &[
          in the paragraph could not resolve. A number is placed by a \
          bracketed description, a link, or the repository named in the same \
          sentence. A file path or a list item can place it too, for a \
-         file's own number or a bracketed letter. A file name in the same \
-         sentence places a numbered label only when it follows the label, as \
-         in `Layer 1 in components.md`. A measure is never a reference. \
-         It is a number with a unit or a percent sign, a version after a \
-         product name, or a coordinate. A number after a word such as \
-         `about` or `size` counts too. A digit that counts a plural noun, as \
-         in `holds 3 items`, is a count and never a label. A version with no \
-         product name is placed by a date, a release tag or a link. A time \
-         is placed by an absolute date in the same sentence. A name is placed by the \
-         known-names list or a sentence that says what it is. A lowercase \
-         developer tool name such as `moon` is a name too. It is reported \
-         at its first use in a document, unless a sentence says what it \
-         is. A quoted \
+         file's own number or a bracketed letter. A file name places a \
+         numbered label when it sits right next to the label, before or \
+         after it. Examples are `Layer 1 in components.md` and \
+         `components.md layer 1`. A measure is never a reference. \
+         It is a number with a unit or a percent sign. It can also be a \
+         dotted version such as `1.2`, a version after a product name, or \
+         a coordinate. A number after a word such as `about` or `size` \
+         counts too. A digit right before a noun phrase counts it, as in \
+         `holds 3 items`, `holds 1 item` or `runs 12 slow tests`. It is \
+         never a label. A label noun or a capitalised word right before \
+         the digit names one thing, as in `Layer 2 holds the cache` or \
+         `Build 12 succeeds`. A version number with no product name before \
+         it is placed by a date, a release tag such as `v7`, or a link. A \
+         capitalised product name before `version` places it. A time is \
+         placed by an absolute date in the same sentence. A relative day \
+         word such as `today` or `last week` is a time. The words `now` \
+         and `currently` are not covered here, since a separate time-word \
+         rule is coming. A name is placed by the known-names list or a \
+         sentence that says what it is. A lowercase developer tool name \
+         such as `bazel` is a name too, unless it is also an ordinary \
+         English word. The name `moon` is an ambiguous one. It counts only \
+         in backticks or right next to the words task runner. A tool name \
+         is placed by a description before it, such as the words build \
+         tool, or by a description after it. It is reported at its first \
+         use in a document, unless a sentence says what it is. A quoted \
          term is also placed by an example marker, such as \"such as\" or \
          \"for example\". A phrase such as `as discussed` is never placed. \
          Using one is always a finding. A repository reference with a \

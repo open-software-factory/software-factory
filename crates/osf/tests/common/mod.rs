@@ -121,11 +121,23 @@ pub fn run_osf_with_stdin(
     args: &[&str],
     input: &str,
 ) -> std::process::Output {
+    run_osf_with_stdin_env(dir, home, args, input, &[])
+}
+
+/// [`run_osf_with_stdin`] with extra environment variables set on the child.
+pub fn run_osf_with_stdin_env(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    args: &[&str],
+    input: &str,
+    envs: &[(&str, &str)],
+) -> std::process::Output {
     use std::io::Write as _;
     use std::process::Stdio;
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_osf"))
         .current_dir(dir)
+        .envs(envs.iter().copied())
         .env("HOME", home)
         .env("USERPROFILE", home)
         .env("TMPDIR", home)
