@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "591208f170958736ffe35768c0aec8fcf4ffe88c",
+    "contentHash": "1cb98c406df4e69e0684c6a85d994d41"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "563eb8ecc5bddb853bab072379a35bd7",
+      "bytes": 36392,
+      "width": 1758,
+      "height": 770,
+      "animated": false,
+      "path": "architecture-overview-light-563eb8ecc5bddb853bab072379a35bd7.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "17582a2085cef944f438aaaf49901279",
+      "bytes": 36817,
+      "width": 1758,
+      "height": 770,
+      "animated": false,
+      "path": "architecture-overview-dark-17582a2085cef944f438aaaf49901279.svg"
+    },
+    {
+      "id": "candidate-engine-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "candidate-engine-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "54aab545186a69eed18833e183b6d222",
+      "bytes": 12871,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "candidate-engine-detail-light-54aab545186a69eed18833e183b6d222.svg"
+    },
+    {
+      "id": "candidate-engine-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "candidate-engine-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "570b44ecdbaea89e9630b22e1179bc22",
+      "bytes": 13027,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "candidate-engine-detail-dark-570b44ecdbaea89e9630b22e1179bc22.svg"
+    },
+    {
+      "id": "verdict-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "verdict-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "61f88082116fec1de58b18e99eabc9c9",
+      "bytes": 10790,
+      "width": 1708,
+      "height": 418,
+      "animated": false,
+      "path": "verdict-detail-light-61f88082116fec1de58b18e99eabc9c9.svg"
+    },
+    {
+      "id": "verdict-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "verdict-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cc7e06502cd5e8ec72ac4ff746034d96",
+      "bytes": 10906,
+      "width": 1708,
+      "height": 418,
+      "animated": false,
+      "path": "verdict-detail-dark-cc7e06502cd5e8ec72ac4ff746034d96.svg"
+    },
+    {
+      "id": "reply-refusal-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "reply-refusal",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7a827b17dcff25b32ce055e700f563d8",
+      "bytes": 14153,
+      "width": 2011,
+      "height": 395,
+      "animated": true,
+      "path": "reply-refusal-light-7a827b17dcff25b32ce055e700f563d8.svg"
+    },
+    {
+      "id": "reply-refusal-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "reply-refusal",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6eda1af549c2f2f8354c1f3a4e7d17f4",
+      "bytes": 14300,
+      "width": 2011,
+      "height": 395,
+      "animated": true,
+      "path": "reply-refusal-dark-6eda1af549c2f2f8354c1f3a4e7d17f4.svg"
+    },
+    {
+      "id": "weak-evidence-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "weak-evidence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bb0c37600094c657463c7e3d0dfa305c",
+      "bytes": 11889,
+      "width": 1604,
+      "height": 357,
+      "animated": true,
+      "path": "weak-evidence-light-bb0c37600094c657463c7e3d0dfa305c.svg"
+    },
+    {
+      "id": "weak-evidence-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "weak-evidence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "51c1df925d517fff37c12d48ef603b17",
+      "bytes": 12003,
+      "width": 1604,
+      "height": 357,
+      "animated": true,
+      "path": "weak-evidence-dark-51c1df925d517fff37c12d48ef603b17.svg"
+    }
+  ]
+}

@@ -1,0 +1,1232 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-02T12:27:32.897Z",
+  "title": "One unplaceable-reference rule replaces six reference lints",
+  "summary": "This change collapses six separate reference lints (bare-reference, reference-without-label, reference-without-link, chat-local-reference, undefined-name, undefined-name-at-start) into a single `unplaceable-reference` rule backed by a new 2.4k-line candidate engine in `crates/osf/src/lints/writing/reference.rs`. The engine finds numbers, phrases, times and names in a paragraph and asks whether the paragraph itself places them (a link, a bracketed description, a named repository, a file path, an absolute date, a known name, a definer sentence). It also introduces an `Evidence` axis: findings backed only by statistical evidence (a guessed name, a quoted term, a developer tool) resolve to Warning/Advise in every context, so a guess can never refuse a reply at the stop hook. The old rules still run beside the new one until they are retired, which is why the pre-commit test now expects two errors.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "59512686f73ef83fe874da3ef7123ef4542e67c2",
+      "ref": "59512686f73ef83fe874da3ef7123ef4542e67c2"
+    },
+    "head": {
+      "sha": "591208f170958736ffe35768c0aec8fcf4ffe88c",
+      "ref": "591208f170958736ffe35768c0aec8fcf4ffe88c"
+    },
+    "pullRequest": {
+      "number": 203,
+      "url": "https://github.com/open-software-factory/software-factory/pull/203"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "text-sources",
+      "label": "Text sources",
+      "subtitle": "where a document enters the lint",
+      "order": 0,
+      "summary": "The surfaces that hand text to the writing lint: a chat reply at the stop hook, a commit message, a document on disk, and a skill file."
+    },
+    {
+      "id": "lint-core",
+      "label": "Lint core",
+      "subtitle": "crates/osf-lint-core",
+      "order": 1,
+      "summary": "Shared machinery: text segmentation, the rule runner, and the class/group/context/evidence matrix that decides a finding's level and remediation."
+    },
+    {
+      "id": "writing-rules",
+      "label": "Writing rules",
+      "subtitle": "crates/osf/src/lints/writing",
+      "order": 2,
+      "summary": "The rule set itself. The new candidate engine and the placement check live here, beside the older reference rules they are replacing."
+    },
+    {
+      "id": "verdict",
+      "label": "Verdict",
+      "subtitle": "level, remediation, exit code",
+      "order": 3,
+      "summary": "Where a finding becomes a decision: a warning that advises, an error that asks for a rewrite, or a refusal that blocks the reply."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "stop-hook",
+      "label": "Stop hook",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "text-sources",
+      "subtitle": "hook stop reads the last assistant message",
+      "summary": "Reads the session event from stdin, lints the last assistant message in transcript context, and exits 2 to refuse the reply when an error-level finding survives. A new test pins that a reply whose only finding is a weak-evidence name is not refused.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 823,
+          "endLine": 841
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "commit-check",
+      "label": "Commit-message check",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "text-sources",
+      "subtitle": "lint writing --context commit",
+      "summary": "Lints a commit message file in commit context, where relative times and bare references are errors rather than transcript-only advice.",
+      "files": [
+        {
+          "path": "crates/osf/tests/verify.rs",
+          "startLine": 81,
+          "endLine": 90
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "document-text",
+      "label": "Document text",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "text-sources",
+      "subtitle": "markdown on disk",
+      "summary": "A document read from disk, linted in document context. This is the context the new fixture corpus and the precision/recall measure exercise.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "skill-file",
+      "label": "Skill file",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "text-sources",
+      "subtitle": "skill context",
+      "summary": "A skill file linted in skill context, resolved through the same matrix as every other context.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "segment",
+      "label": "Text segmentation",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "lint-core",
+      "subtitle": "segment::parse, TextUnit, reduce_inline",
+      "summary": "Splits text into sentences and paragraphs and marks headings and list items. The new engine re-parses each paragraph and re-applies the unit's own heading and list-item flags so a re-parsed sentence does not lose them.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/meta.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve-matrix",
+      "label": "resolve() matrix",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "lint-core",
+      "subtitle": "class x group x context x exception x evidence",
+      "summary": "Decides a finding's level and remediation. It now takes the finding's own Evidence and short-circuits: statistical evidence always resolves to Warning/Advise, in every context, class, group and exception, so a guess can never block a reply.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/meta.rs",
+          "startLine": 71,
+          "endLine": 110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rule-runner",
+      "label": "Rule runner",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "lint-core",
+      "subtitle": "run_rules, FnRule, Finding",
+      "summary": "Runs each rule function over the parsed document and collects findings. The new rule is registered here as one more entry.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 69,
+          "endLine": 75
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "known-names",
+      "label": "Known names",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "lint-core",
+      "subtitle": "built-in list plus project file",
+      "summary": "The built-in name list and any project known-names file. New entries cover frameworks and model tiers (React, Vite, Tauri, RFC, Sonnet, Opus, Haiku), and a new is_generic_word accessor lets the number exclusion tell a real name from a generic label word such as Phase.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/names.rs",
+          "startLine": 76,
+          "endLine": 90
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "candidate-engine",
+      "label": "Candidate engine",
+      "kind": "module",
+      "delta": "added",
+      "lane": "writing-rules",
+      "subtitle": "reference::candidates",
+      "summary": "The new heart of the change. Finds number, phrase, time and name candidates in a paragraph, masks quoted and backticked spans so their content is never matched, and keeps only the longest candidate per kind when two overlap.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/reference.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "number-candidates",
+      "label": "Number candidates",
+      "kind": "function",
+      "delta": "added",
+      "lane": "writing-rules",
+      "group": "candidate-engine",
+      "subtitle": "#12, issue 31, mechanism (b), version 7",
+      "summary": "Finds hash numbers, word-and-number labels and word-and-bracket letters, then excludes versions, ranges, years, clock times, percent quantities, counts of plural nouns, measures, coordinates and known names followed by a number.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/reference.rs",
+          "startLine": 330,
+          "endLine": 560
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "phrase-candidates",
+      "label": "Phrase candidates",
+      "kind": "function",
+      "delta": "added",
+      "lane": "writing-rules",
+      "group": "candidate-engine",
+      "subtitle": "as discussed, the previous, above",
+      "summary": "Finds configured chat-local phrases and the fixed phrase 'the previous', and tells a reference 'above' from the preposition by what follows it: a clause close, a determiner, or a postposed noun-and-verb shape.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/reference.rs",
+          "startLine": 700,
+          "endLine": 900
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "time-candidates",
+      "label": "Time candidates",
+      "kind": "function",
+      "delta": "added",
+      "lane": "writing-rules",
+      "group": "candidate-engine",
+      "subtitle": "on Monday, the eighteenth, yesterday",
+      "summary": "Finds bare ordinal days, weekdays and relative day words. Relative words are skipped entirely in transcript context, since a reply is read at the moment it is sent.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/reference.rs",
+          "startLine": 900,
+          "endLine": 1000
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "name-candidates",
+      "label": "Name candidates",
+      "kind": "function",
+      "delta": "added",
+      "lane": "writing-rules",
+      "group": "candidate-engine",
+      "subtitle": "DuckDB, \"the done wave\", moon",
+      "summary": "Finds capitalised runs with real evidence (an inner capital, a digit, a domain suffix, or a repeated multi-word run) and lowercase double-quoted terms. In document context it also finds developer tool names, bare or backticked, unless the known-names list already covers them.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/reference.rs",
+          "startLine": 1000,
+          "endLine": 1100
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "placement-check",
+      "label": "Placement check",
+      "kind": "function",
+      "delta": "added",
+      "lane": "writing-rules",
+      "subtitle": "is_placed, per kind",
+      "summary": "Asks whether the paragraph itself places each candidate: a link, a bracketed or colon description, a named repository, a file path or file name, a list item for a bracketed letter, an absolute date for a time, a known name or definer sentence for a name. A phrase is never placed.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 633,
+          "endLine": 1000
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unplaceable-rule",
+      "label": "unplaceable-reference",
+      "kind": "function",
+      "delta": "added",
+      "lane": "writing-rules",
+      "subtitle": "one rule, four kinds",
+      "summary": "The single rule that replaces the six retired ids. It reports one finding per unplaced candidate, at its first use for a repeated name, with a message that names what to add. Weak-evidence findings carry Evidence::Statistical.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 633,
+          "endLine": 700
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "legacy-reference-rules",
+      "label": "Legacy reference rules",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "writing-rules",
+      "subtitle": "bare-reference, chat-local-reference, undefined-name",
+      "summary": "The six rules the new one replaces. They still run beside it until they are retired, which is why the pre-commit test now expects two errors for one message and why the writing tests filter the new rule out.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 140,
+          "endLine": 230
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rule-meta",
+      "label": "Rule metadata",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "writing-rules",
+      "subtitle": "RULE_META, RuleMeta::resolve",
+      "summary": "The doc text and class/group/exception for every rule. A new entry documents unplaceable-reference, and RuleMeta::resolve now forwards the finding's evidence into the shared matrix.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/meta.rs",
+          "startLine": 22,
+          "endLine": 35
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "finding",
+      "label": "Finding",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "verdict",
+      "subtitle": "level, remediation, evidence, excerpt",
+      "summary": "A single lint result. It now carries an Evidence value that travels with it from the rule through the resolve matrix to the level and remediation it ends up with.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "refusal",
+      "label": "Refusal",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "verdict",
+      "subtitle": "exit code 2 at the stop hook",
+      "summary": "The stop hook refuses a reply when an error-level finding survives. Because statistical evidence always resolves to Warning/Advise, a guessed name can no longer reach this node on its own.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 823,
+          "endLine": 841
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fixture-corpus",
+      "label": "Unplaceable fixtures",
+      "kind": "test",
+      "delta": "added",
+      "lane": "verdict",
+      "subtitle": "98 labelled markdown cases",
+      "summary": "A new fixture directory where each file carries an osf-unplaceable header naming its label, kind, target and reason. The corpus is the ground truth the precision/recall measure scores against.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/writing/unplaceable/number-fix-unplaceable.md"
+        },
+        {
+          "path": "crates/osf/tests/fixtures/writing/unplaceable/name-tool-bare-unplaceable.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "measure",
+      "label": "Precision/recall measure",
+      "kind": "test",
+      "delta": "added",
+      "lane": "verdict",
+      "subtitle": "unplaceable_measure.rs",
+      "summary": "Runs the lint over every fixture, scores true and false positives and negatives per kind, and requires 100% precision and recall with no stray findings. The model kind is reported on its own row and excluded from the totals.",
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_measure.rs",
+          "startLine": 1,
+          "endLine": 263
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "e2e-checkpoints",
+      "label": "End-to-end checkpoints",
+      "kind": "test",
+      "delta": "added",
+      "lane": "verdict",
+      "subtitle": "stop hook, commit check, prompt hook",
+      "summary": "Drives the compiled binary: a bare fix number refuses the stop, a quoted mention does not, a relative time passes in a reply but fails the commit check, and the prompt reminder never names a deleted rule id.",
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_checkpoints.rs",
+          "startLine": 1,
+          "endLine": 165
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "stop-hook-to-lint",
+      "from": "stop-hook",
+      "to": "rule-runner",
+      "kind": "call",
+      "delta": "modified",
+      "label": "last assistant message",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The stop hook hands the reply text to the writing lint in transcript context.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 823,
+          "endLine": 841
+        }
+      ]
+    },
+    {
+      "id": "commit-to-lint",
+      "from": "commit-check",
+      "to": "rule-runner",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "commit message file",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "document-to-lint",
+      "from": "document-text",
+      "to": "rule-runner",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "markdown",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "skill-to-lint",
+      "from": "skill-file",
+      "to": "rule-runner",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "skill text",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "runner-to-segment",
+      "from": "rule-runner",
+      "to": "segment",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "parse",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "runner-to-candidates",
+      "from": "rule-runner",
+      "to": "candidate-engine",
+      "kind": "call",
+      "delta": "added",
+      "label": "candidates(unit, cfg, known, context, run counts)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new rule calls the candidate engine once per paragraph, then asks the placement check about each candidate. This is the connection the change is really about.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 633,
+          "endLine": 700
+        }
+      ]
+    },
+    {
+      "id": "candidates-to-number",
+      "from": "candidate-engine",
+      "to": "number-candidates",
+      "kind": "call",
+      "delta": "added",
+      "label": "numbers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "candidates-to-phrase",
+      "from": "candidate-engine",
+      "to": "phrase-candidates",
+      "kind": "call",
+      "delta": "added",
+      "label": "phrases",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "candidates-to-time",
+      "from": "candidate-engine",
+      "to": "time-candidates",
+      "kind": "call",
+      "delta": "added",
+      "label": "times",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "candidates-to-name",
+      "from": "candidate-engine",
+      "to": "name-candidates",
+      "kind": "call",
+      "delta": "added",
+      "label": "names",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "candidates-to-known",
+      "from": "candidate-engine",
+      "to": "known-names",
+      "kind": "data",
+      "delta": "modified",
+      "label": "is this a real name?",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The engine consults the known-names list to exclude a number after a real name and to skip a tool the project already knows, using the new is_generic_word accessor to keep generic label words out.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/names.rs",
+          "startLine": 76,
+          "endLine": 90
+        }
+      ]
+    },
+    {
+      "id": "rule-to-placement",
+      "from": "unplaceable-rule",
+      "to": "placement-check",
+      "kind": "call",
+      "delta": "added",
+      "label": "is_placed(candidate)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Every candidate the engine finds is handed to the placement check, which decides whether the paragraph itself resolves it.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 700,
+          "endLine": 1000
+        }
+      ]
+    },
+    {
+      "id": "rule-to-finding",
+      "from": "unplaceable-rule",
+      "to": "finding",
+      "kind": "data",
+      "delta": "added",
+      "label": "unplaced candidate",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "An unplaced candidate becomes a finding carrying its excerpt, a message naming what to add, and an Evidence value.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 1000,
+          "endLine": 1100
+        }
+      ]
+    },
+    {
+      "id": "legacy-to-finding",
+      "from": "legacy-reference-rules",
+      "to": "finding",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "old findings",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The six retired rules still emit their own findings beside the new one, which is why one message can now produce two errors.",
+      "files": []
+    },
+    {
+      "id": "finding-to-resolve",
+      "from": "finding",
+      "to": "resolve-matrix",
+      "kind": "data",
+      "delta": "modified",
+      "label": "class, group, context, exception, evidence",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The finding's evidence now travels into the resolve matrix, where statistical evidence short-circuits to Warning/Advise.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/meta.rs",
+          "startLine": 93,
+          "endLine": 100
+        }
+      ]
+    },
+    {
+      "id": "meta-to-resolve",
+      "from": "rule-meta",
+      "to": "resolve-matrix",
+      "kind": "call",
+      "delta": "modified",
+      "label": "RuleMeta::resolve(context, evidence)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/meta.rs",
+          "startLine": 22,
+          "endLine": 35
+        }
+      ]
+    },
+    {
+      "id": "resolve-to-refusal",
+      "from": "resolve-matrix",
+      "to": "refusal",
+      "kind": "data",
+      "delta": "modified",
+      "label": "error level only",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Only an error-level finding can reach the refusal. Statistical evidence never resolves to error, so a guessed name cannot refuse a reply.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 823,
+          "endLine": 841
+        }
+      ]
+    },
+    {
+      "id": "fixtures-to-measure",
+      "from": "fixture-corpus",
+      "to": "measure",
+      "kind": "data",
+      "delta": "added",
+      "label": "98 labelled cases",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each fixture's header names its label, kind, target and reason; the measure parses those headers and scores the lint against them.",
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_measure.rs",
+          "startLine": 1,
+          "endLine": 263
+        }
+      ]
+    },
+    {
+      "id": "measure-to-rule",
+      "from": "measure",
+      "to": "unplaceable-rule",
+      "kind": "call",
+      "delta": "added",
+      "label": "lint_writing over each fixture",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The measure calls the lint directly over every fixture and requires 100% precision and recall with no stray findings.",
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_measure.rs",
+          "startLine": 200,
+          "endLine": 263
+        }
+      ]
+    },
+    {
+      "id": "e2e-to-stop",
+      "from": "e2e-checkpoints",
+      "to": "stop-hook",
+      "kind": "call",
+      "delta": "added",
+      "label": "hook stop with stdin",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The end-to-end tests spawn the compiled binary and write a session event to its stdin, proving the rule runs at the real stop hook.",
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_checkpoints.rs",
+          "startLine": 1,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "e2e-to-commit",
+      "from": "e2e-checkpoints",
+      "to": "commit-check",
+      "kind": "call",
+      "delta": "added",
+      "label": "lint writing --context commit",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/unplaceable_checkpoints.rs",
+          "startLine": 60,
+          "endLine": 120
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "reply-refusal-flow",
+      "title": "A chat reply through the stop hook",
+      "summary": "What happens to one assistant reply when the stop hook lints it: the candidate engine finds a bare fix number, the placement check finds nothing in the paragraph that resolves it, and the finding reaches the refusal.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "stop-hook",
+          "label": "Stop hook"
+        },
+        {
+          "node": "candidate-engine",
+          "label": "Candidate engine"
+        },
+        {
+          "node": "placement-check",
+          "label": "Placement check"
+        },
+        {
+          "node": "resolve-matrix",
+          "label": "resolve()"
+        },
+        {
+          "node": "refusal",
+          "label": "Refusal"
+        }
+      ],
+      "messages": [
+        {
+          "id": "reply-in",
+          "from": "stop-hook",
+          "to": "candidate-engine",
+          "label": "last assistant message",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The hook reads the session event from stdin and hands the reply text to the writing lint in transcript context.",
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 823,
+              "endLine": 841
+            }
+          ]
+        },
+        {
+          "id": "candidates-out",
+          "from": "candidate-engine",
+          "to": "stop-hook",
+          "label": "Candidate { kind: Number, text: \"fix 5\" }",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "The engine masks quoted spans, finds the word-and-number label, and excludes versions, counts and measures.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/reference.rs",
+              "startLine": 330,
+              "endLine": 560
+            }
+          ]
+        },
+        {
+          "id": "placement-ask",
+          "from": "stop-hook",
+          "to": "placement-check",
+          "label": "is_placed(\"fix 5\")",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The paragraph names no repository, carries no bracketed description, and links nothing, so the candidate is unplaced.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/rules.rs",
+              "startLine": 700,
+              "endLine": 1000
+            }
+          ]
+        },
+        {
+          "id": "finding-out",
+          "from": "placement-check",
+          "to": "resolve-matrix",
+          "label": "Finding { rule: unplaceable-reference, evidence: Deterministic }",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A number candidate carries deterministic evidence, so the statistical short-circuit does not apply.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/rules.rs",
+              "startLine": 1000,
+              "endLine": 1100
+            }
+          ]
+        },
+        {
+          "id": "resolve-out",
+          "from": "resolve-matrix",
+          "to": "refusal",
+          "label": "(Error, Rewrite) in commit context, (Error, Clarify) in a transcript",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "The matrix resolves the finding per context; only an error level can reach the refusal.",
+          "files": [
+            {
+              "path": "crates/osf-lint-core/src/meta.rs",
+              "startLine": 93,
+              "endLine": 100
+            }
+          ]
+        },
+        {
+          "id": "refuse",
+          "from": "refusal",
+          "to": "refusal",
+          "label": "exit 2, reply refused",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "The hook exits 2 so the agent must revise the reply before it is sent.",
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 823,
+              "endLine": 841
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "weak-evidence-flow",
+      "title": "A guessed name that only advises",
+      "summary": "The same path for a name the engine only guesses at: the finding carries statistical evidence, the resolve matrix short-circuits it to Warning/Advise in every context, and the reply is never refused.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "stop-hook",
+          "label": "Stop hook"
+        },
+        {
+          "node": "candidate-engine",
+          "label": "Candidate engine"
+        },
+        {
+          "node": "resolve-matrix",
+          "label": "resolve()"
+        },
+        {
+          "node": "refusal",
+          "label": "Refusal"
+        }
+      ],
+      "messages": [
+        {
+          "id": "guess-in",
+          "from": "stop-hook",
+          "to": "candidate-engine",
+          "label": "\"DuckDB runs fast.\"",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A capitalised run with an inner capital is weak evidence that it names something specific.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/reference.rs",
+              "startLine": 1000,
+              "endLine": 1100
+            }
+          ]
+        },
+        {
+          "id": "guess-out",
+          "from": "candidate-engine",
+          "to": "stop-hook",
+          "label": "Candidate { kind: Name, text: \"DuckDB\" }",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "guess-finding",
+          "from": "stop-hook",
+          "to": "resolve-matrix",
+          "label": "Finding { evidence: Statistical }",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The name finding is tagged Statistical because the evidence is a guess, not a fact.",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/rules.rs",
+              "startLine": 1000,
+              "endLine": 1100
+            }
+          ]
+        },
+        {
+          "id": "guess-resolve",
+          "from": "resolve-matrix",
+          "to": "refusal",
+          "label": "(Warning, Advise) in every context",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "The matrix returns before the class-and-group table is consulted, so no context, class, group or exception can turn a guess into a block.",
+          "files": [
+            {
+              "path": "crates/osf-lint-core/src/meta.rs",
+              "startLine": 93,
+              "endLine": 100
+            }
+          ]
+        },
+        {
+          "id": "no-refusal",
+          "from": "refusal",
+          "to": "refusal",
+          "label": "exit 0, reply allowed",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "A warning never reaches the refusal, so the reply goes through with advice attached.",
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 823,
+              "endLine": 841
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 117,
+    "additions": 5244,
+    "deletions": 47,
+    "chips": [
+      {
+        "label": "Rules collapsed",
+        "value": "6 into 1",
+        "tone": "hero"
+      },
+      {
+        "label": "New candidate engine",
+        "value": "2.4k lines",
+        "tone": "added"
+      },
+      {
+        "label": "Labelled fixtures",
+        "value": "98",
+        "tone": "added"
+      },
+      {
+        "label": "Required precision",
+        "value": "100%",
+        "tone": "neutral"
+      },
+      {
+        "label": "Required recall",
+        "value": "100%",
+        "tone": "neutral"
+      },
+      {
+        "label": "Evidence axis",
+        "value": "new",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Architecture overview",
+      "lens": "architecture",
+      "summary": "The whole path from a text source to a verdict, with the new candidate engine and placement check in the middle and the evidence-aware resolve matrix at the end.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "candidate-engine-detail",
+          "title": "Inside the candidate engine",
+          "lens": "architecture",
+          "summary": "The four candidate finders the engine runs over each paragraph, and the known-names list they consult.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "candidate-engine",
+              "number-candidates",
+              "phrase-candidates",
+              "time-candidates",
+              "name-candidates",
+              "known-names",
+              "placement-check"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "verdict-detail",
+          "title": "From finding to verdict",
+          "lens": "architecture",
+          "summary": "How a finding's evidence reaches the resolve matrix and whether it can reach the refusal.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "finding",
+              "resolve-matrix",
+              "refusal",
+              "rule-meta",
+              "stop-hook"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "reply-refusal",
+      "title": "A reply through the stop hook",
+      "lens": "data-flow",
+      "summary": "One assistant reply, from the stop hook through the candidate engine and placement check to the refusal.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "reply-refusal-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "weak-evidence",
+      "title": "A guessed name that only advises",
+      "lens": "data-flow",
+      "summary": "The same path for a statistically-evidenced name, ending in advice rather than a refusal.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "weak-evidence-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-sources",
+        "heading": "Text enters",
+        "body": "Four surfaces hand text to the writing lint; the stop hook is the one that can refuse.",
+        "stage": {
+          "kind": "view",
+          "view": "architecture-overview"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [
+            "text-sources"
+          ],
+          "nodes": [],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-engine",
+        "heading": "Candidates are found",
+        "body": "The new engine finds numbers, phrases, times and names, masking quoted spans first.",
+        "stage": {
+          "kind": "view",
+          "view": "candidate-engine-detail"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "candidate-engine",
+            "number-candidates",
+            "phrase-candidates",
+            "time-candidates",
+            "name-candidates"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-placement",
+        "heading": "Placement is checked",
+        "body": "Each candidate is asked whether the paragraph itself resolves it.",
+        "stage": {
+          "kind": "view",
+          "view": "candidate-engine-detail"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "placement-check"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-resolve",
+        "heading": "Evidence decides the level",
+        "body": "Statistical evidence short-circuits to Warning/Advise before the class table is read.",
+        "stage": {
+          "kind": "view",
+          "view": "verdict-detail"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "finding",
+            "resolve-matrix"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-refusal",
+        "heading": "Only errors refuse",
+        "body": "A guessed name can never reach the refusal; a bare fix number still can.",
+        "stage": {
+          "kind": "view",
+          "view": "verdict-detail"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "refusal"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-flow",
+        "heading": "The whole reply",
+        "body": "Watch one reply travel the full path to a refusal.",
+        "stage": {
+          "kind": "flow",
+          "flow": "reply-refusal-flow"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "step-weak",
+        "heading": "The guess that only advises",
+        "body": "The same path for a weak-evidence name ends in advice, not a block.",
+        "stage": {
+          "kind": "flow",
+          "flow": "weak-evidence-flow"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}
