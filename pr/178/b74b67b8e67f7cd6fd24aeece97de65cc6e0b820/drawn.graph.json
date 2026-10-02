@@ -1,0 +1,1107 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-review-run",
+  "generatedAt": "2026-10-02T06:51:31.490Z",
+  "title": "osf review run: lens-driven agent review pipeline",
+  "summary": "Adds `osf review run`, a subcommand that selects review lenses for a change, assembles a redacted context per lens, runs coding-agent harnesses from a shipped roster, verifies every quoted finding against the files, reduces the answers to a verdict, journals each answer and the decision, and can post the kept findings to a pull request. Alongside it, `scan` gains a `scan-secret` rule and suppression-marker support, and a new workflow runs the review from the base branch with the pull request tree mounted read-only.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "de881efc96b17d6626499cd8900dc205ac2245b9",
+      "ref": "de881efc96b17d6626499cd8900dc205ac2245b9"
+    },
+    "head": {
+      "sha": "b74b67b8e67f7cd6fd24aeece97de65cc6e0b820",
+      "ref": "b74b67b8e67f7cd6fd24aeece97de65cc6e0b820"
+    },
+    "pullRequest": {
+      "number": 178,
+      "url": "https://github.com/open-software-factory/software-factory/pull/178"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "entry",
+      "label": "Entry points",
+      "subtitle": "CLI and CI",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The osf binary's own commands, and the workflows and moon task that invoke them."
+    },
+    {
+      "id": "review-core",
+      "label": "Review pipeline",
+      "subtitle": "crates/osf/src",
+      "order": 1,
+      "delta": "added",
+      "summary": "Lens selection, context assembly, reviewer execution, quote verification and reduction."
+    },
+    {
+      "id": "harness",
+      "label": "Reviewer harnesses",
+      "subtitle": "external coding agents",
+      "order": 2,
+      "delta": "added",
+      "summary": "Coding-agent tools osf starts headless; osf holds none of their credentials."
+    },
+    {
+      "id": "repo",
+      "label": "Repository under review",
+      "subtitle": "git tree, config, journal",
+      "order": 3,
+      "delta": "modified",
+      "summary": "The diff, the lens catalogue and [review] table, and the append-only journal."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cli-review-run",
+      "label": "osf review run",
+      "kind": "route",
+      "delta": "added",
+      "lane": "entry",
+      "subtitle": "ReviewRunArgs",
+      "summary": "New subcommand: resolves base, config root, work item and post target, then delegates to review_run::run and maps the verdict to an exit code.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1557,
+          "endLine": 1650
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cli-scan",
+      "label": "osf scan",
+      "kind": "route",
+      "delta": "modified",
+      "lane": "entry",
+      "subtitle": "--no-suppress",
+      "summary": "Gains --no-suppress, which ignores every osf-disable marker so CI reports everything.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 424,
+          "endLine": 432
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflow-review",
+      "label": "review.yml",
+      "kind": "job",
+      "delta": "added",
+      "lane": "entry",
+      "subtitle": "pull_request_target",
+      "summary": "Builds osf from the base branch, checks out the pull request head as data only, and runs osf review run with the pr tree mounted read-only.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "moon-review",
+      "label": "moon review task",
+      "kind": "job",
+      "delta": "added",
+      "lane": "entry",
+      "subtitle": "--if-enabled --warn-only",
+      "summary": "Pre-push task that runs the review only when a reviewer is enabled, and never gates on its exit code.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 138,
+          "endLine": 148
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run",
+      "label": "review_run::run",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "summary": "Orchestrates one review: loads the catalogue, assesses risk, selects lenses, runs reviewers per lens, journals answers and the decision, and returns the verdict.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1,
+          "endLine": 617
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lenses",
+      "label": "lens catalogue",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "20 shipped lenses",
+      "summary": "Loads shipped, organisation and repository lenses, and selects the ones a change earns by run mode, trigger paths and trigger signals.",
+      "files": [
+        {
+          "path": "crates/osf/src/lenses.rs",
+          "startLine": 1,
+          "endLine": 553
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-context",
+      "label": "review_context::build",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "summary": "Assembles the diff at the tier's depth plus declared inputs, redacts secrets through the scan rules, and caps the result at 60 kB.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs",
+          "startLine": 1,
+          "endLine": 901
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers",
+      "label": "reviewers::run_one",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "summary": "Runs one harness with an allow-listed environment, a timeout and a tree-kill, then validates its answer, retrying once.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 1,
+          "endLine": 545
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "answer",
+      "label": "answer validation",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "summary": "Parses a harness's final message as JSON or from its fenced blocks, validates against the review-answer schema, and checks lens and criterion coverage.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 1,
+          "endLine": 398
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "quotes",
+      "label": "quotes::check",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "summary": "Verifies each finding's quote against the file and line it names, and is the only way to build a VerifiedAnswer.",
+      "files": [
+        {
+          "path": "crates/osf/src/quotes.rs",
+          "startLine": 1,
+          "endLine": 472
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reducer",
+      "label": "reducer::decide",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "summary": "Turns verified answers into a per-lens verdict by family quorum and blocker veto, then a weighted whole-review verdict against the threshold.",
+      "files": [
+        {
+          "path": "crates/osf/src/reducer.rs",
+          "startLine": 1,
+          "endLine": 519
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "builder",
+      "label": "builder::detect",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "summary": "Reads Code-Generator trailers across the reviewed range and maps model names to families, so a builder's own family is left out of the roster.",
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs",
+          "startLine": 1,
+          "endLine": 281
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "risk",
+      "label": "risk::assess",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "summary": "Now also reads diff content to emit trigger signals and takes a separate config root.",
+      "files": [
+        {
+          "path": "crates/osf/src/risk.rs",
+          "startLine": 360,
+          "endLine": 660
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-rules",
+      "label": "scan rules",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "summary": "Adds the scan-secret rule for token shapes and PEM blocks, and exposes rule_ids for the suppression engine.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 383,
+          "endLine": 530
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "suppress",
+      "label": "suppression engine",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "summary": "apply_suppressions now takes known rules and owned rules separately, so a marker naming another checker's rule is neither suppressing nor reported unused.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/suppress.rs",
+          "startLine": 280,
+          "endLine": 320
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-codex",
+      "label": "codex",
+      "kind": "external",
+      "delta": "added",
+      "lane": "harness",
+      "subtitle": "openai family",
+      "summary": "Shipped roster entry, disabled by default; runs codex exec with the schema as a file path.",
+      "files": [
+        {
+          "path": "crates/osf/defaults/review-roster.toml",
+          "startLine": 14,
+          "endLine": 24
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-claude",
+      "label": "claude-code",
+      "kind": "external",
+      "delta": "added",
+      "lane": "harness",
+      "subtitle": "anthropic family",
+      "summary": "Shipped roster entry; runs claude --print --output-format json with an inline schema and reads the answer from /structured_output.",
+      "files": [
+        {
+          "path": "crates/osf/defaults/review-roster.toml",
+          "startLine": 26,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-dsh",
+      "label": "dsh",
+      "kind": "external",
+      "delta": "added",
+      "lane": "harness",
+      "subtitle": "deepseek family",
+      "summary": "Shipped roster entry; runs the DeepSeek harness's headless profile with no model flag.",
+      "files": [
+        {
+          "path": "crates/osf/defaults/review-roster.toml",
+          "startLine": 42,
+          "endLine": 49
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-opencode",
+      "label": "opencode variants",
+      "kind": "external",
+      "delta": "added",
+      "lane": "harness",
+      "subtitle": "glm, kimi, qwen, mimo",
+      "summary": "Four shipped roster entries reaching their models through OpenRouter, sharing one credential variable.",
+      "files": [
+        {
+          "path": "crates/osf/defaults/review-roster.toml",
+          "startLine": 60,
+          "endLine": 109
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-omp",
+      "label": "omp",
+      "kind": "external",
+      "delta": "added",
+      "lane": "harness",
+      "subtitle": "omp family",
+      "summary": "Shipped roster entry for the pi-derived harness; credential_env left empty until a deployment names it.",
+      "files": [
+        {
+          "path": "crates/osf/defaults/review-roster.toml",
+          "startLine": 51,
+          "endLine": 58
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "repo-tree",
+      "label": "repository tree",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "repo",
+      "summary": "The working tree under review: the diff, the files a quote is checked against, and the lens catalogue when no separate config root is given.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml [review]",
+      "kind": "config",
+      "delta": "added",
+      "lane": "repo",
+      "subtitle": "roster, threshold, timeout, hot_paths",
+      "summary": "The repository's own review settings: roster overrides, pass threshold, per-reviewer timeout, cost ceiling, builder-family aliases and hot paths.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 218,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal",
+      "label": "journal",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "repo",
+      "subtitle": "review-answer, review-decision",
+      "summary": "Append-only event log; gains ReviewAnswer and ReviewDecision payloads, with the transcript path excluded from the replay hash.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 16,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-pr",
+      "label": "GitHub pull request",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "repo",
+      "summary": "Where a posted review lands, through the same posting machinery osf review post already uses.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-review-run",
+      "from": "cli-review-run",
+      "to": "review-run",
+      "kind": "call",
+      "delta": "added",
+      "label": "Request",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The subcommand builds a Request and calls review_run::run.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1585,
+          "endLine": 1600
+        }
+      ]
+    },
+    {
+      "id": "review-run-to-lenses",
+      "from": "review-run",
+      "to": "lenses",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Loads the catalogue and selects the lenses the change earns.",
+      "files": []
+    },
+    {
+      "id": "review-run-to-risk",
+      "from": "review-run",
+      "to": "risk",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Assesses the change for tier and trigger signals.",
+      "files": []
+    },
+    {
+      "id": "review-run-to-builder",
+      "from": "review-run",
+      "to": "builder",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Detects the builder families to leave out of the roster.",
+      "files": []
+    },
+    {
+      "id": "review-run-to-context",
+      "from": "review-run",
+      "to": "review-context",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Builds each selected lens's prompt context.",
+      "files": []
+    },
+    {
+      "id": "review-run-to-reviewers",
+      "from": "review-run",
+      "to": "reviewers",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Runs each enabled reviewer for each selected lens.",
+      "files": []
+    },
+    {
+      "id": "review-run-to-quotes",
+      "from": "review-run",
+      "to": "quotes",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Checks every answered finding's quote against the files.",
+      "files": []
+    },
+    {
+      "id": "review-run-to-reducer",
+      "from": "review-run",
+      "to": "reducer",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Reduces the verified answers to a per-lens and whole-review verdict.",
+      "files": []
+    },
+    {
+      "id": "review-run-to-journal",
+      "from": "review-run",
+      "to": "journal",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Appends one review-answer event per attempt and one review-decision event.",
+      "files": []
+    },
+    {
+      "id": "review-run-to-osf-toml",
+      "from": "review-run",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Reads the roster, threshold and timeout from the trusted config root.",
+      "files": []
+    },
+    {
+      "id": "reviewers-to-harness-codex",
+      "from": "reviewers",
+      "to": "harness-codex",
+      "kind": "other",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Starts the harness with an allow-listed environment and a timeout.",
+      "files": []
+    },
+    {
+      "id": "reviewers-to-harness-claude",
+      "from": "reviewers",
+      "to": "harness-claude",
+      "kind": "other",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Starts the harness and reads the answer from its envelope pointer.",
+      "files": []
+    },
+    {
+      "id": "reviewers-to-harness-dsh",
+      "from": "reviewers",
+      "to": "harness-dsh",
+      "kind": "other",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "reviewers-to-harness-opencode",
+      "from": "reviewers",
+      "to": "harness-opencode",
+      "kind": "other",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "reviewers-to-harness-omp",
+      "from": "reviewers",
+      "to": "harness-omp",
+      "kind": "other",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "context-to-scan-rules",
+      "from": "review-context",
+      "to": "scan-rules",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Runs the scan rules over the assembled context to redact secrets before any reviewer sees it.",
+      "files": []
+    },
+    {
+      "id": "context-to-repo-tree",
+      "from": "review-context",
+      "to": "repo-tree",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Reads the diff, sibling files and declared inputs from the repository.",
+      "files": []
+    },
+    {
+      "id": "quotes-to-repo-tree",
+      "from": "quotes",
+      "to": "repo-tree",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Reads the file each finding names to confirm the quote is really there.",
+      "files": []
+    },
+    {
+      "id": "scan-rules-to-suppress",
+      "from": "scan-rules",
+      "to": "suppress",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Scan findings now pass through the suppression engine with scan's own owned rules.",
+      "files": []
+    },
+    {
+      "id": "cli-scan-to-suppress",
+      "from": "cli-scan",
+      "to": "suppress",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "--no-suppress bypasses the suppression engine entirely.",
+      "files": []
+    },
+    {
+      "id": "workflow-review-to-cli-review-run",
+      "from": "workflow-review",
+      "to": "cli-review-run",
+      "kind": "other",
+      "delta": "added",
+      "label": "docker run",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The workflow builds osf from the base branch and runs it against the read-only pull request tree.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 120,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "moon-review-to-cli-review-run",
+      "from": "moon-review",
+      "to": "cli-review-run",
+      "kind": "other",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pre-push task runs the review with --if-enabled --warn-only.",
+      "files": []
+    },
+    {
+      "id": "cli-review-run-to-github-pr",
+      "from": "cli-review-run",
+      "to": "github-pr",
+      "kind": "http",
+      "delta": "added",
+      "label": "--post-to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Posts the kept findings as one review through the existing posting machinery.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "review-run-flow",
+      "title": "One review run, from diff to verdict",
+      "summary": "How a change becomes a verdict: lens selection, context assembly, reviewer rounds, quote verification, reduction and journalling.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "review-run"
+        },
+        {
+          "node": "lenses"
+        },
+        {
+          "node": "review-context"
+        },
+        {
+          "node": "reviewers"
+        },
+        {
+          "node": "quotes"
+        },
+        {
+          "node": "reducer"
+        },
+        {
+          "node": "journal"
+        }
+      ],
+      "messages": [
+        {
+          "id": "select-lenses",
+          "from": "review-run",
+          "to": "lenses",
+          "label": "select(changed, signals, tier)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A lens runs when it is always-on, always-at-high-tier on a high tier, or when a changed path or earned signal matches its trigger.",
+          "files": [
+            {
+              "path": "crates/osf/src/lenses.rs",
+              "startLine": 300,
+              "endLine": 360
+            }
+          ]
+        },
+        {
+          "id": "build-context",
+          "from": "review-run",
+          "to": "review-context",
+          "label": "build(lens, depth, sources)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The diff at the tier's depth plus declared inputs, redacted through the scan rules and capped at 60 kB.",
+          "files": [
+            {
+              "path": "crates/osf/src/review_context.rs",
+              "startLine": 60,
+              "endLine": 130
+            }
+          ]
+        },
+        {
+          "id": "run-reviewer",
+          "from": "review-run",
+          "to": "reviewers",
+          "label": "run_one(reviewer, prompt, lens, timeout)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "repeat": 2,
+          "note": "Each non-builder family gets two rounds; a lone available family gets one extra critical round under the interim policy.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 150,
+              "endLine": 200
+            }
+          ]
+        },
+        {
+          "id": "check-quotes",
+          "from": "review-run",
+          "to": "quotes",
+          "label": "check(root, answer)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Every finding's quote must be found within two lines of the line it names, or it is dropped.",
+          "files": [
+            {
+              "path": "crates/osf/src/quotes.rs",
+              "startLine": 80,
+              "endLine": 110
+            }
+          ]
+        },
+        {
+          "id": "decide-lens",
+          "from": "review-run",
+          "to": "reducer",
+          "label": "decide_lens(lens, answers, single_family_available)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Two distinct families must answer, unless the roster only ever offered one; a blocker or must-fix finding vetoes the lens.",
+          "files": [
+            {
+              "path": "crates/osf/src/reducer.rs",
+              "startLine": 60,
+              "endLine": 110
+            }
+          ]
+        },
+        {
+          "id": "decide-review",
+          "from": "review-run",
+          "to": "reducer",
+          "label": "decide(lenses, threshold)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Any could-not-run lens makes the whole review could-not-run; otherwise a failed lens or a weighted mean under the threshold fails it.",
+          "files": [
+            {
+              "path": "crates/osf/src/reducer.rs",
+              "startLine": 160,
+              "endLine": 200
+            }
+          ]
+        },
+        {
+          "id": "journal-answers",
+          "from": "review-run",
+          "to": "journal",
+          "label": "ReviewAnswer per attempt",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "note": "One event per reviewer attempt, carrying scores, kept and dropped counts, and the round number; never a prompt or raw answer.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal.rs",
+              "startLine": 58,
+              "endLine": 90
+            }
+          ]
+        },
+        {
+          "id": "journal-decision",
+          "from": "review-run",
+          "to": "journal",
+          "label": "ReviewDecision",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "note": "The whole review's verdict, per-lens outcomes, weighted score and threshold, and the detected builder families.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal.rs",
+              "startLine": 92,
+              "endLine": 120
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 80,
+    "additions": 11003,
+    "deletions": 108,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-pipeline",
+      "title": "Review pipeline",
+      "lens": "architecture",
+      "summary": "The new review path: CLI entry, the review-core modules, the harnesses they start, and the repository and journal they read and write.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "review-core-detail",
+          "title": "Review core internals",
+          "lens": "architecture",
+          "summary": "How review_run delegates to lens selection, context assembly, reviewer execution, quote verification and reduction.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "review-run",
+              "lenses",
+              "review-context",
+              "reviewers",
+              "answer",
+              "quotes",
+              "reducer",
+              "builder",
+              "risk"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "scan-suppression",
+          "title": "Scan and suppression",
+          "lens": "architecture",
+          "summary": "The scan-secret rule and the ownership-aware suppression engine that scan, writing and skill checks now share.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "cli-scan",
+              "scan-rules",
+              "suppress",
+              "review-context"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "review-run-sequence",
+      "title": "One review run",
+      "lens": "data-flow",
+      "summary": "The ordered steps of a single review run, from lens selection to the journalled decision.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "review-run-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-entry",
+        "heading": "Two ways in",
+        "body": "CI runs the review from the base branch; the pre-push task runs it warn-only.",
+        "stage": {
+          "kind": "view",
+          "view": "review-pipeline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "workflow-review",
+            "moon-review",
+            "cli-review-run"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-select",
+        "heading": "Lenses are selected",
+        "body": "Risk signals and changed paths pick which of the twenty lenses this change earns.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-run-flow"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "select-lenses"
+          ]
+        }
+      },
+      {
+        "id": "step-context",
+        "heading": "Context is redacted",
+        "body": "The diff and declared inputs are assembled, secrets redacted, and the result capped.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-run-flow"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "build-context"
+          ]
+        }
+      },
+      {
+        "id": "step-reviewers",
+        "heading": "Harnesses answer",
+        "body": "Each non-builder family runs its rounds; a builder's own family is left out.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-run-flow"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "run-reviewer"
+          ]
+        }
+      },
+      {
+        "id": "step-verify",
+        "heading": "Quotes are checked",
+        "body": "A finding survives only if its quoted text is really at the file and line it names.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-run-flow"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "check-quotes"
+          ]
+        }
+      },
+      {
+        "id": "step-decide",
+        "heading": "A verdict is reached",
+        "body": "Family quorum and blocker veto decide each lens, then the weighted mean decides the review.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-run-flow"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "decide-lens",
+            "decide-review"
+          ]
+        }
+      },
+      {
+        "id": "step-journal",
+        "heading": "Everything is journalled",
+        "body": "Each answer and the decision are appended, with no prompt or raw answer text.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-run-flow"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "journal-answers",
+            "journal-decision"
+          ]
+        }
+      }
+    ]
+  }
+}
