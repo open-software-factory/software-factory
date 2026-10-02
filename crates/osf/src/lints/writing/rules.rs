@@ -630,20 +630,10 @@ fn has_qualifying_description(
         return description_is_real(clause(after_colon.trim_start()));
     }
     if let Some(after_comma) = rest.strip_prefix(',') {
-        let before_label = sentence
-            .text
-            .get(..candidate.range.start.saturating_sub(sentence.span.start));
-        return is_an_appositive(before_label.unwrap_or(""), after_comma.trim_start());
+        return is_an_appositive(after_comma.trim_start());
     }
     false
 }
-
-/// Words that open a prepositional phrase, so a label right after one is not the subject of its own clause.
-const PREPOSITIONS: &[&str] = &[
-    "in", "on", "at", "of", "from", "for", "with", "under", "over", "during", "after", "before",
-    "by", "to", "within", "per", "as", "than", "about", "around", "near", "between", "since",
-    "until", "into", "onto", "across", "through", "via", "see",
-];
 
 /// Verbs that make a phrase a clause, so a comma and an article before one start a main clause.
 const CLAUSE_VERBS: &[&str] = &[
@@ -651,11 +641,20 @@ const CLAUSE_VERBS: &[&str] = &[
     "will", "would", "can", "could", "shall", "should", "must", "may", "might",
 ];
 
-/// A noun phrase after a comma and an article that describes the label before the comma. A comma
-/// that closes it makes it an appositive. Without one it must run to the end of the clause, hold no
-/// verb, and follow a label that is not inside a prepositional phrase, so `In Layer 2, the cache is
-/// private` is a main clause and not a description.
-fn is_an_appositive(before_label: &str, after_comma: &str) -> bool {
+/// Whether a word inside `words`, neither first nor last, reads as a verb form ending in `s` or `ed`.
+fn has_an_inner_verb(words: &[&str]) -> bool {
+    let inner = words.len().saturating_sub(2);
+    words.iter().skip(1).take(inner).any(|w| {
+        let w = w.to_lowercase();
+        (w.ends_with('s') && !w.ends_with("ss") && !w.ends_with("us") && !w.ends_with("is"))
+            || (w.len() >= 5 && w.ends_with("ed"))
+    })
+}
+
+/// A noun phrase after a comma and an article that describes the label before the comma, as in
+/// `Layer 1, the surface primitives`. It holds no verb, so `In Layer 2, the cache is private` and
+/// `In Layer 2, the cache holds state` are main clauses and no description.
+fn is_an_appositive(after_comma: &str) -> bool {
     let Some(phrase) = ["the ", "a ", "an "]
         .iter()
         .find_map(|article| after_comma.strip_prefix(article))
@@ -663,19 +662,12 @@ fn is_an_appositive(before_label: &str, after_comma: &str) -> bool {
         return false;
     };
     let clause_text = clause(phrase);
-    let closed_by_comma = phrase
-        .get(clause_text.len()..)
-        .is_some_and(|r| r.starts_with(','));
-    let has_a_verb = clause_text
-        .split_whitespace()
-        .any(|w| CLAUSE_VERBS.contains(&w.to_lowercase().as_str()));
-    let in_a_prepositional_phrase = before_label
-        .split_whitespace()
-        .next_back()
-        .is_some_and(|w| PREPOSITIONS.contains(&w.to_lowercase().as_str()));
-    description_is_real(clause_text)
-        && !has_a_verb
-        && (closed_by_comma || !in_a_prepositional_phrase)
+    let words: Vec<&str> = clause_text.split_whitespace().collect();
+    let has_a_verb = words
+        .iter()
+        .any(|w| CLAUSE_VERBS.contains(&w.to_lowercase().as_str()))
+        || has_an_inner_verb(&words);
+    description_is_real(clause_text) && !has_a_verb
 }
 
 /// The text up to, but not including, the next comma, semicolon, full stop
@@ -1976,6 +1968,8 @@ mod unplaceable_reference_tests {
             "In Layer 2, the cache layer, is private.",
             "Layer 2, the specification stage, is private.",
             "We shipped Layer 2, the specification stage.",
+            "The cache lives in layer 1, the surface primitives.",
+            "It is a type in layer 5, the generated and streaming UI layer.",
         ] {
             assert!(!reports(t), "{t}: {:?}", find(t));
         }
