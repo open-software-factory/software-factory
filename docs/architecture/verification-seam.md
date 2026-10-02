@@ -8,9 +8,9 @@ The issue for this design is [open-software-factory/software-factory#26 (verify 
 
 ## Purpose
 
-One seam runs the same checks at five checkpoints. An agent gets its findings while it edits. A pull request cannot merge until the factory's aggregation check passes and every review thread is resolved. The aggregation itself reads each adopter job's conclusion. A run's journal survives the machine as of its last flush.
+One seam runs the same checks at every checkpoint. An agent gets its findings while it edits. A pull request cannot merge until the factory's aggregation check passes and every review thread is resolved. The aggregation itself reads each adopter job's conclusion. A run's journal survives the machine as of its last flush.
 
-The seam serves the engineer who owns the outcome, running one issue to one pull request unattended. The first adopter is this repository. The second ecosystem is .NET, and Java, TypeScript, Python and Go follow, one at a time.
+The seam serves the engineer who owns the outcome, running one issue to one pull request unattended. The first adopter is this repository. The second ecosystem is [.NET](https://dotnet.microsoft.com/) (Microsoft's application platform), and Java, TypeScript, Python and Go follow, one at a time.
 
 ## Vocabulary
 
@@ -18,16 +18,16 @@ Each term below has one job in this document.
 
 | Term | Meaning |
 | --- | --- |
-| Check | One unit of verification. A check is a moon task with tags. Moon is the task runner the execution research chose, in [the moon research note](../research/2026-09-18-moon-as-osf-execution-substrate.md). |
-| Checkpoint | A point where checks run. There are five: the harness hook, pre-commit, pre-push, the pull request and the schedule. |
+| Check | One unit of verification. A check is a [moon](https://moonrepo.dev) task with tags. Moon is the task runner the execution research chose, in [the moon research note](../research/2026-09-18-moon-as-osf-execution-substrate.md). |
+| Checkpoint | A point where checks run: the harness hook, pre-commit, pre-push, the pull request and the schedule. |
 | Slot | A named kind of check the factory expects, such as lint, format, unit tests or architecture tests. A slot is filled by a factory default, by the adopter's own task or job, or by a slot attestation. |
 | Check recogniser | The part of the tool that reads an adopter's workflow and project files and judges whether the adopter's own check is at least as strong as the factory's for that slot. |
 | Slot attestation | The adopter's written statement, in the configuration file, that a slot is filled, with a reason and a date. It is used for a slot no check recogniser covers. |
 | Aggregation | The one required check on a pull request. It reads every other check on the commit and posts the result. |
-| Journal | The event record the domain model defines, in [decision 0005](decisions/0005-the-factory-domain-model.md). |
+| Journal | The event record the domain model defines, in [decision 0005 (the factory domain model)](decisions/0005-the-factory-domain-model.md). |
 | Suppression | A marker or a configuration entry that silences one finding, with a reason and an expiry. |
 
-The words verifier, reporter, policy and gate keep the meanings [decision 0003](decisions/0003-deterministic-verification-is-authoritative.md) gives them. A check is what a verifier runs. A gate is the moment a policy stops the work. The two rules of that decision apply throughout this design. Could-not-read and read-nothing are different facts, and green must be earned.
+The words verifier, reporter, policy and gate keep the meanings [decision 0003 (deterministic verification is authoritative)](decisions/0003-deterministic-verification-is-authoritative.md) gives them. A check is what a verifier runs. A gate is the moment a policy stops the work. The rules of that decision apply throughout this design: could-not-read and read-nothing are different facts, and green must be earned.
 
 ## Decisions this design rests on
 
@@ -44,7 +44,7 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 | Empty slots | The factory fills an empty slot with its own default when it has one. A slot only the adopter can fill, such as architecture tests, reports at warning until the adopter raises it to error. |
 | Results | A job's conclusion decides pass or fail. Result files add counts and findings, and the tool finds them by content. |
 | Reviews | A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it. |
-| Catalogue | The list of checks per ecosystem is generated from the defaults the tool ships. The order is Rust, .NET, Java, TypeScript, Python and Go. The first two ship together. The scheduled checks are an open list that grows. |
+| Catalogue | The list of checks per ecosystem is generated from the defaults the tool ships. The order is Rust, .NET, Java, TypeScript, Python and Go. Rust and .NET ship together. The scheduled checks are an open list that grows. |
 | Suppressions | Both the factory's own marker and each ecosystem's native markers. The factory marker carries a reason and an expiry. Native markers keep working for their tools and the factory reads them. |
 | Configuration | One table per slot in `osf.toml`. |
 | Defaults | One TOML data file per ecosystem inside the tool, holding the task shape, the slot, the checkpoints and the recogniser rules. TOML is the configuration format the tool already uses. |
@@ -57,7 +57,7 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 
 A check is a moon task. Its tags say at which checkpoints it runs and which slot it fills. Every checkpoint runs the same way. The tool selects the tasks by tag and hands them to moon with the affected filter. Moon runs them in parallel with its cache. Each task writes one verification event. Then the tool writes one checkpoint-complete event that carries the slot table.
 
-The tasks come from two places. The factory's own tasks live in a moon project under `.osf/`, rendered from the TOML defaults for the repository's ecosystem. The adopter's tasks live in their own moon files and fill slots by carrying the same tags. Moon sees both as one workspace, so one tag selection spans both. A repository with no moon of its own still has the factory's project.
+The tasks come from the factory and from the adopter. The factory's own tasks live in a moon project under `.osf/`, rendered from the TOML defaults for the repository's ecosystem. The adopter's tasks live in their own moon files and fill slots by carrying the same tags. Moon sees both as one workspace, so one tag selection spans both. A repository with no moon of its own still has the factory's project.
 
 For this repository the factory's project reads like this.
 
@@ -98,18 +98,18 @@ Every event reaches the local journal first. A buffer flushes on push and on a t
 
 ### The harness hook checkpoint
 
-The hook checkpoint fires on two harness events. After a tool call that wrote a file, and at the end of a turn. It runs every tagged check on the touched files, so the agent fixes its edits at once. A check that cannot finish inside the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
+The hook checkpoint fires after a tool call that wrote a file and at the end of a turn. It runs every tagged check on the touched files, so the agent fixes its edits at once. A check that cannot finish inside the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
 
 The event to refuse a tool call, such as a commit that skips hooks, is a separate concern. It stays with [open-software-factory/software-factory#97 (four enforcement points)](https://github.com/open-software-factory/software-factory/issues/97).
 
 | Harness | After a file write | End of turn | Refuse a tool call | How it is wired |
 | --- | --- | --- | --- | --- |
-| Claude Code | the post-tool-use event | the stop event | the pre-tool-use event | its settings file |
-| Codex | the same three events, in the same file format | same | same | its hooks file |
-| dsh | reads the same hooks file | same | same | its bridge to that file, which passes no reply text yet |
-| Copilot CLI | reads the same hooks file | unverified | same | its policy directory in the container |
-| OpenCode | a plugin on the after-execute event | a plugin | a plugin on the before-execute event | a ten-line plugin |
-| omp | a hook under its hooks directory | a hook | a hook | a ten-line hook |
+| [Claude Code](https://github.com/anthropics/claude-code), Anthropic's coding agent | the post-tool-use event | the stop event | the pre-tool-use event | its settings file |
+| [Codex](https://github.com/openai/codex), OpenAI's coding agent | the same events, in the same file format | same | same | its hooks file |
+| dsh, a coding-agent harness | reads the same hooks file | same | same | its bridge to that file, which passes no reply text yet |
+| [Copilot CLI](https://github.com/github/copilot-cli), GitHub's coding agent for the terminal | reads the same hooks file | unverified | same | its policy directory in the container |
+| [OpenCode](https://opencode.ai), an open-source coding agent | a plugin on the after-execute event | a plugin | a plugin on the before-execute event | a short plugin |
+| omp, a coding-agent harness | a hook under its hooks directory | a hook | a hook | a short hook |
 
 A harness with no end-of-turn event still gets the after-write event, and the pre-commit checkpoint catches the rest.
 
@@ -238,7 +238,7 @@ The tool renders a small set of files from the TOML defaults and the repository'
 | The scheduled workflow | Runs the tasks tagged for each cadence. |
 | The sync workflow | Checks daily for a new factory release and opens the sync pull request. |
 
-Each generated file carries a header naming the version that produced it. Rendering is a pure function of the version and `osf.toml`, so running it twice changes nothing. An adopter customises in two places only. Tags on their own moon tasks fill slots, and keys in `osf.toml` set levels, jobs, attestations and suppressions. The drift gate fails when a generated file differs from what the pinned version renders. Its message names the key or the tag where the edit belongs instead.
+Each generated file carries a header naming the version that produced it. Rendering is a pure function of the version and `osf.toml`, so running it twice changes nothing. An adopter customises only in tags on their own moon tasks, which fill slots, and in keys in `osf.toml`, which set levels, jobs, attestations and suppressions. The drift gate fails when a generated file differs from what the pinned version renders. Its message names the key or the tag where the edit belongs instead.
 
 The hook wiring for each harness is rendered into the sandbox's managed harness settings, because the harness reads it from there. The sync command reports which harnesses are wired.
 
@@ -246,7 +246,7 @@ The hook wiring for each harness is rendered into the sandbox's managed harness 
 
 The aggregation is the one required check that reads every other check on the commit and decides. It runs as a workflow in the adopter's repository. A job on the first code host can wait only on jobs inside its own workflow, and an adopter's checks may span several workflows. It re-runs each time a workflow finishes, so it converges without polling. It reads the check runs on the commit through the repository's own token, and it posts its result as one check.
 
-Each check still writes its own verification event. When the aggregation finishes, it writes one checkpoint-complete event that carries the slot table as data. The check run's summary on the code host is a rendering of that event. One source, two views. The pull-request status block gets one line per slot only when the slot's state differs from the base branch. A quiet pull request shows nothing new.
+Each check still writes its own verification event. When the aggregation finishes, it writes one checkpoint-complete event that carries the slot table as data. The check run's summary on the code host is a rendering of that event. The event is the one source, and every view renders it. The pull-request status block gets one line per slot only when the slot's state differs from the base branch. A quiet pull request shows nothing new.
 
 | Slot | Filled by | Result | Findings | Grade |
 | --- | --- | --- | --- | --- |
@@ -256,7 +256,7 @@ Each check still writes its own verification event. When the aggregation finishe
 | contract-tests | slot attestation, 2026-09-22 | pass | | reported |
 | review | second-opinion review, round 2 | 1 thread open | 1 | reported |
 
-The result-file readers detect a file by content. The formats they read are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. JUnit XML is the test-result format most runners can write. TRX is the .NET test-result format. The coverage formats are Cobertura, LCOV and JaCoCo. JaCoCo is the Java coverage tool's own format. CTRF is a common test-report format in JSON. A glob in `osf.toml` narrows the scan. A job with a known conclusion and no readable file still counts as passed or failed.
+The result-file readers detect a file by content. The formats they read are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. JUnit XML is the test-result format most runners can write. TRX is the .NET test-result format. xUnit XML is the result format of the xUnit test framework for .NET. The coverage formats are Cobertura, LCOV and JaCoCo. JaCoCo is the Java coverage tool's own format. CTRF is a common test-report format in JSON. A glob in `osf.toml` narrows the scan. A job with a known conclusion and no readable file still counts as passed or failed.
 
 A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it, and a policy never merges on reported evidence alone.
 
@@ -264,7 +264,7 @@ A review is a check with the evidence grade reported. The code host's setting th
 
 A scheduled check is a moon task tagged for the scheduled checkpoint, with a cadence tag such as daily or weekly. It runs in the generated scheduled workflow, writes its verification event, and its findings become issues with the native fields set. The engine's own loop, one issue to one pull request, picks those issues up under the selection policy. So a documentation-drift check finds the drift and raises the issue, and the engine fixes it as ordinary work. Checks stay deterministic and every model-driven change goes through the same pull-request checkpoint as any other change.
 
-Three kinds of check belong here first. The audit that compares slot attestations with completed runs. Dependency and vulnerability checks whose inputs change without a commit. Trend checks over the journal, such as test-count shrink and check duration growth. The list is open. The next candidates are mutation testing, file-size growth, duplicate-code detection against a committed baseline, stale-branch cleanup and post-deploy smoke tests. Each enters as a data entry in the shipped defaults.
+These kinds of check belong here first. The audit that compares slot attestations with completed runs. Dependency and vulnerability checks whose inputs change without a commit. Trend checks over the journal, such as test-count shrink and check duration growth. The list is open. The next candidates are mutation testing, file-size growth, duplicate-code detection against a committed baseline, stale-branch cleanup and post-deploy smoke tests. Each enters as a data entry in the shipped defaults.
 
 ## Suppressions
 
@@ -280,7 +280,7 @@ A suppression silences one finding in place, with a reason and an expiry, and th
 
 A marker without an expiry or a reason is itself a finding. An expired marker is a finding. The marker's fields are the same as a `[[suppress]]` entry in `osf.toml`, so one parser reads both.
 
-A suppression the ecosystem's own tool understands keeps working for that tool, and the factory reads it. A Rust allow attribute and a Python noqa comment are two such forms. A suppression the team already has at adoption stays in force and is counted. A native suppression that a change adds is a finding for review, which [decision 0003](decisions/0003-deterministic-verification-is-authoritative.md) already requires.
+A suppression the ecosystem's own tool understands keeps working for that tool, and the factory reads it. A Rust allow attribute (the attribute that silences a warning) and a Python noqa comment (the comment that tells Python linters to skip a line) are examples of such forms. A suppression the team already has at adoption stays in force and is counted. A native suppression that a change adds is a finding for review, which [decision 0003 (deterministic verification is authoritative)](decisions/0003-deterministic-verification-is-authoritative.md) already requires.
 
 ## When things go wrong
 
@@ -307,14 +307,14 @@ Every component has its own tests, and this repository proves the whole by runni
 
 | Component | Test | Passes when |
 | --- | --- | --- |
-| Defaults and renderer | Render twice from the same inputs. Change one key in `osf.toml` and render again. Validate every ecosystem file against its schema. Regenerate the catalogue page. | Identical bytes the first two times. Only the expected file changes the third. Every file valid. The page equals the committed one. |
-| Checkpoint runner | A fixture repository with three tagged tasks. Change one file. Run the same checkpoint twice. Remove moon. Make one task fail. | Only the affected task runs. The second run is all cache hits with no tool started. The missing moon gives "could not run". The failing task gives "failed" and a non-zero exit. |
+| Defaults and renderer | Render twice from the same inputs. Change one key in `osf.toml` and render again. Validate every ecosystem file against its schema. Regenerate the catalogue page. | Identical bytes on the repeat render. Only the expected file changes after the key edit. Every file valid. The page equals the committed one. |
+| Checkpoint runner | A fixture repository with tagged tasks. Change one file. Run the same checkpoint twice. Remove moon. Make one task fail. | Only the affected task runs. The second run is all cache hits with no tool started. The missing moon gives "could not run". The failing task gives "failed" and a non-zero exit. |
 | Check recogniser | A corpus per ecosystem of workflow and project files, one passing and one failing case per rule. | Each rule reports filled on its positive case and empty on its negative case, and only those. |
 | Result-file readers | A corpus of real result files per format, stored without extensions. | Each file is detected by content and its counts match the known values. |
 | Aggregation | Recorded code-host responses for each row of the failure table. All pass. A cancelled job. A path-filtered job. A missing artifact. A run that starts while another is running. | The slot table as data matches the expected table, and the rendered summary matches its snapshot. |
-| Suppression reader | Markers in every comment syntax the ecosystems use. An expired marker. A marker with no reason. A native marker added in a change. | Each is read, and the last three become findings. |
+| Suppression reader | Markers in every comment syntax the ecosystems use. An expired marker. A marker with no reason. A native marker added in a change. | Each is read, and the expired marker, the marker with no reason and the added native marker become findings. |
 | Journal and sinks | Replay a run. Cut the network during a flush. Complete a run with a transcript. | The replay reproduces the head hash. The buffer keeps its events and the next flush writes a gap event. The run-complete event carries the transcript hash. |
-| Hook adapters | In each harness's container, write a file, end a turn, and commit with the skip flag. | The runner is called on the first two, and the third is refused. The bridge that sends no text still yields journal events. |
+| Hook adapters | In each harness's container, write a file, end a turn, and commit with the skip flag. | The runner is called on the file write and the end of turn, and the commit with the skip flag is refused. The bridge that sends no text still yields journal events. |
 | Drift gate and sync | Edit a generated file by hand. Tag a new factory release. | The gate fails and names where the edit belongs. The sync pull request opens unaided under the builder identity. |
 | The seam on itself | This repository runs every checkpoint on its own changes, from the first pull request that lands the seam. | Its own pull requests carry the slot table. |
 | The second ecosystem | A fixture repository in .NET with existing jobs that fill slots. | Its slot table shows the lint, unit-test and integration-test slots filled by its own jobs, the architecture slot empty at warning, and a deliberate writing-lint failure refused at pre-commit. |
@@ -322,8 +322,8 @@ Every component has its own tests, and this repository proves the whole by runni
 ## What this changes in existing documents
 
 - [The execution and verification architecture](execution-and-verification.md) says the factory invokes moon only at lifecycle checkpoints. The hook checkpoint changes that, and the page is amended.
-- [Decision 0003](decisions/0003-deterministic-verification-is-authoritative.md) gains the word checkpoint in its vocabulary.
-- [Decision 0009](decisions/0009-journal-store-and-sinks.md) is provisional. It gains the local buffer, the flush, the orphan branch as the default sink and the object store as the optional one.
+- [Decision 0003 (deterministic verification is authoritative)](decisions/0003-deterministic-verification-is-authoritative.md) gains the word checkpoint in its vocabulary.
+- [Decision 0009 (journal store and sinks)](decisions/0009-journal-store-and-sinks.md) is provisional. It gains the local buffer, the flush, the orphan branch as the default sink and the object store as the optional one.
 - [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26) is updated to point at this design.
 
 ## The decision records
@@ -332,16 +332,16 @@ Each one records the options weighed and the option taken.
 
 | Record | What it settles |
 | --- | --- |
-| The check is the unit | Tagged moon tasks, five checkpoints, the name checkpoint, moon under every factory check, no fixed budget. |
-| Slots, check recognisers and slot attestations | At least as strong, the level of an empty slot, the slot tables in `osf.toml`. |
-| The aggregation check | Parallel checks with one final check, run in the adopter's repository, results found by content, reviews as reported checks. |
-| The journal at every checkpoint | Local buffer, flush on push and on a timer, orphan branch and object store as sinks, transcripts on the same path. |
-| Suppressions | The factory marker and the native markers, each with a reason and an expiry where the form allows. |
+| [The check is the unit](decisions/0011-the-check-is-the-unit.md) | Tagged moon tasks, the checkpoints, the name checkpoint, moon under every factory check, no fixed budget. |
+| [Slots, check recognisers and slot attestations](decisions/0012-slots-check-recognisers-and-slot-attestations.md) | At least as strong, the level of an empty slot, the slot tables in `osf.toml`. |
+| [The aggregation check](decisions/0013-the-aggregation-check.md) | Parallel checks with one final check, run in the adopter's repository, results found by content, reviews as reported checks. |
+| [The journal at every checkpoint](decisions/0014-the-journal-at-every-checkpoint.md) | Local buffer, flush on push and on a timer, orphan branch and object store as sinks, transcripts on the same path. |
+| [Suppressions](decisions/0015-suppressions.md) | The factory marker and the native markers, each with a reason and an expiry where the form allows. |
 
 ## Later
 
 - The object store sink, as a fast follow after the orphan branch.
-- The four ecosystems after .NET, one at a time, each driven by a real repository.
+- The ecosystems after .NET, one at a time, each driven by a real repository.
 - The raw transcript archive's internals.
 - The selection policy that chooses which issue the engine works next.
 - The confidence model over check results, once the journal holds enough runs to measure one.

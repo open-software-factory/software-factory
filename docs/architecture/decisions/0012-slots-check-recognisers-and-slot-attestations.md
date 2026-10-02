@@ -6,7 +6,7 @@ Date: 2026-09-23
 
 ## Context
 
-An adopting repository already runs a linter, a formatter and a test suite through its own tooling and wants those to count. The factory has to know when they do. A build that merely compiles fills no lint slot, and a test job that runs three tests fills no unit-test slot in any useful sense. The design is [the verification seam](../verification-seam.md). This record holds the decisions about how an adopter's own checks count, how the factory's defaults are stored, and how both reach a repository.
+An adopting repository already runs a linter, a formatter and a test suite through its own tooling and wants those to count. The factory has to know when they do. A slot is a named kind of check the factory expects, such as lint or unit tests. A build that merely compiles fills no lint slot, and a test job that runs next to no tests fills no unit-test slot in any useful sense. The design is [the verification seam](../verification-seam.md). This record holds the decisions about how an adopter's own checks count, how the factory's defaults are stored, and how both reach a repository. Checks are tasks in [moon](https://moonrepo.dev), the task runner that [decision 0011 (the check is the unit)](0011-the-check-is-the-unit.md) chose.
 
 ## Options considered
 
@@ -14,7 +14,7 @@ An adopting repository already runs a linter, a formatter and a test suite throu
 
 | Option | What it meant | Outcome |
 |---|---|---|
-| A check recogniser per ecosystem | The tool reads the adopter's workflow and project files against rules and reports each slot as filled or empty. For .NET the lint slot wants analysers at the latest level with warnings as errors and a style analyser package. | Taken, where a recogniser exists. |
+| A check recogniser per ecosystem | The tool reads the adopter's workflow and project files against rules and reports each slot as filled or empty. For [.NET](https://dotnet.microsoft.com/) (Microsoft's application platform) the lint slot wants analysers at the latest level with warnings as errors and a style analyser package. | Taken, where a recogniser exists. |
 | A slot attestation | The adopter writes in the configuration file that a slot is filled, with a reason and a date. | Taken, only for a slot no recogniser covers. Reported as the owner's word rather than a measured fact. |
 | Always run the factory's own check and compare | Both run on every pull request and the findings are compared. | Set aside for pull requests. Taken as a periodic audit on the schedule. |
 
@@ -32,7 +32,7 @@ An adopting repository already runs a linter, a formatter and a test suite throu
 
 | Option | What it meant | Why it was set aside |
 |---|---|---|
-| One TOML data file per ecosystem inside the tool | Each entry holds the task shape, the slot, the checkpoints and the recogniser predicates from a small fixed set. | Taken. Adding a check is a data change and the catalogue is rendered from one source. |
+| One [TOML](https://toml.io) data file (a plain-text configuration format) per ecosystem inside the tool | Each entry holds the task shape, the slot, the checkpoints and the recogniser predicates from a small fixed set. | Taken. Adding a check is a data change and the catalogue is rendered from one source. |
 | Rust code per ecosystem | A trait with a method for defaults and one for recognition. | Adding a check means a release, and the catalogue needs a generator that reads code. |
 | Moon project fragments the tool copies in | The default is a real moon file the tool copies into the adopter's tree. | Two files per ecosystem drift apart, and the adopter's tree gains files to keep in sync. |
 
@@ -40,7 +40,7 @@ An adopting repository already runs a linter, a formatter and a test suite throu
 
 | Option | What it meant | Why it was set aside |
 |---|---|---|
-| Generated files the factory owns | The tool renders the moon project, the workflows and the hooks from the defaults and the configuration file. Rendering is a pure function of version and configuration. A drift gate refuses hand edits and says where the edit belongs. | Taken. Updates are automatic and repeatable, and customisation has two named places. |
+| Generated files the factory owns | The tool renders the moon project, the workflows and the hooks from the defaults and the configuration file. Rendering is a pure function of version and configuration. A drift gate refuses hand edits and says where the edit belongs. | Taken. Updates are automatic and repeatable, and customisation lives in named places. |
 | Almost nothing in the repository | Only the configuration file and thin workflows that call the tool. | The adopter cannot read what runs against their code in their own tree. |
 | Three-way merge on update | The adopter edits any file, and the tool merges on each release. | Conflicts need a person, and text merges of YAML break quietly. |
 
@@ -54,11 +54,11 @@ The defaults are one TOML file per ecosystem inside the tool, one for each ecosy
 
 The tool renders the files it owns into the adopter's repository. A daily task opens a pull request under the builder identity when a new factory release exists. The drift gate fails on a hand edit and names the key or the tag where the change belongs.
 
-The two-word forms are the vocabulary. "Check recogniser" and "slot attestation", each with one plain sentence on first use in a document. Either word alone means too many things.
+The full phrases are the vocabulary. "Check recogniser" and "slot attestation", each with one plain sentence on first use in a document. Each word alone means too many things.
 
 ## Consequences
 
-- An adopter that takes up the checkpoint seam this record describes has its tree gain a small set of generated files and one configuration file. A repository that wants only [decision 0006](0006-distribution-and-packaging.md)'s ecosystem detection still needs no file at all.
+- An adopter that takes up the checkpoint seam this record describes has its tree gain a small set of generated files and one configuration file. A repository that wants only [decision 0006 (distribution and packaging)](0006-distribution-and-packaging.md)'s ecosystem detection still needs no file at all.
 - A periodic audit on the schedule compares slot attestations with completed runs, so an attestation does not stand on its own for long.
 - A new predicate kind for the recogniser is added to the tool once, with its tests, and every ecosystem file may then use it.
 - The stage template file proposed in [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26) is replaced by the tags on moon tasks and the slot tables.

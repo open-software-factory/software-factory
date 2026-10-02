@@ -6,7 +6,7 @@ Date: 2026-09-23
 
 ## Context
 
-A pull request in an adopting repository has the adopter's own jobs, the factory's tagged tasks and a review. Something has to read them all and decide. The design is [the verification seam](../verification-seam.md). This record holds the decisions about that one required check.
+A pull request in an adopting repository has the adopter's own jobs, the factory's tagged tasks and a review. Something has to read them all and decide. A slot is a named kind of check the factory expects, such as lint or unit tests. A check recogniser is the part of the tool that judges whether an adopter's own check fills a slot. The design is [the verification seam](../verification-seam.md). This record holds the decisions about that one required check.
 
 ## Options considered
 
@@ -20,7 +20,7 @@ A pull request in an adopting repository has the adopter's own jobs, the factory
 
 | Option | What it meant | Why it was set aside |
 |---|---|---|
-| One check run whose summary is the slot table, rendered from one journal event | Each check writes its verification event. The aggregation writes one checkpoint-complete event carrying the slot table as data, and the check run's summary renders that event. | Taken. One source, two views. |
+| One check run whose summary is the slot table, rendered from one journal event | Each check writes its verification event. The aggregation writes one checkpoint-complete event carrying the slot table as data, and the check run's summary renders that event. | Taken. The event is the one source, and every view renders it. |
 | One check run per slot plus the final one | The code host's own checks list becomes the table, and a required-checks rule can name a slot. | One run per slot on every commit multiplies the noise, and the slot table still needs an event to be durable. |
 | A pull-request comment updated in place | The comment is the primary surface and the check is only pass or fail. | It sits in the conversation and is one more thing to keep in step with the checks tab. |
 
@@ -30,15 +30,15 @@ A pull request in an adopting repository has the adopter's own jobs, the factory
 
 The aggregation is the one required factory check on a pull request. It runs as a generated workflow in the adopter's repository after every workflow on the commit finishes. It lists the check runs on the commit and waits while one is still running. When every check is done it reads each conclusion, downloads the artifacts, hands each file to the reader that recognises its content, takes the check recogniser's slot states, applies levels and suppressions, writes the checkpoint-complete event, posts the one required check, and flushes the journal.
 
-The readers detect a result file by content. The first formats are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. A glob in `osf.toml` narrows the scan.
+The readers detect a result file by content. The first formats are JUnit XML (the test-result format most runners can write), TRX (the .NET test-result format), xUnit XML (the result format of the xUnit test framework for .NET), the coverage formats Cobertura, LCOV and JaCoCo (the Java coverage tool's own format), SARIF (the static-analysis results interchange format) and CTRF (a common test-report format in JSON). A glob in `osf.toml` narrows the scan.
 
 The pull-request status block gets one line per slot only when the slot's state differs from the base branch.
 
-A job that did not run because its path filter excluded the change is reported as not affected. A job that was cancelled or whose check run is absent for any other reason makes its slot unknown, and the aggregation fails. That is the read rule of [decision 0003](0003-deterministic-verification-is-authoritative.md) applied to a slot.
+A job that did not run because its path filter excluded the change is reported as not affected. A job that was cancelled or whose check run is absent for any other reason makes its slot unknown, and the aggregation fails. That is the read rule of [decision 0003 (deterministic verification is authoritative)](0003-deterministic-verification-is-authoritative.md) applied to a slot.
 
 ## Consequences
 
 - The ruleset on main requires the aggregation check and resolved review threads. It does not name an adopter's own job directly. The aggregation reads each job's conclusion instead, and fails whenever one is missing for a reason other than its own path filter. A job a path filter skips is never a required status check in the ruleset. So it can never block merging the way a directly required job can.
 - One concurrency group per commit lets one aggregation run at a time, and a later one supersedes.
-- The aggregation cannot advance a state until the journal reaches its sink, per [decision 0009](0009-journal-store-and-sinks.md), so a flush failure in CI fails the aggregation.
+- The aggregation cannot advance a state until the journal reaches its sink, per [decision 0009 (journal store and sinks)](0009-journal-store-and-sinks.md), so a flush failure in CI fails the aggregation.
 - A result-file format enters as one reader with a corpus of real files, stored without extensions.
