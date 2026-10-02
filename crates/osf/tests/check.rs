@@ -375,6 +375,67 @@ fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_fix() {
     );
 }
 
+const CLEAN_SKILL: &str = "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+
+/// A skill's scripts come from the same place as its `SKILL.md`: at pre-push
+/// the committed script, so an unstaged fix cannot hide a committed unpinned install.
+#[test]
+fn check_lint_skill_at_the_pre_push_checkpoint_reads_committed_scripts() {
+    let repo = TempRepo::new("check-lint-skill-script-head");
+    repo.write("skills/demo/SKILL.md", CLEAN_SKILL);
+    repo.write("skills/demo/scripts/setup.sh", "npm install -g left-pad\n");
+    repo.commit("add a skill with an unpinned install");
+    repo.write(
+        "skills/demo/scripts/setup.sh",
+        "npm install -g left-pad@1.3.0\n",
+    );
+    let home = isolated_home("check-lint-skill-script-head");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pre-push",
+            "skills/demo/SKILL.md",
+        ],
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("skill-script-unpinned"),
+        "the committed unpinned install must still be read at pre-push: {out:?}"
+    );
+}
+
+/// The mirror case: the hook checkpoint reads the script on disk right now.
+#[test]
+fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_script() {
+    let repo = TempRepo::new("check-lint-skill-script-hook");
+    repo.write("skills/demo/SKILL.md", CLEAN_SKILL);
+    repo.write("skills/demo/scripts/setup.sh", "npm install -g left-pad\n");
+    repo.commit("add a skill with an unpinned install");
+    repo.write(
+        "skills/demo/scripts/setup.sh",
+        "npm install -g left-pad@1.3.0\n",
+    );
+    let home = isolated_home("check-lint-skill-script-hook");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "hook",
+            "skills/demo/SKILL.md",
+        ],
+    );
+    assert!(
+        !String::from_utf8_lossy(&out.stdout).contains("skill-script-unpinned"),
+        "the on-disk fix must be what the hook checkpoint reads: {out:?}"
+    );
+}
+
 /// `OSF_CHECKPOINT` is no longer read at all. An inherited value of `hook`
 /// must not turn a `--checkpoint pre-push` run into a disk read.
 #[test]

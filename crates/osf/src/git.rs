@@ -292,6 +292,18 @@ pub fn content_at(dir: &Path, rev: &str, path: &str) -> Result<Vec<u8>, GitError
     run(dir, &["show", &format!("{rev}:{path}")])
 }
 
+/// Every file under `prefix` (a path ending in `/`) in the tree at `rev`.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `rev` does not resolve.
+pub fn files_at(dir: &Path, rev: &str, prefix: &str) -> Result<Vec<String>, GitError> {
+    run(
+        dir,
+        &["ls-tree", "-r", "--name-only", "-z", rev, "--", prefix],
+    )
+    .map(|raw| split_nul(&raw))
+}
+
 /// The branch a fresh clone checks out: the remote's `HEAD` symbol, else
 /// `main`, else `master`.
 ///
