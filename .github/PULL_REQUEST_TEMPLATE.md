@@ -59,9 +59,13 @@ Change is A added, M modified, D deleted, R renamed. Size is the lines added plu
 
 </details>
 
-With 15 files or fewer, list each file in one flat table split into the three groups above.
-With more, write one row per component instead, with the columns Component, Files, Added, Removed and Size.
-Say in the footnote that the table is grouped.
+15 files or fewer: one flat table with columns File | Change | Added | Removed | Size, split into the three groups above.
+With more, write one row per component instead, with the columns Component, Files, Added, Removed and Size, in the same three groups.
+Sort components biggest first. Do not list files. Say in the footnote that the table is grouped, and why.
+Count chips follow GitHub's diff colours: added text #aff5b4 on #033a16, removed text #ffdcd7 on #67060c.
+Size bars are on a log scale, in #033a16 (added) and #67060c (removed).
+Maths allows only \color{#hex}{…}, \rule[…]{w}{h}, \rlap{…} and \hspace{…}.
+Avoid \colorbox, \fcolorbox, the [RGB] and [HTML] colour models, and \, because they break in the browser or get stripped.
 -->
 <!-- osf:tree:start head=<sha> -->
 <!-- Write the file table here, collapsed. -->
@@ -79,9 +83,12 @@ Delete the whole block otherwise. The pr-outline skill writes it as a call tree 
 
 <!-- Say what the tests prove as a list of behaviours, one per line. Then say what is not covered. Then say what was run and where. -->
 
-**What the tests prove**
+<details open>
+<summary>What the tests prove</summary>
 
 - A behaviour the tests check, in a sentence.
+
+</details>
 
 **Not covered**
 
