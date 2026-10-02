@@ -473,6 +473,43 @@ fn only_one_family_enabled_passes_under_the_interim_policy() {
     assert!(stdout.contains("interim policy"), "{stdout}");
 }
 
+/// Two families are configured but one times out on every round: the
+/// family that did answer gets the critical round and decides the lens.
+#[test]
+fn a_family_that_times_out_leaves_the_working_family_its_critical_round() {
+    let osf_toml = format!(
+        "[review]\ntimeout_seconds = 1\n\n{}{}",
+        raw_roster_entry_toml(
+            "fake-slow",
+            "family-slow",
+            &slow_reviewer_command(&fixture("valid.json"), 6),
+            true,
+        ),
+        roster_entry_toml("fake-b", "family-b", &fixture("valid.json"), true),
+    );
+    let repo = review_repo("one-family-times-out", &osf_toml);
+    let home = common::isolated_home("review-run-one-family-times-out");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("interim policy"), "{stdout}");
+    let journal = journal_text(&home);
+    let answered = journal
+        .lines()
+        .filter(|l| l.contains("\"reviewer\":\"fake-b\"") && l.contains("\"result\":\"answered\""))
+        .count();
+    assert_eq!(answered, 3, "two rounds plus the critical round: {journal}");
+}
+
 #[test]
 fn every_reviewer_disabled_cannot_run_and_names_no_reviewer() {
     let repo = review_repo("all-disabled", "");

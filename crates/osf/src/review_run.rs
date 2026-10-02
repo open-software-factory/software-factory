@@ -37,8 +37,8 @@ const QUORUM_FAMILIES: usize = 2;
 /// decides a family's judgment.
 const ROUNDS_PER_FAMILY: usize = 2;
 
-/// The interim policy's own extra round: when the roster ever offers only
-/// one non-building family at all, that lone family is asked once more
+/// The interim policy's own extra round: when only one non-building family
+/// actually answers a lens, that lone family is asked once more
 /// beyond [`ROUNDS_PER_FAMILY`], as the critical round [`reducer::decide_lens`]
 /// requires before it will let one family decide a lens on its own. Remove
 /// this, and the policy that goes with it, once a second family is a real
@@ -113,17 +113,6 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
     let (builder_families, skip_families) = detect_builder_families(req, &review_config)?;
 
-    // The interim policy (see [`INTERIM_EXTRA_ROUNDS`]): whether the roster
-    // ever offers more than one non-building family to try, computed once
-    // for the whole run since `enabled` and `skip_families` do not vary by
-    // lens.
-    let available_families: BTreeSet<&str> = enabled
-        .iter()
-        .filter(|r| !skip_families.contains(&r.family))
-        .map(|r| r.family.as_str())
-        .collect();
-    let single_family_available = available_families.len() == 1;
-
     let sources = Sources {
         root: req.root,
         config_root: req.config_root,
@@ -142,39 +131,31 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     };
 
     let mut decided: Vec<(&Lens, LensVerdict)> = Vec::with_capacity(selected.len());
+    let mut lens_summaries: Vec<(String, String)> = Vec::with_capacity(selected.len());
     let mut lines = Vec::with_capacity(selected.len() + 1);
     let mut findings = Vec::new();
 
     for selected_lens in &selected {
         let lens = selected_lens.lens;
-        let (verdict, line) = run_lens_and_journal(
+        let (verdict, label) = run_lens_and_journal(
             lens,
             depth,
             &sources,
             &enabled,
             &skip_families,
             timeout,
-            single_family_available,
             &mut journal,
             &mut journal_error,
             &mut findings,
         );
-        lines.push(line);
+        lines.push(format!("{}: {label}", lens.name));
+        lens_summaries.push((lens.name.clone(), label));
         decided.push((lens, verdict));
     }
 
     let verdict = reducer::decide(&decided, threshold);
     let score = reducer::weighted_mean(&decided);
     let reported_threshold = score.map(|_| threshold);
-    let lens_summaries: Vec<(String, String)> = decided
-        .iter()
-        .map(|(lens, verdict)| {
-            (
-                lens.name.clone(),
-                verdict_label(verdict, single_family_available),
-            )
-        })
-        .collect();
 
     if let Some(journal) = journal.as_mut() {
         if let Err(e) = journal.append(
@@ -211,8 +192,8 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
 /// Runs one lens, journals every attempt it made (or collects its kept
 /// findings when the journal itself could not open), and returns its
-/// verdict alongside the printable line for it. Pulled out of [`run`] only
-/// to keep that function's own line count down; it owns no decision of its
+/// verdict alongside its printable label. Pulled out of [`run`] only to
+/// keep that function's own line count down; it owns no decision of its
 /// own.
 #[allow(clippy::too_many_arguments)]
 fn run_lens_and_journal(
@@ -222,20 +203,12 @@ fn run_lens_and_journal(
     enabled: &[&Reviewer],
     skip_families: &BTreeSet<String>,
     timeout: Duration,
-    single_family_available: bool,
     journal: &mut Option<Journal>,
     journal_error: &mut Option<String>,
     findings: &mut Vec<KeptFinding>,
 ) -> (LensVerdict, String) {
-    let (verdict, attempts) = run_lens(
-        lens,
-        depth,
-        sources,
-        enabled,
-        skip_families,
-        timeout,
-        single_family_available,
-    );
+    let (verdict, attempts, interim) =
+        run_lens(lens, depth, sources, enabled, skip_families, timeout);
     for attempt in attempts {
         if let Some(journal) = journal.as_mut() {
             let event = attempt.into_event(&lens.name);
@@ -247,12 +220,8 @@ fn run_lens_and_journal(
             findings.extend(attempt.kept_findings(&lens.name));
         }
     }
-    let line = format!(
-        "{}: {}",
-        lens.name,
-        verdict_label(&verdict, single_family_available)
-    );
-    (verdict, line)
+    let label = verdict_label(&verdict, interim);
+    (verdict, label)
 }
 
 /// The builder families for `req`'s own reviewed range (see
@@ -340,11 +309,12 @@ impl Attempt {
 /// Builds `lens`'s context, then runs enabled reviewers over it in roster
 /// order: each family tried gets [`ROUNDS_PER_FAMILY`] independent rounds,
 /// until two non-builder families have each had their rounds or the roster
-/// runs out. When the roster ever offers only one non-building family at
-/// all (`single_family_available`), that lone family is asked for
-/// [`INTERIM_EXTRA_ROUNDS`] more, as the interim policy's own critical
-/// round, rather than blocking the lens on a second family nobody has
-/// configured yet. A reviewer whose family is in `skip_families` (the
+/// runs out. When exactly one family actually answered, whether because the
+/// roster offers only one or because the other timed out or failed, that
+/// family is asked for [`INTERIM_EXTRA_ROUNDS`] more, as the interim
+/// policy's own critical round, rather than blocking the lens on a second
+/// family that did not answer. The returned flag says the interim policy
+/// decided the lens. A reviewer whose family is in `skip_families` (the
 /// families that built this change; see [`builder::detect`]) is never run:
 /// it is not an independent second opinion on its own change. A context
 /// failure makes the whole lens could-not-run, naming the reason, with no
@@ -356,11 +326,10 @@ fn run_lens(
     enabled: &[&Reviewer],
     skip_families: &BTreeSet<String>,
     timeout: Duration,
-    single_family_available: bool,
-) -> (LensVerdict, Vec<Attempt>) {
+) -> (LensVerdict, Vec<Attempt>, bool) {
     let context = match review_context::build(lens, depth, sources) {
         Ok(context) => context,
-        Err(reason) => return (LensVerdict::CouldNotRun(reason), Vec::new()),
+        Err(reason) => return (LensVerdict::CouldNotRun(reason), Vec::new(), false),
     };
     let prompt = build_prompt(lens, &context);
 
@@ -374,11 +343,7 @@ fn run_lens(
             attempts.push(skipped_attempt(reviewer));
             continue;
         }
-        let mut rounds = ROUNDS_PER_FAMILY;
-        if single_family_available {
-            rounds += INTERIM_EXTRA_ROUNDS;
-        }
-        for round in 1..=rounds {
+        for round in 1..=ROUNDS_PER_FAMILY {
             let attempt = attempt_reviewer(
                 sources.root,
                 sources.config_root,
@@ -395,13 +360,40 @@ fn run_lens(
         }
     }
 
+    // The interim policy: one answering family earns its critical round.
+    let interim = families.len() == 1;
+    if interim {
+        let lone = attempts
+            .iter()
+            .find(|a| a.lens_answer.answer.is_some())
+            .and_then(|a| enabled.iter().find(|r| r.name == a.lens_answer.reviewer));
+        if let Some(reviewer) = lone {
+            let done = attempts
+                .iter()
+                .filter(|a| a.lens_answer.reviewer == reviewer.name)
+                .count();
+            for extra in 1..=INTERIM_EXTRA_ROUNDS {
+                let attempt = attempt_reviewer(
+                    sources.root,
+                    sources.config_root,
+                    reviewer,
+                    &prompt,
+                    lens,
+                    timeout,
+                    as_u32(done + extra),
+                );
+                attempts.push(attempt);
+            }
+        }
+    }
+
     let lens_answers: Vec<LensAnswer> = attempts.iter().map(|a| a.lens_answer.clone()).collect();
     let verdict = name_builder_exclusion(
-        reducer::decide_lens(lens, &lens_answers, single_family_available),
+        reducer::decide_lens(lens, &lens_answers, interim),
         skip_families,
         &attempts,
     );
-    (verdict, attempts)
+    (verdict, attempts, interim)
 }
 
 /// The attempt recorded for a reviewer never run because its family built
@@ -572,12 +564,12 @@ fn build_prompt(lens: &Lens, context: &str) -> String {
 }
 
 /// One lens's verdict, rendered for a journal event's `lenses` list and for
-/// the printed per-lens line. `single_family_available` names the interim
-/// policy on a `Pass` or `Fail`: it can only be true there when the lone
-/// family's own extra critical round is what let the lens decide at all
-/// (see [`INTERIM_EXTRA_ROUNDS`]).
-fn verdict_label(verdict: &LensVerdict, single_family_available: bool) -> String {
-    let interim = if single_family_available {
+/// the printed per-lens line. `interim` names the interim policy on a
+/// `Pass` or `Fail`: it is only true when the lone answering family's own
+/// extra critical round is what let the lens decide at all (see
+/// [`INTERIM_EXTRA_ROUNDS`]).
+fn verdict_label(verdict: &LensVerdict, interim: bool) -> String {
+    let interim = if interim {
         ", interim policy: one family available"
     } else {
         ""
