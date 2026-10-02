@@ -106,10 +106,10 @@ The event to refuse a tool call, such as a commit that skips hooks, is a separat
 | --- | --- | --- | --- | --- |
 | [Claude Code](https://github.com/anthropics/claude-code), Anthropic's coding agent | the post-tool-use event | the stop event | the pre-tool-use event | its settings file |
 | [Codex](https://github.com/openai/codex), OpenAI's coding agent | the same events, in the same file format | same | same | its hooks file |
-| dsh, a coding-agent harness | reads the same hooks file | same | same | its bridge to that file, which passes no reply text as of 2026-09-22 |
+| [dsh](https://www.npmjs.com/package/@deepseek-ai/dsh), DeepSeek's coding agent | reads the same hooks file | same | same | its bridge to that file, which passes no reply text as of 2026-09-22 |
 | [Copilot CLI](https://github.com/github/copilot-cli), GitHub's coding agent for the terminal | reads the same hooks file | unverified | same | its policy directory in the container |
 | [OpenCode](https://opencode.ai), an open-source coding agent | a plugin on the after-execute event | a plugin | a plugin on the before-execute event | a short plugin |
-| omp, a coding-agent harness | a hook under its hooks directory | a hook | a hook | a short hook |
+| [omp](https://www.npmjs.com/package/@oh-my-pi/pi-coding-agent), the oh-my-pi coding agent | a hook under its hooks directory | a hook | a hook | a short hook |
 
 A harness with no end-of-turn event still gets the after-write event, and the pre-commit checkpoint catches the rest.
 
