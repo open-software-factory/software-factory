@@ -2,7 +2,7 @@
 
 Status: accepted design, written from the owner's answers in a questioning session on 2026-09-21 and a design session on 2026-09-22. The decision records listed at the end carry the options weighed and the choice each one made.
 
-Date: 2026-09-22, amended 2026-09-25 with the review check, several tools per slot and gap checks, from a second design session.
+Date: 2026-09-22, amended 2026-09-25 with the review check, several tools per slot and gap checks, from a second design session. Amended 2026-10-03, on the owner's direct decisions, with the review prompt file, reviewers that receive metadata and read with read-only tools, a CI job for each reviewer, and the roster from the agent list in `crates/osf/src/agents.rs`.
 
 The issue for this design is [open-software-factory/software-factory#26 (verify stages as a template of slots)](https://github.com/open-software-factory/software-factory/issues/26). This design replaces the template file that issue proposed with tagged [moon](https://moonrepo.dev) tasks and one configuration file. Moon is the task runner the execution research chose, in [the moon research note](../research/2026-09-18-moon-as-osf-execution-substrate.md). This design also serves [open-software-factory/software-factory#97 (enforcement points: pre-tool-use, pre-commit, pre-change, workflow start)](https://github.com/open-software-factory/software-factory/issues/97) and [open-software-factory/software-factory#50 (fast native git hooks and agent hooks)](https://github.com/open-software-factory/software-factory/issues/50).
 
@@ -44,7 +44,7 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 | Empty slots | The factory fills an empty slot with its own default when it has one. A slot with no tool, or one only the adopter can fill such as architecture tests, runs a gap check at warning, tracked by an issue in the adopter's own tracker, reached through the tracker adapter, until a tool or the adopter fills it. |
 | Several tools per slot | Every task tagged for a slot fills it, and the slot passes only when all of them pass. [Decision 0017](decisions/0017-native-default-checks-and-gap-checks.md) sets this out with the native default tools. |
 | Results | A job's conclusion decides pass or fail. Result files add counts and findings, and the tool finds them by content. |
-| Reviews | A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it. [Decision 0016 (the review check)](decisions/0016-the-review-check.md) sets how it runs: review lenses, reviewers from a roster, a JSON Schema for every answer, and a deterministic reducer. |
+| Reviews | A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it. [Decision 0016 (the review check)](decisions/0016-the-review-check.md) sets how it runs: review lenses, a prompt file, reviewers from the agent list that receive metadata and read the change with read-only tools, each in a CI job of its own with only its own key, a JSON Schema for every answer, and a deterministic reducer. |
 | Catalogue | The list of checks per ecosystem is generated from the defaults the tool ships. The order is Rust, .NET, Java, TypeScript, Python and Go. Rust and .NET ship together. The scheduled checks are an open list that grows. |
 | Suppressions | Both the factory's own marker and each ecosystem's native markers. The factory marker carries a reason and an expiry. Native markers keep working for their tools and the factory reads them. |
 | Configuration | One table per slot in `osf.toml`. |
@@ -267,13 +267,19 @@ A review is a check with the evidence grade reported. The code host's setting th
 
 - Six must-run lenses run on every change: correctness, spec and acceptance, test quality, security, privacy and data protection, and data migration and compatibility.
 - Every other lens runs whenever its trigger fires, at any risk tier.
-- The `osf risk` tier sets how much code each reviewer reads. At the high tier, architecture adherence and duplication and reuse also run on every change.
-- Each lens declares the context it needs, such as the work item and its acceptance criteria. A missing required input makes that lens could-not-run.
+- The `osf risk` tier chooses which lenses run beyond the must-run set. At the high tier, architecture adherence and duplication and reuse also run on every change. A reviewer reads what it needs itself, so the tier does not set how much code it reads.
+- Each lens declares the inputs it needs, such as the work item and its acceptance criteria. A missing required input makes that lens could-not-run.
 - An adopter adds a domain lens, such as money or health data, as a file under `.osf/review-lenses/`.
 
-osf runs each reviewer through a coding-agent command-line tool, from a roster that is exactly the coding agents the development container installs. Every answer must match a JSON Schema shipped with osf. Deterministic code keeps a finding only when its quoted code exists at the file and line it names. A reducer decides per lens. Quorum needs two model families, both different from the builder's, each giving more than one round. When a second has no working reviewer, the lens runs one extra critical round with the family it has, as an interim policy. A verified blocker vetoes. A weighted score must clear a threshold. No working reviewer in any family is still could-not-run. A must-fix finding sends the change back to the coding agent before the pull request.
+osf runs each reviewer through a coding-agent command-line tool. The roster is the agent list in `crates/osf/src/agents.rs`, and an adopter chooses reviewers in the `[agents]` section of `osf.toml`. An agent that runs many model families, such as opencode or omp, takes its family from its configured model. An agent with no read-only mode cannot be a reviewer until it has one, and a run that selects it reports could-not-run with the reason.
 
-[Decision 0016](decisions/0016-the-review-check.md) holds the full catalogue, the roster and the reducer rules.
+The frame of the prompt a reviewer receives, which holds its role, its rules and how to answer, is a default prompt file that osf ships. A repository overrides it the same way it overrides a lens file. Only the answer format osf parses stays fixed in code. A reviewer receives metadata in place of a pasted excerpt. The metadata holds the pull request number, title and body, the base and head commits, the changed files, the work item, the linked decision records and the lens questions. It reads whatever else it needs with read-only tools over a checkout of the change, and there is no fixed cap on context size.
+
+The reviewer sandbox has read-only tools only, with no write tools. It has no shell beyond read-only use. Its network is open only to that reviewer's own model provider. In CI, each reviewer runs in a job of its own with only its own provider's key, and only the final job, which combines the answers and posts the result, holds the code-host token.
+
+Every answer must match a JSON Schema shipped with osf. Deterministic code keeps a finding only when its quoted code exists at the file and line it names. A reducer decides per lens. Quorum needs two model families, both different from the builder's, each giving more than one round. When a second has no working reviewer, the lens runs one extra critical round with the family it has, as an interim policy. A verified blocker vetoes. A weighted score must clear a threshold. No working reviewer in any family is still could-not-run. A must-fix finding sends the change back to the coding agent before the pull request.
+
+[Decision 0016 (the review check)](decisions/0016-the-review-check.md) holds the full catalogue, the roster, the prompt, the sandbox and the reducer rules. [Decision 0020 (who can post a review result)](decisions/0020-who-can-post-a-review-result.md) holds how the keys and jobs are split and how prompt injection is contained.
 
 ## The scheduled checkpoint
 
@@ -352,7 +358,7 @@ Each one records the options weighed and the option taken.
 | [The aggregation check](decisions/0013-the-aggregation-check.md) | Parallel checks with one final check, run in the adopter's repository, results found by content, reviews as reported checks. |
 | [The journal at every checkpoint](decisions/0014-the-journal-at-every-checkpoint.md) | Local buffer, flush on push and on a timer, orphan branch and object store as sinks, transcripts on the same path. |
 | [Suppressions](decisions/0015-suppressions.md) | The factory marker and the native markers, each with a reason and an expiry where the form allows. |
-| [The review check](decisions/0016-the-review-check.md) | Review lenses, the must-run set, adopter lenses, the reviewer roster, the answer schema and the reducer. |
+| [The review check](decisions/0016-the-review-check.md) | Review lenses, the must-run set, adopter lenses, the reviewer roster, the prompt file, what a reviewer receives, the sandbox, the answer schema and the reducer. |
 | [Native default checks and gap checks](decisions/0017-native-default-checks-and-gap-checks.md) | Native tools per slot, several tasks per slot, candidates and a default pick, gap checks tracked by an issue, qlty as a candidate. |
 | [Hook enforcement and the pinned osf](decisions/0018-hook-enforcement-and-the-pinned-osf.md) | A root-owned git wrapper forcing local hooks inside the container, a pinned osf version per repository run through a launcher, the base branch's osf as the authority in continuous integration, and a human approval for a weakened check. |
 
