@@ -117,10 +117,15 @@ fn index_file_is_within_dirs_git_dir(index_file: &std::ffi::OsStr, dir: &Path) -
 /// Also forces `LC_ALL=C` and removes `LANGUAGE`, so git's own messages are
 /// stable English text a caller can match, whatever locale is inherited.
 pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
+    scrub_with_index(command, dir, std::env::var_os("GIT_INDEX_FILE"));
+}
+
+/// [`scrub_git_env_for_dir`] with the inherited `GIT_INDEX_FILE` passed in, so a test never has to set a process-wide variable.
+fn scrub_with_index(command: &mut Command, dir: &Path, index_file: Option<std::ffi::OsString>) {
     for var in LOCATING_VARS {
         command.env_remove(var);
     }
-    if let Some(index_file) = std::env::var_os("GIT_INDEX_FILE") {
+    if let Some(index_file) = index_file {
         if !index_file_is_within_dirs_git_dir(&index_file, dir) {
             command.env_remove("GIT_INDEX_FILE");
         }
@@ -130,9 +135,20 @@ pub fn scrub_git_env_for_dir(command: &mut Command, dir: &Path) {
 }
 
 fn run(dir: &Path, args: &[&str]) -> Result<Vec<u8>, GitError> {
+    run_with_index(dir, args, std::env::var_os("GIT_INDEX_FILE"))
+}
+
+fn run_with_index(
+    dir: &Path,
+    args: &[&str],
+    index_file: Option<std::ffi::OsString>,
+) -> Result<Vec<u8>, GitError> {
     let mut command = Command::new("git");
     command.current_dir(dir).args(args);
-    scrub_git_env_for_dir(&mut command, dir);
+    if let Some(f) = &index_file {
+        command.env("GIT_INDEX_FILE", f);
+    }
+    scrub_with_index(&mut command, dir, index_file);
     let output = command
         .output()
         .map_err(|e| GitError(format!("cannot run git: {e}")))?;
@@ -194,7 +210,14 @@ pub fn commit_message(dir: &Path, hash: &str) -> Result<String, GitError> {
 /// # Errors
 /// Returns an error if git cannot run in `dir`.
 pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
-    run(
+    staged_files_with_index(dir, std::env::var_os("GIT_INDEX_FILE"))
+}
+
+fn staged_files_with_index(
+    dir: &Path,
+    index_file: Option<std::ffi::OsString>,
+) -> Result<Vec<String>, GitError> {
+    run_with_index(
         dir,
         &[
             "diff",
@@ -203,6 +226,7 @@ pub fn staged_files(dir: &Path) -> Result<Vec<String>, GitError> {
             "-z",
             "--diff-filter=ACMR",
         ],
+        index_file,
     )
     .map(|raw| split_nul(&raw))
 }
@@ -527,39 +551,20 @@ pub fn untracked_files(dir: &Path) -> Result<Vec<String>, GitError> {
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
-    use std::sync::Mutex;
+    use std::ffi::{OsStr, OsString};
 
-    /// Serialises every test that sets `GIT_DIR`/`GIT_INDEX_FILE`: both are process-wide.
-    static GIT_ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    /// Runs `f` with `vars` applied for its duration (`None` means unset), restoring whatever each one held before.
-    fn with_git_env<T>(vars: &[(&str, Option<&str>)], f: impl FnOnce() -> T) -> T {
-        let guard = GIT_ENV_LOCK
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let ambient: Vec<(&str, Option<String>)> = vars
-            .iter()
-            .map(|(k, _)| (*k, std::env::var(k).ok()))
-            .collect();
-        for (k, v) in vars {
-            match v {
-                // SAFETY: serialised by GIT_ENV_LOCK.
-                Some(v) => unsafe { std::env::set_var(k, v) },
-                // SAFETY: serialised by GIT_ENV_LOCK.
-                None => unsafe { std::env::remove_var(k) },
-            }
-        }
-        let result = f();
-        for (k, prior) in ambient {
-            match prior {
-                // SAFETY: serialised by GIT_ENV_LOCK.
-                Some(v) => unsafe { std::env::set_var(k, v) },
-                // SAFETY: serialised by GIT_ENV_LOCK.
-                None => unsafe { std::env::remove_var(k) },
-            }
-        }
-        drop(guard);
-        result
+    /// What `scrub_with_index` did to `GIT_INDEX_FILE` on a fresh command given `inherited`: `Some(true)` removed, `Some(false)` set, `None` left alone.
+    fn index_file_action(dir: &Path, inherited: Option<&Path>) -> Option<bool> {
+        let mut command = Command::new("git");
+        scrub_with_index(
+            &mut command,
+            dir,
+            inherited.map(|p| OsString::from(p.as_os_str())),
+        );
+        command
+            .get_envs()
+            .find(|(k, _)| *k == OsStr::new("GIT_INDEX_FILE"))
+            .map(|(_, v)| v.is_none())
     }
 
     #[test]
@@ -739,19 +744,17 @@ mod tests {
     /// Every locating variable is removed, regardless of what is inherited.
     #[test]
     fn scrub_removes_the_locating_variables_unconditionally() {
-        with_git_env(&[("GIT_DIR", None), ("GIT_INDEX_FILE", None)], || {
-            let dir = TempDir::new("osf-git-test-scrub-locating");
-            let mut command = Command::new("git");
-            scrub_git_env_for_dir(&mut command, &dir);
-            let removed: Vec<String> = command
-                .get_envs()
-                .filter(|(_, v)| v.is_none())
-                .map(|(k, _)| k.to_string_lossy().into_owned())
-                .collect();
-            for var in LOCATING_VARS {
-                assert!(removed.iter().any(|r| r == var), "{var} not removed");
-            }
-        });
+        let dir = TempDir::new("osf-git-test-scrub-locating");
+        let mut command = Command::new("git");
+        scrub_with_index(&mut command, &dir, None);
+        let removed: Vec<String> = command
+            .get_envs()
+            .filter(|(_, v)| v.is_none())
+            .map(|(k, _)| k.to_string_lossy().into_owned())
+            .collect();
+        for var in LOCATING_VARS {
+            assert!(removed.iter().any(|r| r == var), "{var} not removed");
+        }
     }
 
     /// `GIT_INDEX_FILE` is left alone when its own path lies inside `dir`'s own git directory.
@@ -761,20 +764,7 @@ mod tests {
         init_repo(&dir, false);
         let index_path = dir.join(".git").join("fake-index");
         std::fs::write(&index_path, b"stand-in for an index").expect("fake index writes");
-        with_git_env(
-            &[(
-                "GIT_INDEX_FILE",
-                Some(index_path.to_str().expect("utf8 path")),
-            )],
-            || {
-                let mut command = Command::new("git");
-                scrub_git_env_for_dir(&mut command, &dir);
-                let touched = command
-                    .get_envs()
-                    .any(|(k, _)| k == std::ffi::OsStr::new("GIT_INDEX_FILE"));
-                assert!(!touched, "GIT_INDEX_FILE should have been left alone");
-            },
-        );
+        assert_eq!(index_file_action(&dir, Some(&index_path)), None);
     }
 
     /// `GIT_INDEX_FILE` is removed when its own path lies outside `dir`'s
@@ -788,20 +778,7 @@ mod tests {
             .expect("fake index writes");
         let dir = TempDir::new("osf-git-test-index-outside-target");
         init_repo(&dir, false);
-        with_git_env(
-            &[(
-                "GIT_INDEX_FILE",
-                Some(other_index.to_str().expect("utf8 path")),
-            )],
-            || {
-                let mut command = Command::new("git");
-                scrub_git_env_for_dir(&mut command, &dir);
-                let removed = command
-                    .get_envs()
-                    .any(|(k, v)| k == std::ffi::OsStr::new("GIT_INDEX_FILE") && v.is_none());
-                assert!(removed, "GIT_INDEX_FILE should have been removed");
-            },
-        );
+        assert_eq!(index_file_action(&dir, Some(&other_index)), Some(true));
     }
 
     /// `GIT_INDEX_FILE` is removed when `dir` has no repository of its own:
@@ -813,20 +790,7 @@ mod tests {
         let source_index = source.join(".git").join("fake-index");
         std::fs::write(&source_index, b"stand-in for an index").expect("fake index writes");
         let dir = TempDir::new("osf-git-test-index-no-dir-repo-target");
-        with_git_env(
-            &[(
-                "GIT_INDEX_FILE",
-                Some(source_index.to_str().expect("utf8 path")),
-            )],
-            || {
-                let mut command = Command::new("git");
-                scrub_git_env_for_dir(&mut command, &dir);
-                let removed = command
-                    .get_envs()
-                    .any(|(k, v)| k == std::ffi::OsStr::new("GIT_INDEX_FILE") && v.is_none());
-                assert!(removed, "GIT_INDEX_FILE should have been removed");
-            },
-        );
+        assert_eq!(index_file_action(&dir, Some(&source_index)), Some(true));
     }
 
     /// No `GIT_INDEX_FILE` inherited at all: nothing to touch.
@@ -834,61 +798,33 @@ mod tests {
     fn no_git_index_file_is_left_untouched() {
         let dir = TempDir::new("osf-git-test-no-index-file");
         init_repo(&dir, false);
-        with_git_env(&[("GIT_INDEX_FILE", None)], || {
-            let mut command = Command::new("git");
-            scrub_git_env_for_dir(&mut command, &dir);
-            let touched = command
-                .get_envs()
-                .any(|(k, _)| k == std::ffi::OsStr::new("GIT_INDEX_FILE"));
-            assert!(!touched, "nothing named GIT_INDEX_FILE should be touched");
-        });
+        assert_eq!(index_file_action(&dir, None), None);
     }
 
-    /// The reviewer's exact two-repository reproduction: `GIT_INDEX_FILE`
-    /// inherited from repo A's real index, no `GIT_DIR` at all, and a git
-    /// call made for repo B. Before this fix this failed outright
-    /// ("unable to read <sha>") or, with coincidental blobs, silently
-    /// scanned the wrong content. `staged_files` must now read repo B's own
-    /// index.
-    /// Stages `path` in `dir`, with the real stderr in the panic message on
-    /// failure: `.status()` alone throws it away, leaving a bare "false"
-    /// with no clue why.
+    /// Stages `path` in `dir`, with the real stderr in the panic message on failure.
     fn stage_or_panic(dir: &Path, path: &str) {
-        let mut command = Command::new("git");
-        command.current_dir(dir).args(["add", path]);
-        scrub_git_env(&mut command);
-        let out = command.output().expect("git add runs");
-        assert!(
-            out.status.success(),
-            "git add {path} failed: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
+        run_ok(dir, &["add", path]);
     }
 
+    /// The reviewer's two-repository reproduction: `GIT_INDEX_FILE` inherited
+    /// from repo A's real index, and a git call made for repo B. The
+    /// inherited value is given to the one call, never set on the process.
     #[test]
     fn a_foreign_git_index_file_no_longer_lets_a_call_for_another_folder_read_it() {
-        // The whole body runs under one lock, not just the final assertion:
-        // `git add` below reads the ambient environment at spawn time same
-        // as any other git call, so it is just as exposed as `staged_files`
-        // to another test's `with_git_env` setting GIT_INDEX_FILE mid-flight
-        // if it is left unguarded.
-        with_git_env(&[("GIT_DIR", None), ("GIT_INDEX_FILE", None)], || {
-            let repo_a = TempDir::new("osf-git-test-two-repo-a");
-            init_repo(&repo_a, false);
-            std::fs::write(repo_a.join("a.txt"), b"a").expect("a.txt writes");
-            stage_or_panic(&repo_a, "a.txt");
+        let repo_a = TempDir::new("osf-git-test-two-repo-a");
+        init_repo(&repo_a, false);
+        std::fs::write(repo_a.join("a.txt"), b"a").expect("a.txt writes");
+        stage_or_panic(&repo_a, "a.txt");
 
-            let repo_b = TempDir::new("osf-git-test-two-repo-b");
-            init_repo(&repo_b, false);
-            std::fs::write(repo_b.join("b.txt"), b"b").expect("b.txt writes");
-            stage_or_panic(&repo_b, "b.txt");
+        let repo_b = TempDir::new("osf-git-test-two-repo-b");
+        init_repo(&repo_b, false);
+        std::fs::write(repo_b.join("b.txt"), b"b").expect("b.txt writes");
+        stage_or_panic(&repo_b, "b.txt");
 
-            let repo_a_index = std::fs::canonicalize(repo_a.join(".git").join("index"))
-                .expect("repo a's index canonicalises");
-            // SAFETY: serialised by GIT_ENV_LOCK, held by the enclosing with_git_env call.
-            unsafe { std::env::set_var("GIT_INDEX_FILE", &repo_a_index) };
-            let files = staged_files(&repo_b).expect("staged_files reads repo b's own index");
-            assert_eq!(files, vec!["b.txt".to_string()]);
-        });
+        let repo_a_index = std::fs::canonicalize(repo_a.join(".git").join("index"))
+            .expect("repo a's index canonicalises");
+        let files = staged_files_with_index(&repo_b, Some(repo_a_index.into_os_string()))
+            .expect("staged_files reads repo b's own index");
+        assert_eq!(files, vec!["b.txt".to_string()]);
     }
 }
