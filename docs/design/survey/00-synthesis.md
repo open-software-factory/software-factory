@@ -2,7 +2,7 @@
 
 2026-09-03.
 
-Five tracks are complete. Detail and sources are in files `01` to `05` in this folder. This file maps the recommendations onto the build order. The build order lives in `design-tracker.md`, under "Next steps". This file also names the one decision the survey cannot make for us.
+All tracks are complete. Detail and sources are in files `01` to `05` in this folder. This file maps the recommendations onto the build order. The build order lives in `design-tracker.md`, under "Next steps". This file also names the one decision the survey cannot make for us.
 
 **Later tracks:**
 
@@ -26,7 +26,7 @@ Five tracks are complete. Detail and sources are in files `01` to `05` in this f
 
 ## Cross-track observations
 
-Three of five tracks are framework-agnostic in their winners. Cytoscape is vanilla JS. AG-UI is protocol-level. The voice engines are platform-level. The docking verdict is framework-neutral too. Step 1, Overlay, is the only step that forks on the framework choice.
+Most tracks are framework-agnostic in their winners. Cytoscape is vanilla JS. AG-UI is protocol-level. The voice engines are platform-level. The docking verdict is framework-neutral too. Step 1, Overlay, is the only step that forks on the framework choice.
 
 2026 ecosystem shifts recorded: Radix's pace has slowed, and shadcn now defaults to Base UI. Radix and Base UI are React component libraries, and shadcn is a component-distribution tool built on them. dagre is dead. Use ELK or d3-dag instead. A2UI is real but pre-1.0. The W3C generative-UI group is spec-ware, meaning it has produced a draft specification but no working implementation.
 

@@ -1,6 +1,6 @@
 # Design tracker
 
-Working state for the operator-console design effort. Three documents divide the work. `DESIGN.md` holds guidance, in the form of decisions and tagged candidates. `design-explorations.md` holds discarded directions. This file holds open items, next steps, and review fixes in progress.
+Working state for the operator-console design effort. These documents divide the work. `DESIGN.md` holds guidance, in the form of decisions and tagged candidates. `design-explorations.md` holds discarded directions. This file holds open items, next steps, and review fixes in progress.
 
 ## Current checkpoint, `2026-09-11`
 
@@ -10,7 +10,7 @@ The Move menu was deliberately removed as the wrong affordance. `api.moveSurface
 
 **Landed:** `packages/console-ui/src/overlay.ts` and `overlay.css` are bundled into the shell. They are composed from React Aria Components `1.21.1`, a library of accessible UI primitives. The parts used are Modal, Dialog, and ModalOverlay, the outer wrapper that supplies the overlay layer. The drawer has modal semantics. It has focus containment, focus return, outside mouse or touch dismissal, and Escape dismissal. Entry and exit use token-driven WAAPI animation. It stays mounted and modal until exit completes. Both view selections and the close control use that lifecycle. Returning to a wide viewport closes the drawer. It also restores focus to an available shell control if the original trigger disappeared. Panel switches keep the drawer open, as before, and placement logic is unchanged.
 
-**Verification:** 13 DOM interaction tests exercise the real component, built on React Aria, a library of accessible UI primitives, and a controlled animation clock. The rendered suite J confirmed four distinct positions on entry and exit, focus capture, and stage fit. Its layout, final-removal, and focus-return assertions were sampled too early. The harness now waits for stable layout and animation completion. Those revised rendered assertions have not been re-exported. Focus return, dismissal, and exit lifetime pass the DOM tests. The DOM clock proves lifecycle timing only. A rendered capture is still needed to confirm visual interpolation. The diagnostic capture is named verify-overlay.png. It is kept in the design workspace. It is not a file tracked in the repository. It still shows the initial timing failures. All self-tests are off in the delivered page.
+**Verification:** The DOM interaction tests exercise the real component, built on React Aria, a library of accessible UI primitives, and a controlled animation clock. The rendered suite J confirmed distinct positions on entry and exit, focus capture, and stage fit. Its layout, final-removal, and focus-return assertions were sampled too early. The harness now waits for stable layout and animation completion. Those revised rendered assertions have not been re-exported. Focus return, dismissal, and exit lifetime pass the DOM tests. The DOM clock proves lifecycle timing only. A rendered capture is still needed to confirm visual interpolation. The diagnostic capture is named verify-overlay.png. It is kept in the design workspace. It is not a file tracked in the repository. It still shows the initial timing failures. All self-tests are off in the delivered page.
 
 **Landed `2026-09-11`, command palette** (`packages/console-model/src/commands.ts`, `packages/console-ui/src/palette.ts`). This is the second Overlay consumer, at a new `top` placement. Ctrl+P, the palette shortcut, or Cmd+K, its Mac equivalent, opens it from anywhere. The top-bar search control, now a real button, also opens it. Escape, an outside click, or running a command closes it through the shared lifecycle. Focus returns to wherever the operator was.
 
@@ -20,9 +20,9 @@ Work items come from the board rows. Runs come from the log fixture. Evidence ha
 
 Filtering is ranked in this order: label prefix, then label word, then label, then hint or keyword. Every token must match, and groups never split. React Aria's Autocomplete and ListBox parts, the list-selection primitives, supply the virtual cursor. Typing focuses the first match. Arrow keys move the cursor. Enter runs the focused command. Focus never leaves the field.
 
-**Verification:** 15 model tests (`commands.test.ts`) and 10 DOM tests (`palette.test.ts`) run on the real React Aria components. Browser suite K drives the shipped page. It checks the shortcut, the ranking, the first-match cursor, Enter selecting Runway in the centre, close-and-return, a blank reopen, and `#87` opening the inspector. Its rendered capture is named verify-palette.png.
+**Verification:** The model tests (`commands.test.ts`) and the DOM tests (`palette.test.ts`) run on the real React Aria components. Browser suite K drives the shipped page. It checks the shortcut, the ranking, the first-match cursor, Enter selecting Runway in the centre, close-and-return, a blank reopen, and `#87` opening the inspector. Its rendered capture is named verify-palette.png.
 
-Two traps were found only by rendering. First, the bundle threw an error at load. A CommonJS `require("react")` call survived bundling, from use-sync-external-store, behind React Stately, a React Aria state library. Vite now bundles React itself, and the output guard in `apps/console-lab/vite-plugins/output-guards.js` fails the build if a `require()` call survives. Second, React Aria triggers a row on the keydown and keyup pair together, so a keydown-only synthetic Enter does nothing.
+These traps were found only by rendering. First, the bundle threw an error at load. A CommonJS `require("react")` call survived bundling, from use-sync-external-store, behind React Stately, a React Aria state library. Vite now bundles React itself, and the output guard in `apps/console-lab/vite-plugins/output-guards.js` fails the build if a `require()` call survives. Second, React Aria triggers a row on the keydown and keyup pair together, so a keydown-only synthetic Enter does nothing.
 
 OpenDesign, the host application that renders this design workspace, also exports `NODE_ENV=production`. This silently breaks React's `act()` testing helper, and `packages/console-ui/test/dom-env.ts` resets it.
 
@@ -38,21 +38,21 @@ Pin docks the inspector through the placement reducer. The docked pane then offe
 
 The inspector body shows what the source list knows, board column and labels, attention age and detail, and floor priority, and nothing is invented.
 
-**Two reducer gaps.** The browser suite found both, and both are now fixed with tests.
+**Reducer gaps.** The browser suite found each one, and each is now fixed with tests.
 
-The right region toggle *hides* the pane, but it leaves the surface placed. This created two problems. First, "docked" now means visible. Placed alone was not enough, because a look would otherwise activate an invisible pane. Second, `open` on a surface already sitting in a hidden region was only an activation. The reveal now applies there too, so pin always shows something.
+The right region toggle *hides* the pane, but it leaves the surface placed. This created these problems. First, "docked" now means visible. Placed alone was not enough, because a look would otherwise activate an invisible pane. Second, `open` on a surface already sitting in a hidden region was only an activation. The reveal now applies there too, so pin always shows something.
 
-**Verification:** 13 model tests in `inspect.test.ts`, including the hidden-region cases, 3 non-modal DOM tests in `overlay.test.ts`, and one reducer test for the reveal.
+**Verification:** Model tests in `inspect.test.ts`, including the hidden-region cases, non-modal DOM tests in `overlay.test.ts`, and a reducer test for the reveal.
 
-Browser suites L and M split the work so each fits the capture window. Suite L covers float without layout change, focus not stolen, and subject swap. It also covers pin docking and revealing the hidden region together, the docked header, and the Float control. Its capture is named verify-inspector.png. Suite M covers a docked click swapping the subject, unpin floating the pane, and floor node selection. It also covers Escape inside closing the float and handing focus back. Its capture is named verify-inspector-unpin.png, and all 17 rows pass.
+Browser suites L and M split the work so each fits the capture window. Suite L covers float without layout change, focus not stolen, and subject swap. It also covers pin docking and revealing the hidden region together, the docked header, and the Float control. Its capture is named verify-inspector.png. Suite M covers a docked click swapping the subject, unpin floating the pane, and floor node selection. It also covers Escape inside closing the float and handing focus back. Its capture is named verify-inspector-unpin.png, and every row passes.
 
-A test-harness note: `assert.equal` on two DOM nodes stalls Node's assert on serialisation when it fails. Focus checks now compare with `===` instead.
+A test-harness note: `assert.equal` on DOM nodes stalls Node's assert on serialisation when it fails. Focus checks now compare with `===` instead.
 
 **Owner review `2026-09-11`: shell chrome.** The centre pane no longer carries a close control at the edge of its tab strip. `Pane` takes a `closable` property, defaulting off for the centre, since a view is left through the nav or its tab instead.
 
 The region toggles used to name a fixed surface label, and their pressed state ignored visibility. They now read Hide or Show, and they name what the region holds by subject, for example `Hide service-auth#5` or `Hide service-auth#5, run-4471`. They are pressed only while the region is actually showing.
 
-Suite I gained three rows. Its capture is named verify-suiteI.png. The last two rows run past the capture window. They are covered instead by the reducer's toggle tests.
+Suite I gained new rows. Its capture is named verify-suiteI.png. The last rows run past the capture window. They are covered instead by the reducer's toggle tests.
 
 Planning stays in this file. The short-lived `next-steps.md` file was folded into the "Next steps" section of this document and removed.
 
@@ -62,21 +62,21 @@ Planning stays in this file. The short-lived `next-steps.md` file was folded int
 
 This is a modal `alertdialog` on the shared Overlay, at a wide centre placement. It is not dismissable. Escape and the scrim do nothing, because leaving is not a decision.
 
-The pause is a fact the dialog reports. Minimise swaps the dialog for a persistent critical strip under the top bar. That strip is never an overlay, and the strip itself reopens the dialog. Three operations, expand containment, run the playbook, and abort, confirm on the same control. Each is audited in the interruption's log, and each leaves the pause in force. Only Resume, with a recorded justification, resolves the pause. An empty or whitespace justification is refused, and the field is flagged.
+The pause is a fact the dialog reports. Minimise swaps the dialog for a persistent critical strip under the top bar. That strip is never an overlay, and the strip itself reopens the dialog. The operations that expand containment, run the playbook, or abort confirm on the same control. Each is audited in the interruption's log, and each leaves the pause in force. Only Resume, with a recorded justification, resolves the pause. An empty or whitespace justification is refused, and the field is flagged.
 
 The lab bar can also raise a P0, since a system-raised event has no product control of its own. The content is the floor's P0 scenario, carried over as fixture data.
 
-Verification: 8 model tests (`interrupt.test.ts`). Browser suites Q and R give rendered evidence for the alertdialog role and focus capture. They also cover Escape and scrim refusal, minimise leading to the strip and back to reopen, and the flag clearing on input. Their captures are named verify-p0.png and verify-p0-resume.png. The abort confirm and the final resume ran past the capture window. They rest on the model tests instead.
+Verification: Model tests (`interrupt.test.ts`). Browser suites Q and R give rendered evidence for the alertdialog role and focus capture. They also cover Escape and scrim refusal, minimise leading to the strip and back to reopen, and the flag clearing on input. Their captures are named verify-p0.png and verify-p0-resume.png. The abort confirm and the final resume ran past the capture window. They rest on the model tests instead.
 
 **Landed `2026-09-11`, A1: Popover** (`packages/console-ui/src/popover.ts`).
 
-There are two anchored contracts built on React Aria. `Popover` is a small labelled dialog beside its trigger. `ChoiceMenu` offers a single choice, marks the current one, and closes on picking.
+The anchored contracts built on React Aria are `Popover` and `ChoiceMenu`. `Popover` is a small labelled dialog beside its trigger. `ChoiceMenu` offers a single choice, marks the current one, and closes on picking.
 
 React Aria positions the popover and flips it near edges. It owns focus, Escape, and outside dismissal. Motion is CSS, driven by its `data-entering` and `data-exiting` attributes with the shared duration and easing tokens, and it waits for the exit to finish.
 
 The first consumers are in the top bar. The environment pill is now a real button that opens a scope menu: prod, staging, or dev, read from `data/environments.json`. That menu is a scope selector only. Nothing filters by it yet. The "need you" pill opens the list of items that need the operator. Each row selects that item, so the inspector shows it.
 
-Verification: 5 DOM tests in `popover.test.ts`, covering open and focus, Escape and focus return, outside click, choice marking and close, and keyboard use. Browser suite S shows the menu anchored below its trigger and the choice updating the pill. It also shows the list opening as a dialog with 3 rows, and a row selecting into the docked inspector. Its capture is named verify-popover.png.
+Verification: DOM tests in `popover.test.ts`, covering open and focus, Escape and focus return, outside click, choice marking and close, and keyboard use. Browser suite S shows the menu anchored below its trigger and the choice updating the pill. It also shows the list opening as a dialog with its rows, and a row selecting into the docked inspector. Its capture is named verify-popover.png.
 
 A harness note: React Aria names a menu after its trigger. It also runs `instanceof` checks against more DOM constructors than the test environment had exposed. `dom-env.ts` now exposes them all.
 
@@ -90,7 +90,7 @@ At the narrow breakpoint it becomes a full-width bottom sheet with no drag handl
 
 A second model gap surfaced here. At that breakpoint the side panes have zero width, so a "docked" inspector would be invisible there. `isDocked`, `inspectMode`, and `inspectPlan` now account for the slots the viewport cannot show. A selection floats instead, rather than swapping the subject of a pane the operator cannot see.
 
-Verification: 7 model tests in `floatpos.test.ts`, and one more in `inspect.test.ts`. Browser suite T covers the drag handle, the grabbing state, and pointer movement in both axes. Its capture is named verify-float-drag.png, and it also shows the clamp holding the float at the stage's top-left. Browser suite V covers the narrow case: no side width, a sheet full width at the bottom edge, no handle, and the subject shown. Its capture is named verify-float-sheet.png. Suite U checks that position is remembered across close and reopen. It runs past the capture window, so that behaviour rests on the model's round-trip test and on the state living outside the overlay.
+Verification: Model tests in `floatpos.test.ts`, and one more in `inspect.test.ts`. Browser suite T covers the drag handle, the grabbing state, and pointer movement in both axes. Its capture is named verify-float-drag.png, and it also shows the clamp holding the float at the stage's top-left. Browser suite V covers the narrow case: no side width, a sheet full width at the bottom edge, no handle, and the subject shown. Its capture is named verify-float-sheet.png. Suite U checks that position is remembered across close and reopen. It runs past the capture window, so that behaviour rests on the model's round-trip test and on the state living outside the overlay.
 
 This also fixed top-bar pills that wrapped at narrow widths.
 
@@ -108,7 +108,7 @@ This also fixed top-bar pills that wrapped at narrow widths.
 
 Still open under DESIGN.md §5.4. The rail's icon buttons rely on `title` for their name. That is acceptable, but `aria-label` would be cleaner. Pane tab close (×) is a span inside the tab, and it is not separately focusable. A keyboard user closes a view from the nav or the palette instead. The region toggles' pressed state is now correct, but they have no visible label beyond the tooltip.
 
-**Verification.** A reducer test covers `resizeBy`. Browser suite W checks the tablist and a single tab stop. ArrowRight, the key, activates and focuses the next tab. It also checks Alt+3, the separator role, and two arrow steps equalling `32px`. It checks a narrow top bar staying on one row and pills staying on one line. Its capture is named verify-keyboard.png, and all 8 rows pass.
+**Verification.** A reducer test covers `resizeBy`. Browser suite W checks the tablist and a single tab stop. ArrowRight, the key, activates and focuses the next tab. It also checks Alt+3, the separator role, and arrow steps that add up to `32px`. It checks a narrow top bar staying on one row and pills staying on one line. Its capture is named verify-keyboard.png, and every row passes.
 
 **Landed `2026-09-11`, A4: per-view layout** (`packages/console-model/src/views.ts`).
 
@@ -118,13 +118,13 @@ Only navigation switches this memory. That means opening, activating, or closing
 
 The memory persists inside the existing layout payload, as an optional `views` field. Old payloads still load. Unknown views and unplaceable panels are dropped on the way in.
 
-**Verification.** 9 model tests in `views.test.ts`, including the persistence round trip. Browser suite Y shows a first visit keeping the inspector, and Board opening run output. It also shows Floor never having had it, and Board getting it back with run output active. Its capture is named verify-per-view.png. The last two rows run past the capture window and rest on the model tests instead.
+**Verification.** Model tests in `views.test.ts`, including the persistence round trip. Browser suite Y shows a first visit keeping the inspector, and Board opening run output. It also shows Floor never having had it, and Board getting it back with run output active. Its capture is named verify-per-view.png. The last rows run past the capture window and rest on the model tests instead.
 
 **Landed `2026-09-11`, A3: drag-rearrange.** Hold a tab or a pane header for `6px` and it becomes a drag. The ghost carries the surface's name. Every region shows a zone. The surface's own region reads "here", and a region that does not accept it is dimmed. The pointed zone lights up. Dropping calls the reducer's `move` action. The view decides where the pointer is. The reducer decides what a drop means and which slots the surface accepts.
 
 Escape cancels. Hidden regions still offer a zone of at least `160px`, so a panel can be dragged into an empty side. This is off at the narrow breakpoint, where the side regions have no width.
 
-**Verification.** Browser suite Z checks that a nudge is not a drag. It checks that there are four zones, and that the pointed zone lights up. It checks that the surface's own region reads "here" and is not a target, and that the ghost carries a label. It also checks that a drop moves Runway to the right and makes it the active tab there, and that Escape cancels. Its capture is named verify-drag.png, and it shows the zones in flight. No new model was needed, because `move` and `acceptedSlots` already carry the rules. The palette's Move commands remain the keyboard route.
+**Verification.** Browser suite Z checks that a nudge is not a drag. It checks the drop zones, and that the pointed zone lights up. It checks that the surface's own region reads "here" and is not a target, and that the ghost carries a label. It also checks that a drop moves Runway to the right and makes it the active tab there, and that Escape cancels. Its capture is named verify-drag.png, and it shows the zones in flight. No new model was needed, because `move` and `acceptedSlots` already carry the rules. The palette's Move commands remain the keyboard route.
 
 **Owner decision `2026-09-12`.** Widths are global. Presence is per view. Item A4 had remembered each view's side panes, including their widths, so a seam moved on every view switch.
 
@@ -132,7 +132,7 @@ A resize states how much room the operator wants on this screen. It is not somet
 
 Per-view memory now carries which panels are open and which is active. Region widths and navigation width stay wherever the operator last put them. A remembered panel still reveals a region the operator had hidden.
 
-`views.ts` recall was rewritten. 3 tests were added. They cover resize carrying across views, nav width being global, and reveal happening on recall. DESIGN.md §4.2, §5.2.3, and the catalogue's Workspace row said "per-view sizes", and all three were amended.
+`views.ts` recall was rewritten. Tests were added. They cover resize carrying across views, nav width being global, and reveal happening on recall. DESIGN.md §4.2, §5.2.3, and the catalogue's Workspace row said "per-view sizes", and each was amended.
 
 One case might still want a per-view width: a dense table beside a narrow inspector, or a canvas beside a wide one. That case is left to the surface's width appetite when it appears, rather than to memory.
 
@@ -146,13 +146,13 @@ Only real jumps are offered. Clicking a board column in the path opens the Board
 
 **Landed `2026-09-11`, A5: pop-out as a port** (`packages/console-model/src/popout.ts`).
 
-The shell asks a `PopOutPort` for two verbs and a flag. It never calls `window.open` directly. A test asserts that the source code does not mention it.
+The shell asks a `PopOutPort` for its verbs and a flag. It never calls `window.open` directly. A test asserts that the source code does not mention it.
 
 The design artifact binds `noPopOut`. Every side and bottom pane then carries the pop-out control, visibly disabled, with the reason "Own window needs the desktop app". This is the same stance taken for a refused slot.
 
 The Tauri adapter, `WebviewWindow`, is the app package's job. It remains **unverified**. Nothing here proves that a window actually opens.
 
-3 model tests cover this.
+Model tests cover this.
 
 **Owner review `2026-09-12`: polish pass.**
 
@@ -172,7 +172,7 @@ The Tauri adapter, `WebviewWindow`, is the app package's job. It remains **unver
 
 Today there is a v1 draggable orb in `apps/console-lab/shell.html`, with a fixed menu.
 
-The contract, DESIGN.md §5.3, asks for more from two components: L1 `FloatingOrb`, the draggable trigger, and L3 `AmbientAssistant`, the assistant surface it opens. It wants a circular draggable button above everything. That button opens a menu shaped by *context and viewport*. It is a cross-cutting modality, one of command, context action, annotation, or generated view. It is neither a surface nor a chat tab. Question Q12, which modality matters first, is still open.
+The contract, DESIGN.md §5.3, asks for more from these components: L1 `FloatingOrb`, the draggable trigger, and L3 `AmbientAssistant`, the assistant surface it opens. It wants a circular draggable button above everything. That button opens a menu shaped by *context and viewport*. It is a cross-cutting modality, one of command, context action, annotation, or generated view. It is neither a surface nor a chat tab. Question Q12, which modality matters first, is still open.
 
 Proposed slice, in order:
 1. **FloatingOrb**, the draggable trigger, on the shell. It drags like the inspector float, reusing `floatpos.ts` with its own key. It snaps to the nearest edge on release. It stays above overlays but below the P0 dialog. It has a `44px` target and is keyboard-reachable, with a shortcut and Tab order.
@@ -180,7 +180,7 @@ Proposed slice, in order:
 3. **Input.** A TextInput, the text-entry primitive, in the popover takes a free question. Voice, item A11, plugs in here later. There is no transport yet, per Q12. A typed question yields an honest "no assistant connected" state instead of a fake answer.
 4. **Generated view.** This is parked with A13 and StreamSurface, the generated-UI surface. The orb needs the part schema first.
 
-The owner still must answer Q12. That question asks which of the four modalities matter first, and whether the orb may dock into a pane or stay floating only.
+The owner still must answer Q12. That question asks which of the modalities matter first, and whether the orb may dock into a pane or stay floating only.
 
 **Landed `2026-09-12`, orb lab.** This spans `packages/console-ui/src/orb.ts` and `orb.css`, `packages/console-model/src/flick.ts`, `packages/console-model/src/radial.ts`, and `apps/console-lab/orb.html`.
 
@@ -194,17 +194,17 @@ The lab's `FloatingOrb` knows nothing about placement or surfaces. The host give
 
 Press, under `6px` of movement, opens the orb. Drag moves it, clamped to the bounds. Release while moving flicks it. Momentum decays, and walls reflect the normal component while keeping the tangential one, scaled by a restitution. This means it leaves a wall at the angle it arrived. A pause before release is a drop instead of a flick, because the release itself is the last velocity sample.
 
-The lab bar switches between three things the orb can open. **Radial** is a React Aria `Menu` laid out on a ring. It has roles, Home and End, typeahead, and Escape from the menu, and all four arrow keys walk the ring. Submenus form a second ring with a Back item, with items radiating out along their spokes. **Menu** shows the same items in a React Aria `Popover` beside the orb, opening up or down depending on where the orb sits. **Panel** is the shared non-modal Overlay parked beside the orb. It holds whatever the host draws, such as a mini chat and a voice panel in the lab.
+The lab bar switches between the things the orb can open. **Radial** is a React Aria `Menu` laid out on a ring. It has roles, Home and End, typeahead, and Escape from the menu, and all the arrow keys walk the ring. Submenus form a second ring with a Back item, with items radiating out along their spokes. **Menu** shows the same items in a React Aria `Popover` beside the orb, opening up or down depending on where the orb sits. **Panel** is the shared non-modal Overlay parked beside the orb. It holds whatever the host draws, such as a mini chat and a voice panel in the lab.
 
 In a corner or at an edge, the ring opens only into the arc that fits. The radius then grows so items on a short arc do not overlap. This is handled by `ringLayout`, which is tested. The orb sits above everything, with a drop shadow, and sinks when pressed. Arrow keys nudge it from the keyboard.
 
-**Verification:** 7 physics tests in `flick.test.ts`. They cover release velocity from the last stretch, decay to rest, reflection keeping the angle, and a corner shot never leaving the field. 5 layout tests are in `radial.test.ts`.
+**Verification:** Physics tests in `flick.test.ts`. They cover release velocity from the last stretch, decay to rest, reflection keeping the angle, and a corner shot never leaving the field. Layout tests are in `radial.test.ts`.
 
 Lab suites drive the real component with synthetic pointers:
-- ring, 13 rows
-- drag, 5 rows
-- flick, 4 rows
-- variants, 7 rows
+- ring
+- drag
+- flick
+- variants
 
 Their captures are named verify-orb-ring.png, verify-orb-drag.png, verify-orb-flick.png, and verify-orb-variants.png. Look-only captures add verify-orb-show-ring.png (a corner case), verify-orb-show-centre.png, verify-orb-show-edge.png, and verify-orb-show-menu.png.
 
@@ -212,19 +212,19 @@ A trap was found only while rendering. The exporter shrinks its viewport during 
 
 **Owner direction `2026-09-12`, applied.** The press now opens the **radial menu** only. The regular menu and the panel stay as patterns reached from ring items instead of direct presses.
 
-**Ask** opens the assistant panel in typed mode. **Voice** opens it in listening mode. These are one panel with two modes of each other, and each mode is one press from the other, in the panel head. This is `AssistantPanel` in the lab. The orb gained `panelOpen` and `onPanelOpenChange` props, so a host can open the panel from anywhere.
+**Ask** opens the assistant panel in typed mode. **Voice** opens it in listening mode. These are one panel with modes that mirror each other, and each mode is one press from the other, in the panel head. This is `AssistantPanel` in the lab. The orb gained `panelOpen` and `onPanelOpenChange` props, so a host can open the panel from anywhere.
 
 Items are now **born in the orb**. Each starts at the centre, small and faint, and travels out along its spoke with a touch of overshoot, staggered by `28ms`. The orb itself squeezes and releases as it gives birth. React Aria mounts menu items in a second render pass, so the animation starts from each item's ref callback, once per element. A layout effect on the menu found no items on first open, and only animated on re-layout.
 
 A new **plate** variant was added, set with `ring="plate"` and the lab bar's "ring: floating or plate" control. An opaque disc or sector comes from `platePath`, based on the arc that `ringLayout` now reports. It grows from the centre under the items and covers what is underneath. The orb stays on top of it. The orb layer clips at its bounds, so a plate reaching past a corner cannot make the host scroll.
 
-Lab suites born (6 rows) and assistant (7 rows) were added. Their captures are named verify-orb-born.png, verify-orb-assistant.png, verify-orb-show-plate.png, and verify-orb-show-plate-centre.png.
+Lab suites born and assistant were added. Their captures are named verify-orb-born.png, verify-orb-assistant.png, verify-orb-show-plate.png, and verify-orb-show-plate-centre.png.
 
 **Owner review `2026-09-12`, applied.** Both ring looks stay, chosen by the `ring` prop, either `floating` or `plate`. The default is decided later.
 
-Three fixes were made.
+These fixes were made.
 
-First, the corner arc now covers the whole quadrant. Labels moved inside the item disc: a glyph over a `9px` label, with an ellipsis past `48px`. Because of this, an item needs only its own half-size of clearance, and the end items can sit level with the orb. For five items, the corner radius fell from `254px` to `199px`.
+First, the corner arc now covers the whole quadrant. Labels moved inside the item disc: a glyph over a `9px` label, with an ellipsis past `48px`. Because of this, an item needs only its own half-size of clearance, and the end items can sit level with the orb. For the same ring, the corner radius fell from `254px` to `199px`.
 
 Second, the plate label clipping had the same cause. A label hanging below an item at the arc's end had fallen past the stage edge. Moving labels inside fixed this. The plate sector also now runs 12 degrees past its end items. At a wall it therefore meets the edge and is clipped there, instead of leaving a sliver.
 
@@ -250,9 +250,9 @@ First, **the orb as the collapsed nav**. When the left navigation is hidden, eit
 
 Second, **context as intents**. The selection and the current view become ring entries, using the same intent data the palette runs, so nothing on the ring is a closure.
 
-Ask and Voice open one **assistant panel**, the inspector's non-modal float, in two modes, with a switch in the head. Nothing is connected behind it, and the panel says so plainly. A typed question is kept but never answered by a fake response.
+Ask and Voice open one **assistant panel**, the inspector's non-modal float, in separate modes, with a switch in the head. Nothing is connected behind it, and the panel says so plainly. A typed question is kept but never answered by a fake response.
 
-**Verification:** 6 model tests in `orbmenu.test.ts`, plus 1 more for the keyed offset in `floatpos.test.ts`. Shell suites cover 25 rows, all passing:
+**Verification:** Model tests in `orbmenu.test.ts`, plus one more for the keyed offset in `floatpos.test.ts`. Shell suites cover every row, all passing:
 - AC: the ring follows the nav, the current view is marked, it navigates, and focus returns.
 - AD: the selection names the context and intents, and Ask about opens the assistant with the subject. The empty state is honest, and voice is one press away.
 - AE: Hide nav makes the orb the nav, and it navigates without a rail.
@@ -262,7 +262,7 @@ Ask and Voice open one **assistant panel**, the inspector's non-modal float, in 
 
 Their captures are named `verify-orb-shell-*.png`, and the look capture is `verify-orb-shell.png` from suite O, with Node tests totalling 219.
 
-**Owner review `2026-09-13` (applied).** Hide nav does not belong on the ring. Hiding the navigation is a mode with its own visible exit, so it should not be a menu entry. It was removed, along with Show nav. The orb takes over navigation where the nav is not on screen, in **focus mode** and at the **smallest size**. There, the nav is a drawer (`navHidden = left.mode === 'hidden' || bp === 'sm'`). Suites AE and AG now enter focus mode from the topbar control and leave it with Esc. AG also checks the 820 px viewport. 6 model tests cover this, including "the ring never offers to hide or show the nav".
+**Owner review `2026-09-13` (applied).** Hide nav does not belong on the ring. Hiding the navigation is a mode with its own visible exit, so it should not be a menu entry. It was removed, along with Show nav. The orb takes over navigation where the nav is not on screen, in **focus mode** and at the **smallest size**. There, the nav is a drawer (`navHidden = left.mode === 'hidden' || bp === 'sm'`). Suites AE and AG now enter focus mode from the topbar control and leave it with Esc. AG also checks the 820 px viewport. Model tests cover this, including "the ring never offers to hide or show the nav".
 
 **To judge in the shell now:**
 - The context submenu is named after the selection ref (`all-about-money-ui#319`). The title ("Prod Wiredash credentials are invalid (401)…") is friendlier but long. In a 56 px disc, the 9 px label shows about eight characters either way. The real choice is therefore a short ring label ("This item"), with the full ref or title as the accessible name and tooltip.
@@ -306,18 +306,18 @@ The view now fits the side panes to the stage instead, so the centre keeps 700 p
 - L 382, R 358 today
 - down from L 459, R 430
 
-**Verification:** 220 Node tests cover this, with geometry test sizes moved inside the new appetites. Shell suites AC and AF pass at the new scale. Captures include:
+**Verification:** Node tests cover this, with geometry test sizes moved inside the new appetites. Shell suites AC and AF pass at the new scale. Captures include:
 - `verify-scale.png` (rest)
 - `verify-scale-nav.png` (navigation expanded)
 - `verify-scale-palette.png`
 - `verify-scale-orb.png`
 - `verify-scale-gaps.png`, from suite X, showing seams of 9 px and 4.5 px
 
-Two rows of the old suite A, "tabs only when >1" and "centre tab animates", still fail after this change. They have been stale since the tab strip redesign, a known issue rather than a new regression, and they are noted here without being fixed.
+Rows of the old suite A, "tabs only when >1" and "centre tab animates", still fail after this change. They have been stale since the tab strip redesign, a known issue rather than a new regression, and they are noted here without being fixed.
 
 ### Q20: where the design work lives now that the factory repo is public (opened `2026-09-21`)
 
-The product repo is `open-software-factory/software-factory`. It has a Rust engine, decision records, UX docs, and a project board with Workstream, Evidence, Priority, and Size fields. Strict prose linting runs on every document. Its console-stack record says the two prototype packages move in unchanged, with Vite as the bundler.
+The product repo is `open-software-factory/software-factory`. It has a Rust engine, decision records, UX docs, and a project board with Workstream, Evidence, Priority, and Size fields. Strict prose linting runs on every document. Its console-stack record says the prototype packages move in unchanged, with Vite as the bundler.
 
 The owner decided the following on 25 September 2026.
 
@@ -331,13 +331,13 @@ The owner decided the following on 25 September 2026.
 
 ### Placed surfaces now win over per-view memory (fix, `2026-09-25`)
 
-Two bug reports came from the owner. First, moving a centre view into the right pane, then picking another view, dropped the moved surface. The nav then listed it back under its primary section. Second, moving the run output surface into the left pane, then switching views, showed it back in the right pane. That is where the target view last remembered it.
+These bug reports came from the owner. First, moving a centre view into the right pane, then picking another view, dropped the moved surface. The nav then listed it back under its primary section. Second, moving the run output surface into the left pane, then switching views, showed it back in the right pane. That is where the target view last remembered it.
 
 The cause was `reduceWorkspace` in `packages/console-model/src/views.ts`. A view switch replaces the side panes wholesale with the target view's memory. A surface the operator just moved was either missing from that memory or remembered in its old slot.
 
 The rule now is this. A surface the operator moves into a pane stays there across every view. It stays until the operator closes it or moves it again. Per-view memory still covers the panels opened during work.
 
-The fix adds a `placed` field to `Workspace`. A move records or clears an entry. Any other action drops an entry once its surface leaves the recorded slot. After a view switch restores memory, every placement is reapplied on top of it. 7 new tests cover both bug reports, closing a placed surface, moving one back to the centre, and the persistence round trip.
+The fix adds a `placed` field to `Workspace`. A move records or clears an entry. Any other action drops an entry once its surface leaves the recorded slot. After a view switch restores memory, every placement is reapplied on top of it. New tests cover each bug report, closing a placed surface, moving one back to the centre, and the persistence round trip.
 
 ## Review fixes (`2026-09-02` DESIGN.md review)
 
@@ -378,20 +378,20 @@ Rows F1 through F9 use the **old** numbering.
 
 | # | Section | Fix | Status |
 |---|---|---|---|
-| F11 | DESIGN.md §5.2, components.md | Requirement widened. Panels now grow into a workspace, with tabbed panel groups, left, right, and bottom panes around a tabbed centre, and pop-out windows. A focus mode collapses everything and restores it exactly. SidePanel, the earlier side-panel component, was renamed **Workspace**. The survey verdict was revised from "build" to "adopt Dockview", since the old verdict answered the narrower one-panel requirement. Two things need verification before committing to this. Animated layout transitions need checking, since Dockview reflows instantly by default. Pop-out windows inside Tauri also need checking, where `window.open` becomes webview windows. | applied `2026-09-04`. The spike is complete, and the verdict is to adopt with two adaptations, in `survey/06-workspace-spike.md` and `workspace-spike.html`. Two things remain before final adoption. The owner tries the spike in a real browser, especially the animated-transition hack, which targets undocumented Dockview internals. Tauri `WebviewWindow` pop-out also needs verifying in the app repo. Document PiP, the browser's picture-in-picture feature, covers Windows and `WebView2` only, Microsoft's web-rendering engine. It does not cover `WKWebView` or `webkit2gtk`, the other engines. |
+| F11 | DESIGN.md §5.2, components.md | Requirement widened. Panels now grow into a workspace, with tabbed panel groups, left, right, and bottom panes around a tabbed centre, and pop-out windows. A focus mode collapses everything and restores it exactly. SidePanel, the earlier side-panel component, was renamed **Workspace**. The survey verdict was revised from "build" to "adopt Dockview", since the old verdict answered the narrower one-panel requirement. These things need verification before committing to this. Animated layout transitions need checking, since Dockview reflows instantly by default. Pop-out windows inside Tauri also need checking, where `window.open` becomes webview windows. | applied `2026-09-04`. The spike is complete, and the verdict is to adopt with adaptations, in `survey/06-workspace-spike.md` and `workspace-spike.html`. These things remain before final adoption. The owner tries the spike in a real browser, especially the animated-transition hack, which targets undocumented Dockview internals. Tauri `WebviewWindow` pop-out also needs verifying in the app repo. Document PiP, the browser's picture-in-picture feature, covers Windows and `WebView2` only, Microsoft's web-rendering engine. It does not cover `WKWebView` or `webkit2gtk`, the other engines. |
 | F12 | components.md | Adoption rule codified. No requirement compromises. Spike every adoption against its contract rules before finalising. Adapt if possible. Fork-and-add if not. Never weaken a requirement to fit a library. The Dockview spike (`workspace-spike.html`) is the first application, covering theming, interaction lock-down, animated transitions, overlay-to-pin, focus mode, and the pop-out approach, where window.open was rejected by the owner. | applied `2026-09-04` |
-| F13 | `workspace-spike.html` | **Layout animation, resolved.** It took six tries to find the real cause. `CSS-transition`, animating via CSS transitions, could not work, because Dockview positions `.dv-view` with inline `left/top/width/height` but rebuilds branch nodes on add/remove, so the element that should animate is often new and has no previous value to interpolate from. Dockview's own `.dv-animation` class is dead code. The string appears nowhere in `dockview-core@8.2.0`'s JS. It was replaced with a FLIP animator driven from `onDidLayoutChange`, which fires after the DOM mutation and before paint, plus a ghost layer that fades a clone of a departing pane. **The cause was ours.** This environment reports `prefers-reduced-motion: reduce`, rather than a bug in Dockview's own code, and a `MOTION_OK` guard silently turned every animation into a no-op. The OS preference now sets only the default state of the toggle, and no longer vetoes at runtime. | applied `2026-09-04`, verified by an in-page self-test, `SELFTEST` in the spike and default off. It covers close/reopen pane, float, dock, open pane, resize, and both tab switches, all reporting PASS with animation counts and durations. |
-| F14 | `workspace-spike-panels.html` | **Second workspace spike.** This uses react-resizable-panels 4.12.3 and React 18.3.1, with no dock library. Built after comparing against the Claude Design shell, which reached better motion with plain CSS because it owns its DOM. Layout animation turned out to be **one CSS rule**, `[data-panel] { transition: flex-grow … }`. It measured interpolating from 6.9 to 3.2 to 0.8 to 0.1 to 0 across a collapse. Two traps were found and fixed. First, in v4 a bare numeric `defaultSize` means **pixels**, and pixel panels lay out via flex-basis with `flex-grow:0`, so nothing animates. Percentage strings (`'18%'`) are required for flex-grow sizing. Second, an inline `ref` callback that starts an animation re-runs on **every** render, which kept the centre canvas pinned near opacity 0. | applied `2026-09-04`, verified by frame-sampling computed style rather than by counting events. |
+| F13 | `workspace-spike.html` | **Layout animation, resolved.** It took repeated tries to find the real cause. `CSS-transition`, animating via CSS transitions, could not work, because Dockview positions `.dv-view` with inline `left/top/width/height` but rebuilds branch nodes on add/remove, so the element that should animate is often new and has no previous value to interpolate from. Dockview's own `.dv-animation` class is dead code. The string appears nowhere in `dockview-core@8.2.0`'s JS. It was replaced with a FLIP animator driven from `onDidLayoutChange`, which fires after the DOM mutation and before paint, plus a ghost layer that fades a clone of a departing pane. **The cause was ours.** This environment reports `prefers-reduced-motion: reduce`, rather than a bug in Dockview's own code, and a `MOTION_OK` guard silently turned every animation into a no-op. The OS preference now sets only the default state of the toggle, and no longer vetoes at runtime. | applied `2026-09-04`, verified by an in-page self-test, `SELFTEST` in the spike and default off. It covers close/reopen pane, float, dock, open pane, resize, and both tab switches, all reporting PASS with animation counts and durations. |
+| F14 | `workspace-spike-panels.html` | **Second workspace spike.** This uses react-resizable-panels 4.12.3 and React 18.3.1, with no dock library. Built after comparing against the Claude Design shell, which reached better motion with plain CSS because it owns its DOM. Layout animation turned out to be **one CSS rule**, `[data-panel] { transition: flex-grow … }`. It measured interpolating from 6.9 to 3.2 to 0.8 to 0.1 to 0 across a collapse. These traps were found and fixed. First, in v4 a bare numeric `defaultSize` means **pixels**, and pixel panels lay out via flex-basis with `flex-grow:0`, so nothing animates. Percentage strings (`'18%'`) are required for flex-grow sizing. Second, an inline `ref` callback that starts an animation re-runs on **every** render, which kept the centre canvas pinned near opacity 0. | applied `2026-09-04`, verified by frame-sampling computed style rather than by counting events. |
 | F15 | `apps/console-lab/shell.html` | **Closing a pane must keep navigation.** The pane ✕ called `closePane`, which set the whole left region to `hidden`, taking the nav rail with it. The rule now: the ✕ closes pane content, and only the region toggle removes a region. Left collapses to `rail`, where the switcher survives. Right collapses to `hidden`, since it has no rail. Emptying a pane by closing its last tab follows the same rule, instead of leaving a zero-width husk whose mode still claims to be visible. | applied 2026-09-10, self-test suite B, six checks |
-| F16 | harness | **The exporter snapshots after boot.** It captures about 660 ms in, measured with a painted clock in the self-test box, earlier runs simply captured mid-suite and looked like a silent harness failure. A suite must therefore finish inside that window. Motion is shortened for the run via `window.__MOTION_MS`, and the suite is split, `SUITE = 'A'` regression and `'B'` close/collapse, across two renders. Keep the first wait at ~200 ms, since a shorter one reads pane widths while the boot animation is still running and produces a false FAIL. | applied 2026-09-10 |
-| F17 | DESIGN.md §5.5, `apps/console-lab/shell.html`, `data/nav.json` | **The nav conflated destinations with panels.** It listed Floor, Board, and Runway alongside Attention, Flight recorder, and Costs at one level, and set the same `aria-current` for the active centre view *and* the open left panel, so two items read as equally selected. Split into two kinds with two vocabularies. **view** uses radio, `aria-current="page"`, an accent marker, exactly one current, and a dim marker for open-but-not-current centre tabs. **panel** uses `role="switch"`, an open or closed indicator, any number open, and no accent marker. Each panel declares its own slot in the data, `attention` maps to left, `recorder` to bottom, and `logs` to right. Opening one never changes which view is current. `Costs` was dropped, since it had no surface behind it. `opensView` is retained in `nav.json` purely so the superseded spikes still boot. | applied 2026-09-10, self-test suite C, eight checks |
-| F18 | DESIGN.md §5.5, `apps/console-lab/shell.html` | **Nav section now comes from placement.** Owner asked for (a) a visible rule separating primary nav from panels and (b) the nav to re-section an item when a surface is dragged between slots. (b) forces a model change: `kind` in `nav.json` stops being an identity and becomes a *home* hint. `api.placementOf(id)` scans centre, left, right, and bottom. `api.sectionOf(id)` returns primary when the surface is in the centre, and panel otherwise, falling back to home while closed so a shut surface does not drift between sections. Nav and rail both render from that derivation. Added `api.moveSurface(id, slot)` as the single relocation entry point, using a **Move to…** menu today, and drag-and-drop will call the same function later, so placement rules stay in one place. Nav items FLIP between sections rather than jumping. Two states this exposed and now handles: an empty centre, real once surfaces can be moved out, and the centre's ✕, which previously fell through to clearing the bottom pane. | applied 2026-09-10, self-test suite D, eight checks |
-| F19 | `packages/console-model/`, `apps/console-lab/shell.html`, components.md | **Shell logic productionised into tested TypeScript.** The placement model left the prototype and became `packages/console-model/src/{types,placement,layout,geometry,persist,surfaces}.ts`, with no React and no DOM, and with 53 tests in `packages/console-model/test/*.test.ts`. Toolchain: none. Node 22 runs `.ts` tests natively (`node --test test/*.test.ts`), and the same source compiles into the page (first by a hand-rolled build script, now by the Vite build in `apps/console-lab`). The prototype now holds one `useReducer` over the model's `reduce` and no layout logic of its own, so the HTML cannot drift from the tested code. `SurfaceSpec.accepts` was added, permissive across every surface and every slot by decision, with the Move menu showing refused slots disabled rather than hidden. | applied 2026-09-10, 53 TS tests plus browser suites A, B, C, and D re-run after the refactor |
-| F20 | `apps/console-lab/shell.html`, harness | **Animation shipped off, but tests passed.** Seeding motion from `prefers-reduced-motion` is correct in the product, but this preview host reports `reduce`, so the delivered artifact opened dead. The tests missed it because the harness *clicked motion on before every suite*, a workaround that is not testing the product. Three fixes were made. First, the design artifact starts with motion on regardless of host, with the reason stated in code, while the product keeps OS seeding (unit-tested). Second, motion off now shows a **visible one-click pill** in the top bar, since a disabled capability must never be silent, the same rule that §5.1.5 already stated and that this violated in a new shape. Third, the harness force-on is deleted, and suite A's first assertion is `animation on by default`. | applied 2026-09-10, suite A 11/11, suite E 9/9 |
-| F21 | `apps/console-lab/shell.html` | **Scaffolding out, product controls in.** The motion toggle is gone, and nothing can switch it off. The A/B/C/D preset switcher is gone too. All four states are now reachable through the UI: a rail **expand** control opens full navigation, nav switches open panels, a pane's collapse control returns it to the rail, and **focus mode** is a real mode in the top bar with Esc to leave and exact restore. Tab treatment is hardcoded to **chip**, and underline and lifted were removed and archived. The viewport simulator stays, since it is the only way to exercise breakpoints in a fixed-size preview. The suites were rewritten to drive these controls instead of the preset buttons, the same rule as F20: if a suite cannot reach a state through the UI, neither can the operator. | applied 2026-09-10, suites A 11/11, B 7/7, C 8/8, D 8/8, E 11/11 |
-| F22 | harness | **Flaky test fixed at the cause.** `centre absorbs space` failed intermittently and passed on re-run. The renderer resizes its own viewport during boot, measured from 1926 to 1443, so the panes could be at rest while the space around them still changed. The harness now waits for the stage *and* the panes to hold steady for three frames rather than waiting a fixed 200 ms. | applied 2026-09-10 |
+| F16 | harness | **The exporter snapshots after boot.** It captures about 660 ms in, measured with a painted clock in the self-test box, earlier runs simply captured mid-suite and looked like a silent harness failure. A suite must therefore finish inside that window. Motion is shortened for the run via `window.__MOTION_MS`, and the suite is split, `SUITE = 'A'` regression and `'B'` close/collapse, across renders. Keep the first wait at ~200 ms, since a shorter one reads pane widths while the boot animation is still running and produces a false FAIL. | applied 2026-09-10 |
+| F17 | DESIGN.md §5.5, `apps/console-lab/shell.html`, `data/nav.json` | **The nav conflated destinations with panels.** It listed Floor, Board, and Runway alongside Attention, Flight recorder, and Costs at one level, and set the same `aria-current` for the active centre view *and* the open left panel, so a view and a panel read as equally selected. Split into kinds with separate vocabularies. **view** uses radio, `aria-current="page"`, an accent marker, exactly one current, and a dim marker for open-but-not-current centre tabs. **panel** uses `role="switch"`, an open or closed indicator, any number open, and no accent marker. Each panel declares its own slot in the data, `attention` maps to left, `recorder` to bottom, and `logs` to right. Opening one never changes which view is current. `Costs` was dropped, since it had no surface behind it. `opensView` is retained in `nav.json` purely so the superseded spikes still boot. | applied 2026-09-10, self-test suite C, eight checks |
+| F18 | DESIGN.md §5.5, `apps/console-lab/shell.html` | **Nav section now comes from placement.** Owner asked for (a) a visible rule separating primary nav from panels and (b) the nav to re-section an item when a surface is dragged between slots. (b) forces a model change: `kind` in `nav.json` stops being an identity and becomes a *home* hint. `api.placementOf(id)` scans centre, left, right, and bottom. `api.sectionOf(id)` returns primary when the surface is in the centre, and panel otherwise, falling back to home while closed so a shut surface does not drift between sections. Nav and rail both render from that derivation. Added `api.moveSurface(id, slot)` as the single relocation entry point, using a **Move to…** menu today, and drag-and-drop will call the same function later, so placement rules stay in one place. Nav items FLIP between sections rather than jumping. States this exposed and now handles: an empty centre, real once surfaces can be moved out, and the centre's ✕, which previously fell through to clearing the bottom pane. | applied 2026-09-10, self-test suite D, eight checks |
+| F19 | `packages/console-model/`, `apps/console-lab/shell.html`, components.md | **Shell logic productionised into tested TypeScript.** The placement model left the prototype and became `packages/console-model/src/{types,placement,layout,geometry,persist,surfaces}.ts`, with no React and no DOM, and with tests in `packages/console-model/test/*.test.ts`. Toolchain: none. Node v22 runs `.ts` tests natively (`node --test test/*.test.ts`), and the same source compiles into the page (first by a hand-rolled build script, now by the Vite build in `apps/console-lab`). The prototype now holds one `useReducer` over the model's `reduce` and no layout logic of its own, so the HTML cannot drift from the tested code. `SurfaceSpec.accepts` was added, permissive across every surface and every slot by decision, with the Move menu showing refused slots disabled rather than hidden. | applied 2026-09-10, 53 TS tests plus browser suites A, B, C, and D re-run after the refactor |
+| F20 | `apps/console-lab/shell.html`, harness | **Animation shipped off, but tests passed.** Seeding motion from `prefers-reduced-motion` is correct in the product, but this preview host reports `reduce`, so the delivered artifact opened dead. The tests missed it because the harness *clicked motion on before every suite*, a workaround that is not testing the product. These fixes were made. First, the design artifact starts with motion on regardless of host, with the reason stated in code, while the product keeps OS seeding (unit-tested). Second, motion off now shows a **visible one-click pill** in the top bar, since a disabled capability must never be silent, the same rule that §5.1.5 already stated and that this violated in a new shape. Third, the harness force-on is deleted, and suite A's first assertion is `animation on by default`. | applied 2026-09-10, suite A 11/11, suite E 9/9 |
+| F21 | `apps/console-lab/shell.html` | **Scaffolding out, product controls in.** The motion toggle is gone, and nothing can switch it off. The A/B/C/D preset switcher is gone too. All the states are now reachable through the UI: a rail **expand** control opens full navigation, nav switches open panels, a pane's collapse control returns it to the rail, and **focus mode** is a real mode in the top bar with Esc to leave and exact restore. Tab treatment is hardcoded to **chip**, and underline and lifted were removed and archived. The viewport simulator stays, since it is the only way to exercise breakpoints in a fixed-size preview. The suites were rewritten to drive these controls instead of the preset buttons, the same rule as F20: if a suite cannot reach a state through the UI, neither can the operator. | applied 2026-09-10, suites A 11/11, B 7/7, C 8/8, D 8/8, E 11/11 |
+| F22 | harness | **Flaky test fixed at the cause.** `centre absorbs space` failed intermittently and passed on re-run. The renderer resizes its own viewport during boot, measured from 1926 to 1443, so the panes could be at rest while the space around them still changed. The harness now waits for the stage *and* the panes to hold steady for consecutive frames rather than waiting a fixed 200 ms. | applied 2026-09-10 |
 | F23 | DESIGN.md §5.5.7, `apps/console-lab/shell.html` | **Navigation lost again.** This time it was fixed at the rule, rather than just the instance. F15 stopped the panel ✕ from taking the rail, but the region toggle `◧` still set the whole left region to `hidden`, and the rail lives in that region. Both were instances of the same missing rule, now written down: navigation is not a panel, and no ordinary control may remove it. The region toggles show and hide **panels**. `◧` now closes the left panel and restores it, remembering what was there. Navigation goes only through focus mode, which is explicit and reversible. **Suite F** exists solely to sweep every control against this: panel ✕, region toggle, width change, and focus in and out. It should have existed after F15. | applied 2026-09-10, suite F 6/6 |
-| F24 | `apps/console-lab/shell.html` | **The navigation width animated wrong.** The outer column animated, so the test passed, but the rail's own wrapper had its width set instantly. The two faces were rendered as `if (wide) … else …`, so the contents reflowed and swapped in a single frame *inside* a container that was still moving. Fixed by animating the rail wrapper on the same clock, and by keeping **both faces mounted, stacked and clipped**, cross-fading between them. Icons at 72px and a labelled list at 248px are laid out differently, so there is no honest morph. The only smooth option is to trade places. The face that is fading out carries `inert`, so an invisible navigation cannot be tabbed to or clicked. **Suite G** measures all three properties across frames. Measuring only the outer column is what hid this. | applied 2026-09-10, suite G 5/5 |
+| F24 | `apps/console-lab/shell.html` | **The navigation width animated wrong.** The outer column animated, so the test passed, but the rail's own wrapper had its width set instantly. The wide and narrow faces were rendered as `if (wide) … else …`, so the contents reflowed and swapped in a single frame *inside* a container that was still moving. Fixed by animating the rail wrapper on the same clock, and by keeping **both faces mounted, stacked and clipped**, cross-fading between them. Icons at 72px and a labelled list at 248px are laid out differently, so there is no honest morph. The only smooth option is to trade places. The face that is fading out carries `inert`, so an invisible navigation cannot be tabbed to or clicked. **Suite G** measures every property across frames. Measuring only the outer column is what hid this. | applied 2026-09-10, suite G 5/5 |
 
 **Harness rule (from F20).** A self-test may not put the app into a state the user would not get on open. If a suite needs a precondition, it must reach it through the same controls the operator has, after asserting the default. It must never be set up silently.
 
@@ -439,7 +439,7 @@ straight from disk.
 
 Toolchain: **Vite 8**, with `@vitejs/plugin-react` for JSX and `vite-plugin-singlefile` to inline every script and stylesheet into one HTML file per page. Tests run on Node's own runner with native TypeScript. Model tests need no DOM. Component tests use jsdom and Testing Library.
 
-Four guards run on every build, each earned by a real failure:
+These guards run on every build, each earned by a real failure:
 
 | Guard | Why it exists |
 |---|---|
@@ -493,7 +493,7 @@ Q numbers stay stable. This registry was formerly DESIGN.md §15.
 | 10 | Work board: does it earn a place beyond graphs + runway? | Session hypothesis. Test as a lens, likely not a surface |
 | 11 | Light theme requirement, implemented in the shell | Both dark and light are generated from the tested token layer, dark default, light toggle. Final aesthetic refinement remains open |
 | 12 | Ambient-assistant UI surface forms: annotation, generated investigation view | Cross-cutting modality. Interaction model open |
-| 13 | Do the six conceptual surfaces map to modes, nav destinations, or a mix? Reopened by F2, the current mode/lens/dock shape is a working hypothesis rather than a settled one | Shell information architecture |
+| 13 | Do the conceptual surfaces map to modes, nav destinations, or a mix? Reopened by F2, the current mode/lens/dock shape is a working hypothesis rather than a settled one | Shell information architecture |
 | 14 | Factory domain/data model, covering state taxonomies, transitions, and entity relationships, is not yet finalised. It is owned by the `software-factory` product work rather than the design system. When it lands, re-derive DESIGN.md §11's vocabularies, the §6.2 terminology table, and the fixture data from it | §11 encodings, node grammar, fixtures, and StreamSurface schemas all bind to it |
 | 15 | Toast stacking: one at a time vs several; decide after the component survey. Fixed requirement either way: each toast dismissible individually **and** the group dismissible in one action | DESIGN.md §7.1 channel taxonomy. Toast primitive contract |
 | 16 | ~~Frontend framework~~ **Decided.** React and TypeScript were chosen, with desktop via Tauri, on `2026-09-10`. Consequences: build-order step 1, the Overlay primitive, adopts **React Aria Components**, with `Ark UI/Zag` only the hedge for staying framework-open. Cytoscape, AG-UI, and the voice engines were framework-neutral and are unaffected. Tauri implications already logged: pop-out uses `WebviewWindow` instead of `window.open`. Document PiP is Chromium/WebView2-only, so it is a Windows-only enhancement at best. The local STT default differs per platform webview (`survey/05`) | Closed. This unblocks build-order step 1, the Overlay primitive |
@@ -507,15 +507,15 @@ This audit ran on 10 September 2026. Rule-by-rule state of `DESIGN.md` §5 again
 
 | Rule | State | Evidence / gap |
 |---|---|---|
-| 5.1.1 new info must not shove the layout | **built and proven** | Two compliant forms, chosen by the **trigger**: operator-requested (nav, palette) docks directly as a panel that animates in; click-on-content floats the inspector as a non-modal Overlay, then pin docks it. `inspect.test.ts` proves the layout is untouched by a selection; suite L proves it in the browser (`layout not shoved`) |
+| 5.1.1 new info must not shove the layout | **built and proven** | Compliant forms, chosen by the **trigger**: operator-requested (nav, palette) docks directly as a panel that animates in; click-on-content floats the inspector as a non-modal Overlay, then pin docks it. `inspect.test.ts` proves the layout is untouched by a selection; suite L proves it in the browser (`layout not shoved`) |
 | 5.1.2 screen/view change transitions | proven | Centre tab crossfade + directional slide; suite A `centre tab animates` |
 | 5.1.3 menus, modals, search animate in | **partial.** Modal foundation and palette built | Narrow navigation drawer and the command palette both use Overlay; rendered entry/exit interpolation observed. Anchored menus still pending. Move menu remains retired; its keyboard twin lives in the palette |
 | 5.1.4 zoom / pan / programmatic scroll animate | **not built** | `apps/console-lab/shell.html` has no zoomable surface. Floor is a static SVG. Partly existed in `factory-floor.html` |
 | 5.1.5 motion | **built; policy reconciled 2026-09-11** | Motion is always on. `settings.ts` stores theme only. Suite E asserts motion is on and no motion control exists; the build rejects host motion-preference gates. Earlier OS-seeding and toggle descriptions are superseded |
-| Light theme (Q11) | **built and proven** | `packages/console-ui/src/tokens.ts` holds both palettes from one base hue, derived not inverted. 42 tests including WCAG contrast computed from OKLCh: body text ≥ 7:1 on every surface in both themes, accent and state colours ≥ 3:1. Toggle in the top bar; the setting persists through the storage port |
+| Light theme (Q11) | **built and proven** | `packages/console-ui/src/tokens.ts` holds both palettes from one base hue, derived not inverted. Tests including WCAG contrast computed from OKLCh: body text ≥ 7:1 on every surface in both themes, accent and state colours ≥ 3:1. Toggle in the top bar; the setting persists through the storage port |
 | 5.2.1 pin / unpin | **built and proven** | Float the inspector, then press Pin, to dock it via the placement reducer. Dock the pane, then press Float, to lift it out with its subject. `inspect.test.ts` round-trips pin, unpin, then pin again. Suite L drives the controls |
 | 5.2.2 closeable + resizeable | proven | TS `layout.test.ts` close/collapse rules; suite B; drag-resize in the prototype |
-| 5.2.3 per-view persistence | **built and proven; rule amended 2026-09-12** | `views.ts`: each centre view remembers which side and bottom panels are open and which is active; widths and navigation width are global. 12 tests; suite Y |
+| 5.2.3 per-view persistence | **built and proven; rule amended 2026-09-12** | `views.ts`: each centre view remembers which side and bottom panels are open and which is active; widths and navigation width are global. Covered by tests and suite Y |
 | 5.2.4 workspace: tabs · rearrange · pop-out | **partial.** Tabs and rearrange built | Tabs proven; drag-rearrange of tabs and headers to region zones (suite Z). Pop-out: port only (A5); Tauri `WebviewWindow` unverified |
 | 5.2.5 focus mode | **built and proven** | A real mode, not a preset: the top-bar control collapses every pane, keeps a visible pressed exit, leaves on Esc, and restores the exact prior layout. Suite E recorded `L 367→367 · R 344→344`. The snapshot is deliberately not persisted; a reload should not resume with everything hidden |
 | 5.3 ambient assistant | not in this shell | v1 orb built in `factory-floor.html`; context-aware menu never built |
@@ -525,15 +525,15 @@ This audit ran on 10 September 2026. Rule-by-rule state of `DESIGN.md` §5 again
 | 5.5.1 omni-search on lists >10 | **partial** | The palette's ranked filter (`filterCommands`) searches board rows and runs globally; no per-list filter is attached to Board or Runway yet, and both exceed 10 rows |
 | 5.5.2 breadcrumbs / jump back | **built for the inspector** | Source path with one-click jumps (suite AA). Deeper drills come with A9. They cover the focus path and evidence tiers |
 | 5.5.3 Ctrl+P light-dismissable | **built and proven** | `CommandPalette` on the shared Overlay: Ctrl+P / ⌘K and the top-bar control open it. Escape, outside click, or running a command close it. Escape works in one step, even mid-query. DOM tests in `palette.test.ts`; suite K in the browser |
-| 5.5.4 to 5.5.6 nav grammar + separator | proven | Suite C (8 checks); `placement.test.ts` |
+| 5.5.4 to 5.5.6 nav grammar + separator | proven | Suite C; `placement.test.ts` |
 | 5.5.7 surface declares, slot decides | proven | `accepts` enforced in the reducer and on restore; `placement.test.ts` |
-| 5.5.8 kind follows placement | proven | Suite D (8 checks); `placement.test.ts` |
+| 5.5.8 kind follows placement | proven | Suite D; `placement.test.ts` |
 | 5.6 generated / streaming UI | **not built** | Standards chosen: AG-UI plus an A2UI-shaped schema. Neither a schema nor a surface exists yet |
 | 5.7 text readability floor | **not built** | No zoomable surface here. Cytoscape's `min-zoomed-font-size` is the adopted answer. It is unspiked |
 
 Roughly a third of the contract is proven, a third partly built, a third untouched.
 
-**Convergence is decided.** `apps/console-lab/shell.html` owns the placement model, nav grammar, panes, motion and both themes. Extract the older floor's capabilities as components and re-host them as shell surfaces, following the convergence plan below. The four floor state files remain stale and are regenerated last.
+**Convergence is decided.** `apps/console-lab/shell.html` owns the placement model, nav grammar, panes, motion and both themes. Extract the older floor's capabilities as components and re-host them as shell surfaces, following the convergence plan below. The floor state files remain stale and are regenerated last.
 
 ## Component build status
 
@@ -565,7 +565,7 @@ This status is from 3 September 2026, against `factory-floor.html`, which is now
 
 So far these milestones are complete. The owner reviewed DESIGN.md, items F1 through F10, on 2 September 2026. The Direction-B floor prototype, the shell's first starting layout, is done. The component survey, `survey/00` through `05`, ran on 3 September 2026. The shell audit and owner calls happened on 10 September 2026. They covered Q16, rule 5.1.1, motion, and convergence. The Overlay build step, covering palette and inspector, finished on 11 September 2026.
 
-What remains falls into two parts. Each item has an id, a size, and what it waits on. A size is S for a session, M for a few sessions, or L for a phase. Owner sets the order against the ids.
+What remains falls into parts. Each item has an id, a size, and what it waits on. A size is S for a session, M for a few sessions, or L for a phase. Owner sets the order against the ids.
 
 These items are done and proven, for reference:
 - placement model
@@ -597,7 +597,7 @@ These items are done and proven, for reference:
 | A13 | **StreamSurface** for generated / streaming UI | 5.6 | L | Part schema first (AG-UI + A2UI-shaped) | From the StreamSurface plus PresetSaver build step |
 | A14 | ~~**Floating inspector polish**: draggable, remembers position, narrow-viewport behaviour~~ **done 2026-09-11** | 5.1.1 finish | S | None | `floatpos.ts`; suites T, U, V |
 | A15 | **Toast** in the shell, with the stacking decision | Q15 | S | Q15 | Built in the floor, absent from the shell |
-| A16 | **Retire the floor**: regenerate the four state files from the shell, then archive `factory-floor.html` | convergence plan | S | A10, A12, B2 extracted | Last, by design |
+| A16 | **Retire the floor**: regenerate the state files from the shell, then archive `factory-floor.html` | convergence plan | S | A10, A12, B2 extracted | Last, by design |
 
 ### Part B: after the shell
 
@@ -638,9 +638,9 @@ This brainstorm is from 11 September 2026, for Q17, Q19, and B3.
 
 This starts from the owner's loops direction rather than from a canvas engine. These are ideas awaiting a decision. Each names what it would need.
 
-**1. What the centre shows.** Not one infinite canvas but a small set of *loop views*, each a defined workflow with live work overlaid. Three loops begin the set: SDLC, the default. Product is the outer loop. Meta is the factory improving itself. A loop view answers "where is work in this loop right now?" The floor's current node graph is a rough draft of the SDLC loop, drawn as a task flow.
+**1. What the centre shows.** Not one infinite canvas but a small set of *loop views*, each a defined workflow with live work overlaid. These loops begin the set: SDLC, the default. Product is the outer loop. Meta is the factory improving itself. A loop view answers "where is work in this loop right now?" The floor's current node graph is a rough draft of the SDLC loop, drawn as a task flow.
 
-**2. Two drawings of one loop.** A loop has a *task-flow* drawing. Its steps run in order, with gates between them and branches for optional steps. A loop also has a *state-machine* drawing. This shows the states a work item passes through, with transitions as edges. Both are the same definition in two projections. The operator toggles between them, the way Floor's lenses were meant to work. Live items are the same dots in both. This needs one loop-definition schema that both projections read. That schema holds steps, gates marked optional or mandatory, allowed transitions, and who may approve.
+**2. Drawings of one loop.** A loop has a *task-flow* drawing. Its steps run in order, with gates between them and branches for optional steps. A loop also has a *state-machine* drawing. This shows the states a work item passes through, with transitions as edges. Both are the same definition in separate projections. The operator toggles between them, the way Floor's lenses were meant to work. Live items are the same dots in both. This needs one loop-definition schema that both projections read. That schema holds steps, gates marked optional or mandatory, allowed transitions, and who may approve.
 
 **3. Zoom ladder as drill.** Drilling changes the level of detail. The scale of the drawing stays the same. Zooming into a step reveals its sub-flow or sub-states, with the work and agent status inside. Zooming out collapses it to a single node carrying an aggregate: a count of items, the worst state, and the oldest wait. This is the §5.7 readability floor in practice. Labels never shrink. Only the level of detail changes. This needs hierarchical loop definitions, where a step may contain a loop, plus per-level aggregates. The Breadcrumb (A8) becomes the drill trail.
 
@@ -648,13 +648,13 @@ This starts from the owner's loops direction rather than from a canvas engine. T
 
 **5. Operator-defined loops.** Add or remove a step, place a human gate, mark it optional or mandatory, and the view redraws. Editing happens in a *definition* surface, a form or a structured editor, rather than by dragging nodes on the live view. The live view is read-and-intervene. The definition is authored. Meta-loop changes to the factory's own loop would need approval gates of their own. This needs schema versioning and a way to say which definition version an item is running under.
 
-**6. Together and separately.** Each loop has its own view. A combined view nests them. The product loop sits outside, the SDLC loop sits inside a product step, and the meta loop sits off to the side, acting on both. The zoom ladder crosses these loop boundaries. This is the one place an infinite canvas, Q17, may still be the right container. It would be a pannable field with three loop drawings at fixed positions, rather than a free-form space.
+**6. Together and separately.** Each loop has its own view. A combined view nests them. The product loop sits outside, the SDLC loop sits inside a product step, and the meta loop sits off to the side, acting on both. The zoom ladder crosses these loop boundaries. This is the one place an infinite canvas, Q17, may still be the right container. It would be a pannable field with the loop drawings at fixed positions, rather than a free-form space.
 
 **7. Engine implications (B3).** Requirements the engine must meet before adoption:
 - hierarchical, compound, nodes with expand and collapse
 - layout generated automatically from a definition
 - animated position changes
-- two layout algorithms, layered for task flows and force or layered for state machines
+- layout algorithms, layered for task flows and force or layered for state machines
 - label counter-scaling
 
 Cytoscape and ELK cover compound nodes and layered layout. ELK does not animate, so transitions are ours. A hand-rolled SVG, what Floor is today, stays viable for a loop with under about 40 nodes and no free panning. Spike both against the zoom-ladder-as-drill requirement first, because that is where hand-rolled SVG will break.
@@ -670,7 +670,7 @@ Each step unlocks the ones after it. Do not start a later step by re-implementin
 0. **Placement model.** *Done.* `packages/console-model/src/*.ts` plus its tests. Everything below dispatches actions against it rather than holding layout state of its own.
 1. **Overlay.** *Done.* Modal foundation, the navigation drawer and command palette, plus a non-modal contract, the floating inspector, both on one motion lifecycle. The Move menu stays retired. The palette's Move commands are its keyboard twin. Inspection state, in `packages/console-model/src/inspect.ts`, derives "docked" from placement and dispatches pin/unpin to the layout reducer.
 2. **Workspace.** This is the pane/tab/resize shell over the placement model, plus drag-and-drop (A3) and per-view persistence (A4). Drop targets call `move`. They add no placement rules of their own. Dockview stays a candidate for the tiling engine only. Pop-out (A5) runs inside Tauri, using its `WebviewWindow` API instead of `window.open`.
-3. **ScreenHost and MotionViewport**, the two whole-screen motion primitives, remove the last instant swaps. As A10, MotionViewport waits on Q17 and Q19.
+3. **ScreenHost and MotionViewport**, the whole-screen motion primitives, remove the last instant swaps. As A10, MotionViewport waits on Q17 and Q19.
 4. **Popover and Select.** Dropdown menus and detail popovers converge here (A1).
 5. **ListFilter and Breadcrumb**, the findability pass. A8 needs this in the shell. A7 stays parked as work outside the shell.
 6. **TextInput voice**, one mic behaviour, applied to SearchField, palette, assistant (A11, components track).
@@ -689,7 +689,7 @@ This plan was agreed on 10 September 2026.
 | P0 interruption | `Dialog` on `Overlay` | After Overlay | Currently appears with no motion |
 | Flight recorder | `RecorderTimeline` (layer 4) | **After design work.** The owner considers it underdeveloped. Design it properly, then extract it, then reuse it | Also bound to Q6 replay semantics |
 | Canvas / graph | `MotionViewport` + canvas engine | **Blocked on Q17.** The infinite-canvas idea may change the engine choice entirely | Do not spike Cytoscape before Q17 is described |
-| Four state files | Regenerate from the shell once surfaces land | Last | Stale today; do not maintain them in the meantime |
+| State files | Regenerate from the shell once surfaces land | Last | Stale today; do not maintain them in the meantime |
 
 Retiring the floor would lose several things unless they are carried over deliberately:
 - the zoom ladder and its density rules
