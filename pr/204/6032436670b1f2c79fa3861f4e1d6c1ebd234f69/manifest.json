@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6032436670b1f2c79fa3861f4e1d6c1ebd234f69",
+    "contentHash": "a3009377e1aa07b5af3ed5297a128763"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7eddce15b53a884a4fdfc0e3d4bd55c3",
+      "bytes": 25683,
+      "width": 1738,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-overview-light-7eddce15b53a884a4fdfc0e3d4bd55c3.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1449e57d73f7844474a4fb18b75aa097",
+      "bytes": 26028,
+      "width": 1738,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-overview-dark-1449e57d73f7844474a4fb18b75aa097.svg"
+    },
+    {
+      "id": "lint-core-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "lint-core-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1dc84d5b0eaed3201ebc1d343cee3cf2",
+      "bytes": 9939,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "lint-core-internals-light-1dc84d5b0eaed3201ebc1d343cee3cf2.svg"
+    },
+    {
+      "id": "lint-core-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "lint-core-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b5a8ed61bb6c31d9a9cc7ac898d8801a",
+      "bytes": 10054,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "lint-core-internals-dark-b5a8ed61bb6c31d9a9cc7ac898d8801a.svg"
+    },
+    {
+      "id": "integrations-contract-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "integrations-contract",
+      "mediaType": "image/svg+xml",
+      "contentHash": "46a92267c815604f8ed9c200280aa864",
+      "bytes": 8875,
+      "width": 915,
+      "height": 304,
+      "animated": false,
+      "path": "integrations-contract-light-46a92267c815604f8ed9c200280aa864.svg"
+    },
+    {
+      "id": "integrations-contract-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "integrations-contract",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5e874780f0248044bcbbd69331a005f4",
+      "bytes": 8968,
+      "width": 915,
+      "height": 304,
+      "animated": false,
+      "path": "integrations-contract-dark-5e874780f0248044bcbbd69331a005f4.svg"
+    },
+    {
+      "id": "retired-id-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "retired-id-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "afd6cf3fc0ac33805e63c0d94308e30a",
+      "bytes": 12940,
+      "width": 1040,
+      "height": 391,
+      "animated": true,
+      "path": "retired-id-flow-light-afd6cf3fc0ac33805e63c0d94308e30a.svg"
+    },
+    {
+      "id": "retired-id-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "retired-id-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "480f93cfbec99d8f070098a98fd2490b",
+      "bytes": 13066,
+      "width": 1040,
+      "height": 391,
+      "animated": true,
+      "path": "retired-id-flow-dark-480f93cfbec99d8f070098a98fd2490b.svg"
+    }
+  ]
+}
