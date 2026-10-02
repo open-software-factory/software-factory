@@ -760,7 +760,9 @@ fn agents_list_cmd(args: &AgentsListArgs) -> ExitCode {
             let is = |list: &[&agents::Agent]| list.iter().any(|x| x.name == a.name);
             AgentRow {
                 name: a.name,
-                family: a.family,
+                family: a
+                    .family_for(selection.model(a))
+                    .unwrap_or(osf::builder::UNKNOWN),
                 enabled: is(&selection.enabled),
                 builder: selection.builder.name == a.name,
                 reviewer: is(&selection.reviewers),

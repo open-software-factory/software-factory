@@ -26,7 +26,12 @@ pub use crate::agents::SchemaArg;
 pub struct Reviewer {
     /// The agent's name.
     pub name: String,
+    /// The model family it answers with, from its agent's entry and, for an
+    /// agent that runs many families, from its model.
     pub family: String,
+    /// Why the family is unknown, when it is. Such a reviewer cannot take
+    /// part: its run is could-not-run, with this reason.
+    pub family_error: Option<String>,
     /// The argument list to run, in order. `{prompt_file}` is replaced with
     /// the path of a file holding the prompt, for an agent that reads one
     /// from a file rather than from standard input.
@@ -60,13 +65,25 @@ pub struct Reviewer {
 }
 
 impl Reviewer {
+    /// Whether this reviewer sits a change out because its family is one of
+    /// `builder_families`: a builder's own family is no independent opinion.
+    #[must_use]
+    pub fn is_excluded_by(&self, builder_families: &std::collections::BTreeSet<String>) -> bool {
+        self.family_error.is_none() && builder_families.contains(&self.family)
+    }
+
     /// `agent` as a reviewer running `model`; `None` when `agent` never reviews.
     fn from_agent(agent: &Agent, model: Option<&str>) -> Option<Self> {
         let review = agent.review.as_ref()?;
         let owned = |items: &[&str]| items.iter().map(ToString::to_string).collect();
+        let (family, family_error) = match agent.family_for(model) {
+            Ok(family) => (family.to_string(), None),
+            Err(reason) => (crate::builder::UNKNOWN.to_string(), Some(reason)),
+        };
         Some(Reviewer {
             name: agent.name.to_string(),
-            family: agent.family.to_string(),
+            family,
+            family_error,
             command: owned(agent.command),
             schema_flag: review.schema_flag.map(str::to_string),
             schema_as: review.schema_as,
@@ -596,6 +613,7 @@ mod tests {
         Reviewer {
             name: name.to_string(),
             family: "test-family".to_string(),
+            family_error: None,
             command: command.into_iter().map(str::to_string).collect(),
             schema_flag: None,
             schema_as: SchemaArg::default(),
@@ -802,6 +820,44 @@ mod tests {
         assert_eq!(codex.model.as_deref(), Some("o4-mini"));
         assert_eq!(codex.login_paths, vec![".codex/auth.json"]);
         assert_eq!(r.get(1).expect("dsh entry").model, None);
+    }
+
+    fn roster_with_model(agent: &str, model: Option<&str>) -> Reviewer {
+        let root = crate::test_support::TempDir::new("osf-reviewers-roster-family");
+        let models = model.map_or_else(String::new, |m| {
+            format!("[agents.models]\n{agent} = \"{m}\"\n")
+        });
+        std::fs::write(
+            root.join("osf.toml"),
+            format!("[agents]\nreviewers = [\"{agent}\"]\n{models}"),
+        )
+        .expect("osf.toml writes");
+        roster(&root).expect("roster").remove(0)
+    }
+
+    #[test]
+    fn a_many_family_reviewer_takes_its_family_from_its_model() {
+        let r = roster_with_model("opencode", Some("openrouter/qwen/qwen3-coder-next"));
+        assert_eq!((r.family.as_str(), r.family_error), ("qwen", None));
+    }
+
+    #[test]
+    fn a_many_family_reviewer_on_a_claude_model_is_anthropic_and_sits_out_an_anthropic_build() {
+        let r = roster_with_model("opencode", Some("openrouter/anthropic/claude-sonnet-5"));
+        assert_eq!(r.family, "anthropic");
+        let builders = std::collections::BTreeSet::from(["anthropic".to_string()]);
+        assert!(r.is_excluded_by(&builders));
+        let other = std::collections::BTreeSet::from(["openai".to_string()]);
+        assert!(!r.is_excluded_by(&other));
+    }
+
+    #[test]
+    fn a_many_family_reviewer_on_an_unknown_model_has_no_family_and_a_reason() {
+        let r = roster_with_model("opencode", Some("acme/frobnicator-1"));
+        let reason = r.family_error.expect("a reason");
+        assert!(reason.contains("acme/frobnicator-1"), "{reason}");
+        let unset = roster_with_model("opencode", None);
+        assert!(unset.family_error.is_some());
     }
 
     #[test]

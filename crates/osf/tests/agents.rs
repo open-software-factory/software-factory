@@ -77,6 +77,20 @@ fn list_shows_what_osf_toml_selects() {
     assert_eq!(field(named(&rows, "claude"), "reviewer"), true);
     assert_eq!(field(named(&rows, "claude"), "model"), "claude-sonnet-5");
 }
+
+#[test]
+fn list_gives_a_many_family_agent_the_family_of_its_model() {
+    let home = isolated_home("agents-list-model-family");
+    let repo = repo_with(
+        "agents-list-model-family",
+        "[agents]\nreviewers = [\"opencode\"]\n\n[agents.models]\nopencode = \"openrouter/qwen/qwen3-coder-next\"\n",
+    );
+    let rows = list_json(&repo, &home);
+    assert_eq!(field(named(&rows, "opencode"), "family"), "qwen");
+    assert_eq!(field(named(&rows, "omp"), "family"), "unknown");
+    assert_eq!(field(named(&rows, "claude"), "family"), "anthropic");
+}
+
 #[test]
 fn list_prints_a_table_with_one_row_per_agent() {
     let home = isolated_home("agents-list-human");

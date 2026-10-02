@@ -94,6 +94,7 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
     Reviewer {
         name: "fake".to_string(),
         family: "fake-family".to_string(),
+        family_error: None,
         command: fake_harness_command(vars),
         schema_flag: None,
         schema_as: SchemaArg::default(),
@@ -459,20 +460,21 @@ fn this_repositorys_osf_toml_selects_its_reviewers_from_the_agent_list_in_order(
     assert_eq!(model("codex"), None);
 }
 
-/// A Claude-built range's own family (`anthropic`, from its
-/// `Code-Generator:` trailer) matches this repository's own `claude`
-/// reviewer, so `run_lens`'s own `skip_families.contains` check would
-/// leave that reviewer out for such a change.
+/// A Claude-built range's family (`anthropic`, from its `Code-Generator:`
+/// trailer) leaves this repository's own `claude` reviewer out, and no
+/// reviewer of another family.
 #[test]
-fn a_claude_built_range_names_the_same_family_as_this_repositorys_claude_reviewer() {
+fn a_claude_built_range_excludes_this_repositorys_claude_reviewer_and_no_other() {
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
-    let claude = loaded
-        .iter()
-        .find(|r| r.name == "claude")
-        .expect("a claude reviewer");
     let review_config =
         osf::config::review_config(&repo_root).expect("this repository's review config loads");
     let family = osf::builder::family_of("Claude Sonnet 5", &review_config.builder_family_aliases);
-    assert_eq!(family, claude.family);
+    let builders = std::collections::BTreeSet::from([family]);
+    let excluded: Vec<&str> = loaded
+        .iter()
+        .filter(|r| r.is_excluded_by(&builders))
+        .map(|r| r.name.as_str())
+        .collect();
+    assert_eq!(excluded, vec!["claude"], "{loaded:?}");
 }

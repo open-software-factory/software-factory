@@ -280,7 +280,15 @@ family.
 | `codex` | openai | its own default | `OPENAI_API_KEY` (or `CODEX_API_KEY`) |
 | `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` |
 | `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) |
-| `opencode` | opencode | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` |
+| `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` |
+
+Codex, Claude and DeepSeek Harness each run one family. opencode and omp
+run models from any family. The model they run decides their family.
+`MODEL_FAMILIES` in `agents.rs` maps a model id prefix to a family. For
+example, `openrouter/qwen/` maps to qwen, and `claude-` maps to anthropic.
+A model that no prefix matches leaves the family unknown. So does no model
+at all. Such a reviewer does not run. It is could-not-run, and the journal
+gives the reason.
 
 `osf` never reads or holds any of these keys itself. Each tool reads
 its own key, the same way it would outside `osf`. A reviewer whose key

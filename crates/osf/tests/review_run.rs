@@ -683,6 +683,116 @@ fn one_non_builder_family_passes_under_the_interim_policy() {
     assert_eq!(builder_families, vec!["anthropic"]);
 }
 
+/// The journal lines that name `reviewer`, joined.
+fn journal_lines_of(home: &Path, reviewer: &str) -> String {
+    journal_text(home)
+        .lines()
+        .filter(|l| l.contains(&format!("\"reviewer\":\"{reviewer}\"")))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// opencode runs models from any family, so its family comes from its model:
+/// here a Claude model, which is anthropic, the same as the builder's. It
+/// sits the change out, and codex alone decides the lens.
+#[test]
+fn opencode_on_a_claude_model_is_left_out_of_a_claude_built_change() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("opencode", Fake::Answers(&fixture("valid.json"))),
+        ],
+    );
+    let osf_toml = format!(
+        "{}[agents.models]\nopencode = \"openrouter/anthropic/claude-sonnet-5\"\n",
+        fakes.osf_toml
+    );
+    let repo = review_repo_built_by("opencode-claude-model", &osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-opencode-claude-model");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let opencode = journal_lines_of(&home, "opencode");
+    assert!(opencode.contains("\"result\":\"skipped\""), "{opencode}");
+    assert!(opencode.contains("\"family\":\"anthropic\""), "{opencode}");
+    assert!(!opencode.contains("\"result\":\"answered\""), "{opencode}");
+}
+
+/// The same agent on a qwen model is a different family from an anthropic
+/// builder, so it runs and counts as the second family.
+#[test]
+fn opencode_on_a_qwen_model_runs_for_a_claude_built_change() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("opencode", Fake::Answers(&fixture("valid.json"))),
+        ],
+    );
+    let osf_toml = format!(
+        "{}[agents.models]\nopencode = \"openrouter/qwen/qwen3-coder-next\"\n",
+        fakes.osf_toml
+    );
+    let repo = review_repo_built_by("opencode-qwen-model", &osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-opencode-qwen-model");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let opencode = journal_lines_of(&home, "opencode");
+    assert!(opencode.contains("\"family\":\"qwen\""), "{opencode}");
+    assert!(opencode.contains("\"result\":\"answered\""), "{opencode}");
+}
+
+/// A model that names no known family cannot be checked against the
+/// builder's family, so that reviewer never runs: could-not-run, with the
+/// reason in the journal. Without a second family the lens could not run.
+#[test]
+fn opencode_on_an_unknown_model_is_could_not_run_and_never_started() {
+    let fakes = Fakes::new("", &[("opencode", Fake::Answers(&fixture("valid.json")))]);
+    let osf_toml = format!(
+        "{}[agents.models]\nopencode = \"acme/frobnicator-1\"\n",
+        fakes.osf_toml
+    );
+    let repo = review_repo_built_by("opencode-unknown-model", &osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-opencode-unknown-model");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let opencode = journal_lines_of(&home, "opencode");
+    assert!(
+        opencode.contains("\"result\":\"could-not-run\""),
+        "{opencode}"
+    );
+    assert!(opencode.contains("acme/frobnicator-1"), "{opencode}");
+    assert!(!opencode.contains("\"result\":\"answered\""), "{opencode}");
+}
+
 /// No `Code-Generator:` trailer at all on the reviewed commit records the
 /// builder family as `unknown`, and every enabled reviewer still runs, the
 /// same as before this module knew about builder families at all.

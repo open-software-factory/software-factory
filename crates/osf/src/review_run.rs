@@ -347,7 +347,11 @@ fn run_lens(
         if families.len() >= QUORUM_FAMILIES {
             break;
         }
-        if skip_families.contains(&reviewer.family) {
+        if let Some(reason) = &reviewer.family_error {
+            attempts.push(unknown_family_attempt(reviewer, reason));
+            continue;
+        }
+        if reviewer.is_excluded_by(skip_families) {
             attempts.push(skipped_attempt(reviewer));
             continue;
         }
@@ -418,6 +422,26 @@ fn skipped_attempt(reviewer: &Reviewer) -> Attempt {
         },
         model: reviewer.model.clone(),
         result: "skipped",
+        findings_kept: 0,
+        findings_dropped: 0,
+        kept: Vec::new(),
+        round: 1,
+        notes: Vec::new(),
+    }
+}
+
+/// The attempt recorded for a reviewer whose model family is unknown: it
+/// never runs, because nothing says whether it is the builder's own family.
+fn unknown_family_attempt(reviewer: &Reviewer, reason: &str) -> Attempt {
+    Attempt {
+        lens_answer: LensAnswer {
+            reviewer: reviewer.name.clone(),
+            family: reviewer.family.clone(),
+            answer: None,
+            reason: Some(reason.to_string()),
+        },
+        model: reviewer.model.clone(),
+        result: "could-not-run",
         findings_kept: 0,
         findings_dropped: 0,
         kept: Vec::new(),

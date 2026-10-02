@@ -129,14 +129,62 @@ impl Hooks {
     }
 }
 
+/// Where an agent's model family comes from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Family {
+    /// The agent runs one family only.
+    Fixed(&'static str),
+    /// The agent runs models from any family, so the model it is set to run
+    /// decides the family. See [`MODEL_FAMILIES`].
+    ByModel,
+}
+
+/// Model-id prefixes and the family each names, for an agent whose family
+/// comes from its model. The first prefix that matches wins. The names are
+/// the ones `builder::family_of` gives a `Code-Generator:` trailer.
+pub const MODEL_FAMILIES: &[(&str, &str)] = &[
+    ("anthropic/", "anthropic"),
+    ("claude", "anthropic"),
+    ("openai/", "openai"),
+    ("gpt", "openai"),
+    ("o1", "openai"),
+    ("o3", "openai"),
+    ("o4", "openai"),
+    ("deepseek", "deepseek"),
+    ("google/", "google"),
+    ("gemini", "google"),
+    ("qwen", "qwen"),
+    ("meta-llama/", "meta"),
+    ("llama", "meta"),
+    ("mistralai/", "mistral"),
+    ("mistral", "mistral"),
+    ("codestral", "mistral"),
+];
+
+/// The router prefix that may come before the vendor in a model id, such as
+/// `openrouter/qwen/qwen3-coder-next`.
+const ROUTER_PREFIX: &str = "openrouter/";
+
+/// The family a model id names, or `None` when [`MODEL_FAMILIES`] holds no
+/// prefix for it.
+#[must_use]
+pub fn family_of_model(model: &str) -> Option<&'static str> {
+    let id = model.trim().to_lowercase();
+    let id = id.strip_prefix(ROUTER_PREFIX).unwrap_or(&id);
+    MODEL_FAMILIES
+        .iter()
+        .find(|(prefix, _)| id.starts_with(prefix))
+        .map(|(_, family)| *family)
+}
+
 /// One agent osf can drive.
 #[derive(Debug)]
 pub struct Agent {
     /// The name a person uses for it, and the name `osf.toml` selects it by.
     pub name: &'static str,
-    /// The model family it answers with. A reviewer whose family built a
-    /// change sits that change out.
-    pub family: &'static str,
+    /// Where the model family it answers with comes from. A reviewer whose
+    /// family built a change sits that change out.
+    pub family: Family,
     /// The command it is started with. A reviewer's schema and model flags
     /// are appended to it.
     pub command: &'static [&'static str],
@@ -163,7 +211,7 @@ pub const AGENTS: &[Agent] = &[
     // takes the task as an argument, so a shell reads the prompt file.
     Agent {
         name: "dsh",
-        family: "deepseek",
+        family: Family::Fixed("deepseek"),
         command: &[
             "sh",
             "-c",
@@ -189,11 +237,11 @@ pub const AGENTS: &[Agent] = &[
     },
     // omp is built on pi, and covers it. It keeps conversations under
     // `agent/sessions`, plus a folder of terminal sessions and one of logs.
-    // No session page. It runs many model families, so its family is its
-    // own name.
+    // No session page. It runs many model families, so its model decides
+    // its family.
     Agent {
         name: "omp",
-        family: "omp",
+        family: Family::ByModel,
         command: &["omp"],
         hooks: Hooks::Extension {
             file: ".omp/agent/hooks/osf-stop/index.js",
@@ -214,10 +262,10 @@ pub const AGENTS: &[Agent] = &[
     // opencode keeps configuration in one place and its data, including
     // session storage and tool output, in a data directory. A session can
     // be shared as a page on its host. It runs many model families, so its
-    // family is its own name.
+    // family comes from its model.
     Agent {
         name: "opencode",
-        family: "opencode",
+        family: Family::ByModel,
         command: &["opencode", "run", "--format", "json"],
         hooks: Hooks::PluginList {
             file: ".config/opencode/opencode.json",
@@ -244,7 +292,7 @@ pub const AGENTS: &[Agent] = &[
     // schema-matching message straight to standard output.
     Agent {
         name: "codex",
-        family: "openai",
+        family: Family::Fixed("openai"),
         command: &["codex", "exec"],
         hooks: Hooks::JsonFile {
             file: ".codex/hooks.json",
@@ -271,7 +319,7 @@ pub const AGENTS: &[Agent] = &[
     // answer then sits under the envelope's `structured_output` field.
     Agent {
         name: "claude",
-        family: "anthropic",
+        family: Family::Fixed("anthropic"),
         command: &["claude", "--print", "--output-format", "json"],
         hooks: Hooks::JsonFile {
             file: ".claude/settings.json",
@@ -294,6 +342,29 @@ pub const AGENTS: &[Agent] = &[
 ];
 
 impl Agent {
+    /// The model family this agent answers with when set to run `model`.
+    ///
+    /// # Errors
+    /// Names the agent and the model when the agent runs many families and
+    /// `model` is missing or names none that [`MODEL_FAMILIES`] holds.
+    pub fn family_for(&self, model: Option<&str>) -> Result<&'static str, String> {
+        match self.family {
+            Family::Fixed(family) => Ok(family),
+            Family::ByModel => match model {
+                None => Err(format!(
+                    "{} runs models from any family and has no model set, so its family is unknown",
+                    self.name
+                )),
+                Some(m) => family_of_model(m).ok_or_else(|| {
+                    format!(
+                        "{} is set to model \"{m}\", which names no known family",
+                        self.name
+                    )
+                }),
+            },
+        }
+    }
+
     /// The host and path prefix of a hosted session link, when the agent
     /// has one.
     #[must_use]
@@ -474,7 +545,9 @@ mod tests {
     fn every_agent_has_a_name_a_family_a_command_a_state_dir_and_a_session_path() {
         for a in AGENTS {
             assert!(!a.name.is_empty());
-            assert!(!a.family.is_empty(), "{}", a.name);
+            if let Family::Fixed(family) = a.family {
+                assert!(!family.is_empty(), "{}", a.name);
+            }
             assert!(!a.command.is_empty(), "{}", a.name);
             assert!(!a.state_dirs.is_empty(), "{}", a.name);
             assert!(!a.session_paths.is_empty(), "{}", a.name);
@@ -493,6 +566,54 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn agents_that_run_one_family_keep_it_whatever_the_model() {
+        let family = |name: &str, model: Option<&str>| {
+            AGENTS
+                .iter()
+                .find(|a| a.name == name)
+                .expect("agent in the list")
+                .family_for(model)
+        };
+        assert_eq!(family("codex", None), Ok("openai"));
+        assert_eq!(family("claude", Some("anything")), Ok("anthropic"));
+        assert_eq!(family("dsh", None), Ok("deepseek"));
+    }
+
+    #[test]
+    fn agents_that_run_many_families_take_the_family_from_their_model() {
+        let opencode = AGENTS
+            .iter()
+            .find(|a| a.name == "opencode")
+            .expect("opencode");
+        assert_eq!(
+            opencode.family_for(Some("openrouter/qwen/qwen3-coder-next")),
+            Ok("qwen")
+        );
+        assert_eq!(
+            opencode.family_for(Some("openrouter/anthropic/claude-sonnet-5")),
+            Ok("anthropic")
+        );
+        assert_eq!(
+            opencode.family_for(Some("claude-sonnet-5")),
+            Ok("anthropic")
+        );
+        assert_eq!(opencode.family_for(Some("gpt-5")), Ok("openai"));
+        assert_eq!(opencode.family_for(Some("openai/gpt-5")), Ok("openai"));
+        assert_eq!(opencode.family_for(Some("deepseek-v4")), Ok("deepseek"));
+    }
+
+    #[test]
+    fn a_many_family_agent_with_an_unknown_or_missing_model_has_no_family() {
+        let omp = AGENTS.iter().find(|a| a.name == "omp").expect("omp");
+        let unknown = omp
+            .family_for(Some("acme/frobnicator-1"))
+            .expect_err("unknown");
+        assert!(unknown.contains("acme/frobnicator-1"), "{unknown}");
+        let missing = omp.family_for(None).expect_err("no model");
+        assert!(missing.contains("no model set"), "{missing}");
     }
 
     /// A hook file that names nothing, or sits outside the agent's own
