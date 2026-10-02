@@ -50,7 +50,7 @@ This is an architectural direction to validate during architecture work. AHP in 
 
 The word `host` describes an AHP protocol role rather than the whole product.
 
-In VS Code's architecture, the Agents/editor UI is an AHP client and the separate Agent Host process is the AHP server. VS Code ships both roles as parts of one product. We should preserve the same logical distinction even if early factory deployments package several components together.
+In VS Code's architecture, the Agents/editor UI is an AHP client and the separate Agent Host process is the AHP server. VS Code ships the client and server roles as parts of one product. We should preserve the same logical distinction even if early factory deployments package several components together.
 
 ### Initial role assignment
 
@@ -301,7 +301,7 @@ The [ACP registry](https://agentclientprotocol.com/get-started/registry) contain
 - VS Code is both the reference AHP server and a built-in client.
 - VS Code 1.130 describes the Agent Host and its Copilot, Claude and Codex harness adapters as a progressive rollout. See the [July 2026 release notes](https://code.visualstudio.com/updates/v1_130).
 - VS Code documents remote hosts, browser/mobile access, session continuity across disconnected clients and WebSocket transport in its [Agent Host architecture](https://code.visualstudio.com/docs/agents/concepts/agent-host).
-- Microsoft publishes AHP client libraries in five languages, including Go, through the [AHP repository](https://github.com/microsoft/agent-host-protocol).
+- As of 15 August 2026, Microsoft publishes AHP client libraries in five languages, including Go, through the [AHP repository](https://github.com/microsoft/agent-host-protocol).
 
 Adoption is asymmetric: ACP has a multi-vendor agent and client ecosystem, while AHP has a substantial reference implementation and broad SDK coverage but remains predominantly Microsoft/VS Code-led.
 
@@ -355,7 +355,7 @@ This is highly aligned with:
 - concurrent clients viewing the same live agent session;
 - transferring attention between devices without transferring ownership of the underlying process.
 
-However, all these surfaces also need factory-native read models and commands. A thin client may therefore consume both standard AHP channels and a factory surface API through one logical gateway.
+However, all these surfaces also need factory-native read models and commands. A thin client may therefore consume the standard AHP channels and a factory surface API through one logical gateway.
 
 ### Long-running and disconnected execution
 

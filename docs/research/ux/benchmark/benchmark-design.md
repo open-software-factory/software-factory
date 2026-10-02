@@ -42,7 +42,7 @@ Start with a calibration pair:
 1. A fresh Codex session using the frozen Factory UX context and no additional design workflow.
 2. A fresh Codex session with byte-identical context plus Trystan-SA's design prompt and procedures.
 
-Both runs use the same model, reasoning level, starter commit, fixture, viewports, interaction budget and deterministic verification. Each run uses an isolated worktree and branch with no access to another candidate's output.
+The runs use the same model, reasoning level, starter commit, fixture, viewports, interaction budget and deterministic verification. Each run uses an isolated worktree and branch with no access to another candidate's output.
 
 The calibration validates the benchmark rather than declaring a final winner. If the protocol proves discriminating and fair, run the other shortlisted workflows in comparable batches. Claude Code and Claude Design are not part of the first calibration. Kimi K3 experiments remain deferred until access is available.
 
@@ -121,10 +121,10 @@ The fictional product is a multi-asset portfolio application with these reposito
 
 The dataset contains:
 
-- work items across epics, features, stories, tasks, bugs and chores;
+- 45 work items across epics, features, stories, tasks, bugs and chores, as of 2026-08-17;
 - explicit dependency and parallelism relationships;
 - 14 active or recently active agent sessions;
-- open PRs in different review and verification states;
+- 9 open PRs in different review and verification states, as of 2026-08-17;
 - local Windows and remote Linux and macOS execution;
 - deterministic test, build, security, data-quality and deployment evidence;
 - throughput, runway, retry and cost history;
@@ -140,7 +140,7 @@ Agents are implementing portfolio-refresh reliability work across the API, impor
 
 ### 2. Deterministic detection
 
-Following a coordinated release, reconciliation detects that fictional portfolios have displayed totals inconsistent with their underlying holdings after overlapping wallet and exchange refreshes.
+Following a coordinated release, reconciliation detects that, in the fixture of 2026-08-17, 27 fictional portfolios have displayed totals inconsistent with their underlying holdings after overlapping wallet and exchange refreshes.
 
 ### 3. Automated containment
 
@@ -242,7 +242,7 @@ Each initial direction must render enough of the connected slice to judge it:
 
 Directions must differ in composition, spatial model, interaction and visual hierarchy. Each includes an ordinary-language explanation of what it optimizes and sacrifices.
 
-After selection, the candidate completes the interactive scenario, required states and both revision rounds.
+After selection, the candidate completes the interactive scenario, required states and the revision rounds.
 
 ## Run protocol
 
@@ -279,7 +279,7 @@ Capture the observable prompts, responses and tool calls. Record token or cost d
 
 ## Failure handling
 
-- An infrastructure or harness failure gets one clean retry; preserve both attempts.
+- An infrastructure or harness failure gets one clean retry; preserve each attempt.
 - Candidate-generated build, interaction or accessibility failures remain part of the result.
 - One neutral continuation nudge is allowed after a stall and counts as operator intervention.
 - If the benchmark is ambiguous or defective, stop the pair, version the correction and rerun every affected candidate.

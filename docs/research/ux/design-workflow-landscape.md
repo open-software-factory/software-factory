@@ -63,7 +63,7 @@ The likely workflow will combine several of these types.
 | [UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | Large searchable catalogue of styles, palettes, typography, UX guidance, and stack-specific recommendations | Easy to invoke and explicitly supports dashboards; risk of recipe selection replacing product-specific design thinking | Reserve |
 | [taste-skill](https://github.com/Leonxlnx/taste-skill) | Strong aesthetic controls and explicit variance, motion, and density dials | The main skill explicitly excludes dashboards, data tables, and multi-step product UI; wrong primary scope | Exclude as primary; retain selected references |
 | [Hallmark](https://github.com/nutlope/hallmark) | Macrostructures, themes, a study mode, and anti-slop gates | Strong differentiation mechanism, but current examples and structure are weighted toward sites rather than dense operational products | Reserve |
-| [huashu-design](https://github.com/alchaincyf/huashu-design) | Conversational workflow, three directions, early previews, real asset protocol, Playwright inspection, broad artifact generation | Very good non-designer interaction model; broad, large, and less specifically product-application oriented | Reserve; borrow direction-selection protocol |
+| [huashu-design](https://github.com/alchaincyf/huashu-design) | Conversational workflow, three directions as of 2026-08-16, early previews, real asset protocol, Playwright inspection, broad artifact generation | Very good non-designer interaction model; broad, large, and less specifically product-application oriented | Reserve; borrow direction-selection protocol |
 | [ux-skill](https://github.com/Laith0003/ux-skill) | Deterministic synthesis, local decision ledger, manifests, and a CI linter | Technically interesting and aligned with deterministic authority, but very new and most comparative claims are self-reported | Research and QA experiment for now |
 | [Vercel Web Interface Guidelines](https://github.com/vercel-labs/web-interface-guidelines) | Concise interaction, accessibility, form, typography, performance, and state-review guidance | Strong implementation review layer; does not produce a design direction | Integrate as review input |
 | [extract-design-system](https://github.com/arvindrk/extract-design-system) | Repeatable extraction of starter tokens from a public reference site | Useful only for deliberate reference analysis; tokens are not a product design or permission to clone | Optional supporting tool |
@@ -227,7 +227,7 @@ Each candidate receives the same frozen brief:
 
 Each candidate must produce:
 
-1. Three materially different directions. A theme swap does not count.
+1. A minimum of three materially different directions. A theme swap does not count.
 2. A short explanation in ordinary language of what each direction optimizes.
 3. One chosen direction as an interactive prototype.
 4. Healthy, attention-required, loading/streaming, stale/disconnected, and empty states.
@@ -239,7 +239,7 @@ The operator should not be required to name typography scales, grid systems, rad
 
 ### Round-two finalists: Factory Floor and Flight Recorder
 
-The leading candidates advance to a harder test with these connected surfaces:
+The top three advance to a harder test with these connected surfaces:
 
 - a live factory-floor topology with real-event-driven movement, overlays, semantic zoom, and a selected work item;
 - a work-item Flight Recorder that moves from semantic history to exact evidence without becoming a wall of chat or tables.
