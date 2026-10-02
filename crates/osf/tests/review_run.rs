@@ -511,11 +511,11 @@ fn only_one_family_enabled_passes_under_the_interim_policy() {
     assert!(stdout.contains("interim policy"), "{stdout}");
 }
 
-/// Two families are configured but one times out on every round: the
-/// roster offers two families, so one answer is no quorum and the lens
-/// could not run.
+/// Two families are configured but one times out on every round: only one
+/// family answered, so under the interim policy the working family's
+/// critical round counts and decides the lens.
 #[test]
-fn a_family_that_times_out_leaves_the_lens_could_not_run() {
+fn a_family_that_times_out_leaves_the_working_family_its_critical_round() {
     let fakes = Fakes::new(
         &format!("[review]\ntimeout_seconds = {TIMEOUT_SECS}\n\n"),
         &[
@@ -530,21 +530,100 @@ fn a_family_that_times_out_leaves_the_lens_could_not_run() {
         &home,
         &["review", "run", "--base", "origin/main"],
     );
-    assert_eq!(
-        output.status.code(),
-        Some(2),
+    assert!(
+        output.status.success(),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("only one family answered"), "{stdout}");
+    assert!(stdout.contains("interim policy"), "{stdout}");
     let journal = journal_text(&home);
     let answered = journal
         .lines()
         .filter(|l| l.contains("\"reviewer\":\"claude\"") && l.contains("\"result\":\"answered\""))
         .count();
-    assert_eq!(answered, 2, "two rounds, no critical round: {journal}");
+    assert_eq!(answered, 3, "two rounds plus the critical round: {journal}");
+}
+
+/// Both families answer: each saved run holds a critical round marked as
+/// such, and the reduce step ignores every critical round, so the lens is
+/// decided by the two families' own two rounds and the interim policy is
+/// not named.
+#[test]
+fn a_critical_round_is_saved_by_every_reviewer_and_ignored_when_both_families_answer() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("critical-ignored", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-critical-ignored");
+    let mut files = Vec::new();
+    for name in ["codex", "claude"] {
+        let file = saved
+            .join(format!("{name}.json"))
+            .to_string_lossy()
+            .into_owned();
+        let home = common::isolated_home(&format!("review-run-critical-ignored-{name}"));
+        let job = fakes.run(
+            &repo.dir,
+            &home,
+            &[
+                "review",
+                "run",
+                "--reviewer",
+                name,
+                "--out",
+                &file,
+                "--base",
+                "origin/main",
+            ],
+        );
+        assert!(
+            job.status.success(),
+            "{name}: {}",
+            String::from_utf8_lossy(&job.stderr)
+        );
+        let run: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&file).expect("saved run reads"))
+                .expect("saved run is JSON");
+        let flags: Vec<bool> = run
+            .pointer("/lenses/0/attempts")
+            .and_then(serde_json::Value::as_array)
+            .expect("attempts")
+            .iter()
+            .map(|a| {
+                a.get("critical")
+                    .and_then(serde_json::Value::as_bool)
+                    .expect("critical flag")
+            })
+            .collect();
+        assert_eq!(flags, vec![false, false, true], "{name}: {run}");
+        files.push(file);
+    }
+    let reduce_home = common::isolated_home("review-run-critical-ignored-reduce");
+    let mut args = vec!["review", "reduce", "--base", "origin/main"];
+    args.extend(files.iter().map(String::as_str));
+    let reduced = fakes.run(&repo.dir, &reduce_home, &args);
+    assert!(reduced.status.success(), "{}", stdout_of(&reduced));
+    assert!(
+        !stdout_of(&reduced).contains("interim policy"),
+        "{}",
+        stdout_of(&reduced)
+    );
+    let journal = journal_text(&reduce_home);
+    assert!(
+        !journal.contains("\"round\":3"),
+        "no critical round is journaled: {journal}"
+    );
+    let answers = journal
+        .lines()
+        .filter(|l| l.contains("\"result\":\"answered\""))
+        .count();
+    assert_eq!(answers, 4, "two rounds for each family: {journal}");
 }
 
 #[test]
@@ -1994,7 +2073,9 @@ fn one_run_per_reviewer_then_reduce_reaches_the_single_runs_decision() {
     }
 }
 
-/// A reviewer whose job left no file counts as could-not-run, never as a pass.
+/// A reviewer whose job left no file counts as could-not-run for itself. The
+/// other family then answered alone, so the interim policy lets its critical
+/// round decide the lens.
 #[test]
 fn a_reviewer_with_no_saved_run_is_could_not_run_at_reduce() {
     let fakes = Fakes::new(
@@ -2029,9 +2110,9 @@ fn a_reviewer_with_no_saved_run_is_could_not_run_at_reduce() {
         &reduce_home,
         &["review", "reduce", "--base", "origin/main", &file],
     );
-    assert_eq!(reduced.status.code(), Some(2));
+    assert!(reduced.status.success(), "{}", stdout_of(&reduced));
     assert!(
-        stdout_of(&reduced).contains("only one family answered"),
+        stdout_of(&reduced).contains("interim policy"),
         "{}",
         stdout_of(&reduced)
     );

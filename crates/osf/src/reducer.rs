@@ -45,12 +45,11 @@ pub enum Verdict {
 ///
 /// Fewer than [`REQUIRED_FAMILIES`] distinct families among the answers
 /// that are present is [`LensVerdict::CouldNotRun`], unless
-/// `single_family_available` says the roster only ever offered one
-/// non-building family to begin with: the interim policy then lets that
-/// lone family's extra critical round (run by the caller before this is
-/// called) decide the lens on its own, rather than blocking every review on
-/// a second family nobody has configured yet. Two or more families
-/// available relaxes nothing; the full quorum is still required. A finding
+/// `single_family_available` says exactly one family answered: the interim
+/// policy then lets that lone family's critical round (which the caller
+/// includes in `answers` only then) decide the lens on its own, rather than
+/// blocking the review on a family that did not answer. With it false, the
+/// full quorum is required. A finding
 /// with severity blocker, or action must-fix, among those answers'
 /// findings vetoes the lens whatever its score. Otherwise the lens score is
 /// the mean, over the answers, of the mean of each answer's own criterion

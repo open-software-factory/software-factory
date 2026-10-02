@@ -39,13 +39,13 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// judgment.
 const ROUNDS_PER_FAMILY: usize = 2;
 
-/// The interim policy's own extra round: when the roster offers only one
-/// non-building family, that lone family is asked once more beyond
-/// [`ROUNDS_PER_FAMILY`], as the critical round [`reducer::decide_lens`]
-/// requires before it will let one family decide a lens on its own. Remove
-/// this, and the policy that goes with it, once a second family is a real
+/// The interim policy's critical round. Every reviewer that answered asks
+/// once more beyond [`ROUNDS_PER_FAMILY`] and saves it marked as critical,
+/// because it cannot know whether another family answered. [`reduce`] counts a
+/// family's critical round only when exactly one family answered. Remove this,
+/// and the policy that goes with it, once a second family is a real
 /// requirement rather than a goal.
-const INTERIM_EXTRA_ROUNDS: usize = 1;
+const CRITICAL_ROUND: u32 = 3;
 
 const ACTOR: &str = "osf";
 
@@ -100,6 +100,10 @@ pub struct Attempt {
     pub notes: Vec<String>,
     /// The reviewer's own attempt number for this lens, one-based.
     pub round: u32,
+    /// Whether this is the critical round. [`reduce`] counts it only when
+    /// exactly one family answered.
+    #[serde(default)]
+    pub critical: bool,
     /// The validated answer, its findings not yet checked against the files.
     pub answer: Option<Answer>,
 }
@@ -161,18 +165,6 @@ impl Setup {
             .iter()
             .filter(|lens| self.selected.contains(&lens.name))
             .collect()
-    }
-
-    /// Whether the roster offers only one non-building family: the interim
-    /// policy then lets that family decide a lens alone.
-    fn single_family_available(&self) -> bool {
-        let families: BTreeSet<&str> = self
-            .roster
-            .iter()
-            .filter(|r| r.family_error.is_none() && !r.is_excluded_by(&self.skip_families))
-            .map(|r| r.family.as_str())
-            .collect();
-        families.len() == 1
     }
 }
 
@@ -252,7 +244,6 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
         pull_request: req.pull_request,
     };
     let idle = reviewer.family_error.is_some() || reviewer.is_excluded_by(&setup.skip_families);
-    let lone = setup.single_family_available();
     // Written once, before any reviewer starts, and removed when this run ends.
     let change = if idle {
         None
@@ -286,7 +277,7 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
                 Ok(metadata) => {
                     let file = folder.file().to_string_lossy().into_owned();
                     let prompt = review_prompt::render(&setup.prompt, lens, &metadata, &file);
-                    run.attempts = attempts_for(req, reviewer, &prompt, lens, setup.timeout, lone);
+                    run.attempts = attempts_for(req, reviewer, &prompt, lens, setup.timeout);
                 }
             }
             run
@@ -298,24 +289,28 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
     }
 }
 
-/// [`ROUNDS_PER_FAMILY`] independent rounds, and, when `lone` and the
-/// reviewer answered at all, [`INTERIM_EXTRA_ROUNDS`] more.
+/// [`ROUNDS_PER_FAMILY`] independent rounds, and, when the reviewer answered
+/// at all, the critical round, saved marked as critical.
 fn attempts_for(
     req: &Request,
     reviewer: &Reviewer,
     prompt: &str,
     lens: &Lens,
     timeout: Duration,
-    lone: bool,
 ) -> Vec<Attempt> {
     let mut attempts: Vec<Attempt> = (1..=ROUNDS_PER_FAMILY)
-        .map(|round| attempt_once(req, reviewer, prompt, lens, timeout, as_u32(round)))
+        .map(|round| attempt_once(req, reviewer, prompt, lens, timeout, as_u32(round), false))
         .collect();
-    if lone && attempts.iter().any(|a| a.answer.is_some()) {
-        for extra in 1..=INTERIM_EXTRA_ROUNDS {
-            let round = as_u32(ROUNDS_PER_FAMILY + extra);
-            attempts.push(attempt_once(req, reviewer, prompt, lens, timeout, round));
-        }
+    if attempts.iter().any(|a| a.answer.is_some()) {
+        attempts.push(attempt_once(
+            req,
+            reviewer,
+            prompt,
+            lens,
+            timeout,
+            CRITICAL_ROUND,
+            true,
+        ));
     }
     attempts
 }
@@ -329,6 +324,7 @@ fn attempt_once(
     lens: &Lens,
     timeout: Duration,
     round: u32,
+    critical: bool,
 ) -> Attempt {
     let (outcome, notes) = reviewers::run_one_noted(reviewer, prompt, lens, req.root, timeout);
     let (result, reason, answer) = match outcome {
@@ -345,6 +341,7 @@ fn attempt_once(
         reason,
         notes,
         round,
+        critical,
         answer,
     }
 }
@@ -362,7 +359,6 @@ pub fn reduce(req: &Request, runs: &[ReviewerRun], state_dir: &Path) -> Result<R
 }
 
 fn reduce_with(req: &Request, setup: &Setup, runs: &[ReviewerRun], state_dir: &Path) -> RunOutcome {
-    let lone = setup.single_family_available();
     let run_id = format!("review-{}-{}", now_millis(), std::process::id());
     let mut journal_error = None;
     let mut journal = match Journal::open(state_dir, &run_id) {
@@ -380,7 +376,7 @@ fn reduce_with(req: &Request, setup: &Setup, runs: &[ReviewerRun], state_dir: &P
     let mut findings = Vec::new();
 
     for lens in selected {
-        let (verdict, judged) = judge_lens(req, setup, runs, lens, lone);
+        let (verdict, judged, interim) = judge_lens(req, setup, runs, lens);
         for attempt in judged {
             if let Some(journal) = journal.as_mut() {
                 let event = attempt.into_event(&lens.name);
@@ -393,7 +389,7 @@ fn reduce_with(req: &Request, setup: &Setup, runs: &[ReviewerRun], state_dir: &P
                 findings.extend(attempt.kept_findings(&lens.name));
             }
         }
-        let label = verdict_label(&verdict, lone);
+        let label = verdict_label(&verdict, interim);
         lines.push(format!("{}: {label}", lens.name));
         lens_summaries.push((lens.name.clone(), label));
         decided.push((lens, verdict));
@@ -544,18 +540,20 @@ impl Judged {
     }
 }
 
-/// One lens's verdict from every roster reviewer's attempts at it. A
-/// reviewer whose family built this change is never counted: it is not an
-/// independent second opinion on its own change.
+/// One lens's verdict from every roster reviewer's attempts at it, and
+/// whether the interim policy decided it: exactly one family answered, so
+/// that family's critical round counts. With no family or two or more, the
+/// critical rounds are ignored. A reviewer whose family built this change is
+/// never counted: it is not an independent second opinion on its own change.
 fn judge_lens(
     req: &Request,
     setup: &Setup,
     runs: &[ReviewerRun],
     lens: &Lens,
-    lone: bool,
-) -> (LensVerdict, Vec<Judged>) {
+) -> (LensVerdict, Vec<Judged>, bool) {
     let mut judged: Vec<Judged> = Vec::new();
     let mut context_error: Option<String> = None;
+    let mut ran: Vec<(&Reviewer, &LensRun)> = Vec::new();
     for reviewer in &setup.roster {
         if let Some(reason) = &reviewer.family_error {
             judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
@@ -574,13 +572,7 @@ fn judge_lens(
             Some(run) if run.context_error.is_some() => {
                 context_error = context_error.or_else(|| run.context_error.clone());
             }
-            Some(run) if !run.attempts.is_empty() => {
-                judged.extend(
-                    run.attempts
-                        .iter()
-                        .map(|saved| judge_attempt(req, reviewer, saved)),
-                );
-            }
+            Some(run) if !run.attempts.is_empty() => ran.push((reviewer, run)),
             _ => judged.push(Judged::missing(
                 reviewer,
                 "could-not-run",
@@ -589,15 +581,34 @@ fn judge_lens(
         }
     }
     if let Some(reason) = context_error {
-        return (LensVerdict::CouldNotRun(reason), Vec::new());
+        return (LensVerdict::CouldNotRun(reason), Vec::new(), false);
+    }
+    let answered: BTreeSet<&str> = ran
+        .iter()
+        .filter(|(_, run)| {
+            run.attempts
+                .iter()
+                .any(|a| !a.critical && a.result == "answered" && a.answer.is_some())
+        })
+        .map(|(reviewer, _)| reviewer.family.as_str())
+        .collect();
+    let interim = answered.len() == 1;
+    for (reviewer, run) in ran {
+        let counts_critical = interim && answered.contains(reviewer.family.as_str());
+        judged.extend(
+            run.attempts
+                .iter()
+                .filter(|saved| !saved.critical || counts_critical)
+                .map(|saved| judge_attempt(req, reviewer, saved)),
+        );
     }
     let answers: Vec<LensAnswer> = judged.iter().map(|a| a.lens_answer.clone()).collect();
     let verdict = name_builder_exclusion(
-        reducer::decide_lens(lens, &answers, lone),
+        reducer::decide_lens(lens, &answers, interim),
         &setup.skip_families,
         &judged,
     );
-    (verdict, judged)
+    (verdict, judged, interim)
 }
 
 /// `saved`, with an answer's findings checked against the files under
@@ -698,9 +709,8 @@ fn redact_reviewer_text(root: &Path, config_root: &Path, text: &str) -> String {
 
 /// One lens's verdict, rendered for a journal event's `lenses` list and for
 /// the printed per-lens line. `interim` names the interim policy on a
-/// `Pass` or `Fail`: it is true when the roster offers only one non-building
-/// family, so that family's own extra critical round decided the lens (see
-/// [`INTERIM_EXTRA_ROUNDS`]).
+/// `Pass` or `Fail`: it is true when exactly one family answered, so that
+/// family's own critical round counted toward the lens (see [`CRITICAL_ROUND`]).
 fn verdict_label(verdict: &LensVerdict, interim: bool) -> String {
     let interim = if interim {
         ", interim policy: one family available"
@@ -786,6 +796,7 @@ mod tests {
                     reason: Some("timed out".to_string()),
                     notes: vec!["note".to_string()],
                     round: 2,
+                    critical: false,
                     answer: None,
                 }],
             }],

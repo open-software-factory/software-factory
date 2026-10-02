@@ -164,6 +164,14 @@ file and runs `osf review reduce <files>`. It checks the findings,
 decides, and posts. It alone gets the code host's token. A reviewer whose
 job left no file counts as could-not-run, and could-not-run never passes.
 
+Each reviewer asks for two rounds for each lens. A reviewer that answered
+also runs one more round, the critical round, and saves it marked as
+critical. A reviewer job cannot know whether another family answered. So
+`osf review reduce` counts a family's critical round only when exactly one
+family answered. This is the interim policy of decision 0016. In every
+other case, `osf review reduce` ignores the critical rounds. The cost is one
+more round for each reviewer for each lens.
+
 The reviewer works inside a read-only checkout of the change at its head
 commit. The reviewer has file tools only: read, grep and glob. It has no
 shell. Before the reviewer starts, `osf` writes the commit log and the
