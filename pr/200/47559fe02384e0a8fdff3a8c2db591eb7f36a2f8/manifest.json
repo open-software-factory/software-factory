@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "pr-lens-workflow-failure-reason",
+    "headSha": "47559fe02384e0a8fdff3a8c2db591eb7f36a2f8",
+    "contentHash": "f090a90b522d1f2854a1bc6e1153082b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "workflow-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workflow-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0f42531d7ca1601817c1fc0ae15dccdd",
+      "bytes": 14117,
+      "width": 1708,
+      "height": 418,
+      "animated": false,
+      "path": "workflow-architecture-light-0f42531d7ca1601817c1fc0ae15dccdd.svg"
+    },
+    {
+      "id": "workflow-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workflow-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "448637bbd82b68f7177bd4e6a4511c4b",
+      "bytes": 14231,
+      "width": 1708,
+      "height": 418,
+      "animated": false,
+      "path": "workflow-architecture-dark-448637bbd82b68f7177bd4e6a4511c4b.svg"
+    },
+    {
+      "id": "failure-report-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "failure-report-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bac28c8ee7614734c4f3797064254bd5",
+      "bytes": 12410,
+      "width": 2066,
+      "height": 337,
+      "animated": true,
+      "path": "failure-report-flow-view-light-bac28c8ee7614734c4f3797064254bd5.svg"
+    },
+    {
+      "id": "failure-report-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "failure-report-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dce282a6a75ebf1dffea7860cca01cbb",
+      "bytes": 12535,
+      "width": 2066,
+      "height": 337,
+      "animated": true,
+      "path": "failure-report-flow-view-dark-dce282a6a75ebf1dffea7860cca01cbb.svg"
+    }
+  ]
+}

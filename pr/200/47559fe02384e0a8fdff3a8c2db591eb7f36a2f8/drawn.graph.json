@@ -1,0 +1,431 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "pr-lens-workflow-failure-reason",
+  "generatedAt": "2026-10-02T08:18:13.868Z",
+  "title": "PR Lens workflow: guaranteed failure reason",
+  "summary": "The PR Lens GitHub Actions workflow previously assumed the analyze step always wrote a reason file before failing; when the model call died early, the failure-reporting step read a missing file and the whole job broke instead of posting a useful comment. This change seeds the reason file with a fallback message before the analyze step runs, and makes the reporting step tolerate an empty or absent file by falling back to a literal string. The result is that a failed model call always produces a readable PR comment rather than a secondary shell error.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "af26518ebe6f1d78a43e0871da28d6df919ac2aa",
+      "ref": "af26518ebe6f1d78a43e0871da28d6df919ac2aa"
+    },
+    "head": {
+      "sha": "47559fe02384e0a8fdff3a8c2db591eb7f36a2f8",
+      "ref": "47559fe02384e0a8fdff3a8c2db591eb7f36a2f8"
+    },
+    "pullRequest": {
+      "number": 200,
+      "url": "https://github.com/open-software-factory/software-factory/pull/200"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "github-events",
+      "label": "GitHub Events",
+      "subtitle": "pull_request triggers",
+      "order": 0,
+      "delta": "unchanged"
+    },
+    {
+      "id": "workflow-jobs",
+      "label": "Workflow Jobs",
+      "subtitle": "ubuntu runner steps",
+      "order": 1,
+      "delta": "modified"
+    },
+    {
+      "id": "runner-fs",
+      "label": "Runner Filesystem",
+      "subtitle": "$RUNNER_TEMP scratch files",
+      "order": 2,
+      "delta": "modified"
+    },
+    {
+      "id": "osf-cli",
+      "label": "OSF CLI",
+      "subtitle": "target/release/osf",
+      "order": 3,
+      "delta": "unchanged"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "pull_request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "github-events",
+      "summary": "The GitHub pull_request webhook that starts the workflow.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 1,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "analyze-step",
+      "label": "analyze step",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow-jobs",
+      "subtitle": "npx @coldtea/pr-lens-cli analyze",
+      "summary": "Runs the PR Lens CLI to produce the graph document. Now seeds the reason file with a fallback message before invoking the CLI, so a crash before the CLI writes anything still leaves a readable reason.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 160,
+          "endLine": 185
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "report-step",
+      "label": "report failure step",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow-jobs",
+      "subtitle": "writes section.md and calls osf pr section write",
+      "summary": "Reads the reason file and posts a failure comment. Now checks that the file exists and is non-empty before reading it, falling back to a literal string otherwise.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 186,
+          "endLine": 200
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "analyze-reason-file",
+      "label": "analyze-reason.txt",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "runner-fs",
+      "subtitle": "$RUNNER_TEMP/analyze-reason.txt",
+      "summary": "Scratch file carrying the failure reason from the analyze step to the report step. Previously only written by the CLI on failure; now pre-seeded with a fallback message.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 167,
+          "endLine": 170
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "section-file",
+      "label": "section.md",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "runner-fs",
+      "subtitle": "$RUNNER_TEMP/section.md",
+      "summary": "Markdown body of the PR comment, assembled by the report step.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 193,
+          "endLine": 195
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-cli",
+      "label": "pr-lens CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "@coldtea/pr-lens-cli",
+      "summary": "The published CLI that performs the model call and writes the reason file on failure.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 170,
+          "endLine": 180
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-binary",
+      "label": "osf binary",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "./target/release/osf",
+      "summary": "The factory CLI that writes the PR section comment.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 196,
+          "endLine": 198
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "event-triggers-analyze",
+      "from": "pull-request-event",
+      "to": "analyze-step",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "pull_request",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "analyze-seeds-reason",
+      "from": "analyze-step",
+      "to": "analyze-reason-file",
+      "kind": "data",
+      "delta": "added",
+      "label": "fallback message",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "New: the analyze step writes a fallback reason before invoking the CLI, guaranteeing the file exists even if the CLI dies early.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 167,
+          "endLine": 170
+        }
+      ]
+    },
+    {
+      "id": "cli-writes-reason",
+      "from": "pr-lens-cli",
+      "to": "analyze-reason-file",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "failure reason",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI overwrites the reason file with the real error when it fails.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 170,
+          "endLine": 180
+        }
+      ]
+    },
+    {
+      "id": "report-reads-reason",
+      "from": "report-step",
+      "to": "analyze-reason-file",
+      "kind": "data",
+      "delta": "modified",
+      "label": "head -c 300",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Now guarded by a non-empty check, so a missing or empty file no longer aborts the step.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 189,
+          "endLine": 195
+        }
+      ]
+    },
+    {
+      "id": "report-writes-section",
+      "from": "report-step",
+      "to": "section-file",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "printf",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "osf-reads-section",
+      "from": "osf-binary",
+      "to": "section-file",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "--file",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "report-calls-osf",
+      "from": "report-step",
+      "to": "osf-binary",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "pr section write",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "failure-report-flow",
+      "title": "Model call failure to PR comment",
+      "summary": "How a failed model call becomes a readable PR comment, including the new fallback paths that keep the reporting step from aborting.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "pull-request-event",
+          "label": "pull_request"
+        },
+        {
+          "node": "analyze-step",
+          "label": "analyze"
+        },
+        {
+          "node": "analyze-reason-file",
+          "label": "reason.txt"
+        },
+        {
+          "node": "report-step",
+          "label": "report"
+        },
+        {
+          "node": "osf-binary",
+          "label": "osf"
+        }
+      ],
+      "messages": [
+        {
+          "id": "msg-trigger",
+          "from": "pull-request-event",
+          "to": "analyze-step",
+          "label": "pull_request event",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "msg-seed",
+          "from": "analyze-step",
+          "to": "analyze-reason-file",
+          "label": "seed fallback reason",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "New: guarantees the file exists before the CLI runs.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 167,
+              "endLine": 170
+            }
+          ]
+        },
+        {
+          "id": "msg-cli-fail",
+          "from": "analyze-step",
+          "to": "analyze-reason-file",
+          "label": "CLI writes real reason (on failure)",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Overwrites the fallback when the CLI reports a reason.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 170,
+              "endLine": 180
+            }
+          ]
+        },
+        {
+          "id": "msg-read",
+          "from": "report-step",
+          "to": "analyze-reason-file",
+          "label": "read reason (guarded)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Now checks -s before reading; falls back to a literal string.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 189,
+              "endLine": 195
+            }
+          ]
+        },
+        {
+          "id": "msg-write-section",
+          "from": "report-step",
+          "to": "osf-binary",
+          "label": "pr section write",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 196,
+              "endLine": 198
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 5,
+    "deletions": 1,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workflow-architecture",
+      "title": "Workflow architecture",
+      "lens": "architecture",
+      "summary": "The PR Lens workflow jobs, the runner scratch files they exchange, and the external CLIs they invoke.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "failure-report-flow-view",
+      "title": "Failure report flow",
+      "lens": "data-flow",
+      "summary": "The ordered sequence from pull_request event through analyze, reason file, report step, and osf comment write.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "failure-report-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
