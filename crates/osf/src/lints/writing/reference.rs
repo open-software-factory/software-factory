@@ -494,9 +494,7 @@ fn is_a_measured_value(text: &str, word: regex::Match<'_>, word_lower: &str) -> 
     let joins_a_hyphenated_name = text
         .get(..word.start())
         .is_some_and(|before| before.ends_with('-') && before.len() > 1);
-    let is_a_participle =
-        word_lower.len() >= 5 && word_lower.ends_with("ed") && !word_lower.ends_with("eed");
-    is_quantity_word || is_a_single_letter || joins_a_hyphenated_name || is_a_participle
+    is_quantity_word || is_a_single_letter || joins_a_hyphenated_name || is_a_participle(word_lower)
 }
 
 /// A list item that is only a lower-case label and a number, such as `compact rail 60`.
@@ -621,7 +619,8 @@ fn above_reference_candidates(text: &str, raw: &str) -> Vec<Candidate> {
         .filter(|m| {
             let rest = text.get(m.end()..).unwrap_or("");
             let raw_rest = raw.get(m.end()..).unwrap_or("");
-            closes_a_clause(rest, raw_rest) && !is_spatial_pair(rest)
+            let is_a_noun = follows_a_determiner(text, m.start());
+            (is_a_noun || closes_a_clause(rest, raw_rest)) && !is_spatial_pair(rest)
         })
         .map(|m| Candidate {
             kind: Kind::Phrase,
@@ -644,21 +643,36 @@ fn closes_a_clause(rest: &str, raw_rest: &str) -> bool {
     match trimmed.chars().next() {
         None => true,
         Some(c) if c.is_alphanumeric() => {
-            let word = next_word(trimmed);
-            let after_word = trimmed
-                .split_once(char::is_whitespace)
-                .map_or("", |(_, r)| r);
+            let word_end = trimmed
+                .find(|c: char| !c.is_alphanumeric())
+                .unwrap_or(trimmed.len());
+            let word = trimmed.get(..word_end).unwrap_or("").to_lowercase();
+            let after_word = trimmed.get(word_end..).unwrap_or("");
             CLAUSE_FOLLOWERS.contains(&word.as_str())
-                || (word.len() >= 5
-                    && word.ends_with("ed")
-                    && !word.ends_with("eed")
-                    && closes_a_clause(after_word, after_word))
+                || (is_a_participle(&word) && closes_a_clause(after_word, after_word))
         }
         Some(c) => matches!(
             c,
             '.' | ',' | ';' | ':' | '!' | '?' | ')' | '|' | '\u{2014}' | '\u{2013}'
         ),
     }
+}
+
+/// A lower-case word that reads as a past participle, such as `recommended` or `returned`.
+fn is_a_participle(word_lower: &str) -> bool {
+    word_lower.len() >= 5 && word_lower.ends_with("ed") && !word_lower.ends_with("eed")
+}
+
+/// Whether the word right before `end` is a determiner, so a word after it is a noun: `the above`.
+fn follows_a_determiner(text: &str, end: usize) -> bool {
+    text.get(..end)
+        .and_then(|before| before.split_whitespace().next_back())
+        .is_some_and(|w| {
+            matches!(
+                w.to_lowercase().as_str(),
+                "the" | "this" | "these" | "those"
+            )
+        })
 }
 
 /// Whether the sentence goes on to say `below`, the other half of a pair of places.
@@ -1391,6 +1405,27 @@ mod tests {
             Kind::Phrase,
             "above"
         ));
+    }
+
+    /// A participle that closes its clause with a comma is a reduced relative clause, whatever follows the comma.
+    #[test]
+    fn phrase_above_before_a_participle_and_a_comma_is_a_reference() {
+        assert!(has(
+            "Snap-to-edge, which the plan above recommended, versus staying put, is one option.",
+            Kind::Phrase,
+            "above"
+        ));
+    }
+
+    /// A determiner right before `above` makes it a noun, so what follows never turns it into a preposition.
+    #[test]
+    fn phrase_the_above_is_a_noun_whatever_follows() {
+        assert!(has(
+            "Attention items point at any of the above through related IDs.",
+            Kind::Phrase,
+            "above"
+        ));
+        assert!(has_no_phrase("Place the label above the field."));
     }
 
     #[test]
