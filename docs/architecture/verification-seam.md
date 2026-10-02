@@ -8,7 +8,7 @@ The issue for this design is [open-software-factory/software-factory#26 (verify 
 
 ## Purpose
 
-One seam runs the same checks at five checkpoints. An agent gets its findings while it edits. A pull request cannot merge until the factory's aggregation check and the adopter's own required jobs all pass. Every run leaves a journal that survives the machine it ran on.
+One seam runs the same checks at every checkpoint: the harness hook, pre-commit, pre-push, the pull request and the schedule. An agent gets its findings while it edits. A pull request cannot merge until the factory's aggregation check and the adopter's own required jobs all pass. Every run leaves a journal that survives the machine it ran on.
 
 The seam serves the engineer who owns the outcome, running one issue to one pull request unattended. The first adopter is this repository. The second ecosystem is .NET, and Java, TypeScript, Python and Go follow, one at a time.
 
@@ -332,7 +332,7 @@ Each one records the options weighed and the option taken.
 
 | Record | What it settles |
 | --- | --- |
-| The check is the unit | Tagged moon tasks, five checkpoints, the name checkpoint, moon under every factory check, no fixed budget. |
+| The check is the unit | Tagged moon tasks, the checkpoints, the name checkpoint, moon under every factory check, no fixed budget. |
 | Slots, check recognisers and slot attestations | At least as strong, the level of an empty slot, the slot tables in `osf.toml`. |
 | The aggregation check | Parallel checks with one final check, run in the adopter's repository, results found by content, reviews as reported checks. |
 | The journal at every checkpoint | Local buffer, flush on push and on a timer, orphan branch and object store as sinks, transcripts on the same path. |
@@ -341,7 +341,7 @@ Each one records the options weighed and the option taken.
 ## Later
 
 - The object store sink, as a fast follow after the orphan branch.
-- The four ecosystems after .NET, one at a time, each driven by a real repository.
+- The ecosystems after .NET (Java, TypeScript, Python and Go), one at a time, each driven by a real repository.
 - The raw transcript archive's internals.
 - The selection policy that chooses which issue the engine works next.
 - The confidence model over check results, once the journal holds enough runs to measure one.
