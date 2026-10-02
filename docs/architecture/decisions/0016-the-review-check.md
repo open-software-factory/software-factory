@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Date: 2026-09-25, amended 2026-10-03: the review prompt is a file, a reviewer receives metadata and reads the change with read-only tools, each reviewer runs in a CI job of its own with only its own key, and the roster is the agent list in `crates/osf/src/agents.rs`.
+Date: 2026-09-25, amended 2026-10-03: the review prompt is a file, a reviewer receives metadata and reads a clean copy of the change with read-only tools, each reviewer runs in a CI job of its own with only its own key, and the roster is the agent list in `crates/osf/src/agents.rs`.
 
 ## Context
 
@@ -47,7 +47,7 @@ The reason for the prompt file and for metadata is the owner's observation that 
 
 | Option | What it meant | Outcome |
 |---|---|---|
-| Metadata, and read-only tools over a checkout of the change | The reviewer gets the facts that identify the change and reads whatever else it needs. | Taken. |
+| Metadata, and read-only tools over a clean copy of the change | The reviewer gets the facts that identify the change and reads whatever else it needs. The copy holds the change's files and no coding agent's settings. | Taken. |
 | A pasted excerpt of the change, under a fixed size cap | osf chooses the code the reviewer sees. | Set aside. A reviewer given only limited context "will raise irrelevant things". |
 
 **How a reviewer with tools stays contained.**
@@ -152,16 +152,18 @@ A reviewer receives metadata about the change in place of a pasted excerpt of it
 - the linked decision records
 - the lens questions
 
-The reviewer reads whatever else it needs with read-only tools over a checkout of the change. There is no fixed cap on context size. A reviewer given only limited context "will raise irrelevant things", and a cap decides for the reviewer what is relevant.
+The reviewer reads whatever else it needs with read-only tools over a clean copy of the change. The copy is a temporary folder that holds the change's files. It holds no coding agent's settings, plugins or instruction files, and no symbolic link, so the change cannot configure the agent that reviews it. There is no fixed cap on context size. A reviewer given only limited context "will raise irrelevant things", and a cap decides for the reviewer what is relevant.
 
 ### The reviewer sandbox
 
 Tools are safe to give a reviewer because of the limits below.
 
-- The tools are read-only: read, search and list. There are no write tools.
-- There is no shell beyond read-only use.
+- The tools cannot write files or change anything. Claude Code, opencode and omp have file tools only: read, search and list. They have no shell. Codex runs in its read-only sandbox, which stops writes and changes. Its shell can still read any file the reviewer's user can read.
+- Because of that, a reviewer's environment and home hold no secret beyond its own provider's key.
+- osf copies no login file into the home when a key in the environment is enough to sign in. It also removes the exact value of every secret the job holds from each answer, in plain, base64 and hex form.
+- The reviewer starts in a clean copy of the change, with no coding agent's settings in it.
 - The network is open only to that reviewer's own model provider.
-- The quote check stays. Every finding must cite code that exists, as the next section sets out.
+- The quote check stays. Every finding must cite code that exists, as the next section sets out. It reads the real checkout of the change.
 
 [Decision 0020 (who can post a review result)](0020-who-can-post-a-review-result.md) holds how the keys and the jobs are arranged around this sandbox.
 
@@ -170,6 +172,8 @@ Tools are safe to give a reviewer because of the limits below.
 Each answer must match a JSON Schema versioned with osf. An answer holds findings and a score from 0 to 1 for each criterion of the lens. Each finding has a file, a line, the quoted code, a severity and an action. An answer that does not match is asked for once more, and then counted as missing.
 
 The schema has no way to raise a finding about something missing: a missing test, a missing migration, an unmet acceptance criterion. Every finding needs real code to quote. Spec and acceptance and test quality are both must-run lenses. Each loses some of its most useful findings to this limit, until the schema grows a way to represent an absence.
+
+The reducer treats every saved answer as input to check. It checks each one again against the schema and the lens, as the reviewer's own job does. The lens name must match. Every criterion needs a score, and each score must be between 0 and 1. A saved file counts only for the reviewer its file name gives, and no two files may carry one name. A file that fails a check is could-not-run for that reviewer. The reducer works out the round and the critical flag from the order of the attempts in the file.
 
 Deterministic code then checks every finding. A finding counts only when its quoted code exists at the file and line it names. That confirms the quote is real. It does not check whether the finding's claim about that code is true. A false severity or description attached to a genuine quote passes unchecked.
 

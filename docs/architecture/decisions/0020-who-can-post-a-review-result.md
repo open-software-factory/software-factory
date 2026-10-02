@@ -20,11 +20,15 @@ That reason is superseded. Reading the pull request as data still holds, because
 
 Prompt injection is still a risk. The design contains it with these limits:
 
-- A reviewer has read-only tools only, with no write tools and no shell beyond read-only use.
+- A reviewer cannot write files or change anything. Claude Code, opencode and omp have file tools only, with no shell. Codex runs in its read-only sandbox, which stops writes and changes. Its shell can still read any file the reviewer's user can read.
 - A reviewer holds no secret beyond its own provider's key, because each reviewer runs in a CI job of its own. Only the final job holds the code-host token.
+- That stays true for a reviewer that can read any file, because the job passes in that one key only.
+- osf copies no login file into the reviewer's home when a key in the environment is enough. It removes the key's exact value from the answer.
+- A reviewer starts in a clean copy of the change. The copy holds no coding agent's settings, plugins or instruction files, and no symbolic link, so the change cannot configure the agent that reviews it.
 - A reviewer's network is open only to its own model provider.
 - The quote check keeps a fabricated location out of the result.
 - The reducer needs quorum, and a verified blocker vetoes the lens.
+- The reducer checks every saved answer again against the schema and the lens. It takes a saved file only for the reviewer its file name gives. It works out the rounds from the order of the attempts.
 
 What the design cannot contain is unchanged. A steered reviewer can attach a false severity or description to a genuine quote, and it can return high scores with no findings, which passes the review.
 
@@ -97,7 +101,7 @@ What the design cannot contain is unchanged. A steered reviewer can attach a fal
 
 | Option | What it meant | Outcome |
 |---|---|---|
-| Check out the pull request as read-only data | Reviewer tools read files and diffs. They are read-only: read, search and list. There are no write tools and no shell beyond read-only use. | Taken. |
+| Check out the pull request as read-only data | The job mounts the checkout read-only. Each reviewer starts in a clean copy of it and reads files and diffs. The reviewer's tools cannot write or change anything. | Taken. |
 | Build and test it inside the review job | Run the pull request's own code next to the job's secrets. | Set aside. That is the known attack on a workflow that runs from the base branch: build and test already happen in the ordinary CI jobs. |
 | Read only the diff, through the code host's API | Skip a full checkout. | Set aside. It loses the surrounding file context that a review lens needs. |
 
@@ -135,11 +139,12 @@ If a shared build cache is used, only a base-branch workflow writes to it. A run
 
 A reviewer job checks out the pull request as data, and never builds, tests or runs it. A reviewer receives metadata and reads the rest itself, as [decision 0016 (the review check)](0016-the-review-check.md) sets out. This sandbox makes that safe:
 
-- The tools are read-only: read, search and list. There are no write tools.
-- There is no shell beyond read-only use.
+- The tools cannot write files or change anything. Claude Code, opencode and omp have file tools only: read, search and list. They have no shell. Codex runs in its read-only sandbox. That sandbox stops writes and changes, and its shell can still read any file the reviewer's user can read.
+- The reviewer starts in a clean copy of the change, with no coding agent's settings in it.
 - The network is open only to that reviewer's own model provider.
 - The job holds no secret beyond that provider's key, as decision 3 sets.
-- The quote check stays, so every finding must cite code that exists.
+- osf copies no login file into the reviewer's home when a key in the environment is enough. It removes the exact value of the job's secrets from each answer, in plain, base64 and hex form.
+- The quote check stays, so every finding must cite code that exists. It reads the real checkout of the change.
 
 An agent with no read-only mode cannot be a reviewer until it has one. A run that selects it reports could-not-run, with the reason.
 
@@ -179,7 +184,7 @@ Neither app can write a check or a commit status. That is what lets decision 3 w
 
 ## Consequences
 
-- A base-branch workflow with secrets still reads text that an agent, or a fork, wrote. A reviewer tool could be steered by that text. The sandbox in decision 8 limits the damage. A steered reviewer can read only its own key, and its network reaches only the provider that issued that key. The limit holds only while the network rule is enforced for every reviewer job, so the review workflow must set it for each.
+- A base-branch workflow with secrets still reads text that an agent, or a fork, wrote. A reviewer tool could be steered by that text. The sandbox in decision 8 limits the damage. A steered reviewer can read only its own key, osf removes that key's value from its answer, and its network reaches only the provider that issued that key. The limit holds only while the network rule is enforced for every reviewer job, so the review workflow must set it for each.
 - The builder app holds `workflows: write`, `actions: write` and `actions_variables: write`. It could change a repository variable the review workflow reads, such as the runner choice, or cancel and rerun jobs. Which variables the review workflow trusts should be reviewed, and taking `actions_variables: write` away from the builder app is worth considering.
 - `pull_request_target` is easy to misuse. A later change that checks out and runs pull request code under it would bring back the attack this record closes. A lint on the workflow file should refuse that pattern.
 - Branch protection still needs a person with admin rights to turn it on. Until then, none of this is enforced.
