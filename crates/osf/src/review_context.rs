@@ -2,8 +2,8 @@
 //! number, title and body, the base and head commits, the changed files with
 //! their line counts, the work item, and the paths of the linked decision
 //! records. It holds no diff and no file content: the reviewer runs inside a
-//! read-only checkout of the change at the head commit, with the base commit
-//! available through git, and reads what it needs there.
+//! read-only checkout of the change at the head commit, and reads the diff
+//! and the commit log from a file in a read-only folder ([`ChangeFolder`]).
 //!
 //! A lens that declares `work-item` or `acceptance-criteria` makes the whole
 //! lens could-not-run, naming that input, when the work item is missing;
@@ -18,7 +18,7 @@ use crate::config::ScanConfig;
 use crate::lenses::{ContextInput, Lens};
 use regex::Regex;
 use std::fmt::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 /// The pull request under review, as the code host's event reports it.
@@ -95,6 +95,99 @@ pub fn build(lens: &Lens, sources: &Sources) -> Result<String, String> {
     let (redacted, redactions) = redact_secrets(sources.root, sources.config_root, &text)
         .map_err(|reason| format!("context: {reason}"))?;
     Ok(append_redaction_note(redacted, redactions))
+}
+
+/// A folder, read-only while it lives, that holds one file: the commit log and
+/// the full diff of the reviewed range. A reviewer reads it with file tools,
+/// so it needs no command that runs git. The folder is removed on drop.
+#[derive(Debug)]
+pub struct ChangeFolder {
+    dir: PathBuf,
+}
+
+/// The name of the file inside a [`ChangeFolder`].
+pub const CHANGE_FILE_NAME: &str = "change.diff";
+
+impl ChangeFolder {
+    /// Writes the commit log and `git diff --no-color <base>...<head>` into a
+    /// new folder under the OS temp directory, then makes the file and the
+    /// folder read-only. Secret redaction covers the text, as it does the prompt.
+    ///
+    /// # Errors
+    /// Names the reason when git cannot be read, the redaction rules cannot
+    /// be built, or the folder or file cannot be written.
+    pub fn create(sources: &Sources) -> Result<Self, String> {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let log =
+            crate::git::log_since(sources.root, sources.base).map_err(|e| format!("log: {e}"))?;
+        let diff = crate::git::diff_full_since(sources.root, sources.base)
+            .map_err(|e| format!("diff: {e}"))?;
+        let text = format!("## commit log\n{log}\n\n## diff\n{diff}");
+        let (text, _) = redact_secrets(sources.root, sources.config_root, &text)
+            .map_err(|reason| format!("context: {reason}"))?;
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir() // osf: temp-dir allowed, one read-only folder per reviewer run
+            .join(format!(
+                "osf-review-change-{}-{unique}-{n}",
+                std::process::id()
+            ));
+        std::fs::create_dir(&dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+        let folder = Self { dir };
+        let file = folder.file();
+        std::fs::write(&file, text).map_err(|e| format!("cannot write {}: {e}", file.display()))?;
+        set_read_only(&file, true)?;
+        set_read_only(&folder.dir, true)?;
+        Ok(folder)
+    }
+
+    /// The folder's path.
+    #[must_use]
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+
+    /// The path of the diff and log file.
+    #[must_use]
+    pub fn file(&self) -> PathBuf {
+        self.dir.join(CHANGE_FILE_NAME)
+    }
+}
+
+impl Drop for ChangeFolder {
+    fn drop(&mut self) {
+        let _ = set_read_only(&self.dir, false);
+        let _ = set_read_only(&self.file(), false);
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+/// Turns `path`'s write permission off or on.
+fn set_read_only(path: &Path, read_only: bool) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = match (path.is_dir(), read_only) {
+            (true, true) => 0o555,
+            (true, false) => 0o700,
+            (false, true) => 0o444,
+            (false, false) => 0o600,
+        };
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+            .map_err(|e| format!("cannot protect {}: {e}", path.display()))
+    }
+    #[cfg(not(unix))]
+    {
+        let mut permissions = std::fs::metadata(path)
+            .map_err(|e| format!("cannot protect {}: {e}", path.display()))?
+            .permissions();
+        permissions.set_readonly(read_only);
+        std::fs::set_permissions(path, permissions)
+            .map_err(|e| format!("cannot protect {}: {e}", path.display()))
+    }
 }
 
 /// `path`, rendered with forward slashes whatever the platform's own separator is.

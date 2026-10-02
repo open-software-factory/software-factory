@@ -108,6 +108,7 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
         model_flag: None,
         credential_env: Vec::new(),
         login_paths: Vec::new(),
+        review_dir: None,
     }
 }
 

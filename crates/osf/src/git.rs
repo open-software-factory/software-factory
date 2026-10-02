@@ -827,6 +827,33 @@ pub fn numstat_since(dir: &Path, base: &str) -> Result<Vec<Numstat>, GitError> {
     run(dir, &args).map(|raw| parse_numstat_z(&raw))
 }
 
+/// The full unified diff of `base...HEAD`, with no colour. A `base` that is a
+/// tree is compared directly.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
+pub fn diff_full_since(dir: &Path, base: &str) -> Result<String, GitError> {
+    let range = format!("{base}...HEAD");
+    let mut args = vec!["diff", "--no-color"];
+    if is_tree(dir, base) {
+        args.extend([base, "HEAD"]);
+    } else {
+        args.push(&range);
+    }
+    run_text(dir, &args)
+}
+
+/// The commit log of `base..HEAD`, with no colour; every commit reachable
+/// from `HEAD` when `base` is a tree.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
+pub fn log_since(dir: &Path, base: &str) -> Result<String, GitError> {
+    let range = format!("{base}..HEAD");
+    let target = if is_tree(dir, base) { "HEAD" } else { &range };
+    run_text(dir, &["log", "--no-color", target])
+}
+
 /// The full object id `rev` names in `dir`.
 ///
 /// # Errors

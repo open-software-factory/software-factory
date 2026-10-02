@@ -26,7 +26,7 @@ use crate::journal::{Journal, Payload, ReviewAnswer, ReviewDecision};
 use crate::lenses::{self, Catalogue, Lens};
 use crate::quotes;
 use crate::reducer::{self, LensAnswer, LensVerdict, Verdict};
-use crate::review_context::{self, PullRequest, Sources};
+use crate::review_context::{self, ChangeFolder, PullRequest, Sources};
 use crate::review_prompt;
 use crate::reviewers::{self, Outcome, Reviewer};
 use crate::{changeset_risk, config, git};
@@ -253,6 +253,17 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
     };
     let idle = reviewer.family_error.is_some() || reviewer.is_excluded_by(&setup.skip_families);
     let lone = setup.single_family_available();
+    // Written once, before any reviewer starts, and removed when this run ends.
+    let change = if idle {
+        None
+    } else {
+        Some(ChangeFolder::create(&sources))
+    };
+    let mut reviewer = reviewer.clone();
+    if let Some(Ok(folder)) = &change {
+        reviewer.review_dir = Some(folder.dir().to_path_buf());
+    }
+    let reviewer = &reviewer;
     let lenses = setup
         .selected_lenses()
         .into_iter()
@@ -262,13 +273,19 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
                 context_error: None,
                 attempts: Vec::new(),
             };
-            if idle {
-                return run;
-            }
+            let folder = match &change {
+                None => return run,
+                Some(Err(reason)) => {
+                    run.context_error = Some(reason.clone());
+                    return run;
+                }
+                Some(Ok(folder)) => folder,
+            };
             match review_context::build(lens, &sources) {
                 Err(reason) => run.context_error = Some(reason),
                 Ok(metadata) => {
-                    let prompt = review_prompt::render(&setup.prompt, lens, &metadata);
+                    let file = folder.file().to_string_lossy().into_owned();
+                    let prompt = review_prompt::render(&setup.prompt, lens, &metadata, &file);
                     run.attempts = attempts_for(req, reviewer, &prompt, lens, setup.timeout, lone);
                 }
             }

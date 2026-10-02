@@ -15,6 +15,14 @@ fi
 if [ -n "${OSF_FAKE_PROMPT_CAPTURE:-}" ]; then
     cat > "$OSF_FAKE_PROMPT_CAPTURE"
 fi
+if [ -n "${OSF_FAKE_CHANGE_CAPTURE:-}" ] && [ -n "${OSF_FAKE_PROMPT_CAPTURE:-}" ]; then
+    change=$(grep -o '/[^ ]*change\.diff' "$OSF_FAKE_PROMPT_CAPTURE" | head -1)
+    if [ -n "$change" ]; then
+        cp "$change" "$OSF_FAKE_CHANGE_CAPTURE"
+        stat -c '%a' "$(dirname "$change")" "$change" > "$OSF_FAKE_CHANGE_CAPTURE.modes"
+        echo "$change" > "$OSF_FAKE_CHANGE_CAPTURE.path"
+    fi
+fi
 if [ -n "${OSF_FAKE_ENV_CAPTURE:-}" ]; then
     {
         echo "GH_TOKEN=${GH_TOKEN:-}"

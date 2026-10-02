@@ -5,7 +5,8 @@
 //!
 //! The file holds plain placeholders in braces that osf fills in once, left
 //! to right: `{lens_name}`, `{lens_summary}`, `{lens_questions}`,
-//! `{severity_guide}` and `{metadata}`. Text that osf inserts is never read
+//! `{severity_guide}`, `{metadata}` and `{change_file}`, the path of the file
+//! that holds the diff and the commit log. Text that osf inserts is never read
 //! again for placeholders. Only the answer format osf parses stays in code,
 //! and osf appends it after the file's text, so no file can break parsing.
 
@@ -53,7 +54,7 @@ pub fn load(config_root: &Path, prompt_file: Option<&str>) -> Result<String, Str
 /// `template` with its placeholders filled in for `lens` and `metadata`,
 /// then the fixed answer format.
 #[must_use]
-pub fn render(template: &str, lens: &Lens, metadata: &str) -> String {
+pub fn render(template: &str, lens: &Lens, metadata: &str, change_file: &str) -> String {
     let mut questions = String::new();
     for criterion in &lens.criteria {
         let _ = writeln!(questions, "- {}: {}", criterion.id, criterion.question);
@@ -68,6 +69,7 @@ pub fn render(template: &str, lens: &Lens, metadata: &str) -> String {
         ("lens_questions", questions.trim_end()),
         ("severity_guide", guide.as_str()),
         ("metadata", metadata),
+        ("change_file", change_file),
     ];
     let mut out = String::new();
     let mut rest = template;
@@ -121,7 +123,7 @@ mod tests {
     #[test]
     fn the_default_prompt_fills_every_placeholder() {
         let template = load(Path::new("."), None).expect("default loads");
-        let prompt = render(&template, &lens(), "META-TEXT");
+        let prompt = render(&template, &lens(), "META-TEXT", "/x/change.diff");
         assert!(
             prompt.contains("\"correctness\" lens: does it work"),
             "{prompt}"
@@ -129,12 +131,18 @@ mod tests {
         assert!(prompt.contains("- c1: is it right?"), "{prompt}");
         assert!(prompt.contains("- blocker: loses data"), "{prompt}");
         assert!(prompt.contains("META-TEXT"), "{prompt}");
+        assert!(
+            prompt.contains("in the file /x/change.diff"),
+            "the prompt names the diff file: {prompt}"
+        );
+        assert!(!prompt.contains("git diff"), "{prompt}");
+        assert!(!prompt.contains("{change_file}"));
         assert!(!prompt.contains("{lens_name}") && !prompt.contains("{metadata}"));
     }
 
     #[test]
     fn the_answer_format_follows_the_file_text_whatever_the_file_says() {
-        let prompt = render("Say nothing about answers.", &lens(), "m");
+        let prompt = render("Say nothing about answers.", &lens(), "m", "f");
         assert!(prompt.starts_with("Say nothing about answers."));
         assert!(prompt.ends_with("in the checkout."), "{prompt}");
         assert!(prompt.contains("review-answer schema for lens \"correctness\""));
@@ -142,13 +150,13 @@ mod tests {
 
     #[test]
     fn inserted_text_is_never_read_for_placeholders() {
-        let prompt = render("{metadata}|{lens_name}", &lens(), "{lens_name}");
+        let prompt = render("{metadata}|{lens_name}", &lens(), "{lens_name}", "f");
         assert!(prompt.starts_with("{lens_name}|correctness"), "{prompt}");
     }
 
     #[test]
     fn braces_that_name_no_placeholder_stay_as_they_are() {
-        let prompt = render("json {\"a\": 1} and { open", &lens(), "m");
+        let prompt = render("json {\"a\": 1} and { open", &lens(), "m", "f");
         assert!(prompt.starts_with("json {\"a\": 1} and { open"), "{prompt}");
     }
 

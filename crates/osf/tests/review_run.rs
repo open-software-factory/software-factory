@@ -183,7 +183,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
         Fake::Records(answer, dir) => format!(
             "env > '{d}/env'\nOSF_FAKE_ANSWER='{answer}' OSF_FAKE_PROMPT_CAPTURE='{d}/prompt' \
-             OSF_FAKE_ARGS_CAPTURE='{d}/args' OSF_FAKE_HARNESS_LOG='{d}/started' \
+             OSF_FAKE_ARGS_CAPTURE='{d}/args' OSF_FAKE_HARNESS_LOG='{d}/started' OSF_FAKE_CHANGE_CAPTURE='{d}/change' \
              exec '{harness}' \"$@\"",
             d = dir.display()
         ),
@@ -1747,8 +1747,7 @@ fn each_agent_starts_with_its_read_only_settings() {
         (
             "claude",
             "claude-envelope.json",
-            "--restricted\n--tools\nRead,Grep,Glob,Bash\n--allowedTools\n\
-             Bash(git diff:*),Bash(git log:*),Bash(git show:*)\n--permission-prompts\nnone\n",
+            "--restricted\n--tools\nRead,Grep,Glob\n--add-dir\n/",
             "",
         ),
         (
@@ -1780,7 +1779,113 @@ fn each_agent_starts_with_its_read_only_settings() {
         assert!(args.contains(expected_args), "{agent}: {args}");
         let env = recorded(&rec, "env");
         assert!(env.contains(expected_env), "{agent}: {env}");
+        // No agent is given a shell: no Bash tool, and no git allowance.
+        assert!(
+            !args.contains("Bash") && !args.contains("allowedTools"),
+            "{agent}: {args}"
+        );
+        assert!(
+            !env.contains("git diff") && !env.contains("git log"),
+            "{agent}: {env}"
+        );
     }
+}
+
+/// The reviewer's folder holds the diff and the commit log, and is named
+/// to the agent's own settings: claude's `--add-dir` and opencode's
+/// `external_directory` allowance, both the very folder the prompt names.
+#[test]
+#[cfg(unix)]
+fn the_agents_settings_name_the_folder_that_holds_the_diff() {
+    for agent in ["claude", "opencode"] {
+        let answer = if agent == "claude" {
+            "claude-envelope.json"
+        } else {
+            "valid.json"
+        };
+        let rec = TempDir::new("review-run-folder-settings-rec");
+        let fakes = Fakes::new("", &[(agent, Fake::Records(&fixture(answer), &rec))]);
+        let repo = review_repo(
+            &format!("folder-settings-{agent}"),
+            &fakes.osf_toml_with_qwen_opencode(),
+        );
+        let home = common::isolated_home(&format!("review-run-folder-settings-{agent}"));
+        let output = fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        assert!(
+            output.status.success(),
+            "{agent}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let file = recorded(&rec, "change.path");
+        let dir = Path::new(file.trim())
+            .parent()
+            .expect("file has a folder")
+            .to_path_buf();
+        let dir = dir.to_string_lossy().into_owned();
+        if agent == "claude" {
+            let args = recorded(&rec, "args");
+            assert!(args.contains(&format!("--add-dir\n{dir}\n")), "{args}");
+        } else {
+            let env = recorded(&rec, "env");
+            assert!(env.contains("\"bash\":\"deny\""), "{env}");
+            assert!(
+                env.contains(&format!(
+                    "\"external_directory\":{{\"{dir}/**\":\"allow\"}}"
+                )),
+                "{env}"
+            );
+        }
+    }
+}
+
+/// Before the reviewer starts, osf writes the commit log and the full diff of
+/// the range into a read-only folder and names the file in the prompt. The
+/// folder is gone after the run.
+#[test]
+#[cfg(unix)]
+fn the_reviewer_reads_the_diff_and_log_from_a_read_only_file() {
+    let rec = TempDir::new("review-run-change-file-rec");
+    let fakes = Fakes::new(
+        "",
+        &[("codex", Fake::Records(&fixture("valid.json"), &rec))],
+    );
+    let repo = review_repo("change-file", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-change-file");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let prompt = recorded(&rec, "prompt");
+    let path = recorded(&rec, "change.path");
+    assert!(
+        prompt.contains(path.trim()),
+        "the prompt names the file: {prompt}"
+    );
+    let change = recorded(&rec, "change");
+    assert!(
+        change.contains("+plus a change to review"),
+        "the diff: {change}"
+    );
+    assert!(
+        change.contains("a small change to review"),
+        "the log: {change}"
+    );
+    let modes = recorded(&rec, "change.modes");
+    assert_eq!(modes.trim(), "555\n444", "folder and file are read-only");
+    assert!(
+        !Path::new(path.trim()).exists(),
+        "the folder is removed after the run"
+    );
 }
 
 /// An agent with no documented read-only mode is could-not-run with that

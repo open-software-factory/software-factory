@@ -165,9 +165,11 @@ decides, and posts. It alone gets the code host's token. A reviewer whose
 job left no file counts as could-not-run, and could-not-run never passes.
 
 The reviewer works inside a read-only checkout of the change at its head
-commit. The base commit is available through git, so the reviewer can
-read any file and run `git diff <base>...<head>` itself. `osf` pastes no
-diff and no file text into the prompt. The prompt holds these items:
+commit. The reviewer has file tools only: read, grep and glob. It has no
+shell. Before the reviewer starts, `osf` writes the commit log and the
+output of `git diff --no-color <base>...<head>` to one file in a new
+read-only folder, and the prompt gives the path of that file. `osf` pastes
+no diff and no file text into the prompt. The prompt holds these items:
 the pull request's number, title and body, the base and head commits, the
 changed files with their line counts, the work item text, the paths of
 the linked decision records, and the lens questions. `osf` redacts a
@@ -301,17 +303,19 @@ family.
 |---|---|---|---|---|
 | `codex` | openai | its own default | `OPENAI_API_KEY` (or `CODEX_API_KEY`) | `--sandbox read-only`, from `codex exec --help` |
 | `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
-| `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) | `--restricted`, `--tools`, `--allowedTools` and `--permission-prompts none`, from `claude --help` |
-| `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, from the opencode CLI docs |
+| `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
+| `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
 | `omp` | from its model | none: it takes no model flag | its own login | `--tools read,grep,glob`, from `omp --help` |
 
 Each reviewer runs read-only. `agents.rs` records the exact flags or
 settings of each agent as data, and `osf` adds them to the agent's
 command. An agent with no documented read-only mode has none recorded.
 A reviewer list that names it reports could-not-run with the reason "no
-read-only mode", and the agent never starts. The `claude` mode lets
-Bash run only `git diff`, `git log` and `git show`. The `opencode` mode
-does the same. The `codex` sandbox lets the shell read only.
+read-only mode", and the agent never starts. The `claude`, `opencode`
+and `omp` modes give file tools only, with no shell. The `codex` sandbox
+lets its shell read only. A mode that allowed `git diff` through a shell
+would also allow `git diff --output=<file>`, which writes a file. So no
+mode allows a shell for git.
 
 Codex, Claude and DeepSeek Harness each run one family. opencode and omp
 run models from any family. The model they run decides their family.

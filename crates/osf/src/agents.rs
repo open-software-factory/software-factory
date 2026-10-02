@@ -298,12 +298,12 @@ pub const AGENTS: &[Agent] = &[
             path: "/s/",
         },
         review: Some(Review {
-            // The inline permissions config of the opencode CLI docs, `OPENCODE_PERMISSION`; `opencode agent list` shows the rules it sets.
+            // The inline permissions config of the opencode CLI docs, `OPENCODE_PERMISSION`; `opencode debug config` shows the rules it sets. Bash is denied entirely; only the folder with the diff is readable outside the checkout.
             read_only: Some(ReadOnly {
                 args: &[],
                 env: &[(
                     "OPENCODE_PERMISSION",
-                    r#"{"edit":"deny","task":"deny","webfetch":"deny","bash":{"*":"deny","git diff*":"allow","git log*":"allow","git show*":"allow"}}"#,
+                    r#"{"edit":"deny","task":"deny","webfetch":"deny","bash":"deny","external_directory":{"{review_dir}/**":"allow"}}"#,
                 )],
             }),
             schema_flag: None,
@@ -364,14 +364,14 @@ pub const AGENTS: &[Agent] = &[
             path: "/code/session_",
         },
         review: Some(Review {
-            // `claude --help`: `--restricted` drops the command-running tools and the repository's own settings, `--tools` names the tools, `--allowedTools` limits Bash to git reads, and `--permission-prompts none` denies anything else.
+            // `claude --help`: `--restricted` drops the command-running tools and the repository's own settings, and confines file tools to the working directories; `--tools` names the file tools only; `--add-dir` adds the folder with the diff; `--permission-prompts none` denies anything else.
             read_only: Some(ReadOnly {
                 args: &[
                     "--restricted",
                     "--tools",
-                    "Read,Grep,Glob,Bash",
-                    "--allowedTools",
-                    "Bash(git diff:*),Bash(git log:*),Bash(git show:*)",
+                    "Read,Grep,Glob",
+                    "--add-dir",
+                    "{review_dir}",
                     "--permission-prompts",
                     "none",
                 ],
@@ -741,20 +741,24 @@ mod tests {
     }
 
     #[test]
-    fn claude_is_limited_to_read_search_and_git_reads() {
+    fn claude_is_limited_to_file_tools_and_has_no_shell() {
         let mode = read_only_of("claude").expect("claude documents a read-only mode");
         assert_eq!(
             mode.args,
             &[
                 "--restricted",
                 "--tools",
-                "Read,Grep,Glob,Bash",
-                "--allowedTools",
-                "Bash(git diff:*),Bash(git log:*),Bash(git show:*)",
+                "Read,Grep,Glob",
+                "--add-dir",
+                "{review_dir}",
                 "--permission-prompts",
                 "none",
             ]
         );
+        assert!(!mode
+            .args
+            .iter()
+            .any(|a| a.contains("Bash") || *a == "--allowedTools"));
     }
 
     #[test]
@@ -764,7 +768,7 @@ mod tests {
     }
 
     #[test]
-    fn opencode_denies_edits_and_every_command_but_git_reads() {
+    fn opencode_denies_edits_and_every_command() {
         let mode = read_only_of("opencode").expect("opencode documents a read-only mode");
         let [(name, value)] = mode.env else {
             panic!("one variable expected: {:?}", mode.env);
@@ -772,9 +776,9 @@ mod tests {
         assert_eq!(*name, "OPENCODE_PERMISSION");
         let json: serde_json::Value = serde_json::from_str(value).expect("valid JSON");
         assert_eq!(json.pointer("/edit"), Some(&serde_json::json!("deny")));
-        assert_eq!(json.pointer("/bash/*"), Some(&serde_json::json!("deny")));
+        assert_eq!(json.pointer("/bash"), Some(&serde_json::json!("deny")));
         assert_eq!(
-            json.pointer("/bash/git diff*"),
+            json.pointer("/external_directory/{review_dir}~1**"),
             Some(&serde_json::json!("allow"))
         );
     }

@@ -65,9 +65,20 @@ pub struct Reviewer {
     /// reviewer's login, goes in. A path that is missing is left out and
     /// named in the run's notes.
     pub login_paths: Vec<String>,
+    /// The read-only folder that holds the change's diff and log. It takes
+    /// the place of `{review_dir}` in the read-only arguments and environment.
+    pub review_dir: Option<PathBuf>,
 }
 
 impl Reviewer {
+    /// `text` with `{review_dir}` replaced by the review folder's path.
+    fn fill(&self, text: &str) -> String {
+        match &self.review_dir {
+            Some(dir) => text.replace("{review_dir}", &dir.to_string_lossy()),
+            None => text.to_string(),
+        }
+    }
+
     /// Whether this reviewer sits a change out because its family is one of
     /// `builder_families`: a builder's own family is no independent opinion.
     #[must_use]
@@ -96,6 +107,7 @@ impl Reviewer {
             model_flag: review.model_flag.map(str::to_string),
             credential_env: owned(review.credential_env),
             login_paths: owned(review.login_paths),
+            review_dir: None,
         })
     }
 }
@@ -439,7 +451,9 @@ fn prepare_command(
     command.args(rest).current_dir(workdir).env_clear();
     home.apply(&mut command);
     if let Some(read_only) = &reviewer.read_only {
-        command.envs(read_only.env.iter().copied());
+        for (name, value) in read_only.env {
+            command.env(name, reviewer.fill(value));
+        }
     }
     for var in RUN_ENV_VARS
         .iter()
@@ -611,7 +625,7 @@ fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Ve
         })
         .collect();
     if let Some(read_only) = &reviewer.read_only {
-        args.extend(read_only.args.iter().map(ToString::to_string));
+        args.extend(read_only.args.iter().map(|arg| reviewer.fill(arg)));
     }
     if let Some(flag) = &reviewer.schema_flag {
         args.push(flag.clone());
@@ -669,6 +683,7 @@ mod tests {
             model_flag: None,
             credential_env: Vec::new(),
             login_paths: Vec::new(),
+            review_dir: None,
         }
     }
 
@@ -992,6 +1007,18 @@ mod tests {
                 "/tmp/s"
             ]
         );
+    }
+
+    #[test]
+    fn the_review_folder_fills_its_placeholder_in_the_read_only_arguments() {
+        let mut r = reviewer("fake", vec!["fake"]);
+        r.read_only = Some(ReadOnly {
+            args: &["--add-dir", "{review_dir}"],
+            env: &[],
+        });
+        r.review_dir = Some(PathBuf::from("/tmp/review-folder"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        assert_eq!(args, vec!["fake", "--add-dir", "/tmp/review-folder"]);
     }
 
     #[cfg(unix)]
