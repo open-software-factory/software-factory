@@ -137,4 +137,4 @@ patent rights. The MIT licence is a shorter permissive licence with no patent
 terms. This project is offered under both, and you may use either one. See
 `LICENSE-APACHE` and `LICENSE-MIT`.
 
-Any contribution you submit is offered under the same two licences.
+Any contribution you submit is offered under the same licences.

@@ -78,7 +78,7 @@ so the wrapper leaves it alone.
 The wrapper also refuses a `-c` that sets `core.hooksPath`,
 `core.fsmonitor`, or `core.editor`, on any git call. This block applies
 whatever capitalisation the key is given in. Git treats a config key's
-letters as case-insensitive, and so does this check. Each of these three
+letters as case-insensitive, and so does this check. Each of these
 keys was tested by hand in this container. Each one ran an arbitrary
 command as part of an ordinary `git commit`:
 
@@ -89,7 +89,7 @@ command as part of an ordinary `git commit`:
 - `core.editor` runs as a command when `git commit` opens an editor.
   That happens whenever `-m` is left off.
 
-Two settings from the same family were also tested. The wrapper leaves
+Settings from the same family were also tested. The wrapper leaves
 both alone, because neither one applies here:
 
 - `core.pager` was tried against both `git commit` and `git push`,
@@ -106,7 +106,7 @@ applies to every repository, unless something with a stronger claim
 overrides it. The wrapper now stops `-c` from being that override. So
 on their own, `--git-dir` and `--work-tree` do not open a way past the
 hooks. A shell in the container can already do what it likes to a
-folder it owns. It does not need those two options to do that.
+folder it owns. It does not need those options to do that.
 
 Every other `-c` value, such as `user.email`, still works. Setting one
 for a single command is still a normal, allowed thing to do.
