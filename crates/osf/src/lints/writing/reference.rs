@@ -470,19 +470,15 @@ fn is_a_citation_volume(after: &str) -> bool {
         .is_some_and(|(inner, _)| !inner.is_empty() && inner.chars().all(|c| c.is_ascii_digit()))
 }
 
-/// The word right after a number, with any punctuation trimmed off and in lower case.
-fn next_word(after: &str) -> String {
-    after
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .trim_matches(|c: char| !c.is_alphanumeric())
-        .to_lowercase()
-}
-
-/// Whether a unit follows the number: `5 s`, `44 px`, `24 hours`, `12 degrees`.
+/// Whether a unit follows the number: `5 s`, `44 px`, `24 hours`, `12 degrees`. A possessive
+/// such as `decision 0005's` is no unit, so the unit must start with a letter.
 fn is_followed_by_a_unit(after: &str) -> bool {
-    UNIT_WORDS.contains(&next_word(after).as_str())
+    let rest = after.trim_start();
+    let unit_end = rest
+        .find(|c: char| !c.is_alphabetic())
+        .unwrap_or(rest.len());
+    rest.get(..unit_end)
+        .is_some_and(|unit| UNIT_WORDS.contains(&unit.to_lowercase().as_str()))
 }
 
 /// Whether the word before the number marks it as a quantity, a size, a version or a coordinate, not a label.
@@ -1283,6 +1279,22 @@ mod tests {
             number_candidate_count(&paragraph_in("Stage 1 Local checks", false, false)),
             1
         );
+    }
+
+    /// A possessive is no unit: `decision 0005's` and `Track 02's` stay references.
+    #[test]
+    fn number_still_fires_on_a_label_with_a_possessive() {
+        assert!(has(
+            "The states are decision 0005's.",
+            Kind::Number,
+            "decision 0005"
+        ));
+        assert!(has(
+            "Track 02's answer applied to the old requirement.",
+            Kind::Number,
+            "Track 02"
+        ));
+        assert!(has_no_number("The wait is 5 s."));
     }
 
     /// A measure word never hides a real label: the labels the fixtures name still fire.
