@@ -14,19 +14,7 @@ updates:
     open-pull-requests-limit: 5
 
   - package-ecosystem: npm
-    directory: /integrations/dsh
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: npm
-    directory: /integrations/omp
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
-
-  - package-ecosystem: npm
-    directory: /integrations/opencode
+    directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5

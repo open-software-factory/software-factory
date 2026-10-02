@@ -1,0 +1,225 @@
+name: pr-lens
+
+# Draws a pr-lens diagram of a code change into the pull request
+# description. Runs from the base branch, per decision 0020, since it
+# holds a model API key; it never checks out or runs the pull request's
+# own code, only its diff, fetched as data.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: write # push the rendered SVGs to the orphan pr-lens branch
+  pull-requests: write # rewrite the pr-lens section of the description
+
+concurrency:
+  group: pr-lens-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  CLI_VERSION: 0.11.0
+  PR_LENS_PROVIDER: ${{ vars.PR_LENS_PROVIDER || 'deepseek' }}
+
+jobs:
+  diagram:
+    name: pr-lens
+    runs-on: ubuntu-latest
+    environment: review # the model key, when an adopter sets one, lives here
+    steps:
+      # One place mapping a provider name to the CLI flags it needs. The
+      # network allow-list below names every provider host, since harden-runner
+      # applies it before this step runs.
+      - name: Resolve the model provider
+        id: provider
+        run: |
+          set -euo pipefail
+          case "${PR_LENS_PROVIDER}" in
+            deepseek)
+              echo "cli_provider=openai-compatible" >> "$GITHUB_OUTPUT"
+              echo "base_url=https://api.deepseek.com" >> "$GITHUB_OUTPUT"
+              echo "default_model=deepseek-chat" >> "$GITHUB_OUTPUT"
+              echo "key_var=DEEPSEEK_API_KEY" >> "$GITHUB_OUTPUT"
+              ;;
+            openai)
+              echo "cli_provider=openai" >> "$GITHUB_OUTPUT"
+              echo "base_url=" >> "$GITHUB_OUTPUT"
+              echo "default_model=" >> "$GITHUB_OUTPUT"
+              echo "key_var=OPENAI_API_KEY" >> "$GITHUB_OUTPUT"
+              ;;
+            anthropic)
+              echo "cli_provider=openai-compatible" >> "$GITHUB_OUTPUT"
+              echo "base_url=https://api.anthropic.com/v1" >> "$GITHUB_OUTPUT"
+              echo "default_model=claude-sonnet-5" >> "$GITHUB_OUTPUT"
+              echo "key_var=ANTHROPIC_API_KEY" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::error::PR_LENS_PROVIDER is '${PR_LENS_PROVIDER}'; supported values are deepseek, openai, anthropic."
+              exit 1
+              ;;
+          esac
+
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            registry.npmjs.org:443
+            index.crates.io:443
+            static.crates.io:443
+            crates.io:443
+            api.deepseek.com:443
+            api.openai.com:443
+            api.anthropic.com:443
+
+      - name: List the changed files
+        id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename' > "${RUNNER_TEMP}/changed-files.txt"
+          if grep -qvE '(\.md$|^docs/)' "${RUNNER_TEMP}/changed-files.txt"; then
+            echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_only=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Skip a documentation-only pull request
+        if: steps.files.outputs.docs_only == 'true'
+        run: echo "::notice::every changed file is documentation; no diagram section is written."
+
+      - name: Check the environment holds a model key
+        if: steps.files.outputs.docs_only == 'false'
+        id: key
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set -euo pipefail
+          key_var="${{ steps.provider.outputs.key_var }}"
+          key="${!key_var:-}"
+          if [ -z "${key}" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Runs for both the note path and the diagram path below, so osf, the
+      # tool both steps need, is built either way. Built from the base
+      # branch, not the pull request's own tree: this checkout never runs
+      # the pull request's own code, only its diff, fetched as data below.
+      - name: Check out the pull request's base branch
+        if: steps.files.outputs.docs_only == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          # npx runs a third-party package later in this job; it must not
+          # find a job token sitting in .git/config while it does.
+          persist-credentials: false
+
+      - name: Cache the build
+        if: steps.files.outputs.docs_only == 'false'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build osf
+        if: steps.files.outputs.docs_only == 'false'
+        run: cargo build --release --bin osf
+
+      - name: Write a note in place of a diagram
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          echo "pr-lens has no model key: add the review environment and a ${{ steps.provider.outputs.key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
+
+      - name: Fetch the pull request's head, as data only
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        run: git fetch origin "refs/pull/${{ github.event.pull_request.number }}/head"
+
+      # ubuntu-latest ships Node 22, which meets pr-lens 0.11.0's engines
+      # field (>=20.11), so no setup-node step downloads anything here.
+      # A review aid, not a gate: a failed model call writes a note below and the check still passes.
+      - name: Analyze the diff
+        if: steps.files.outputs.docs_only == 'false' && steps.key.outputs.present == 'true'
+        id: analyze
+        continue-on-error: true
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLI_PROVIDER: ${{ steps.provider.outputs.cli_provider }}
+          KEY_VAR: ${{ steps.provider.outputs.key_var }}
+          BASE_URL: ${{ steps.provider.outputs.base_url }}
+          MODEL: ${{ vars.PR_LENS_MODEL || steps.provider.outputs.default_model }}
+        run: |
+          set -uo pipefail
+          npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --head "${{ github.event.pull_request.head.sha }}" \
+            --pr "${{ github.event.pull_request.number }}" \
+            --provider "${CLI_PROVIDER}" \
+            --api-key-env "${KEY_VAR}" \
+            ${MODEL:+--model "${MODEL}"} \
+            ${BASE_URL:+--base-url "${BASE_URL}"} \
+            --out "${RUNNER_TEMP}/pr-lens/graph.json" 2>&1 | tee "${RUNNER_TEMP}/analyze.log"
+          status="${PIPESTATUS[0]}"
+          if [ "${status}" -ne 0 ]; then
+            grep -m1 '✗' "${RUNNER_TEMP}/analyze.log" > "${RUNNER_TEMP}/analyze-reason.txt" || echo "the model call failed" > "${RUNNER_TEMP}/analyze-reason.txt"
+            exit "${status}"
+          fi
+
+      - name: Write a note when the model call failed
+        if: steps.analyze.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          reason="$(head -c 300 "${RUNNER_TEMP}/analyze-reason.txt")"
+          printf 'pr-lens could not draw a diagram for this push. The model call failed: %s\n' "${reason}" > "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"
+
+      - name: Render the diagrams
+        if: steps.analyze.outcome == 'success'
+        run: |
+          npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" render "${RUNNER_TEMP}/pr-lens/graph.json" \
+            --out "${RUNNER_TEMP}/pr-lens/assets"
+
+      - name: Publish the SVGs to the pr-lens branch
+        if: steps.analyze.outcome == 'success'
+        id: publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          url="$(./target/release/osf assets publish \
+            --branch pr-lens \
+            --path "pr/${{ github.event.pull_request.number }}/${{ github.event.pull_request.head.sha }}" \
+            --dir "${RUNNER_TEMP}/pr-lens/assets")"
+          echo "assets-url=${url}" >> "$GITHUB_OUTPUT"
+
+      - name: Write the diagram section
+        if: steps.analyze.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" comment \
+            --graph "${RUNNER_TEMP}/pr-lens/assets/drawn.graph.json" \
+            --manifest "${RUNNER_TEMP}/pr-lens/assets/manifest.json" \
+            --asset-base-url "${{ steps.publish.outputs.assets-url }}" \
+            --out "${RUNNER_TEMP}/section.md"
+          ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --file "${RUNNER_TEMP}/section.md"

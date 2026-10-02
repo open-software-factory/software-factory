@@ -14,15 +14,15 @@
     "lint": "oxlint .",
     "format": "oxfmt --write src test",
     "format:check": "oxfmt --check src test",
-    "check": "npm run typecheck && npm run lint && npm run format:check",
-    "pretest": "npm run build",
+    "check": "pnpm run typecheck && pnpm run lint && pnpm run format:check",
+    "pretest": "pnpm run build",
     "test": "node --test dist/test/**/*.test.js"
   },
   "devDependencies": {
-    "@oh-my-pi/pi-coding-agent": "18.2.4",
-    "@types/node": "26.6.1",
-    "oxfmt": "0.68.0",
-    "oxlint": "1.83.0",
+    "@oh-my-pi/pi-coding-agent": "18.2.11",
+    "@types/node": "26.6.2",
+    "oxfmt": "0.70.0",
+    "oxlint": "1.85.0",
     "typescript": "7.0.2"
   }
 }

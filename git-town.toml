@@ -2,7 +2,7 @@
 main = "main"
 
 [sync]
-feature-strategy = "rebase"
+feature-strategy = "merge"
 push-new-branches = true
 
 [ship]

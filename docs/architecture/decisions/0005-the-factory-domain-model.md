@@ -1,8 +1,8 @@
 # 0005: The factory domain model, events included
 
-Status: accepted
+Status: accepted. Amended by [decision 0014](0014-the-journal-at-every-checkpoint.md) to add the checkpoint-complete and gap event types.
 
-Date: 2026-09-15.
+Date: 2026-09-15, amended 2026-09-23 to add the two event types below.
 
 ## Context
 
@@ -45,7 +45,7 @@ A state change is an event. The entity tables above are projections of the event
 | Field | Holds |
 |---|---|
 | schema version | The envelope version, required. |
-| event type | One of: run started, verification, review, finding, state change, run complete, attention. |
+| event type | One of: run started, verification, review, finding, state change, run complete, attention, checkpoint-complete, gap. The last two are added by [decision 0014](0014-the-journal-at-every-checkpoint.md). |
 | run, work item, change | Identifiers, provider-qualified. |
 | actor | Harness, model, model family, or the person. |
 | timestamp | Wall-clock time, excluded from the run hash below. |

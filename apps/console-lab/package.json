@@ -1,0 +1,26 @@
+{
+  "name": "@open-software-factory/console-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Design lab for the operator console: the factory shell and the floating orb, previewed as built single-file pages. Never shipped.",
+  "scripts": {
+    "dev": "vite",
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@open-software-factory/console-model": "workspace:*",
+    "@open-software-factory/console-ui": "workspace:*",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-aria-components": "1.21.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "6.1.1",
+    "vite": "8.3.1",
+    "vite-plugin-singlefile": "2.3.3"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

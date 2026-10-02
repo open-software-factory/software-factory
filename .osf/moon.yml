@@ -19,6 +19,8 @@ fileGroups:
     - '!/docs/temp-context/**'
     - '!/docs/research/source/archive/**'
     - '!/docs/superpowers/**'
+    - '!/node_modules/**'
+    - '!/apps/console-lab/dist/**'
     - '!/integrations/dsh/dist/**'
     - '!/integrations/dsh/node_modules/**'
     - '!/integrations/omp/dist/**'

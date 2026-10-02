@@ -1,0 +1,34 @@
+{
+  "title": "Attention",
+  "tag": "silveroak-apps · project 2",
+  "summary": "3 at P0 · 136 open · 0 pull requests",
+  "items": [
+    {
+      "id": "service-auth#5",
+      "state": "blocked",
+      "needsYou": true,
+      "headline": "Go-live: harden Keycloak availability — single 2GB Lightsail VM, no…",
+      "detail": "service-auth#5 · Go-Live",
+      "age": "Backlog",
+      "verb": "Open issue"
+    },
+    {
+      "id": "infra-aws-bootstrap#10",
+      "state": "blocked",
+      "needsYou": true,
+      "headline": "Ops alerting: no CloudWatch/Lightsail alarm reaches a human — build…",
+      "detail": "infra-aws-bootstrap#10",
+      "age": "Backlog",
+      "verb": "Open issue"
+    },
+    {
+      "id": "all-about-money-ui#319",
+      "state": "fail",
+      "needsYou": true,
+      "headline": "Prod Wiredash credentials are invalid (401) - feedback is silently…",
+      "detail": "all-about-money-ui#319",
+      "age": "Ready",
+      "verb": "Open issue"
+    }
+  ]
+}

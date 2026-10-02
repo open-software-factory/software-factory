@@ -10,7 +10,7 @@ A pull request in an adopting repository has the adopter's own jobs, the factory
 
 ## Options considered
 
-**Which checks are required.** The factory's aggregation alone, the adopter's jobs alone, or both. Both was taken. Checks run in parallel and the aggregation runs last.
+**Which checks are required.** The factory's aggregation alone, the adopter's jobs alone, or both as directly required checks. The aggregation alone was taken, reading each adopter job's conclusion instead of naming it as a required check. A job skipped by a path filter would otherwise block merging forever. Checks run in parallel and the aggregation runs last.
 
 **What the aggregation reads from an adopter's job.** The job's conclusion, the result files it uploads, or both. Both was taken. The conclusion decides pass or fail. The files add counts and findings, and the test-count shrink check reads them. Result files are found by content rather than by a fixed path, and a job with a known conclusion and no readable file still counts as passed or failed.
 
@@ -38,7 +38,7 @@ A job that did not run because its path filter excluded the change is reported a
 
 ## Consequences
 
-- The ruleset on main requires the aggregation, the adopter's own jobs, and resolved review threads.
+- The ruleset on main requires the aggregation check and resolved review threads. It does not name an adopter's own job directly. The aggregation reads each job's conclusion instead, and fails whenever one is missing for a reason other than its own path filter. A job a path filter skips is never a required status check in the ruleset. So it can never block merging the way a directly required job can.
 - One concurrency group per commit lets one aggregation run at a time, and a later one supersedes.
 - The aggregation cannot advance a state until the journal reaches its sink, per [decision 0009](0009-journal-store-and-sinks.md), so a flush failure in CI fails the aggregation.
 - A result-file format enters as one reader with a corpus of real files, stored without extensions.

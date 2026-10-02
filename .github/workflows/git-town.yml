@@ -19,7 +19,17 @@ jobs:
     if: github.head_ref != 'main'
     runs-on: ubuntu-latest
     steps:
+      # A fork pull request gets a read-only token, so a write here would
+      # fail the job for a reason that has nothing to do with the change.
+      - name: Skip a fork's pull request
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "::notice::this pull request comes from a fork, which gets a read-only token; skipping the stack comment."
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        if: github.event.pull_request.head.repo.full_name == github.repository
+
       - uses: git-town/action@670e1f4feb81fdef4226fc09deefe09018eb20d1
+        if: github.event.pull_request.head.repo.full_name == github.repository
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          skip-single-stacks: true

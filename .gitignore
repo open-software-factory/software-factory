@@ -21,3 +21,9 @@ target-linux/
 # moon cache and osf task output
 .moon/cache/
 .osf/out/
+
+# Installed dependencies
+node_modules/
+
+# Vite build output
+apps/console-lab/dist/

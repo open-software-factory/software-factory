@@ -1,8 +1,8 @@
 # 0006: Distribution and packaging
 
-Status: accepted
+Status: accepted. Amended by [decision 0012](0012-slots-check-recognisers-and-slot-attestations.md) for a repository that adopts the checkpoint seam.
 
-Date: 2026-09-15
+Date: 2026-09-15, amended 2026-09-23 to note decision 0012's generated files below.
 
 ## Context
 
@@ -47,7 +47,7 @@ How an organisation or a team starts from nothing is undecided and is tracked as
 
 ### What an adopting repository receives
 
-A repository needs no file at all: the binary detects the ecosystem from its marker files, runs that ecosystem's standard tools and reads their native output. A repository overrides commands in one configuration file when the defaults are wrong. A repository that emits the factory's events from its own tooling needs no wrapping at all.
+A repository needs no file at all: the binary detects the ecosystem from its marker files, runs that ecosystem's standard tools and reads their native output. A repository overrides commands in one configuration file when the defaults are wrong. A repository that emits the factory's events from its own tooling needs no wrapping at all. A repository that adopts the checkpoint seam [decision 0012](0012-slots-check-recognisers-and-slot-attestations.md) describes instead gains a small set of generated files and one configuration file. The zero-file path above stays the default for a repository that wants only ecosystem detection.
 
 ## Consequences
 

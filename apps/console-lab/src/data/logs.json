@@ -1,0 +1,19 @@
+{
+  "title": "Run output",
+  "tag": "sample",
+  "run": "run-4471 · SF-147 · attempt 3",
+  "lines": [
+    { "t": "12:04:02", "level": "info", "text": "checkout out web@a91f3c2, 1 342 files" },
+    { "t": "12:04:11", "level": "info", "text": "pnpm install --frozen-lockfile" },
+    { "t": "12:04:48", "level": "info", "text": "resolved 812 packages in 37s" },
+    { "t": "12:05:02", "level": "info", "text": "tsc --noEmit" },
+    { "t": "12:05:39", "level": "ok", "text": "typecheck passed" },
+    { "t": "12:05:40", "level": "info", "text": "vitest run --reporter dot" },
+    { "t": "12:06:14", "level": "warn", "text": "payments/adapter.test.ts took 8.2s (slow)" },
+    { "t": "12:06:51", "level": "fail", "text": "FAIL payments/adapter.test.ts > refunds a partial capture" },
+    { "t": "12:06:51", "level": "fail", "text": "  expected 1 200, received 0 — capture id was not forwarded" },
+    { "t": "12:06:52", "level": "fail", "text": "1 failed, 486 passed (487)" },
+    { "t": "12:06:53", "level": "info", "text": "gate ci-unit → blocked, notifying operator" },
+    { "t": "12:07:01", "level": "info", "text": "atlas: re-reading payments/adapter.ts" }
+  ]
+}
