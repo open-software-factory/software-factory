@@ -34,30 +34,6 @@ pub(super) const NON_LABEL_WORDS: &[&str] = &[
     "could", "should", "may", "might", "must", "be", "been",
 ];
 
-/// Words that sit between a count and its plural noun, as in `19 such warnings` and `3 failing checks`.
-const COUNT_MODIFIERS: &[&str] = &[
-    "such",
-    "more",
-    "other",
-    "new",
-    "old",
-    "additional",
-    "extra",
-    "different",
-    "separate",
-    "remaining",
-    "open",
-    "closed",
-    "distinct",
-    "unique",
-    "active",
-    "pending",
-    "related",
-    "further",
-    "same",
-    "own",
-];
-
 /// A unit that follows a number: size, time, data, angle, frequency or share. The number is a quantity.
 const UNIT_WORDS: &[&str] = &[
     "px", "pt", "em", "rem", "vh", "vw", "dp", "dpi", "pixel", "pixels", "ms", "s", "sec", "secs",
@@ -214,6 +190,7 @@ const NOT_PLURAL_WORDS: &[&str] = &[
 ];
 
 /// Developer tools a reader may not know. A bare use with no description is a name nobody explained.
+/// A name that is also an ordinary English word is left out, except `moon`, which is judged apart.
 const DEV_TOOLS: &[&str] = &[
     "moon",
     "bazel",
@@ -221,11 +198,8 @@ const DEV_TOOLS: &[&str] = &[
     "nx",
     "turborepo",
     "pnpm",
-    "yarn",
     "lerna",
     "cmake",
-    "meson",
-    "earthly",
     "skaffold",
     "asdf",
     "direnv",
@@ -235,24 +209,17 @@ const DEV_TOOLS: &[&str] = &[
     "nvm",
     "esbuild",
     "webpack",
-    "rollup",
-    "biome",
     "oxlint",
     "eslint",
-    "prettier",
-    "ruff",
     "pytest",
-    "poetry",
     "pipx",
     "nextest",
     "sccache",
     "rustup",
     "rustfmt",
     "clippy",
-    "terraform",
     "pulumi",
     "ansible",
-    "helm",
     "kustomize",
     "kubectl",
     "minikube",
@@ -261,15 +228,98 @@ const DEV_TOOLS: &[&str] = &[
     "buildkit",
     "buildx",
     "lefthook",
-    "husky",
-    "renovate",
     "dependabot",
     "jq",
     "yq",
     "ripgrep",
     "fzf",
     "tmux",
-    "zellij",
+];
+
+/// A tool name that is also an ordinary word: reported in backticks, or right next to `task runner`.
+const AMBIGUOUS_TOOLS: &[&str] = &["moon"];
+
+/// Third-person verbs that are never a plural noun, so a number before one labels a thing, as in `Build 12 succeeds`.
+const LABEL_VERBS: &[&str] = &[
+    "succeeds",
+    "fails",
+    "passes",
+    "completes",
+    "finishes",
+    "becomes",
+    "remains",
+    "stays",
+    "depends",
+    "precedes",
+    "requires",
+    "supports",
+    "contains",
+    "includes",
+    "holds",
+    "begins",
+    "wants",
+    "takes",
+    "gets",
+    "keeps",
+    "reads",
+    "writes",
+    "emits",
+    "produces",
+    "causes",
+    "means",
+    "implies",
+];
+
+/// Capitalised words that open a sentence as a verb or an adverb, so one before `version` names no product.
+const SENTENCE_OPENERS: &[&str] = &[
+    "revert",
+    "use",
+    "install",
+    "pin",
+    "upgrade",
+    "downgrade",
+    "update",
+    "run",
+    "see",
+    "check",
+    "ship",
+    "release",
+    "bump",
+    "roll",
+    "switch",
+    "move",
+    "keep",
+    "take",
+    "get",
+    "choose",
+    "select",
+    "build",
+    "test",
+    "try",
+    "pick",
+    "set",
+    "deploy",
+    "require",
+    "need",
+    "support",
+    "drop",
+    "remove",
+    "add",
+    "apply",
+    "read",
+    "open",
+    "also",
+    "then",
+    "now",
+    "later",
+    "first",
+    "next",
+    "finally",
+];
+
+/// Words that end a noun phrase after a number: a place or a time, never the counted noun.
+const PHRASE_ENDERS: &[&str] = &[
+    "above", "below", "later", "earlier", "again", "before", "next",
 ];
 
 /// Verbs that follow a postposed `above` and take an object or a clause, such as `the table above lists the rules`.
@@ -429,7 +479,11 @@ fn tool_candidates(
             || after
                 .strip_prefix('.')
                 .is_some_and(|rest| rest.starts_with(char::is_alphanumeric));
-        if joins_a_path_or_name || is_known_name_head(known, m.as_str()) {
+        let ambiguous = AMBIGUOUS_TOOLS.contains(&m.as_str());
+        if joins_a_path_or_name
+            || is_known_name_head(known, m.as_str())
+            || (ambiguous && !is_next_to_task_runner(masked, m.range()))
+        {
             continue;
         }
         out.push(Candidate {
@@ -439,6 +493,13 @@ fn tool_candidates(
         });
     }
     out
+}
+
+/// Whether the words `task runner` sit right before or right after the name at `range`.
+fn is_next_to_task_runner(text: &str, range: Range<usize>) -> bool {
+    let before = text.get(..range.start).unwrap_or("").to_lowercase();
+    let after = text.get(range.end..).unwrap_or("").to_lowercase();
+    before.trim_end().ends_with("task runner") || after.trim_start().starts_with("task runner")
 }
 
 /// Multi-word name-repeat counts gathered once over the whole document, so a name split across paragraphs still counts as seen more than once.
@@ -699,7 +760,7 @@ fn word_number_candidate(
     if is_a_measured_value(text, word, &word_lower) {
         return None;
     }
-    if counts_a_plural_noun(text, word, &word_lower, after) {
+    if counts_a_noun_phrase(text, word, &word_lower, number.as_str(), after) {
         return None;
     }
     if word_lower == "version" && follows_a_product_name(&unit.text, word.start(), known) {
@@ -737,9 +798,24 @@ fn is_a_plural_noun(word: &str) -> bool {
         && !NOT_PLURAL_WORDS.contains(&word)
 }
 
-/// A digit that counts a plural noun, as in `holds 3 items`, is a count and never a numbered label.
-/// A label noun or a capitalised word inside a sentence names one thing, so it never counts a plural.
-fn counts_a_plural_noun(text: &str, word: regex::Match<'_>, word_lower: &str, after: &str) -> bool {
+/// Whether `word` ends a noun phrase or is no noun: a function word, a verb form, or a place or time word.
+fn ends_a_noun_phrase(word: &str) -> bool {
+    word.is_empty()
+        || NON_LABEL_WORDS.contains(&word)
+        || NOT_PLURAL_WORDS.contains(&word)
+        || LABEL_VERBS.contains(&word)
+        || PHRASE_ENDERS.contains(&word)
+}
+
+/// A digit right before a noun phrase counts it, as in `holds 3 items`, `holds 1 item` or `runs 12 slow tests`.
+/// A label noun, or a capitalised word inside a sentence, right before the digit names one thing instead.
+fn counts_a_noun_phrase(
+    text: &str,
+    word: regex::Match<'_>,
+    word_lower: &str,
+    number: &str,
+    after: &str,
+) -> bool {
     if LABEL_NOUNS.contains(&word_lower) || !after.starts_with(char::is_whitespace) {
         return false;
     }
@@ -747,24 +823,29 @@ fn counts_a_plural_noun(text: &str, word: regex::Match<'_>, word_lower: &str, af
     if capitalised && !opens_a_sentence(text, word.start()) {
         return false;
     }
-    let mut words = after
-        .split_whitespace()
-        .map(|w| {
-            w.chars()
-                .take_while(|c| c.is_alphabetic())
-                .collect::<String>()
-                .to_lowercase()
-        })
-        .take(2);
-    let first = words.next().unwrap_or_default();
-    let is_a_modifier = COUNT_MODIFIERS.contains(&first.as_str())
-        || (first.len() >= 5 && (first.ends_with("ing") || first.ends_with("ed")));
-    is_a_plural_noun(&first)
-        || (is_a_modifier && words.next().is_some_and(|second| is_a_plural_noun(&second)))
+    let tokens: Vec<&str> = after.split_whitespace().take(3).collect();
+    for (i, token) in tokens.iter().enumerate() {
+        let word: String = token
+            .chars()
+            .take_while(|c| c.is_alphabetic())
+            .collect::<String>()
+            .to_lowercase();
+        if ends_a_noun_phrase(&word) {
+            return false;
+        }
+        if is_a_plural_noun(&word) || (number == "1" && !capitalised) {
+            return true;
+        }
+        let breaks_the_phrase = token.chars().last().is_some_and(|c| !c.is_alphabetic());
+        if breaks_the_phrase || i == 2 {
+            return false;
+        }
+    }
+    false
 }
 
 /// Whether a product, named before `start`, places the version number that follows `version`.
-/// It is a known name, a name with an inner capital, a code span, or a capitalised word inside a sentence.
+/// It is a known name, a name with an inner capital, a code span, or a capitalised word that is no verb or adverb opening a sentence.
 fn follows_a_product_name(raw: &str, start: usize, known: &KnownNames) -> bool {
     let before = raw.get(..start).unwrap_or("");
     for token in before.split_whitespace().rev().take(3) {
@@ -779,7 +860,9 @@ fn follows_a_product_name(raw: &str, start: usize, known: &KnownNames) -> bool {
         let word_start = before.rfind(token).unwrap_or(0);
         let is_a_name = is_known_name_head(known, bare)
             || bare.chars().skip(1).any(char::is_uppercase)
-            || (bare.starts_with(char::is_uppercase) && !opens_a_sentence(before, word_start));
+            || (bare.starts_with(char::is_uppercase)
+                && (!opens_a_sentence(before, word_start)
+                    || !SENTENCE_OPENERS.contains(&lower.as_str())));
         return is_a_name;
     }
     false
@@ -2223,6 +2306,40 @@ mod tests {
         assert!(has("Step 4 fails.", Kind::Number, "Step 4"));
     }
 
+    /// A count of a noun is a count whether the noun is singular or plural, with adjectives before it or not.
+    #[test]
+    fn number_excludes_a_count_of_a_singular_noun_or_a_noun_with_adjectives() {
+        for t in [
+            "The cache holds 1 item.",
+            "The list holds 1 entry.",
+            "The API exposes 3 status endpoints.",
+            "The suite runs 12 slow tests.",
+            "The job uses 2 large runners.",
+            "The job keeps 5 recent builds.",
+        ] {
+            assert!(has_no_number(t), "{t}: {:?}", find(t, Context::Document));
+        }
+    }
+
+    /// A capitalised noun before the number labels one thing, even before a verb that ends in `s`.
+    #[test]
+    fn number_still_fires_on_a_label_before_a_verb_that_ends_in_s() {
+        assert!(has(
+            "Build 12 succeeds on all platforms.",
+            Kind::Number,
+            "Build 12"
+        ));
+        assert!(has("The Build 12 fails often.", Kind::Number, "Build 12"));
+    }
+
+    /// A product name before `version`, even one that opens the sentence, places the version.
+    #[test]
+    fn number_excludes_a_version_after_a_capitalised_product() {
+        assert!(has_no_number("Widget version 2 supports plugins."));
+        assert!(has_no_number("Acme version 2 supports plugins."));
+        assert!(has("Revert version 7.", Kind::Number, "version 7"));
+    }
+
     /// A label noun, or a capitalised word inside a sentence, still labels one thing before a verb that ends in `s`.
     #[test]
     fn number_still_fires_on_a_label_before_a_verb_or_a_unit_word() {
@@ -2295,9 +2412,26 @@ mod tests {
     #[test]
     fn name_a_bare_or_backticked_tool_is_a_candidate_in_a_document() {
         assert_eq!(
-            tool_names("We pinned the renderer to moon 2.5.5.", Context::Document),
+            tool_names("We pinned the renderer to bazel 7.1.0.", Context::Document),
+            vec!["bazel"]
+        );
+        assert_eq!(
+            tool_names("The moon task runner builds it.", Context::Document),
             vec!["moon"]
         );
+        assert_eq!(
+            tool_names("The task runner moon builds it.", Context::Document),
+            vec!["moon"]
+        );
+        for t in [
+            "The moon is bright tonight.",
+            "She writes poetry in the evening.",
+            "The yarn was dyed blue and the husky barked.",
+            "A meson decays and the biome is fragile near the helm.",
+            "Please renovate the earthly room.",
+        ] {
+            assert!(tool_names(t, Context::Document).is_empty(), "{t}");
+        }
         for t in ["Run `moon` now.", "Run `bazel` now.", "Run `mise` now."] {
             assert_eq!(tool_names(t, Context::Document).len(), 1, "{t}");
         }
