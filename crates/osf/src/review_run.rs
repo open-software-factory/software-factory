@@ -2,44 +2,46 @@
 //! the roster over each one, checks their findings against the files,
 //! decides a verdict, and journals every answer and the decision.
 //!
+//! The work splits in two so each reviewer can run alone, with only its own
+//! provider's key. [`run_reviewer`] runs one reviewer over every selected
+//! lens and returns a [`ReviewerRun`], which can be saved as a file. [`reduce`]
+//! takes the saved runs of every reviewer, checks the findings against the
+//! files, journals, and decides. [`run`] is both in one process: every
+//! roster reviewer in turn, then [`reduce`].
+//!
 //! A reviewer is whatever coding-agent tool is already installed and
 //! logged in on this machine; this module never reads or holds a model
 //! provider's key. A reviewer that fails to run counts as could-not-run
-//! for that lens, and the run moves on to the next roster entry;
-//! could-not-run never passes. Nothing journalled here carries a prompt or
-//! a raw answer: `review_context` has already redacted the prompt, and
-//! `transcript` is a path or nothing, never the text itself. A verified
-//! finding's own quote and body are reviewer-written text too, so both are
-//! redacted the same way before they ever leave this module, whether they
-//! end up in SARIF, a printed line, or a later posted review.
+//! for that lens; could-not-run never passes. Nothing journalled here
+//! carries a prompt or a raw answer: `review_context` has already redacted
+//! the metadata, and `transcript` is a path or nothing, never the text
+//! itself. A reviewer's findings are reviewer-written text too, so their
+//! path, quote and body are redacted the same way before they leave a
+//! reviewer run, and again before they reach SARIF, a printed line, or a
+//! later posted review.
 
-use crate::answer::AnswerFinding;
+use crate::answer::{Answer, AnswerFinding};
 use crate::builder;
 use crate::journal::{Journal, Payload, ReviewAnswer, ReviewDecision};
-use crate::lenses::{self, Depth, Lens};
+use crate::lenses::{self, Catalogue, Lens};
 use crate::quotes;
 use crate::reducer::{self, LensAnswer, LensVerdict, Verdict};
-use crate::review_context::{self, Sources};
+use crate::review_context::{self, PullRequest, Sources};
+use crate::review_prompt;
 use crate::reviewers::{self, Outcome, Reviewer};
 use crate::{changeset_risk, config, git};
 use std::collections::BTreeSet;
-use std::fmt::Write as _;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-/// How many distinct model families a lens needs among its answers before
-/// reviewers stop being tried for it, matching [`reducer::decide_lens`]'s
-/// own quorum.
-const QUORUM_FAMILIES: usize = 2;
-
-/// How many independent rounds a family's own reviewer is asked for once
-/// chosen: more than one, so a single answer's own noise never alone
-/// decides a family's judgment.
+/// How many independent rounds a reviewer is asked for once chosen: more
+/// than one, so a single answer's own noise never alone decides a family's
+/// judgment.
 const ROUNDS_PER_FAMILY: usize = 2;
 
-/// The interim policy's own extra round: when only one non-building family
-/// actually answers a lens, that lone family is asked once more
-/// beyond [`ROUNDS_PER_FAMILY`], as the critical round [`reducer::decide_lens`]
+/// The interim policy's own extra round: when the roster offers only one
+/// non-building family, that lone family is asked once more beyond
+/// [`ROUNDS_PER_FAMILY`], as the critical round [`reducer::decide_lens`]
 /// requires before it will let one family decide a lens on its own. Remove
 /// this, and the policy that goes with it, once a second family is a real
 /// requirement rather than a goal.
@@ -48,20 +50,21 @@ const INTERIM_EXTRA_ROUNDS: usize = 1;
 const ACTOR: &str = "osf";
 
 /// What one run of `osf review run` needs: the repository, what to diff
-/// against, the work item file the caller saved, if any, and where the
-/// trusted configuration lives.
+/// against, the work item file the caller saved, if any, the pull request,
+/// if any, and where the trusted configuration lives.
 #[derive(Debug, Clone, Copy)]
 pub struct Request<'a> {
     pub root: &'a Path,
-    /// Where the lens catalogue and the `[review]` table of `osf.toml`
-    /// (roster, threshold, timeout, cost ceiling) are read from. A pull
-    /// request under review must not be able to weaken its own review by
-    /// editing a lens or lowering the threshold, so this is the base tree
-    /// when the caller passes one, never `root` in that case. Defaults to
-    /// `root` when the caller has no separate trusted tree.
+    /// Where the lens catalogue, the prompt file and the `[review]` table of
+    /// `osf.toml` (roster, threshold, timeout, cost ceiling) are read from.
+    /// A pull request under review must not be able to weaken its own review
+    /// by editing a lens, the prompt or the threshold, so this is the base
+    /// tree when the caller passes one, never `root` in that case. Defaults
+    /// to `root` when the caller has no separate trusted tree.
     pub config_root: &'a Path,
     pub base: &'a str,
     pub work_item: Option<&'a Path>,
+    pub pull_request: Option<&'a PullRequest>,
     /// Builder families named with `--builder-family`, repeatable. Overrides
     /// detection from the reviewed range's own `Code-Generator:` trailers
     /// entirely when non-empty.
@@ -86,40 +89,263 @@ pub struct RunOutcome {
     pub journal_error: Option<String>,
 }
 
-/// Runs the review: loads the catalogue, selects lenses for the change,
-/// runs reviewers over each selected lens, decides a verdict, and journals
-/// every answer plus the decision to `state_dir`.
-///
+/// One attempt of one reviewer at one lens, as saved. The family and model
+/// are not saved: [`reduce`] reads them from the trusted roster.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Attempt {
+    /// `answered`, `invalid` or `could-not-run`.
+    pub result: String,
+    pub reason: Option<String>,
+    /// What the run noted, such as a declared login path that was missing.
+    pub notes: Vec<String>,
+    /// The reviewer's own attempt number for this lens, one-based.
+    pub round: u32,
+    /// The validated answer, its findings not yet checked against the files.
+    pub answer: Option<Answer>,
+}
+
+/// One reviewer's attempts at one lens.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LensRun {
+    pub lens: String,
+    /// Why this lens's metadata could not be built, when it could not.
+    pub context_error: Option<String>,
+    pub attempts: Vec<Attempt>,
+}
+
+/// Everything one reviewer did over a change, saved as one file.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ReviewerRun {
+    pub reviewer: String,
+    pub lenses: Vec<LensRun>,
+}
+
+impl ReviewerRun {
+    /// Writes this run to `path` as JSON.
+    ///
+    /// # Errors
+    /// Names the file and the reason when it cannot be written.
+    pub fn save(&self, path: &Path) -> Result<(), String> {
+        let text = serde_json::to_string_pretty(self).map_err(|e| e.to_string())?;
+        std::fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))
+    }
+
+    /// Reads a run saved by [`ReviewerRun::save`].
+    ///
+    /// # Errors
+    /// Names the file and the reason when it cannot be read or parsed.
+    pub fn load(path: &Path) -> Result<Self, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+    }
+}
+
+/// Everything a run reads from the trusted config root and the repository
+/// before any reviewer starts.
+struct Setup {
+    catalogue: Catalogue,
+    /// The names of the selected lenses, in catalogue order.
+    selected: Vec<String>,
+    roster: Vec<Reviewer>,
+    threshold: f64,
+    timeout: Duration,
+    prompt: String,
+    builder_families: Vec<String>,
+    skip_families: BTreeSet<String>,
+}
+
+impl Setup {
+    fn selected_lenses(&self) -> Vec<&Lens> {
+        self.catalogue
+            .lenses
+            .iter()
+            .filter(|lens| self.selected.contains(&lens.name))
+            .collect()
+    }
+
+    /// Whether the roster offers only one non-building family: the interim
+    /// policy then lets that family decide a lens alone.
+    fn single_family_available(&self) -> bool {
+        let families: BTreeSet<&str> = self
+            .roster
+            .iter()
+            .filter(|r| r.family_error.is_none() && !r.is_excluded_by(&self.skip_families))
+            .map(|r| r.family.as_str())
+            .collect();
+        families.len() == 1
+    }
+}
+
 /// # Errors
-/// Returns an error, naming the file, when the lens catalogue fails to
-/// load; naming the reason when the risk assessment, the changed-file
-/// list, or the reviewed range's own commits cannot be read; or when the
-/// reviewer roster or the review threshold cannot be read from
-/// `osf.toml`. None of these leaves a lens to blame, so the caller
-/// reports could-not-configure rather than picking one lens to fail.
-pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
+/// Returns an error, naming the file, when the lens catalogue or the prompt
+/// file fails to load; naming the reason when the risk assessment, the
+/// changed-file list, or the reviewed range's own commits cannot be read; or
+/// when the reviewer roster or the review settings cannot be read from
+/// `osf.toml`. None of these leaves a lens to blame, so the caller reports
+/// could-not-configure rather than picking one lens to fail.
+fn setup(req: &Request) -> Result<Setup, String> {
     let catalogue = lenses::load(req.config_root, None)?;
     let report = changeset_risk::assess(req.root, req.config_root, req.base)?;
     let changed = git::changed_files(req.root, req.base).map_err(|e| e.to_string())?;
     let signals = report.signals();
-    let selected = lenses::select(&catalogue, &changed, &signals, report.tier);
-    let depth = lenses::depth(report.tier);
+    let selected: Vec<String> = lenses::select(&catalogue, &changed, &signals, report.tier)
+        .iter()
+        .map(|s| s.lens.name.clone())
+        .collect();
 
     let roster = reviewers::roster(req.config_root)?;
-    let enabled: Vec<&Reviewer> = roster.iter().collect();
     let review_config = config::review_config(req.config_root).map_err(|e| e.to_string())?;
-    let threshold = review_config.threshold;
-    let timeout = Duration::from_secs(review_config.timeout_seconds);
-
+    let prompt = review_prompt::load(req.config_root, review_config.prompt_file.as_deref())?;
     let (builder_families, skip_families) = detect_builder_families(req, &review_config)?;
+    Ok(Setup {
+        catalogue,
+        selected,
+        roster,
+        threshold: review_config.threshold,
+        timeout: Duration::from_secs(review_config.timeout_seconds),
+        prompt,
+        builder_families,
+        skip_families,
+    })
+}
 
+/// Runs every roster reviewer in turn, then decides: [`run_reviewer`] for
+/// each, then [`reduce`], journaling every answer plus the decision to
+/// `state_dir`.
+///
+/// # Errors
+/// Returns an error when [`setup`] fails; see there.
+pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
+    let setup = setup(req)?;
+    let runs: Vec<ReviewerRun> = setup
+        .roster
+        .iter()
+        .map(|reviewer| run_reviewer_with(req, &setup, reviewer))
+        .collect();
+    Ok(reduce_with(req, &setup, &runs, state_dir))
+}
+
+/// Runs the roster reviewer called `name` over every selected lens, and
+/// returns what it did, unchecked and unjournaled. A reviewer whose family
+/// built the change, or whose family is unknown, is not started: its run
+/// holds no attempts.
+///
+/// # Errors
+/// Returns an error when [`setup`] fails, or the roster has no reviewer
+/// called `name`.
+pub fn run_reviewer(req: &Request, name: &str) -> Result<ReviewerRun, String> {
+    let setup = setup(req)?;
+    let reviewer = setup
+        .roster
+        .iter()
+        .find(|r| r.name == name)
+        .ok_or_else(|| format!("reviewer \"{name}\" is not in the roster"))?;
+    Ok(run_reviewer_with(req, &setup, reviewer))
+}
+
+fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
     let sources = Sources {
         root: req.root,
         config_root: req.config_root,
         base: req.base,
         work_item: req.work_item,
+        pull_request: req.pull_request,
     };
+    let idle = reviewer.family_error.is_some() || reviewer.is_excluded_by(&setup.skip_families);
+    let lone = setup.single_family_available();
+    let lenses = setup
+        .selected_lenses()
+        .into_iter()
+        .map(|lens| {
+            let mut run = LensRun {
+                lens: lens.name.clone(),
+                context_error: None,
+                attempts: Vec::new(),
+            };
+            if idle {
+                return run;
+            }
+            match review_context::build(lens, &sources) {
+                Err(reason) => run.context_error = Some(reason),
+                Ok(metadata) => {
+                    let prompt = review_prompt::render(&setup.prompt, lens, &metadata);
+                    run.attempts = attempts_for(req, reviewer, &prompt, lens, setup.timeout, lone);
+                }
+            }
+            run
+        })
+        .collect();
+    ReviewerRun {
+        reviewer: reviewer.name.clone(),
+        lenses,
+    }
+}
 
+/// [`ROUNDS_PER_FAMILY`] independent rounds, and, when `lone` and the
+/// reviewer answered at all, [`INTERIM_EXTRA_ROUNDS`] more.
+fn attempts_for(
+    req: &Request,
+    reviewer: &Reviewer,
+    prompt: &str,
+    lens: &Lens,
+    timeout: Duration,
+    lone: bool,
+) -> Vec<Attempt> {
+    let mut attempts: Vec<Attempt> = (1..=ROUNDS_PER_FAMILY)
+        .map(|round| attempt_once(req, reviewer, prompt, lens, timeout, as_u32(round)))
+        .collect();
+    if lone && attempts.iter().any(|a| a.answer.is_some()) {
+        for extra in 1..=INTERIM_EXTRA_ROUNDS {
+            let round = as_u32(ROUNDS_PER_FAMILY + extra);
+            attempts.push(attempt_once(req, reviewer, prompt, lens, timeout, round));
+        }
+    }
+    attempts
+}
+
+/// Runs `reviewer` once for `lens`. An answer's findings are redacted here,
+/// so nothing a reviewer wrote is saved as it was written.
+fn attempt_once(
+    req: &Request,
+    reviewer: &Reviewer,
+    prompt: &str,
+    lens: &Lens,
+    timeout: Duration,
+    round: u32,
+) -> Attempt {
+    let (outcome, notes) = reviewers::run_one_noted(reviewer, prompt, lens, req.root, timeout);
+    let (result, reason, answer) = match outcome {
+        Outcome::Answered(answer) => (
+            "answered",
+            None,
+            Some(redact_answer(req.root, req.config_root, answer)),
+        ),
+        Outcome::Invalid(reason) => ("invalid", Some(reason), None),
+        Outcome::CouldNotRun(reason) => ("could-not-run", Some(reason), None),
+    };
+    Attempt {
+        result: result.to_string(),
+        reason,
+        notes,
+        round,
+        answer,
+    }
+}
+
+/// Decides the review from the saved `runs` of the roster's reviewers,
+/// journaling every answer plus the decision to `state_dir`. A roster
+/// reviewer with no run, or no run for a lens, counts as could-not-run for
+/// it, naming that.
+///
+/// # Errors
+/// Returns an error when [`setup`] fails; see there.
+pub fn reduce(req: &Request, runs: &[ReviewerRun], state_dir: &Path) -> Result<RunOutcome, String> {
+    let setup = setup(req)?;
+    Ok(reduce_with(req, &setup, runs, state_dir))
+}
+
+fn reduce_with(req: &Request, setup: &Setup, runs: &[ReviewerRun], state_dir: &Path) -> RunOutcome {
+    let lone = setup.single_family_available();
     let run_id = format!("review-{}-{}", now_millis(), std::process::id());
     let mut journal_error = None;
     let mut journal = match Journal::open(state_dir, &run_id) {
@@ -130,32 +356,35 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
         }
     };
 
+    let selected = setup.selected_lenses();
     let mut decided: Vec<(&Lens, LensVerdict)> = Vec::with_capacity(selected.len());
     let mut lens_summaries: Vec<(String, String)> = Vec::with_capacity(selected.len());
     let mut lines = Vec::with_capacity(selected.len() + 1);
     let mut findings = Vec::new();
 
-    for selected_lens in &selected {
-        let lens = selected_lens.lens;
-        let (verdict, label) = run_lens_and_journal(
-            lens,
-            depth,
-            &sources,
-            &enabled,
-            &skip_families,
-            timeout,
-            &mut journal,
-            &mut journal_error,
-            &mut findings,
-        );
+    for lens in selected {
+        let (verdict, judged) = judge_lens(req, setup, runs, lens, lone);
+        for attempt in judged {
+            if let Some(journal) = journal.as_mut() {
+                let event = attempt.into_event(&lens.name);
+                if let Err(e) = journal.append(ACTOR, now_millis(), Payload::ReviewAnswer(event.0))
+                {
+                    journal_error.get_or_insert(e);
+                }
+                findings.extend(event.1);
+            } else {
+                findings.extend(attempt.kept_findings(&lens.name));
+            }
+        }
+        let label = verdict_label(&verdict, lone);
         lines.push(format!("{}: {label}", lens.name));
         lens_summaries.push((lens.name.clone(), label));
         decided.push((lens, verdict));
     }
 
-    let verdict = reducer::decide(&decided, threshold);
+    let verdict = reducer::decide(&decided, setup.threshold);
     let score = reducer::weighted_mean(&decided);
-    let reported_threshold = score.map(|_| threshold);
+    let reported_threshold = score.map(|_| setup.threshold);
 
     if let Some(journal) = journal.as_mut() {
         if let Err(e) = journal.append(
@@ -166,7 +395,7 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
                 lenses: lens_summaries,
                 score,
                 threshold: reported_threshold,
-                builder_families,
+                builder_families: setup.builder_families.clone(),
                 grade: "reported".to_string(),
             }),
         ) {
@@ -176,52 +405,19 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
 
     lines.push(match score {
         Some(score) => format!(
-            "verdict: {} (score {score:.2}, threshold {threshold:.2})",
-            verdict_word(verdict)
+            "verdict: {} (score {score:.2}, threshold {:.2})",
+            verdict_word(verdict),
+            setup.threshold
         ),
         None => format!("verdict: {}", verdict_word(verdict)),
     });
 
-    Ok(RunOutcome {
+    RunOutcome {
         verdict,
         lines,
         findings,
         journal_error,
-    })
-}
-
-/// Runs one lens, journals every attempt it made (or collects its kept
-/// findings when the journal itself could not open), and returns its
-/// verdict alongside its printable label. Pulled out of [`run`] only to
-/// keep that function's own line count down; it owns no decision of its
-/// own.
-#[allow(clippy::too_many_arguments)]
-fn run_lens_and_journal(
-    lens: &Lens,
-    depth: Depth,
-    sources: &Sources,
-    enabled: &[&Reviewer],
-    skip_families: &BTreeSet<String>,
-    timeout: Duration,
-    journal: &mut Option<Journal>,
-    journal_error: &mut Option<String>,
-    findings: &mut Vec<KeptFinding>,
-) -> (LensVerdict, String) {
-    let (verdict, attempts, interim) =
-        run_lens(lens, depth, sources, enabled, skip_families, timeout);
-    for attempt in attempts {
-        if let Some(journal) = journal.as_mut() {
-            let event = attempt.into_event(&lens.name);
-            if let Err(e) = journal.append(ACTOR, now_millis(), Payload::ReviewAnswer(event.0)) {
-                journal_error.get_or_insert(e);
-            }
-            findings.extend(event.1);
-        } else {
-            findings.extend(attempt.kept_findings(&lens.name));
-        }
     }
-    let label = verdict_label(&verdict, interim);
-    (verdict, label)
 }
 
 /// The builder families for `req`'s own reviewed range (see
@@ -250,24 +446,41 @@ fn detect_builder_families(
     Ok((families, skip))
 }
 
-/// One reviewer's attempt at answering for one lens, kept just long enough
-/// to build both the journal event and the reducer's own input from it.
-struct Attempt {
+/// One attempt after its findings are checked against the files, ready for
+/// the journal and for the reducer.
+struct Judged {
     lens_answer: LensAnswer,
-    /// The model the reviewer's roster entry pinned, if any, carried
-    /// through to the journal untouched by anything this module decides.
+    /// The model the reviewer's roster entry pinned, if any.
     model: Option<String>,
-    result: &'static str,
+    result: String,
     findings_kept: u32,
     findings_dropped: u32,
     kept: Vec<AnswerFinding>,
-    /// This reviewer's own attempt number for this lens, one-based.
     round: u32,
-    /// What the run noted, such as a declared login path that was missing.
     notes: Vec<String>,
 }
 
-impl Attempt {
+impl Judged {
+    /// An attempt that never ran, or never answered: `answer` stays `None`,
+    /// so [`reducer::decide_lens`] counts it as missing.
+    fn missing(reviewer: &Reviewer, result: &str, reason: String) -> Self {
+        Judged {
+            lens_answer: LensAnswer {
+                reviewer: reviewer.name.clone(),
+                family: reviewer.family.clone(),
+                answer: None,
+                reason: Some(reason),
+            },
+            model: reviewer.model.clone(),
+            result: result.to_string(),
+            findings_kept: 0,
+            findings_dropped: 0,
+            kept: Vec::new(),
+            round: 1,
+            notes: Vec::new(),
+        }
+    }
+
     /// The journal event this attempt writes, and the kept findings it
     /// contributes, named by `lens`.
     fn into_event(self, lens: &str) -> (ReviewAnswer, Vec<KeptFinding>) {
@@ -289,7 +502,7 @@ impl Attempt {
             reviewer: self.lens_answer.reviewer,
             family: self.lens_answer.family,
             model: self.model,
-            result: self.result.to_string(),
+            result: self.result,
             scores,
             findings_kept: self.findings_kept,
             findings_dropped: self.findings_dropped,
@@ -314,153 +527,106 @@ impl Attempt {
     }
 }
 
-/// Builds `lens`'s context, then runs enabled reviewers over it in roster
-/// order: each family tried gets [`ROUNDS_PER_FAMILY`] independent rounds,
-/// until two non-builder families have each had their rounds or the roster
-/// runs out. When exactly one family actually answered, whether because the
-/// roster offers only one or because the other timed out or failed, that
-/// family is asked for [`INTERIM_EXTRA_ROUNDS`] more, as the interim
-/// policy's own critical round, rather than blocking the lens on a second
-/// family that did not answer. The returned flag says the interim policy
-/// decided the lens. A reviewer whose family is in `skip_families` (the
-/// families that built this change; see [`builder::detect`]) is never run:
-/// it is not an independent second opinion on its own change. A context
-/// failure makes the whole lens could-not-run, naming the reason, with no
-/// reviewer ever asked.
-fn run_lens(
+/// One lens's verdict from every roster reviewer's attempts at it. A
+/// reviewer whose family built this change is never counted: it is not an
+/// independent second opinion on its own change.
+fn judge_lens(
+    req: &Request,
+    setup: &Setup,
+    runs: &[ReviewerRun],
     lens: &Lens,
-    depth: Depth,
-    sources: &Sources,
-    enabled: &[&Reviewer],
-    skip_families: &BTreeSet<String>,
-    timeout: Duration,
-) -> (LensVerdict, Vec<Attempt>, bool) {
-    let context = match review_context::build(lens, depth, sources) {
-        Ok(context) => context,
-        Err(reason) => return (LensVerdict::CouldNotRun(reason), Vec::new(), false),
-    };
-    let prompt = build_prompt(lens, &context);
-
-    let mut attempts = Vec::new();
-    let mut families: BTreeSet<String> = BTreeSet::new();
-    for reviewer in enabled {
-        if families.len() >= QUORUM_FAMILIES {
-            break;
-        }
+    lone: bool,
+) -> (LensVerdict, Vec<Judged>) {
+    let mut judged: Vec<Judged> = Vec::new();
+    let mut context_error: Option<String> = None;
+    for reviewer in &setup.roster {
         if let Some(reason) = &reviewer.family_error {
-            attempts.push(unknown_family_attempt(reviewer, reason));
+            judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
             continue;
         }
-        if reviewer.is_excluded_by(skip_families) {
-            attempts.push(skipped_attempt(reviewer));
+        if reviewer.is_excluded_by(&setup.skip_families) {
+            let reason = format!("the builder's own family ({})", reviewer.family);
+            judged.push(Judged::missing(reviewer, "skipped", reason));
             continue;
         }
-        for round in 1..=ROUNDS_PER_FAMILY {
-            let attempt = attempt_reviewer(
-                sources.root,
-                sources.config_root,
-                reviewer,
-                &prompt,
-                lens,
-                timeout,
-                as_u32(round),
-            );
-            if attempt.lens_answer.answer.is_some() {
-                families.insert(attempt.lens_answer.family.clone());
-            }
-            attempts.push(attempt);
-        }
-    }
-
-    // The interim policy: one answering family earns its critical round.
-    let interim = families.len() == 1;
-    if interim {
-        let lone = attempts
+        let lens_run = runs
             .iter()
-            .find(|a| a.lens_answer.answer.is_some())
-            .and_then(|a| enabled.iter().find(|r| r.name == a.lens_answer.reviewer));
-        if let Some(reviewer) = lone {
-            let done = attempts
-                .iter()
-                .filter(|a| a.lens_answer.reviewer == reviewer.name)
-                .count();
-            for extra in 1..=INTERIM_EXTRA_ROUNDS {
-                let attempt = attempt_reviewer(
-                    sources.root,
-                    sources.config_root,
-                    reviewer,
-                    &prompt,
-                    lens,
-                    timeout,
-                    as_u32(done + extra),
-                );
-                attempts.push(attempt);
+            .find(|r| r.reviewer == reviewer.name)
+            .and_then(|r| r.lenses.iter().find(|l| l.lens == lens.name));
+        match lens_run {
+            Some(run) if run.context_error.is_some() => {
+                context_error = context_error.or_else(|| run.context_error.clone());
             }
+            Some(run) if !run.attempts.is_empty() => {
+                judged.extend(
+                    run.attempts
+                        .iter()
+                        .map(|saved| judge_attempt(req, reviewer, saved)),
+                );
+            }
+            _ => judged.push(Judged::missing(
+                reviewer,
+                "could-not-run",
+                "its run left no answer for this lens".to_string(),
+            )),
         }
     }
-
-    let lens_answers: Vec<LensAnswer> = attempts.iter().map(|a| a.lens_answer.clone()).collect();
+    if let Some(reason) = context_error {
+        return (LensVerdict::CouldNotRun(reason), Vec::new());
+    }
+    let answers: Vec<LensAnswer> = judged.iter().map(|a| a.lens_answer.clone()).collect();
     let verdict = name_builder_exclusion(
-        reducer::decide_lens(lens, &lens_answers, interim),
-        skip_families,
-        &attempts,
+        reducer::decide_lens(lens, &answers, lone),
+        &setup.skip_families,
+        &judged,
     );
-    (verdict, attempts, interim)
+    (verdict, judged)
 }
 
-/// The attempt recorded for a reviewer never run because its family built
-/// this change: no harness call, no finding, its `answer` left `None` so
-/// [`reducer::decide_lens`] counts it as missing rather than a family that
-/// answered.
-fn skipped_attempt(reviewer: &Reviewer) -> Attempt {
-    Attempt {
-        lens_answer: LensAnswer {
-            reviewer: reviewer.name.clone(),
-            family: reviewer.family.clone(),
-            answer: None,
-            reason: Some(format!("the builder's own family ({})", reviewer.family)),
-        },
-        model: reviewer.model.clone(),
-        result: "skipped",
-        findings_kept: 0,
-        findings_dropped: 0,
-        kept: Vec::new(),
-        round: 1,
-        notes: Vec::new(),
+/// `saved`, with an answer's findings checked against the files under
+/// `req.root` through [`quotes::check`], so a lens can never be scored from
+/// a finding nothing has verified, whoever wrote the file.
+fn judge_attempt(req: &Request, reviewer: &Reviewer, saved: &Attempt) -> Judged {
+    let (answer, reason, result) = match (&saved.answer, saved.result.as_str()) {
+        (Some(answer), "answered") => (Some(answer.clone()), None, "answered"),
+        (None, "answered") => (
+            None,
+            Some("the saved run holds no answer".to_string()),
+            "could-not-run",
+        ),
+        (_, "invalid") => (None, saved.reason.clone(), "invalid"),
+        _ => (None, saved.reason.clone(), "could-not-run"),
+    };
+    let mut judged = Judged::missing(reviewer, result, String::new());
+    judged.lens_answer.reason = reason;
+    judged.round = saved.round;
+    judged.notes.clone_from(&saved.notes);
+    if let Some(answer) = answer {
+        let checked = quotes::check(req.root, answer);
+        judged.findings_kept = as_u32(checked.kept.findings().len());
+        judged.findings_dropped = as_u32(checked.dropped.len());
+        judged.kept = checked
+            .kept
+            .findings()
+            .iter()
+            .map(|finding| redact_finding(req.root, req.config_root, finding))
+            .collect();
+        judged.lens_answer.answer = Some(checked.kept);
     }
+    judged
 }
 
-/// The attempt recorded for a reviewer whose model family is unknown: it
-/// never runs, because nothing says whether it is the builder's own family.
-fn unknown_family_attempt(reviewer: &Reviewer, reason: &str) -> Attempt {
-    Attempt {
-        lens_answer: LensAnswer {
-            reviewer: reviewer.name.clone(),
-            family: reviewer.family.clone(),
-            answer: None,
-            reason: Some(reason.to_string()),
-        },
-        model: reviewer.model.clone(),
-        result: "could-not-run",
-        findings_kept: 0,
-        findings_dropped: 0,
-        kept: Vec::new(),
-        round: 1,
-        notes: Vec::new(),
-    }
-}
-
-/// `verdict`, with its could-not-run reason naming `skip_families` when at
-/// least one reviewer was left out of `attempts` for building this change:
+/// `verdict`, with its could-not-run reason naming the builder families when
+/// at least one reviewer was left out of `judged` for building this change:
 /// a reader seeing too few families answer should learn why, not just that
 /// it happened. Every other verdict, and a could-not-run one with no
 /// builder-family skip behind it, passes through unchanged.
 fn name_builder_exclusion(
     verdict: LensVerdict,
     skip_families: &BTreeSet<String>,
-    attempts: &[Attempt],
+    judged: &[Judged],
 ) -> LensVerdict {
-    let any_skipped = attempts.iter().any(|a| a.result == "skipped");
+    let any_skipped = judged.iter().any(|a| a.result == "skipped");
     match verdict {
         LensVerdict::CouldNotRun(reason) if any_skipped && !skip_families.is_empty() => {
             let names: Vec<&str> = skip_families.iter().map(String::as_str).collect();
@@ -473,96 +639,34 @@ fn name_builder_exclusion(
     }
 }
 
-/// Runs one reviewer for one lens, and turns its outcome into the shape
-/// both the journal and the reducer need: an answered reviewer's findings
-/// go through [`quotes::check`] first, so a lens can never be scored from a
-/// finding nothing has verified.
-fn attempt_reviewer(
-    root: &Path,
-    config_root: &Path,
-    reviewer: &Reviewer,
-    prompt: &str,
-    lens: &Lens,
-    timeout: Duration,
-    round: u32,
-) -> Attempt {
-    let (outcome, notes) = reviewers::run_one_noted(reviewer, prompt, lens, root, timeout);
-    match outcome {
-        Outcome::Answered(answer) => {
-            let checked = quotes::check(root, answer);
-            let findings_kept = as_u32(checked.kept.findings().len());
-            let findings_dropped = as_u32(checked.dropped.len());
-            let kept = checked
-                .kept
-                .findings()
-                .iter()
-                .cloned()
-                .map(|finding| redact_finding(root, config_root, finding))
-                .collect();
-            Attempt {
-                lens_answer: LensAnswer {
-                    reviewer: reviewer.name.clone(),
-                    family: reviewer.family.clone(),
-                    answer: Some(checked.kept),
-                    reason: None,
-                },
-                model: reviewer.model.clone(),
-                result: "answered",
-                findings_kept,
-                findings_dropped,
-                kept,
-                round,
-                notes,
-            }
-        }
-        Outcome::Invalid(reason) => Attempt {
-            lens_answer: LensAnswer {
-                reviewer: reviewer.name.clone(),
-                family: reviewer.family.clone(),
-                answer: None,
-                reason: Some(reason),
-            },
-            model: reviewer.model.clone(),
-            result: "invalid",
-            findings_kept: 0,
-            findings_dropped: 0,
-            kept: Vec::new(),
-            round,
-            notes,
-        },
-        Outcome::CouldNotRun(reason) => Attempt {
-            lens_answer: LensAnswer {
-                reviewer: reviewer.name.clone(),
-                family: reviewer.family.clone(),
-                answer: None,
-                reason: Some(reason),
-            },
-            model: reviewer.model.clone(),
-            result: "could-not-run",
-            findings_kept: 0,
-            findings_dropped: 0,
-            kept: Vec::new(),
-            round,
-            notes,
-        },
+/// `answer`, with every finding's path, quote and body redacted.
+fn redact_answer(root: &Path, config_root: &Path, answer: Answer) -> Answer {
+    Answer {
+        findings: answer
+            .findings
+            .iter()
+            .map(|finding| redact_finding(root, config_root, finding))
+            .collect(),
+        ..answer
     }
 }
 
-/// `finding`, with its quote and body redacted the same way
-/// [`review_context::build`] redacts a prompt: a verified quote is real
-/// text the reviewer copied out of the repository, and a finding's body is
-/// the reviewer's own unverified prose, so neither is trusted just because
-/// the finding survived quote verification.
+/// `finding`, with its path, quote and body redacted the same way
+/// [`review_context::build`] redacts a prompt: a quote is real text the
+/// reviewer copied out of the repository, and the path and body are the
+/// reviewer's own unverified prose, so none is trusted just because the
+/// finding survived quote verification.
 ///
 /// Falls back to a fixed placeholder, never the original text, if the
-/// redaction rules themselves cannot be built; in practice this never
-/// happens here, because [`review_context::build`] already built them once
-/// for this same lens before any reviewer was ever asked.
-fn redact_finding(root: &Path, config_root: &Path, finding: AnswerFinding) -> AnswerFinding {
+/// redaction rules themselves cannot be built.
+fn redact_finding(root: &Path, config_root: &Path, finding: &AnswerFinding) -> AnswerFinding {
     AnswerFinding {
+        path: redact_reviewer_text(root, config_root, &finding.path),
         quote: redact_reviewer_text(root, config_root, &finding.quote),
         body: redact_reviewer_text(root, config_root, &finding.body),
-        ..finding
+        line: finding.line,
+        severity: finding.severity,
+        action: finding.action,
     }
 }
 
@@ -575,35 +679,10 @@ fn redact_reviewer_text(root: &Path, config_root: &Path, text: &str) -> String {
     )
 }
 
-/// The full prompt sent to a reviewer for `lens`: its own questions and
-/// severity guide, then `context` (the diff and whatever else the lens
-/// declared it needs, already assembled and redacted by
-/// [`review_context::build`]).
-fn build_prompt(lens: &Lens, context: &str) -> String {
-    let mut criteria = String::new();
-    for criterion in &lens.criteria {
-        let _ = writeln!(criteria, "- {}: {}", criterion.id, criterion.question);
-    }
-    format!(
-        "You are reviewing a change through the \"{name}\" lens: {summary}\n\n\
-         Score each criterion from 0 to 1:\n{criteria}\n\
-         Severity guide - blocker: {blocker}; major: {major}; minor: {minor}.\n\n\
-         Answer only with JSON matching the review-answer schema for lens \"{name}\": an \
-         object with \"lens\", \"scores\" (one entry per criterion id above) and \"findings\" \
-         (each with \"path\", \"line\", \"quote\", \"severity\", \"action\" and \"body\"). A \
-         finding's \"quote\" must be the exact text at its \"path\" and \"line\".\n\n{context}",
-        name = lens.name,
-        summary = lens.summary,
-        blocker = lens.severity_guide.blocker,
-        major = lens.severity_guide.major,
-        minor = lens.severity_guide.minor,
-    )
-}
-
 /// One lens's verdict, rendered for a journal event's `lenses` list and for
 /// the printed per-lens line. `interim` names the interim policy on a
-/// `Pass` or `Fail`: it is only true when the lone answering family's own
-/// extra critical round is what let the lens decide at all (see
+/// `Pass` or `Fail`: it is true when the roster offers only one non-building
+/// family, so that family's own extra critical round decided the lens (see
 /// [`INTERIM_EXTRA_ROUNDS`]).
 fn verdict_label(verdict: &LensVerdict, interim: bool) -> String {
     let interim = if interim {
@@ -649,8 +728,8 @@ fn now_millis() -> u64 {
 mod tests {
     use super::*;
 
-    fn attempt(reason: Option<&str>, notes: &[&str]) -> Attempt {
-        Attempt {
+    fn judged(reason: Option<&str>, notes: &[&str]) -> Judged {
+        Judged {
             lens_answer: LensAnswer {
                 reviewer: "r".to_string(),
                 family: "f".to_string(),
@@ -658,7 +737,7 @@ mod tests {
                 reason: reason.map(str::to_string),
             },
             model: None,
-            result: "answered",
+            result: "answered".to_string(),
             findings_kept: 0,
             findings_dropped: 0,
             kept: Vec::new(),
@@ -669,11 +748,50 @@ mod tests {
 
     #[test]
     fn the_journal_event_carries_the_runs_notes_in_its_reason() {
-        let (event, _) = attempt(None, &["login path \"x\" is missing"]).into_event("lens");
+        let (event, _) = judged(None, &["login path \"x\" is missing"]).into_event("lens");
         assert_eq!(event.reason.as_deref(), Some("login path \"x\" is missing"));
-        let (event, _) = attempt(Some("bad"), &["note"]).into_event("lens");
+        let (event, _) = judged(Some("bad"), &["note"]).into_event("lens");
         assert_eq!(event.reason.as_deref(), Some("bad; note"));
-        let (event, _) = attempt(None, &[]).into_event("lens");
+        let (event, _) = judged(None, &[]).into_event("lens");
         assert_eq!(event.reason, None);
+    }
+
+    #[test]
+    fn a_saved_run_reads_back_as_it_was_written() {
+        let dir = crate::test_support::TempDir::new("osf-review-run-save");
+        let run = ReviewerRun {
+            reviewer: "codex".to_string(),
+            lenses: vec![LensRun {
+                lens: "correctness".to_string(),
+                context_error: None,
+                attempts: vec![Attempt {
+                    result: "could-not-run".to_string(),
+                    reason: Some("timed out".to_string()),
+                    notes: vec!["note".to_string()],
+                    round: 2,
+                    answer: None,
+                }],
+            }],
+        };
+        let path = dir.join("codex.json");
+        run.save(&path).expect("saves");
+        let back = ReviewerRun::load(&path).expect("loads");
+        assert_eq!(back.reviewer, "codex");
+        let attempt = back
+            .lenses
+            .first()
+            .and_then(|l| l.attempts.first())
+            .expect("one attempt");
+        assert_eq!(attempt.round, 2);
+        assert_eq!(attempt.reason.as_deref(), Some("timed out"));
+    }
+
+    #[test]
+    fn a_file_that_is_not_a_saved_run_names_itself() {
+        let dir = crate::test_support::TempDir::new("osf-review-run-bad-file");
+        let path = dir.join("bad.json");
+        std::fs::write(&path, "not json").expect("writes");
+        let e = ReviewerRun::load(&path).expect_err("refused");
+        assert!(e.contains("bad.json"), "{e}");
     }
 }

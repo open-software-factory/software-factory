@@ -9,6 +9,12 @@ fi
 if [ -n "${OSF_FAKE_HARNESS_LOG:-}" ]; then
     echo run >> "$OSF_FAKE_HARNESS_LOG"
 fi
+if [ -n "${OSF_FAKE_ARGS_CAPTURE:-}" ]; then
+    printf '%s\n' "$@" > "$OSF_FAKE_ARGS_CAPTURE"
+fi
+if [ -n "${OSF_FAKE_PROMPT_CAPTURE:-}" ]; then
+    cat > "$OSF_FAKE_PROMPT_CAPTURE"
+fi
 if [ -n "${OSF_FAKE_ENV_CAPTURE:-}" ]; then
     {
         echo "GH_TOKEN=${GH_TOKEN:-}"

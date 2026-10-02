@@ -56,7 +56,10 @@ pub struct Trigger {
     pub signals: Vec<String>,
 }
 
-/// One input a lens declares it needs, assembled before its reviewer runs.
+/// One input a lens declares it needs. Only `work-item` and
+/// `acceptance-criteria` change what osf assembles: they must exist, or the
+/// lens is could-not-run. The reviewer reads every other input from its
+/// checkout.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ContextInput {
@@ -232,26 +235,6 @@ fn forward_slash(path: &Path) -> String {
 pub struct Selected<'a> {
     pub lens: &'a Lens,
     pub reason: String,
-}
-
-/// How far a lens's context reaches beyond the diff, set by the change's tier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Depth {
-    Diff,
-    DiffAndCallers,
-    Module,
-}
-
-/// The context depth a tier earns: a low-tier change reviews the diff
-/// alone, a normal one adds the diff's callers, a high one adds every file
-/// in each changed file's own module.
-#[must_use]
-pub fn depth(tier: changeset_risk::Tier) -> Depth {
-    match tier {
-        changeset_risk::Tier::Low => Depth::Diff,
-        changeset_risk::Tier::Normal => Depth::DiffAndCallers,
-        changeset_risk::Tier::High => Depth::Module,
-    }
 }
 
 /// The lenses a change selects, in catalogue order, each paired with the
@@ -526,13 +509,6 @@ mod tests {
             s.iter().any(|x| x.lens.name == "duplication-and-reuse"),
             "the repeated-logic signal should trigger duplication-and-reuse"
         );
-    }
-
-    #[test]
-    fn depth_follows_the_tier() {
-        assert_eq!(depth(changeset_risk::Tier::Low), Depth::Diff);
-        assert_eq!(depth(changeset_risk::Tier::Normal), Depth::DiffAndCallers);
-        assert_eq!(depth(changeset_risk::Tier::High), Depth::Module);
     }
 
     #[test]

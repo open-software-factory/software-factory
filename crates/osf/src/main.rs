@@ -411,8 +411,40 @@ enum ReviewAction {
     /// GitHub identity.
     Post(ReviewPostArgs),
     /// Review a change through its selected lenses, and journal each
-    /// answer and the decision.
+    /// answer and the decision. With `--reviewer`, run that one reviewer
+    /// only and save what it did to `--out`.
     Run(ReviewRunArgs),
+    /// Decide a review from the files `review run --reviewer` saved, one
+    /// per reviewer: check the findings against the files, journal, and
+    /// post.
+    Reduce(ReviewReduceArgs),
+}
+
+#[derive(Args)]
+struct ReviewReduceArgs {
+    /// The saved reviewer files.
+    files: Vec<PathBuf>,
+    /// What to diff the change against. Falls back to the `OSF_BASE`
+    /// environment variable when omitted.
+    #[arg(long)]
+    base: Option<String>,
+    /// Write the kept findings as SARIF to this path.
+    #[arg(long = "sarif-out")]
+    sarif_out: Option<PathBuf>,
+    /// Where the lens catalogue, the prompt file and the `[review]` table
+    /// of `osf.toml` are read from. Point this at a base tree.
+    #[arg(long = "config-root")]
+    config_root: Option<PathBuf>,
+    /// Post the kept findings to a pull request as one review. Named
+    /// `owner/repo#N`. A failed post makes the run could-not-run.
+    #[arg(long = "post-to")]
+    post_to: Option<String>,
+    /// Never fail on the review's own verdict.
+    #[arg(long = "warn-only")]
+    warn_only: bool,
+    /// A family that built this change, repeatable. Overrides detection.
+    #[arg(long = "builder-family")]
+    builder_family: Vec<String>,
 }
 
 #[derive(Args)]
@@ -458,6 +490,16 @@ struct ReviewRunArgs {
     /// way a detected one would be.
     #[arg(long = "builder-family")]
     builder_family: Vec<String>,
+    /// Run only this reviewer, one of the roster's, and save what it did
+    /// to `--out`. Nothing is journaled or posted: `review reduce` does that.
+    #[arg(long, requires = "out")]
+    reviewer: Option<String>,
+    /// Where `--reviewer` saves what the reviewer did.
+    #[arg(long, requires = "reviewer")]
+    out: Option<PathBuf>,
+    /// A JSON file holding the pull request's `number`, `title` and `body`.
+    #[arg(long = "pull-request")]
+    pull_request: Option<PathBuf>,
 }
 
 #[derive(Args)]
@@ -766,6 +808,9 @@ fn main() -> ExitCode {
         Command::Review {
             action: ReviewAction::Run(args),
         } => review_run_cmd(args),
+        Command::Review {
+            action: ReviewAction::Reduce(args),
+        } => review_reduce_cmd(args),
         Command::Hooks {
             action: HooksAction::Install(args),
         } => hooks_install_cmd(args),
@@ -1774,27 +1819,153 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
         .clone()
         .unwrap_or_else(|| root.to_path_buf());
     if args.if_enabled {
-        match reviewers::roster(&config_root) {
-            Ok(roster) if !roster.is_empty() => {}
-            Ok(_) => {
-                println!("review: slot off, no reviewer enabled");
-                if let Some(path) = &args.sarif_out {
-                    if write_sarif_out(path, &[]).is_err() {
-                        return 2;
-                    }
-                }
-                return 0;
-            }
+        let roster = match reviewers::roster(&config_root) {
+            Ok(roster) => roster,
             Err(e) => {
                 eprintln!("osf review run: {e}");
                 return 2;
             }
+        };
+        let selected = match &args.reviewer {
+            Some(name) => roster.iter().any(|r| &r.name == name),
+            None => !roster.is_empty(),
+        };
+        if !selected {
+            return review_slot_off(args);
         }
     }
     let Some(base) = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok()) else {
         eprintln!("osf review run: a base is required: pass --base or set OSF_BASE");
         return 2;
     };
+    let pull_request = match args.pull_request.as_deref().map(load_pull_request) {
+        Some(Ok(pr)) => Some(pr),
+        Some(Err(e)) => {
+            eprintln!("osf review run: {e}");
+            return 2;
+        }
+        None => None,
+    };
+    let req = review_run::Request {
+        root,
+        config_root: &config_root,
+        base: &base,
+        work_item: args.work_item.as_deref(),
+        pull_request: pull_request.as_ref(),
+        builder_family_overrides: &args.builder_family,
+    };
+    if let (Some(name), Some(out)) = (&args.reviewer, &args.out) {
+        return match review_run::run_reviewer(&req, name).and_then(|run| run.save(out)) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                2
+            }
+        };
+    }
+    let state_dir = match journal::state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return 2;
+        }
+    };
+    match review_run::run(&req, &state_dir) {
+        Ok(outcome) => finish_review(&outcome, args.sarif_out.as_deref(), args.post_to.as_deref()),
+        Err(e) => {
+            eprintln!("osf review run: {e}");
+            2
+        }
+    }
+}
+
+/// The `--if-enabled` exit when nothing is selected: one line, an empty
+/// SARIF file or an empty reviewer file when asked for, and exit 0.
+fn review_slot_off(args: &ReviewRunArgs) -> u8 {
+    if let (Some(name), Some(out)) = (&args.reviewer, &args.out) {
+        println!("review: slot off, reviewer {name} is not selected");
+        let empty = review_run::ReviewerRun {
+            reviewer: name.clone(),
+            lenses: Vec::new(),
+        };
+        return match empty.save(out) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                2
+            }
+        };
+    }
+    println!("review: slot off, no reviewer enabled");
+    if let Some(path) = &args.sarif_out {
+        if write_sarif_out(path, &[]).is_err() {
+            return 2;
+        }
+    }
+    0
+}
+
+/// The pull request's number, title and body, from the JSON file at `path`.
+fn load_pull_request(path: &Path) -> Result<osf::review_context::PullRequest, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Prints `outcome`, writes SARIF and posts as asked, and returns the exit
+/// code: 0 pass, 1 fail, 2 could-not-run. A journal that could not record
+/// what happened, or a post that never reached the pull request, leaves no
+/// evidence behind the verdict: the run counts as could-not-run rather than
+/// reporting a verdict nothing backs up.
+fn finish_review(
+    outcome: &review_run::RunOutcome,
+    sarif_out: Option<&Path>,
+    post_to: Option<&str>,
+) -> u8 {
+    for line in &outcome.lines {
+        println!("{line}");
+    }
+    if let Some(err) = &outcome.journal_error {
+        eprintln!("osf review run: {err}");
+    }
+    if let Some(path) = sarif_out {
+        let sarif_files = review_sarif_files(&outcome.findings);
+        if write_sarif_out(path, &sarif_files).is_err() {
+            return 2;
+        }
+    }
+    let posted = post_to.is_none_or(|post_to| post_run_outcome(outcome, post_to));
+    if outcome.journal_error.is_some() || !posted {
+        return 2;
+    }
+    match outcome.verdict {
+        reducer::Verdict::Pass => 0,
+        reducer::Verdict::Fail => 1,
+        reducer::Verdict::CouldNotRun => 2,
+    }
+}
+
+/// `osf review reduce`'s own exit code, ignoring `--warn-only`; the same
+/// codes as [`review_run_exit_code`].
+fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
+    let root = Path::new(".");
+    let config_root = args
+        .config_root
+        .clone()
+        .unwrap_or_else(|| root.to_path_buf());
+    let Some(base) = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok()) else {
+        eprintln!("osf review reduce: a base is required: pass --base or set OSF_BASE");
+        return 2;
+    };
+    let mut runs = Vec::with_capacity(args.files.len());
+    for file in &args.files {
+        match review_run::ReviewerRun::load(file) {
+            Ok(run) => runs.push(run),
+            Err(e) => {
+                eprintln!("osf review reduce: {e}");
+                return 2;
+            }
+        }
+    }
     let state_dir = match journal::state_dir() {
         Ok(d) => d,
         Err(e) => {
@@ -1806,44 +1977,22 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
         root,
         config_root: &config_root,
         base: &base,
-        work_item: args.work_item.as_deref(),
+        work_item: None,
+        pull_request: None,
         builder_family_overrides: &args.builder_family,
     };
-    let outcome = match review_run::run(&req, &state_dir) {
-        Ok(outcome) => outcome,
+    match review_run::reduce(&req, &runs, &state_dir) {
+        Ok(outcome) => finish_review(&outcome, args.sarif_out.as_deref(), args.post_to.as_deref()),
         Err(e) => {
-            eprintln!("osf review run: {e}");
-            return 2;
-        }
-    };
-    for line in &outcome.lines {
-        println!("{line}");
-    }
-    if let Some(err) = &outcome.journal_error {
-        eprintln!("osf review run: {err}");
-    }
-    if let Some(path) = &args.sarif_out {
-        let sarif_files = review_sarif_files(&outcome.findings);
-        if write_sarif_out(path, &sarif_files).is_err() {
-            return 2;
+            eprintln!("osf review reduce: {e}");
+            2
         }
     }
-    let posted = args
-        .post_to
-        .as_ref()
-        .is_none_or(|post_to| post_run_outcome(&outcome, post_to));
-    // A journal that could not record what happened, or a post that never
-    // reached the pull request, leaves no evidence behind the verdict: the
-    // run counts as could-not-run rather than reporting a verdict nothing
-    // backs up.
-    if outcome.journal_error.is_some() || !posted {
-        return 2;
-    }
-    match outcome.verdict {
-        reducer::Verdict::Pass => 0,
-        reducer::Verdict::Fail => 1,
-        reducer::Verdict::CouldNotRun => 2,
-    }
+}
+
+fn review_reduce_cmd(args: &ReviewReduceArgs) -> ExitCode {
+    let code = review_reduce_exit_code(args);
+    ExitCode::from(if args.warn_only { 0 } else { code })
 }
 
 fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {

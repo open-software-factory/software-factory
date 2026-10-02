@@ -102,8 +102,16 @@ fn write_lens_overrides(repo: &TempRepo) {
 /// these tests do not account for. `src/lib.rs` is real, so a blocker
 /// finding has real text at a real line to quote.
 fn review_repo(name: &str, osf_toml: &str) -> TempRepo {
+    review_repo_with(name, osf_toml, &[])
+}
+
+/// [`review_repo`], with `extra` files committed in the base commit too.
+fn review_repo_with(name: &str, osf_toml: &str, extra: &[(&str, &str)]) -> TempRepo {
     let repo = TempRepo::new(name);
     write_lens_overrides(&repo);
+    for (path, content) in extra {
+        repo.write(path, content);
+    }
     repo.write("osf.toml", osf_toml);
     repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
     repo.write("README.md", "base\n");
@@ -150,6 +158,9 @@ enum Fake<'a> {
     Slow(&'a str, u64),
     /// Writes a secret to standard error and exits non-zero, as a broken agent would.
     Fails(&'a str),
+    /// Prints the answer file's text, and records its prompt, arguments and
+    /// environment under the folder, plus a `started` file.
+    Records(&'a str, &'a Path),
 }
 
 /// `osf.toml` text that selects `reviewers` from the agent list, after `prefix`.
@@ -170,6 +181,12 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
             format!("OSF_FAKE_ANSWER='{answer}' OSF_FAKE_SLEEP_SECS={secs} exec '{harness}'")
         }
         Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
+        Fake::Records(answer, dir) => format!(
+            "env > '{d}/env'\nOSF_FAKE_ANSWER='{answer}' OSF_FAKE_PROMPT_CAPTURE='{d}/prompt' \
+             OSF_FAKE_ARGS_CAPTURE='{d}/args' OSF_FAKE_HARNESS_LOG='{d}/started' \
+             exec '{harness}' \"$@\"",
+            d = dir.display()
+        ),
     };
     let program = bin.join(agent);
     std::fs::write(&program, format!("#!/bin/sh\n{body}\n")).expect("fake agent writes");
@@ -189,7 +206,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         )
     };
     let body = match fake {
-        Fake::Answers(answer) => run(answer, ""),
+        Fake::Answers(answer) | Fake::Records(answer, _) => run(answer, ""),
         Fake::Slow(answer, secs) => run(answer, &format!("set \"OSF_FAKE_SLEEP_SECS={secs}\"\r\n")),
         Fake::Fails(secret) => format!("@echo off\r\necho {secret} 1>&2\r\nexit /b 9\r\n"),
     };
@@ -218,6 +235,14 @@ impl Fakes {
             bin,
             osf_toml: agents_toml(prefix, &names),
         }
+    }
+
+    /// `osf.toml` text that also pins opencode to a qwen model, so its family is known.
+    fn osf_toml_with_qwen_opencode(&self) -> String {
+        format!(
+            "{}[agents.models]\nopencode = \"openrouter/qwen/qwen3-coder-next\"\n",
+            self.osf_toml
+        )
     }
 
     fn run(&self, dir: &Path, home: &Path, args: &[&str]) -> std::process::Output {
@@ -375,7 +400,7 @@ fn review_answer_and_review_decision_events_carry_the_reported_evidence_grade() 
         "",
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("evidence-grade", &fakes.osf_toml);
@@ -409,7 +434,7 @@ fn two_families_that_both_answer_validly_pass_and_write_the_journal_events() {
         "",
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("both-pass", &fakes.osf_toml);
@@ -444,7 +469,7 @@ fn a_verified_blocker_finding_fails_the_review() {
         "",
         &[
             ("codex", Fake::Answers(&fixture("blocker.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("blocker-fails", &fakes.osf_toml);
@@ -487,14 +512,15 @@ fn only_one_family_enabled_passes_under_the_interim_policy() {
 }
 
 /// Two families are configured but one times out on every round: the
-/// family that did answer gets the critical round and decides the lens.
+/// roster offers two families, so one answer is no quorum and the lens
+/// could not run.
 #[test]
-fn a_family_that_times_out_leaves_the_working_family_its_critical_round() {
+fn a_family_that_times_out_leaves_the_lens_could_not_run() {
     let fakes = Fakes::new(
         &format!("[review]\ntimeout_seconds = {TIMEOUT_SECS}\n\n"),
         &[
             ("codex", Fake::Slow(&fixture("valid.json"), SLOW_SECS)),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("one-family-times-out", &fakes.osf_toml);
@@ -504,20 +530,21 @@ fn a_family_that_times_out_leaves_the_working_family_its_critical_round() {
         &home,
         &["review", "run", "--base", "origin/main"],
     );
-    assert!(
-        output.status.success(),
+    assert_eq!(
+        output.status.code(),
+        Some(2),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("interim policy"), "{stdout}");
+    assert!(stdout.contains("only one family answered"), "{stdout}");
     let journal = journal_text(&home);
     let answered = journal
         .lines()
-        .filter(|l| l.contains("\"reviewer\":\"dsh\"") && l.contains("\"result\":\"answered\""))
+        .filter(|l| l.contains("\"reviewer\":\"claude\"") && l.contains("\"result\":\"answered\""))
         .count();
-    assert_eq!(answered, 3, "two rounds plus the critical round: {journal}");
+    assert_eq!(answered, 2, "two rounds, no critical round: {journal}");
 }
 
 #[test]
@@ -644,7 +671,7 @@ fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
 
 /// A `Code-Generator: Claude ...` trailer on the reviewed commit makes
 /// `anthropic` this change's builder family. With codex (openai),
-/// claude (anthropic) and dsh (deepseek) all enabled, claude is
+/// claude (anthropic) and opencode (qwen) all enabled, claude is
 /// left out and the other two still answer and reach quorum.
 #[test]
 fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pass() {
@@ -653,10 +680,14 @@ fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pas
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
             ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("opencode", Fake::Answers(&fixture("valid.json"))),
         ],
     );
-    let repo = review_repo_built_by("builder-family-skip", &fakes.osf_toml, "Claude Sonnet 5");
+    let repo = review_repo_built_by(
+        "builder-family-skip",
+        &fakes.osf_toml_with_qwen_opencode(),
+        "Claude Sonnet 5",
+    );
     let home = common::isolated_home("review-run-builder-family-skip");
     let output = fakes.run(
         &repo.dir,
@@ -673,7 +704,7 @@ fn a_reviewer_whose_family_built_the_change_is_left_out_and_two_others_still_pas
     assert_eq!(
         types.iter().filter(|t| *t == "review-answer").count(),
         5,
-        "two rounds each for codex and dsh, plus one skipped record for claude: {types:?}"
+        "two rounds each for codex and opencode, plus one skipped record for claude: {types:?}"
     );
     let decision = journal_review_decision(&home);
     let builder_families: Vec<&str> = decision
@@ -845,7 +876,7 @@ fn no_builder_family_detected_records_unknown_and_runs_every_reviewer() {
         "",
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("no-builder-family", &fakes.osf_toml);
@@ -881,10 +912,13 @@ fn the_builder_family_flag_overrides_detection() {
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
             ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("opencode", Fake::Answers(&fixture("valid.json"))),
         ],
     );
-    let repo = review_repo("builder-family-flag-override", &fakes.osf_toml);
+    let repo = review_repo(
+        "builder-family-flag-override",
+        &fakes.osf_toml_with_qwen_opencode(),
+    );
     let home = common::isolated_home("review-run-builder-family-flag-override");
     let output = fakes.run(
         &repo.dir,
@@ -930,7 +964,7 @@ fn hot_paths_in_osf_toml_does_not_fail_the_full_review_run_command() {
         "[review]\nhot_paths = [\"never/matches/anything.rs\"]\n\n",
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("hot-paths-full-command", &fakes.osf_toml);
@@ -963,7 +997,7 @@ fn a_pull_request_tree_cannot_loosen_review_via_its_own_config_root() {
         "[review]\nthreshold = 0.9\n\n",
         &[
             ("codex", Fake::Answers(&fixture("blocker.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     std::fs::write(config_root.join("osf.toml"), &base.osf_toml).expect("base osf.toml writes");
@@ -1004,7 +1038,7 @@ fn omitting_config_root_reads_configuration_from_the_repository_under_review() {
         "[review]\nthreshold = 0.0\n\n",
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("no-config-root", &fakes.osf_toml);
@@ -1030,7 +1064,7 @@ fn warn_only_prints_the_verdict_but_never_fails() {
         "",
         &[
             ("codex", Fake::Answers(&fixture("blocker.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("warn-only-blocker", &fakes.osf_toml);
@@ -1126,7 +1160,7 @@ fn post_to_posts_kept_findings_reusing_review_post_machinery() {
         "",
         &[
             ("codex", Fake::Answers(&fixture("blocker.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("post-to-blocker", &fakes.osf_toml);
@@ -1172,7 +1206,7 @@ fn post_to_failing_makes_the_run_could_not_run() {
         "",
         &[
             ("codex", Fake::Answers(&fixture("blocker.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("post-to-boom", &fakes.osf_toml);
@@ -1213,7 +1247,7 @@ fn an_unwritable_journal_makes_the_run_could_not_run_even_on_a_pass() {
         "",
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("journal-unwritable", &fakes.osf_toml);
@@ -1469,7 +1503,7 @@ fn omitting_base_falls_back_to_the_osf_base_environment_variable() {
         "",
         &[
             ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("base-from-env", &fakes.osf_toml);
@@ -1510,7 +1544,7 @@ fn a_secret_as_an_unresolvable_findings_path_is_dropped_not_leaked() {
         "",
         &[
             ("codex", Fake::Answers(&answer_path)),
-            ("dsh", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
     let repo = review_repo("secret-path", &fakes.osf_toml);
@@ -1529,4 +1563,412 @@ fn a_secret_as_an_unresolvable_findings_path_is_dropped_not_leaked() {
         ],
     );
     assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+}
+
+/// What a recording fake left under `dir`: its prompt, arguments or environment.
+#[cfg(unix)]
+fn recorded(dir: &Path, name: &str) -> String {
+    std::fs::read_to_string(dir.join(name)).expect("the fake harness recorded this file")
+}
+
+/// A trusted config root holding the lens overrides and `osf.toml` with `osf_toml`.
+#[cfg(unix)]
+fn trusted_root(name: &str, osf_toml: &str) -> TempDir {
+    let root = TempDir::new(name);
+    write_lens_overrides_to(&root);
+    std::fs::write(root.join("osf.toml"), osf_toml).expect("trusted osf.toml writes");
+    root
+}
+
+/// A prompt file the trusted config names is the one a reviewer gets, with
+/// its placeholders filled in and the answer format after it.
+#[test]
+#[cfg(unix)]
+fn a_prompt_file_named_by_the_trusted_config_is_used() {
+    let rec = TempDir::new("review-run-prompt-trusted-rec");
+    let fakes = Fakes::new(
+        "",
+        &[("codex", Fake::Records(&fixture("valid.json"), &rec))],
+    );
+    let config = trusted_root(
+        "review-run-prompt-trusted-base",
+        &format!("[review]\nprompt_file = \"mine.md\"\n\n{}", fakes.osf_toml),
+    );
+    std::fs::write(
+        config.join("mine.md"),
+        "TRUSTED-FRAME for {lens_name}\n{metadata}\n",
+    )
+    .expect("prompt file writes");
+    let repo = review_repo("prompt-trusted", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-prompt-trusted");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--config-root",
+            &config.to_string_lossy(),
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let prompt = recorded(&rec, "prompt");
+    assert!(prompt.contains("TRUSTED-FRAME for correctness"), "{prompt}");
+    assert!(prompt.contains("review-answer schema"), "{prompt}");
+    assert!(!prompt.contains("read-only checkout"), "{prompt}");
+}
+
+/// A pull request that names its own prompt file in its own `osf.toml`
+/// cannot rewrite its reviewer's instructions: only the trusted config counts.
+#[test]
+#[cfg(unix)]
+fn a_prompt_file_named_by_the_pull_requests_own_config_is_ignored() {
+    let rec = TempDir::new("review-run-prompt-untrusted-rec");
+    let fakes = Fakes::new(
+        "",
+        &[("codex", Fake::Records(&fixture("valid.json"), &rec))],
+    );
+    let config = trusted_root("review-run-prompt-untrusted-base", &fakes.osf_toml);
+    let repo = review_repo_with(
+        "prompt-untrusted",
+        &format!("[review]\nprompt_file = \"evil.md\"\n\n{}", fakes.osf_toml),
+        &[("evil.md", "UNTRUSTED-FRAME {metadata}\n")],
+    );
+    let home = common::isolated_home("review-run-prompt-untrusted");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--config-root",
+            &config.to_string_lossy(),
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let prompt = recorded(&rec, "prompt");
+    assert!(!prompt.contains("UNTRUSTED-FRAME"), "{prompt}");
+    assert!(prompt.contains("read-only checkout"), "{prompt}");
+}
+
+/// The reviewer's prompt holds the metadata and no diff: the pull request,
+/// both commits, the changed files with their line counts, and the work
+/// item, with a secret in text osf inserts redacted.
+#[test]
+#[cfg(unix)]
+fn the_prompt_carries_metadata_and_no_diff() {
+    let rec = TempDir::new("review-run-metadata-rec");
+    let fakes = Fakes::new(
+        "",
+        &[("codex", Fake::Records(&fixture("valid.json"), &rec))],
+    );
+    let repo = review_repo("metadata", &fakes.osf_toml);
+    let inputs = TempDir::new("review-run-metadata-inputs");
+    let secret = common::fake_forge_token("ghp_");
+    let pr = inputs.join("pr.json");
+    std::fs::write(
+        &pr,
+        serde_json::json!({
+            "number": 178,
+            "title": "Add the review check",
+            "body": format!("Reviewers, read this. {secret}"),
+        })
+        .to_string(),
+    )
+    .expect("pull request file writes");
+    let work_item = inputs.join("issue.md");
+    std::fs::write(&work_item, "# A work item\n\nWORK-ITEM-TEXT\n").expect("work item writes");
+    let home = common::isolated_home("review-run-metadata");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--pull-request",
+            &pr.to_string_lossy(),
+            "--work-item",
+            &work_item.to_string_lossy(),
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let prompt = recorded(&rec, "prompt");
+    let base = repo.git(&["rev-parse", "origin/main"]);
+    let head = repo.git(&["rev-parse", "HEAD"]);
+    assert!(prompt.contains("number: 178"), "{prompt}");
+    assert!(prompt.contains("title: Add the review check"), "{prompt}");
+    assert!(
+        prompt.contains(&format!("base: {}", base.trim())),
+        "{prompt}"
+    );
+    assert!(
+        prompt.contains(&format!("head: {}", head.trim())),
+        "{prompt}"
+    );
+    assert!(prompt.contains("README.md (+1 -0)"), "{prompt}");
+    assert!(prompt.contains("WORK-ITEM-TEXT"), "{prompt}");
+    assert!(
+        prompt.contains("(none touched or linked by this change)"),
+        "{prompt}"
+    );
+    assert!(
+        !prompt.contains("plus a change to review"),
+        "no diff text: {prompt}"
+    );
+    assert!(!prompt.contains(&secret), "{prompt}");
+    assert!(prompt.contains("redacted by scan-secret"), "{prompt}");
+}
+
+/// Each agent that documents a read-only mode starts with exactly those
+/// flags or that setting.
+#[test]
+#[cfg(unix)]
+fn each_agent_starts_with_its_read_only_settings() {
+    let cases: [(&str, &str, &str, &str); 3] = [
+        ("codex", "valid.json", "--sandbox\nread-only\n", ""),
+        (
+            "claude",
+            "claude-envelope.json",
+            "--restricted\n--tools\nRead,Grep,Glob,Bash\n--allowedTools\n\
+             Bash(git diff:*),Bash(git log:*),Bash(git show:*)\n--permission-prompts\nnone\n",
+            "",
+        ),
+        (
+            "opencode",
+            "valid.json",
+            "",
+            "OPENCODE_PERMISSION={\"edit\":\"deny\"",
+        ),
+    ];
+    for (agent, answer, expected_args, expected_env) in cases {
+        let rec = TempDir::new("review-run-read-only-rec");
+        let fakes = Fakes::new("", &[(agent, Fake::Records(&fixture(answer), &rec))]);
+        let repo = review_repo(
+            &format!("read-only-{agent}"),
+            &fakes.osf_toml_with_qwen_opencode(),
+        );
+        let home = common::isolated_home(&format!("review-run-read-only-{agent}"));
+        let output = fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        assert!(
+            output.status.success(),
+            "{agent}: stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let args = recorded(&rec, "args");
+        assert!(args.contains(expected_args), "{agent}: {args}");
+        let env = recorded(&rec, "env");
+        assert!(env.contains(expected_env), "{agent}: {env}");
+    }
+}
+
+/// An agent with no documented read-only mode is could-not-run with that
+/// reason, and its harness never starts.
+#[test]
+#[cfg(unix)]
+fn an_agent_with_no_read_only_mode_is_could_not_run_and_never_starts() {
+    let rec = TempDir::new("review-run-no-read-only-rec");
+    let fakes = Fakes::new("", &[("dsh", Fake::Records(&fixture("valid.json"), &rec))]);
+    let repo = review_repo("no-read-only", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-no-read-only");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let journal = journal_lines_of(&home, "dsh");
+    assert!(journal.contains("no read-only mode"), "{journal}");
+    assert!(
+        journal.contains("\"result\":\"could-not-run\""),
+        "{journal}"
+    );
+    assert!(
+        !rec.join("started").exists(),
+        "the harness must never start"
+    );
+}
+
+/// The text a run prints, which names each lens's verdict and the whole one.
+fn stdout_of(output: &std::process::Output) -> String {
+    String::from_utf8_lossy(&output.stdout).into_owned()
+}
+
+/// One reviewer job per reviewer, then one reduce, reaches the same
+/// decision, printed the same way, as the single run does.
+#[test]
+fn one_run_per_reviewer_then_reduce_reaches_the_single_runs_decision() {
+    for (label, codex_answer, expected) in [
+        ("pass", fixture("valid.json"), 0),
+        ("blocker", fixture("blocker.json"), 1),
+    ] {
+        let fakes = Fakes::new(
+            "",
+            &[
+                ("codex", Fake::Answers(&codex_answer)),
+                ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+            ],
+        );
+        let repo = review_repo(&format!("split-{label}"), &fakes.osf_toml);
+        let single_home = common::isolated_home(&format!("review-run-single-{label}"));
+        let single = fakes.run(
+            &repo.dir,
+            &single_home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        assert_eq!(single.status.code(), Some(expected), "{label}");
+
+        let saved = TempDir::new(&format!("review-run-split-{label}"));
+        let mut files = Vec::new();
+        for name in ["codex", "claude"] {
+            let file = saved
+                .join(format!("{name}.json"))
+                .to_string_lossy()
+                .into_owned();
+            let home = common::isolated_home(&format!("review-run-split-{label}-{name}"));
+            let job = fakes.run(
+                &repo.dir,
+                &home,
+                &[
+                    "review",
+                    "run",
+                    "--reviewer",
+                    name,
+                    "--out",
+                    &file,
+                    "--base",
+                    "origin/main",
+                ],
+            );
+            assert!(
+                job.status.success(),
+                "{label} {name}: {}",
+                String::from_utf8_lossy(&job.stderr)
+            );
+            files.push(file);
+        }
+        let reduce_home = common::isolated_home(&format!("review-run-reduce-{label}"));
+        let mut args = vec!["review", "reduce", "--base", "origin/main"];
+        args.extend(files.iter().map(String::as_str));
+        let reduced = fakes.run(&repo.dir, &reduce_home, &args);
+        assert_eq!(reduced.status.code(), Some(expected), "{label}");
+        assert_eq!(stdout_of(&single), stdout_of(&reduced), "{label}");
+        let types = journal_event_types(&reduce_home);
+        assert_eq!(
+            types.iter().filter(|t| *t == "review-answer").count(),
+            4,
+            "{label}: {types:?}"
+        );
+    }
+}
+
+/// A reviewer whose job left no file counts as could-not-run, never as a pass.
+#[test]
+fn a_reviewer_with_no_saved_run_is_could_not_run_at_reduce() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("reduce-missing", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-reduce-missing");
+    let file = saved.join("codex.json").to_string_lossy().into_owned();
+    let home = common::isolated_home("review-run-reduce-missing-job");
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(job.status.success());
+    let reduce_home = common::isolated_home("review-run-reduce-missing");
+    let reduced = fakes.run(
+        &repo.dir,
+        &reduce_home,
+        &["review", "reduce", "--base", "origin/main", &file],
+    );
+    assert_eq!(reduced.status.code(), Some(2));
+    assert!(
+        stdout_of(&reduced).contains("only one family answered"),
+        "{}",
+        stdout_of(&reduced)
+    );
+    let journal = journal_lines_of(&reduce_home, "claude");
+    assert!(journal.contains("left no answer"), "{journal}");
+}
+
+/// A reviewer outside the roster is an error, unless `--if-enabled` asks
+/// for a quiet skip, which still leaves an empty file for the reduce step.
+#[test]
+fn a_reviewer_outside_the_roster_is_an_error_or_a_quiet_skip() {
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo("reviewer-outside-roster", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-outside-roster");
+    let file = saved.join("claude.json").to_string_lossy().into_owned();
+    let home = common::isolated_home("review-run-outside-roster");
+    let base_args = [
+        "review",
+        "run",
+        "--reviewer",
+        "claude",
+        "--out",
+        &file,
+        "--base",
+        "origin/main",
+    ];
+    let refused = fakes.run(&repo.dir, &home, &base_args);
+    assert_eq!(refused.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&refused.stderr).contains("not in the roster"),
+        "{}",
+        String::from_utf8_lossy(&refused.stderr)
+    );
+    let mut quiet = base_args.to_vec();
+    quiet.push("--if-enabled");
+    let skipped = fakes.run(&repo.dir, &home, &quiet);
+    assert!(skipped.status.success());
+    assert!(
+        stdout_of(&skipped).contains("slot off"),
+        "{}",
+        stdout_of(&skipped)
+    );
+    let text = std::fs::read_to_string(&file).expect("an empty reviewer file is written");
+    assert!(text.contains("\"lenses\": []"), "{text}");
 }

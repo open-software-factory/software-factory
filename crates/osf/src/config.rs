@@ -286,6 +286,9 @@ pub struct ReviewConfig {
     /// does not reject the key `changeset_risk.rs` already reads.
     #[serde(default)]
     pub hot_paths: Vec<String>,
+    /// A file, relative to the trusted config root, that replaces the
+    /// prompt osf ships. Left out, the shipped prompt is used.
+    pub prompt_file: Option<String>,
 }
 
 impl Default for ReviewConfig {
@@ -296,6 +299,7 @@ impl Default for ReviewConfig {
             cost_ceiling: None,
             builder_family_aliases: Vec::new(),
             hot_paths: Vec::new(),
+            prompt_file: None,
         }
     }
 }

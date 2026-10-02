@@ -18,7 +18,7 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use wait_timeout::ChildExt as _;
 
-pub use crate::agents::SchemaArg;
+pub use crate::agents::{ReadOnly, SchemaArg};
 
 /// One reviewer: an agent, run with its own model family, through a fixed
 /// command line.
@@ -36,6 +36,9 @@ pub struct Reviewer {
     /// the path of a file holding the prompt, for an agent that reads one
     /// from a file rather than from standard input.
     pub command: Vec<String>,
+    /// The documented settings that hold this agent to read-only tools.
+    /// With `None` the agent has no such mode and is never started.
+    pub read_only: Option<ReadOnly>,
     /// The flag that introduces the answer schema, when this agent can be
     /// asked to validate its own output against one.
     pub schema_flag: Option<String>,
@@ -85,6 +88,7 @@ impl Reviewer {
             family,
             family_error,
             command: owned(agent.command),
+            read_only: review.read_only,
             schema_flag: review.schema_flag.map(str::to_string),
             schema_as: review.schema_as,
             answer_pointer: review.answer_pointer.to_string(),
@@ -337,6 +341,12 @@ fn run_with_retry(
     real_home: Option<&Path>,
     notes: &mut Vec<String>,
 ) -> Outcome {
+    if reviewer.read_only.is_none() {
+        return Outcome::CouldNotRun(format!(
+            "reviewer '{}' has no read-only mode",
+            reviewer.name
+        ));
+    }
     let raw = match run_child(reviewer, prompt, workdir, timeout, real_home, notes) {
         Ok(text) => text,
         Err(reason) => return Outcome::CouldNotRun(reason),
@@ -428,6 +438,9 @@ fn prepare_command(
     let mut command = Command::new(resolve_program(program));
     command.args(rest).current_dir(workdir).env_clear();
     home.apply(&mut command);
+    if let Some(read_only) = &reviewer.read_only {
+        command.envs(read_only.env.iter().copied());
+    }
     for var in RUN_ENV_VARS
         .iter()
         .copied()
@@ -597,6 +610,9 @@ fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Ve
             }
         })
         .collect();
+    if let Some(read_only) = &reviewer.read_only {
+        args.extend(read_only.args.iter().map(ToString::to_string));
+    }
     if let Some(flag) = &reviewer.schema_flag {
         args.push(flag.clone());
         args.push(match reviewer.schema_as {
@@ -642,6 +658,10 @@ mod tests {
             family: "test-family".to_string(),
             family_error: None,
             command: command.into_iter().map(str::to_string).collect(),
+            read_only: Some(ReadOnly {
+                args: &[],
+                env: &[],
+            }),
             schema_flag: None,
             schema_as: SchemaArg::default(),
             answer_pointer: String::new(),
@@ -950,6 +970,74 @@ mod tests {
             Path::new("/tmp/schema.json"),
         );
         assert_eq!(args, vec!["fake", "--json-schema", answer::SCHEMA]);
+    }
+
+    #[test]
+    fn build_args_puts_the_read_only_arguments_right_after_the_command() {
+        let mut r = reviewer("fake", vec!["fake", "exec"]);
+        r.read_only = Some(ReadOnly {
+            args: &["--sandbox", "read-only"],
+            env: &[],
+        });
+        r.schema_flag = Some("--schema".to_string());
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        assert_eq!(
+            args,
+            vec![
+                "fake",
+                "exec",
+                "--sandbox",
+                "read-only",
+                "--schema",
+                "/tmp/s"
+            ]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_read_only_environment_reaches_the_child() {
+        let mut r = reviewer(
+            "env-reporter",
+            vec!["sh", "-c", "printf '%s' \"$MODE_FLAG\""],
+        );
+        r.read_only = Some(ReadOnly {
+            args: &[],
+            env: &[("MODE_FLAG", "locked")],
+        });
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints a variable
+        let out = run_child(
+            &r,
+            "",
+            &workdir,
+            Duration::from_secs(30),
+            None,
+            &mut Vec::new(),
+        )
+        .expect("the reporter runs");
+        assert_eq!(out, "locked");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_reviewer_with_no_read_only_mode_never_starts() {
+        let marker = crate::test_support::TempDir::new("osf-reviewers-no-read-only");
+        let started = marker.join("started");
+        let mut r = reviewer(
+            "no-sandbox",
+            vec!["sh", "-c", &format!("touch '{}'", started.display())],
+        );
+        r.read_only = None;
+        let lens: Lens = toml::from_str(include_str!("../defaults/review-lenses/correctness.toml"))
+            .expect("shipped lens parses");
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the harness never starts
+        match run_one(&r, "prompt", &lens, &workdir, Duration::from_secs(30)) {
+            Outcome::CouldNotRun(reason) => {
+                assert!(reason.contains("no read-only mode"), "{reason}");
+            }
+            other => panic!("expected could-not-run, got {other:?}"),
+        }
+        assert!(!started.exists(), "the harness must never start");
     }
 
     #[test]

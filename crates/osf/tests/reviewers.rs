@@ -7,7 +7,7 @@ mod common;
 
 use common::TempDir;
 use osf::lenses::{Criterion, Lens, Runs, SeverityGuide, Trigger};
-use osf::reviewers::{roster, run_one, Outcome, Reviewer, SchemaArg};
+use osf::reviewers::{roster, run_one, Outcome, ReadOnly, Reviewer, SchemaArg};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -97,6 +97,10 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
         family: "fake-family".to_string(),
         family_error: None,
         command: fake_harness_command(vars),
+        read_only: Some(ReadOnly {
+            args: &[],
+            env: &[],
+        }),
         schema_flag: None,
         schema_as: SchemaArg::default(),
         answer_pointer: String::new(),
@@ -445,11 +449,7 @@ fn this_repositorys_osf_toml_selects_its_reviewers_from_the_agent_list_in_order(
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
     let names: Vec<&str> = loaded.iter().map(|r| r.name.as_str()).collect();
-    assert_eq!(
-        names,
-        vec!["codex", "dsh", "claude", "opencode"],
-        "{loaded:?}"
-    );
+    assert_eq!(names, vec!["codex", "claude", "opencode"], "{loaded:?}");
     let model = |name: &str| {
         loaded
             .iter()

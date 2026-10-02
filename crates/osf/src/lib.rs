@@ -30,6 +30,7 @@ pub mod reducer;
 pub mod repository;
 pub mod review;
 pub mod review_context;
+pub mod review_prompt;
 pub mod review_run;
 pub mod reviewers;
 pub mod scan;

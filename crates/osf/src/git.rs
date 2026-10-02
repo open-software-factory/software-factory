@@ -810,6 +810,31 @@ pub fn diff_numstat_between(dir: &Path, base: &str, head: &str) -> Result<Vec<Nu
     run(dir, &["diff", "--numstat", "-M", "-z", &range]).map(|raw| parse_numstat_z(&raw))
 }
 
+/// Line counts for every path that differs between `base` and `HEAD`, as
+/// [`changed_files`] reads the range: a `base` that is a tree is compared
+/// directly. A deleted path is included.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
+pub fn numstat_since(dir: &Path, base: &str) -> Result<Vec<Numstat>, GitError> {
+    let range = format!("{base}...HEAD");
+    let mut args = vec!["diff", "--numstat", "-M", "-z"];
+    if is_tree(dir, base) {
+        args.extend([base, "HEAD"]);
+    } else {
+        args.push(&range);
+    }
+    run(dir, &args).map(|raw| parse_numstat_z(&raw))
+}
+
+/// The full object id `rev` names in `dir`.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `rev` does not resolve.
+pub fn resolve_rev(dir: &Path, rev: &str) -> Result<String, GitError> {
+    run_text(dir, &["rev-parse", "--verify", rev]).map(|t| t.trim().to_string())
+}
+
 /// Parses `git diff --numstat -M -z`: `added<TAB>removed<TAB>path<NUL>`, and
 /// for a rename `added<TAB>removed<TAB><NUL>old<NUL>new<NUL>`.
 fn parse_numstat_z(raw: &[u8]) -> Vec<Numstat> {

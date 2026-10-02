@@ -43,9 +43,22 @@ pub enum SchemaArg {
     Inline,
 }
 
+/// The documented settings that hold an agent to read-only tools: no file
+/// writes and no commands that change anything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReadOnly {
+    /// Arguments added after the agent's command.
+    pub args: &'static [&'static str],
+    /// Environment variables set on the agent's process.
+    pub env: &'static [(&'static str, &'static str)],
+}
+
 /// What osf needs to run an agent headless as a reviewer.
 #[derive(Debug)]
 pub struct Review {
+    /// How the agent is held to read-only tools. `None` when the agent
+    /// documents no such mode: it then never starts as a reviewer.
+    pub read_only: Option<ReadOnly>,
     /// The flag that introduces the answer schema, when the agent can be
     /// asked to validate its own output against one.
     pub schema_flag: Option<&'static str>,
@@ -227,6 +240,8 @@ pub const AGENTS: &[Agent] = &[
         session_paths: &["sessions"],
         sessions: Sessions::LocalOnly,
         review: Some(Review {
+            // `dsh --help` and `dsh --profile headless --help` document no read-only or permission mode.
+            read_only: None,
             schema_flag: None,
             schema_as: SchemaArg::Path,
             answer_pointer: "",
@@ -251,6 +266,11 @@ pub const AGENTS: &[Agent] = &[
         session_paths: &["agent/sessions", "agent/terminal-sessions", "logs"],
         sessions: Sessions::LocalOnly,
         review: Some(Review {
+            // `omp --help`: `--tools` is the comma-separated list of tools to enable.
+            read_only: Some(ReadOnly {
+                args: &["--tools", "read,grep,glob"],
+                env: &[],
+            }),
             schema_flag: None,
             schema_as: SchemaArg::Path,
             answer_pointer: "",
@@ -278,6 +298,14 @@ pub const AGENTS: &[Agent] = &[
             path: "/s/",
         },
         review: Some(Review {
+            // The inline permissions config of the opencode CLI docs, `OPENCODE_PERMISSION`; `opencode agent list` shows the rules it sets.
+            read_only: Some(ReadOnly {
+                args: &[],
+                env: &[(
+                    "OPENCODE_PERMISSION",
+                    r#"{"edit":"deny","task":"deny","webfetch":"deny","bash":{"*":"deny","git diff*":"allow","git log*":"allow","git show*":"allow"}}"#,
+                )],
+            }),
             schema_flag: None,
             schema_as: SchemaArg::Path,
             answer_pointer: "",
@@ -304,6 +332,11 @@ pub const AGENTS: &[Agent] = &[
             path: "/codex/",
         },
         review: Some(Review {
+            // `codex exec --help`: `--sandbox read-only`.
+            read_only: Some(ReadOnly {
+                args: &["--sandbox", "read-only"],
+                env: &[],
+            }),
             schema_flag: Some("--output-schema"),
             schema_as: SchemaArg::Path,
             answer_pointer: "",
@@ -331,6 +364,19 @@ pub const AGENTS: &[Agent] = &[
             path: "/code/session_",
         },
         review: Some(Review {
+            // `claude --help`: `--restricted` drops the command-running tools and the repository's own settings, `--tools` names the tools, `--allowedTools` limits Bash to git reads, and `--permission-prompts none` denies anything else.
+            read_only: Some(ReadOnly {
+                args: &[
+                    "--restricted",
+                    "--tools",
+                    "Read,Grep,Glob,Bash",
+                    "--allowedTools",
+                    "Bash(git diff:*),Bash(git log:*),Bash(git show:*)",
+                    "--permission-prompts",
+                    "none",
+                ],
+                env: &[],
+            }),
             schema_flag: Some("--json-schema"),
             schema_as: SchemaArg::Inline,
             answer_pointer: "/structured_output",
@@ -677,6 +723,66 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn read_only_of(name: &str) -> Option<ReadOnly> {
+        AGENTS
+            .iter()
+            .find(|a| a.name == name)
+            .and_then(|a| a.review.as_ref())
+            .and_then(|r| r.read_only)
+    }
+
+    #[test]
+    fn codex_runs_in_its_read_only_sandbox() {
+        let mode = read_only_of("codex").expect("codex documents a read-only mode");
+        assert_eq!(mode.args, &["--sandbox", "read-only"]);
+        assert!(mode.env.is_empty());
+    }
+
+    #[test]
+    fn claude_is_limited_to_read_search_and_git_reads() {
+        let mode = read_only_of("claude").expect("claude documents a read-only mode");
+        assert_eq!(
+            mode.args,
+            &[
+                "--restricted",
+                "--tools",
+                "Read,Grep,Glob,Bash",
+                "--allowedTools",
+                "Bash(git diff:*),Bash(git log:*),Bash(git show:*)",
+                "--permission-prompts",
+                "none",
+            ]
+        );
+    }
+
+    #[test]
+    fn omp_is_limited_to_read_search_tools() {
+        let mode = read_only_of("omp").expect("omp documents a read-only mode");
+        assert_eq!(mode.args, &["--tools", "read,grep,glob"]);
+    }
+
+    #[test]
+    fn opencode_denies_edits_and_every_command_but_git_reads() {
+        let mode = read_only_of("opencode").expect("opencode documents a read-only mode");
+        let [(name, value)] = mode.env else {
+            panic!("one variable expected: {:?}", mode.env);
+        };
+        assert_eq!(*name, "OPENCODE_PERMISSION");
+        let json: serde_json::Value = serde_json::from_str(value).expect("valid JSON");
+        assert_eq!(json.pointer("/edit"), Some(&serde_json::json!("deny")));
+        assert_eq!(json.pointer("/bash/*"), Some(&serde_json::json!("deny")));
+        assert_eq!(
+            json.pointer("/bash/git diff*"),
+            Some(&serde_json::json!("allow"))
+        );
+    }
+
+    #[test]
+    fn dsh_documents_no_read_only_mode() {
+        assert!(AGENTS.iter().any(|a| a.name == "dsh" && a.review.is_some()));
+        assert_eq!(read_only_of("dsh"), None);
     }
 
     #[test]
