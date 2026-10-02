@@ -1,12 +1,12 @@
 # 0009: Journal store and sinks
 
-Status: provisional. Amended by [decision 0014](0014-the-journal-at-every-checkpoint.md).
+Status: provisional. Amended by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md).
 
-Date: 2026-09-20, amended 2026-09-23 with the buffer, the flush and the two sinks below.
+Date: 2026-09-20, amended 2026-09-23 with the buffer, the flush and the sinks below.
 
 ## Context
 
-Decision 0005 makes the event journal the record: entity tables are projections of it, and a run's journal is hash-chained. It does not say where the journal is written or how a reader other than the writer reaches it. The smallest working engine needs both before its first run.
+[Decision 0005 (the factory domain model)](0005-the-factory-domain-model.md) makes the event journal the record: entity tables are projections of it, and a run's journal is hash-chained. It does not say where the journal is written or how a reader other than the writer reaches it. The smallest working engine needs both before its first run.
 
 ## Decision
 
@@ -18,7 +18,7 @@ Readers compute projections on read. There is no second store and no database un
 
 A sink copies a completed run's journal to where other readers can see it. The local sink is the state directory itself and is the first. A forge-native sink, which keeps the journal beside the pull request, follows behind the same interface. A run's journal reaches its sink before the run's work item changes state, so a reader never sees a state without the events that led to it.
 
-Decision 0014 adds the rest. Events on an agent's own machine go to a local buffer first, and a flush sends the buffer on push and on a timer, so a hook never waits on the network. The forge-native sink is an orphan branch on the code host and is the default. An object store with an S3-compatible interface is an optional second sink, and both receive every write when both are configured. Raw harness transcripts travel the same path, keyed by run identifier.
+[Decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md) adds the rest. Events on an agent's own machine go to a local buffer first, and a flush sends the buffer on push and on a timer, so a hook never waits on the network. The forge-native sink is an orphan branch on the code host (a branch that shares no history with the code) and is the default. An object store with an S3-compatible interface (the interface Amazon's object store made common) is an optional second sink, and both receive every write when both are configured. Raw harness transcripts travel the same path, keyed by run identifier.
 
 ## Consequences
 

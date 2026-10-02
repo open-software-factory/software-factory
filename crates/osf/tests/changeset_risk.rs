@@ -1,12 +1,12 @@
-//! Integration tests for `osf risk`: one throwaway git repository per case,
+//! Integration tests for `osf changeset risk`: one throwaway git repository per case,
 //! one change made against it, and the tier and axes that change earns.
 //! Each case here answers to a case documented in
-//! `crates/osf/src/risk.rs`'s own module doc comment.
+//! `crates/osf/src/changeset_risk.rs`'s own module doc comment.
 
 mod common;
 
 use common::{isolated_home, TempDir, TempRepo};
-use osf::risk::{assess, Axis, Tier};
+use osf::changeset_risk::{assess, Axis, Tier};
 use std::path::Path;
 use std::process::Command;
 
@@ -21,7 +21,7 @@ fn base_repo(name: &str) -> TempRepo {
     repo
 }
 
-fn axis_names(report: &osf::risk::Report) -> Vec<&'static str> {
+fn axis_names(report: &osf::changeset_risk::Report) -> Vec<&'static str> {
     report.axes_add.iter().map(|a| Axis::as_str(*a)).collect()
 }
 
@@ -183,18 +183,18 @@ fn a_comments_only_risk_paths_file_adds_nothing() {
     assert_eq!(report.tier, Tier::Low);
 }
 
-/// Runs the compiled binary's `risk` subcommand and returns its JSON report.
+/// Runs the compiled binary's `changeset risk` subcommand and returns its JSON report.
 fn run_risk_json(dir: &Path, home: &Path, extra_env: &[(&str, &str)]) -> String {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_osf"));
     cmd.current_dir(dir)
         .env("HOME", home)
         .env("USERPROFILE", home)
         .env_remove("OSF_CONFIG")
-        .args(["risk", "--format", "json"]);
+        .args(["changeset", "risk", "--format", "json"]);
     for (key, value) in extra_env {
         cmd.env(key, value);
     }
-    let output = cmd.output().expect("osf risk runs");
+    let output = cmd.output().expect("osf changeset risk runs");
     assert!(
         output.status.success(),
         "{}",

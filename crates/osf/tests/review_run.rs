@@ -916,9 +916,9 @@ fn the_builder_family_flag_overrides_detection() {
 }
 
 /// `[review] hot_paths` must not make `osf review run` could-not-configure:
-/// `risk::assess` reads it straight from TOML, but `config::review_config`
+/// `changeset_risk::assess` reads it straight from TOML, but `config::review_config`
 /// also parses the same `[review]` table with `deny_unknown_fields`, so a
-/// hot-path test that only calls `risk::assess` directly can pass while the
+/// hot-path test that only calls `changeset_risk::assess` directly can pass while the
 /// full command still fails on the field `review_config` does not know.
 #[test]
 fn hot_paths_in_osf_toml_does_not_fail_the_full_review_run_command() {

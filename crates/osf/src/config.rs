@@ -280,10 +280,10 @@ pub struct ReviewConfig {
     /// [`crate::builder`]), tried before it so a repository can name a model
     /// the shipped table does not know.
     pub builder_family_aliases: Vec<BuilderFamilyAlias>,
-    /// Glob patterns naming high-traffic paths, read by [`crate::risk::assess`]
+    /// Glob patterns naming high-traffic paths, read by [`crate::changeset_risk::assess`]
     /// to earn the "high-traffic path" signal. Kept here, not only in
-    /// `risk.rs`'s own raw-TOML read, so this field's own `deny_unknown_fields`
-    /// does not reject the key `risk.rs` already reads.
+    /// `changeset_risk.rs`'s own raw-TOML read, so this field's own `deny_unknown_fields`
+    /// does not reject the key `changeset_risk.rs` already reads.
     #[serde(default)]
     pub hot_paths: Vec<String>,
 }

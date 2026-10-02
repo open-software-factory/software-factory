@@ -21,7 +21,7 @@ use crate::quotes;
 use crate::reducer::{self, LensAnswer, LensVerdict, Verdict};
 use crate::review_context::{self, Sources};
 use crate::reviewers::{self, Outcome, Reviewer};
-use crate::{config, git, risk};
+use crate::{changeset_risk, config, git};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::path::Path;
@@ -99,7 +99,7 @@ pub struct RunOutcome {
 /// reports could-not-configure rather than picking one lens to fail.
 pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     let catalogue = lenses::load(req.config_root, None)?;
-    let report = risk::assess(req.root, req.config_root, req.base)?;
+    let report = changeset_risk::assess(req.root, req.config_root, req.base)?;
     let changed = git::changed_files(req.root, req.base).map_err(|e| e.to_string())?;
     let signals = report.signals();
     let selected = lenses::select(&catalogue, &changed, &signals, report.tier);

@@ -1,6 +1,6 @@
 //! The review lens catalogue: the shipped lenses, the organisation's, and the repository's `.osf/review-lenses/`, one lens per area a reviewer judges.
 
-use crate::risk;
+use crate::changeset_risk;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -246,11 +246,11 @@ pub enum Depth {
 /// alone, a normal one adds the diff's callers, a high one adds every file
 /// in each changed file's own module.
 #[must_use]
-pub fn depth(tier: risk::Tier) -> Depth {
+pub fn depth(tier: changeset_risk::Tier) -> Depth {
     match tier {
-        risk::Tier::Low => Depth::Diff,
-        risk::Tier::Normal => Depth::DiffAndCallers,
-        risk::Tier::High => Depth::Module,
+        changeset_risk::Tier::Low => Depth::Diff,
+        changeset_risk::Tier::Normal => Depth::DiffAndCallers,
+        changeset_risk::Tier::High => Depth::Module,
     }
 }
 
@@ -266,7 +266,7 @@ pub fn select<'a>(
     catalogue: &'a Catalogue,
     changed: &[String],
     signals: &[String],
-    tier: risk::Tier,
+    tier: changeset_risk::Tier,
 ) -> Vec<Selected<'a>> {
     catalogue
         .lenses
@@ -282,12 +282,12 @@ fn selection_reason(
     lens: &Lens,
     changed: &[String],
     signals: &[String],
-    tier: risk::Tier,
+    tier: changeset_risk::Tier,
 ) -> Option<String> {
     if lens.runs == Runs::Always {
         return Some("runs on every change".to_string());
     }
-    if lens.runs == Runs::AlwaysAtHighTier && tier == risk::Tier::High {
+    if lens.runs == Runs::AlwaysAtHighTier && tier == changeset_risk::Tier::High {
         return Some("runs on every change at the high tier".to_string());
     }
     if let Some(pattern) = matching_path(&lens.trigger.paths, changed) {
@@ -454,7 +454,12 @@ mod tests {
     fn an_untriggered_change_still_runs_the_six_must_run_lenses() {
         let root = temp_root("select-none");
         let c = load(&root, None).expect("loads");
-        let s = select(&c, &["assets/logo.png".to_string()], &[], risk::Tier::Low);
+        let s = select(
+            &c,
+            &["assets/logo.png".to_string()],
+            &[],
+            changeset_risk::Tier::Low,
+        );
         let names: Vec<&str> = s.iter().map(|x| x.lens.name.as_str()).collect();
         assert_eq!(names.len(), 6, "{names:?}");
         assert!(names.contains(&"privacy-and-data-protection"));
@@ -468,7 +473,7 @@ mod tests {
             &c,
             &["migrations/0003_add_column.sql".to_string()],
             &["stored-data".to_string()],
-            risk::Tier::Low,
+            changeset_risk::Tier::Low,
         );
         assert!(s
             .iter()
@@ -479,7 +484,12 @@ mod tests {
     fn the_high_tier_adds_architecture_and_duplication() {
         let root = temp_root("select-high");
         let c = load(&root, None).expect("loads");
-        let s = select(&c, &["README.md".to_string()], &[], risk::Tier::High);
+        let s = select(
+            &c,
+            &["README.md".to_string()],
+            &[],
+            changeset_risk::Tier::High,
+        );
         assert!(s.iter().any(|x| x.lens.name == "architecture-adherence"));
         assert!(s.iter().any(|x| x.lens.name == "duplication-and-reuse"));
     }
@@ -488,7 +498,12 @@ mod tests {
     fn architecture_and_duplication_do_not_run_at_low_tier_without_a_trigger() {
         let root = temp_root("select-low-no-trigger");
         let c = load(&root, None).expect("loads");
-        let s = select(&c, &["README.md".to_string()], &[], risk::Tier::Low);
+        let s = select(
+            &c,
+            &["README.md".to_string()],
+            &[],
+            changeset_risk::Tier::Low,
+        );
         assert!(!s.iter().any(|x| x.lens.name == "architecture-adherence"));
         assert!(!s.iter().any(|x| x.lens.name == "duplication-and-reuse"));
     }
@@ -501,7 +516,7 @@ mod tests {
             &c,
             &["crates/osf/src/lib.rs".to_string()],
             &["repeated-logic".to_string()],
-            risk::Tier::Low,
+            changeset_risk::Tier::Low,
         );
         assert!(
             s.iter().any(|x| x.lens.name == "architecture-adherence"),
@@ -515,9 +530,9 @@ mod tests {
 
     #[test]
     fn depth_follows_the_tier() {
-        assert_eq!(depth(risk::Tier::Low), Depth::Diff);
-        assert_eq!(depth(risk::Tier::Normal), Depth::DiffAndCallers);
-        assert_eq!(depth(risk::Tier::High), Depth::Module);
+        assert_eq!(depth(changeset_risk::Tier::Low), Depth::Diff);
+        assert_eq!(depth(changeset_risk::Tier::Normal), Depth::DiffAndCallers);
+        assert_eq!(depth(changeset_risk::Tier::High), Depth::Module);
     }
 
     #[test]
@@ -528,7 +543,7 @@ mod tests {
             &c,
             &["lib/screens/checkout.dart".to_string()],
             &[],
-            risk::Tier::Low,
+            changeset_risk::Tier::Low,
         );
         assert!(s.iter().any(|x| x.lens.name == "internationalisation"));
     }
@@ -538,13 +553,23 @@ mod tests {
         let root = temp_root("select-independent");
         let c = load(&root, None).expect("loads");
 
-        let html_only = select(&c, &["app/widget.html".to_string()], &[], risk::Tier::Low);
+        let html_only = select(
+            &c,
+            &["app/widget.html".to_string()],
+            &[],
+            changeset_risk::Tier::Low,
+        );
         assert!(html_only.iter().any(|x| x.lens.name == "accessibility"));
         assert!(!html_only
             .iter()
             .any(|x| x.lens.name == "user-visible-change"));
 
-        let ui_dir_only = select(&c, &["app/ui/logo.png".to_string()], &[], risk::Tier::Low);
+        let ui_dir_only = select(
+            &c,
+            &["app/ui/logo.png".to_string()],
+            &[],
+            changeset_risk::Tier::Low,
+        );
         assert!(ui_dir_only
             .iter()
             .any(|x| x.lens.name == "user-visible-change"));
