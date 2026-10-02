@@ -47,7 +47,7 @@ Each row is an answer the owner gave. The decision records at the end carry the 
 | Catalogue | The list of checks per ecosystem is generated from the defaults the tool ships. The order is Rust, .NET, Java, TypeScript, Python and Go. Rust and .NET ship together. The scheduled checks are an open list that grows. |
 | Suppressions | Both the factory's own marker and each ecosystem's native markers. The factory marker carries a reason and an expiry. Native markers keep working for their tools and the factory reads them. |
 | Configuration | One table per slot in `osf.toml`. |
-| Defaults | One TOML data file per ecosystem inside the tool, holding the task shape, the slot, the checkpoints and the recogniser rules. TOML is the configuration format the tool already uses. |
+| Defaults | One TOML data file per ecosystem inside the tool, holding the task shape, the slot, the checkpoints and the recogniser rules. TOML is the configuration format the tool uses. |
 | Deployment | The factory renders the files it owns into the adopter's repository. Customisation lives in `osf.toml` and in tags on the adopter's own tasks. A drift gate refuses hand edits to a generated file. |
 | Aggregation output | One check run whose summary is the slot table, rendered from one journal event. |
 | Scheduled work | Scheduled checks are checks. Model-driven upkeep becomes issues that the engine works through its normal loop. |
@@ -156,7 +156,7 @@ Raw harness transcripts share the journal's buffer, flush and sinks, keyed by ru
 
 ### The repository file
 
-One table per slot. Everything the factory needs to know about a slot sits under that slot's name. The moon tasks keep their tags, so the file never repeats what moon already holds.
+One table per slot. Everything the factory needs to know about a slot sits under that slot's name. The moon tasks keep their tags, so the file never repeats what moon holds.
 
 ```toml
 # osf.toml, in an adopter's repository
@@ -280,7 +280,7 @@ A suppression silences one finding in place, with a reason and an expiry, and th
 
 A marker without an expiry or a reason is itself a finding. An expired marker is a finding. The marker's fields are the same as a `[[suppress]]` entry in `osf.toml`, so one parser reads both.
 
-A suppression the ecosystem's own tool understands keeps working for that tool, and the factory reads it. A Rust allow attribute (the attribute that silences a warning) and a Python noqa comment (the comment that tells Python linters to skip a line) are examples of such forms. A suppression the team already has at adoption stays in force and is counted. A native suppression that a change adds is a finding for review, which [decision 0003 (deterministic verification is authoritative)](decisions/0003-deterministic-verification-is-authoritative.md) requires.
+A suppression the ecosystem's own tool understands keeps working for that tool, and the factory reads it. A Rust allow attribute (the attribute that silences a warning) and a Python noqa comment (the comment that tells Python linters to skip a line) are examples of such forms. A suppression the team has at adoption stays in force and is counted. A native suppression that a change adds is a finding for review, which [decision 0003 (deterministic verification is authoritative)](decisions/0003-deterministic-verification-is-authoritative.md) requires.
 
 ## When things go wrong
 
@@ -296,7 +296,7 @@ A suppression the ecosystem's own tool understands keeps working for that tool, 
 | A test count shrinks between the base and the change | A finding for review, as the existing rule says. | A finding with both counts. |
 | A suppression has expired, or a change adds a native suppression | A finding. | A finding naming the marker and its expiry. |
 | A generated file was edited by hand | The drift gate fails and its message names the key in `osf.toml` or the tag on a moon task where the change belongs. | A verification event from the drift check. |
-| Rendering would overwrite a file the adopter already has under the same name | The sync command refuses and names the file. | Nothing. The sync did not run. |
+| Rendering would overwrite a file the adopter has under the same name | The sync command refuses and names the file. | Nothing. The sync did not run. |
 | The flush cannot reach the branch or the store | Locally the buffer keeps the events and the next flush retries. In the pull-request checkpoint the aggregation fails, because evidence must be durable before the state changes. | Locally, a gap event at the next successful flush. In CI, the failed aggregation. |
 | Two aggregation runs start on the same commit | A concurrency group per commit lets one run at a time, and the later one supersedes. | One checkpoint-complete event per commit. |
 | The harness sends no text in its hook reply, as the dsh bridge does as of 2026-09-22 | The findings still reach the journal, and the pre-commit checkpoint refuses the commit with them. | The verification events, unchanged. |
