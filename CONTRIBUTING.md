@@ -70,7 +70,9 @@ also gets the git-town stack view.
   secret to it. Set the `PR_LENS_PROVIDER` repository variable to
   `openai` or `anthropic` to use an `OPENAI_API_KEY` or an
   `ANTHROPIC_API_KEY` secret instead. With no key, the section says so
-  instead of drawing anything.
+  instead of drawing anything. When a model call fails, pr-lens retries
+  once with the next provider that has a key, and the section names the
+  reason if both fail.
 - The change outline needs no key and no setup.
 - The git-town stack view needs no key and no setup.
 
