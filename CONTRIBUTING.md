@@ -45,6 +45,14 @@ A suppression with no reason is itself an error. Suppressions are reported and
 counted, and the checks that run on a pull request ignore them, so nothing is
 hidden from review.
 
+## The pull request description
+
+The format of a pull request description lives in one place:
+[`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). It
+lists the sections in order, with the rules under each heading. Follow the
+template. The status block in it checks the build, tests, clippy and
+formatting, so the description carries no checklist.
+
 ## Pull requests from a fork
 
 A pull request from a fork still gets every check. Its status block
@@ -62,7 +70,9 @@ also gets the git-town stack view.
   secret to it. Set the `PR_LENS_PROVIDER` repository variable to
   `openai` or `anthropic` to use an `OPENAI_API_KEY` or an
   `ANTHROPIC_API_KEY` secret instead. With no key, the section says so
-  instead of drawing anything.
+  instead of drawing anything. When a model call fails, pr-lens retries
+  once with the next provider that has a key, and the section names the
+  reason if both fail.
 - The change outline needs no key and no setup.
 - The git-town stack view needs no key and no setup.
 

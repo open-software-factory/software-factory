@@ -5,6 +5,8 @@
 
 pub mod agents;
 pub mod assets;
+pub mod changeset_risk;
+pub mod changeset_tests;
 pub mod check;
 pub mod checkpoint;
 pub mod config;
@@ -15,13 +17,14 @@ pub mod githooks;
 pub mod hook;
 pub mod journal;
 pub mod lints;
+pub mod marker;
 pub mod moon;
+pub mod pr_status;
+pub mod pr_tree;
 pub mod repository;
 pub mod review;
-pub mod risk;
 pub mod scan;
 pub mod section;
-pub mod status;
 #[cfg(test)]
 mod test_support;
 pub mod verify;
