@@ -333,6 +333,23 @@ const ENV_FIELDS: &[EnvField] = &[
     },
 ];
 
+/// Environment variables retired with the rule they fed, each with what replaces it.
+const RETIRED_ENV_VARS: &[(&str, &str)] = &[(
+    "OSF_WRITING_CHAT_LOCAL_LABELS",
+    "OSF_WRITING_CHAT_LOCAL_PHRASES or OSF_WRITING_MUST_EXPLAIN_NAMES",
+)];
+
+/// One notice line for each retired variable that `is_set` reports, so an old setting never vanishes without a trace.
+fn retired_env_notices(is_set: impl Fn(&str) -> bool) -> Vec<String> {
+    RETIRED_ENV_VARS
+        .iter()
+        .filter(|(var, _)| is_set(var))
+        .map(|(var, replacement)| {
+            format!("{var} is retired and ignored; use {replacement} instead")
+        })
+        .collect()
+}
+
 fn apply_env(layered: &mut Layered) -> Result<(), ConfigError> {
     for field in ENV_FIELDS {
         let Ok(raw) = std::env::var(field.var) else {
@@ -341,6 +358,9 @@ fn apply_env(layered: &mut Layered) -> Result<(), ConfigError> {
         let value = (field.parse)(&raw)
             .map_err(|e| ConfigError::new(format!("{} is invalid: {e}", field.var)))?;
         layered.set(field.path, value, Layer::Env);
+    }
+    for notice in retired_env_notices(|var| std::env::var_os(var).is_some()) {
+        eprintln!("osf: {notice}");
     }
     Ok(())
 }
@@ -734,6 +754,26 @@ mod tests {
         assert!(message.contains("is gone"), "{message}");
         assert!(message.contains("chat_local_phrases"), "{message}");
         assert!(message.contains("must_explain_names"), "{message}");
+    }
+
+    /// The retired `OSF_WRITING_CHAT_LOCAL_LABELS` variable gets a notice that names its replacements.
+    #[test]
+    fn a_retired_environment_variable_gets_a_notice_naming_its_replacement() {
+        let notices = retired_env_notices(|var| var == "OSF_WRITING_CHAT_LOCAL_LABELS");
+        let [notice] = notices.as_slice() else {
+            panic!("expected one notice: {notices:?}");
+        };
+        assert!(notice.contains("OSF_WRITING_CHAT_LOCAL_LABELS"), "{notice}");
+        assert!(notice.contains("retired"), "{notice}");
+        assert!(
+            notice.contains("OSF_WRITING_CHAT_LOCAL_PHRASES"),
+            "{notice}"
+        );
+        assert!(
+            notice.contains("OSF_WRITING_MUST_EXPLAIN_NAMES"),
+            "{notice}"
+        );
+        assert!(retired_env_notices(|_| false).is_empty());
     }
 
     /// A `writing.levels` entry naming one of the six retired reference and
