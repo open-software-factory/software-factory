@@ -6,7 +6,7 @@ Date: 2026-09-15.
 
 ## Context
 
-The operator console's design work stalled on exactly this: its state vocabulary is marked provisional, to be re-derived from the domain model when it lands. Every verifier, reporter, policy and console view needs one shared model.
+The operator console's design work stalled on exactly this: its state vocabulary is marked provisional, to be re-derived from the domain model when it lands. Every verifier, reporter, policy and console view needs a shared model.
 
 ## Decision
 
@@ -34,7 +34,7 @@ Every finding and every summary carries one grade:
 | Observed | A verifier measured it. |
 | Derived | Computed from observed evidence. |
 | Reported | An agent or a person said so, unmeasured. |
-| Unverified | No deterministic confirmation yet. |
+| Unverified | No deterministic confirmation. |
 
 Only observed evidence may carry a "verified by" attribution. A finding at a lower grade that claims one is rejected as malformed. A warning is never enough to accept it. A policy may refuse to act on reported evidence.
 
@@ -60,7 +60,7 @@ A finding that names a file and a line is written in SARIF, the static-analysis 
 
 ### Runs are replayable
 
-A run's event journal is hash-chained: each event carries the hash of the one before, with wall-clock time excluded. Two runs with identical inputs and identical decisions produce an identical head hash, which is how a replay proves it replayed.
+A run's event journal is hash-chained: each event carries the hash of the one before, with wall-clock time excluded. Runs with identical inputs and identical decisions produce an identical head hash, which is how a replay proves it replayed.
 
 ## Consequences
 

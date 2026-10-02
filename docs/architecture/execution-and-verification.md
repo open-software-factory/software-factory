@@ -290,7 +290,7 @@ This supports the factory-floor and drill-down UX without asking OSF to become t
 - Agents retain familiar, language-specific workflows.
 - Canonical verification gains graph execution, affected selection and caching.
 - The integration begins with a small process boundary.
-- OSF can evolve toward REAPI without committing to remote infrastructure now.
+- OSF can evolve toward REAPI without committing to remote infrastructure.
 - Moon and OSF retain independent release and implementation freedom.
 
 ### Negative

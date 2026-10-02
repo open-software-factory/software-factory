@@ -11,11 +11,11 @@ Research notes, compiled 2026-09-17 from six source surveys. They inform the des
 
 ## 1. The question
 
-A change set is any difference between two states of a codebase: two commits, a pull request, or two folders. Risk here means any issue the change set can cause once it is merged, built, or deployed. That covers a defect, an outage, a broken caller, or a leaked secret. It also covers a slower page, a larger bill, or a rule broken in a regulated domain.
+A change set is any difference between one state of a codebase and another, such as the difference between commits, a pull request, or the difference between folders. Risk here means any issue the change set can cause once it is merged, built, or deployed. That covers a defect, an outage, a broken caller, or a leaked secret. It also covers a slower page, a larger bill, or a rule broken in a regulated domain.
 
-The classifier's answer will decide three things. Whether a pull request may merge on its own. How many review axes run and how deep each one reads. Whether a person must sign off. A wrong low answer lets a dangerous change through. A wrong high answer spends review on a comment fix.
+The classifier's answer will decide these things. Whether a pull request may merge on its own. How many review axes run and how deep each one reads. Whether a person must sign off. A wrong low answer lets a dangerous change through. A wrong high answer spends review on a comment fix.
 
-## 2. Four questions inside one word
+## 2. Questions inside one word
 
 Every source below separates the word risk into questions that need different evidence. Four of them matter here.
 
@@ -38,7 +38,7 @@ Just-in-time defect prediction is the field that scores a single commit for defe
 
 **Normalised size.** Raw lines changed barely predicts defects. Nagappan and Ball showed in 2005 that churn relative to file size, prior churn and time span predicted fault-prone binaries with 89 percent accuracy on a large operating system.
 
-**Fourteen standard features.** Kamei and colleagues defined them in 2013, in five families, which are size, diffusion, purpose, history and experience. Their models on six open-source projects reached an area under the curve of 0.70 to 0.78. Under effort-aware evaluation, bugs found per line inspected, the models found about 35 percent of bugs while inspecting 20 percent of changed lines.
+**Standard features.** Kamei and colleagues defined fourteen standard features in 2013, in five families, which are size, diffusion, purpose, history and experience. Their 2013 models on six open-source projects reached an area under the curve of 0.70 to 0.78. Under effort-aware evaluation, bugs found per line inspected, the models found about 35 percent of bugs while inspecting 20 percent of changed lines.
 
 **A one-feature baseline held.** Zeng and colleagues showed in 2021 that a logistic regression on lines added alone matched or beat two deep-learning models. The test used a dataset eight times larger than the original, and the baseline trained tens of thousands of times faster. Pornprasit and Tantithamthavorn showed the same year that one deep model's reported gains came partly from a data leak. Fixing the leak cut its score by roughly 40 percent.
 
@@ -46,17 +46,17 @@ Just-in-time defect prediction is the field that scores a single commit for defe
 
 **Labels are noisy.** Almost every dataset labels a bug-inducing commit by tracing a later fix back to the lines it changed. Rosa and colleagues in 2021, and Lyu and colleagues in 2023, found that method disagrees with developers often and silently misses commits. That noise caps how accurate any classifier can appear.
 
-**Ownership predicts failure.** Bird and colleagues studied two operating system releases in 2011. The number of low-expertise contributors to a file and the top owner's share both predicted failures. Nagappan and colleagues had found in 2008 that organisational metrics out-predicted code metrics on the same product line.
+**Ownership predicts failure.** Bird and colleagues studied two operating system releases in 2011. The number of low-expertise contributors to a file and the top owner's share each predicted failures. Nagappan and colleagues had found in 2008 that organisational metrics out-predicted code metrics on the same product line.
 
 **Context doubles the catch rate.** A 2025 industrial study, arXiv 2505.17928, built a review system that pulled in call-graph slices around a change. It caught twice the bugs of a plain diff-only model.
 
 **Industrial deployments are thinly documented.** The survey found one described online-learning deployment on a live commit stream, and few named case studies of a risk model in daily use.
 
-Five findings transfer to a small project. Change-level features, normalised size, a cheap baseline first, rolling retraining, and effort-aware evaluation. Three do not transfer. Models fitted on huge clean histories, gains reported on two or three large projects, and manual relabelling of noisy labels.
+These findings transfer to a small project. Change-level features, normalised size, a cheap baseline first, rolling retraining, and effort-aware evaluation. The following do not transfer. Models fitted on huge clean histories, gains reported on only a few large projects, and manual relabelling of noisy labels.
 
 ## 4. What large organisations do
 
-The published systems split into two kinds. Review-time systems read the change before merge. Rollout-time systems watch the change after deploy. No published system gives one universal risk number.
+The published systems split into these kinds. Review-time systems read the change before merge. Rollout-time systems watch the change after deploy. No published system gives one universal risk number.
 
 | Organisation | Signal | What it gates | Reported outcome |
 | --- | --- | --- | --- |
@@ -80,28 +80,28 @@ Google, Meta, Microsoft, Amazon, Slack and Netflix are the large software compan
 
 An inventory of deterministic tools, grouped by the fact they report. Every tool listed runs offline unless marked. Maturity was checked in September 2026.
 
-**Structure and reach.** Tree differencing reports which syntax nodes changed instead of which lines: GumTree, a tree-differencing library, and difftastic, a structural diff over forty languages. Build graphs report which targets depend on a changed file. Bazel does it with reverse dependency queries. The monorepo tools Nx, moon, Turborepo and Pants do it with an affected-projects command. Test impact maps report which tests exercise a changed method.
+**Structure and reach.** Tree differencing reports which syntax nodes changed instead of which lines: GumTree, a tree-differencing library, and difftastic, a structural diff over forty languages as of 2026-09-17. Build graphs report which targets depend on a changed file. Bazel does it with reverse dependency queries. The monorepo tools Nx, moon, Turborepo and Pants do it with an affected-projects command. Test impact maps report which tests exercise a changed method.
 
 **Public contracts.** One breaking-change detector exists per ecosystem, each comparing an interface before and after.
 
 | Ecosystem | Tool | Reports |
 | --- | --- | --- |
 | Rust | cargo-semver-checks | one lint per semantic-versioning rule broken |
-| Java | japicmp; revapi | binary and source compatibility between two archives |
+| Java | japicmp; revapi | binary and source compatibility between one archive and another |
 | C# | the .NET SDK package validation | breaking changes against a baseline package |
 | TypeScript | API Extractor | public surface changes against a committed snapshot |
-| Go | apidiff | incompatible interface changes between two versions |
+| Go | apidiff | incompatible interface changes between one version and another |
 | Python | griffe | breaking changes in a package's public surface |
 | Dart | dart_apitool | interface model diff with versioning verdicts |
 | Kotlin | binary-compatibility-validator | a checked-in interface dump diff |
 | wire formats | buf for protocol buffers; oasdiff for OpenAPI; GraphQL Inspector | breaking, dangerous and safe schema changes |
 | cross-service | Pact | consumer expectations checked against a provider |
 
-**Stored data.** Migration linters name the risky shape: squawk for PostgreSQL migrations, atlas for several databases. Both flag destructive operations and long locks as a category.
+**Stored data.** Migration linters name the risky shape: squawk for PostgreSQL migrations, atlas for several databases. Each flags destructive operations and long locks as a category.
 
 **Infrastructure.** A plan diff reports create, change and destroy counts: Terraform and its fork OpenTofu, Pulumi. Policy engines classify a plan against named rules: Open Policy Agent, Checkov. Live-cluster diffs need the cluster and do not run offline.
 
-**What people see.** Pixel diffs against a baseline: Playwright snapshots and BackstopJS offline, two commercial services in the cloud. Accessibility rule violations with a rule id: axe-core. No dominant tool reports string or translation changes.
+**What people see.** Pixel diffs against a baseline: Playwright snapshots and BackstopJS offline, commercial services in the cloud. Accessibility rule violations with a rule id: axe-core. No dominant tool reports string or translation changes.
 
 **Performance and volume.** Statistical benchmark regression: Bencher, criterion for Rust, pytest-benchmark for Python. Load thresholds: k6. Bundle size budgets for the web. No mature tool diffs a query plan.
 
@@ -115,17 +115,17 @@ An inventory of deterministic tools, grouped by the fact they report. Every tool
 
 ## 6. Models as a second opinion
 
-**Products.** Eleven review products were checked. Most emit findings with a severity. Two emit a priority or risk label. Two can run fully outside the vendor's cloud. None publishes a dataset, a ground truth, or a third-party replication for its accuracy claims. Treat every vendor accuracy figure as marketing until one does.
+**Products.** As of 2026-09-17, eleven review products were checked. Most emit findings with a severity. As of 2026-09-17, two emit a priority or risk label and two can run fully outside the vendor's cloud. None publishes a dataset, a ground truth, or a third-party replication for its accuracy claims. Treat every vendor accuracy figure as marketing until one does.
 
-**Research.** A 2026 paper from Meta built a diff risk score from a model's attention over the diff, then mapped it to lines and hunks. Its top two flagged hunks held 54 percent of the risky lines while covering 26 percent of the changed code. [reported: arXiv 2607.02782, unverified by this author] A 2023 paper, arXiv 2308.11148, showed small fine-tuned models matching dedicated review models at under 7 billion parameters.
+**Research.** A 2026 paper from Meta built a diff risk score from a model's attention over the diff, then mapped it to lines and hunks. In that 2026 paper, the top two flagged hunks held 54 percent of the risky lines while covering 26 percent of the changed code. [reported: arXiv 2607.02782, unverified by this author] A 2023 paper, arXiv 2308.11148, showed small fine-tuned models matching dedicated review models at under 7 billion parameters.
 
-**Small local classifiers.** Few-shot sentence-embedding classifiers of 110 to 355 million parameters matched a large model trained on 3,000 examples with 8 examples per class. [reported: SetFit] Fine-tuned code encoders reach a macro F1 near 0.74 on binary change classification. [reported: arXiv 2605.01596] A retrieval approach that labels a commit by similarity to past commits ran up to 112 times faster than the learned models. [reported: arXiv 2210.02435] A pure-Rust inference path exists. A 150-million-parameter zero-shot classifier loaded through the candle crate and cached offline is enough for a first local layer.
+**Small local classifiers.** As of 2026-09-17, few-shot sentence-embedding classifiers of 110 to 355 million parameters have matched a large model trained on 3,000 examples with 8 examples per class. [reported: SetFit] Fine-tuned code encoders reach a macro F1 near 0.74 on binary change classification. [reported: arXiv 2605.01596] A retrieval approach that labels a commit by similarity to past commits ran up to 112 times faster than the learned models. [reported: arXiv 2210.02435] A pure-Rust inference path exists. A 150-million-parameter zero-shot classifier loaded through the candle crate and cached offline is enough for a first local layer.
 
 **Inputs that help.** Call-graph slices doubled the catch rate. Retrieval of related code raised bug-detection accuracy by 31 percent in one study. Ownership is a validated signal. The diff alone is not worthless: attention over it already localised risk.
 
-**Reproducibility has a limit.** Temperature zero reduces but does not remove randomness. Batch size, kernel choice and floating-point ordering differ across hardware, so the same weights can answer differently on two machines. [reported: arXiv 2308.02828; 2604.27006; 2604.22411] A pinned weight hash controls one variable. The report must record the hash, the hardware class and the runtime version, and a golden set must run on the reference machine.
+**Reproducibility has a limit.** Temperature zero reduces but does not remove randomness. Batch size, kernel choice and floating-point ordering differ across hardware, so the same weights can answer differently on different machines. [reported: arXiv 2308.02828; 2604.27006; 2604.22411] A pinned weight hash controls one variable. The report must record the hash, the hardware class and the runtime version, and a golden set must run on the reference machine.
 
-**Calibration.** Two public change-level datasets exist, one of 106,674 labelled commits and one of 213,000 files. A repository can label its own history: a change is risky if it was later reverted, hot-fixed, or linked to an incident. One study reached 86 percent accuracy from one project's history alone. [reported: arXiv 2411.05230] No source states a precision bar for auto-merge. That number is a local policy. No source covered drift monitoring, so it must be built by re-running the labelled set on a schedule.
+**Calibration.** As of 2026-09-17, two public change-level datasets exist, one of 106,674 labelled commits and one of 213,000 files. A repository can label its own history: a change is risky if it was later reverted, hot-fixed, or linked to an incident. One study reached 86 percent accuracy from one project's history alone. [reported: arXiv 2411.05230] No source states a precision bar for auto-merge. That number is a local policy. No source covered drift monitoring, so it must be built by re-running the labelled set on a schedule.
 
 **A floor the model cannot lower.** No published policy was found where rules set a minimum tier and a model may only raise it. It is a sound pattern. It is not yet a proven practice.
 
@@ -153,14 +153,14 @@ Those questions, joined with the signals the deterministic floor already reads, 
 
 ## 8. What this changes in the design
 
-The design in open-software-factory/software-factory#31 (risk classification) has three layers: a deterministic floor, a local model, and a combination rule. The research supports the shape and changes the content.
+The design in open-software-factory/software-factory#31 (risk classification) has these layers: a deterministic floor, a local model, and a combination rule. The research supports the shape and changes the content.
 
 - **Report reach as its own numbers.** Files, symbols, modules, dependents from the build graph, and consumers from the contract detectors. Reach is a fact and belongs in every report, whatever the tier.
 - **Report hazard as categories.** Take them from the table above. Each category is a small reader per ecosystem, and each carries the sign-off flag from the standards.
 - **Estimate severity separately.** From the hazard weight, the reach, the traffic share where telemetry exists, and whether the change can be undone. Report it with its evidence grade. It sets the mitigation: which tests run, how small the first rollout is, and who signs.
 - **Add the validated likelihood features.** Lines added, churn relative to file size, files and subsystems touched, prior fixes to the same lines, author familiarity, ownership share, tests present. Start with lines added as the baseline the model must beat.
 - **Give the model context.** Treat it as a second opinion. A call-graph slice around the change, the repository map, and the reach and hazard facts. The model returns a tier, a confidence, a rationale, and the axes it thinks are needed. The floor cannot be lowered.
-- **Record what produced the answer.** Signal versions, model weight hash, hardware class, runtime version. Without those, two reports cannot be compared.
+- **Record what produced the answer.** Signal versions, model weight hash, hardware class, runtime version. Without those, reports cannot be compared.
 - **Measure with an effort-aware metric.** Bugs found per line the reviewer reads, on a labelled set built from this repository's own reverts, hot-fixes and incidents. Retrain on a rolling window. Re-run the set on a schedule to catch drift.
 - **Keep the gate narrow.** The tier decides review axes and depth, rounds, and human sign-off. Rollout decisions stay with the deployment system, which has its own signals and its own false-positive rate.
 

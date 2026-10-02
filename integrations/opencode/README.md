@@ -87,7 +87,7 @@ pnpm test
 version 7.0.2, lints with `oxlint`, and checks formatting with `oxfmt`.
 `pnpm test` builds, then runs the compiled tests with `node --test`.
 
-The two decisions this plugin makes are plain functions in `src/check.ts`,
+The decisions this plugin makes are plain functions in `src/check.ts`,
 which imports nothing from OpenCode. The tests run anywhere, including
 where OpenCode is not installed. `src/index.ts` is wiring and carries no
 decision of its own.

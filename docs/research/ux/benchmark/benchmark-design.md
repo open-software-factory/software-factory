@@ -12,7 +12,7 @@ This benchmark evaluates AI-assisted product-design workflows for the Software F
 
 It does not test which model produces the most attractive unguided screenshot. Every candidate receives the same product context, data, scenario, prototype substrate, interaction budget and verification. In the controlled portable-workflow lane, the design workflow is the only intentional variable.
 
-The benchmark produces two independent findings:
+The benchmark produces these independent findings:
 
 1. Which workflow best supports repeatable, non-designer-led product design.
 2. Which product direction is most worthy of promotion into the Factory's design-system foundation.
@@ -42,7 +42,7 @@ Start with a calibration pair:
 1. A fresh Codex session using the frozen Factory UX context and no additional design workflow.
 2. A fresh Codex session with byte-identical context plus Trystan-SA's design prompt and procedures.
 
-Both runs use the same model, reasoning level, starter commit, fixture, viewports, interaction budget and deterministic verification. Each run uses an isolated worktree and branch with no access to another candidate's output.
+The runs use the same model, reasoning level, starter commit, fixture, viewports, interaction budget and deterministic verification. Each run uses an isolated worktree and branch with no access to another candidate's output.
 
 The calibration validates the benchmark rather than declaring a final winner. If the protocol proves discriminating and fair, run the other shortlisted workflows in comparable batches. Claude Code and Claude Design are not part of the first calibration. Kimi K3 experiments remain deferred until access is available.
 
@@ -108,7 +108,7 @@ All visible encoding must correspond to fixture data. Staleness, uncertainty and
 
 The domain shape is informed by a real polyglot investment-software estate, but the fixture contains no copied repositories, product names, users, infrastructure, business facts or operational values.
 
-The fictional product is a multi-asset portfolio application with six repositories:
+The fictional product is a multi-asset portfolio application with these repositories:
 
 | Repository | Ecosystem | Responsibility |
 |---|---|---|
@@ -121,10 +121,10 @@ The fictional product is a multi-asset portfolio application with six repositori
 
 The dataset contains:
 
-- 45 work items across epics, features, stories, tasks, bugs and chores;
+- 45 work items across epics, features, stories, tasks, bugs and chores, as of 2026-08-17;
 - explicit dependency and parallelism relationships;
 - 14 active or recently active agent sessions;
-- 9 open PRs in different review and verification states;
+- 9 open PRs in different review and verification states, as of 2026-08-17;
 - local Windows and remote Linux and macOS execution;
 - deterministic test, build, security, data-quality and deployment evidence;
 - throughput, runway, retry and cost history;
@@ -136,11 +136,11 @@ Stable fictional identifiers and timestamps make every rendered value traceable 
 
 ### 1. Calm operation
 
-Agents are implementing portfolio-refresh reliability work across the API, importers and app while unrelated market-data and infrastructure work proceeds in parallel. Fourteen sessions are visible without implying that agent count is the goal.
+Agents are implementing portfolio-refresh reliability work across the API, importers and app while unrelated market-data and infrastructure work proceeds in parallel. The sessions are visible without implying that agent count is the goal.
 
 ### 2. Deterministic detection
 
-Following a coordinated release, reconciliation detects that 27 fictional portfolios have displayed totals inconsistent with their underlying holdings after overlapping wallet and exchange refreshes.
+Following a coordinated release, reconciliation detects that, in the fixture of 2026-08-17, 27 fictional portfolios have displayed totals inconsistent with their underlying holdings after overlapping wallet and exchange refreshes.
 
 ### 3. Automated containment
 
@@ -148,11 +148,11 @@ The Factory halts the rollout, pauses affected generation, quarantines relevant 
 
 ### 4. Correlated investigation
 
-The Factory links the original intent and design decision to work items, three PRs, passing pre-deployment checks, deployment events, traces and failing reconciliation evidence. The likely cause is a cross-service ordering case absent from the original test fixture.
+The Factory links the original intent and design decision to work items, PRs, passing pre-deployment checks, deployment events, traces and failing reconciliation evidence. The likely cause is a cross-service ordering case absent from the original test fixture.
 
 ### 5. Genuine operator decision
 
-The Factory presents two verified choices:
+The Factory presents these verified choices:
 
 - roll back and leave affected portfolios stale until a safe resync;
 - approve a forward fix and controlled replay that passed synthetic production-data verification but changes recovery behavior.
@@ -242,7 +242,7 @@ Each initial direction must render enough of the connected slice to judge it:
 
 Directions must differ in composition, spatial model, interaction and visual hierarchy. Each includes an ordinary-language explanation of what it optimizes and sacrifices.
 
-After selection, the candidate completes the interactive scenario, required states and both revision rounds.
+After selection, the candidate completes the interactive scenario, required states and the revision rounds.
 
 ## Run protocol
 
@@ -279,7 +279,7 @@ Capture the observable prompts, responses and tool calls. Record token or cost d
 
 ## Failure handling
 
-- An infrastructure or harness failure gets one clean retry; preserve both attempts.
+- An infrastructure or harness failure gets one clean retry; preserve each attempt.
 - Candidate-generated build, interaction or accessibility failures remain part of the result.
 - One neutral continuation nudge is allowed after a stall and counts as operator intervention.
 - If the benchmark is ambiguous or defective, stop the pair, version the correction and rerun every affected candidate.

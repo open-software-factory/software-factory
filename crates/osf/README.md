@@ -8,8 +8,8 @@ the rules, because the rules are compiled in.
 
 | Command | What it does |
 |---|---|
-| `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, names used with no description, sentences over 25 words, dashes, arrows, filler, and headings in short texts. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. `--message` marks the text as a reply to a person, where a heading in a short text is an error. |
-| `osf hook stop` | Reads a coding agent's Stop event from standard input and lints the final message. Stop is the event an agent sends when it wants to end its turn. The command refuses the stop when the message has errors, and also when it could not check the message at all (bad input, no message in the event, or no known-names list to check against). The agent gets the findings, or the reason it could not be checked, and rewrites. After two refusals in one turn the message goes through. |
+| `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, names used with no description, sentences over 25 words, dashes, arrows, filler, count words and relative time words in text that lasts, and headings in short texts. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. `--message` marks the text as a reply to a person, where a heading in a short text is an error. |
+| `osf hook stop` | Reads a coding agent's Stop event from standard input and lints the final message. Stop is the event an agent sends when it wants to end its turn. The command refuses the stop when the message has errors, and also when it could not check the message at all (bad input, no message in the event, or no known-names list to check against). The agent gets the findings, or the reason it could not be checked, and rewrites. After repeated refusals in one turn the message goes through. |
 | `osf hook prompt` | Reads a coding agent's prompt-submitted event from standard input and prints context for the new turn: a one-line reminder of the writing shapes a model slips into most, then any style advice the last stop check stored for that session. The advice holds the last turn only, at most twenty lines, and is cleared once printed. |
 | `osf pr status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
 | `osf pr tree render [--base <ref>] [--head <ref>]` | Prints the collapsed file table for the `osf:tree` block, with count chips and log-scale size bars. See "The file table" below. |
@@ -59,7 +59,7 @@ base branch. It rebuilds the Rust test summary between that base and
 Refresh also finds a block with the older `factory:status:begin` and
 `factory:status:end` markers. It replaces that block in place. An open
 pull request moves to the new markers on its next refresh and never
-carries two blocks.
+carries more than one block.
 
 Refresh compares the new block against the one already there, byte for
 byte. It writes nothing when they match, and prints `osf pr status
@@ -77,7 +77,7 @@ reflects what parsed, and a file that parses can still fail to build.
 
 A test is any function carrying `#[test]`, `#[tokio::test]`, or another
 attribute whose path ends in `test`. This includes one inside a
-`#[cfg(test)]` module. Two tests are the same test when their module
+`#[cfg(test)]` module. Tests are the same test when their module
 path plus function name match. A match with a different source text is
 a changed test, not an added one plus a removed one. Its one-line
 description is its `///` doc comment when it has one. Without a doc
@@ -113,11 +113,11 @@ it in the description with `osf pr section write --pr <number> --name tree
 --file <path>`, which adds the markers. The layout rules live in
 `.github/PULL_REQUEST_TEMPLATE.md`.
 
-- Files fall into three groups: Code, Tests, and Docs, build and infra.
+- Files fall into these groups: Code, Tests, and Docs, build and infra.
   Each group has a bold header with its file count and line totals.
 - With 15 files or fewer, each file has a row with its change letter. With
   more, each component has a row, biggest first. A component is a
-  directory cut to three levels.
+  directory cut to a fixed depth.
 - Each row has a coloured chip for lines added and for lines removed, and a
   size bar. The bar is on a log scale, against the biggest row. A chip is as
   wide as its text.
@@ -126,7 +126,7 @@ it in the description with `osf pr section write --pr <number> --name tree
 ## The status block workflow
 
 `.github/workflows/status-block.yml` runs `osf pr status refresh` on a
-pull request. It watches three events:
+pull request. It watches these events:
 
 - a pull request opens, updates, or reopens
 - a review is submitted or dismissed
@@ -134,7 +134,7 @@ pull request. It watches three events:
 
 The check-run trigger only starts working once this file reaches the
 default branch. GitHub only sends `check_run` events from a workflow file
-already there. The other two triggers work right away, from the pull
+already there. The other triggers work right away, from the pull
 request branch itself.
 
 ## Wiring the stop check into an agent
@@ -163,7 +163,7 @@ agent nor its format. Claude Code, Codex and the dsh bridge write
 opencode2 writes `sessionID`. The command reads every spelling, so no wiring
 needs to translate.
 
-Two refusals are also on offer and they are not interchangeable. An agent
+Refusals are also on offer in more than one form, and the forms are not interchangeable. An agent
 reading the exit code ignores standard output, and an agent reading standard
 output treats exit code 2 as the check crashing. The command guesses from the
 key spelling, which is right for every agent above. An adapter that builds the
@@ -185,7 +185,7 @@ A hooks file for Claude Code, Codex and the dsh bridge:
 }
 ```
 
-The two entries work as a pair. A style finding in a sent message, such as a
+The entries work as a pair. A style finding in a sent message, such as a
 sentence that trails off in `, not X`, cannot be corrected by a follow-up, so
 the stop check lets the message through and stores the finding. `osf hook
 prompt` prints what was stored when the next prompt arrives, so the agent sees
@@ -197,7 +197,7 @@ no description on first use. Everyday names such as GitHub or Rust are built in.
 
 ## Configuration
 
-The writing lint's limits and word lists come from four layers, a later one
+The writing lint's limits and word lists come from these layers, a later one
 overriding an earlier one field by field:
 
 1. compiled defaults

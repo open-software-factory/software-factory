@@ -1,10 +1,10 @@
 # Survey 03: canvas and graph libraries for MotionViewport and the node graph
 
-This survey tracks two things. It tracks the pan-zoom canvas primitive, `MotionViewport`,
+This survey tracks these things. It tracks the pan-zoom canvas primitive, `MotionViewport`,
 which is Layer 1 in `components.md`. It also tracks the node-link graph that canvas hosts,
 used by Factory Floor and Work Graphs.
 
-The survey checks each candidate against four `DESIGN.md` rules.
+The survey checks each candidate against these `DESIGN.md` rules.
 
 - 5.1.4, animated programmatic moves
 - 5.7, the text readability floor
@@ -62,7 +62,7 @@ Svelte components, so we can use CSS or SVG however `DESIGN.md` 10.2 needs, with
 The cost is that neither the label floor, rule 5.7, nor semantic zoom, rule 10.6, exist out of
 the box. Both must be hand-built, by reading the live zoom level and swapping or counter-scaling
 the view. This pattern is well documented already in the xyflow ecosystem. It is still work the
-other two candidates do not require.
+other candidates do not require.
 
 The core library is fully MIT. The paid "Pro" tier covers examples and templates only, so it
 does not gate the licence.
@@ -81,7 +81,7 @@ animation, and layout wiring from primitives, instead of adopting them.
 
 `components.md` states a preference. It says to adopt the pieces that match the contract, and to
 build one only when nothing else satisfies it. This path is therefore a fallback. Use it only if
-Cytoscape or AntV G6, the two leading candidates above, turn out to fight the glyph grammar
+Cytoscape or AntV G6, the leading candidates above, turn out to fight the glyph grammar
 during prototyping.
 
 **tldraw SDK** solves a different problem. It is a freeform whiteboard and infinite canvas,
@@ -100,7 +100,7 @@ MotionViewport's job is to host a data-driven graph, and tldraw's job is freehan
 | **d3-dag** | Actively maintained. Its npm package was updated in July 2026 | Multiple layering and crossing-minimisation strategies, including an optimal-crossing mode. Ships a dagre-compatible API for easy migration. Far smaller bundle than elkjs |
 
 For our 30-to-100 node scale, bundle size differences between elkjs and d3-dag do not matter
-operationally. The deciding factor is maintenance. Both elkjs and d3-dag are maintained, while
+operationally. The deciding factor is maintenance. Elkjs and d3-dag are each maintained, while
 dagre is not maintained.
 
 ## Recommendation

@@ -54,6 +54,10 @@ pub fn per_sentence(doc: &Doc, cfg: &WritingConfig, fast_only: bool, out: &mut V
         .collect();
     rules.push(&filler_rule);
     rules.push(&chat_local_rule);
+    let count_word_rule = super::durable::CountWordRule::new(&doc.whole.text);
+    rules.push(&count_word_rule);
+    let relative_time_rule = super::durable::RelativeTimeRule::new(&doc.whole.text);
+    rules.push(&relative_time_rule);
     out.extend(run_rules(doc, &rules, cfg, fast_only));
 }
 
@@ -66,6 +70,8 @@ pub fn rule_ids() -> Vec<&'static str> {
         .chain([
             "filler",
             "chat-local-reference",
+            "count-word",
+            "relative-time",
             "heading-in-short-text",
             "undefined-name",
             "undefined-name-at-start",

@@ -32,7 +32,7 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 
 ## Current bootstrap choices
 
-- Backlog: the work lives in the organisation's GitHub project, as issues with native types, parents and fields. The project is where work is planned and tracked. Keeping it out of the factory's own core model is still the rule: a repository the factory serves may use any tracker, reached through an adapter.
+- Backlog: the work lives in the organisation's GitHub project, as issues with native types, parents and fields. The project is where work is planned and tracked. Keeping it out of the factory's own core model is the rule: a repository the factory serves may use any tracker, reached through an adapter.
 - Source control: Git and GitHub are expected adapters, and neither sits at the architectural centre.
 - Coding agents: every supported agent is supported equally, and none is primary. The list of supported agents lives in one place in the code, and every rule that names an agent reads it.
 - Workflow skills: prefer composition/reuse over re-implementation.
@@ -47,9 +47,9 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 
 ## Before coding
 
-1. Read the three documents in [`docs/vision/`](docs/vision/).
+1. Read the documents in [`docs/vision/`](docs/vision/).
 2. Read the records in [`docs/architecture/decisions/`](docs/architecture/decisions/) and the current [`architecture open questions`](docs/architecture/open-questions.md).
 3. For product or interface work, also read [`docs/product/ux/`](docs/product/ux/) and [`docs/product/decisions/`](docs/product/decisions/).
 4. Inspect [`docs/research/`](docs/research/) only when the task touches that topic. Research is evidence, and it sets no requirement on its own.
 5. Challenge assumptions where the vision and implementation reality conflict.
-6. Keep the first implementation small enough that its abstractions can still be deleted cheaply.
+6. Keep the first implementation small enough that its abstractions can be deleted cheaply.

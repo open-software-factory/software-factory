@@ -63,7 +63,7 @@ The likely workflow will combine several of these types.
 | [UI UX Pro Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | Large searchable catalogue of styles, palettes, typography, UX guidance, and stack-specific recommendations | Easy to invoke and explicitly supports dashboards; risk of recipe selection replacing product-specific design thinking | Reserve |
 | [taste-skill](https://github.com/Leonxlnx/taste-skill) | Strong aesthetic controls and explicit variance, motion, and density dials | The main skill explicitly excludes dashboards, data tables, and multi-step product UI; wrong primary scope | Exclude as primary; retain selected references |
 | [Hallmark](https://github.com/nutlope/hallmark) | Macrostructures, themes, a study mode, and anti-slop gates | Strong differentiation mechanism, but current examples and structure are weighted toward sites rather than dense operational products | Reserve |
-| [huashu-design](https://github.com/alchaincyf/huashu-design) | Conversational workflow, three directions, early previews, real asset protocol, Playwright inspection, broad artifact generation | Very good non-designer interaction model; broad, large, and less specifically product-application oriented | Reserve; borrow direction-selection protocol |
+| [huashu-design](https://github.com/alchaincyf/huashu-design) | Conversational workflow, three directions as of 2026-08-16, early previews, real asset protocol, Playwright inspection, broad artifact generation | Very good non-designer interaction model; broad, large, and less specifically product-application oriented | Reserve; borrow direction-selection protocol |
 | [ux-skill](https://github.com/Laith0003/ux-skill) | Deterministic synthesis, local decision ledger, manifests, and a CI linter | Technically interesting and aligned with deterministic authority, but very new and most comparative claims are self-reported | Research and QA experiment for now |
 | [Vercel Web Interface Guidelines](https://github.com/vercel-labs/web-interface-guidelines) | Concise interaction, accessibility, form, typography, performance, and state-review guidance | Strong implementation review layer; does not produce a design direction | Integrate as review input |
 | [extract-design-system](https://github.com/arvindrk/extract-design-system) | Repeatable extraction of starter tokens from a public reference site | Useful only for deliberate reference analysis; tokens are not a product design or permission to clone | Optional supporting tool |
@@ -98,11 +98,11 @@ The likely workflow will combine several of these types.
 
 ## Proposed evaluation field
 
-The hands-on field contains three lanes. The lanes prevent us from treating prompt packs, agent-operated canvases, and prompt-to-app products as if they were identical, while every participant still receives the same brief and is judged on the same rendered outcome and operator effort.
+The hands-on field contains the lanes below. The lanes prevent us from treating prompt packs, agent-operated canvases, and prompt-to-app products as if they were identical, while every participant still receives the same brief and is judged on the same rendered outcome and operator effort.
 
 ### Lane A: Claude Design lineage and adjacent candidates
 
-These three original candidates advance to hands-on evaluation:
+These original candidates advance to hands-on evaluation:
 
 1. Trystan-SA Claude Design System Prompt and its separate procedures.
 2. jiji262 `claude-design-skill`.
@@ -181,17 +181,17 @@ This is the essential baseline. If a candidate cannot materially outperform our 
 
 v0 is the accessibility-of-use control: natural language, voice, running preview, element selection, and design mode. It also tests whether a mainstream prompt-to-app product can meet the brief once it receives unusually strong product context.
 
-Two products are first alternates. Pencil is an open-source prototyping tool that keeps its files beside the code, and it enters if local, repository-resident design artifacts become a higher-priority evaluation dimension. Figma Make is a prompt-to-design feature inside Figma, and it enters if its agent workflow demonstrably removes the need for conventional Figma operation.
+The first alternates are Pencil and Figma Make. Pencil is an open-source prototyping tool that keeps its files beside the code, and it enters if local, repository-resident design artifacts become a higher-priority evaluation dimension. Figma Make is a prompt-to-design feature inside Figma, and it enters if its agent workflow demonstrably removes the need for conventional Figma operation.
 
 ### Deferred Kimi K3 experiments
 
-Kimi K3 should enter as soon as the operator's access becomes available. It should not be represented by one undifferentiated result. Run three experiments:
+Kimi K3 should enter as soon as the operator's access becomes available. It should not be represented by one undifferentiated result. Run these experiments:
 
 1. `Kimi Websites native`: K3 inside the Websites design harness, including preview annotation, version comparison, and code export.
 2. `Kimi Code baseline`: K3 inside Kimi Code with the factory UX context but no additional design skill.
 3. `Kimi Code plus portable skill`: K3 inside Kimi Code with the best-performing portable design workflow from the other lanes.
 
-This separates model, harness and skill capability. Kimi Code supports project-level `.agents/skills`, while its documented built-in skills do not currently include a dedicated frontend-design workflow. Kimi Websites provides an explicit visual design and revision surface. The three experiments are meaningfully different.
+This separates model, harness and skill capability. Kimi Code supports project-level `.agents/skills`, while its documented built-in skills do not currently include a dedicated frontend-design workflow. Kimi Websites provides an explicit visual design and revision surface. The experiments are meaningfully different.
 
 ## What to integrate rather than rebuild
 
@@ -227,7 +227,7 @@ Each candidate receives the same frozen brief:
 
 Each candidate must produce:
 
-1. Three materially different directions. A theme swap does not count.
+1. A minimum of three materially different directions. A theme swap does not count.
 2. A short explanation in ordinary language of what each direction optimizes.
 3. One chosen direction as an interactive prototype.
 4. Healthy, attention-required, loading/streaming, stale/disconnected, and empty states.
@@ -239,7 +239,7 @@ The operator should not be required to name typography scales, grid systems, rad
 
 ### Round-two finalists: Factory Floor and Flight Recorder
 
-The top three advance to a harder test with two connected surfaces:
+The top three advance to a harder test with these connected surfaces:
 
 - a live factory-floor topology with real-event-driven movement, overlays, semantic zoom, and a selected work item;
 - a work-item Flight Recorder that moves from semantic history to exact evidence without becoming a wall of chat or tables.

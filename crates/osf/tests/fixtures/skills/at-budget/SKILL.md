@@ -5,7 +5,7 @@ description: Use this skill when the user wants a budget check.
 
 ## Overview
 
-This tool checks two things before it runs. It reads the config file too.
+This tool checks several things before it runs. It reads the config file too.
 
 It validates the schema against the spec.
 

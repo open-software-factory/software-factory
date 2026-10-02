@@ -45,7 +45,7 @@ a checkout with no build has nothing to load.
 
 ## Installing it
 
-Two steps. Installing the package is not one of them on its own: dsh runs a
+Installing the package is not enough on its own: dsh runs a
 plugin only when a configuration row names it.
 
 ```
@@ -110,13 +110,13 @@ pnpm run test
 `check` type-checks the source without emitting, lints it, and checks its
 formatting. `test` builds, then runs the compiled tests in `dist/test/`.
 
-Both scripts run with `dist` as the working directory for the actual test
+Each script runs with `dist` as the working directory for the actual test
 invocation, `node --test` with no path argument. Node finds every
 `*.test.js` under the current directory on its own; a directory path handed
 to `node --test` (`dist/test`, or even the bare word `test`) is read as a
 module name on Windows and fails to load, so no path argument is passed.
 
-The two decisions this plugin makes are plain functions in `src/check.ts`,
+The decisions this plugin makes are plain functions in `src/check.ts`,
 which imports nothing from the harness. The tests run anywhere, including
 where dsh is not installed. What talks to the harness is wiring and carries
 no decision of its own.

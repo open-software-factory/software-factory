@@ -82,23 +82,23 @@ Deploying, deployed, signed off, recovering, aborted, rolled back and paused sta
 
 ## Attention and recaps
 
-The operator is defined in [product decision 0002](../product/decisions/0002-operator-persona-and-product-vocabulary.md). They look at the factory whenever they choose. They are never expected to watch it. So the engine owes them two things on every arrival: what needs them, and what happened since they last looked.
+The operator is defined in [product decision 0002](../product/decisions/0002-operator-persona-and-product-vocabulary.md). They look at the factory whenever they choose. They are never expected to watch it. So the engine owes them these things on every arrival: what needs them, and what happened since they last looked.
 
 Both are projections of the journal. The attention list is every work item in a blocked state plus every run the policy held, ordered by the cause and the age. The recap is the recorder for one work item, folded to its state changes and its findings, with a route from each line to the raw event.
 
 The engine writes the recap to the work item as a comment when the run ends, so the operator sees it in the tracker without opening anything else. The same text is what `osf work show` prints and what the console's recorder shows.
 
-## The five vocabulary questions, answered on paper
+## The vocabulary questions, answered on paper
 
-The [draft vocabulary](draft-factory-vocabulary.md) left five questions for this engine. Each is answered here against decision 0005 and this design. Each answer is confirmed or amended against real runs by the work item that names the event vocabulary once the engine runs.
+The [draft vocabulary](draft-factory-vocabulary.md) left questions for this engine. Each is answered here against decision 0005 and this design. Each answer is confirmed or amended against real runs by the work item that names the event vocabulary once the engine runs.
 
 | Question | Answer |
 |---|---|
 | Does the durable unit map onto work item, agent session, check, deployment and event, or does it need attempt or run? | The durable unit is the work item, which is the tracker's issue. A run is one execution by one actor. A retry is another run that names the run it retries. An agent session is the harness's own identifier, recorded on the run and never a factory entity. A check is a verifier run. A deployment is outside this slice. |
-| Is attention an entity the engine owns, or a projection the console derives? | Both halves are true and neither is an entity store. The engine emits an attention event when a policy or a state change needs a person. The attention list is a projection of those events and the blocked states. There is no hand-maintained attention table. |
-| Is the catalog and state split still natural when state comes from a real provider? | The split is retired. The journal is the state. What the draft called catalog is what the tracker and the forge say at run start, and the run-started event records it. A snapshot is the projection of events up to a moment, so it holds no future by construction. |
-| Do trace links need a relation vocabulary this small, or a richer one? | The seven edges of decision 0005 are the vocabulary: executes, depends on, blocks, produces, verifies, deploys to, traced from. The draft's five map onto them: informs is traced from, implements is produces, verifies is verifies, deploys is deploys to, and observes waits for production evidence. A richer vocabulary is added when an edge is needed that these cannot express. |
-| Do the six availability values survive contact with real disconnects and partial data? | They leave the engine and stay in the console. The engine exposes the journal's freshness: the time of the last event and whether the sink can be read. The console derives ready, loading, stale, disconnected and empty from that, and streaming from a live run. |
+| Is attention an entity the engine owns, or a projection the console derives? | Each half is true and neither is an entity store. The engine emits an attention event when a policy or a state change needs a person. The attention list is a projection of those events and the blocked states. There is no hand-maintained attention table. |
+| Is the catalog and state split natural when state comes from a real provider? | The split is retired. The journal is the state. What the draft called catalog is what the tracker and the forge say at run start, and the run-started event records it. A snapshot is the projection of events up to a moment, so it holds no future by construction. |
+| Do trace links need a relation vocabulary this small, or a richer one? | The edges of decision 0005 are the vocabulary: executes, depends on, blocks, produces, verifies, deploys to, traced from. The draft's relations map onto them: informs is traced from, implements is produces, verifies is verifies, deploys is deploys to, and observes waits for production evidence. A richer vocabulary is added when an edge is needed that these cannot express. |
+| Do the availability values survive contact with real disconnects and partial data? | They leave the engine and stay in the console. The engine exposes the journal's freshness: the time of the last event and whether the sink can be read. The console derives ready, loading, stale, disconnected and empty from that, and streaming from a live run. |
 
 ## Decisions this design settles
 

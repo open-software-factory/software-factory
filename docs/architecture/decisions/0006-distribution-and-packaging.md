@@ -14,7 +14,7 @@ The factory reaches a workspace as a core and a surface, which `docs/architectur
 
 ### One repository, several artifacts
 
-The engine, the contracts, the default skills, the per-ecosystem templates, the console and the container definition live in one repository, in one folder each. A folder becomes its own repository only when an adopter needs to fork that piece alone, or when two pieces' release cadences genuinely conflict. Not before.
+The engine, the contracts, the default skills, the per-ecosystem templates, the console and the container definition live in one repository, in one folder each. A folder becomes its own repository only when an adopter needs to fork that piece alone, or when pieces' release cadences genuinely conflict. Not before.
 
 Each release publishes:
 

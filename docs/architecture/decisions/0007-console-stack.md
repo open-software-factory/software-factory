@@ -10,9 +10,9 @@ Product decision 0001 makes the console an operator control surface and requires
 
 ## Decision
 
-The console is a React and TypeScript application built with Vite, scaffolded as a Tauri application from the start. One frontend codebase produces two targets: the browser, served by the Vite build, and the desktop, wrapped by Tauri. Tauri's mobile targets are available later from the same source.
+The console is a React and TypeScript application built with Vite, scaffolded as a Tauri application from the start. One frontend codebase produces these targets: the browser, served by the Vite build, and the desktop, wrapped by Tauri. Tauri's mobile targets are available later from the same source.
 
-The two prototype packages move into the repository unchanged: the headless state model and the React component package. Only the bundler changes, to Vite. The prototype's storage seam becomes the application's binding file: memory for tests, web storage in the browser, the Tauri store on the desktop.
+The prototype packages move into the repository unchanged: the headless state model and the React component package. Only the bundler changes, to Vite. The prototype's storage seam becomes the application's binding file: memory for tests, web storage in the browser, the Tauri store on the desktop.
 
 The console reads from the engine. It does not probe the machine itself. Discovery of installed coding agents, toolchains and repositories is the engine's job, exposed as a query, so the browser and the desktop targets stay identical and no desktop-only code path forms.
 

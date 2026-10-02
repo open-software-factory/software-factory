@@ -732,7 +732,7 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
         group: Group::Style,
         citation: "house",
         doc: "### What it does\n\
-              Flags a skill body where at least two of three signals fire together. One \
+              Flags a skill body where at least two of these signals fire together. One \
               signal is an opening that reads as background rather than a step. Another \
               is more lines describing the skill than telling an agent what to do. Or it \
               is a run of numbered steps that never says when to stop.\n\
@@ -741,7 +741,7 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
               manual. Background explanation and passive description cost turns an agent \
               should spend acting.\n\
               ### Class\n\
-              house: our own taste. It is a composite of three heuristics, each of which \
+              house: our own taste. It is a composite of heuristics, each of which \
               can misfire on its own, so watch its false-positive rate.\n\
               ### Citation\n\
               house\n\
@@ -761,8 +761,8 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
               Flags the first section of a skill body when it is not step-shaped and it \
               runs past a paragraph count or a word count. Step-shaped means it has no \
               numbered list, no code fence, and no line opening with an imperative verb. \
-              Both limits live in the `[skill]` config section. The compiled defaults are \
-              2 paragraphs and 120 words.\n\
+              The paragraph limit and the word limit live in the `[skill]` config section. \
+              The compiled defaults are a paragraph limit of 2 and a word limit of 120.\n\
               ### Why it is bad\n\
               A short problem statement before the first step is fine. Past the budget, \
               the opening reads as background an agent must study before it can act. \
@@ -902,7 +902,7 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
               block whose command chains more than one instruction with `&&`, `|`, or \
               `$(`.\n\
               ### Why it is bad\n\
-              A tool that renders this file for an agent may still execute an escaped \
+              A tool that renders this file for an agent may execute an escaped \
               marker. A chained command also runs more than the one plain command a \
               reader can audit at a glance. `agnix` checks a different part of the same \
               surface, so this rule complements it rather than repeating it.\n\

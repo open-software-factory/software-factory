@@ -4,7 +4,7 @@ These documents give coding and design agents enough stable context to make cohe
 
 Read in this order:
 
-1. `factory-ux-vision.md`: what the product should feel like, the operator model, and the six primary surfaces.
+1. `factory-ux-vision.md`: what the product should feel like, the operator model, and the primary surfaces.
 2. `design-principles.md`: durable visual, interaction, information and factory-specific design principles.
 3. `open-questions.md`: ideas worth exploring that are not architectural commitments yet.
 
@@ -12,7 +12,7 @@ Supporting research:
 
 - [`../../research/ux/design-workflow-landscape.md`](../../research/ux/design-workflow-landscape.md): survey and proposed benchmark for AI-assisted design workflows, with non-designer usability as a hard gate.
 - [`../../research/ux/agent-built-ui-lessons.md`](../../research/ux/agent-built-ui-lessons.md): what happened when coding agents built operator consoles from these documents, and the rules that follow.
-- [`../../research/ux/prototypes/README.md`](../../research/ux/prototypes/README.md): screenshots of four agent-built console prototypes, for visual reference only.
+- [`../../research/ux/prototypes/README.md`](../../research/ux/prototypes/README.md): screenshots of agent-built console prototypes, for visual reference only.
 - [`../../research/ux/ux-references.md`](../../research/ux/ux-references.md): products, tools, games and interface families to study, plus what to learn from each.
 
 ## Where the design work is

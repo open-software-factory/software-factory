@@ -19,7 +19,7 @@ Capabilities observed/considered include:
 
 ## Architectural implication
 
-The software factory needs two separate concepts.
+The software factory needs separate concepts, a workflow capability and factory orchestration.
 
 `Workflow capability` is a reusable piece of engineering method encoded as a skill, tool or instruction set.
 

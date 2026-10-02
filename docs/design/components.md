@@ -8,7 +8,7 @@ Components are not all built from scratch: survey existing UI component systems,
 
 ## How to read this file
 
-Two **ownership levels** sit over the five layers:
+**Ownership levels** sit over the layers:
 
 - **Level 1: adopted primitives.** It spans layers 1 and 2. These are generic behaviours: overlays, focus, dismissal, inputs, and popovers. The preferred source is a free or open-source component system, picked in the survey and themed to our tokens. Build one ourselves only when nothing available satisfies its contract. Mixing pieces from different systems is allowed and expected.
 - **Adoption rule: no requirement compromises.** A survey verdict is provisional. Before an adoption is final, spike the library against every contract rule it must own. If it falls short and can be adapted, the spike proves the adaptation. If it cannot be adapted, fork it, add the capability, and only then adopt the fork. A requirement is never weakened to fit a library.
@@ -40,32 +40,32 @@ Source of truth: `packages/console-model/src/*.ts`, tested with `node --test`. I
 | Browser | Web Storage (`storage.browser.ts`) | |
 | Tauri desktop | `@tauri-apps/plugin-store` | Layout belongs in the OS app-data location. It is not a webview origin |
 
-**Settings are not layout.** Theme lives in `settings.ts`, under its own storage key. It does not live in `ShellState`. Motion is always on. There is no motion setting and no host-preference gate. Earlier policies seeded the theme from the OS and let it toggle at runtime, but `DESIGN.md` §5.1.5 replaces both policies.
+**Settings are not layout.** Theme lives in `settings.ts`, under its own storage key. It does not live in `ShellState`. Motion is always on. There is no motion setting and no host-preference gate. Earlier policies seeded the theme from the OS and let it toggle at runtime, but `DESIGN.md` §5.1.5 replaces those policies.
 
 ## Design system: `packages/console-ui`
 
 | Module | Owns |
 |---|---|
-| `tokens.ts` | Both palettes as data, and the `[data-theme]` stylesheet generated from them |
+| `tokens.ts` | The light and dark palettes as data, and the `[data-theme]` stylesheet generated from them |
 | `color.ts` | Converts OKLCh to linear sRGB, then to a WCAG contrast score, so a contrast claim is a test rather than a sentence |
-| `overlay.ts` + `overlay.css` | Overlay has two contracts that share one motion lifecycle. The modal contract is the default: React Aria focus containment, a scrim, outside-dismiss, and Escape from anywhere. The other contract, set with `modal={false}`, keeps content live with no scrim and no focus capture. Escape works only from inside it. Placements: left, right, center, top |
+| `overlay.ts` + `overlay.css` | Overlay has a modal contract and a non-modal contract that share one motion lifecycle. The modal contract is the default: React Aria focus containment, a scrim, outside-dismiss, and Escape from anywhere. The other contract, set with `modal={false}`, keeps content live with no scrim and no focus capture. Escape works only from inside it. Placements: left, right, center, top |
 | `palette.ts` | CommandPalette is the search-and-run field opened by Ctrl+P or ⌘K. It combines an Overlay at the top with React Aria Autocomplete, SearchField, and ListBox. SearchField is the labelled search box inside it. `usePaletteShortcut` owns the Ctrl+P and ⌘K binding. The palette draws the list that `console-model/src/commands.ts` builds and ranks |
 | `popover.ts` | Popover is an anchored, labelled dialog. ChoiceMenu is its single-choice sibling. Both sit on React Aria Popover and Menu. Positioning, flip, focus, and dismissal come from React Aria. Motion comes from the shared tokens, through `data-entering` and `data-exiting` |
 | `orb.ts` + `orb.css` | FloatingOrb is a circular control above everything. It drags, flicks, and opens a radial menu on press. The menu is a React Aria Menu on a ring. Submenus form a second ring. Items appear at the orb and radiate outward. `ring="plate"` puts an opaque disc or sector under them. A regular menu, built from React Aria Popover, and the shared non-modal Overlay as a panel, remain as patterns. The host can open the panel from a ring item through `panelOpen`. FloatingOrb is independent of the shell. It takes items and a bounds element, and it returns an id. Physics live in `console-model/src/flick.ts`. Ring placement lives in `console-model/src/radial.ts`. Both are tested in Node. Both were tried in `apps/console-lab/orb.html` |
 
 The modal Overlay keeps its focus scope and backdrop alive until exit motion completes. React Aria owns containment, focus return, background accessibility isolation, Escape, and outside interaction. The adapter owns WAAPI animation and the preview-stage portal boundary. It does not read host motion preferences. The first consumer is the narrow navigation drawer. The second is the command palette. Its commands are intents built from the placement model (`console-model/src/commands.ts`). The view layer only maps an intent to the same API the nav uses. Inspection without a modal, and anchored popovers, need their own contract validation before adoption extends to them. Package dependencies and export paths are declared in `packages/console-ui/package.json`.
 
-Adoption reference: [React Aria Modal documentation](https://react-aria.adobe.com/Modal). The adapter composes three building blocks from that library. ModalOverlay is the modal wrapper. Modal is the positioned surface. Dialog is the focus container. Upstream packages are bundled unmodified. Their license notices stay preserved in the HTML.
+Adoption reference: [React Aria Modal documentation](https://react-aria.adobe.com/Modal). The adapter composes these building blocks from that library. ModalOverlay is the modal wrapper. Modal is the positioned surface. Dialog is the focus container. Upstream packages are bundled unmodified. Their license notices stay preserved in the HTML.
 
-**The light theme is derived.** It is not simply inverted. An inverted dark palette gives grey mud and glaring surfaces. Four rules produced the light theme instead. Elevation steps toward the viewer in both themes, but in opposite directions. Text lightness is chosen for contrast against its own background, rather than mirrored from the dark theme. Chroma rises slightly in light, because a tint that reads on a dark surface washes out on a bright one. Shadows in light are a tinted grey, rather than black.
+**The light theme is derived.** It is not simply inverted. An inverted dark palette gives grey mud and glaring surfaces. These rules produced the light theme instead. Elevation steps toward the viewer in the light and dark themes, but in opposite directions. Text lightness is chosen for contrast against its own background, rather than mirrored from the dark theme. Chroma rises slightly in light, because a tint that reads on a dark surface washes out on a bright one. Shadows in light are a tinted grey, rather than black.
 
 Every pairing we rely on is asserted:
 
 | Text role | Minimum contrast | Where |
 |---|---|---|
-| Body text | 7:1 | All five surfaces, both themes |
-| Secondary text | 4.5:1 | All five surfaces, both themes |
-| Faint text and every meaning-carrying colour | 3:1 | All five surfaces, both themes |
+| Body text | 7:1 | `bg`, `bg-canvas`, `surface-1`, `surface-2` and `surface-3`, in the light and dark themes |
+| Secondary text | 4.5:1 | `bg`, `bg-canvas`, `surface-1`, `surface-2` and `surface-3`, in the light and dark themes |
+| Faint text and every meaning-carrying colour | 3:1 | `bg`, `bg-canvas`, `surface-1`, `surface-2` and `surface-3`, in the light and dark themes |
 
 **A surface declares, the slot decides.** A `SurfaceSpec` states its width appetite (`min`/`max`), whether it survives rail width (`canRail`), where it starts (`home`), and which slots it will accept (`accepts`). The shell negotiates against those declarations rather than hard-coding placements. `accepts` is permissive today. Every surface takes every slot. That is deliberate, until real views show which placements are wrong.
 
@@ -73,7 +73,7 @@ Every pairing we rely on is asserted:
 
 A region's **mode** describes its navigation width. The values are `hidden`, `rail`, `nav`, or `expanded`, the last for regions with no navigation of their own. Whether a panel is showing is decided by exactly one thing: whether it is in `panels`.
 
-There is deliberately no mode that hides an open panel. When one existed, it produced two failures at once. A "collapse to rail" control and a "close" control drew the identical picture. Also, the navigation kept reporting a panel as open while nothing was on screen. Navigation width and panel presence are independent. A panel shows beside the rail or beside expanded navigation, and neither hides the other. What stops the left region growing greedy is the centre's minimum (`CENTRE_MIN`). It is not a rule that hides things to make room.
+There is deliberately no mode that hides an open panel. When one existed, it produced these failures at once. A "collapse to rail" control and a "close" control drew the identical picture. Also, the navigation kept reporting a panel as open while nothing was on screen. Navigation width and panel presence are independent. A panel shows beside the rail or beside expanded navigation, and neither hides the other. What stops the left region growing greedy is the centre's minimum (`CENTRE_MIN`). It is not a rule that hides things to make room.
 
 The same principle retired `canRail`. It existed to stop a panel from collapsing into icons. That situation cannot arise once the rail is navigation, and never a panel.
 
@@ -86,7 +86,7 @@ The model is framework-free, and stays that way. The test for which side a piece
 | What exists, where it lives, what is allowed, what persists | Measurement, animation, focus, pointer gestures, portals |
 | `move`, `toggleSurface`, collapse rules, `accepts`, restore-merge | FLIP transforms, animated sizing, popover positioning |
 
-Three consequences, in order of how likely they are to be violated:
+These consequences, in order of how likely they are to be violated:
 
 1. **A drop handler computes a target.** It never decides legality. Drag-and-drop hit-testing is DOM work and belongs in the view. The result is one `dispatch({ type: 'move', id, to })`. `accepts` already decides whether that move is allowed, and it is tested. The moment a drop handler grows its own placement rule, the seam has failed and the tests stop meaning anything.
 2. **Layout state must stay serialisable**, because pop-out windows are separate webviews with their own React trees. State held in component state cannot cross that boundary.

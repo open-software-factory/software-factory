@@ -16,7 +16,7 @@ omp loads a compiled JavaScript file in its global hooks directory as
 an extension. That extension can subscribe to `session_stop`. This is
 an event fired once per turn, right before the session settles. A
 handler for that event can ask omp for one continuation turn. It does
-this by returning a block decision. omp caps that at 8 continuations
+this by returning a block decision. omp caps continuations at a limit of 8
 per turn.
 
 The event carries the last assistant message directly, so the reply is
@@ -110,7 +110,7 @@ node -e "import('./dist/src/check.js').then(({ lastAssistantText, readResult }) 
 });"
 ```
 
-The two decisions this hook makes are plain functions in `src/check.ts`,
+The decisions this hook makes are plain functions in `src/check.ts`,
 which imports nothing from omp. The tests run anywhere, including where
 omp is not installed. `src/osf-stop.ts` is wiring and carries no
 decision of its own.

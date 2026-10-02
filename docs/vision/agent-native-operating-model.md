@@ -43,11 +43,11 @@ The shift introduces distinct failure modes that the operating model must addres
 
 ## 2. The two-loop model
 
-The two loops run concurrently at different cadences and connect at defined points.
+The loops run concurrently at different cadences and connect at defined points.
 
 ### 2.1 Structure
 
-The operating model is built around two concurrent loops running at different cadences, neither subordinate to the other, with multiple defined handoff and feedback points between them.
+The operating model is built around concurrent loops running at different cadences, neither subordinate to the other, with multiple defined handoff and feedback points between them.
 
 |                  | The Product Loop                                            | The Engineering Loop                                 |
 |------------------|-----------------------------------------------------------------|----------------------------------------------------------|
@@ -75,7 +75,7 @@ Running them concurrently keeps the product loop discovering, validating and ref
 
 ### 2.3 Connection points
 
-The loops touch at defined points in both directions. These are not organisational hand-offs (one team finishing, another starting). They are data flows between two ongoing processes.
+The loops touch at defined points in both directions. These are not organisational hand-offs (one team finishing, another starting). They are data flows between ongoing processes.
 
 | Direction | Connection Point       | What Flows                                                                                   | Trigger                                                    |
 |---------------|----------------------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
@@ -163,9 +163,9 @@ See Automated SPDLC / SDLC, Phases 3–8, for engineering-loop verification deta
 
 ## 5. Human roles
 
-### 5.1 Three contributions
+### 5.1 Contributions
 
-In this model, human contribution concentrates in three areas. Other work moves towards automation.
+In this model, human contribution concentrates in these areas. Other work moves towards automation.
 
 | Contribution   | Description                                                                                                         | Why Irreducibly Human                                                                                                                                                                                |
 |--------------------|-------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -193,7 +193,7 @@ A product engineer in this model holds:
 
 This person directs rather than writes code, but understands agent output at an architectural level. The relationship is closer to a director of photography with a camera crew than a manager with a development team: deep craft knowledge expressed through direction rather than execution.
 
-The product engineer role expands the scope of both traditional product management and software engineering. It is shaped by this operating model rather than formed by combining two existing job descriptions. Recruiting and developing for this role is one of the main people challenges of the agent-native business.
+The product engineer role expands the scope of both traditional product management and software engineering. It is shaped by this operating model rather than formed by combining existing job descriptions. Recruiting and developing for this role is one of the main people challenges of the agent-native business.
 
 ## 6. Architectural governance
 
@@ -346,7 +346,7 @@ This operating model is a snapshot of a moving target. Treat the current allocat
 
 ### 10.2 The stable human core
 
-Three things are likely to remain human for the foreseeable future because of the judgments and accountability they require:
+These things are likely to remain human for the foreseeable future because of the judgments and accountability they require:
 
 - Intent: the decision of what is worth building rests on value judgments about what matters to humans, which requires being human
 

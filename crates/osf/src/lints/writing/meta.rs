@@ -71,7 +71,7 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: Fixed in #125 today.\n\
          Good: Fixed in [open-software-factory/software-factory#125 (the login \
-         crash)](https://example.com/125) today."
+         crash)](https://example.com/125)."
     ),
     rule_meta!(
         "reference-without-label",
@@ -91,7 +91,7 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: The fix landed in open-software-factory/software-factory#125 today.\n\
          Good: The fix landed in [open-software-factory/software-factory#125 \
-         (the login crash)](https://example.com/125) today."
+         (the login crash)](https://example.com/125)."
     ),
     rule_meta!(
         "reference-without-link",
@@ -110,8 +110,8 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: open-software-factory/software-factory#125 (the login crash) is now fixed.\n\
-         Good: [open-software-factory/software-factory#125 (the login crash)](https://example.com/125) is now fixed.",
+         Bad: open-software-factory/software-factory#125 (the login crash) is fixed.\n\
+         Good: [open-software-factory/software-factory#125 (the login crash)](https://example.com/125) is fixed.",
         Exception::FixedLevel(Level::Warning)
     ),
     rule_meta!(
@@ -212,7 +212,7 @@ pub const RULE_META: &[RuleMeta] = &[
          runner ran out of disk space, which happened because the cache grew \
          past the volume limit set last month.\n\
          Good: The build failed. The test step timed out. The runner ran out \
-         of disk space, because the cache grew past last month's volume limit."
+         of disk space, because the cache grew past the volume limit."
     ),
     rule_meta!(
         "em-dash",
@@ -222,7 +222,7 @@ pub const RULE_META: &[RuleMeta] = &[
         "### What it does\n\
          Flags an em dash, an en dash, or a spaced double hyphen.\n\
          ### Why it is bad\n\
-         An em dash often joins two ideas that would read better as two \
+         An em dash often joins ideas that would read better as separate \
          sentences. It also reads, to many people, as a sign the text was \
          written by a language model rather than a person.\n\
          ### Class\n\
@@ -260,9 +260,9 @@ pub const RULE_META: &[RuleMeta] = &[
         "### What it does\n\
          Flags a semicolon followed by a space, outside a table cell.\n\
          ### Why it is bad\n\
-         A semicolon usually joins two sentences that should be separate. \
-         Two short sentences are easier to read than one joined by a \
-         semicolon.\n\
+         A semicolon usually joins sentences that should be separate. \
+         Short sentences are easier to read than one long sentence joined \
+         by a semicolon.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
@@ -307,7 +307,7 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: It ran 12 axes over 3 rounds in 41 minutes.\n\
-         Good: It ran 12 axes. See the table for the round count and the time."
+         Good: It ran every axis. See the table for the round count and the time."
     ),
     rule_meta!(
         "bold-sentence",
@@ -345,7 +345,7 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: The fix (which took three days because the failure only showed \
          up under load) shipped today.\n\
-         Good: The fix shipped today. It took three days, because the \
+         Good: The fix shipped on Friday. It took three days, because the \
          failure only showed up under load."
     ),
     rule_meta!(
@@ -496,7 +496,7 @@ pub const RULE_META: &[RuleMeta] = &[
          uncomfortable truth`.\n\
          ### Why it is bad\n\
          These phrases announce that a point is coming instead of making \
-         it. Removing them costs the reader nothing, since the point still \
+         it. Removing them costs the reader nothing, since the point \
          follows.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
@@ -669,7 +669,7 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: The fix was small. The risk was low. It shipped today.\n\
-         Good: The fix was small, the risk was low, and it shipped today.\n\
+         Good: The fix was small, the risk was low, and it shipped on Friday.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."
@@ -692,10 +692,156 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: The fix shipped today, highlighting the value of a second \
          reviewer.\n\
-         Good: The fix shipped today. A second reviewer caught the bug.\n\
+         Good: The fix shipped on Friday. A second reviewer caught the bug.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."
+    ),
+    rule_meta!(
+        "count-word",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a count of things, written in words or in digits, such as \
+         \"three stages\" or \"5 checkpoints\". It reads a number from two \
+         upward, then up to two plain words or adverbs, then a plural \
+         noun. A bound or a range is a count too, as in \"at least three \
+         stages\". The shapes \"a dozen\", \"both\", \"a pair of\", \
+         \"five-step\" and \"3-way\" are counts. So is \"one\" before a list \
+         noun, as in \"has one manual gate\". A code span is read only when \
+         it holds prose, such as \"three stages\" in backticks. It runs on \
+         text that lasts: a document, a skill, a commit message, and a \
+         pull request or issue body. It never runs on a chat transcript.\n\
+         ### Why it is bad\n\
+         A count goes stale when an item is added or removed. The heading or \
+         the summary then says one thing and the list says another, and the \
+         reader cannot tell which is right.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: The pipeline has three stages, build, test, and deploy.\n\
+         Good: The pipeline runs build, test, and deploy.\n\
+         ### Coverage\n\
+         It covers English text, a spelled number or digits from two upward, \
+         and a plural noun after it.\n\
+         It leaves these alone. Every exemption covers only the count it \
+         sits with. It does not cover the rest of the sentence.\n\
+         A measure or a unit, such as `10 minutes`, `5 s` or `3 frames`. A \
+         score in points with digits passes, but \"three points\" counts a \
+         list. A version. A \
+         number inside a quotation, or after a label such as `Phase 2`. A \
+         label labels the number only when no punctuation sits between \
+         them, so \"At this stage, three reviewers approve\" is read. A noun \
+         such as `choice` labels a number only when a verb follows, as in \
+         \"Choice 3 works best\".\n\
+         A date excuses a count in the same clause. A clause ends at a \
+         semicolon, a colon, a dash, or a comma before a conjunction such as \
+         `but` or `and`. A date in another clause does not excuse it.\n\
+         A source excuses only the count it directly backs. The count sits \
+         inside the link text, or a link or a note sits right next to it. A \
+         note that ends its line after a sentence backs the counts in the \
+         last clause of that sentence. A link elsewhere in the sentence \
+         backs nothing. In a table, a row that links a source excuses the \
+         counts in a cell that opens with digits, such as \"11 products\". \
+         A cell that opens with a word is read.\n\
+         A past event passes. A past-tense verb right before the count \
+         marks it. The verb ends in `ed` or is a common irregular such as \
+         `ran` or `found`. An example is \"The committee interviewed three \
+         candidates\".\n\
+         An estimate passes, such as `roughly four`, or `about 20` with \
+         digits. A limit passes. A bound or a range is a limit only when the noun is one \
+         that a policy caps or a run uses up. The nouns are retries, \
+         attempts, tries, requests, calls, files, items, rows, entries, \
+         results, records and jobs. More are runs, workers, threads, \
+         connections, failures, errors, warnings, findings, comments, \
+         messages and events. The last are commits, approvals, approvers, \
+         reviewers, reviews, votes, units, nodes, elements, iterations, \
+         rounds, uses, cycles and questions. Examples that pass are \"at \
+         most 3 retries\" and \"up to 20 files\". Before any other plural \
+         noun a bound is a count, because the list can change and break \
+         it. \"At least three stages\" is read.\n\
+         A count that the text states as a limit passes. The noun is \
+         followed by `total`, or the number follows `limit of`, `maximum \
+         of`, `minimum of` or `capped at`.\n\
+         A `both` that floats after a pronoun or a name, as in \"they both \
+         carry\", is not a count. A plural right after an adverb is a \
+         verb, so \"80 universally predicts\" passes.\n\
+         A fixed fact that cannot change passes too. Only its own phrase \
+         passes. The facts are the primary colours, the cardinal \
+         directions, the laws of motion and the states of matter. Also a \
+         pair of keys, the seasons, the continents, the hemispheres and \
+         the quadrants. A natural pair passes, such as \"both directions\", \
+         \"both ways\", \"both sides\", \"both ends\", \"both axes\", \
+         \"both hands\" and \"both eyes\". Sides, angles, corners, vertices, \
+         edges and faces pass in a clause that names a plane or solid \
+         shape, such as \"A triangle has three sides\". So does \"two \
+         states\" in a clause about binary.\n\
+         A number joined to a noun by a hyphen is a count for some nouns. \
+         These are step, stage, phase, tier, layer, gate, way, level, pass \
+         and part. A name such as `two-factor` passes.\n\
+         The word `one` is a count only after a word such as `has`, `with` \
+         or `needs`. A list noun must follow within two words, \
+         such as `stage`, `gate`, `step`, `rule` or `reviewer`. So `one \
+         of`, `one place` and `each one` pass.\n\
+         Text a tool writes between `osf` markers passes when the marker \
+         names `status`, `tree` or `pr-lens` and a head commit. It is a \
+         snapshot of that commit. A block with any other name is read.\n\
+         It does not cover `several` or `a couple of`, or a count with no \
+         noun after it. The check is deterministic, with no model.",
+        Exception::FixedLevel(Level::Error)
+    ),
+    rule_meta!(
+        "relative-time",
+        House,
+        Style,
+        "house",
+        "### What it does\n\
+         Flags a word that points at the time of reading. The core list is \
+         `today`, `now`, `currently`, `at the moment`, `this week`, `this \
+         month`, `this year`, `last year`, `recently`, `soon`, `lately`, \
+         `nowadays`, `as of now`, `yet`, and `still` where it means time.\n\
+         It also reads `right now`, `for now`, `at present`, `these days`, \
+         `to date`, `presently`, `tonight`, `yesterday`, `tomorrow`, \
+         `next week`, `last month`, `next year` and the like.\n\
+         It runs on text that lasts. It skips a chat transcript. It is a \
+         warning in every context where it runs.\n\
+         ### Why it is bad\n\
+         A relative time word names a different moment for each reader. The \
+         sentence was true on the day it was written and may be false on the \
+         day it is read.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: The cache is currently disabled.\n\
+         Good: The cache is disabled by default.\n\
+         ### Coverage\n\
+         It covers English text and the words above. It stays silent when \
+         the same clause carries an absolute date. That means a year, \
+         month and day, a month with a day or a year, a four-digit year, or \
+         `as of` a date. A clause ends at a semicolon, a colon, a dash, or \
+         a comma before a conjunction such as `but` or `and`. A date in \
+         another clause does not excuse the word. It also stays silent in \
+         text a tool writes between `osf` markers that name a head commit \
+         and are called `status`, `tree` or `pr-lens`.\n\
+         It also stays silent where the word is not about time. Those cases \
+         are `now that`, `now and then`, `as soon as`, `up to date`, and an \
+         opening `Now` or `Still` with a comma. An opening `Now` before \
+         `we`, `let`, `I`, `you` or an instruction verb such as `run` or \
+         `see` passes with no comma. `still` passes as an adjective, such \
+         as `still images`, after `stand` or `keep`, or ending a clause. \
+         It passes before a comparative, except right after `is`, `are`, \
+         `was` or `were`, where it says a state continues. A conjunction \
+         `yet` passes, as in `small yet fast`. So does `yet` that joins \
+         clauses after a negation, with a present-tense verb on each side, \
+         as in `never retries yet reports`. `may yet succeed` is read.\n\
+         It does not cover a phrase such as `a few days ago` or a word such \
+         as `new` or `latest`. The check is deterministic, with no model.",
+        Exception::FixedLevel(Level::Warning)
     ),
     rule_meta!(
         "recap-ending",

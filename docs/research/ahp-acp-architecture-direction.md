@@ -34,7 +34,7 @@ Factory UI: desktop | web/mobile | IDE | CLI/TUI
                 Codex | Claude | Gemini | Kimi | OpenCode | others
 ```
 
-This topology relies on seven boundaries:
+This topology relies on these boundaries:
 
 1. The Factory UI is an AHP client. It consumes shared agent-session state from a host and sends session-level actions back to it.
 2. The Factory AHP Gateway is the AHP server or host toward factory-owned operator surfaces. It owns the authoritative AHP projection and synchronization behavior, while the Factory Engine owns the factory domain.
@@ -50,7 +50,7 @@ This is an architectural direction to validate during architecture work. AHP in 
 
 The word `host` describes an AHP protocol role rather than the whole product.
 
-In VS Code's architecture, the Agents/editor UI is an AHP client and the separate Agent Host process is the AHP server. VS Code ships both roles as parts of one product. We should preserve the same logical distinction even if early factory deployments package several components together.
+In VS Code's architecture, the Agents/editor UI is an AHP client and the separate Agent Host process is the AHP server. VS Code ships the client and server roles as parts of one product. We should preserve the same logical distinction even if early factory deployments package several components together.
 
 ### Initial role assignment
 
@@ -301,7 +301,7 @@ The [ACP registry](https://agentclientprotocol.com/get-started/registry) contain
 - VS Code is both the reference AHP server and a built-in client.
 - VS Code 1.130 describes the Agent Host and its Copilot, Claude and Codex harness adapters as a progressive rollout. See the [July 2026 release notes](https://code.visualstudio.com/updates/v1_130).
 - VS Code documents remote hosts, browser/mobile access, session continuity across disconnected clients and WebSocket transport in its [Agent Host architecture](https://code.visualstudio.com/docs/agents/concepts/agent-host).
-- Microsoft publishes AHP client libraries in five languages, including Go, through the [AHP repository](https://github.com/microsoft/agent-host-protocol).
+- As of 15 August 2026, Microsoft publishes AHP client libraries in five languages, including Go, through the [AHP repository](https://github.com/microsoft/agent-host-protocol).
 
 Adoption is asymmetric: ACP has a multi-vendor agent and client ecosystem, while AHP has a substantial reference implementation and broad SDK coverage but remains predominantly Microsoft/VS Code-led.
 
@@ -355,7 +355,7 @@ This is highly aligned with:
 - concurrent clients viewing the same live agent session;
 - transferring attention between devices without transferring ownership of the underlying process.
 
-However, all these surfaces also need factory-native read models and commands. A thin client may therefore consume both standard AHP channels and a factory surface API through one logical gateway.
+However, all these surfaces also need factory-native read models and commands. A thin client may therefore consume the standard AHP channels and a factory surface API through one logical gateway.
 
 ### Long-running and disconnected execution
 
@@ -522,7 +522,7 @@ Mitigation: require evidence that a concept is genuinely client-session synchron
 1. Test whether ACP covers the required harness baseline using native Gemini, Kimi and OpenCode endpoints plus the Codex and Claude adapters against the same scenarios.
 2. Test whether capability negotiation is sufficient by building a factual matrix for session resume, plans, permissions, terminals, MCP, model selection, subagents, images, usage and extension metadata.
 3. Test adapter fidelity by comparing at least one adapter-driven harness with its native TUI or app-server behavior.
-4. Exercise two concurrent clients, optimistic actions, disconnect/reconnect, approvals, cancellation and session history to test whether AHP can support shared-session UX without owning factory semantics.
+4. Exercise concurrent clients, optimistic actions, disconnect/reconnect, approvals, cancellation and session history to test whether AHP can support shared-session UX without owning factory semantics.
 5. Determine whether AHP's Go artifacts support the chosen role: implement a host directly from schemas, reuse generated types, contribute server support, or isolate a temporary sidecar.
 6. Demonstrate a work item linked to multiple harness sessions and attempts to test whether factory and protocol histories can be correlated without treating a session as the work item.
 7. Kill the surface host or harness during work and verify that durable factory state can classify, retry or escalate the failure.

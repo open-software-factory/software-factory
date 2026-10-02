@@ -18,7 +18,7 @@ Working conventions:
 
 - Prototypes are runnable, self-contained HTML. Their tokens bind to this document, using the same names and the same values [E].
 - Fixtures use realistic density, 30 to 100 work items. They are clearly labelled as simulated where not live [E].
-- Every new surface is exercised in six states: healthy, busy, blocked, failing, disconnected (stale), and empty [E].
+- Every new surface is exercised in these states: healthy, busy, blocked, failing, disconnected (stale), and empty [E].
 - Direction alternatives are preserved as separate files. Nothing is overwritten during exploration [E].
 - Implementation libraries are candidates for the interaction model. The model is designed first [E].
 
@@ -30,7 +30,7 @@ Working conventions:
 
 | Source | Role |
 |---|---|
-| `docs/product/ux/factory-ux-vision.md` | Product model, operator model, six conceptual surfaces [E] |
+| `docs/product/ux/factory-ux-vision.md` | Product model, operator model, conceptual surfaces [E] |
 | `docs/product/ux/design-principles.md` | Visual, interaction, information, factory doctrine [E] |
 | `docs/product/decisions/0001-factory-ui-is-an-operator-console.md` | Active-console decision, control requirements [E] |
 | `docs/vision/product-lifecycle.md` | Outer loop, human judgment scope, portfolio context [context] |
@@ -120,11 +120,11 @@ Every chart, card or cluster must complete one sentence: *"I look at this when I
 
 - The shell starts as **Direction B: Live Floor**. The Factory Floor canvas is home. Other modes are peers (§3.3). **This is a starting point.** It is not a final commitment.
 - The shell must let the operator **contextually focus** on the attention queue, and on other surfaces, as the situation demands. The attention centre is a first-class focus state. It is not only a docked layer. How that focus state is entered and exited is open [O].
-- Two explored alternatives are archived in `design-explorations.md`: direction A (Command Post) and direction C (Focus Console). The old rule that flipped between direction A and direction B is archived there too.
+- The explored alternatives are archived in `design-explorations.md`: direction A (Command Post) and direction C (Focus Console). The old rule that flipped between direction A and direction B is archived there too.
 
 ### 3.2 Shell rules
 
-- The product vision defines six surfaces. These are **Command/Attention** (attention feed), **Factory Floor**, **Work Graphs**, **Flight Recorder**, **Factory Runway** (capacity outlook), and **Factory Intelligence**. §2.3 maps their densities. Whether they collapse into a few modes, as Direction B does today, is **not settled**. Or they may earn nav destinations of their own [O, previously tagged E]. The current working shape is a small set of modes. Everything else is a **lens**, a **layer**, or a **dock**.
+- The product vision defines these surfaces. These are **Command/Attention** (attention feed), **Factory Floor**, **Work Graphs**, **Flight Recorder**, **Factory Runway** (capacity outlook), and **Factory Intelligence**. §2.3 maps their densities. Whether they collapse into a few modes, as Direction B does today, is **not settled**. Or they may earn nav destinations of their own [O, previously tagged E]. The current working shape is a small set of modes. Everything else is a **lens**, a **layer**, or a **dock**.
 - Exactly one home for human attention [C]: the attention strip or layer. Attention never scatters across surfaces.
 - Selection is the thread. A focused entity, such as a work item, a cluster, or a gate, persists across lens and mode changes [E same-truth, C mechanism].
 - The ambient operator is a cross-cutting modality: command palette, context action, annotation, generated view. It is not a surface and not a chat tab [E]. Its transport is [O].
@@ -166,7 +166,7 @@ These are first-render defaults. They are not fixed sizes. Every panel is resize
 
 ### 4.3 Responsive tiers [C]
 
-This document sets three responsive tiers, by viewport width.
+This document sets the responsive tiers, by viewport width.
 
 | Width | Behaviour |
 |---|---|
@@ -189,7 +189,7 @@ These rules govern the app shell in every mode: web, desktop, tablet, mobile. Th
 
 ### 5.1 No jarring layout change
 
-1. **A click must never** shove the layout. New information arrives in one of two compliant forms. An **overlay** slides or fades in over the layout. The user may then **pin** it: pinning docks the overlay, and the layout resizes smoothly to make room. Or a **panel** animates into place directly, for a surface already decided to start docked, such as one of the nav's secondary panels.
+1. **A click must never** shove the layout. New information arrives in one of these compliant forms. An **overlay** slides or fades in over the layout. The user may then **pin** it: pinning docks the overlay, and the layout resizes smoothly to make room. Or a **panel** animates into place directly, for a surface already decided to start docked, such as one of the nav's secondary panels.
 
    A previously pinned overlay is simply a panel, and it stays compliant. An instant reflow is never allowed. Content the operator is reading must not jump, resize, or shift under an unrelated click.
 
@@ -223,9 +223,9 @@ These rules govern the app shell in every mode: web, desktop, tablet, mobile. Th
 1. Any list with more than 10 items gets a free-text omni-search. It runs client-side by default, and server-side where possible.
 2. Deep drill-downs show where the user is, for example with breadcrumbs. This applies after multiple clicks or zooms in. The user can jump back multiple levels in one action. They are never forced to step back one level at a time.
 3. The global search opens with Ctrl+P, the keyboard shortcut for it. It is light-dismissable. Click outside, or press Esc, to close it.
-4. **Navigation lists two kinds of thing.** It never gives them the same marker. A **view** is a destination for the central content area. Exactly one view is current at a time, and the nav always shows which one. A **panel** is a surface that opens beside the centre. Any number of panels can be open at once, and opening one never changes which view is current. Views take radio semantics: `aria-current="page"` plus an accent marker. Panels take switch semantics: `role="switch"` plus an open or closed indicator. Panels never take the accent marker. A view that is open in the centre, but is not the active tab, reads as available. It does not read as selected [C].
+4. **Navigation lists views and panels.** It never gives them the same marker. A **view** is a destination for the central content area. Exactly one view is current at a time, and the nav always shows which one. A **panel** is a surface that opens beside the centre. Any number of panels can be open at once, and opening one never changes which view is current. Views take radio semantics: `aria-current="page"` plus an accent marker. Panels take switch semantics: `role="switch"` plus an open or closed indicator. Panels never take the accent marker. A view that is open in the centre, but is not the active tab, reads as available. It does not read as selected [C].
 5. Because panels are not destinations, they need a route of their own. The nav's panel group is the primary route. The command palette is the secondary route. A panel's default slot, left, right, or bottom, is declared by the surface. The nav does not choose it [C].
-6. **A rule separates the two sections.** The nav reads as primary navigation above, and secondary surfaces below. The rail carries the same divider [C].
+6. **A rule separates the sections.** The nav reads as primary navigation above, and secondary surfaces below. The rail carries the same divider [C].
 7. **Navigation is not a panel.** No ordinary control may remove it. It is the route back to everything else. So closing a panel, toggling a region, or changing a width, all leave it standing. The region toggles show and hide *panels*. Navigation is the shell's own furniture. The single exception is focus mode. It is an explicit mode, with a visible exit and a keyboard one. It restores navigation on the way out [C].
 7. **A surface declares, the slot decides.** Every surface states its width appetite, whether it survives rail width, where it opens from closed, and which slots it accepts. The shell negotiates against those declarations, instead of hard-coding placements. A refused slot is shown disabled rather than hidden, so the rule stays visible. Acceptance is permissive until real views prove a placement wrong [C].
 8. **A surface's kind** is its current placement. It is not a fixed property. A surface can be relocated: by drag-and-drop, by a Move control, or by a saved layout. Because of this, the nav derives each item's section from where that surface sits right now. In the centre, a surface is a view. Anywhere else, it is a panel. A surface declares a *home* slot. This slot is used only to place the surface on first open, and to decide which section the surface appears in while closed. A nav item that changes section animates from its old position, rather than jumping (§5.1) [C].
@@ -238,7 +238,7 @@ These rules govern the app shell in every mode: web, desktop, tablet, mobile. Th
 ### 5.7 Text readability floor
 
 1. Rendered text is readable at every zoom level and on every screen size. No label ever appears on-screen below the smallest step of the type scale (§12.2).
-2. When zooming out would push a label below that floor, exactly one of two things happens. **Hold.** The label counter-scales against the zoom, and keeps its on-screen size. Or **hide.** The label disappears, and the next zoom-ladder abstraction (§10.6) carries the meaning instead. For example, one cluster label can replace many node labels.
+2. When zooming out would push a label below that floor, exactly one of these things happens. **Hold.** The label counter-scales against the zoom, and keeps its on-screen size. Or **hide.** The label disappears, and the next zoom-ladder abstraction (§10.6) carries the meaning instead. For example, one cluster label can replace many node labels.
 3. Density reduction removes text. It never shrinks text into illegibility.
 4. The owner is MotionViewport, the shared component that handles zoom and pan, defined in `components.md` layer 1. Every zoomable surface inherits this from it.
 
@@ -249,7 +249,7 @@ These rules govern the app shell in every mode: web, desktop, tablet, mobile. Th
 ### 6.1 Voice
 
 - Calm, factual, specific. The console reports. It does not emote, cheer, or apologise reflexively.
-- Every message answers up to three things, in order: what happened, what it means, what to do. Omit what does not apply. Never omit "what to do" when an action exists.
+- Every message answers these things in order: what happened, what it means, what to do. Omit what does not apply. Never omit "what to do" when an action exists.
 - State facts. Do not assign blame. Write "target not found." Never write "you entered an invalid target."
 - Sentence case for headings, labels and buttons. ALL-CAPS only in established mono eyebrows (§12.3).
 - Buttons and commands start with a verb, such as "Approve" or "Stop run". Destinations are nouns, such as "Runway". This matches navigation grammar (§3.4).
@@ -397,7 +397,7 @@ Glyph characters below are Unicode approximations, so the shape language is visi
 | Fill | Current state (§11 palettes) |
 | Border | Node class or context |
 | Halo | Attention only |
-| Size | Scope, at most two size steps. Never a size gradient. |
+| Size | Scope, with a limit of two size steps. Never a size gradient. |
 | Heat | Muted edge or node tone, for congestion. Rendered only in the dependency lens. |
 
 ### 10.5 Cognitive aids [C]
@@ -406,7 +406,7 @@ Glyph characters below are Unicode approximations, so the shape language is visi
 |---|---|
 | Focus a node | Unrelated nodes dim. |
 | Isolate | Everything but the selected subgraph recedes. |
-| Compare (Lab) | Two contexts appear side by side. |
+| Compare (Lab) | The contexts being compared appear side by side. |
 | Critical path | The path gets a distinct overlay stroke. |
 | Blocked clusters | A "why" affordance dims others and highlights the common dependency. The ambient operator does the same thing [E vision example]. |
 
@@ -741,7 +741,7 @@ Canvas backdrop is one tone below panels so the spatial model reads as the deepe
 
 ### 16.1 Component state catalog [E]
 
-Every interactive component defines twelve states. These are default, hover, focus-visible, active, selected, loading, streaming, disabled, warning, error, empty, and stale/disconnected. Streaming and autonomous states receive the same care as loading/error. Hover moves background lightness (`L ±0.06–0.12`), border, or position. It never moves foreground to a lower-contrast token [technical contract].
+Every interactive component defines these states. They are default, hover, focus-visible, active, selected, loading, streaming, disabled, warning, error, empty, and stale/disconnected. Streaming and autonomous states receive the same care as loading/error. Hover moves background lightness (`L ±0.06–0.12`), border, or position. It never moves foreground to a lower-contrast token [technical contract].
 
 ### 16.2 Focus [C]
 
@@ -819,4 +819,4 @@ Non-negotiable checklist [E]:
 
 ## 18. Shared components
 
-The component catalogue lives in **`components.md`**. It lists every component in five layers, which are surface primitives, then input primitives, then shell, then product, then generated UI. It also assigns each §5 contract rule to the one component that owns it, and it sets the build order.
+The component catalogue lives in **`components.md`**. It lists every component in layers, which are surface primitives, then input primitives, then shell, then product, then generated UI. It also assigns each §5 contract rule to the one component that owns it, and it sets the build order.

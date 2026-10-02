@@ -50,7 +50,7 @@ See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-archit
 - Whatever a test requires in the product, the agent builds into the product. How do test-only controls stay out of product surfaces?
 
 ## Domain vocabulary
-- The UX benchmark left a draft entity, state, action and event vocabulary in [`draft-factory-vocabulary.md`](draft-factory-vocabulary.md). Its five questions are answered on paper in [`smallest-working-engine.md`](smallest-working-engine.md), and real runs confirm or amend them. What remains open is which event and execution names survive the first runs.
+- The UX benchmark left a draft entity, state, action and event vocabulary in [`draft-factory-vocabulary.md`](draft-factory-vocabulary.md). Its questions are answered on paper in [`smallest-working-engine.md`](smallest-working-engine.md), and real runs confirm or amend them. What remains open is which event and execution names survive the first runs.
 
 ## Observability and meta-loop
 - Where does the evidence ledger live: forge-native first, or an external store such as DuckDB or OpenTelemetry, and when is the crossover worth it?
@@ -60,7 +60,7 @@ See [`../research/ahp-acp-architecture-direction.md`](../research/ahp-acp-archit
 - Which meta-loop recommendations can be generated automatically?
 
 ## External systems
-- Backlog: which tracker does an adopter bring? Candidates are GitHub issues and projects, Linear and Jira, both hosted issue trackers, a Markdown file, or something of their own.
+- Backlog: which tracker does an adopter bring? Candidates are GitHub issues and projects, Linear and Jira, which are hosted issue trackers, a Markdown file, or something of their own.
 - SCM/forge: GitHub first but provider-neutral?
 - Agent surfaces: Codex, Pi, OpenCode, Claude Code and others.
 - Coding-agent harness control: ACP first where supported, with provider-native adapters where necessary.

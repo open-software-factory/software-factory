@@ -48,9 +48,9 @@ The engine should remain independently operable and observable through other sur
 
 The current protocol direction makes the UI an AHP client for synchronized agent-session state and a factory-native API client for work graphs, workflow, policy, verification and lifecycle state. A logically separate Factory AHP Gateway is the AHP server toward factory-owned surfaces; the Factory Engine has no intrinsic AHP role. AHP is a projection and integration boundary. The model of the factory lives elsewhere. See [`../../research/ahp-acp-architecture-direction.md`](../../research/ahp-acp-architecture-direction.md).
 
-## 3. Six primary surfaces
+## 3. Primary surfaces
 
-These are conceptual surfaces. They do not necessarily imply six isolated pages or six navigation destinations.
+These are conceptual surfaces. They do not necessarily imply isolated pages or navigation destinations.
 
 ### 3.1 Command / Attention
 
@@ -267,7 +267,7 @@ Potential signals:
 
 Report runway in operational terms:
 
-> 11.4 hours autonomous runway. At current throughput the implementation pool is likely to become work-starved at 06:42. Seven items are blocked by human decisions; two could become executable with small clarifications.
+> 11.4 hours autonomous runway. At current throughput the implementation pool is likely to become work-starved at 06:42. Several items are blocked by human decisions; a few could become executable with small clarifications.
 
 ## 4. Ambient operator assistant
 
@@ -293,7 +293,7 @@ Example:
 
 The user sees a blocked cluster on the Factory Floor and asks:
 
-> Why are these five jobs stuck?
+> Why are these jobs stuck?
 
 A good response may be primarily visual rather than textual:
 

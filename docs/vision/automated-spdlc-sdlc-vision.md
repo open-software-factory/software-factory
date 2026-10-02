@@ -19,7 +19,7 @@ These were never about human comprehension. Their justification was always about
 | Principle                       | Why It Has Always Mattered                                                                                            | Why It Still Matters                                                                                                                                                                 |
 |-------------------------------------|---------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Separation of concerns / modularity | Bounded scope reduces the blast radius of change and the surface of what must be understood to make a change safely       | Agent tasks are bounded. Fitness functions check boundaries. Smaller, isolated units have smaller verification surface and cleaner failure modes.                                        |
-| Single responsibility               | A unit with one reason to change is easier to test, understand, and modify without unintended consequences                | Agent scope is clear and independently verifiable. When a unit does one thing, automated verification of that thing is complete and unambiguous.                                         |
+| Single responsibility               | A unit with a single reason to change is easier to test, understand, and modify without unintended consequences                | Agent scope is clear and independently verifiable. When a unit does one thing, automated verification of that thing is complete and unambiguous.                                         |
 | Explicit contracts and interfaces   | Teams can work independently when boundaries are precisely defined                                                        | Agents operating in parallel need unambiguous boundaries. Implicit convention breaks at scale. Explicit contracts are machine-checkable.                                                 |
 | Data integrity                      | Data is the most expensive thing to recover. Schema correctness and referential integrity are non-negotiable.             | Data integrity constraints are independently verifiable. They survive the code being entirely replaced by agents.                                                                        |
 | Security by design                  | Vulnerabilities are cheaper to fix early. Attack surface belongs to the system itself, and stays the same whoever reads the code.                | Automated security gates verify against a defined threat model. Bolt-on security has no specification to verify against.                                                                 |
@@ -40,13 +40,13 @@ This equivalence depends on training data rather than anything fundamental about
 
 #### DRY: don't repeat yourself
 
-The traditional justification: two copies of the same logic maintained by humans inevitably diverge. One gets updated, one does not. Inconsistency is a function of human fallibility and attention limits.
+The traditional justification: copies of the same logic maintained by humans inevitably diverge. One gets updated, one does not. Inconsistency is a function of human fallibility and attention limits.
 
 The agent-native justification: duplicate logic gives an agent inconsistent context about which version is canonical, which to update and which represents current intent. The failure mode shifts from human inconsistency to agent ambiguity, with the same conclusion: do not duplicate.
 
 #### SOLID principles
 
-Each of the five SOLID principles survives, with justification that is at least as strong in an agent-native context:
+Each of the SOLID principles survives, with justification that is at least as strong in an agent-native context:
 
 - Single Responsibility: agent task scope is clean and independently verifiable
 
@@ -62,7 +62,7 @@ Each of the five SOLID principles survives, with justification that is at least 
 
 The traditional justification: new team members learn the codebase through consistent patterns. Inconsistency forces each person to hold multiple mental models simultaneously.
 
-The agent-native justification: an inconsistent codebase gives an agent conflicting signals about what “correct” looks like. When it sees three implementations of the same pattern, it may average across them and produce a fourth. Consistency helps an agent build an accurate model of what the codebase considers correct.
+The agent-native justification: an inconsistent codebase gives an agent conflicting signals about what “correct” looks like. When it sees many implementations of the same pattern, it may average across them and produce another. Consistency helps an agent build an accurate model of what the codebase considers correct.
 
 ### 0.3 Previously aspirational practices that become achievable
 
@@ -137,7 +137,7 @@ Track false-positive rates, escaped defects and near-misses per domain. Use the 
 
 ## 2. Full SPDLC / SDLC map
 
-The complete lifecycle spans twelve phases, from discovery through to the meta-loop that reviews the process itself. Each phase has automation/verification dimensions, triggers, and frequency targets.
+The complete lifecycle spans its phases, from discovery through to the meta-loop that reviews the process itself. Each phase has automation/verification dimensions, triggers, and frequency targets.
 
 | Phase | Name                     | Domain               | Primary Concern                                                                      |
 |-----------|------------------------------|--------------------------|------------------------------------------------------------------------------------------|
