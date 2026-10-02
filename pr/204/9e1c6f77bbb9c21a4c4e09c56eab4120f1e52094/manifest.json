@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "9e1c6f77bbb9c21a4c4e09c56eab4120f1e52094",
+    "contentHash": "05588360805851138f6ce52b600d0af6"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d66120ce3d8eb6d95dfe331a97c90b5b",
+      "bytes": 26639,
+      "width": 1728,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-overview-light-d66120ce3d8eb6d95dfe331a97c90b5b.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "13df6198b00d83a2dc97af8ccecce86b",
+      "bytes": 26961,
+      "width": 1728,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-overview-dark-13df6198b00d83a2dc97af8ccecce86b.svg"
+    },
+    {
+      "id": "writing-rule-set-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writing-rule-set",
+      "mediaType": "image/svg+xml",
+      "contentHash": "17bc537919c04e315c54ee9a86a27497",
+      "bytes": 9172,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "writing-rule-set-light-17bc537919c04e315c54ee9a86a27497.svg"
+    },
+    {
+      "id": "writing-rule-set-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writing-rule-set",
+      "mediaType": "image/svg+xml",
+      "contentHash": "17bc7190b92c8951e09fe977da32a327",
+      "bytes": 9265,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "writing-rule-set-dark-17bc7190b92c8951e09fe977da32a327.svg"
+    },
+    {
+      "id": "retired-id-handling-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "retired-id-handling",
+      "mediaType": "image/svg+xml",
+      "contentHash": "98a09c5ddb6f55d3ca41188fcc7b1014",
+      "bytes": 10001,
+      "width": 880,
+      "height": 418,
+      "animated": false,
+      "path": "retired-id-handling-light-98a09c5ddb6f55d3ca41188fcc7b1014.svg"
+    },
+    {
+      "id": "retired-id-handling-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "retired-id-handling",
+      "mediaType": "image/svg+xml",
+      "contentHash": "245b5283ac5040aeb27a4aeb003787a7",
+      "bytes": 10116,
+      "width": 880,
+      "height": 418,
+      "animated": false,
+      "path": "retired-id-handling-dark-245b5283ac5040aeb27a4aeb003787a7.svg"
+    }
+  ]
+}
