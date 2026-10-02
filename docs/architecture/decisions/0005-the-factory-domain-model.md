@@ -40,7 +40,7 @@ Only observed evidence may carry a "verified by" attribution. A finding at a low
 
 ### Events are a core part of the model
 
-A state change is an event. The entity and evidence-grade tables are projections of the event stream rather than a second store. One envelope, versioned, one event per line:
+A state change is an event. The entities in the entity table are projections of the event stream rather than a second store. One envelope, versioned, one event per line:
 
 | Field | Holds |
 |---|---|

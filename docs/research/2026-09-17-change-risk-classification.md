@@ -66,7 +66,7 @@ The published systems split into two kinds. Review-time systems read the change 
 | Meta, deployment system | health checks on system, call and business metrics; a dependency graph walk | automatic revert; cancels a release built on a bad shared library | about 14 percent of executables cancelled; 41 percent false positives on large services |
 | Microsoft, rollout judge | fault logs and telemetry correlated to a rollout in time and place | automatic no-go | 92 percent precision, 100 percent recall on data-plane rollouts |
 | Amazon, deployment guide | one-box stage, bake time, aggregate alarms | whether a pipeline advances | not stated |
-| Slack | fleet metrics watched up to 10 percent rollout | automatic rollback under 10 minutes | 90 percent fewer customer-impact hours in a year |
+| Slack | fleet metrics watched up to 10 percent rollout | automatic rollback within 10 minutes | 90 percent fewer customer-impact hours in a year |
 | Netflix and Google, open canary judge | per-metric statistical test at 98 percent confidence | pass, marginal, or fail | a monitoring gap reads as a failure |
 
 Google, Meta, Microsoft, Amazon, Slack and Netflix are the large software companies whose published systems fill the table. Patterns across them:

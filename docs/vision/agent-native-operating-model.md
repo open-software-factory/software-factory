@@ -340,7 +340,7 @@ The architectural investment category in the portfolio (15–25% of the backlog)
 
 ### 10.1 The frontier moves quickly
 
-Every quarter, the frontier of what is automatable advances. LLM capabilities improve. New deterministic tooling emerges. Patterns that once required human judgment can, before long, be expressed as rules. The meta-loop exists specifically to capture these advances as they occur.
+Every quarter, the frontier of what is automatable advances. LLM capabilities improve. New deterministic tooling emerges. Patterns that required human judgment at the start of a quarter can be expressed as rules by its end. The meta-loop exists specifically to capture these advances as they occur.
 
 This operating model is a snapshot of a moving target. Treat the current allocation of human and automated work as provisional, and periodically re-evaluate it.
 
