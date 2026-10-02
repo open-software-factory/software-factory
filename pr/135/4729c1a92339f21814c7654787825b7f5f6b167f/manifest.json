@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "4729c1a92339f21814c7654787825b7f5f6b167f",
+    "contentHash": "ed26d2f99995650dabbb1fcdedbfd16f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "arch-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "59ba04e5269d61729f5a6974898e287d",
+      "bytes": 25050,
+      "width": 1758,
+      "height": 904,
+      "animated": false,
+      "path": "arch-context-light-59ba04e5269d61729f5a6974898e287d.svg"
+    },
+    {
+      "id": "arch-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e4fe0fa0d812874a5ccb6fd0fc3e2dad",
+      "bytes": 25329,
+      "width": 1758,
+      "height": 904,
+      "animated": false,
+      "path": "arch-context-dark-e4fe0fa0d812874a5ccb6fd0fc3e2dad.svg"
+    },
+    {
+      "id": "arch-osf-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-osf-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4b268e488058190b6cc5cadb8054d270",
+      "bytes": 15347,
+      "width": 1377,
+      "height": 532,
+      "animated": false,
+      "path": "arch-osf-internals-light-4b268e488058190b6cc5cadb8054d270.svg"
+    },
+    {
+      "id": "arch-osf-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-osf-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a4456009766f2c27898bfd09ff6f2eb9",
+      "bytes": 15526,
+      "width": 1377,
+      "height": 532,
+      "animated": false,
+      "path": "arch-osf-internals-dark-a4456009766f2c27898bfd09ff6f2eb9.svg"
+    },
+    {
+      "id": "arch-moon-adapter-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-moon-adapter",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7164d75ff4532de1a4b17c734d78d005",
+      "bytes": 7331,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "arch-moon-adapter-light-7164d75ff4532de1a4b17c734d78d005.svg"
+    },
+    {
+      "id": "arch-moon-adapter-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-moon-adapter",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ee69dd3e2fd6a76c69042c7cad7896bc",
+      "bytes": 7398,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "arch-moon-adapter-dark-ee69dd3e2fd6a76c69042c7cad7896bc.svg"
+    },
+    {
+      "id": "flow-pre-push-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "flow-pre-push",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e72958d373bee82e7d5ac553c14644c1",
+      "bytes": 17767,
+      "width": 2790,
+      "height": 467,
+      "animated": true,
+      "path": "flow-pre-push-light-e72958d373bee82e7d5ac553c14644c1.svg"
+    },
+    {
+      "id": "flow-pre-push-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "flow-pre-push",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f5bd98245143b1269843094c4e03deb8",
+      "bytes": 17946,
+      "width": 2790,
+      "height": 467,
+      "animated": true,
+      "path": "flow-pre-push-dark-f5bd98245143b1269843094c4e03deb8.svg"
+    }
+  ]
+}
