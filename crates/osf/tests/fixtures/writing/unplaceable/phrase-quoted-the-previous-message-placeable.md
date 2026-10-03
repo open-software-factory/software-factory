@@ -6,7 +6,3 @@ kind: phrase
 target: the previous message
 reason: quoted mention of a forbidden phrase, not a use of it
 -->
-
-<!-- osf-expect
-chat-local-reference
--->
