@@ -104,6 +104,11 @@ pub struct Review {
     /// Paths, relative to the real home, that the agent's own login lives
     /// in. A reviewer's fresh home holds a copy of only these.
     pub login_paths: &'static [&'static str],
+    /// A command, program first, that starts the agent's read-only sandbox
+    /// around a harmless command. It exits 0 only when the sandbox works where
+    /// osf runs. Empty when the read-only mode is a set of tools with no
+    /// sandbox to start. A reviewer whose check fails never starts.
+    pub sandbox_check: &'static [&'static str],
 }
 
 /// Where and how an agent's stop hook, and its prompt hook when it has one,
@@ -286,6 +291,7 @@ pub const AGENTS: &[Agent] = &[
             model_flag: None,
             credential_env: &["DEEPSEEK_API_KEY"],
             login_paths: &[".dsh/.credentials.yaml"],
+            sandbox_check: &[],
         }),
     },
     // omp is built on pi, and covers it. It keeps conversations under
@@ -321,6 +327,7 @@ pub const AGENTS: &[Agent] = &[
             model_flag: None,
             credential_env: &[],
             login_paths: &[".omp/agent/agent.db"],
+            sandbox_check: &[],
         }),
     },
     // opencode keeps configuration in one place and its data, including
@@ -366,6 +373,7 @@ pub const AGENTS: &[Agent] = &[
             model_flag: Some("--model"),
             credential_env: &["OPENROUTER_API_KEY"],
             login_paths: &[".local/share/opencode/auth.json"],
+            sandbox_check: &[],
         }),
     },
     // codex keeps live and archived sessions, a history file, and logs
@@ -409,6 +417,8 @@ pub const AGENTS: &[Agent] = &[
             // `CODEX_API_KEY` is the variable `codex exec` reads; it does not read `OPENAI_API_KEY`.
             credential_env: &["CODEX_API_KEY"],
             login_paths: &[".codex/auth.json"],
+            // `codex sandbox --help` runs a command under the same Linux sandbox, and exits non-zero when the sandbox cannot start.
+            sandbox_check: &["codex", "sandbox", "--", "true"],
         }),
     },
     // claude keeps transcripts under `projects`, one folder per working
@@ -455,6 +465,7 @@ pub const AGENTS: &[Agent] = &[
             model_flag: Some("--model"),
             credential_env: &["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
             login_paths: &[".claude/.credentials.json"],
+            sandbox_check: &[],
         }),
     },
 ];
@@ -917,6 +928,32 @@ mod tests {
             .and_then(|a| a.review.as_ref())
             .expect("codex reviews");
         assert_eq!(review.credential_env, &["CODEX_API_KEY"]);
+    }
+
+    #[test]
+    fn codex_has_a_sandbox_check_and_a_check_always_starts_the_agents_own_program() {
+        let check_of = |name: &str| {
+            AGENTS
+                .iter()
+                .find(|a| a.name == name)
+                .and_then(|a| a.review.as_ref())
+                .map(|r| r.sandbox_check)
+                .expect("agent reviews")
+        };
+        assert_eq!(check_of("codex"), &["codex", "sandbox", "--", "true"]);
+        for agent in AGENTS {
+            let Some(review) = &agent.review else {
+                continue;
+            };
+            if let Some(program) = review.sandbox_check.first() {
+                assert_eq!(
+                    Some(program),
+                    agent.command.first(),
+                    "{}: the check starts the agent's own program",
+                    agent.name
+                );
+            }
+        }
     }
 
     #[test]

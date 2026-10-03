@@ -68,6 +68,11 @@ pub struct Reviewer {
     /// reviewer's login, goes in. A path that is missing is left out and
     /// named in the run's notes.
     pub login_paths: Vec<String>,
+    /// A command, program first, that starts this agent's read-only sandbox
+    /// around a harmless command. [`run_one`] runs it before the agent
+    /// reviews, and reports could-not-run when it fails. Empty when the
+    /// read-only mode has no sandbox to start.
+    pub sandbox_check: Vec<String>,
     /// The read-only folder that holds the change's diff and log. It takes
     /// the place of `{review_dir}` in the read-only arguments and environment.
     pub review_dir: Option<PathBuf>,
@@ -111,6 +116,7 @@ impl Reviewer {
             model_flag: review.model_flag.map(str::to_string),
             credential_env: owned(review.credential_env),
             login_paths: owned(review.login_paths),
+            sandbox_check: owned(review.sandbox_check),
             review_dir: None,
         })
     }
@@ -183,12 +189,29 @@ impl RunHome {
                 .map_err(|e| format!("cannot protect {}: {e}", path.display()))?;
         }
         let home = Self(path);
+        std::fs::create_dir(home.temp())
+            .map_err(|e| format!("cannot create {}: {e}", home.temp().display()))?;
         #[cfg(windows)]
         for dir in [home.roaming(), home.local()] {
             std::fs::create_dir_all(&dir)
                 .map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
         }
         Ok(home)
+    }
+
+    /// The child's own temporary folder, inside its home. Some agents refuse
+    /// to set up their sandbox helper when their home sits under the temporary
+    /// folder they see, so the child's temporary folder must not hold its home.
+    fn temp(&self) -> PathBuf {
+        self.0.join("tmp")
+    }
+
+    /// Points the child's temporary folder here, after any variable that
+    /// carried the parent's own over.
+    fn apply_temp(&self, command: &mut Command) {
+        command.env("TMPDIR", self.temp());
+        #[cfg(windows)]
+        command.env("TEMP", self.temp()).env("TMP", self.temp());
     }
 
     #[cfg(windows)]
@@ -363,6 +386,9 @@ fn run_with_retry(
             reviewer.name
         ));
     }
+    if let Err(reason) = check_sandbox(reviewer, workdir, timeout, real_home) {
+        return Outcome::CouldNotRun(reason);
+    }
     let raw = match run_child(reviewer, prompt, workdir, timeout, real_home, notes) {
         Ok(text) => text,
         Err(reason) => return Outcome::CouldNotRun(reason),
@@ -380,6 +406,89 @@ fn run_with_retry(
             }
         }
     }
+}
+
+/// The longest the sandbox check may run, whatever the reviewer's own timeout is.
+const SANDBOX_CHECK_LIMIT: Duration = Duration::from_secs(30);
+
+/// Runs `reviewer`'s sandbox check, when it has one: the command starts the
+/// agent's read-only sandbox around a harmless command, with the same
+/// environment and home the reviewer itself gets. A reviewer whose sandbox
+/// cannot start where osf runs never reviews.
+///
+/// # Errors
+/// Names the reviewer and the reason when the check cannot start, times
+/// out, or exits non-zero. The reason holds the last line the check printed
+/// to its error output, which comes from the sandbox tool and never from a model.
+fn check_sandbox(
+    reviewer: &Reviewer,
+    workdir: &Path,
+    timeout: Duration,
+    real_home: Option<&Path>,
+) -> Result<(), String> {
+    let Some((program, rest)) = reviewer.sandbox_check.split_first() else {
+        return Ok(());
+    };
+    let name = &reviewer.name;
+    let (mut command, _home, _notes) =
+        prepare_command(reviewer, program, rest, workdir, real_home)?;
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut child = command
+        .spawn()
+        .map_err(|e| format!("reviewer '{name}' cannot start its sandbox check: {e}"))?;
+    let stderr_reader = child
+        .stderr
+        .take()
+        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
+    let limit = timeout.min(SANDBOX_CHECK_LIMIT);
+    let status = match child.wait_timeout(limit) {
+        Ok(Some(status)) => status,
+        Ok(None) => {
+            let _ = crate::process::kill_tree(&child);
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = stderr_reader.map(std::thread::JoinHandle::join);
+            return Err(format!(
+                "reviewer '{name}' sandbox check timed out after {limit:?}, so its read-only sandbox is not known to work here"
+            ));
+        }
+        Err(e) => {
+            return Err(format!(
+                "cannot wait for reviewer '{name}' sandbox check: {e}"
+            ))
+        }
+    };
+    let stderr = stderr_reader
+        .map(|h| h.join().unwrap_or_default())
+        .unwrap_or_default();
+    if status.success() {
+        return Ok(());
+    }
+    let code = status
+        .code()
+        .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
+    let line: String = stderr
+        .lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .unwrap_or_default()
+        .trim()
+        .chars()
+        .take(200)
+        .collect();
+    let detail = if line.is_empty() {
+        String::new()
+    } else {
+        format!(": {line}")
+    };
+    Err(format!(
+        "reviewer '{name}' cannot start its read-only sandbox here (exit code {code}){detail}"
+    ))
 }
 
 /// `raw`'s answer text, pulled out of `reviewer.answer_pointer` when it
@@ -476,6 +585,7 @@ fn prepare_command(
             command.env(var, value);
         }
     }
+    home.apply_temp(&mut command);
     Ok((command, home, notes))
 }
 
@@ -706,6 +816,7 @@ mod tests {
             model_flag: None,
             credential_env: Vec::new(),
             login_paths: Vec::new(),
+            sandbox_check: Vec::new(),
             review_dir: None,
         }
     }
@@ -892,7 +1003,7 @@ mod tests {
             vec![
                 "sh",
                 "-c",
-                "printf '%s|%s' \"$HOME\" \"$(ls -A \"$HOME\" | wc -l)\"",
+                "printf '%s|%s' \"$HOME\" \"$(ls -A \"$HOME\" | grep -v '^tmp$' | wc -l)\"",
             ],
         )
     }
@@ -915,7 +1026,11 @@ mod tests {
             .expect("the reporter runs");
             let (home, count) = out.split_once('|').expect("home and count");
             assert_ne!(home, parent_home);
-            assert_eq!(count.trim(), "0", "the home starts empty");
+            assert_eq!(
+                count.trim(),
+                "0",
+                "the home starts empty, apart from the child's own temporary folder"
+            );
             assert!(
                 !Path::new(home).exists(),
                 "the home is removed after the run"

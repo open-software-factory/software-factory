@@ -112,6 +112,7 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
         model_flag: None,
         credential_env: Vec::new(),
         login_paths: Vec::new(),
+        sandbox_check: Vec::new(),
         review_dir: None,
     }
 }
@@ -483,4 +484,187 @@ fn a_claude_built_range_excludes_this_repositorys_claude_reviewer_and_no_other()
         .map(|r| r.name.as_str())
         .collect();
     assert_eq!(excluded, vec!["claude"], "{loaded:?}");
+}
+
+/// A fake sandbox check that records each run in `marker`, then succeeds when
+/// `works`, or prints a reason to standard error and fails.
+#[cfg(unix)]
+fn fake_sandbox_check(works: bool, marker: &std::path::Path) -> Vec<String> {
+    let marker = shell_single_quote(&marker.to_string_lossy());
+    let ending = if works {
+        "exit 0"
+    } else {
+        "echo 'bwrap: No permissions to create new namespace' 1>&2; exit 1"
+    };
+    vec![
+        "sh".to_string(),
+        "-c".to_string(),
+        format!("echo ran >> {marker}; {ending}"),
+    ]
+}
+
+#[cfg(windows)]
+fn fake_sandbox_check(works: bool, marker: &std::path::Path) -> Vec<String> {
+    let ending = if works {
+        "exit 0"
+    } else {
+        "[Console]::Error.WriteLine('bwrap: No permissions to create new namespace'); exit 1"
+    };
+    vec![
+        "powershell".to_string(),
+        "-NoProfile".to_string(),
+        "-ExecutionPolicy".to_string(),
+        "Bypass".to_string(),
+        "-Command".to_string(),
+        format!(
+            "Add-Content -Path '{}' -Value ran; {ending}",
+            marker.display()
+        ),
+    ]
+}
+
+/// A reviewer whose sandbox starts is checked once, then runs and answers.
+#[test]
+fn a_sandbox_that_starts_lets_the_reviewer_answer() {
+    let workdir = TempDir::new("osf-reviewers-sandbox-works");
+    let marker = workdir.join("sandbox-check.log");
+    let log = workdir.join("harness.log");
+    let log_str = log.to_string_lossy().into_owned();
+    let answer_path = fixture("valid.json");
+    let mut reviewer = fake_reviewer(&[
+        ("OSF_FAKE_ANSWER", &answer_path),
+        ("OSF_FAKE_HARNESS_LOG", &log_str),
+    ]);
+    reviewer.sandbox_check = fake_sandbox_check(true, &marker);
+    let outcome = run_one(
+        &reviewer,
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
+    );
+    match outcome {
+        Outcome::Answered(_) => {}
+        Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
+        Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+    }
+    assert!(marker.exists(), "the sandbox check ran before the reviewer");
+    assert!(log.exists(), "the reviewer ran after the check passed");
+}
+
+/// A reviewer whose sandbox cannot start never starts its agent: it is
+/// could-not-run, with the sandbox's own reason.
+#[test]
+fn a_sandbox_that_cannot_start_stops_the_reviewer_before_its_agent_runs() {
+    let workdir = TempDir::new("osf-reviewers-sandbox-fails");
+    let marker = workdir.join("sandbox-check.log");
+    let log = workdir.join("harness.log");
+    let log_str = log.to_string_lossy().into_owned();
+    let answer_path = fixture("valid.json");
+    let mut reviewer = fake_reviewer(&[
+        ("OSF_FAKE_ANSWER", &answer_path),
+        ("OSF_FAKE_HARNESS_LOG", &log_str),
+    ]);
+    reviewer.sandbox_check = fake_sandbox_check(false, &marker);
+    let outcome = run_one(
+        &reviewer,
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
+    );
+    match outcome {
+        Outcome::CouldNotRun(reason) => {
+            assert!(reason.contains("read-only sandbox"), "{reason}");
+            assert!(
+                reason.contains("No permissions to create new namespace"),
+                "{reason}"
+            );
+        }
+        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
+        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+    }
+    assert!(marker.exists(), "the sandbox check ran");
+    assert!(!log.exists(), "the agent never started");
+}
+
+/// A sandbox check that never finishes is stopped, and the reviewer is could-not-run.
+#[cfg(unix)]
+#[test]
+fn a_sandbox_check_that_never_finishes_is_could_not_run() {
+    let workdir = TempDir::new("osf-reviewers-sandbox-hangs");
+    let mut reviewer = fake_reviewer(&[]);
+    reviewer.sandbox_check = vec!["sh".to_string(), "-c".to_string(), "sleep 30".to_string()];
+    let started = std::time::Instant::now();
+    let outcome = run_one(
+        &reviewer,
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(1),
+    );
+    assert!(started.elapsed() < Duration::from_secs(20));
+    match outcome {
+        Outcome::CouldNotRun(reason) => assert!(reason.contains("timed out"), "{reason}"),
+        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
+        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+    }
+}
+
+/// The codex reviewer carries the check that the agent list gives it.
+#[test]
+fn the_codex_reviewer_carries_a_sandbox_check_and_the_others_carry_none() {
+    let root = TempDir::new("osf-reviewers-roster-check");
+    std::fs::write(
+        root.join("osf.toml"),
+        "[agents]\nreviewers = [\"codex\", \"claude\"]\n",
+    )
+    .expect("osf.toml writes");
+    let reviewers = roster(&root).expect("roster loads");
+    let check = |name: &str| {
+        reviewers
+            .iter()
+            .find(|r| r.name == name)
+            .map(|r| r.sandbox_check.clone())
+            .expect("reviewer is in the roster")
+    };
+    assert_eq!(check("codex"), ["codex", "sandbox", "--", "true"]);
+    assert!(check("claude").is_empty());
+}
+
+/// A reviewer's temporary folder is inside its own home, so that an agent that
+/// refuses to set up its sandbox helper when its home sits under the
+/// temporary folder it sees still starts.
+#[cfg(unix)]
+#[test]
+fn a_reviewers_temporary_folder_is_inside_its_own_home() {
+    let workdir = TempDir::new("osf-reviewers-own-temp");
+    let capture = workdir.join("home-and-temp.txt");
+    let capture_str = shell_single_quote(&capture.to_string_lossy());
+    let answer = shell_single_quote(&fixture("valid.json"));
+    let mut reviewer = fake_reviewer(&[]);
+    reviewer.command = vec![
+        "sh".to_string(),
+        "-c".to_string(),
+        format!("printf '%s\\n%s\\n' \"$HOME\" \"$TMPDIR\" > {capture_str}; cat {answer}"),
+    ];
+    let outcome = run_one(
+        &reviewer,
+        "review this change",
+        &test_lens(),
+        &workdir,
+        Duration::from_secs(10),
+    );
+    assert!(matches!(outcome, Outcome::Answered(_)), "{outcome:?}");
+    let text = std::fs::read_to_string(&capture).expect("capture reads");
+    let mut lines = text.lines();
+    let home = lines.next().expect("a home line");
+    let temp = lines.next().expect("a temp line");
+    assert_eq!(temp, format!("{home}/tmp"), "{text}");
+    let parent_temp = std::env::temp_dir(); // osf: temp-dir allowed, only compared with the child's own folder
+    assert_ne!(
+        std::path::Path::new(temp),
+        parent_temp,
+        "the child does not share its parent's temporary folder"
+    );
 }

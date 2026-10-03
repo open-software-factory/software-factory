@@ -192,6 +192,9 @@ enum Fake<'a> {
     /// `@@KEY_HEX@@` replaced by the named environment variable's value in
     /// plain, base64 and hex form, as a reviewer that echoes its own key would.
     Echoes(&'a str, &'a str),
+    /// Fails its `sandbox` subcommand the way a sandbox that cannot start
+    /// does, and prints the answer file's text for any other call.
+    SandboxFails(&'a str),
 }
 
 /// `osf.toml` text that selects `reviewers` from the agent list, after `prefix`.
@@ -221,6 +224,9 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         Fake::Echoes(answer, var) => {
             format!("OSF_FAKE_ANSWER='{answer}' OSF_FAKE_ECHO_ENV='{var}' exec '{harness}'")
         }
+        Fake::SandboxFails(answer) => format!(
+            "if [ \"$1\" = sandbox ]; then echo 'bwrap: No permissions to create new namespace' 1>&2; exit 1; fi\nOSF_FAKE_ANSWER='{answer}' exec '{harness}'"
+        ),
     };
     let program = bin.join(agent);
     std::fs::write(&program, format!("#!/bin/sh\n{body}\n")).expect("fake agent writes");
@@ -245,6 +251,10 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         }
         Fake::Slow(answer, secs) => run(answer, &format!("set \"OSF_FAKE_SLEEP_SECS={secs}\"\r\n")),
         Fake::Fails(secret) => format!("@echo off\r\necho {secret} 1>&2\r\nexit /b 9\r\n"),
+        Fake::SandboxFails(answer) => format!(
+            "@echo off\r\nif \"%1\"==\"sandbox\" (\r\n  echo bwrap: No permissions to create new namespace 1>&2\r\n  exit /b 1\r\n)\r\n{}",
+            run(answer, "").trim_start_matches("@echo off\r\n")
+        ),
     };
     std::fs::write(bin.join(format!("{agent}.cmd")), &body).expect("fake agent writes");
     if agent == "dsh" {
@@ -3180,5 +3190,59 @@ fn entries_the_reduce_step_drops_are_named_in_the_run_notes() {
     assert!(
         stdout.contains("note: ignored the lens \"security\" in the saved run for \"claude\""),
         "{stdout}"
+    );
+}
+
+/// A reviewer whose read-only sandbox cannot start never reviews: its lens is
+/// could-not-run with the sandbox's reason, and the other family decides alone.
+#[test]
+fn a_reviewer_whose_sandbox_cannot_start_never_reviews_and_the_other_family_decides() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::SandboxFails(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("sandbox-fails-one", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-sandbox-fails-one");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(output.status.success(), "{}", stdout_of(&output));
+    assert!(
+        stdout_of(&output).contains("interim policy"),
+        "{}",
+        stdout_of(&output)
+    );
+    let codex = journal_lines_of(&home, "codex");
+    assert!(
+        codex.contains("cannot start its read-only sandbox"),
+        "{codex}"
+    );
+    assert!(
+        !codex.contains("\"result\":\"answered\""),
+        "the failing reviewer never answered: {codex}"
+    );
+}
+
+/// With the only reviewer's sandbox unable to start, the review is could-not-run.
+#[test]
+fn a_lone_reviewer_whose_sandbox_cannot_start_leaves_the_review_could_not_run() {
+    let fakes = Fakes::new("", &[("codex", Fake::SandboxFails(&fixture("valid.json")))]);
+    let repo = review_repo("sandbox-fails-lone", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-sandbox-fails-lone");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stdout_of(&output));
+    assert!(
+        stdout_of(&output).contains("could-not-run"),
+        "{}",
+        stdout_of(&output)
     );
 }

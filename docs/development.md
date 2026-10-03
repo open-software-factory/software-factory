@@ -387,6 +387,18 @@ secret beyond that reviewer's own provider key. A mode that allowed `git diff` t
 would also allow `git diff --output=<file>`, which writes a file. So no
 mode allows a shell for git.
 
+Before codex reviews, `osf` runs `codex sandbox -- true`. That command starts
+the same Linux sandbox around a harmless command. When it fails, the codex
+reviewer is could-not-run, the reason holds the sandbox's own message, and
+`codex exec` never starts. A default Docker container fails this check with
+`bwrap: No permissions to create new namespace`, because the container's
+default profile blocks the user namespaces that the sandbox needs. A
+container that allows them passes. `agents.rs` holds the check for each
+agent as `sandbox_check`, and an agent with file tools only has none.
+`osf` also gives each reviewer a temporary folder inside its own home.
+Codex refuses to set up its sandbox helper when its home sits under the
+temporary folder it sees.
+
 Codex, Claude and DeepSeek Harness each run one family. opencode and omp
 run models from any family. The model they run decides their family.
 `MODEL_FAMILIES` in `agents.rs` maps a model id prefix to a family. For
