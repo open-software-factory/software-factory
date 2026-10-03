@@ -40,3 +40,4 @@ pub mod section;
 #[cfg(test)]
 mod test_support;
 pub mod verify;
+pub mod work_item;

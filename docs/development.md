@@ -217,6 +217,18 @@ the linked decision records, and the lens questions. `osf` redacts a
 secret in any of that text. A finding's quote must still exist at the cited file and line in
 the checkout, or `osf` drops the finding.
 
+The work item comes from the pull request's own link. The `build` job runs
+`osf review work-item` with the job's read-only token. The command reads the
+pull request's body from the event. It takes the issue that the `Issue:`
+line names, or else the first issue the body closes with a closing keyword.
+It reads that issue from this repository through the code host's API. It
+saves the issue's text, or the reason there is none, as the `work-item`
+artifact, and each reviewer job receives that file read-only. The issue's
+text is untrusted, like the pull request's body. The prompt tells the
+reviewer to treat it as data, and `osf` redacts a secret in it. A pull
+request with no readable linked issue makes the spec and acceptance lens
+could-not-run, with a reason that says to link one.
+
 The job also reads the lens catalogue from the base branch. It reads the
 `[agents]` and `[review]` settings from the base branch too: the reviewers,
 the threshold, the timeout, the cost ceiling, and the prompt file. A pull

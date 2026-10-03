@@ -55,11 +55,13 @@ pub struct Sources<'a> {
 /// against the base. Also names the reason when git cannot be read or the
 /// redaction rules cannot be built.
 pub fn build(lens: &Lens, sources: &Sources) -> Result<String, String> {
-    let work_item = if lens.context.contains(&ContextInput::WorkItem)
-        || lens.context.contains(&ContextInput::AcceptanceCriteria)
-        || sources.work_item.is_some()
-    {
+    let needs_work_item = lens.context.contains(&ContextInput::WorkItem)
+        || lens.context.contains(&ContextInput::AcceptanceCriteria);
+    let work_item = if needs_work_item {
         Some(read_work_item(sources).map_err(|reason| format!("work-item: {reason}"))?)
+    } else if sources.work_item.is_some() {
+        // A lens that does not need the work item still shows it when there is one.
+        read_work_item(sources).ok()
     } else {
         None
     };
@@ -225,13 +227,24 @@ fn changed_files_section(sources: &Sources) -> Result<String, String> {
 
 // --- the work item and its acceptance criteria -----------------------------
 
-/// The work item's saved body, from the file the caller named.
+/// The work item's saved text, from the file the caller named. A `.json`
+/// file is the form `osf review work-item` saves, which holds either the
+/// issue's text or the reason the pull request has none. Any other file is
+/// the work item's text itself.
 fn read_work_item(sources: &Sources) -> Result<String, String> {
-    let path = sources
-        .work_item
-        .ok_or_else(|| "no work item file was given".to_string())?;
-    std::fs::read_to_string(path)
-        .map_err(|e| format!("{}: cannot be read: {e}", forward_slash(path)))
+    let path = sources.work_item.ok_or_else(|| {
+        "no work item file was given: pass --work-item, or link an issue on the pull request's Issue line"
+            .to_string()
+    })?;
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("{}: cannot be read: {e}", forward_slash(path)))?;
+    if path
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+    {
+        return crate::work_item::read_saved(&text);
+    }
+    Ok(text)
 }
 
 /// How many leading `#` characters open `line` as a heading, when a space follows them.

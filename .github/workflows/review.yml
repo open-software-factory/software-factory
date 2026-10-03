@@ -24,12 +24,15 @@ jobs:
     # A same-repository pull request runs on a workflow the pull request
     # cannot change. A fork's pull request runs only once an adopter turns
     # fork review on with the OSF_REVIEW_FORKS variable. This job holds no
-    # secret, so it needs no environment.
+    # secret, so it needs no environment. Its token reads issues and pull
+    # requests only, to find the work item.
     if: github.event.pull_request.head.repo.full_name == github.repository || vars.OSF_REVIEW_FORKS == 'true'
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
     permissions:
       contents: read
       packages: read
+      issues: read
+      pull-requests: read
     steps:
       # Blocks this job's own outbound network to the hosts below; runs
       # directly on the runner (no job-level container), so this actually
@@ -81,6 +84,33 @@ jobs:
         with:
           name: osf-binary
           path: base/target/release/osf
+          if-no-files-found: error
+
+      # The work item is the issue the pull request names on its Issue line,
+      # or one it closes. The issue's text is untrusted data, like the pull
+      # request's own text, and reviewers receive it only as data.
+      - name: Find the work item the pull request names, with read-only access
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p work-item
+          jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > work-item/pull-request.json
+          docker run --rm \
+            -e GH_TOKEN \
+            -v "${{ github.workspace }}/base:/base:ro" \
+            -v "${{ github.workspace }}/work-item:/work-item" \
+            -w /work-item \
+            ghcr.io/open-software-factory/devcontainer:main \
+            /base/target/release/osf review work-item \
+            --pull-request /work-item/pull-request.json \
+            --repository ${{ github.repository }} \
+            --out /work-item/work-item.json
+
+      - name: Keep the work item for the reviewer jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: work-item
+          path: work-item/work-item.json
           if-no-files-found: error
 
   review-codex:
@@ -151,6 +181,12 @@ jobs:
 
       # `pr` and `base` are mounted read-only: the pull request's tree is
       # data, never a place this job writes to.
+      - name: Fetch the work item that the build job saved
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: work-item
+          path: work-item
+
       - name: Run this reviewer, reading the pull request's tree as data
         env:
           # `codex exec` signs in with CODEX_API_KEY; it does not read OPENAI_API_KEY.
@@ -160,6 +196,7 @@ jobs:
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
           -v "${{ github.workspace }}/base:/base:ro"
           -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/work-item:/work-item:ro"
           -v "${{ github.workspace }}/out:/out"
           -w /pr
           -e CODEX_API_KEY
@@ -174,6 +211,7 @@ jobs:
           --pull-request-number ${{ github.event.pull_request.number }}
           --head ${{ github.event.pull_request.head.sha }}
           --ci-run-id ${{ github.run_id }}
+          --work-item /work-item/work-item.json
           --out /out/codex.json
 
       - name: Keep this reviewer's saved answers
@@ -247,6 +285,12 @@ jobs:
           chmod +x bin/osf
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
 
+      - name: Fetch the work item that the build job saved
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: work-item
+          path: work-item
+
       - name: Run this reviewer, reading the pull request's tree as data
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -256,6 +300,7 @@ jobs:
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
           -v "${{ github.workspace }}/base:/base:ro"
           -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/work-item:/work-item:ro"
           -v "${{ github.workspace }}/out:/out"
           -w /pr
           -e ANTHROPIC_API_KEY
@@ -271,6 +316,7 @@ jobs:
           --pull-request-number ${{ github.event.pull_request.number }}
           --head ${{ github.event.pull_request.head.sha }}
           --ci-run-id ${{ github.run_id }}
+          --work-item /work-item/work-item.json
           --out /out/claude.json
 
       - name: Keep this reviewer's saved answers
@@ -346,6 +392,12 @@ jobs:
           chmod +x bin/osf
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
 
+      - name: Fetch the work item that the build job saved
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: work-item
+          path: work-item
+
       - name: Run this reviewer, reading the pull request's tree as data
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -354,6 +406,7 @@ jobs:
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
           -v "${{ github.workspace }}/base:/base:ro"
           -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/work-item:/work-item:ro"
           -v "${{ github.workspace }}/out:/out"
           -w /pr
           -e OPENROUTER_API_KEY
@@ -368,6 +421,7 @@ jobs:
           --pull-request-number ${{ github.event.pull_request.number }}
           --head ${{ github.event.pull_request.head.sha }}
           --ci-run-id ${{ github.run_id }}
+          --work-item /work-item/work-item.json
           --out /out/opencode.json
 
       - name: Keep this reviewer's saved answers

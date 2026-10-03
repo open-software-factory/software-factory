@@ -419,6 +419,24 @@ enum ReviewAction {
     /// per reviewer: check the findings against the files, journal, and
     /// post.
     Reduce(ReviewReduceArgs),
+    /// Find the work item a pull request is for, the issue on its `Issue:`
+    /// line or one it closes, and save its text for the reviewer jobs.
+    WorkItem(ReviewWorkItemArgs),
+}
+
+#[derive(Args)]
+struct ReviewWorkItemArgs {
+    /// A JSON file holding the pull request's `number`, `title` and `body`.
+    #[arg(long = "pull-request")]
+    pull_request: PathBuf,
+    /// The repository the pull request lives in, as `owner/repo`. Falls back
+    /// to the `GITHUB_REPOSITORY` environment variable.
+    #[arg(long)]
+    repository: Option<String>,
+    /// Where to save the work item, as JSON. A pull request that links no
+    /// readable issue saves the reason instead, and the command still exits 0.
+    #[arg(long)]
+    out: PathBuf,
 }
 
 /// What a saved reviewer run is bound to, so `review reduce` takes only the
@@ -872,6 +890,9 @@ fn main() -> ExitCode {
         Command::Review {
             action: ReviewAction::Reduce(args),
         } => review_reduce_cmd(args),
+        Command::Review {
+            action: ReviewAction::WorkItem(args),
+        } => review_work_item_cmd(args),
         Command::Hooks {
             action: HooksAction::Install(args),
         } => hooks_install_cmd(args),
@@ -2081,6 +2102,48 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
             2
         }
     }
+}
+
+/// `osf review work-item`: saves the pull request's work item, or the reason
+/// it has none. Exits 2 only when the inputs are bad or the code host fails.
+fn review_work_item_cmd(args: &ReviewWorkItemArgs) -> ExitCode {
+    let Some(repository) = args
+        .repository
+        .clone()
+        .or_else(|| std::env::var("GITHUB_REPOSITORY").ok())
+    else {
+        eprintln!("osf review work-item: a repository is required: pass --repository or set GITHUB_REPOSITORY");
+        return ExitCode::from(2);
+    };
+    let pull_request = match load_pull_request(&args.pull_request) {
+        Ok(pr) => pr,
+        Err(e) => {
+            eprintln!("osf review work-item: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let item = match osf::work_item::find(
+        &osf::work_item::GhIssues,
+        &repository,
+        pull_request.body.as_deref().unwrap_or_default(),
+    ) {
+        Ok(item) => item,
+        Err(e) => {
+            eprintln!("osf review work-item: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    if let Err(e) = std::fs::write(&args.out, item.to_json()) {
+        eprintln!("osf review work-item: {}: {e}", args.out.display());
+        return ExitCode::from(2);
+    }
+    match &item {
+        osf::work_item::WorkItem::Found { reference, .. } => {
+            println!("work item: {reference}");
+        }
+        osf::work_item::WorkItem::Missing(reason) => println!("work item: none, {reason}"),
+    }
+    ExitCode::SUCCESS
 }
 
 fn review_reduce_cmd(args: &ReviewReduceArgs) -> ExitCode {
