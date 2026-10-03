@@ -613,8 +613,9 @@ mod tests {
 
     impl RawRepo {
         fn new(name: &str) -> Self {
-            let dir = std::env::temp_dir().join(format!("osf-changeset-tests-readat-{name}"));
-            let _ = std::fs::remove_dir_all(&dir);
+            let dir = crate::test_support::unique_temp_path(&format!(
+                "osf-changeset-tests-readat-{name}"
+            ));
             std::fs::create_dir_all(&dir).expect("temp repo dir creates");
             let repo = RawRepo { dir };
             repo.git(&["init", "-q", "-b", "main"]);

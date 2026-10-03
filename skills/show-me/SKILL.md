@@ -77,7 +77,3 @@ sequenceDiagram
 Place each visual next to the short text it supports. Keep only the calls, files, props, states, and boundaries needed to answer the user's current question. Pick one of these views, or a few of them. Piling on every view at once buries the point instead of making it clear.
 
 Stop after one visual and its one line of text. Add a second visual only if the user asks for one.
-
----
-
-Adapted from the show-me skill published by HumanLayer, a company that builds open-source agent skills, at github.com/humanlayer/skills under the MIT licence. See LICENSE in this folder for the required notice.

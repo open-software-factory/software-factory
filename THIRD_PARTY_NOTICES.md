@@ -15,9 +15,18 @@ tools it depends on but does not copy. It follows the intent of the
 - Licence: MIT
 - Copyright: HumanLayer, 2026
 - Path in this repository: `skills/show-me/SKILL.md`, adapted from the
-  source above. Its licence text sits beside it at
+  upstream source listed here. Its licence text sits beside it at
   `skills/show-me/LICENSE`. The full provenance note and the list of
   changes are at `skills/show-me/README.md`.
+
+## Inspired by, with nothing copied
+
+- The `pr-outline` skill (`skills/pr-outline/SKILL.md`) is inspired by the
+  Change outline section of a HumanLayer skill. The skill is `visual-pr`,
+  at `github.com/humanlayer/skills`, path
+  `plugins/visual-pr/skills/visual-pr/SKILL.md`. Its licence is MIT. It
+  copies no code from it. It is a fresh implementation for the format that
+  the pr-lens workflow also writes into.
 
 ## Build-time dependencies, kept out of this repository
 

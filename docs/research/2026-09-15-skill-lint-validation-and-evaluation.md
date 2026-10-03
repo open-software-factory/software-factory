@@ -100,7 +100,15 @@ That score is useful operationally, but it should **not** be mistaken for a scie
 
 **SkillSpector represents the security frontier.** NVIDIA positions it specifically as a scanner for agent skills, including semantic risks that ordinary SAST cannot see. It is not a replacement for conventional code/security scanners: the point is to inspect both the executable files *and the intent/instruction layer*. NVIDIA now uses it in its own Verified Skills publication path.
 
-**SkillEvaluator is the closest thing found to a full “skill CI” system.** Its README explicitly defines Tier 1 as “safe & well-formed?”, Tier 2 as “overlap with what exists?”, and Tier 3 as “does it help the agent?”. Tier 1 covers schema, PII, license, quality, Unicode and script linting and can integrate SkillSpector, Semgrep and Gitleaks. Tier 2 uses embeddings and LLM-assisted analysis for redundancy. Tier 3 creates or consumes eval datasets, runs actual agent CLIs in Docker/local/cloud sandboxes and compares performance with versus without the skill. The project warns that hosted model and managed-sandbox calls can incur costs and recommends sandbox isolation for untrusted skills.
+**SkillEvaluator is the closest thing found to a full “skill CI” system.** Its README defines these tiers:
+
+| Tier | Question it answers | What it does |
+| --- | --- | --- |
+| Tier 1 (safety and structure) | Is the skill safe and well-formed? | Schema, PII, license and quality checks, Unicode and script linting; can integrate SkillSpector, Semgrep and Gitleaks. |
+| Tier 2 (overlap check) | Does it overlap with what exists? | Embeddings and LLM-assisted analysis for redundancy. |
+| Tier 3 (behavioral evaluation) | Does it help the agent? | Creates or consumes eval datasets, runs actual agent CLIs in Docker/local/cloud sandboxes, and compares performance with versus without the skill. |
+
+The project warns that hosted model and managed-sandbox calls can incur costs and recommends sandbox isolation for untrusted skills.
 
 The commercial/adjacent landscape is broader:
 
@@ -190,7 +198,7 @@ flowchart TD
     J --> C
 ```
 
-This pattern has concrete implementations. Skillmark supports pre-commit, a GitHub Action and SARIF; its example configuration can reject errors or require a minimum score. `agent-ecosystem/skill-validator` supports strict CI and GitHub annotations. Promptfoo supports minimum-performance CI gates, security scans and native test-report formats. SkillEvaluator makes deterministic Tier 1 validation a gate, makes Tier 2 deduplication blocking by default, and leaves expensive Tier 3 live-agent evaluation advisory unless explicitly promoted to a gate. That hierarchy is sensible.
+This pattern has concrete implementations. Skillmark supports pre-commit, a GitHub Action and SARIF; its example configuration can reject errors or require a minimum score. `agent-ecosystem/skill-validator` supports strict CI and GitHub annotations. Promptfoo supports minimum-performance CI gates, security scans and native test-report formats. SkillEvaluator makes Tier 1 (deterministic validation) a gate, makes Tier 2 (deduplication scoring) blocking by default, and leaves Tier 3 (live-agent evaluation) advisory unless explicitly promoted to a gate. That hierarchy is sensible.
 
 **NVIDIA Verified Skills is the clearest documented production case study.** Before publication, skills are passed through SkillSpector, with checks for conventional dependencies/scripts/credentials/exfiltration as well as hidden instructions, prompt injection, trigger abuse, excessive agency, tool poisoning and purpose/access mismatch. SkillEvaluator then provides the performance-measurement side, and NVIDIA reports evaluating 300+ verified skills spanning 30+ products. This is much stronger evidence of actual organizational adoption than GitHub stars.
 
@@ -233,7 +241,7 @@ Despite the amount of 2026 activity, **skill-lint is not yet a settled engineeri
 
 **Voice and multimodal evaluation remains more mature in some dimensions than agent-skill evaluation.** Alexa already has simulators, utterance tooling, real-device testing, automated tests and beta/certification. Emerging research such as SDialog adds linguistic, functional, LLM-judge and audio-level simulation/evaluation, while SAGE explores domain-grounded simulated users. Agent-skill tooling will likely absorb more user-simulation and multimodal robustness testing.
 
-For someone adopting skill-lint today with **platform and budget unspecified**, I would use the following architecture rather than choosing one tool.
+For someone adopting skill-lint with **platform and budget unspecified**, I would use the following architecture rather than choosing one tool.
 
 | Stage | Recommended default | Gate? | Rationale |
 |---|---|---|---|
@@ -271,6 +279,6 @@ I would **not** establish a universal “quality score ≥ 80” or similar orga
 
 Similarly, I would not let an LLM automatically rewrite production skills solely to satisfy another LLM's quality rubric. SkillRevise is promising precisely because it validates candidate repairs by **re-execution and empirical utility**, rather than trusting the rewrite aesthetically. That distinction should become a core design principle: **auto-fix syntax deterministically; auto-propose semantics; accept semantic changes only after behavioral evidence.**
 
-The prioritized primary sources for adopting this today are the [Agent Skills specification](https://agentskills.io/specification), [`agentskills/agentskills`](https://github.com/agentskills/agentskills), [`NVIDIA/SkillEvaluator`](https://github.com/NVIDIA/SkillEvaluator), [`NVIDIA/SkillSpector`](https://github.com/NVIDIA/SkillSpector), [SkillsBench](https://www.skillsbench.ai/), and then the 2026 empirical work on [reusability defects](https://arxiv.org/abs/2608.08453), [semantic supply-chain attacks](https://arxiv.org/abs/2605.11418), [skill coverage](https://arxiv.org/abs/2606.20659), and [trace-conditioned revision](https://arxiv.org/abs/2606.01139). Those sources respectively define the artifact, implement the leading assurance pipeline, supply a benchmark, and expose the main structural, security, coverage and automatic-repair research problems.
+The prioritized primary sources for adopting this are the [Agent Skills specification](https://agentskills.io/specification), [`agentskills/agentskills`](https://github.com/agentskills/agentskills), [`NVIDIA/SkillEvaluator`](https://github.com/NVIDIA/SkillEvaluator), [`NVIDIA/SkillSpector`](https://github.com/NVIDIA/SkillSpector), [SkillsBench](https://www.skillsbench.ai/), and then the 2026 empirical work on [reusability defects](https://arxiv.org/abs/2608.08453), [semantic supply-chain attacks](https://arxiv.org/abs/2605.11418), [skill coverage](https://arxiv.org/abs/2606.20659), and [trace-conditioned revision](https://arxiv.org/abs/2606.01139). Those sources respectively define the artifact, implement the leading assurance pipeline, supply a benchmark, and expose the main structural, security, coverage and automatic-repair research problems.
 
 **Concise conclusion:** by September 2026, “skill-lint” has moved from an analogy to a recognizable tooling category. Literal linters exist; spec-aware validators are proliferating; CI integration via exit codes, pre-commit and SARIF is established; security scanning is becoming specialized; and the leading edge has shifted to **behavioral A/B evaluation, instruction coverage, trace-driven diagnosis and empirically validated repair**. The main unresolved problem is not how to add more lint rules. It is how to prove which rules predict real agent performance and safety across models, tasks and environments. That is where the most valuable engineering and research opportunity now lies.

@@ -25,7 +25,7 @@ September 2026.
 
 1. **No library combines both.** No shipped component offers a draggable trigger that opens a
    radial menu. Every radial menu assumes a fixed anchor. Every drag library stops at the
-   gesture. Survey 01 found the same thing. We compose the orb from a drag behaviour plus a
+   gesture. The behaviour-libraries survey found the same thing. We compose the orb from a drag behaviour plus a
    library popover.
 2. **Radial menus are mouse-first.** None of the surveyed radial menus documents arrow-key
    navigation or menu roles. This turns §5.4.1 from a nice-to-have into a blocker. React Aria,

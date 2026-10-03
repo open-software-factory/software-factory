@@ -22,7 +22,7 @@ They can read code and diffs and should rarely need to. Machine identifiers, has
 
 ### The words
 
-Each product word maps to one term of the domain model in architecture decision 0005. Product copy uses the left column. Code and records use the right.
+Each product word maps to one term of the domain model in architecture [decision 0005](../../architecture/decisions/0005-the-factory-domain-model.md). Product copy uses the left column. Code and records use the right.
 
 | Product word | Domain term | Notes |
 |---|---|---|
@@ -49,6 +49,6 @@ Test and evaluator controls never appear in a product surface. A source-level ch
 ## Consequences
 
 - The deterministic copy scan the August lessons asked for gets its word list from this record.
-- The status block, the command-line output and the integrations are checked against the table above, and each divergence is a work item.
+- The status block, the command-line output and the integrations are checked against the product-word table, and each divergence is a work item.
 - A surface built by an agent receives this record beside the design principles, and the review of that surface checks the copy against it.
 - A later shift-operator persona, staffed to watch continuously, is out of scope and would need its own record.

@@ -203,7 +203,8 @@ pub fn fetch_head_sha(repo: Option<&str>, pr: u64) -> Result<String, SectionErro
 /// Returns an error when the temporary file cannot be written, or `gh`
 /// cannot run or exits non-zero.
 pub fn write_body(repo: Option<&str>, pr: u64, body: &str) -> Result<(), SectionError> {
-    let tmp = std::env::temp_dir().join(format!("osf-pr-section-{}.md", std::process::id()));
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, gh needs a real file path
+    let tmp = base.join(format!("osf-pr-section-{}.md", std::process::id()));
     std::fs::write(&tmp, body)
         .map_err(|e| SectionError::Gh(format!("cannot write a temporary file: {e}")))?;
     let mut args = vec!["pr".to_string(), "edit".to_string(), pr.to_string()];

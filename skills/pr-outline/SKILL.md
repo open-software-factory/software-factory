@@ -10,13 +10,9 @@ Write the "What changes at runtime" section of the pull request description. The
 3. Decide whether the runtime flow changes. If it does not, stop and write nothing.
 4. Write the section as the template describes: a short sentence on what to notice, then a call tree in a `diff` code block. Mark each call the change adds with `+` and each call it removes with `-`. Do not draw a Mermaid diagram. The pr-lens workflow already draws one for a code change.
 5. Check every claim in the section against the real diff. Remove or fix any claim the diff does not support.
-6. Save the section from steps 4 and 5 to a file.
+6. Save the section you wrote and checked to a file.
 7. Run `osf pr section write --pr <number> --name outline --file <path>`. It replaces the block, or adds it near the end when absent. It writes the pull request's head commit into the start marker. Everything else in the description stays as it was.
 
 Keep the whole section short for a small pull request.
 
 Stop when the section is written and every claim in it has been checked against the real diff.
-
----
-
-Inspired by the Change outline section of the visual-pr skill published by HumanLayer at github.com/humanlayer/skills (plugins/visual-pr/skills/visual-pr/SKILL.md), under the MIT licence. This skill does not copy its code. It writes a fresh implementation for the marked-section format the pr-lens workflow also writes into.

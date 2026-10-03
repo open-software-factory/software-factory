@@ -81,7 +81,7 @@ animation, and layout wiring from primitives, instead of adopting them.
 
 `components.md` states a preference. It says to adopt the pieces that match the contract, and to
 build one only when nothing else satisfies it. This path is therefore a fallback. Use it only if
-Cytoscape or AntV G6, the two leading candidates above, turn out to fight the glyph grammar
+Cytoscape or AntV G6, the two leading candidates, turn out to fight the glyph grammar
 during prototyping.
 
 **tldraw SDK** solves a different problem. It is a freeform whiteboard and infinite canvas,

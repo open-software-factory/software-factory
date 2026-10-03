@@ -22,5 +22,7 @@ What osf changed from that commit:
 - Removed the step that opens a saved HTML file with `Bash(open ...)`,
   which assumes a desktop session this project's agents do not have.
 - Folded the closing "guidance" heading into plain closing paragraphs.
-- Added this provenance note, the SPDX headers in `SKILL.md`, and the
-  closing credit line in `SKILL.md`.
+- Added this provenance note and the SPDX headers in `SKILL.md`.
+- Moved the closing credit line out of `SKILL.md`, so the skill holds only
+  what an agent acts on. The credit lives in this note, in `LICENSE`, and in
+  `THIRD_PARTY_NOTICES.md`.

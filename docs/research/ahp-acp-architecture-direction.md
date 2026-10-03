@@ -143,7 +143,7 @@ The repository currently contains vision, research and bootstrap planning rather
 ## Evidence labels used here
 
 - `Established fact` means the claim is stated by a protocol specification, an upstream project or first-party product documentation.
-- `Ecosystem evidence` means an implementation or adoption signal exists today, with its implementation form identified.
+- `Ecosystem evidence` means an implementation or adoption signal exists, with its implementation form identified.
 - `Factory conclusion` means our architectural interpretation of those facts and signals.
 
 This distinction is important because an upstream registry entry proves interoperability, but not necessarily native support by the underlying agent vendor.
@@ -168,7 +168,7 @@ ACP defines a point-to-point client/agent relationship covering concerns such as
 
 Its normal local deployment starts the agent as a subprocess and communicates using JSON-RPC over standard input/output. A single connection can carry multiple agent sessions, but it still represents one client talking to one agent endpoint. The [ACP architecture documentation](https://agentclientprotocol.com/get-started/architecture) explicitly describes this bidirectional relationship.
 
-ACP is suitable in principle for local and remote use. However, its own [introduction](https://agentclientprotocol.com/get-started/introduction) says that full remote-agent support remains work in progress. Stdio is therefore the proven common denominator today; remote transports must be evaluated implementation by implementation.
+ACP is suitable in principle for local and remote use. However, its own [introduction](https://agentclientprotocol.com/get-started/introduction) says that full remote-agent support remains work in progress. Stdio is therefore the proven common denominator; remote transports must be evaluated implementation by implementation.
 
 The current stable wire protocol is v1, while v2 is draft. The protocol negotiates versions and optional capabilities independently of SDK package versions, as described by the [ACP repository](https://github.com/agentclientprotocol/agent-client-protocol).
 
