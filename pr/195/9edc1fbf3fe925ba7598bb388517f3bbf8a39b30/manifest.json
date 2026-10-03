@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "9edc1fbf3fe925ba7598bb388517f3bbf8a39b30",
+    "contentHash": "8c56b3e2921e15bc88943b40af31215c"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "scan-symlink-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-symlink-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8b9c68bc1f379e8003b8c0173ac82dd1",
+      "bytes": 28082,
+      "width": 1856,
+      "height": 760,
+      "animated": false,
+      "path": "scan-symlink-architecture-light-8b9c68bc1f379e8003b8c0173ac82dd1.svg"
+    },
+    {
+      "id": "scan-symlink-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-symlink-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ab9bbb7a6bb65d7a4f1610541aac61bc",
+      "bytes": 28386,
+      "width": 1856,
+      "height": 760,
+      "animated": false,
+      "path": "scan-symlink-architecture-dark-ab9bbb7a6bb65d7a4f1610541aac61bc.svg"
+    },
+    {
+      "id": "scan-engine-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-engine-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e82e32f4b8a0e8eef7441b563f83232a",
+      "bytes": 11462,
+      "width": 467,
+      "height": 532,
+      "animated": false,
+      "path": "scan-engine-components-light-e82e32f4b8a0e8eef7441b563f83232a.svg"
+    },
+    {
+      "id": "scan-engine-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-engine-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "00a94a2c54af0ead146c57334bca5be9",
+      "bytes": 11577,
+      "width": 467,
+      "height": 532,
+      "animated": false,
+      "path": "scan-engine-components-dark-00a94a2c54af0ead146c57334bca5be9.svg"
+    },
+    {
+      "id": "scan-tests-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-tests-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ab8c9b511de7aa1bd4a5d106d8b70429",
+      "bytes": 6941,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "scan-tests-view-light-ab8c9b511de7aa1bd4a5d106d8b70429.svg"
+    },
+    {
+      "id": "scan-tests-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-tests-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c7de1faf64777f056c763e4cb93ad66f",
+      "bytes": 7009,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "scan-tests-view-dark-c7de1faf64777f056c763e4cb93ad66f.svg"
+    },
+    {
+      "id": "skills-ci-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "skills-ci-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "83823a014b8c5d3d8badaa8aaf1a0149",
+      "bytes": 10666,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "skills-ci-architecture-light-83823a014b8c5d3d8badaa8aaf1a0149.svg"
+    },
+    {
+      "id": "skills-ci-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "skills-ci-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4983b7fb2bc1205178676a43bee88506",
+      "bytes": 10779,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "skills-ci-architecture-dark-4983b7fb2bc1205178676a43bee88506.svg"
+    },
+    {
+      "id": "scan-symlink-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "scan-symlink-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0fface903cece6567aa513794c1a6291",
+      "bytes": 17447,
+      "width": 2418,
+      "height": 505,
+      "animated": true,
+      "path": "scan-symlink-flow-light-0fface903cece6567aa513794c1a6291.svg"
+    },
+    {
+      "id": "scan-symlink-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "scan-symlink-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9d081af715b461907d8be55fd28d0532",
+      "bytes": 17617,
+      "width": 2418,
+      "height": 505,
+      "animated": true,
+      "path": "scan-symlink-flow-dark-9d081af715b461907d8be55fd28d0532.svg"
+    }
+  ]
+}
