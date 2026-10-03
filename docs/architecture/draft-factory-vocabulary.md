@@ -43,7 +43,7 @@ Event types used: `work.stage.changed`, `agent.operation`, `artifact.emitted`, `
 - A pull request is verified by checks. A passing check deploys a deployment.
 - A deployment observes production evidence.
 - A design decision implements several pull requests at once.
-- Attention items, evidence and containment actions point at any of the above through related IDs.
+- Attention items, evidence and containment actions point at these entities through related IDs.
 
 The benchmark needed one unbroken chain from intent to production outcome. That chain was: intent, epic, feature, story, pull request, check, deployment, evidence. The console had to be able to walk it in both directions.
 
@@ -115,9 +115,9 @@ Five questions were left for the engine. Each has an answer on paper in [the eng
 | Does the Engine's durable unit map onto work item, agent session, check, deployment and event, or does it need something else, such as attempt or run? | The work item is the durable unit and is the tracker's issue. A run is one execution by one actor, and a retry is another run naming the first. An agent session is the harness's identifier on the run and is no factory entity. A check is a verifier run. |
 | Is "attention" an entity the Engine owns, or a projection the console derives? | The engine emits an attention event when a person is needed. The list is a projection of those events and the blocked states. There is no attention table. |
 | Is the catalog-versus-state split still natural when state comes from a real provider instead of a fixture? | The split is retired. The journal is the state, the run-started event records what the providers said at the start, and a snapshot is a projection up to a moment. |
-| Do trace links need a relation vocabulary this small, or a richer one? | The seven edges of decision 0005 replace the five relations here. Informs is traced from, implements is produces, deploys is deploys to, and observes waits for production evidence. |
+| Do trace links need a relation vocabulary this small, or a richer one? | The seven edges of [decision 0005](decisions/0005-the-factory-domain-model.md) replace the five relations here. Informs is traced from, implements is produces, deploys is deploys to, and observes waits for production evidence. |
 | Do the six availability values survive contact with real disconnects and partial data? | They move to the console. The engine exposes the journal's freshness and the console derives the six from it. |
 
-The entity families, the reference incident scenario and the actions above remain as they were written, as the record of what the console needed. Where a family has no answer above, the engine has not reached it yet.
+The entity families, the reference incident scenario and the actions this document defines remain as they were written, as the record of what the console needed. Where a family has no answer in the table, the engine has not reached it yet.
 
 Related: [`open-questions.md`](open-questions.md), [`decisions/0003-deterministic-verification-is-authoritative.md`](decisions/0003-deterministic-verification-is-authoritative.md), [`../research/ux/agent-built-ui-lessons.md`](../research/ux/agent-built-ui-lessons.md).
