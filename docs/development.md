@@ -298,10 +298,15 @@ below.
 Each job runs directly on the runner. It logs in to `ghcr.io`
 with its own token first. That login works whether the image behind
 it stays public or turns private later. Every job pulls the same image,
-`ghcr.io/open-software-factory/devcontainer:main`. This is the same
-image the development container in this repository builds from. It
-already carries a pinned Rust toolchain, moon, and every reviewer
-tool the agent list can enable.
+named once by digest in the `REVIEW_IMAGE` variable at the top of
+`.github/workflows/review.yml`. No job names a moving tag. This is the
+image that the development container workflow builds from the
+`.devcontainer` folder in this repository. It already carries a pinned
+Rust toolchain, moon, and every reviewer tool the agent list can enable.
+To use a newer image, open a pull request that changes the digest in
+`REVIEW_IMAGE`. Take the digest of the manifest list from the build log of
+the `devcontainer image` workflow run for the commit you want. The change
+is reviewed like any other workflow change.
 
 Each step that runs `osf` goes through `docker run` against that image.
 Each run gets its own fresh, disposable container. The `build` job mounts

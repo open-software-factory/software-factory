@@ -126,3 +126,60 @@ fn every_reviewer_job_receives_the_saved_work_item() {
         "the last job reads no work item, so it never receives one"
     );
 }
+
+#[test]
+fn the_review_image_is_named_once_and_pinned_by_digest() {
+    let text = workflow_text();
+    let named: Vec<&str> = text
+        .lines()
+        .filter(|line| line.contains("devcontainer@") || line.contains("/devcontainer:"))
+        .collect();
+    assert_eq!(named.len(), 1, "the image is named in one place: {named:?}");
+    let line = named.first().expect("one line");
+    let digest = line
+        .split("@sha256:")
+        .nth(1)
+        .unwrap_or_else(|| panic!("the image is pinned by digest: {line}"));
+    assert!(
+        digest.trim().len() == 64 && digest.trim().chars().all(|c| c.is_ascii_hexdigit()),
+        "a sha256 digest has 64 hex digits: {digest}"
+    );
+    assert!(
+        line.trim_start().starts_with("REVIEW_IMAGE:"),
+        "the one place is the REVIEW_IMAGE variable: {line}"
+    );
+    assert!(
+        text.contains("edits this value") && text.contains("reviewed like any workflow change"),
+        "the comment says how to update the digest through a reviewed change"
+    );
+}
+
+/// Whether `line` is a command that starts a container, not a comment about one.
+fn starts_a_container(line: &str) -> bool {
+    line.trim_start()
+        .trim_start_matches("run: >-")
+        .trim_start()
+        .starts_with("docker run")
+}
+
+#[test]
+fn every_job_that_runs_a_container_runs_the_pinned_image() {
+    let text = workflow_text();
+    let running: Vec<(String, String)> = jobs(&text)
+        .into_iter()
+        .filter(|(_, body)| body.lines().any(starts_a_container))
+        .collect();
+    assert!(
+        running.len() >= 5,
+        "the build job, three reviewer jobs and the last job: {:?}",
+        running.iter().map(|(id, _)| id).collect::<Vec<_>>()
+    );
+    for (id, body) in &running {
+        let runs = body.lines().filter(|line| starts_a_container(line)).count();
+        let images = body.matches("${{ env.REVIEW_IMAGE }}").count();
+        assert!(
+            images >= runs,
+            "job {id} starts a container from another image"
+        );
+    }
+}

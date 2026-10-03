@@ -14,6 +14,15 @@ on:
 permissions:
   contents: read
 
+env:
+  # The one place the review image is named. Every job runs this exact image,
+  # pinned by digest, and never a moving tag. To change it, open a pull
+  # request that edits this value. Take the digest of the manifest list from
+  # the build log of the "devcontainer image" workflow run for the commit you
+  # want, and have the change reviewed like any workflow change. This image
+  # was built from commit e40b471d55747c7ab88a2ea92e3e080c51631317.
+  REVIEW_IMAGE: ghcr.io/open-software-factory/devcontainer@sha256:bb1d03e038d6c6290d9ab3cd5f82fe44276938cde4ddd3137bc56b01405ebd68
+
 concurrency:
   group: review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -76,7 +85,7 @@ jobs:
           docker run --rm
           -v "${{ github.workspace }}/base:/base"
           -w /base
-          ghcr.io/open-software-factory/devcontainer:main
+          ${{ env.REVIEW_IMAGE }}
           cargo build --release --bin osf
 
       - name: Keep the built osf for the reviewer jobs
@@ -100,7 +109,7 @@ jobs:
             -v "${{ github.workspace }}/base:/base:ro" \
             -v "${{ github.workspace }}/work-item:/work-item" \
             -w /work-item \
-            ghcr.io/open-software-factory/devcontainer:main \
+            ${{ env.REVIEW_IMAGE }} \
             /base/target/release/osf review work-item \
             --pull-request /work-item/pull-request.json \
             --repository ${{ github.repository }} \
@@ -200,7 +209,7 @@ jobs:
           -v "${{ github.workspace }}/out:/out"
           -w /pr
           -e CODEX_API_KEY
-          ghcr.io/open-software-factory/devcontainer:main
+          ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
           --reviewer codex
           --if-enabled
@@ -305,7 +314,7 @@ jobs:
           -w /pr
           -e ANTHROPIC_API_KEY
           -e CLAUDE_CODE_OAUTH_TOKEN
-          ghcr.io/open-software-factory/devcontainer:main
+          ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
           --reviewer claude
           --if-enabled
@@ -410,7 +419,7 @@ jobs:
           -v "${{ github.workspace }}/out:/out"
           -w /pr
           -e OPENROUTER_API_KEY
-          ghcr.io/open-software-factory/devcontainer:main
+          ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
           --reviewer opencode
           --if-enabled
@@ -533,7 +542,7 @@ jobs:
             -w /pr \
             -e GH_TOKEN \
             -e OSF_STATE_DIR=/out/state \
-            ghcr.io/open-software-factory/devcontainer:main \
+            ${{ env.REVIEW_IMAGE }} \
             /osf-bin/osf review reduce \
             --base ${{ github.event.pull_request.base.sha }} \
             --config-root /base \
