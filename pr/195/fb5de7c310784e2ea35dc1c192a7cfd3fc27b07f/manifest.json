@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "fb5de7c310784e2ea35dc1c192a7cfd3fc27b07f",
+    "contentHash": "23844629d1b10f2d1458e17480c9f0af"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "scan-container-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "292e4ec784818d654b631c6133e40a4d",
+      "bytes": 27811,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "scan-container-view-light-292e4ec784818d654b631c6133e40a4d.svg"
+    },
+    {
+      "id": "scan-container-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f5e4b63bbe6d33b9c0bdc690d4ce5d29",
+      "bytes": 28125,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "scan-container-view-dark-f5e4b63bbe6d33b9c0bdc690d4ce5d29.svg"
+    },
+    {
+      "id": "scan-component-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-component-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "81c85ccdd2bf4edfa9f05e6512b3f4fb",
+      "bytes": 14770,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "scan-component-view-light-81c85ccdd2bf4edfa9f05e6512b3f4fb.svg"
+    },
+    {
+      "id": "scan-component-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-component-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d142b473f88ead5c85a4792568f74175",
+      "bytes": 14929,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "scan-component-view-dark-d142b473f88ead5c85a4792568f74175.svg"
+    },
+    {
+      "id": "skills-layout-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "skills-layout-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "aae54f30887b73150905a2e1d23ae3ae",
+      "bytes": 13890,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "skills-layout-view-light-aae54f30887b73150905a2e1d23ae3ae.svg"
+    },
+    {
+      "id": "skills-layout-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "skills-layout-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bbfd1e6b68110b2ff741e7747f738408",
+      "bytes": 14035,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "skills-layout-view-dark-bbfd1e6b68110b2ff741e7747f738408.svg"
+    }
+  ]
+}
