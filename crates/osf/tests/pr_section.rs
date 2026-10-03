@@ -40,7 +40,8 @@ struct FakeGh {
 
 impl FakeGh {
     fn new(name: &str, initial_body: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("osf-pr-section-fakegh-{name}"));
+        let base = std::env::temp_dir(); // osf: temp-dir allowed, unique per test name
+        let dir = base.join(format!("osf-pr-section-fakegh-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("fake gh dir creates");
         let body_file = dir.join("body.md");

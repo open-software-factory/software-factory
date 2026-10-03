@@ -21,7 +21,7 @@
 //! same hole by another route: a line in `.gitignore` would quietly remove a
 //! skill from the check.
 
-use agnix_core::{DiagnosticLevel, LintConfig, ValidationOutcome};
+use agnix_core::{DiagnosticLevel, FileType, LintConfig, ValidatorRegistry};
 use osf_lint_core::{intern, Evidence, Finding, Level, Remediation};
 use std::path::Path;
 
@@ -48,35 +48,32 @@ const SOURCE: &str = "agnix";
 /// not run, rather than because the file is clean.
 const DID_NOT_RUN: &str = "agnix-did-not-run";
 
-/// Run the engine over one file and return its diagnostics as findings.
+/// Run the engine over `content`, already resolved by the caller, and
+/// return its diagnostics as findings. `path` only shapes file-type
+/// detection and the root-relative labels the engine reports; the engine
+/// never reads it from disk. The caller resolves `content` itself —
+/// checkpoint-aware for `osf verify` (decision 0003: pre-push and every
+/// other checkpoint but the hook read committed content, never whatever
+/// happens to sit in the working tree), disk content for the standalone
+/// `osf lint skill` command.
 ///
-/// A file the engine cannot read, does not recognise, or fails on produces a
-/// finding of its own. Silence here would mean a malformed skill file passed
-/// the check by being unreadable, which is the opposite of what a gate is
-/// for.
-pub fn lint_file(path: &Path, skill_dir: &Path) -> Vec<Finding> {
+/// A file type the engine does not recognise produces a finding of its
+/// own. Silence here would mean a malformed skill file passed the check by
+/// going unrecognised, which is the opposite of what a gate is for.
+pub fn lint_text(path: &Path, content: &str, skill_dir: &Path) -> Vec<Finding> {
     let mut config = LintConfig::default();
     config.set_root_dir(skill_dir.to_path_buf());
-
-    match agnix_core::validate_file(path, &config) {
-        Ok(ValidationOutcome::Success(diagnostics)) => diagnostics.iter().map(to_finding).collect(),
-        Ok(ValidationOutcome::Skipped) => vec![did_not_run(
+    if agnix_core::resolve_file_type(path, &config) == FileType::Unknown {
+        return vec![did_not_run(
             "the agnix engine does not recognise this file type, so none of its checks ran"
                 .to_string(),
-        )],
-        Ok(ValidationOutcome::IoError(error)) => vec![did_not_run(format!(
-            "the agnix engine could not read this file, so none of its checks ran: {error}"
-        ))],
-        Err(error) => vec![did_not_run(format!(
-            "the agnix engine failed on this file, so none of its checks ran: {error}"
-        ))],
-        // The outcome type is open to new variants. A version of the engine
-        // that adds one must fail loudly here rather than read as clean.
-        Ok(other) => vec![did_not_run(format!(
-            "the agnix engine returned an outcome this build does not understand, so its \
-             result was not read: {other:?}"
-        ))],
+        )];
     }
+    let registry = ValidatorRegistry::with_defaults();
+    agnix_core::validate_content(path, content, &config, &registry)
+        .iter()
+        .map(to_finding)
+        .collect()
 }
 
 fn did_not_run(message: String) -> Finding {
@@ -115,7 +112,7 @@ fn to_finding(diagnostic: &agnix_core::Diagnostic) -> Finding {
 
 #[cfg(test)]
 mod tests {
-    use super::{lint_file, to_finding, AGNIX_VERSION};
+    use super::{lint_text, to_finding, AGNIX_VERSION};
     use osf_lint_core::Level;
     use std::path::{Path, PathBuf};
 
@@ -145,10 +142,12 @@ mod tests {
         );
     }
 
+    /// A file type the engine does not recognise reports that nothing ran,
+    /// rather than a plain empty finding list a caller could read as clean.
     #[test]
-    fn an_unreadable_path_reports_that_nothing_ran() {
-        let missing = Path::new("this-path-does-not-exist").join("SKILL.md");
-        let findings = lint_file(&missing, Path::new("this-path-does-not-exist"));
+    fn an_unrecognised_file_type_reports_that_nothing_ran() {
+        let path = Path::new("notes.an-unknown-extension");
+        let findings = lint_text(path, "hello", Path::new("."));
         assert_eq!(findings.len(), 1, "{findings:?}");
         let finding = findings.first().expect("one finding");
         assert_eq!(finding.rule, "agnix-did-not-run");
@@ -156,6 +155,20 @@ mod tests {
             finding.message.contains("none of its checks ran"),
             "{}",
             finding.message
+        );
+    }
+
+    /// `lint_text` never touches disk: content the caller passes is what
+    /// gets linted, not whatever a path of the same name holds (or does
+    /// not hold) on disk. This is the property `check.rs`'s checkpoint-aware
+    /// `lint_skill_files` depends on.
+    #[test]
+    fn lint_text_never_reads_the_path_from_disk() {
+        let missing = Path::new("this-path-does-not-exist").join("SKILL.md");
+        let findings = lint_text(&missing, "---\nname: a\n---\nbody\n", Path::new("."));
+        assert!(
+            findings.iter().all(|f| f.rule != "agnix-did-not-run"),
+            "{findings:?}"
         );
     }
 }

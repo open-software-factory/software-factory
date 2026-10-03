@@ -125,7 +125,8 @@ struct Workspace(PathBuf);
 
 impl Workspace {
     fn fresh(unique: &str) -> Result<Self, AssetsError> {
-        let dir = std::env::temp_dir().join(format!("osf-assets-publish-{unique}"));
+        let base = std::env::temp_dir(); // osf: temp-dir allowed, unique per publish run
+        let dir = base.join(format!("osf-assets-publish-{unique}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir)
             .map_err(|e| AssetsError::new(format!("cannot create a workspace: {e}")))?;

@@ -7,6 +7,9 @@
 //! the rule. Do not loosen one of those assertions to a "contains" check
 //! without replacing the alarm.
 
+mod common;
+
+use common::unique_dir;
 use osf::config::{SkillConfig, WritingConfig};
 use osf::lints::skill::{lint_skill, SkillFinding};
 use osf::lints::{load_known_names, KnownNames, Level};
@@ -204,10 +207,7 @@ fn over_the_word_budget_fires_even_within_the_paragraph_budget() {
     let content = format!(
         "---\nname: over-words\ndescription: Use this skill when the user wants a word check.\n---\n## Overview\n\n{paragraph}\n\n{paragraph}\n\n## Steps\n\n1. Run the check.\n2. Report the result.\n\nStop when the check has run once.\n"
     );
-    let dir = std::env::temp_dir()
-        .join("osf-skill-lint-test")
-        .join("over-words");
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = unique_dir("osf-skill-lint-test").join("over-words");
     std::fs::create_dir_all(&dir).expect("temp dir creates");
     std::fs::write(dir.join("SKILL.md"), content).expect("fixture writes");
 
@@ -219,10 +219,7 @@ fn over_the_word_budget_fires_even_within_the_paragraph_budget() {
 
 #[test]
 fn a_missing_skill_file_is_an_error() {
-    let dir = std::env::temp_dir()
-        .join("osf-skill-lint-test")
-        .join("no-skill-file");
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = unique_dir("osf-skill-lint-test").join("no-skill-file");
     std::fs::create_dir_all(&dir).expect("temp dir creates");
 
     let result = lint_skill(
@@ -253,10 +250,7 @@ fn an_unclosed_frontmatter_is_reported_not_skipped() {
 /// never wrote, listed in the note as deferred, and now actually enforced.
 #[test]
 fn a_name_that_does_not_match_the_folder_is_caught() {
-    let dir = std::env::temp_dir()
-        .join("osf-skill-lint-test")
-        .join("name-mismatch");
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = unique_dir("osf-skill-lint-test").join("name-mismatch");
     std::fs::create_dir_all(&dir).expect("temp dir creates");
     std::fs::write(
         dir.join("SKILL.md"),
@@ -279,10 +273,7 @@ fn a_name_that_does_not_match_the_folder_is_caught() {
 /// with no scripts at all: silently nothing to check.
 #[test]
 fn a_scripts_path_that_is_a_file_is_reported() {
-    let dir = std::env::temp_dir()
-        .join("osf-skill-lint-test")
-        .join("scripts-is-a-file");
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = unique_dir("osf-skill-lint-test").join("scripts-is-a-file");
     std::fs::create_dir_all(&dir).expect("temp dir creates");
     std::fs::write(
         dir.join("SKILL.md"),
@@ -303,10 +294,7 @@ fn a_scripts_path_that_is_a_file_is_reported() {
 /// any unpinned install inside it went unchecked with no finding at all.
 #[test]
 fn an_unreadable_script_file_is_reported() {
-    let dir = std::env::temp_dir()
-        .join("osf-skill-lint-test")
-        .join("unreadable-script");
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = unique_dir("osf-skill-lint-test").join("unreadable-script");
     std::fs::create_dir_all(dir.join("scripts")).expect("temp dir creates");
     std::fs::write(
         dir.join("SKILL.md"),
@@ -329,11 +317,16 @@ fn an_unreadable_script_file_is_reported() {
 /// about a rule.
 #[test]
 fn the_cli_names_the_engine_that_ran_the_deferred_checks() {
-    let output = std::process::Command::new(env!("CARGO_BIN_EXE_osf"))
-        .args(["lint", "skill", "--format", "human"])
-        .arg(fixture("good-skill"))
-        .output()
-        .expect("osf runs");
+    let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_osf"));
+    cmd.args(["lint", "skill", "--format", "human"])
+        .arg(fixture("good-skill"));
+    // Scrub inherited OSF_* (e.g. this repository's own checkpoint job's OSF_CONFIG).
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") {
+            cmd.env_remove(key);
+        }
+    }
+    let output = cmd.output().expect("osf runs");
     let stdout = String::from_utf8(output.stdout).expect("stdout is utf-8");
     assert!(stdout.contains("agnix"), "{stdout}");
     assert!(stdout.contains("name format"), "{stdout}");
@@ -346,15 +339,14 @@ fn the_cli_names_the_engine_that_ran_the_deferred_checks() {
 /// without committing more fixtures.
 mod checked {
     use super::{known, SkillConfig, WritingConfig};
+    use crate::common::unique_dir;
     use osf::lints::skill::lint_skill_checked;
     use std::path::{Path, PathBuf};
 
     const LABEL: &str = "crates/osf/tests/fixtures/skills/synthetic";
 
     fn temp_dir(name: &str) -> PathBuf {
-        std::env::temp_dir()
-            .join("osf-skill-lint-checked-test")
-            .join(name)
+        unique_dir("osf-skill-lint-checked-test").join(name)
     }
 
     fn write_skill(dir: &Path, skill_md: &str) {

@@ -21,11 +21,13 @@
 //! ships its own dsh plugin rather than relying on that bridge.
 
 use crate::config::WritingConfig;
+use crate::journal::CheckResult;
 use crate::lints::{self, Remediation};
 use serde_json::Value;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 
 const MAX_LINES_IN_REASON: usize = 30;
 
@@ -368,6 +370,209 @@ fn take_advice(session: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
+/// The keys a `PostToolUse` event's `tool_input` names the written path
+/// under, checked in this order.
+const WRITTEN_PATH_KEYS: &[&str] = &["file_path", "path", "notebook_path"];
+
+/// Runs the hook checkpoint on the file a `PostToolUse` event names, and
+/// refuses the tool call through [`refuse`] on an error finding.
+pub fn post_tool(timeout: Duration, answer: Option<Answer>) -> ExitCode {
+    let mut raw = String::new();
+    let read = std::io::stdin().read_to_string(&mut raw).map(|_| raw);
+    post_tool_with_input(read, timeout, answer)
+}
+
+/// Says the hook checkpoint itself could not run, as `refuse_could_not_run`
+/// does for `stop` in this same file. A finding worth blocking and a check
+/// that could not run at all must not read the same either way, so this
+/// never claims a pass.
+fn refuse_post_tool_could_not_run(answer: Answer, detail: &str) -> ExitCode {
+    refuse(
+        answer,
+        &format!(
+            "osf hook post-tool: the hook checkpoint could not run, so the write is refused \
+             rather than treated as a pass: {detail}"
+        ),
+    )
+}
+
+/// The body of [`post_tool`], taking the standard input read as a
+/// parameter so every path can be driven by a test.
+fn post_tool_with_input(
+    raw: std::io::Result<String>,
+    timeout: Duration,
+    answer: Option<Answer>,
+) -> ExitCode {
+    let raw = match raw {
+        Ok(r) => r,
+        Err(e) => {
+            return refuse_post_tool_could_not_run(
+                answer.unwrap_or(Answer::ExitCode),
+                &format!("cannot read standard input: {e}"),
+            );
+        }
+    };
+    let event: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            return refuse_post_tool_could_not_run(
+                answer.unwrap_or(Answer::ExitCode),
+                &format!("input is not JSON: {e}"),
+            );
+        }
+    };
+    let Some(raw_path) = written_path(&event) else {
+        return ExitCode::SUCCESS;
+    };
+    let answer = answer.unwrap_or_else(|| answer_for(&event));
+    let absolute_path = absolute_written_path(&raw_path);
+    let anchor = written_file_parent(&absolute_path);
+    let root = match crate::checkpoint::detect_adoption(&anchor) {
+        crate::checkpoint::Adoption::Adopted(root) => root,
+        crate::checkpoint::Adoption::NotAdopted(path, reason) => {
+            eprintln!(
+                "osf hook post-tool: not adopted at {}: {reason}",
+                path.display()
+            );
+            return ExitCode::SUCCESS;
+        }
+        crate::checkpoint::Adoption::AdoptedButBroken(root, missing) => {
+            return refuse_post_tool_could_not_run(
+                answer,
+                &format!(
+                    "osf.toml at {} asks for osf, but {missing} is missing",
+                    root.display()
+                ),
+            );
+        }
+        crate::checkpoint::Adoption::CouldNotRun(reason) => {
+            return refuse_post_tool_could_not_run(answer, &reason);
+        }
+    };
+    let Some(rel) = repo_relative(&root, &absolute_path) else {
+        eprintln!(
+            "osf hook post-tool: {raw_path} is outside the repository root {}; nothing to check",
+            root.display()
+        );
+        return ExitCode::SUCCESS;
+    };
+    let state_dir = match crate::journal::state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return refuse_post_tool_could_not_run(answer, &e);
+        }
+    };
+    let req = crate::checkpoint::Request {
+        root: &root,
+        checkpoint: crate::checkpoint::Checkpoint::Hook,
+        base: None,
+        files: Some(vec![rel]),
+        timeout: Some(timeout),
+        remote: None,
+    };
+    let summary = crate::checkpoint::run(&req, &state_dir);
+    if let Some(err) = &summary.journal_error {
+        eprintln!("osf hook post-tool: {err}");
+    }
+    match summary.result {
+        CheckResult::Skipped => {
+            eprintln!(
+                "osf hook post-tool: skipped (hook time limit {}s)",
+                timeout.as_secs()
+            );
+            ExitCode::SUCCESS
+        }
+        CheckResult::Failed | CheckResult::CouldNotRun => {
+            let mut lines = vec![format!(
+                "osf hook post-tool: the written file did not pass the hook checkpoint in {}",
+                root.display()
+            )];
+            // The journal error, if any, was already printed above; do not
+            // let the refusal body repeat the same line.
+            lines.extend(
+                summary
+                    .error_findings
+                    .iter()
+                    .filter(|f| Some(f.as_str()) != summary.journal_error.as_deref())
+                    .cloned(),
+            );
+            refuse(answer, &lines.join("\n"))
+        }
+        CheckResult::Passed | CheckResult::NothingToCheck => ExitCode::SUCCESS,
+    }
+}
+
+/// The written path an event names, from the first of [`WRITTEN_PATH_KEYS`]
+/// its `tool_input` carries.
+fn written_path(event: &Value) -> Option<String> {
+    let input = event.get("tool_input")?;
+    WRITTEN_PATH_KEYS
+        .iter()
+        .find_map(|k| input.get(k).and_then(Value::as_str).map(str::to_string))
+}
+
+/// `raw` resolved once to an absolute, lexically normalised path, against
+/// the current directory when it is not already absolute. Both the
+/// adoption anchor and the repository-relative path are derived from this
+/// one value, so they can never disagree on where the file actually is.
+fn absolute_written_path(raw: &str) -> PathBuf {
+    let normalized = raw.replace('\\', "/");
+    let candidate = PathBuf::from(&normalized);
+    let absolute = if candidate.is_absolute() {
+        candidate
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(&candidate)
+    };
+    lexically_normalize(&absolute)
+}
+
+/// The written path's own parent directory: the adoption anchor is the repository holding the file, not the process's working directory.
+fn written_file_parent(absolute: &Path) -> PathBuf {
+    absolute
+        .parent()
+        .map_or_else(|| absolute.to_path_buf(), Path::to_path_buf)
+}
+
+/// `absolute` made repository-relative to `root`, with forward slashes.
+/// `None` when it leaves `root` entirely: a path outside the repository
+/// the adoption check found must never read back as one inside it.
+///
+/// Canonicalisation runs first, and decides the answer whenever both sides
+/// resolve: a path that is lexically inside `root` but is actually a
+/// symlink to somewhere else must fail this check, not pass it on the
+/// strength of its own un-followed name. The lexical check only runs as a
+/// fallback, for a path that does not exist yet — such as a file about to
+/// be created — where canonicalisation has nothing to resolve.
+fn repo_relative(root: &Path, absolute: &Path) -> Option<String> {
+    if let (Ok(root_canon), Ok(candidate_canon)) =
+        (std::fs::canonicalize(root), std::fs::canonicalize(absolute))
+    {
+        let rel = candidate_canon.strip_prefix(&root_canon).ok()?;
+        return Some(rel.to_string_lossy().replace('\\', "/"));
+    }
+    let rel = absolute.strip_prefix(root).ok()?;
+    Some(rel.to_string_lossy().replace('\\', "/"))
+}
+
+/// `path`'s `.` and `..` components collapsed left to right, without
+/// touching the filesystem: a containment check must work even when
+/// nothing exists at `path` yet, such as a rejected `../outside.md`.
+fn lexically_normalize(path: &Path) -> PathBuf {
+    let mut out: Vec<std::path::Component> = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    out.into_iter().collect()
+}
+
 fn string_at(v: &Value, keys: &[&str]) -> Option<String> {
     keys.iter()
         .find_map(|k| v.get(k).and_then(Value::as_str).map(str::to_string))
@@ -420,7 +625,8 @@ fn safe_id(s: &str) -> String {
 }
 
 fn counter_path(session: &str, prompt: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("osf-stop");
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, shared across hook invocations
+    let dir = base.join("osf-stop");
     let _ = std::fs::create_dir_all(&dir);
     dir.join(format!("{}-{}", safe_id(session), safe_id(prompt)))
 }
@@ -439,7 +645,8 @@ fn write_counter(p: &Path, n: u32) {
 /// Where an `advise` finding waits for the next turn's prompt hook,
 /// keyed by session id, under the system temporary directory.
 fn advice_path(session: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("osf-advice");
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, shared across hook invocations
+    let dir = base.join("osf-advice");
     let _ = std::fs::create_dir_all(&dir);
     dir.join(format!("{}.txt", safe_id(session)))
 }
@@ -469,6 +676,45 @@ fn store_advice(session: &str, findings: &[&lints::Finding]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
+
+    /// A path lexically inside the repository that is actually a symlink to
+    /// somewhere else must not be accepted as repository-relative: the
+    /// canonical check, which follows the symlink, must run and must be the
+    /// one that decides, not a lexical prefix match that never looks.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_escaping_the_repository_is_not_repo_relative() {
+        let root = TempDir::new("osf-repo-relative-symlink-root");
+        let outside = TempDir::new("osf-repo-relative-symlink-outside");
+        let target = outside.join("secret.md");
+        std::fs::write(&target, "outside content\n").expect("outside file writes");
+        let link = root.join("link.md");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink creates");
+        assert!(repo_relative(&root, &link).is_none());
+    }
+
+    /// An ordinary file inside the repository, no symlink involved, is
+    /// still repository-relative once canonicalisation runs first.
+    #[test]
+    fn a_plain_file_inside_the_repository_is_still_repo_relative() {
+        let root = TempDir::new("osf-repo-relative-plain-root");
+        let path = root.join("notes.md");
+        std::fs::write(&path, "content\n").expect("file writes");
+        assert_eq!(repo_relative(&root, &path).as_deref(), Some("notes.md"));
+    }
+
+    /// A path that does not exist yet falls back to the lexical check,
+    /// since canonicalisation has nothing on disk to resolve.
+    #[test]
+    fn a_path_that_does_not_exist_yet_falls_back_to_the_lexical_check() {
+        let root = TempDir::new("osf-repo-relative-missing-root");
+        let path = root.join("not-written-yet.md");
+        assert_eq!(
+            repo_relative(&root, &path).as_deref(),
+            Some("not-written-yet.md")
+        );
+    }
 
     #[test]
     fn reads_claude_transcript_shape() {
