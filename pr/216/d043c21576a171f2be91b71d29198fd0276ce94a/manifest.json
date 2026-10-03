@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "d043c21576a171f2be91b71d29198fd0276ce94a",
+    "contentHash": "4e1a4963917b04a302f0d1876acf895b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "arch-enforcement-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1b1977b6e519f74365284b46793f9674",
+      "bytes": 31030,
+      "width": 1865,
+      "height": 582,
+      "animated": false,
+      "path": "arch-enforcement-light-1b1977b6e519f74365284b46793f9674.svg"
+    },
+    {
+      "id": "arch-enforcement-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7e714c797ed2e3a7c2bce3a67994fd15",
+      "bytes": 31419,
+      "width": 1865,
+      "height": 582,
+      "animated": false,
+      "path": "arch-enforcement-dark-7e714c797ed2e3a7c2bce3a67994fd15.svg"
+    },
+    {
+      "id": "arch-script-pins-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-script-pins",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a77e1606fd9ce06beb679c45fd0815f4",
+      "bytes": 8785,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "arch-script-pins-light-a77e1606fd9ce06beb679c45fd0815f4.svg"
+    },
+    {
+      "id": "arch-script-pins-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-script-pins",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6093492064a911d3ddf572ee83bf4449",
+      "bytes": 8876,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "arch-script-pins-dark-6093492064a911d3ddf572ee83bf4449.svg"
+    },
+    {
+      "id": "flow-writing-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "flow-writing",
+      "mediaType": "image/svg+xml",
+      "contentHash": "adfd27eb41ebcbe06439dc880f67876f",
+      "bytes": 15474,
+      "width": 1496,
+      "height": 467,
+      "animated": true,
+      "path": "flow-writing-light-adfd27eb41ebcbe06439dc880f67876f.svg"
+    },
+    {
+      "id": "flow-writing-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "flow-writing",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7e7e6364aca2970ca58c8639ae5bd77a",
+      "bytes": 15633,
+      "width": 1496,
+      "height": 467,
+      "animated": true,
+      "path": "flow-writing-dark-7e7e6364aca2970ca58c8639ae5bd77a.svg"
+    }
+  ]
+}
