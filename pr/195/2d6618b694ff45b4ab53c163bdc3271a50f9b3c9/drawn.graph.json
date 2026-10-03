@@ -1,0 +1,910 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-03T14:59:33.151Z",
+  "title": "Symlink-safe scanning, shared agent skills, and folder-scoped rules",
+  "summary": "The scan command no longer follows symlinks: a link is counted as excluded instead of being read as the file or directory it points at, so a scan of nothing but links can never read as clean and a link cycle cannot recurse forever. Alongside that, agent configuration is consolidated — repository-wide rules move into folder-scoped AGENTS.md files, a shared .agents/skills tree is exposed to Claude Code through a git symlink, and CI gains a skill lint plus a check that the symlink stays a symlink.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "2d49789d240a6b77aaa76bffeadbcc04e1e5526f",
+      "ref": "2d49789d240a6b77aaa76bffeadbcc04e1e5526f"
+    },
+    "head": {
+      "sha": "2d6618b694ff45b4ab53c163bdc3271a50f9b3c9",
+      "ref": "2d6618b694ff45b4ab53c163bdc3271a50f9b3c9"
+    },
+    "pullRequest": {
+      "number": 195,
+      "url": "https://github.com/open-software-factory/software-factory/pull/195"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "command surface",
+      "order": 0,
+      "summary": "The thin command-line shell that parses arguments and prints results."
+    },
+    {
+      "id": "scan",
+      "label": "Scan engine",
+      "subtitle": "crates/osf/src/scan",
+      "order": 1,
+      "summary": "Resolves scan targets, walks directories, and decides what is read, skipped or excluded."
+    },
+    {
+      "id": "fs",
+      "label": "Filesystem",
+      "subtitle": "working tree and git index",
+      "order": 2,
+      "summary": "The tracked files, directories and symlinks a scan reads from disk."
+    },
+    {
+      "id": "ci",
+      "label": "CI workflows",
+      "subtitle": ".github/workflows",
+      "order": 3,
+      "summary": "The jobs that gate a pull request, including the new skill checks."
+    },
+    {
+      "id": "agent-config",
+      "label": "Agent configuration",
+      "subtitle": "AGENTS.md and skills",
+      "order": 4,
+      "summary": "The rules and skills a coding agent reads while working in this repository."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "osf scan / osf lint",
+      "summary": "Parses arguments and dispatches to the scan and lint libraries. Unchanged by this diff, but it is the entry point every scan path below runs through.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-paths",
+      "label": "scan_paths",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "scan",
+      "subtitle": "pub fn scan_paths(dir, paths, rules, excluder)",
+      "summary": "Now threads a skipped-symlink count out of target resolution and re-checks each resolved target with symlink_metadata before reading it, so a link is counted as excluded rather than read.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 591,
+          "endLine": 610
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve-scan-targets",
+      "label": "resolve_scan_targets",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "scan",
+      "subtitle": "returns (targets, skipped)",
+      "summary": "Returns the resolved targets together with the number of symlinks skipped. With no paths it still lists git-tracked files and reports zero skipped; with explicit paths it walks them and counts every link it refuses to follow.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 546,
+          "endLine": 570
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "collect-files",
+      "label": "collect_files",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "scan",
+      "subtitle": "recursive walk, symlink-aware",
+      "summary": "Switched from metadata to symlink_metadata and returns early on a link, incrementing the skipped counter. This is what stops a link that cycles back on an ancestor directory from recursing forever.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 520,
+          "endLine": 542
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "excluder",
+      "label": "Excluder",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "scan",
+      "subtitle": "is_excluded(label)",
+      "summary": "The existing path-exclusion filter. Skipped symlinks are folded into the same dropped counter it feeds, so the summary line reports them together.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-outcome",
+      "label": "ScanOutcome",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "scan",
+      "subtitle": "files, excluded",
+      "summary": "The result the CLI prints. Its excluded count now includes symlinks, which is what makes a repository of only a symlink report '1 excluded' instead of a clean scan.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-tracked-files",
+      "label": "git tracked files",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "fs",
+      "subtitle": "crate::git::tracked_files",
+      "summary": "Lists the files git tracks in the repository. The no-paths scan path still goes through it and reports zero skipped links.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 551,
+          "endLine": 558
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "working-tree",
+      "label": "Working tree",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "fs",
+      "subtitle": "files, directories, symlinks",
+      "summary": "The real files on disk. A symlink here is now observed as a link rather than resolved to its target, whether it is a tracked entry, an explicit path, or found mid-walk.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 520,
+          "endLine": 542
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "build, test, lint, scan gate",
+      "summary": "Gains two steps: one lints every skill under skills/ and .agents/skills/, the other asserts .claude/skills is a git symlink pointing at ../.agents/skills.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 202,
+          "endLine": 233
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-lint-step",
+      "label": "Check the skills",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "osf lint skill --format human",
+      "summary": "Enumerates every tracked SKILL.md directory and lints them all on every run, since skills are few and cheap to check.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 202,
+          "endLine": 213
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "symlink-check-step",
+      "label": "Check the Claude Code skills link",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "git ls-files -s .claude/skills",
+      "summary": "Fails the build unless git records .claude/skills with mode 120000 and readlink resolves it to ../.agents/skills, with a Windows fix hint in the error.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 215,
+          "endLine": 233
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-skills",
+      "label": ".agents/skills",
+      "kind": "package",
+      "delta": "added",
+      "lane": "agent-config",
+      "subtitle": "shared skill tree",
+      "summary": "The one home for skills every coding agent shares. Four new skills land here: adding-an-osf-command, filing-an-issue, opening-a-pull-request and reviewing-a-pull-request.",
+      "files": [
+        {
+          "path": ".agents/README.md"
+        },
+        {
+          "path": ".agents/skills/adding-an-osf-command/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/filing-an-issue/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/opening-a-pull-request/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/reviewing-a-pull-request/SKILL.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude-skills-link",
+      "label": ".claude/skills",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent-config",
+      "subtitle": "symlink to ../.agents/skills",
+      "summary": "A git symlink, mode 120000, so Claude Code reads the shared tree instead of drifting as its own copy. The new CI step exists to keep it that way.",
+      "files": [
+        {
+          "path": ".claude/skills"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "shipped-skills",
+      "label": "skills/",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-config",
+      "subtitle": "show-me, pr-outline",
+      "summary": "The skills this repository ships to adopters. Credit lines move out of the SKILL.md files into THIRD_PARTY_NOTICES.md and the folder READMEs, so a skill holds only what an agent acts on.",
+      "files": [
+        {
+          "path": "skills/README.md"
+        },
+        {
+          "path": "skills/pr-outline/SKILL.md"
+        },
+        {
+          "path": "skills/show-me/SKILL.md"
+        },
+        {
+          "path": "skills/show-me/README.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "folder-agents-md",
+      "label": "Folder AGENTS.md files",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent-config",
+      "subtitle": "crates/, .github/workflows/",
+      "summary": "Repository-wide rules are split into folder-scoped files: crates/AGENTS.md carries code layout, language and the four pre-push commands; .github/workflows/AGENTS.md carries the secret-handling and action-pinning rules.",
+      "files": [
+        {
+          "path": "crates/AGENTS.md"
+        },
+        {
+          "path": ".github/workflows/AGENTS.md"
+        },
+        {
+          "path": "AGENTS.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-tests",
+      "label": "scan.rs tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "scan",
+      "subtitle": "symlink cases",
+      "summary": "Five new cases cover a tracked symlinked directory, a repository of only a symlink, an explicit symlinked path, a link found mid-walk, and a link cycle. TempRepo gains a symlink helper that works on Unix and Windows.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan.rs",
+          "startLine": 55,
+          "endLine": 163
+        },
+        {
+          "path": "crates/osf/tests/common/mod.rs",
+          "startLine": 68,
+          "endLine": 88
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-calls-scan-paths",
+      "from": "osf-cli",
+      "to": "scan-paths",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "scan",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI hands the scan its paths, rules and excluder.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs"
+        }
+      ]
+    },
+    {
+      "id": "scan-paths-calls-resolve",
+      "from": "scan-paths",
+      "to": "resolve-scan-targets",
+      "kind": "call",
+      "delta": "modified",
+      "label": "(targets, skipped)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The call now returns a skipped-link count alongside the targets, which seeds the dropped counter.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 594,
+          "endLine": 594
+        }
+      ]
+    },
+    {
+      "id": "resolve-calls-collect",
+      "from": "resolve-scan-targets",
+      "to": "collect-files",
+      "kind": "call",
+      "delta": "modified",
+      "label": "walk, count links",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each explicit path is walked with the shared skipped counter, so links found anywhere in the walk are counted.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 563,
+          "endLine": 565
+        }
+      ]
+    },
+    {
+      "id": "resolve-calls-git",
+      "from": "resolve-scan-targets",
+      "to": "git-tracked-files",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "tracked_files",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "With no paths given, the target list still comes from git and reports zero skipped links.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 551,
+          "endLine": 558
+        }
+      ]
+    },
+    {
+      "id": "collect-reads-tree",
+      "from": "collect-files",
+      "to": "working-tree",
+      "kind": "data",
+      "delta": "modified",
+      "label": "symlink_metadata",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The walk now stats with symlink_metadata and returns early on a link, so a link is never descended into and a cycle terminates.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 521,
+          "endLine": 527
+        }
+      ]
+    },
+    {
+      "id": "scan-paths-reads-tree",
+      "from": "scan-paths",
+      "to": "working-tree",
+      "kind": "data",
+      "delta": "modified",
+      "label": "read file bytes",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Before reading, each resolved target is re-checked with symlink_metadata; a link is counted as dropped and skipped.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 601,
+          "endLine": 605
+        }
+      ]
+    },
+    {
+      "id": "scan-paths-calls-excluder",
+      "from": "scan-paths",
+      "to": "excluder",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "is_excluded",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The existing exclusion filter still runs first; symlink skips add to the same dropped counter.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 596,
+          "endLine": 600
+        }
+      ]
+    },
+    {
+      "id": "scan-paths-writes-outcome",
+      "from": "scan-paths",
+      "to": "scan-outcome",
+      "kind": "data",
+      "delta": "modified",
+      "label": "excluded count",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The outcome's excluded count now includes skipped symlinks, which is what the '1 excluded' assertion in the tests reads.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 591,
+          "endLine": 610
+        }
+      ]
+    },
+    {
+      "id": "ci-runs-skill-lint",
+      "from": "ci-workflow",
+      "to": "skill-lint-step",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "step",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow gains a step that lints every tracked skill directory.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 202,
+          "endLine": 213
+        }
+      ]
+    },
+    {
+      "id": "ci-runs-symlink-check",
+      "from": "ci-workflow",
+      "to": "symlink-check-step",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "step",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow gains a step that fails unless .claude/skills is a symlink to ../.agents/skills.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 215,
+          "endLine": 233
+        }
+      ]
+    },
+    {
+      "id": "symlink-check-guards-link",
+      "from": "symlink-check-step",
+      "to": "claude-skills-link",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "mode 120000",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The check reads the git index mode and the link target, so the symlink cannot silently become a copied directory.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 217,
+          "endLine": 233
+        }
+      ]
+    },
+    {
+      "id": "skill-lint-reads-skills",
+      "from": "skill-lint-step",
+      "to": "agents-skills",
+      "kind": "data",
+      "delta": "added",
+      "label": "git ls-files",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The step enumerates skills/*/SKILL.md and .agents/skills/*/SKILL.md and lints each directory.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 205,
+          "endLine": 212
+        }
+      ]
+    },
+    {
+      "id": "link-points-at-agents-skills",
+      "from": "claude-skills-link",
+      "to": "agents-skills",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "../.agents/skills",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Claude Code reads .claude/skills, which resolves to the shared tree, so one edit reaches every agent.",
+      "files": [
+        {
+          "path": ".claude/skills"
+        }
+      ]
+    },
+    {
+      "id": "agents-md-scopes-crates",
+      "from": "folder-agents-md",
+      "to": "shipped-skills",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "rules per folder",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The root AGENTS.md now delegates folder rules to each folder's own AGENTS.md, and the skills READMEs point at the same notices file.",
+      "files": [
+        {
+          "path": "AGENTS.md"
+        },
+        {
+          "path": "skills/README.md"
+        }
+      ]
+    },
+    {
+      "id": "tests-exercise-scan-paths",
+      "from": "scan-tests",
+      "to": "scan-paths",
+      "kind": "call",
+      "delta": "added",
+      "label": "symlink cases",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Five new tests drive scan_paths with symlinked directories, explicit links and a cycle, asserting files stay empty and excluded is 1.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan.rs",
+          "startLine": 55,
+          "endLine": 163
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "scan-with-symlinks",
+      "title": "Scanning a tree that contains symlinks",
+      "summary": "How a scan resolves its targets, refuses to follow links, and reports them as excluded rather than clean.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-cli",
+          "label": "osf scan"
+        },
+        {
+          "node": "scan-paths"
+        },
+        {
+          "node": "resolve-scan-targets"
+        },
+        {
+          "node": "collect-files"
+        },
+        {
+          "node": "working-tree"
+        },
+        {
+          "node": "scan-outcome"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m1",
+          "from": "osf-cli",
+          "to": "scan-paths",
+          "label": "scan_paths(dir, paths, rules, excluder)",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs"
+            }
+          ]
+        },
+        {
+          "id": "m2",
+          "from": "scan-paths",
+          "to": "resolve-scan-targets",
+          "label": "resolve targets",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The return type grows a skipped-link count, which seeds the dropped counter.",
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 594,
+              "endLine": 594
+            }
+          ]
+        },
+        {
+          "id": "m3",
+          "from": "resolve-scan-targets",
+          "to": "collect-files",
+          "label": "walk each explicit path",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "repeat": 1,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 563,
+              "endLine": 565
+            }
+          ]
+        },
+        {
+          "id": "m4",
+          "from": "collect-files",
+          "to": "working-tree",
+          "label": "symlink_metadata(path)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "A link returns early and increments skipped; a directory recurses; a plain file is pushed.",
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 521,
+              "endLine": 527
+            }
+          ]
+        },
+        {
+          "id": "m5",
+          "from": "working-tree",
+          "to": "collect-files",
+          "label": "file type, not target",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "Because the link is never resolved, a link that cycles back on an ancestor directory terminates here.",
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 521,
+              "endLine": 527
+            }
+          ]
+        },
+        {
+          "id": "m6",
+          "from": "collect-files",
+          "to": "resolve-scan-targets",
+          "label": "(files, skipped)",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 563,
+              "endLine": 565
+            }
+          ]
+        },
+        {
+          "id": "m7",
+          "from": "resolve-scan-targets",
+          "to": "scan-paths",
+          "label": "(targets, skipped_links)",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 568,
+              "endLine": 570
+            }
+          ]
+        },
+        {
+          "id": "m8",
+          "from": "scan-paths",
+          "to": "working-tree",
+          "label": "symlink_metadata(full) per target",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A second guard: a target that is itself a link is counted as dropped and never read.",
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 601,
+              "endLine": 605
+            }
+          ]
+        },
+        {
+          "id": "m9",
+          "from": "scan-paths",
+          "to": "scan-outcome",
+          "label": "ScanOutcome { files, excluded }",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "excluded now includes skipped symlinks, so a repository of only a link reports '1 excluded' instead of a clean scan.",
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 591,
+              "endLine": 610
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 18,
+    "additions": 389,
+    "deletions": 64,
+    "chips": [
+      {
+        "label": "Symlink cases added",
+        "value": "5",
+        "tone": "added"
+      },
+      {
+        "label": "Skills linted in CI",
+        "value": "every run",
+        "tone": "added"
+      },
+      {
+        "label": "Folder AGENTS.md files",
+        "value": "2 new",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "scan-container",
+      "title": "Scan command and its neighbours",
+      "lens": "architecture",
+      "summary": "The osf CLI, the scan engine internals this change touches, the filesystem it reads, and the CI and agent-config surfaces that moved with it.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "scan-components",
+      "title": "Inside the scan engine",
+      "lens": "architecture",
+      "summary": "Target resolution, the recursive walk, the excluder and the outcome — the four pieces the symlink rule threads through.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "scan-paths",
+          "resolve-scan-targets",
+          "collect-files",
+          "excluder",
+          "scan-outcome",
+          "git-tracked-files",
+          "working-tree"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "agent-config-view",
+      "title": "Agent configuration and the CI checks that guard it",
+      "lens": "architecture",
+      "summary": "The shared skill tree, the Claude Code symlink that points at it, the shipped skills, and the two new CI steps that keep them honest.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "agents-skills",
+          "claude-skills-link",
+          "shipped-skills",
+          "folder-agents-md",
+          "ci-workflow",
+          "skill-lint-step",
+          "symlink-check-step"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "scan-flow-view",
+      "title": "Symlink-safe scan sequence",
+      "lens": "data-flow",
+      "summary": "The ordered path from the CLI through target resolution and the walk, showing where a link is counted instead of read.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "scan-with-symlinks"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
