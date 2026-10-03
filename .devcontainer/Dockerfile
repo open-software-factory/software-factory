@@ -66,7 +66,6 @@ ARG SKILLEVALUATOR_COMMIT=0da4646
 # reviewer just tested against.
 ARG CODEX_VERSION=0.154.0
 ARG CLAUDE_CODE_VERSION=2.1.284
-ARG DSH_VERSION=0.1.5-rc.1
 # opencode's upstream npm package is opencode-ai; @opencode/cli is a
 # different, much newer package under a different GitHub org. This
 # project's own opencode plugin (integrations/opencode) already depends on
@@ -244,14 +243,21 @@ RUN set -eu; \
 RUN npm install -g \
       @openai/codex@${CODEX_VERSION} \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
-      @deepseek-ai/dsh@${DSH_VERSION} \
       opencode-ai@${OPENCODE_VERSION} \
       @oh-my-pi/pi-coding-agent@${OMP_VERSION} && \
     codex --version && \
     claude --version && \
-    dsh --version && \
     opencode --version && \
     omp --version
+
+# dsh from its own lockfile. To update: edit .devcontainer/dsh/package.json, regenerate the lockfile, rebuild.
+COPY .devcontainer/dsh/package.json .devcontainer/dsh/package-lock.json /opt/dsh/
+RUN cd /opt/dsh && \
+    npm ci --no-audit --no-fund && \
+    chown -R root:root /opt/dsh && \
+    chmod -R go-w /opt/dsh && \
+    ln -s /opt/dsh/node_modules/.bin/dsh /usr/local/bin/dsh && \
+    dsh --version
 
 # Build osf from this workspace. The build directory sits outside
 # /workspace, the path the running container later bind-mounts the repo
@@ -420,12 +426,22 @@ RUN mkdir -p "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
 # Claude-format hooks bridge, pointed at this repository's own
 # .claude/hooks.json (see the profile's own comments for why that file
 # is not under this root-owned directory).
-RUN mkdir -p "${DEV_HOME}/.dsh/profiles/factory"
+#
+# dsh 0.2 needs the profile's own package.json and the plugin under its node_modules.
+# It also rewrites an empty cordis.yml in the profile on every start, so only that file is dev-owned.
+RUN mkdir -p "${DEV_HOME}/.dsh/profiles/factory/node_modules/@open-software-factory/osf-dsh-plugin"
+COPY .devcontainer/hooks/dsh/profile.package.json ${DEV_HOME}/.dsh/profiles/factory/package.json
 COPY .devcontainer/hooks/dsh/cordis.patch.yml ${DEV_HOME}/.dsh/profiles/factory/cordis.patch.yml
-RUN chown -R dev:dev "${DEV_HOME}/.dsh" && \
+RUN cd /usr/src/factory-build/integrations/dsh && \
+    P="${DEV_HOME}/.dsh/profiles/factory/node_modules/@open-software-factory/osf-dsh-plugin" && \
+    cp package.json cordis.patch.yml "${P}/" && \
+    mkdir "${P}/dist" && \
+    cp -r dist/src "${P}/dist/src" && \
+    chown -R dev:dev "${DEV_HOME}/.dsh" && \
     chown -R root:root "${DEV_HOME}/.dsh/profiles/factory" && \
-    chmod 0555 "${DEV_HOME}/.dsh/profiles/factory" && \
-    chmod 0444 "${DEV_HOME}/.dsh/profiles/factory/cordis.patch.yml"
+    find "${DEV_HOME}/.dsh/profiles/factory" -type d -exec chmod 0555 {} + && \
+    find "${DEV_HOME}/.dsh/profiles/factory" -type f -exec chmod 0444 {} + && \
+    install -o dev -g dev -m 0644 /dev/null "${DEV_HOME}/.dsh/profiles/factory/cordis.yml"
 
 # The node_modules build tree for the three plugins above is no longer
 # needed once their dist/ output is copied out.
@@ -434,6 +450,12 @@ RUN rm -rf /usr/src/factory-build
 WORKDIR ${WORKSPACE_ROOT}
 
 USER dev
+
+# Proves dsh starts, with no credentials, on both profiles the image uses:
+# each must stop at the missing credential and nothing else. See
+# .devcontainer/tests/dsh-starts.sh.
+COPY --chown=dev:dev .devcontainer/tests/dsh-starts.sh /tmp/dsh-starts-test.sh
+RUN sh /tmp/dsh-starts-test.sh && rm -f /tmp/dsh-starts-test.sh
 
 # Proves each coding agent runs for the dev user, not just for root.
 # See .devcontainer/tests/coding-agent-tools.sh.
