@@ -1,0 +1,762 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-03T04:06:48.684Z",
+  "title": "CI writing gate: one scope, every run",
+  "summary": "The writing gate in `.github/workflows/ci.yml` stops choosing between a `changed` and an `all` scope. The `writing_scope` workflow_dispatch input, the base-ref and push-before diffing, and the `fetch-depth: 0` checkout are all removed; the gate now runs `git ls-files '*.md'` on every trigger and checks every tracked Markdown file. The manual dispatch and the every-second-day schedule are kept only to cover runs where no change touches Markdown, and the empty-selection notice now means 'repository has no Markdown' rather than 'this scope selected none'.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "27e951400c69a22ba497e7b29ee86e8fba053ece",
+      "ref": "27e951400c69a22ba497e7b29ee86e8fba053ece"
+    },
+    "head": {
+      "sha": "f0c7abf83e338bfdd60c6e6b22008f13f52d6010",
+      "ref": "f0c7abf83e338bfdd60c6e6b22008f13f52d6010"
+    },
+    "pullRequest": {
+      "number": 212,
+      "url": "https://github.com/open-software-factory/software-factory/pull/212"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub event sources",
+      "order": 0,
+      "summary": "The events that start a CI run. The change narrows what these triggers have to carry: no scope input, no base ref."
+    },
+    {
+      "id": "workflow",
+      "label": "CI workflow",
+      "subtitle": "ci.yml jobs and steps",
+      "order": 1,
+      "summary": "The jobs and steps of the workflow. The writing gate is the step this change rewrites."
+    },
+    {
+      "id": "runner",
+      "label": "Runner environment",
+      "subtitle": "ubuntu-latest checkout and git",
+      "order": 2,
+      "summary": "The checked-out working tree and the git commands the gate runs against it."
+    },
+    {
+      "id": "gate",
+      "label": "Writing gate",
+      "subtitle": "osf binary and Markdown corpus",
+      "order": 3,
+      "summary": "The osf binary and the set of Markdown files it is asked to check."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "pull_request",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "on: pull_request",
+      "summary": "A pull request event still starts the workflow. It no longer supplies a base ref to the writing gate, because the gate no longer diffs against one.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 1,
+          "endLine": 10
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "push-event",
+      "label": "push to main",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "on: push branches [main]",
+      "summary": "A push to main still starts the workflow. The `github.event.before` sha is no longer read by the writing gate.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 1,
+          "endLine": 10
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflow-dispatch",
+      "label": "workflow_dispatch",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "triggers",
+      "subtitle": "manual run",
+      "summary": "Manual dispatch survives, but its `writing_scope` choice input is gone. A manual run now behaves exactly like every other run: check all tracked Markdown.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 7,
+          "endLine": 8
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "schedule-trigger",
+      "label": "schedule",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "cron 0 19 */2 * *",
+      "summary": "The every-second-day schedule is kept, now described as covering runs where no change touches Markdown rather than as the only `all`-scope run.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 9,
+          "endLine": 10
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "GitHub Actions workflow",
+      "summary": "The workflow file itself. Its trigger block, checkout step and writing-gate step are all edited by this change.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-gate-job",
+      "label": "writing gate job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "runs-on: ubuntu-latest",
+      "summary": "The job that builds osf and checks the writing. Its checkout loses `fetch-depth: 0` and its check step loses the scope-selection shell.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 155,
+          "endLine": 220
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "detect-step",
+      "label": "Look for a Rust workspace",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "subtitle": "id: detect",
+      "summary": "Detects whether the repository has a Rust workspace and exposes `present` to later steps. Untouched, but it still gates the osf build.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 160,
+          "endLine": 170
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-osf-step",
+      "label": "cargo build --release --bin osf",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "subtitle": "if: steps.detect.outputs.present == 'true'",
+      "summary": "Builds the osf binary that performs the writing check. Unchanged; the gate still depends on it when a workspace is present.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 197,
+          "endLine": 201
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-writing-step",
+      "label": "Check the writing",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "git ls-files '*.md'",
+      "summary": "The rewritten step. It drops the SCOPE, BASE_REF and PUSH_BEFORE environment variables and the three-branch shell that chose between them, leaving a single `git ls-files '*.md'` listing.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 202,
+          "endLine": 220
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "checkout-action",
+      "label": "actions/checkout",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "pinned sha, no fetch-depth",
+      "summary": "The checkout step loses its `fetch-depth: 0` input. The runner now gets a shallow clone, which is sufficient because nothing diffs against a base commit any more.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 157,
+          "endLine": 159
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "working-tree",
+      "label": "working tree",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "shallow clone of the repo",
+      "summary": "The checked-out tree the gate reads. It is now shallow, and it is the only source of the Markdown list.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 157,
+          "endLine": 159
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-ls-files",
+      "label": "git ls-files '*.md'",
+      "kind": "function",
+      "delta": "added",
+      "lane": "runner",
+      "subtitle": "enumerate tracked Markdown",
+      "summary": "The single command that now produces the file list. It replaces the `git fetch` plus `git diff --name-only` branches that computed a changed-file set.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 210,
+          "endLine": 211
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-binary",
+      "label": "osf",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "gate",
+      "subtitle": "--bin osf",
+      "summary": "The binary that performs the writing check. Unchanged, but it is now invoked against the full Markdown corpus on every run.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 199,
+          "endLine": 201
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "markdown-corpus",
+      "label": "tracked Markdown",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "gate",
+      "subtitle": "every *.md in the repo",
+      "summary": "The set of files the gate reads. It grows from 'what this change touches' to 'every tracked Markdown file' on pull requests and pushes.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 210,
+          "endLine": 211
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "empty-selection-notice",
+      "label": "empty-selection notice",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "gate",
+      "subtitle": "::notice::",
+      "summary": "The early exit when the file list is empty. Its message changes from 'this scope selects no Markdown' to 'this repository has no Markdown', matching the fact that there is no longer a scope to select.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 212,
+          "endLine": 214
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-to-workflow",
+      "from": "pull-request-event",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "starts run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A pull request still starts the workflow; it no longer carries a base ref into the gate.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 1,
+          "endLine": 10
+        }
+      ]
+    },
+    {
+      "id": "push-to-workflow",
+      "from": "push-event",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "starts run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A push to main still starts the workflow; the before-sha is no longer consumed.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 1,
+          "endLine": 10
+        }
+      ]
+    },
+    {
+      "id": "dispatch-to-workflow",
+      "from": "workflow-dispatch",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "modified",
+      "label": "no scope input",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Manual dispatch still starts the workflow, but the `writing_scope` input that used to travel with it is removed.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 7,
+          "endLine": 8
+        }
+      ]
+    },
+    {
+      "id": "schedule-to-workflow",
+      "from": "schedule-trigger",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "starts run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The schedule still starts the workflow; its role is now to cover runs where no change touches Markdown.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 9,
+          "endLine": 10
+        }
+      ]
+    },
+    {
+      "id": "workflow-to-job",
+      "from": "ci-workflow",
+      "to": "writing-gate-job",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow defines the writing gate job.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 155,
+          "endLine": 220
+        }
+      ]
+    },
+    {
+      "id": "job-to-detect",
+      "from": "writing-gate-job",
+      "to": "detect-step",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The job runs the workspace-detection step first.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 160,
+          "endLine": 170
+        }
+      ]
+    },
+    {
+      "id": "job-to-build",
+      "from": "writing-gate-job",
+      "to": "build-osf-step",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The job builds osf when a Rust workspace is present.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 197,
+          "endLine": 201
+        }
+      ]
+    },
+    {
+      "id": "job-to-check",
+      "from": "writing-gate-job",
+      "to": "check-writing-step",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The job runs the rewritten check step, which no longer branches on scope.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 202,
+          "endLine": 220
+        }
+      ]
+    },
+    {
+      "id": "job-to-checkout",
+      "from": "writing-gate-job",
+      "to": "checkout-action",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The job checks out the repository, now without full history.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 157,
+          "endLine": 159
+        }
+      ]
+    },
+    {
+      "id": "checkout-to-tree",
+      "from": "checkout-action",
+      "to": "working-tree",
+      "kind": "data",
+      "delta": "modified",
+      "label": "shallow clone",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Checkout produces a shallow working tree instead of a full-history one.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 157,
+          "endLine": 159
+        }
+      ]
+    },
+    {
+      "id": "check-to-ls-files",
+      "from": "check-writing-step",
+      "to": "git-ls-files",
+      "kind": "call",
+      "delta": "added",
+      "label": "enumerate",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The check step now calls a single `git ls-files '*.md'` to build the file list.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 210,
+          "endLine": 211
+        }
+      ]
+    },
+    {
+      "id": "tree-to-ls-files",
+      "from": "working-tree",
+      "to": "git-ls-files",
+      "kind": "data",
+      "delta": "modified",
+      "label": "tracked paths",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The shallow working tree is the only input to the enumeration; no base commit is consulted.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 210,
+          "endLine": 211
+        }
+      ]
+    },
+    {
+      "id": "ls-files-to-corpus",
+      "from": "git-ls-files",
+      "to": "markdown-corpus",
+      "kind": "data",
+      "delta": "modified",
+      "label": "every *.md",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The enumeration now yields every tracked Markdown file rather than a changed subset.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 210,
+          "endLine": 211
+        }
+      ]
+    },
+    {
+      "id": "corpus-to-osf",
+      "from": "markdown-corpus",
+      "to": "osf-binary",
+      "kind": "data",
+      "delta": "modified",
+      "label": "full corpus",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The gate hands the full Markdown corpus to osf on every run.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 210,
+          "endLine": 220
+        }
+      ]
+    },
+    {
+      "id": "corpus-to-notice",
+      "from": "markdown-corpus",
+      "to": "empty-selection-notice",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "if empty",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "An empty corpus still short-circuits the gate, now with a message about the repository rather than the scope.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 212,
+          "endLine": 214
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "writing-gate-run",
+      "title": "Writing gate run after the change",
+      "summary": "Every trigger now takes the same path: check out shallow, enumerate all tracked Markdown, hand it to osf. The scope decision that used to sit between the trigger and the file list is gone.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "ci-workflow",
+          "label": "ci.yml"
+        },
+        {
+          "node": "checkout-action",
+          "label": "checkout"
+        },
+        {
+          "node": "git-ls-files",
+          "label": "ls-files"
+        },
+        {
+          "node": "osf-binary",
+          "label": "osf"
+        }
+      ],
+      "messages": [
+        {
+          "id": "trigger-fires",
+          "from": "ci-workflow",
+          "to": "checkout-action",
+          "label": "start job",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Any of pull_request, push, workflow_dispatch or schedule starts the same job.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 1,
+              "endLine": 10
+            }
+          ]
+        },
+        {
+          "id": "checkout-shallow",
+          "from": "checkout-action",
+          "to": "ci-workflow",
+          "label": "shallow working tree",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "`fetch-depth: 0` is removed, so the tree has no base history to diff against.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 157,
+              "endLine": 159
+            }
+          ]
+        },
+        {
+          "id": "enumerate-all",
+          "from": "ci-workflow",
+          "to": "git-ls-files",
+          "label": "git ls-files '*.md'",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "One command replaces the scope branch, the `git fetch origin $BASE_REF` and the two `git diff --name-only` variants.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 210,
+              "endLine": 211
+            }
+          ]
+        },
+        {
+          "id": "list-returned",
+          "from": "git-ls-files",
+          "to": "ci-workflow",
+          "label": "every tracked *.md",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "The list is the whole corpus, not the changed subset.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 210,
+              "endLine": 211
+            }
+          ]
+        },
+        {
+          "id": "check-corpus",
+          "from": "ci-workflow",
+          "to": "osf-binary",
+          "label": "check all Markdown",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "A rule change can now flag a file the pull request does not touch, which is the stated reason for the change.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 202,
+              "endLine": 220
+            }
+          ]
+        },
+        {
+          "id": "findings-return",
+          "from": "osf-binary",
+          "to": "ci-workflow",
+          "label": "findings",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Findings still fail the step; only the input set changed.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 202,
+              "endLine": 220
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 10,
+    "deletions": 41,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "ci-pipeline",
+      "title": "CI pipeline around the writing gate",
+      "lens": "architecture",
+      "summary": "The workflow, its triggers, the runner it executes on and the gate it drives. The writing gate step and the checkout are the changed pieces; the surrounding jobs are context.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "writing-gate-internals",
+      "title": "Inside the writing gate",
+      "lens": "architecture",
+      "summary": "The steps of the writing gate job and the file list they produce, showing where the scope branch used to sit.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "writing-gate-job",
+          "detect-step",
+          "build-osf-step",
+          "check-writing-step",
+          "checkout-action",
+          "working-tree",
+          "git-ls-files",
+          "markdown-corpus",
+          "osf-binary",
+          "empty-selection-notice"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

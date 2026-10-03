@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "f0c7abf83e338bfdd60c6e6b22008f13f52d6010",
+    "contentHash": "439b164e171cc952090ddbf91048e106"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "ci-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "abfee8a98013b99ef946b19c47769e0c",
+      "bytes": 25304,
+      "width": 1738,
+      "height": 988,
+      "animated": false,
+      "path": "ci-pipeline-light-abfee8a98013b99ef946b19c47769e0c.svg"
+    },
+    {
+      "id": "ci-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5c90cdb6b41850c79397770a37327339",
+      "bytes": 25577,
+      "width": 1738,
+      "height": 988,
+      "animated": false,
+      "path": "ci-pipeline-dark-5c90cdb6b41850c79397770a37327339.svg"
+    },
+    {
+      "id": "writing-gate-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writing-gate-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7a5806d0168bb8796b22f3f93f09c6d8",
+      "bytes": 17469,
+      "width": 1294,
+      "height": 760,
+      "animated": false,
+      "path": "writing-gate-internals-light-7a5806d0168bb8796b22f3f93f09c6d8.svg"
+    },
+    {
+      "id": "writing-gate-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writing-gate-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fe7379a3dc6c2ddcb102d39362c7685f",
+      "bytes": 17663,
+      "width": 1294,
+      "height": 760,
+      "animated": false,
+      "path": "writing-gate-internals-dark-fe7379a3dc6c2ddcb102d39362c7685f.svg"
+    }
+  ]
+}
