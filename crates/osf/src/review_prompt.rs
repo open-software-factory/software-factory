@@ -1,7 +1,8 @@
 //! The prompt a reviewer gets. osf ships a default prompt file, and a
 //! repository can replace it with a file its trusted `osf.toml` names under
-//! `[review] prompt_file`. The trusted config root is the base branch, so a
-//! pull request cannot rewrite its own reviewer's instructions.
+//! `[review] prompt_file`, or with `.osf/review-prompt.md`. The trusted config
+//! root is the base branch, so a pull request cannot rewrite its own
+//! reviewer's instructions.
 //!
 //! The file holds plain placeholders in braces that osf fills in once, left
 //! to right: `{lens_name}`, `{lens_summary}`, `{lens_questions}`,
@@ -28,16 +29,32 @@ fn answer_format(lens: &Lens) -> String {
     )
 }
 
-/// The prompt file's text: the file `prompt_file` names under `config_root`,
-/// or the shipped default when `prompt_file` is `None`.
+/// Where a repository keeps its own prompt file, under the config root,
+/// when `[review] prompt_file` names none.
+pub const REPOSITORY_PROMPT: &str = ".osf/review-prompt.md";
+
+/// The prompt file's text, from the first of these that exists: the file
+/// `prompt_file` names under `config_root`, the repository's
+/// [`REPOSITORY_PROMPT`] under `config_root`, then the default that ships with
+/// osf. The shipped default is the file `crates/osf/defaults/review-prompt.md`,
+/// built into the binary the way the shipped lens files are.
 ///
 /// # Errors
-/// Names the file and the reason when `prompt_file` points outside
+/// Names the file and the reason when a prompt file points outside
 /// `config_root` or cannot be read.
 pub fn load(config_root: &Path, prompt_file: Option<&str>) -> Result<String, String> {
-    let Some(relative) = prompt_file else {
-        return Ok(DEFAULT_PROMPT.to_string());
-    };
+    if let Some(relative) = prompt_file {
+        return read_inside(config_root, relative);
+    }
+    match std::fs::symlink_metadata(config_root.join(REPOSITORY_PROMPT)) {
+        Ok(_) => read_inside(config_root, REPOSITORY_PROMPT),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(DEFAULT_PROMPT.to_string()),
+        Err(e) => Err(format!("{REPOSITORY_PROMPT}: {e}")),
+    }
+}
+
+/// The text of `relative`, a path that must stay inside `config_root`.
+fn read_inside(config_root: &Path, relative: &str) -> Result<String, String> {
     let inside = !relative.is_empty()
         && Path::new(relative)
             .components()
@@ -177,6 +194,47 @@ mod tests {
         std::fs::write(root.join("mine.md"), "Custom for {lens_name}.").expect("writes");
         let template = load(&root, Some("mine.md")).expect("override loads");
         assert_eq!(template, "Custom for {lens_name}.");
+    }
+
+    #[test]
+    fn with_no_repository_file_the_default_is_the_shipped_file() {
+        let root = TempDir::new("osf-review-prompt-shipped");
+        let shipped = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/defaults/review-prompt.md"
+        ))
+        .expect("the shipped prompt file reads");
+        assert_eq!(load(&root, None).expect("default loads"), shipped);
+    }
+
+    #[test]
+    fn a_repository_file_at_the_default_path_replaces_the_shipped_default() {
+        let root = TempDir::new("osf-review-prompt-repository");
+        std::fs::create_dir_all(root.join(".osf")).expect("dir");
+        std::fs::write(root.join(REPOSITORY_PROMPT), "From the repository.").expect("writes");
+        assert_eq!(load(&root, None).expect("loads"), "From the repository.");
+    }
+
+    #[test]
+    fn a_file_named_in_the_settings_wins_over_the_default_path() {
+        let root = TempDir::new("osf-review-prompt-named-wins");
+        std::fs::create_dir_all(root.join(".osf")).expect("dir");
+        std::fs::write(root.join(REPOSITORY_PROMPT), "Default path.").expect("writes");
+        std::fs::write(root.join("named.md"), "Named file.").expect("writes");
+        assert_eq!(load(&root, Some("named.md")).expect("loads"), "Named file.");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_link_out_at_the_default_path_is_refused_and_not_replaced_by_the_shipped_default() {
+        let outside = TempDir::new("osf-review-prompt-default-outside");
+        std::fs::write(outside.join("other.md"), "OUTSIDE-TEXT").expect("writes");
+        let root = TempDir::new("osf-review-prompt-default-link");
+        std::fs::create_dir_all(root.join(".osf")).expect("dir");
+        std::os::unix::fs::symlink(outside.join("other.md"), root.join(REPOSITORY_PROMPT))
+            .expect("link");
+        let e = load(&root, None).expect_err("a link out is refused");
+        assert!(e.contains("inside the config root"), "{e}");
     }
 
     #[test]

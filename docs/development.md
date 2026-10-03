@@ -434,13 +434,21 @@ model it actually ran with.
 
 ### Change the reviewer's prompt
 
-`osf` ships the prompt frame as a file, `crates/osf/defaults/review-prompt.md`,
-built into the binary. A repository replaces it with a file its own
-`osf.toml` names, relative to the trusted config root:
+`osf` ships the prompt frame as a file, `crates/osf/defaults/review-prompt.md`.
+The build embeds that file in the `osf` binary, as it does the shipped lens
+files, so the one static binary carries its defaults. `osf` loads the prompt
+from the first of these that exists:
+
+1. The file that `[review] prompt_file` names, relative to the trusted
+   config root.
+2. The file `.osf/review-prompt.md` under the trusted config root.
+3. The default that ships with `osf`.
+
+To name a different file, set it in `osf.toml`:
 
 ```toml
 [review]
-prompt_file = ".osf/review-prompt.md"
+prompt_file = "docs/review-prompt.md"
 ```
 
 `osf` reads the file from the base branch only. It reads the lenses the
