@@ -62,6 +62,75 @@ const MAX_ATTEMPTS: usize = ROUNDS_PER_FAMILY + 1;
 
 const ACTOR: &str = "osf";
 
+/// What a saved reviewer run belongs to: the repository, the pull request,
+/// the base and head commits, and the CI run. [`reduce_saved`] accepts a saved
+/// run only when its binding equals the one it was given, field for field.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Binding {
+    pub repository: String,
+    pub pull_request: u64,
+    pub base: String,
+    pub head: String,
+    pub run_id: String,
+}
+
+impl Binding {
+    /// The binding for the checkout at `root` reviewed against `base`: the
+    /// base is resolved to a commit, and the head is the commit checked out.
+    /// A `head` the caller names must be that commit.
+    ///
+    /// # Errors
+    /// Names what is missing or wrong: a repository that is not `owner/name`,
+    /// a missing pull request number or CI run id, a base that does not
+    /// resolve, or a `head` other than the checked-out commit.
+    pub fn for_checkout(
+        root: &Path,
+        base: &str,
+        repository: Option<&str>,
+        pull_request: Option<u64>,
+        head: Option<&str>,
+        run_id: Option<&str>,
+    ) -> Result<Self, String> {
+        let repository = repository
+            .filter(|r| !r.is_empty())
+            .ok_or("a repository is required: pass --repository or set GITHUB_REPOSITORY")?;
+        let plain = |part: &str| {
+            !part.is_empty()
+                && part
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        };
+        if !repository
+            .split_once('/')
+            .is_some_and(|(owner, name)| plain(owner) && plain(name))
+        {
+            return Err(format!("the repository \"{repository}\" is not owner/name"));
+        }
+        let pull_request =
+            pull_request.ok_or("a pull request number is required: pass --pull-request-number")?;
+        let run_id = run_id
+            .filter(|r| !r.is_empty())
+            .ok_or("a CI run id is required: pass --ci-run-id or set GITHUB_RUN_ID")?;
+        let resolved =
+            git::resolve_rev(root, base).map_err(|e| format!("the base \"{base}\": {e}"))?;
+        let checked_out = git::head_sha(root).map_err(|e| e.to_string())?;
+        if let Some(head) = head {
+            if !head.eq_ignore_ascii_case(&checked_out) {
+                return Err(format!(
+                    "the head {head} is not the commit checked out ({checked_out})"
+                ));
+            }
+        }
+        Ok(Self {
+            repository: repository.to_string(),
+            pull_request,
+            base: resolved,
+            head: checked_out,
+            run_id: run_id.to_string(),
+        })
+    }
+}
+
 /// What one run of `osf review run` needs: the repository, what to diff
 /// against, the work item file the caller saved, if any, the pull request,
 /// if any, and where the trusted configuration lives.
@@ -82,6 +151,9 @@ pub struct Request<'a> {
     /// detection from the reviewed range's own `Code-Generator:` trailers
     /// entirely when non-empty.
     pub builder_family_overrides: &'a [String],
+    /// What a saved run is bound to. [`run_reviewer`] writes it into the run
+    /// it saves, and [`reduce_saved`] refuses a run whose binding differs.
+    pub binding: Option<&'a Binding>,
 }
 
 /// One finding that survived quote verification, with the lens it came from.
@@ -98,6 +170,9 @@ pub struct KeptFinding {
 pub struct RunOutcome {
     pub verdict: Verdict,
     pub lines: Vec<String>,
+    /// What the reduce step left out or could not use, such as a saved file
+    /// for a reviewer outside the roster. Empty when nothing was dropped.
+    pub notes: Vec<String>,
     pub findings: Vec<KeptFinding>,
     pub journal_error: Option<String>,
 }
@@ -135,6 +210,10 @@ pub struct LensRun {
 pub struct ReviewerRun {
     pub reviewer: String,
     pub lenses: Vec<LensRun>,
+    /// What this run belongs to. [`reduce_saved`] refuses a run without the
+    /// binding it was given.
+    #[serde(default)]
+    pub binding: Option<Binding>,
 }
 
 impl ReviewerRun {
@@ -227,7 +306,14 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
         .iter()
         .map(|reviewer| run_reviewer_with(req, &setup, reviewer))
         .collect();
-    Ok(reduce_with(req, &setup, &runs, &BTreeMap::new(), state_dir))
+    Ok(reduce_with(
+        req,
+        &setup,
+        &runs,
+        &BTreeMap::new(),
+        Vec::new(),
+        state_dir,
+    ))
 }
 
 /// Runs the roster reviewer called `name` over every selected lens, and
@@ -324,6 +410,7 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
     ReviewerRun {
         reviewer: reviewer.name.clone(),
         lenses,
+        binding: req.binding.cloned(),
     }
 }
 
@@ -401,16 +488,26 @@ pub fn valid_artifact_name(name: &str) -> bool {
         && chars.all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-/// The runs `saved` holds that may be used, and the reason each reviewer's
-/// file was refused. A file counts only when its name is a plain name, it is
-/// the reviewer's own name, and no other file carries it.
-fn bind(saved: &[SavedRun]) -> (Vec<ReviewerRun>, BTreeMap<String, String>) {
-    let mut refused = BTreeMap::new();
+/// What [`bind`] made of the saved runs: the ones that may be used, the
+/// reason each reviewer's file was refused, and what it dropped without a reviewer to blame.
+#[derive(Debug, Default)]
+struct Bound {
+    accepted: Vec<ReviewerRun>,
+    refused: BTreeMap<String, String>,
+    notes: Vec<String>,
+}
+
+/// The runs `saved` holds that may be used. A file counts only when its name
+/// is a plain name, it is the reviewer's own name, no other file carries it,
+/// and its binding equals `expected`. With no `expected` binding, no file
+/// counts, so a run is never taken on trust.
+fn bind(saved: &[SavedRun], expected: Option<&Binding>) -> Bound {
+    let mut bound = Bound::default();
     let mut copies: BTreeMap<&str, usize> = BTreeMap::new();
     for entry in saved {
         *copies.entry(entry.name.as_str()).or_default() += 1;
     }
-    let mut accepted = Vec::new();
+    let mut unnamed = 0_usize;
     for entry in saved {
         let reason = if !valid_artifact_name(&entry.name) {
             "a saved run came from a file whose name is not a plain reviewer name"
@@ -418,15 +515,68 @@ fn bind(saved: &[SavedRun]) -> (Vec<ReviewerRun>, BTreeMap<String, String>) {
             "its saved run names another reviewer"
         } else if copies.get(entry.name.as_str()).copied().unwrap_or(0) > 1 {
             "more than one saved run carries its name"
+        } else if expected.is_none() {
+            "no binding was given to check its saved run against"
+        } else if entry.run.binding.as_ref() != expected {
+            "its saved run belongs to another pull request, commit or CI run"
         } else {
-            accepted.push(entry.run.clone());
+            bound.accepted.push(entry.run.clone());
             continue;
         };
         if valid_artifact_name(&entry.name) {
-            refused.insert(entry.name.clone(), reason.to_string());
+            bound.refused.insert(entry.name.clone(), reason.to_string());
+        } else {
+            unnamed += 1;
         }
     }
-    (accepted, refused)
+    if unnamed > 0 {
+        bound.notes.push(format!(
+            "ignored {unnamed} saved run(s) from a file whose name is not a plain reviewer name"
+        ));
+    }
+    bound
+}
+
+/// `name` when it is plain text safe to print, else a fixed stand-in.
+fn plain(name: &str) -> &str {
+    if valid_artifact_name(name) {
+        name
+    } else {
+        "(a name that is not plain text)"
+    }
+}
+
+/// What the saved runs hold that the reduce step never reads: a run for a
+/// reviewer outside `setup`'s roster, and a lens entry the change did not select.
+fn dropped_entries(setup: &Setup, bound: &mut Bound) {
+    let roster: BTreeSet<&str> = setup.roster.iter().map(|r| r.name.as_str()).collect();
+    for name in bound
+        .refused
+        .keys()
+        .filter(|n| !roster.contains(n.as_str()))
+    {
+        bound.notes.push(format!(
+            "ignored the saved run for \"{name}\": that reviewer is not in the roster"
+        ));
+    }
+    for run in &bound.accepted {
+        if !roster.contains(run.reviewer.as_str()) {
+            bound.notes.push(format!(
+                "ignored the saved run for \"{}\": that reviewer is not in the roster",
+                plain(&run.reviewer)
+            ));
+            continue;
+        }
+        for lens in &run.lenses {
+            if !setup.selected.contains(&lens.lens) {
+                bound.notes.push(format!(
+                    "ignored the lens \"{}\" in the saved run for \"{}\": this change did not select it",
+                    plain(&lens.lens),
+                    plain(&run.reviewer)
+                ));
+            }
+        }
+    }
 }
 
 /// Decides the review from the saved `runs` of the roster's reviewers,
@@ -459,8 +609,16 @@ pub fn reduce_saved(
     state_dir: &Path,
 ) -> Result<RunOutcome, String> {
     let setup = setup(req)?;
-    let (runs, refused) = bind(saved);
-    Ok(reduce_with(req, &setup, &runs, &refused, state_dir))
+    let mut bound = bind(saved, req.binding);
+    dropped_entries(&setup, &mut bound);
+    Ok(reduce_with(
+        req,
+        &setup,
+        &bound.accepted,
+        &bound.refused,
+        bound.notes,
+        state_dir,
+    ))
 }
 
 fn reduce_with(
@@ -468,6 +626,7 @@ fn reduce_with(
     setup: &Setup,
     runs: &[ReviewerRun],
     refused: &BTreeMap<String, String>,
+    notes: Vec<String>,
     state_dir: &Path,
 ) -> RunOutcome {
     let run_id = format!("review-{}-{}", now_millis(), std::process::id());
@@ -539,6 +698,7 @@ fn reduce_with(
     RunOutcome {
         verdict,
         lines,
+        notes,
         findings,
         journal_error,
     }
@@ -961,6 +1121,16 @@ mod tests {
         assert_eq!(event.reason, None);
     }
 
+    fn binding() -> Binding {
+        Binding {
+            repository: "owner/repo".to_string(),
+            pull_request: 7,
+            base: "b".repeat(40),
+            head: "c".repeat(40),
+            run_id: "1001".to_string(),
+        }
+    }
+
     #[test]
     fn a_saved_run_reads_back_as_it_was_written() {
         let dir = crate::test_support::TempDir::new("osf-review-run-save");
@@ -978,11 +1148,13 @@ mod tests {
                     answer: None,
                 }],
             }],
+            binding: Some(binding()),
         };
         let path = dir.join("codex.json");
         run.save(&path).expect("saves");
         let back = ReviewerRun::load(&path).expect("loads");
         assert_eq!(back.reviewer, "codex");
+        assert_eq!(back.binding, Some(binding()));
         let attempt = back
             .lenses
             .first()
@@ -992,41 +1164,125 @@ mod tests {
         assert_eq!(attempt.reason.as_deref(), Some("timed out"));
     }
 
-    fn saved(name: &str, reviewer: &str) -> SavedRun {
+    fn saved_with(name: &str, reviewer: &str, binding: Option<Binding>) -> SavedRun {
         SavedRun {
             name: name.to_string(),
             run: ReviewerRun {
                 reviewer: reviewer.to_string(),
                 lenses: Vec::new(),
+                binding,
             },
         }
     }
 
+    fn saved(name: &str, reviewer: &str) -> SavedRun {
+        saved_with(name, reviewer, Some(binding()))
+    }
+
     #[test]
     fn a_saved_run_is_used_only_under_the_name_of_the_reviewer_it_holds() {
-        let (accepted, refused) = bind(&[saved("codex", "codex"), saved("claude", "claude")]);
-        assert_eq!(accepted.len(), 2);
-        assert!(refused.is_empty(), "{refused:?}");
+        let bound = bind(
+            &[saved("codex", "codex"), saved("claude", "claude")],
+            Some(&binding()),
+        );
+        assert_eq!(bound.accepted.len(), 2);
+        assert!(bound.refused.is_empty(), "{:?}", bound.refused);
     }
 
     #[test]
     fn a_file_named_for_one_reviewer_that_claims_another_is_refused() {
-        let (accepted, refused) = bind(&[saved("codex", "claude")]);
-        assert!(accepted.is_empty());
+        let bound = bind(&[saved("codex", "claude")], Some(&binding()));
+        assert!(bound.accepted.is_empty());
         assert_eq!(
-            refused.get("codex").map(String::as_str),
+            bound.refused.get("codex").map(String::as_str),
             Some("its saved run names another reviewer")
         );
-        assert!(!refused.contains_key("claude"));
+        assert!(!bound.refused.contains_key("claude"));
     }
 
     #[test]
     fn two_saved_runs_with_one_name_are_both_refused() {
-        let (accepted, refused) = bind(&[saved("claude", "claude"), saved("claude", "claude")]);
-        assert!(accepted.is_empty());
+        let bound = bind(
+            &[saved("claude", "claude"), saved("claude", "claude")],
+            Some(&binding()),
+        );
+        assert!(bound.accepted.is_empty());
         assert_eq!(
-            refused.get("claude").map(String::as_str),
+            bound.refused.get("claude").map(String::as_str),
             Some("more than one saved run carries its name")
+        );
+    }
+
+    /// Each field of the binding is checked: a run from another repository,
+    /// pull request, base, head or CI run is refused, and so is one with no binding.
+    #[test]
+    fn a_saved_run_is_used_only_with_the_exact_binding_it_was_given() {
+        let expected = binding();
+        let same = bind(&[saved("codex", "codex")], Some(&expected));
+        assert_eq!(same.accepted.len(), 1);
+        let others: Vec<(&str, Binding)> = vec![
+            (
+                "repository",
+                Binding {
+                    repository: "owner/other".to_string(),
+                    ..binding()
+                },
+            ),
+            (
+                "pull request",
+                Binding {
+                    pull_request: 8,
+                    ..binding()
+                },
+            ),
+            (
+                "base",
+                Binding {
+                    base: "d".repeat(40),
+                    ..binding()
+                },
+            ),
+            (
+                "head",
+                Binding {
+                    head: "e".repeat(40),
+                    ..binding()
+                },
+            ),
+            (
+                "run",
+                Binding {
+                    run_id: "1002".to_string(),
+                    ..binding()
+                },
+            ),
+        ];
+        for (what, other) in others {
+            let bound = bind(
+                &[saved_with("codex", "codex", Some(other))],
+                Some(&expected),
+            );
+            assert!(bound.accepted.is_empty(), "a different {what} was accepted");
+            assert_eq!(
+                bound.refused.get("codex").map(String::as_str),
+                Some("its saved run belongs to another pull request, commit or CI run"),
+                "{what}"
+            );
+        }
+        let unbound = bind(&[saved_with("codex", "codex", None)], Some(&expected));
+        assert!(
+            unbound.accepted.is_empty(),
+            "a run with no binding was accepted"
+        );
+    }
+
+    #[test]
+    fn with_no_binding_to_check_against_no_saved_run_is_used() {
+        let bound = bind(&[saved("codex", "codex")], None);
+        assert!(bound.accepted.is_empty());
+        assert_eq!(
+            bound.refused.get("codex").map(String::as_str),
+            Some("no binding was given to check its saved run against")
         );
     }
 
@@ -1049,9 +1305,19 @@ mod tests {
         ] {
             assert!(!valid_artifact_name(bad), "{bad:?}");
         }
-        let (accepted, refused) = bind(&[saved("../codex", "codex")]);
-        assert!(accepted.is_empty());
-        assert!(refused.is_empty(), "a bad name is never used as a key");
+        let bound = bind(&[saved("../codex", "codex")], Some(&binding()));
+        assert!(bound.accepted.is_empty());
+        assert!(
+            bound.refused.is_empty(),
+            "a bad name is never used as a key"
+        );
+        assert_eq!(
+            bound.notes,
+            vec![
+                "ignored 1 saved run(s) from a file whose name is not a plain reviewer name"
+                    .to_string()
+            ]
+        );
     }
 
     #[test]

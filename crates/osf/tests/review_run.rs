@@ -286,8 +286,28 @@ impl Fakes {
     }
 
     /// Runs `osf` with the fake agents first on `PATH`, ahead of the `PATH`
-    /// in `env` when it names one.
+    /// in `env` when it names one. A saved run and the reduce step need a
+    /// binding, so those commands get the flags for [`binding_flags`] added.
     fn run_with_env(
+        &self,
+        dir: &Path,
+        home: &Path,
+        env: &[(&str, &str)],
+        args: &[&str],
+    ) -> std::process::Output {
+        let saves = args.contains(&"--reviewer");
+        let reduces = args.windows(2).any(|pair| pair == ["review", "reduce"]);
+        if !(saves || reduces) {
+            return self.run_unbound_with_env(dir, home, env, args);
+        }
+        let flags = binding_flags(dir, SAVED_RUN_ID);
+        let mut all: Vec<&str> = args.to_vec();
+        all.extend(flags.iter().map(String::as_str));
+        self.run_unbound_with_env(dir, home, env, &all)
+    }
+
+    /// [`Fakes::run_with_env`] with exactly the arguments given.
+    fn run_unbound_with_env(
         &self,
         dir: &Path,
         home: &Path,
@@ -308,6 +328,55 @@ impl Fakes {
         all.push(("PATH", &path));
         common::run_osf_with_env(dir, home, &all, args)
     }
+}
+
+/// The CI run id the tests bind saved runs to.
+const SAVED_RUN_ID: &str = "1001";
+
+/// The repository the tests bind saved runs to.
+const SAVED_REPOSITORY: &str = "owner/repo";
+
+/// The pull request number the tests bind saved runs to.
+const SAVED_PULL_REQUEST: u64 = 7;
+
+/// The commit `rev` names in the repository at `dir`.
+fn commit_of(dir: &Path, rev: &str) -> String {
+    let mut command = std::process::Command::new("git");
+    command.current_dir(dir).args(["rev-parse", rev]);
+    osf::scrub_git_env(&mut command);
+    let out = command.output().expect("git runs");
+    assert!(out.status.success(), "git rev-parse {rev} failed");
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+/// The flags that bind a saved run, and the reduce step, to one pull
+/// request and CI run `run_id`, at the repository's current head.
+fn binding_flags(dir: &Path, run_id: &str) -> Vec<String> {
+    [
+        "--repository",
+        SAVED_REPOSITORY,
+        "--pull-request-number",
+        &SAVED_PULL_REQUEST.to_string(),
+        "--head",
+        &commit_of(dir, "HEAD"),
+        "--ci-run-id",
+        run_id,
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect()
+}
+
+/// The binding of a run saved by [`SAVED_RUN_ID`]'s jobs in the repository at `dir`, as JSON.
+#[cfg(unix)]
+fn binding_value(dir: &Path) -> serde_json::Value {
+    serde_json::json!({
+        "repository": SAVED_REPOSITORY,
+        "pull_request": SAVED_PULL_REQUEST,
+        "base": commit_of(dir, "origin/main"),
+        "head": commit_of(dir, "HEAD"),
+        "run_id": SAVED_RUN_ID,
+    })
 }
 
 /// Writes `content` to `name` under `dir`, and returns its absolute path as a string.
@@ -2625,7 +2694,8 @@ fn a_reviewers_own_key_reaches_no_journal_line_or_output() {
 fn saved_run_value(reviewer: &str, attempts: &[serde_json::Value]) -> serde_json::Value {
     serde_json::json!({
         "reviewer": reviewer,
-        "lenses": [{"lens": "correctness", "context_error": null, "attempts": attempts}]
+        "lenses": [{"lens": "correctness", "context_error": null, "attempts": attempts}],
+        "binding": "auto"
     })
 }
 
@@ -2697,6 +2767,13 @@ fn reduce_files(
         let dir = saved.join(folder);
         std::fs::create_dir_all(&dir).expect("folder creates");
         let path = dir.join(name);
+        let mut value = value.clone();
+        if value.get("binding") == Some(&serde_json::json!("auto")) {
+            value
+                .as_object_mut()
+                .expect("a saved run is an object")
+                .insert("binding".to_string(), binding_value(&repo.dir));
+        }
         std::fs::write(&path, value.to_string()).expect("saved run writes");
         paths.push(path.to_string_lossy().into_owned());
     }
@@ -2901,4 +2978,207 @@ fn the_code_hosts_token_is_removed_from_saved_findings_at_reduce() {
     }
     let text = std::fs::read_to_string(&sarif).expect("sarif reads");
     assert!(text.contains("a secret this job holds"), "{text}");
+}
+
+/// Two saved runs for `repo`, under the default binding, and the control
+/// reduce that shows they pass before a test changes anything.
+fn saved_pair(label: &str) -> (Fakes, TempRepo, TempDir, String, String) {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo(label, &fakes.osf_toml);
+    let saved = TempDir::new(&format!("review-run-{label}"));
+    let codex = save_run(&fakes, &repo, &saved, "codex");
+    let claude = save_run(&fakes, &repo, &saved, "claude");
+    let control = reduce_saved_files(
+        &fakes,
+        &repo,
+        &format!("{label}-control"),
+        &[&codex, &claude],
+    );
+    assert!(control.status.success(), "{}", stdout_of(&control));
+    (fakes, repo, saved, codex, claude)
+}
+
+/// `review reduce` over `files` with `flags` as the binding, exactly as given.
+fn reduce_with_flags(
+    fakes: &Fakes,
+    repo: &TempRepo,
+    label: &str,
+    flags: &[&str],
+    files: &[&str],
+) -> std::process::Output {
+    let home = common::isolated_home(&format!("review-run-flags-{label}"));
+    let mut args = vec!["review", "reduce", "--base", "origin/main"];
+    args.extend(flags.iter().copied());
+    args.extend(files.iter().copied());
+    fakes.run_unbound_with_env(&repo.dir, &home, &[], &args)
+}
+
+/// A saved run is bound to its pull request, its commits and its CI run:
+/// `review reduce` refuses the run when any of them differs.
+#[test]
+fn a_saved_run_for_another_pull_request_or_ci_run_is_refused_at_reduce() {
+    let (fakes, repo, _saved, codex, claude) = saved_pair("binding-mismatch");
+    let head = commit_of(&repo.dir, "HEAD");
+    let cases: [(&str, [&str; 8]); 3] = [
+        (
+            "another CI run",
+            [
+                "--repository",
+                SAVED_REPOSITORY,
+                "--pull-request-number",
+                "7",
+                "--head",
+                &head,
+                "--ci-run-id",
+                "2002",
+            ],
+        ),
+        (
+            "another pull request",
+            [
+                "--repository",
+                SAVED_REPOSITORY,
+                "--pull-request-number",
+                "8",
+                "--head",
+                &head,
+                "--ci-run-id",
+                SAVED_RUN_ID,
+            ],
+        ),
+        (
+            "another repository",
+            [
+                "--repository",
+                "owner/other",
+                "--pull-request-number",
+                "7",
+                "--head",
+                &head,
+                "--ci-run-id",
+                SAVED_RUN_ID,
+            ],
+        ),
+    ];
+    for (label, flags) in cases {
+        let out = reduce_with_flags(&fakes, &repo, label, &flags, &[&codex, &claude]);
+        assert_eq!(out.status.code(), Some(2), "{label}: {}", stdout_of(&out));
+        assert!(
+            stdout_of(&out).contains("could-not-run"),
+            "{label}: {}",
+            stdout_of(&out)
+        );
+    }
+}
+
+/// A run saved at an older head is refused once the pull request has a new head.
+#[test]
+fn a_saved_run_from_an_earlier_head_is_refused_at_reduce() {
+    let (fakes, repo, _saved, codex, claude) = saved_pair("binding-old-head");
+    repo.write("README.md", "base\nplus a change to review\nand one more\n");
+    repo.commit("a later change");
+    let out = reduce_saved_files(&fakes, &repo, "binding-old-head-after", &[&codex, &claude]);
+    assert_eq!(out.status.code(), Some(2), "{}", stdout_of(&out));
+    assert!(
+        stdout_of(&out).contains("could-not-run"),
+        "{}",
+        stdout_of(&out)
+    );
+}
+
+/// A run with no binding at all, such as one saved before the binding existed, is refused.
+#[test]
+fn a_saved_run_with_no_binding_is_refused_at_reduce() {
+    let (fakes, repo, _saved, codex, claude) = saved_pair("binding-absent");
+    for file in [&codex, &claude] {
+        let mut run: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(file).expect("reads")).expect("json");
+        run.as_object_mut().expect("object").remove("binding");
+        std::fs::write(file, run.to_string()).expect("writes");
+    }
+    let out = reduce_saved_files(&fakes, &repo, "binding-absent-after", &[&codex, &claude]);
+    assert_eq!(out.status.code(), Some(2), "{}", stdout_of(&out));
+}
+
+/// The reduce step and a saved run each need the binding flags, and a head
+/// that is not the checked-out commit is an error.
+#[test]
+fn the_binding_flags_are_required_and_the_head_must_be_the_checkout() {
+    let (fakes, repo, _saved, codex, claude) = saved_pair("binding-flags");
+    let missing = reduce_with_flags(&fakes, &repo, "missing", &[], &[&codex, &claude]);
+    assert_eq!(missing.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&missing.stderr).into_owned();
+    assert!(stderr.contains("a repository is required"), "{stderr}");
+    let wrong_head = "f".repeat(40);
+    let out = reduce_with_flags(
+        &fakes,
+        &repo,
+        "wrong-head",
+        &[
+            "--repository",
+            SAVED_REPOSITORY,
+            "--pull-request-number",
+            "7",
+            "--head",
+            &wrong_head,
+            "--ci-run-id",
+            SAVED_RUN_ID,
+        ],
+        &[&codex, &claude],
+    );
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+    assert!(stderr.contains("is not the commit checked out"), "{stderr}");
+}
+
+/// A saved file for a reviewer outside the roster, and a lens entry the change
+/// did not select, are named in the run notes instead of dropped without a word.
+#[test]
+fn entries_the_reduce_step_drops_are_named_in_the_run_notes() {
+    let (fakes, repo, _saved, codex, claude) = saved_pair("binding-extras");
+    let saved = TempDir::new("review-run-binding-extras");
+    let extra = saved.join("mallory.json").to_string_lossy().into_owned();
+    let mut run: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&codex).expect("reads")).expect("json");
+    run.as_object_mut()
+        .expect("object")
+        .insert("reviewer".to_string(), serde_json::json!("mallory"));
+    std::fs::write(&extra, run.to_string()).expect("writes");
+    let mut with_lens: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&claude).expect("reads")).expect("json");
+    let lenses = with_lens
+        .get_mut("lenses")
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("lenses");
+    let mut other = lenses.first().cloned().expect("a lens entry");
+    other
+        .as_object_mut()
+        .expect("object")
+        .insert("lens".to_string(), serde_json::json!("security"));
+    lenses.push(other);
+    std::fs::write(&claude, with_lens.to_string()).expect("writes");
+    let out = reduce_saved_files(
+        &fakes,
+        &repo,
+        "binding-extras-run",
+        &[&codex, &claude, &extra],
+    );
+    assert!(out.status.success(), "{}", stdout_of(&out));
+    let stdout = stdout_of(&out);
+    assert!(
+        stdout.contains(
+            "note: ignored the saved run for \"mallory\": that reviewer is not in the roster"
+        ),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("note: ignored the lens \"security\" in the saved run for \"claude\""),
+        "{stdout}"
+    );
 }

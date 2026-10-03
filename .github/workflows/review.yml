@@ -170,6 +170,10 @@ jobs:
           --base ${{ github.event.pull_request.base.sha }}
           --config-root /base
           --pull-request /out/pull-request.json
+          --repository ${{ github.repository }}
+          --pull-request-number ${{ github.event.pull_request.number }}
+          --head ${{ github.event.pull_request.head.sha }}
+          --ci-run-id ${{ github.run_id }}
           --out /out/codex.json
 
       - name: Keep this reviewer's saved answers
@@ -263,6 +267,10 @@ jobs:
           --base ${{ github.event.pull_request.base.sha }}
           --config-root /base
           --pull-request /out/pull-request.json
+          --repository ${{ github.repository }}
+          --pull-request-number ${{ github.event.pull_request.number }}
+          --head ${{ github.event.pull_request.head.sha }}
+          --ci-run-id ${{ github.run_id }}
           --out /out/claude.json
 
       - name: Keep this reviewer's saved answers
@@ -356,6 +364,10 @@ jobs:
           --base ${{ github.event.pull_request.base.sha }}
           --config-root /base
           --pull-request /out/pull-request.json
+          --repository ${{ github.repository }}
+          --pull-request-number ${{ github.event.pull_request.number }}
+          --head ${{ github.event.pull_request.head.sha }}
+          --ci-run-id ${{ github.run_id }}
           --out /out/opencode.json
 
       - name: Keep this reviewer's saved answers
@@ -471,6 +483,10 @@ jobs:
             /osf-bin/osf review reduce \
             --base ${{ github.event.pull_request.base.sha }} \
             --config-root /base \
+            --repository ${{ github.repository }} \
+            --pull-request-number ${{ github.event.pull_request.number }} \
+            --head ${{ github.event.pull_request.head.sha }} \
+            --ci-run-id ${{ github.run_id }} \
             --sarif-out /out/review.sarif \
             --post-to ${{ github.repository }}#${{ github.event.pull_request.number }} \
             "${files[@]}"

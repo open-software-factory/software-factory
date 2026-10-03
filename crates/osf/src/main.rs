@@ -7,6 +7,7 @@ use osf::{
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
+use std::fmt::Write as _;
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -420,10 +421,67 @@ enum ReviewAction {
     Reduce(ReviewReduceArgs),
 }
 
+/// What a saved reviewer run is bound to, so `review reduce` takes only the
+/// runs made for this pull request, these commits and this CI run.
+#[derive(Args)]
+struct ReviewBindingArgs {
+    /// The repository, as `owner/repo`. Falls back to the `GITHUB_REPOSITORY`
+    /// environment variable.
+    #[arg(long)]
+    repository: Option<String>,
+    /// The pull request's number.
+    #[arg(long = "pull-request-number")]
+    pull_request_number: Option<u64>,
+    /// The pull request's head commit. It must be the commit checked out.
+    #[arg(long)]
+    head: Option<String>,
+    /// The CI run's id. Falls back to the `GITHUB_RUN_ID` environment variable.
+    #[arg(long = "ci-run-id")]
+    ci_run_id: Option<String>,
+}
+
+impl ReviewBindingArgs {
+    /// The binding for the checkout at `root` reviewed against `base`.
+    /// `event_number` is the pull request number read from the event file,
+    /// which must agree with `--pull-request-number` when both are given.
+    fn binding(
+        &self,
+        root: &Path,
+        base: &str,
+        event_number: Option<u64>,
+    ) -> Result<review_run::Binding, String> {
+        if let (Some(flag), Some(event)) = (self.pull_request_number, event_number) {
+            if flag != event {
+                return Err(format!(
+                    "--pull-request-number {flag} differs from the pull request file's {event}"
+                ));
+            }
+        }
+        let repository = self
+            .repository
+            .clone()
+            .or_else(|| std::env::var("GITHUB_REPOSITORY").ok());
+        let run_id = self
+            .ci_run_id
+            .clone()
+            .or_else(|| std::env::var("GITHUB_RUN_ID").ok());
+        review_run::Binding::for_checkout(
+            root,
+            base,
+            repository.as_deref(),
+            self.pull_request_number.or(event_number),
+            self.head.as_deref(),
+            run_id.as_deref(),
+        )
+    }
+}
+
 #[derive(Args)]
 struct ReviewReduceArgs {
     /// The saved reviewer files.
     files: Vec<PathBuf>,
+    #[command(flatten)]
+    binding: ReviewBindingArgs,
     /// What to diff the change against. Falls back to the `OSF_BASE`
     /// environment variable when omitted.
     #[arg(long)]
@@ -500,6 +558,9 @@ struct ReviewRunArgs {
     /// A JSON file holding the pull request's `number`, `title` and `body`.
     #[arg(long = "pull-request")]
     pull_request: Option<PathBuf>,
+    /// What `--out` binds the saved run to. Needed with `--reviewer`.
+    #[command(flatten)]
+    binding: ReviewBindingArgs,
 }
 
 #[derive(Args)]
@@ -1846,6 +1907,20 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
         }
         None => None,
     };
+    let binding = if args.reviewer.is_some() {
+        match args
+            .binding
+            .binding(root, &base, pull_request.as_ref().map(|pr| pr.number))
+        {
+            Ok(binding) => Some(binding),
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                return 2;
+            }
+        }
+    } else {
+        None
+    };
     let req = review_run::Request {
         root,
         config_root: &config_root,
@@ -1853,6 +1928,7 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
         work_item: args.work_item.as_deref(),
         pull_request: pull_request.as_ref(),
         builder_family_overrides: &args.builder_family,
+        binding: binding.as_ref(),
     };
     if let (Some(name), Some(out)) = (&args.reviewer, &args.out) {
         return match review_run::run_reviewer(&req, name).and_then(|run| run.save(out)) {
@@ -1887,6 +1963,7 @@ fn review_slot_off(args: &ReviewRunArgs) -> u8 {
         let empty = review_run::ReviewerRun {
             reviewer: name.clone(),
             lenses: Vec::new(),
+            binding: None,
         };
         return match empty.save(out) {
             Ok(()) => 0,
@@ -1923,6 +2000,9 @@ fn finish_review(
 ) -> u8 {
     for line in &outcome.lines {
         println!("{line}");
+    }
+    for note in &outcome.notes {
+        println!("note: {note}");
     }
     if let Some(err) = &outcome.journal_error {
         eprintln!("osf review run: {err}");
@@ -1978,6 +2058,13 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
             return 2;
         }
     };
+    let binding = match args.binding.binding(root, &base, None) {
+        Ok(binding) => binding,
+        Err(e) => {
+            eprintln!("osf review reduce: {e}");
+            return 2;
+        }
+    };
     let req = review_run::Request {
         root,
         config_root: &config_root,
@@ -1985,6 +2072,7 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
         work_item: None,
         pull_request: None,
         builder_family_overrides: &args.builder_family,
+        binding: Some(&binding),
     };
     match review_run::reduce_saved(&req, &runs, &state_dir) {
         Ok(outcome) => finish_review(&outcome, args.sarif_out.as_deref(), args.post_to.as_deref()),
@@ -2072,7 +2160,11 @@ fn review_findings_for_post(findings: &[review_run::KeptFinding]) -> Vec<review:
 /// The review's summary body for a posted review: one line per lens, then
 /// the run's own verdict line, exactly as printed to standard output.
 fn review_run_summary(outcome: &review_run::RunOutcome) -> String {
-    format!("osf review run\n\n{}", outcome.lines.join("\n"))
+    let mut summary = format!("osf review run\n\n{}", outcome.lines.join("\n"));
+    for note in &outcome.notes {
+        let _ = write!(summary, "\nnote: {note}");
+    }
+    summary
 }
 
 /// `--post-to`'s whole job: build the findings and the summary from

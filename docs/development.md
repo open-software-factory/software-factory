@@ -181,6 +181,16 @@ file that fails a check is could-not-run for that reviewer. The reducer
 works out the round and the critical flag from the order of the attempts
 in the file.
 
+Each saved run records the repository, the pull request number, the base
+and head commits, and the CI run id. `osf review run --reviewer` and
+`osf review reduce` both take these from `--repository`,
+`--pull-request-number`, `--head` and `--ci-run-id`. The repository and
+the run id fall back to `GITHUB_REPOSITORY` and `GITHUB_RUN_ID`. The head
+must be the commit that is checked out. `osf review reduce` refuses a run
+whose record differs from the values it was given in any field, and a run
+with no record. The run notes name a saved file for a reviewer outside the
+roster, and a lens entry that the change did not select.
+
 Before `osf` saves an answer, and again in `osf review reduce`, it removes
 the exact value of every secret the job holds from every field. These are
 each reviewer's provider key and the code host's token. `osf` removes
