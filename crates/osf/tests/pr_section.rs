@@ -9,6 +9,9 @@ use std::process::Command;
 const FAKE_GH_SCRIPT: &str = r#"#!/usr/bin/env bash
 set -euo pipefail
 if [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  case "$*" in
+    *headRefOid*) echo "cafe1234cafe1234" ; exit 0 ;;
+  esac
   cat "$PR_SECTION_BODY_FILE"
   exit 0
 fi
@@ -110,7 +113,7 @@ fn writes_a_new_section_through_a_fake_gh() {
     assert_ok(&output);
     assert_eq!(
         fake.written_body(),
-        "Intro.\n\nTail.\n\n<!-- osf:outline:start -->\nThe outline.\n<!-- osf:outline:end -->\n"
+        "Intro.\n\nTail.\n\n<!-- osf:outline:start head=cafe1234cafe1234 -->\nThe outline.\n<!-- osf:outline:end -->\n"
     );
 }
 
@@ -133,12 +136,69 @@ fn replaces_an_existing_section_through_a_fake_gh() {
         "acme/example",
         "--name",
         "outline",
+        "--head",
+        "1234567",
         "--file",
         content.to_str().expect("a utf-8 path"),
     ]);
     assert_ok(&output);
     assert_eq!(
         fake.written_body(),
-        "Intro.\n\n<!-- osf:outline:start -->\nnew outline\n<!-- osf:outline:end -->\n\nTail.\n"
+        "Intro.\n\n<!-- osf:outline:start head=1234567 -->\nnew outline\n<!-- osf:outline:end -->\n\nTail.\n"
+    );
+}
+
+#[test]
+fn an_empty_head_falls_back_to_the_pull_requests_head() {
+    let fake = FakeGh::new("write-empty-head", "Intro.\n");
+    let content = fake.dir.join("content.md");
+    fs::write(&content, "The outline.\n").expect("writes the content file");
+
+    let output = fake.run_osf(&[
+        "pr",
+        "section",
+        "write",
+        "--pr",
+        "7",
+        "--name",
+        "outline",
+        "--head",
+        "",
+        "--file",
+        content.to_str().expect("a utf-8 path"),
+    ]);
+    assert_ok(&output);
+    assert_eq!(
+        fake.written_body(),
+        "Intro.\n\n<!-- osf:outline:start head=cafe1234cafe1234 -->\nThe outline.\n<!-- osf:outline:end -->\n"
+    );
+}
+
+#[test]
+fn replaces_an_old_style_pr_lens_block_without_leaving_a_duplicate() {
+    let fake = FakeGh::new(
+        "write-migrate",
+        "Intro.\n\n<!-- osf:pr-lens:start -->\nold diagram\n<!-- osf:pr-lens:end -->\n\nTail.\n",
+    );
+    let content = fake.dir.join("content.md");
+    fs::write(&content, "new diagram\n").expect("writes the content file");
+
+    let output = fake.run_osf(&[
+        "pr",
+        "section",
+        "write",
+        "--pr",
+        "11",
+        "--name",
+        "pr-lens",
+        "--head",
+        "abcdef0",
+        "--file",
+        content.to_str().expect("a utf-8 path"),
+    ]);
+    assert_ok(&output);
+    assert_eq!(
+        fake.written_body(),
+        "Intro.\n\n<!-- osf:pr-lens:start head=abcdef0 -->\nnew diagram\n<!-- osf:pr-lens:end -->\n\nTail.\n"
     );
 }
