@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "4e6407265596fdb89e3575d3401ddd67787c8500",
+    "contentHash": "715fbf1f351005c9223133df2b73e3b7"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fc6720319751473c6695c22ee642b6e3",
+      "bytes": 37320,
+      "width": 1878,
+      "height": 840,
+      "animated": false,
+      "path": "container-architecture-light-fc6720319751473c6695c22ee642b6e3.svg"
+    },
+    {
+      "id": "container-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6fe3de3b322f22c9e0e8e8f417be5ece",
+      "bytes": 37757,
+      "width": 1878,
+      "height": 840,
+      "animated": false,
+      "path": "container-architecture-dark-6fe3de3b322f22c9e0e8e8f417be5ece.svg"
+    },
+    {
+      "id": "agent-hook-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dc797dbb94a43e49a4f07cb8f6048a91",
+      "bytes": 15889,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "agent-hook-wiring-light-dc797dbb94a43e49a4f07cb8f6048a91.svg"
+    },
+    {
+      "id": "agent-hook-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cdab788a433c1b14547f0324b6fda6fd",
+      "bytes": 16066,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "agent-hook-wiring-dark-cdab788a433c1b14547f0324b6fda6fd.svg"
+    },
+    {
+      "id": "git-enforcement-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "git-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f82ff3177aea7971a0867f26d10d64ed",
+      "bytes": 11117,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "git-enforcement-light-f82ff3177aea7971a0867f26d10d64ed.svg"
+    },
+    {
+      "id": "git-enforcement-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "git-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9d1d30a4d11c86aa12a1cb2748bd61ca",
+      "bytes": 11243,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "git-enforcement-dark-9d1d30a4d11c86aa12a1cb2748bd61ca.svg"
+    },
+    {
+      "id": "agent-stop-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "agent-stop-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "643cadc9c01ac3a2bb3293a295191474",
+      "bytes": 10661,
+      "width": 1008,
+      "height": 353,
+      "animated": true,
+      "path": "agent-stop-flow-light-643cadc9c01ac3a2bb3293a295191474.svg"
+    },
+    {
+      "id": "agent-stop-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "agent-stop-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "04f53269c4398fb059227cece155342d",
+      "bytes": 10750,
+      "width": 1008,
+      "height": 353,
+      "animated": true,
+      "path": "agent-stop-flow-dark-04f53269c4398fb059227cece155342d.svg"
+    }
+  ]
+}
