@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "1e599b668c79476d3ede355804d24ae47fdc2748",
+    "contentHash": "98af8b40bb506a68d99ceeb5dcb43949"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6cf0b4f45f4ee58c5c9f36ebcb580307",
+      "bytes": 40232,
+      "width": 1939,
+      "height": 850,
+      "animated": false,
+      "path": "container-architecture-light-6cf0b4f45f4ee58c5c9f36ebcb580307.svg"
+    },
+    {
+      "id": "container-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "78cd91cd8ce86d9dcf348acec7baca16",
+      "bytes": 40711,
+      "width": 1939,
+      "height": 850,
+      "animated": false,
+      "path": "container-architecture-dark-78cd91cd8ce86d9dcf348acec7baca16.svg"
+    },
+    {
+      "id": "agent-hook-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6ea470df306d961a8e31a9f4909b443b",
+      "bytes": 19282,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "agent-hook-wiring-light-6ea470df306d961a8e31a9f4909b443b.svg"
+    },
+    {
+      "id": "agent-hook-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bc866a4d9bd9a438f8e82b2034461ca3",
+      "bytes": 19529,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "agent-hook-wiring-dark-bc866a4d9bd9a438f8e82b2034461ca3.svg"
+    },
+    {
+      "id": "dsh-hook-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dsh-hook-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ea5a988d59d9e9544248f0b675335bf4",
+      "bytes": 7290,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "dsh-hook-detail-light-ea5a988d59d9e9544248f0b675335bf4.svg"
+    },
+    {
+      "id": "dsh-hook-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dsh-hook-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "81ed81a32e3b1f558fd0cc2333a2bb2e",
+      "bytes": 7358,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "dsh-hook-detail-dark-81ed81a32e3b1f558fd0cc2333a2bb2e.svg"
+    },
+    {
+      "id": "git-hook-enforcement-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "git-hook-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9a6f271bd12bbdb4aa0384e1d5174b42",
+      "bytes": 11719,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "git-hook-enforcement-light-9a6f271bd12bbdb4aa0384e1d5174b42.svg"
+    },
+    {
+      "id": "git-hook-enforcement-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "git-hook-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "00c5ea81cd2e330a207e5e0cad405f90",
+      "bytes": 11844,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "git-hook-enforcement-dark-00c5ea81cd2e330a207e5e0cad405f90.svg"
+    },
+    {
+      "id": "agent-prompt-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "agent-prompt-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "33487cd80898f42a5f5241b3a70a80df",
+      "bytes": 11355,
+      "width": 1352,
+      "height": 353,
+      "animated": true,
+      "path": "agent-prompt-flow-light-33487cd80898f42a5f5241b3a70a80df.svg"
+    },
+    {
+      "id": "agent-prompt-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "agent-prompt-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4148e33c474bbb25e4cda5c08b6cd53d",
+      "bytes": 11457,
+      "width": 1352,
+      "height": 353,
+      "animated": true,
+      "path": "agent-prompt-flow-dark-4148e33c474bbb25e4cda5c08b6cd53d.svg"
+    },
+    {
+      "id": "git-commit-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "git-commit-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7d7bddac88b71f86f2ea2313d1a416dd",
+      "bytes": 12314,
+      "width": 1352,
+      "height": 391,
+      "animated": true,
+      "path": "git-commit-flow-light-7d7bddac88b71f86f2ea2313d1a416dd.svg"
+    },
+    {
+      "id": "git-commit-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "git-commit-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "860e7bcc87268f28de86c129ae9874d2",
+      "bytes": 12428,
+      "width": 1352,
+      "height": 391,
+      "animated": true,
+      "path": "git-commit-flow-dark-860e7bcc87268f28de86c129ae9874d2.svg"
+    }
+  ]
+}
