@@ -7,6 +7,7 @@
 
 pub(super) mod meta;
 pub(super) mod names;
+pub(super) mod reference;
 pub(super) mod rules;
 
 use super::{Context, Finding, KnownNames};
@@ -37,6 +38,7 @@ pub fn lint_writing(
     }
     rules::per_sentence(&doc, cfg, fast_only, &mut findings);
     rules::undefined_names(&doc, known, cfg, &mut findings);
+    rules::unplaceable_reference(&doc, known, cfg, context, &mut findings);
     rules::recap_ending(&doc, cfg, &mut findings);
     apply_context(&mut findings, context);
     let mut findings = if no_suppress {
@@ -55,7 +57,13 @@ pub fn lint_writing(
 fn apply_context(findings: &mut [Finding], context: Context) {
     for f in findings.iter_mut() {
         if let Some(meta) = meta::rule_meta(f.rule) {
-            let (level, remediation) = meta.resolve(context);
+            // The older rules keep their own resolution until they are retired.
+            let evidence = if f.rule == "unplaceable-reference" {
+                f.evidence
+            } else {
+                osf_lint_core::Evidence::Deterministic
+            };
+            let (level, remediation) = meta.resolve(context, evidence);
             f.level = level;
             f.remediation = remediation;
         }
@@ -78,6 +86,21 @@ mod tests {
     use crate::lints::{
         is_fixture_path, is_scan_rule, load_known_names, Evidence, Level, Remediation,
     };
+
+    /// The older rules' tests ignore the new rule, which runs beside them until they are retired.
+    fn lint_writing(
+        text: &str,
+        known: &KnownNames,
+        cfg: &WritingConfig,
+        context: Context,
+        fast_only: bool,
+        no_suppress: bool,
+    ) -> Vec<Finding> {
+        super::lint_writing(text, known, cfg, context, fast_only, no_suppress)
+            .into_iter()
+            .filter(|f| f.rule != "unplaceable-reference")
+            .collect()
+    }
 
     fn lint(text: &str) -> Vec<Finding> {
         lint_writing(
@@ -1035,5 +1058,61 @@ mod tests {
         };
         let t = "Use Fastfix for this. Fastfix means a build helper for fixtures.";
         assert!(lint_with(&cfg, t).is_empty());
+    }
+
+    fn unplaceable_in(context: Context, text: &str) -> Vec<Finding> {
+        let known = load_known_names(&[], None).expect("built-in names load");
+        super::lint_writing(
+            text,
+            &known,
+            &WritingConfig::default(),
+            context,
+            false,
+            false,
+        )
+        .into_iter()
+        .filter(|f| f.rule == "unplaceable-reference")
+        .collect()
+    }
+
+    /// The new rule resolves like any comprehension rule: an error everywhere,
+    /// asking for a rewrite outside a transcript.
+    #[test]
+    fn unplaceable_reference_resolves_per_context() {
+        let cases = [
+            (Context::Transcript, Level::Error, Remediation::Clarify),
+            (Context::Commit, Level::Error, Remediation::Rewrite),
+            (Context::Document, Level::Error, Remediation::Rewrite),
+            (Context::Skill, Level::Error, Remediation::Rewrite),
+        ];
+        for (context, level, remediation) in cases {
+            let found = unplaceable_in(context, "Fixed in #125 today.");
+            let hit = found
+                .iter()
+                .find(|f| f.excerpt == "#125")
+                .unwrap_or_else(|| panic!("no finding in {context:?}: {found:?}"));
+            assert_eq!(hit.level, level, "{context:?}");
+            assert_eq!(hit.remediation, remediation, "{context:?}");
+        }
+    }
+
+    /// A name reported on weak evidence is a guess, so it only advises, in every context.
+    #[test]
+    fn a_weak_evidence_name_only_advises_in_every_context() {
+        for context in [
+            Context::Transcript,
+            Context::Commit,
+            Context::Document,
+            Context::Skill,
+        ] {
+            let found = unplaceable_in(context, "DuckDB runs fast.");
+            let hit = found
+                .iter()
+                .find(|f| f.excerpt == "DuckDB")
+                .unwrap_or_else(|| panic!("no finding in {context:?}: {found:?}"));
+            assert_eq!(hit.level, Level::Warning, "{context:?}");
+            assert_eq!(hit.remediation, Remediation::Advise, "{context:?}");
+            assert_eq!(hit.evidence, Evidence::Statistical, "{context:?}");
+        }
     }
 }

@@ -81,9 +81,10 @@ fn pre_commit_lints_the_message_file_when_one_is_given() {
         excluder: &excluder,
     };
     let report = run(Stage::PreCommit, &options).expect("pre-commit runs");
+    // The old chat-local rule and the new rule both fire until the old one is retired.
     assert_eq!(
         report.total_errors(),
-        1,
+        2,
         "{}",
         report.render_summary("pre-commit")
     );
@@ -187,7 +188,7 @@ fn pre_push_honours_a_suppression_marker_that_ci_ignores() {
     let base = repo.commit("base commit");
     repo.write(
         "notes.md",
-        "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n",
+        "Fixed in #125 now. <!-- osf-disable-line bare-reference, unplaceable-reference -- tracked -->\n",
     );
     repo.commit("add a suppressed finding");
 

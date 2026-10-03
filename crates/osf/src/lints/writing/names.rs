@@ -76,6 +76,13 @@ pub fn is_name_head(word: &str) -> bool {
     BUILT_IN.contains(&word) && !GENERIC_WORDS.contains(&word)
 }
 
+/// Whether `word` is one of `GENERIC_WORDS`, so a caller can treat any other
+/// known name, built in or added by a project, as a real name.
+#[must_use]
+pub fn is_generic_word(word: &str) -> bool {
+    GENERIC_WORDS.contains(&word)
+}
+
 pub const BUILT_IN: &[&str] = &[
     // words that start sentences or stand alone in prose
     "I",
@@ -190,8 +197,18 @@ pub const BUILT_IN: &[&str] = &[
     "Studio",
     "Code",
     "VS",
+    // frameworks, design systems and standards a version number follows
+    "React",
+    "Vite",
+    "Tauri",
+    "Material",
+    "Fluent",
+    "RFC",
     // coding agents and vendors
     "Claude",
+    "Sonnet",
+    "Opus",
+    "Haiku",
     "Anthropic",
     "Codex",
     "OpenAI",

@@ -823,4 +823,19 @@ mod tests {
             "the counter is cleared once the turn is let through"
         );
     }
+
+    /// A weak-evidence name is a guess, not a fact, so it must never refuse
+    /// a reply on its own.
+    #[test]
+    fn a_reply_with_only_a_weak_evidence_name_finding_is_not_refused() {
+        let session = "test-session-weak-evidence-name-only";
+        let _ = std::fs::remove_file(counter_path(session, ""));
+        let raw = serde_json::json!({
+            "session_id": session,
+            "last_assistant_message": "DuckDB runs fast."
+        })
+        .to_string();
+        let code = stop_with_input(Ok(raw), None, 2, &WritingConfig::default(), None);
+        assert!(!is_refusal(code));
+    }
 }

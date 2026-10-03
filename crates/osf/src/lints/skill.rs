@@ -247,7 +247,13 @@ fn resolve_and_explain(findings: &mut [SkillFinding]) {
         let Some(meta) = rule_meta(sf.finding.rule) else {
             continue;
         };
-        let (level, remediation) = resolve(meta.class, meta.group, Context::Skill, meta.exception);
+        let (level, remediation) = resolve(
+            meta.class,
+            meta.group,
+            Context::Skill,
+            meta.exception,
+            sf.finding.evidence,
+        );
         sf.finding.level = level;
         sf.finding.remediation = remediation;
         sf.finding.message = format!(

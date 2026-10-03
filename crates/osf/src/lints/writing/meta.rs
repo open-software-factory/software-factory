@@ -8,7 +8,7 @@
 //! says plainly that the limit comes from a secondary summary and is
 //! unverified.
 
-use osf_lint_core::{Class, Context, Exception, Group, Level, Remediation};
+use osf_lint_core::{Class, Context, Evidence, Exception, Group, Level, Remediation};
 
 pub struct RuleMeta {
     pub id: &'static str,
@@ -22,11 +22,12 @@ pub struct RuleMeta {
 
 impl RuleMeta {
     /// The level and remediation for this rule in `context`, from the
-    /// class-and-group matrix, the [`Exception`] above, and nothing else;
-    /// a caller's own config may still override the level afterwards.
+    /// class-and-group matrix, the [`Exception`] above, `evidence`, and
+    /// nothing else; a caller's own config may still override the level
+    /// afterwards.
     #[must_use]
-    pub fn resolve(&self, context: Context) -> (Level, Remediation) {
-        osf_lint_core::resolve(self.class, self.group, context, self.exception)
+    pub fn resolve(&self, context: Context, evidence: Evidence) -> (Level, Remediation) {
+        osf_lint_core::resolve(self.class, self.group, context, self.exception, evidence)
     }
 }
 
@@ -69,9 +70,9 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: Fixed in #125 today.\n\
+         Bad: Fixed in #125 now.\n\
          Good: Fixed in [open-software-factory/software-factory#125 (the login \
-         crash)](https://example.com/125) today."
+         crash)](https://example.com/125) now."
     ),
     rule_meta!(
         "reference-without-label",
@@ -89,9 +90,9 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: The fix landed in open-software-factory/software-factory#125 today.\n\
+         Bad: The fix landed in open-software-factory/software-factory#125 now.\n\
          Good: The fix landed in [open-software-factory/software-factory#125 \
-         (the login crash)](https://example.com/125) today."
+         (the login crash)](https://example.com/125) now."
     ),
     rule_meta!(
         "reference-without-link",
@@ -189,6 +190,59 @@ pub const RULE_META: &[RuleMeta] = &[
          Good: DuckDB, an embedded database, runs fast."
     ),
     rule_meta!(
+        "unplaceable-reference",
+        House,
+        Comprehension,
+        "house",
+        "### What it does\n\
+         Flags a number, a phrase, a time, or a name that a reader elsewhere \
+         in the paragraph could not resolve. A number is placed by a \
+         bracketed description, a link, or the repository named in the same \
+         sentence. A file path or a list item can place it too, for a \
+         file's own number or a bracketed letter. A file name places a \
+         numbered label when it sits right next to the label, before or \
+         after it. Examples are `Layer 1 in components.md` and \
+         `components.md layer 1`. A measure is never a reference. \
+         It is a number with a unit or a percent sign. It can also be a \
+         dotted version such as `1.2`, a version after a product name, or \
+         a coordinate. A number after a word such as `about` or `size` \
+         counts too. A digit right before a noun phrase counts it, as in \
+         `holds 3 items`, `holds 1 item` or `runs 12 slow tests`. It is \
+         never a label. A label noun or a capitalised word right before \
+         the digit names one thing, as in `Layer 2 holds the cache` or \
+         `Build 12 succeeds`. A version number with no product name before \
+         it is placed by a date, a release tag such as `v7`, or a link. A \
+         capitalised product name before `version` places it. A time is \
+         placed by an absolute date in the same sentence. A relative day \
+         word such as `today` or `last week` is a time. The words `now` \
+         and `currently` are not covered here, since a separate time-word \
+         rule is coming. A name is placed by the known-names list or a \
+         sentence that says what it is. A lowercase developer tool name \
+         such as `bazel` is a name too, unless it is also an ordinary \
+         English word. The name `moon` is an ambiguous one. It counts only \
+         in backticks or right next to the words task runner. A tool name \
+         is placed by a description before it, such as the words build \
+         tool, or by a description after it. It is reported at its first \
+         use in a document, unless a sentence says what it is. A quoted \
+         term is also placed by an example marker, such as \"such as\" or \
+         \"for example\". A phrase such as `as discussed` is never placed. \
+         Using one is always a finding.\n\
+         ### Why it is bad\n\
+         A reader who was not in the room, or who reads the text later, \
+         cannot resolve the reference on their own. The document must carry \
+         enough to stand on its own.\n\
+         ### Class\n\
+         house: our own taste, no external standard requires this shape.\n\
+         ### Citation\n\
+         house\n\
+         ### Example\n\
+         Bad: Ship Milestone 3 next.\n\
+         Good: Ship [Milestone 3](https://example.com/milestones/3) next.\n\
+         ### Coverage\n\
+         Runs in every context this lint knows: a transcript, a commit, a \
+         document, and a skill. It reads English text only."
+    ),
+    rule_meta!(
         "long-sentence",
         House,
         Style,
@@ -242,8 +296,8 @@ pub const RULE_META: &[RuleMeta] = &[
         "### What it does\n\
          Flags an arrow character or `->` or `=>` in prose text.\n\
          ### Why it is bad\n\
-         The reader must guess whether the arrow means \"becomes\", \"leads \
-         to\", \"maps to\", or something else. A plain verb says which one.\n\
+         The reader must guess whether the arrow means becomes, leads to, \
+         maps to, or something else. A plain verb says which one.\n\
          ### Class\n\
          house: our own taste, no external standard requires this shape.\n\
          ### Citation\n\
@@ -307,7 +361,7 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: It ran 12 axes over 3 rounds in 41 minutes.\n\
-         Good: It ran 12 axes. See the table for the round count and the time."
+         Good: It ran a full sweep of axes. See the table for the round count and the time."
     ),
     rule_meta!(
         "bold-sentence",
@@ -344,8 +398,8 @@ pub const RULE_META: &[RuleMeta] = &[
          house\n\
          ### Example\n\
          Bad: The fix (which took three days because the failure only showed \
-         up under load) shipped today.\n\
-         Good: The fix shipped today. It took three days, because the \
+         up under load) shipped now.\n\
+         Good: The fix shipped now. It took three days, because the \
          failure only showed up under load."
     ),
     rule_meta!(
@@ -668,8 +722,8 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: The fix was small. The risk was low. It shipped today.\n\
-         Good: The fix was small, the risk was low, and it shipped today.\n\
+         Bad: The fix was small. The risk was low. It shipped now.\n\
+         Good: The fix was small, the risk was low, and it shipped now.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."
@@ -690,9 +744,9 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Citation\n\
          house\n\
          ### Example\n\
-         Bad: The fix shipped today, highlighting the value of a second \
+         Bad: The fix shipped now, highlighting the value of a second \
          reviewer.\n\
-         Good: The fix shipped today. A second reviewer caught the bug.\n\
+         Good: The fix shipped now. A second reviewer caught the bug.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
          document, and a skill. It reads English text only."

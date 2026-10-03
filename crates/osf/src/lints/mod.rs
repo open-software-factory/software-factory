@@ -17,6 +17,7 @@ pub use osf_lint_core::{
     Finding, KnownNames, Level, Mismatch, Remediation,
 };
 pub use skill::SKILL_RULE_META;
+pub use writing::reference::{candidates, Candidate, Kind};
 use writing::{meta, names};
 
 /// A rule's doc text and metadata, whether it is a writing rule or a skill rule.

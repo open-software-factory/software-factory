@@ -4,9 +4,10 @@
 //! limit or word list takes the resolved [`WritingConfig`] as well; a rule
 //! that does not still takes it, unused, so every entry has one shape.
 
+use super::reference::{self, Candidate, Kind};
 use crate::config::WritingConfig;
-use osf_lint_core::segment::{reduce_inline, Doc, TextUnit};
-use osf_lint_core::{run_rules, Finding, FnRule, KnownNames, Level, Rule};
+use osf_lint_core::segment::{self, reduce_inline, Doc, TextUnit};
+use osf_lint_core::{run_rules, Context, Finding, FnRule, KnownNames, Level, Rule};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -69,6 +70,7 @@ pub fn rule_ids() -> Vec<&'static str> {
             "heading-in-short-text",
             "undefined-name",
             "undefined-name-at-start",
+            "unplaceable-reference",
             "recap-ending",
         ])
         .collect()
@@ -90,7 +92,7 @@ pub fn headings_in_short_text(doc: &Doc, cfg: &WritingConfig, out: &mut Vec<Find
     }));
 }
 
-fn re(cell: &'static OnceLock<Regex>, pattern: &'static str) -> &'static Regex {
+pub(super) fn re(cell: &'static OnceLock<Regex>, pattern: &'static str) -> &'static Regex {
     cell.get_or_init(|| Regex::new(pattern).expect("rule pattern compiles"))
 }
 
@@ -138,7 +140,7 @@ fn bare_reference(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
 /// Replaces every byte inside a range in `ranges` with an ASCII space, one
 /// space per byte of the original character, so the result stays the same
 /// length and every other byte offset in `text` still lines up.
-fn mask_ranges(text: &str, ranges: &[Range<usize>]) -> String {
+pub(super) fn mask_ranges(text: &str, ranges: &[Range<usize>]) -> String {
     let mut out = String::with_capacity(text.len());
     for (i, ch) in text.char_indices() {
         if ranges.iter().any(|r| r.contains(&i)) {
@@ -209,7 +211,7 @@ fn reference_without_label(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
 /// not the same thing as "nothing configured, so this never matches."
 /// A caller escapes its own words first; a literal alternative is not safe
 /// to pass here unescaped.
-fn word_boundary_alternation(alternatives: &[String]) -> Option<Regex> {
+pub(super) fn word_boundary_alternation(alternatives: &[String]) -> Option<Regex> {
     if alternatives.is_empty() {
         return None;
     }
@@ -631,13 +633,613 @@ pub fn undefined_names(doc: &Doc, known: &KnownNames, cfg: &WritingConfig, out: 
     }));
 }
 
+/// Whether `name` is on the known-names list itself, word by word, or by a
+/// known head word carrying an otherwise-unknown run, such as `GitHub`
+/// heading `GitHub Apps`. A generic word such as `The` never carries a run
+/// this way, since `is_name_head` excludes it.
+pub(super) fn is_known_name_run(known: &KnownNames, name: &str) -> bool {
+    known.contains(name)
+        || name.split(' ').all(|w| known.contains(w))
+        || name
+            .split(' ')
+            .next()
+            .is_some_and(|first| known.contains(first) && super::names::is_name_head(first))
+}
+
+fn definer_pattern() -> &'static Regex {
+    static DEFINER: OnceLock<Regex> = OnceLock::new();
+    re(
+        &DEFINER,
+        r"(?i)\b(?:is|are|was|were)\s+(?:a|an|the|one|my|our|your|its)\b|\bmeans\b|\bstands for\b|, (?:a|an|the|one|its) |: |\(",
+    )
+}
+
+/// Whether a definer follows `name`'s first word in `reduced[i]` or `reduced[i + 1]`.
+pub(super) fn is_described(reduced: &[String], i: usize, name: &str) -> bool {
+    let definer = definer_pattern();
+    let anchor = name.split(' ').next().unwrap_or(name);
+    let after_name = reduced
+        .get(i)
+        .and_then(|here| here.split_once(anchor).map(|(_, rest)| rest))
+        .unwrap_or("");
+    let next_after_name = reduced
+        .get(i + 1)
+        .and_then(|next| next.split_once(anchor).map(|(_, rest)| rest));
+    definer.is_match(after_name) || next_after_name.is_some_and(|rest| definer.is_match(rest))
+}
+
+/// Every candidate the paragraph's own text does not place, one finding per
+/// candidate, with a message that tells the writer what to add.
+pub fn unplaceable_reference(
+    doc: &Doc,
+    known: &KnownNames,
+    cfg: &WritingConfig,
+    context: Context,
+    out: &mut Vec<Finding>,
+) {
+    let doc_run_counts = reference::document_run_counts(&doc.sentences);
+    let per_paragraph: Vec<Vec<Candidate>> = doc
+        .paragraphs
+        .iter()
+        .map(|p| {
+            first_use_per_name(reference::candidates(
+                p,
+                cfg,
+                known,
+                context,
+                &doc_run_counts,
+            ))
+        })
+        .collect();
+    let name_winners = name_report_winners(doc, &per_paragraph);
+
+    let paragraph_candidates = doc.paragraphs.iter().zip(per_paragraph.iter());
+    for (i, (paragraph, own_candidates)) in paragraph_candidates.enumerate() {
+        let candidates: Vec<&Candidate> = own_candidates
+            .iter()
+            .filter(|c| c.kind != Kind::Name || name_winners.get(&c.text) == Some(&i))
+            .collect();
+        if candidates.is_empty() {
+            continue;
+        }
+        let list_items = following_list_items(&doc.paragraphs, i);
+        let local = segment::parse(&paragraph.text);
+        let reduced: Vec<String> = local
+            .sentences
+            .iter()
+            .map(|s| reduce_inline(&s.text))
+            .collect();
+        out.extend(candidates.iter().filter_map(|candidate| {
+            let placed = is_placed(
+                paragraph,
+                candidate,
+                &list_items,
+                &local.sentences,
+                &reduced,
+                known,
+                &candidates,
+            );
+            (!placed).then(|| unplaced_finding(paragraph, candidate, cfg))
+        }));
+    }
+}
+
+/// Keeps every number, phrase and time candidate, but only the first
+/// occurrence of a repeated name: a later mention of an already-placed or
+/// already-reported name needs no second judgment of its own.
+fn first_use_per_name(mut candidates: Vec<Candidate>) -> Vec<Candidate> {
+    candidates.sort_by_key(|c| c.range.start);
+    let mut seen: HashSet<String> = HashSet::new();
+    candidates.retain(|c| c.kind != Kind::Name || seen.insert(c.text.clone()));
+    candidates
+}
+
+/// Picks one paragraph to report each repeated name from: prose over a table, else the table's first.
+fn name_report_winners(doc: &Doc, per_paragraph: &[Vec<Candidate>]) -> HashMap<String, usize> {
+    let mut winners = HashMap::new();
+    for wants_table in [false, true] {
+        let paragraph_candidates = doc.paragraphs.iter().zip(per_paragraph.iter());
+        for (i, (paragraph, candidates)) in paragraph_candidates.enumerate() {
+            if paragraph.in_table != wants_table {
+                continue;
+            }
+            for c in candidates.iter().filter(|c| c.kind == Kind::Name) {
+                winners.entry(c.text.clone()).or_insert(i);
+            }
+        }
+    }
+    winners
+}
+
+/// The list items right after `paragraphs[from]`, the shape a Markdown list
+/// under an introducing paragraph takes once split into blocks.
+fn following_list_items(paragraphs: &[TextUnit], from: usize) -> Vec<&TextUnit> {
+    paragraphs
+        .iter()
+        .skip(from + 1)
+        .take_while(|p| p.in_list_item)
+        .collect()
+}
+
+fn is_placed(
+    paragraph: &TextUnit,
+    candidate: &Candidate,
+    list_items: &[&TextUnit],
+    local_sentences: &[TextUnit],
+    reduced: &[String],
+    known: &KnownNames,
+    all_candidates: &[&Candidate],
+) -> bool {
+    match candidate.kind {
+        Kind::Number => number_is_placed(
+            &paragraph.text,
+            candidate,
+            list_items,
+            local_sentences,
+            all_candidates,
+        ),
+        Kind::Phrase => false,
+        Kind::Time => containing_sentence(local_sentences, candidate.range.start)
+            .is_some_and(|s| has_absolute_date(&s.text)),
+        Kind::Name if reference::is_tool_term(&candidate.text) => {
+            tool_is_placed(&paragraph.text, candidate, local_sentences)
+        }
+        Kind::Name => name_is_placed(candidate, local_sentences, reduced, known),
+    }
+}
+
+/// A developer tool name is placed by a link around it, a description right before it, as in `the build tool moon`,
+/// or a definer after it in its own sentence, or in the next sentence when that one names the tool again.
+fn tool_is_placed(text: &str, candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
+    static KIND_BEFORE: OnceLock<Regex> = OnceLock::new();
+    if is_linked(text, candidate) {
+        return true;
+    }
+    let kind_before = re(
+        &KIND_BEFORE,
+        r"(?i)\b(?:tool|runner|manager|linter|formatter|compiler|bundler|builder|framework|generator|engine|cli|utility|app|service|platform|library|package|plugin|extension)\s+(?:called\s+|named\s+)?`?$",
+    );
+    if text
+        .get(..candidate.range.start)
+        .is_some_and(|before| kind_before.is_match(before))
+    {
+        return true;
+    }
+    let Some(i) = local_sentences
+        .iter()
+        .position(|s| s.span.contains(&candidate.range.start))
+    else {
+        return false;
+    };
+    let definer = definer_pattern();
+    let own_rest = local_sentences
+        .get(i)
+        .and_then(|s| {
+            s.text
+                .get(candidate.range.end.saturating_sub(s.span.start)..)
+        })
+        .unwrap_or("");
+    let next_rest = local_sentences.get(i + 1).and_then(|s| {
+        s.text
+            .split_once(candidate.text.as_str())
+            .map(|(_, rest)| rest)
+    });
+    definer.is_match(own_rest) || next_rest.is_some_and(|rest| definer.is_match(rest))
+}
+
+fn containing_sentence(sentences: &[TextUnit], offset: usize) -> Option<&TextUnit> {
+    sentences.iter().find(|s| s.span.contains(&offset))
+}
+
+/// A number candidate is placed by a link around it, a bracketed
+/// description on a repository-qualified one, the repository named in the
+/// same sentence, a file path naming it, a bracketed letter with a list
+/// item that starts with it, or a bracket, colon or comma description
+/// right after it.
+fn number_is_placed(
+    text: &str,
+    candidate: &Candidate,
+    list_items: &[&TextUnit],
+    local_sentences: &[TextUnit],
+    all_candidates: &[&Candidate],
+) -> bool {
+    if is_linked(text, candidate) {
+        return true;
+    }
+    if candidate.text.contains('#') {
+        return !candidate.text.starts_with('#') && has_bracket_description(text, candidate);
+    }
+    if let Some(letter) = bracket_letter(&candidate.text) {
+        let wanted = format!("({})", letter.to_lowercase());
+        return list_items
+            .iter()
+            .any(|item| item.text.trim().to_lowercase().starts_with(&wanted));
+    }
+    repo_named_in_same_sentence(candidate, local_sentences)
+        || file_names_it(candidate, local_sentences)
+        || file_path_names_it(text, candidate)
+        || has_qualifying_description(candidate, local_sentences, all_candidates)
+        || version_is_placed(candidate, local_sentences)
+}
+
+/// A version number, after the word `version`, is placed by a date or a release tag in its own
+/// sentence, or by the product named right after it, as in `version 7 of Chrome`.
+fn version_is_placed(candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
+    static TAG: OnceLock<Regex> = OnceLock::new();
+    static OF_PRODUCT: OnceLock<Regex> = OnceLock::new();
+    if !candidate.text.to_lowercase().starts_with("version") {
+        return false;
+    }
+    let Some(sentence) = containing_sentence(local_sentences, candidate.range.start) else {
+        return false;
+    };
+    let tag = re(&TAG, r"\bv\d+(?:\.\d+)*\b|\b\d+\.\d+\.\d+\b");
+    let of_product = re(&OF_PRODUCT, r"^\s+of\s+(?:`[^`]+`|[A-Z]\w*)");
+    let after = sentence
+        .text
+        .get(candidate.range.end.saturating_sub(sentence.span.start)..)
+        .unwrap_or("");
+    let month_year = re(&MONTH_YEAR, MONTH_YEAR_PATTERN);
+    has_absolute_date(&sentence.text)
+        || month_year.is_match(&sentence.text)
+        || tag.is_match(&sentence.text)
+        || of_product.is_match(after)
+}
+
+/// A month and a four-digit year, such as `March 2026`: dated enough to place a release.
+const MONTH_YEAR_PATTERN: &str = r"(?i)\b(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b";
+static MONTH_YEAR: OnceLock<Regex> = OnceLock::new();
+
+/// A bracket description, a colon-introduced clause, or a comma then an
+/// article, right after a word-and-number candidate, bounded to its own
+/// clause so a second reference later in the sentence cannot poison it.
+fn has_qualifying_description(
+    candidate: &Candidate,
+    local_sentences: &[TextUnit],
+    all_candidates: &[&Candidate],
+) -> bool {
+    let Some(sentence) = containing_sentence(local_sentences, candidate.range.start) else {
+        return false;
+    };
+    let local_end = candidate.range.end.saturating_sub(sentence.span.start);
+    let bound = all_candidates
+        .iter()
+        .filter(|c| {
+            c.kind == Kind::Number
+                && c.range.start >= candidate.range.end
+                && c.range.start < sentence.span.end
+        })
+        .map(|c| c.range.start - sentence.span.start)
+        .min()
+        .unwrap_or(sentence.text.len());
+    let rest = sentence
+        .text
+        .get(local_end..bound.max(local_end))
+        .unwrap_or("")
+        .trim_start();
+
+    if let Some(inner) = rest.strip_prefix('(') {
+        return inner
+            .split_once(')')
+            .is_some_and(|(d, _)| description_is_real(d));
+    }
+    if let Some(after_colon) = rest.strip_prefix(':') {
+        return description_is_real(clause(after_colon.trim_start()));
+    }
+    if let Some(after_comma) = rest.strip_prefix(',') {
+        return is_an_appositive(after_comma.trim_start());
+    }
+    false
+}
+
+/// Verbs that make a phrase a clause, so a comma and an article before one start a main clause.
+const CLAUSE_VERBS: &[&str] = &[
+    "is", "are", "was", "were", "be", "been", "am", "has", "have", "had", "do", "does", "did",
+    "will", "would", "can", "could", "shall", "should", "must", "may", "might",
+];
+
+/// Whether a word inside `words`, neither first nor last, reads as a verb form ending in `s` or `ed`.
+fn has_an_inner_verb(words: &[&str]) -> bool {
+    let inner = words.len().saturating_sub(2);
+    words.iter().skip(1).take(inner).any(|w| {
+        let w = w.to_lowercase();
+        (w.ends_with('s') && !w.ends_with("ss") && !w.ends_with("us") && !w.ends_with("is"))
+            || (w.len() >= 5 && w.ends_with("ed"))
+    })
+}
+
+/// A noun phrase after a comma and an article that describes the label before the comma, as in
+/// `Layer 1, the surface primitives`. It holds no verb, so `In Layer 2, the cache is private` and
+/// `In Layer 2, the cache holds state` are main clauses and no description.
+fn is_an_appositive(after_comma: &str) -> bool {
+    let Some(phrase) = ["the ", "a ", "an "]
+        .iter()
+        .find_map(|article| after_comma.strip_prefix(article))
+    else {
+        return false;
+    };
+    let clause_text = clause(phrase);
+    let words: Vec<&str> = clause_text.split_whitespace().collect();
+    let has_a_verb = words
+        .iter()
+        .any(|w| CLAUSE_VERBS.contains(&w.to_lowercase().as_str()))
+        || has_an_inner_verb(&words);
+    description_is_real(clause_text) && !has_a_verb
+}
+
+/// The text up to, but not including, the next comma, semicolon, full stop
+/// or closing bracket: a colon description can itself sit inside a bracket
+/// opened earlier in the sentence, such as `(Phase 1: the specification stage)`.
+fn clause(s: &str) -> &str {
+    let end = s.find([',', ';', '.', ')']).unwrap_or(s.len());
+    &s[..end]
+}
+
+/// Whether `d` is a real description: two or more plain words with no
+/// digit, once a trailing filler word such as "and" is dropped so it
+/// cannot pad a single real word up to the count on its own. A single
+/// word, whatever it is, never qualifies: a rule with no list of real
+/// words cannot tell "done" from "specification", so masking fails
+/// toward reporting rather than toward a guess.
+fn description_is_real(d: &str) -> bool {
+    let mut words: Vec<&str> = d.split_whitespace().collect();
+    while words
+        .last()
+        .is_some_and(|w| reference::NON_LABEL_WORDS.contains(&w.to_lowercase().as_str()))
+    {
+        words.pop();
+    }
+    words.len() >= 2 && !words.iter().any(|w| w.chars().any(|c| c.is_ascii_digit()))
+}
+
+fn is_linked(text: &str, candidate: &Candidate) -> bool {
+    static LINK: OnceLock<Regex> = OnceLock::new();
+    static CODE: OnceLock<Regex> = OnceLock::new();
+    let link_pattern = re(&LINK, r"\[([^\]]*)\]\([^)]*\)");
+    let code_pattern = re(&CODE, r"`[^`]*`");
+    let code_ranges: Vec<Range<usize>> = code_pattern.find_iter(text).map(|m| m.range()).collect();
+    let masked = mask_ranges(text, &code_ranges);
+    link_pattern
+        .captures_iter(&masked)
+        .filter_map(|c| c.get(1))
+        .any(|g| {
+            let span = g.range();
+            span.start <= candidate.range.start && candidate.range.end <= span.end
+        })
+}
+
+fn has_bracket_description(text: &str, candidate: &Candidate) -> bool {
+    text.get(candidate.range.end..)
+        .is_some_and(|rest| rest.trim_start().starts_with('('))
+}
+
+/// The single letter or short number inside a word-and-bracket candidate, such as `b` in `mechanism (b)`.
+fn bracket_letter(candidate_text: &str) -> Option<&str> {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = re(&RE, r"\(([A-Za-z]|\d{1,2})\)$");
+    re.captures(candidate_text)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+}
+
+fn repo_named_in_same_sentence(candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
+    static REPO_SLUG: OnceLock<Regex> = OnceLock::new();
+    let repo_slug = re(&REPO_SLUG, r"\b[\w.-]+/[\w.-]+\b");
+    containing_sentence(local_sentences, candidate.range.start)
+        .is_some_and(|s| repo_slug.is_match(&s.text))
+}
+
+/// A file name right next to the candidate, as in `Layer 1 in components.md` or `components.md layer 1`, is the referent itself. A file name in another clause is not.
+fn file_names_it(candidate: &Candidate, local_sentences: &[TextUnit]) -> bool {
+    static FILE_AFTER: OnceLock<Regex> = OnceLock::new();
+    static FILE_BEFORE: OnceLock<Regex> = OnceLock::new();
+    let file_after = re(
+        &FILE_AFTER,
+        r"^(?:\s*\(?\s*(?:(?:in|of|from|at|on|within|inside|under|per|via|see)\s+)?|(?:\s+[\w'-]+){1,5}\s+(?:in|of|from|at|on|within|inside|per|via)\s+)(?:the\s+)?(?:file\s+)?[\[`(]*(?:[\w.-]+/)*[\w-]+(?:\.[\w-]+)*\.(?:md|rs|toml|json|ya?ml|html|css|tsx?|jsx?|sh|txt)\b",
+    );
+    let file_before = re(
+        &FILE_BEFORE,
+        r"(?:[\w.-]+/)*[\w-]+(?:\.[\w-]+)*\.(?:md|rs|toml|json|ya?ml|html|css|tsx?|jsx?|sh|txt)[`\])]*\s+$",
+    );
+    containing_sentence(local_sentences, candidate.range.start).is_some_and(|s| {
+        let start = candidate.range.start.saturating_sub(s.span.start);
+        let end = candidate.range.end.saturating_sub(s.span.start);
+        s.text
+            .get(end..)
+            .is_some_and(|rest| file_after.is_match(rest))
+            || s.text.get(..start).is_some_and(|b| file_before.is_match(b))
+    })
+}
+
+/// Whether a file-path-shaped token elsewhere in the paragraph contains the candidate's own digits.
+fn file_path_names_it(text: &str, candidate: &Candidate) -> bool {
+    static DIGITS: OnceLock<Regex> = OnceLock::new();
+    static PATH: OnceLock<Regex> = OnceLock::new();
+    let Some(number) = re(&DIGITS, r"\d+").find(&candidate.text) else {
+        return false;
+    };
+    let path_pattern = re(&PATH, r"[\w.-]+(?:/[\w.-]+)+");
+    path_pattern
+        .find_iter(text)
+        .any(|m| m.as_str().contains(number.as_str()))
+}
+
+/// An ISO date, or a named month with a day and, optionally, a year.
+fn has_absolute_date(text: &str) -> bool {
+    static ISO: OnceLock<Regex> = OnceLock::new();
+    static NAMED: OnceLock<Regex> = OnceLock::new();
+    let iso = re(&ISO, r"\b\d{4}-\d{2}-\d{2}\b");
+    let named = NAMED.get_or_init(|| {
+        let months = reference::MONTHS.join("|");
+        Regex::new(&format!(
+            r"(?i)\b(?:\d{{1,2}}\s+(?:{months})\s+\d{{4}}|(?:{months})\s+\d{{1,2}}(?:st|nd|rd|th)?)\b"
+        ))
+        .expect("named-date pattern compiles")
+    });
+    iso.is_match(text) || named.is_match(text)
+}
+
+/// A name candidate is placed by the known-names list or a definer
+/// sentence. A quoted term is also placed by a mention marker anywhere in
+/// its own sentence: a word about language, never a speech verb such as
+/// `said` or `wrote`, since a speech verb only says the words were spoken,
+/// not what they mean.
+fn name_is_placed(
+    candidate: &Candidate,
+    local_sentences: &[TextUnit],
+    reduced: &[String],
+    known: &KnownNames,
+) -> bool {
+    if is_known_name_run(known, &candidate.text) {
+        return true;
+    }
+    let described = local_sentences
+        .iter()
+        .position(|s| s.span.contains(&candidate.range.start))
+        .is_some_and(|i| is_described(reduced, i, &candidate.text));
+    if described {
+        return true;
+    }
+    is_quoted_term(&candidate.text)
+        && has_mention_marker_in_sentence(local_sentences, candidate.range.start)
+}
+
+/// A name candidate with no uppercase letter is the quoted-lowercase-term shape; a capitalised run never is.
+fn is_quoted_term(text: &str) -> bool {
+    !text.chars().any(char::is_uppercase)
+}
+
+/// Whether the candidate's own sentence names the thing linguistically:
+/// `phrase`, `word`, `wording`, `term`, `expression`, `example`, `opener`,
+/// `label` or `called`, or the fixed phrase `such as`. `for example` is not
+/// its own alternative: `example` alone already covers it.
+fn has_mention_marker_in_sentence(local_sentences: &[TextUnit], start: usize) -> bool {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    let re = RE.get_or_init(|| {
+        let alternatives: Vec<String> = [
+            "phrase",
+            "word",
+            "wording",
+            "term",
+            "expression",
+            "example",
+            "opener",
+            "label",
+            "called",
+            "such as",
+        ]
+        .iter()
+        .map(|m| regex::escape(m))
+        .collect();
+        word_boundary_alternation(&alternatives).expect("marker alternation compiles")
+    });
+    containing_sentence(local_sentences, start).is_some_and(|s| re.is_match(&s.text))
+}
+
+fn unplaced_finding(paragraph: &TextUnit, candidate: &Candidate, cfg: &WritingConfig) -> Finding {
+    match candidate.kind {
+        Kind::Number => number_finding(paragraph, candidate),
+        Kind::Phrase => finding(
+            paragraph,
+            "unplaceable-reference",
+            Level::Error,
+            "name the thing itself; this reference only works inside one conversation".to_string(),
+            &candidate.text,
+        ),
+        Kind::Time => finding(
+            paragraph,
+            "unplaceable-reference",
+            Level::Error,
+            "add an absolute date nearby, so the reference does not depend on when this is read"
+                .to_string(),
+            &candidate.text,
+        ),
+        Kind::Name => name_finding(paragraph, candidate, cfg),
+    }
+}
+
+/// A word-and-bracket-letter candidate is placed by a list item, so it gets its own message.
+fn number_finding(paragraph: &TextUnit, candidate: &Candidate) -> Finding {
+    if let Some(letter) = bracket_letter(&candidate.text) {
+        let letter = letter.to_lowercase();
+        return finding(
+            paragraph,
+            "unplaceable-reference",
+            Level::Error,
+            format!(
+                "say what ({letter}) is, or add a list item starting with ({letter}) in the \
+                 same paragraph"
+            ),
+            &candidate.text,
+        );
+    }
+    finding(
+        paragraph,
+        "unplaceable-reference",
+        Level::Error,
+        format!(
+            "say what {} points to: name the repository, add a bracketed description, or link it",
+            candidate.text
+        ),
+        &candidate.text,
+    )
+}
+
+fn name_finding(paragraph: &TextUnit, candidate: &Candidate, cfg: &WritingConfig) -> Finding {
+    if cfg.must_explain_names.contains(&candidate.text) {
+        return finding(
+            paragraph,
+            "unplaceable-reference",
+            Level::Error,
+            "this name is on the project's must-explain list; add one plain sentence saying \
+             what it is"
+                .to_string(),
+            &candidate.text,
+        );
+    }
+    if reference::is_tool_term(&candidate.text) {
+        return finding(
+            paragraph,
+            "unplaceable-reference",
+            Level::Warning,
+            format!(
+                "say in one plain sentence what {} is, or link it",
+                candidate.text
+            ),
+            &candidate.text,
+        )
+        .with_evidence(osf_lint_core::Evidence::Statistical);
+    }
+    if is_quoted_term(&candidate.text) {
+        return finding(
+            paragraph,
+            "unplaceable-reference",
+            Level::Error,
+            format!(
+                "say what \"{}\" means in one plain sentence, or drop the quotes and use plain words",
+                candidate.text
+            ),
+            &candidate.text,
+        )
+        .with_evidence(osf_lint_core::Evidence::Statistical);
+    }
+    finding(
+        paragraph,
+        "unplaceable-reference",
+        Level::Warning,
+        "if this is a name, add one plain sentence saying what it is".to_string(),
+        &candidate.text,
+    )
+    .with_evidence(osf_lint_core::Evidence::Statistical)
+}
+
 /// Whether `name` carries any of the three kinds of weak, statistical
 /// evidence that it names something specific, rather than being an
 /// ordinary capitalised word: an internal capital such as `GitHub`'s or
 /// `DuckDB`'s, a digit in one of its words, a domain-like suffix such as
 /// `.dev`, or, only for a multi-word run, more than one occurrence of that
 /// exact run elsewhere in the document.
-fn looks_like_a_name(name: &str, run_counts: &HashMap<String, usize>) -> bool {
+pub(super) fn looks_like_a_name(name: &str, run_counts: &HashMap<String, usize>) -> bool {
     let words: Vec<&str> = name.split(' ').collect();
     words.iter().any(|w| has_inner_capital(w))
         || words.iter().any(|w| w.chars().any(|c| c.is_ascii_digit()))
@@ -667,7 +1269,7 @@ fn has_domain_suffix(w: &str) -> bool {
 /// list item is exempt, since both are normally a title or a labelled
 /// term in full, such as `Prison Architect` or `JetBrains IDEs`, where the
 /// first word is as much the name as the rest.
-fn candidate_names(s: &TextUnit) -> Vec<String> {
+pub(super) fn candidate_names(s: &TextUnit) -> Vec<String> {
     let words = s.words();
     let first_word = words
         .iter()
@@ -1281,4 +1883,555 @@ pub fn recap_ending(doc: &Doc, _cfg: &WritingConfig, out: &mut Vec<Finding>) {
         "a document's own ending does not need to announce itself".to_string(),
         &excerpt,
     ));
+}
+
+#[cfg(test)]
+mod unplaceable_reference_tests {
+    use super::*;
+    use crate::lints::load_known_names;
+
+    fn known() -> KnownNames {
+        load_known_names(&[], None).expect("built-in names load")
+    }
+
+    fn find(text: &str) -> Vec<Finding> {
+        let doc = segment::parse(text);
+        let cfg = WritingConfig::default();
+        let mut out = Vec::new();
+        unplaceable_reference(&doc, &known(), &cfg, Context::Document, &mut out);
+        out
+    }
+
+    fn is_placed(text: &str, excerpt: &str) -> bool {
+        find(text).iter().all(|f| f.excerpt != excerpt)
+    }
+
+    /// U17: a quoted lowercase term is ambiguous between a used phrase and a
+    /// mentioned one, so its finding is advisory and never blocks, in every
+    /// context, the same as a weak-evidence name.
+    #[test]
+    fn a_quoted_term_finding_is_advisory_in_document_context() {
+        let cfg = WritingConfig::default();
+        let findings = super::super::lint_writing(
+            r#"The team coined "the done wave" with no definition anywhere."#,
+            &known(),
+            &cfg,
+            Context::Document,
+            false,
+            false,
+        );
+        let hit = findings
+            .iter()
+            .find(|f| f.excerpt == "the done wave")
+            .unwrap_or_else(|| panic!("expected a finding on the done wave: {findings:?}"));
+        assert_eq!(hit.level, Level::Warning, "{hit:?}");
+        assert_eq!(
+            hit.remediation,
+            osf_lint_core::Remediation::Advise,
+            "{hit:?}"
+        );
+    }
+
+    /// U21: two references introduced next to each other in a chat reply
+    /// still each need their own placement; the consecutive-run exclusion
+    /// is gone.
+    #[test]
+    fn two_references_named_together_in_a_chat_reply_both_report() {
+        let cfg = WritingConfig::default();
+        let findings = super::super::lint_writing(
+            "Can you check fix 5, fix 6 before I merge?",
+            &known(),
+            &cfg,
+            Context::Transcript,
+            false,
+            false,
+        );
+        let excerpts: Vec<&str> = findings
+            .iter()
+            .filter(|f| f.rule == "unplaceable-reference")
+            .map(|f| f.excerpt.as_str())
+            .collect();
+        assert!(excerpts.contains(&"fix 5"), "{findings:?}");
+        assert!(excerpts.contains(&"fix 6"), "{findings:?}");
+    }
+
+    #[test]
+    fn a_quoted_term_finding_is_advisory_in_a_chat_reply_too() {
+        let cfg = WritingConfig::default();
+        let findings = super::super::lint_writing(
+            r#"The team coined "the done wave" with no definition anywhere."#,
+            &known(),
+            &cfg,
+            Context::Transcript,
+            false,
+            false,
+        );
+        let hit = findings
+            .iter()
+            .find(|f| f.excerpt == "the done wave")
+            .unwrap_or_else(|| panic!("expected a finding on the done wave: {findings:?}"));
+        assert_eq!(hit.level, Level::Warning, "{hit:?}");
+        assert_eq!(
+            hit.remediation,
+            osf_lint_core::Remediation::Advise,
+            "{hit:?}"
+        );
+    }
+
+    #[test]
+    fn a_link_around_a_number_places_it() {
+        let t = "The fix is in [Milestone 3](https://example.com/milestones/3) now.";
+        assert!(is_placed(t, "Milestone 3"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_sentence_naming_a_repository_places_a_word_and_number() {
+        let t = "We tracked it to issue 31 in acme/widgets, and confirmed the fix.";
+        assert!(is_placed(t, "issue 31"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_bracketed_two_word_description_places_a_word_and_number() {
+        let t = "This file reproduces the agreement, version 2 (the ICLA), for review.";
+        assert!(is_placed(t, "version 2"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_colon_introduced_two_word_description_places_a_word_and_number() {
+        let t = "Milestone 3: the design work is done.";
+        assert!(is_placed(t, "Milestone 3"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_branch_slug_in_brackets_does_not_place_a_word_and_number() {
+        let t = "Task 6 (fixes-135) is blocked until the release ships.";
+        assert!(!is_placed(t, "Task 6"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_one_word_bracket_does_not_place_a_word_and_number() {
+        let t = "Deploying fix 5 (it) cleared the queue.";
+        assert!(!is_placed(t, "fix 5"), "{:?}", find(t));
+    }
+
+    /// A word-and-bracket-letter finding names the letter and a list item, not a repository.
+    #[test]
+    fn a_word_and_bracket_letter_with_no_list_item_gets_its_own_message() {
+        let t = "The outage traced back to mechanism (b), a race between two workers.";
+        let findings = find(t);
+        let hit = findings
+            .iter()
+            .find(|f| f.excerpt == "mechanism (b)")
+            .unwrap_or_else(|| panic!("expected a finding on mechanism (b): {findings:?}"));
+        assert!(hit.message.contains("(b)"), "{hit:?}");
+        assert!(hit.message.contains("list item"), "{hit:?}");
+        assert!(!hit.message.contains("name the repository"), "{hit:?}");
+    }
+
+    /// U20: a single word after a colon or bracket never places a number,
+    /// however real the word looks. A rule with no list of real words
+    /// cannot tell "specification" from "done", so it must report both.
+    #[test]
+    fn a_single_word_after_a_colon_never_places_a_word_and_number() {
+        let t = "Step 4: rerun";
+        assert!(!is_placed(t, "Step 4"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_single_word_in_brackets_never_places_a_word_and_number() {
+        assert!(
+            !is_placed("Round 2 (done) shipped on schedule.", "Round 2"),
+            "{:?}",
+            find("Round 2 (done) shipped on schedule.")
+        );
+        assert!(
+            !is_placed("Phase 3 (later) is still unscheduled.", "Phase 3"),
+            "{:?}",
+            find("Phase 3 (later) is still unscheduled.")
+        );
+        assert!(
+            !is_placed("Ruling 19 (approved) closes the question.", "Ruling 19"),
+            "{:?}",
+            find("Ruling 19 (approved) closes the question.")
+        );
+    }
+
+    #[test]
+    fn a_single_filler_word_after_a_colon_does_not_place_a_word_and_number() {
+        let t = "Stage 4: the";
+        assert!(!is_placed(t, "Stage 4"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn two_numbers_of_the_same_word_that_are_not_adjacent_do_not_place_each_other() {
+        let t = "This follows decision 0001 and decision 0007 together.";
+        assert!(!is_placed(t, "decision 0001"), "{:?}", find(t));
+        assert!(!is_placed(t, "decision 0007"), "{:?}", find(t));
+    }
+
+    /// A second numbered reference's own digits, later in the same
+    /// sentence, must not poison the first one's colon description.
+    #[test]
+    fn a_second_numbered_reference_in_the_sentence_does_not_poison_a_colon_description() {
+        let t = "See Automated SPDLC / SDLC, Phase 2: Design & Architecture and Phase 11: The Meta-Loop, for fitness-function implementation detail.";
+        assert!(is_placed(t, "Phase 2"), "{:?}", find(t));
+        assert!(is_placed(t, "Phase 11"), "{:?}", find(t));
+    }
+
+    /// A trailing conjunction such as "and", picked up only because the
+    /// description is bounded against a sibling reference, must not pad a
+    /// single real word up to the two-word count on its own.
+    #[test]
+    fn a_trailing_conjunction_does_not_pad_a_single_word_description() {
+        let t = "See SDLC, Phase 3: Implementation and Phase 6: Staging, for detail.";
+        assert!(!is_placed(t, "Phase 3"), "{:?}", find(t));
+        assert!(!is_placed(t, "Phase 6"), "{:?}", find(t));
+    }
+
+    /// A single-word colon description never places its number, even
+    /// bounded correctly against a sibling reference later in the sentence.
+    #[test]
+    fn a_single_word_colon_description_still_does_not_place_beside_a_sibling_reference() {
+        let t = "See Automated SPDLC / SDLC, Phase 3: Implementation and Phase 6: Staging, for axe-core and WCAG testing detail.";
+        assert!(!is_placed(t, "Phase 3"), "{:?}", find(t));
+        assert!(!is_placed(t, "Phase 6"), "{:?}", find(t));
+    }
+
+    /// A comma then an article then at least two plain words places a
+    /// word-and-number candidate, restoring the retired rule's leniency.
+    #[test]
+    fn a_comma_then_the_and_two_words_places_a_word_and_number() {
+        let t = "Deploying fix 5, the parser change, cleared the queue.";
+        assert!(is_placed(t, "fix 5"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_comma_then_the_and_one_word_does_not_place_a_word_and_number() {
+        let t = "Deploying fix 5, the parser, cleared the queue.";
+        assert!(!is_placed(t, "fix 5"), "{:?}", find(t));
+    }
+
+    /// U20: a pronoun or a code-like token in a bracket never places a
+    /// number, the same as any other single word now that the single-word
+    /// path is gone.
+    #[test]
+    fn a_pronoun_in_brackets_never_places_a_word_and_number() {
+        assert!(!is_placed(
+            "Deploying fix 5 (it) cleared the queue.",
+            "fix 5"
+        ));
+        assert!(!is_placed(
+            "Deploying fix 5 (them) cleared the queue.",
+            "fix 5"
+        ));
+    }
+
+    /// A colon description ending at an enclosing bracket's own close, not
+    /// one right after the candidate, still counts as a real description
+    /// once it has two or more plain words.
+    #[test]
+    fn a_colon_description_ending_at_an_enclosing_bracket_places_a_word_and_number() {
+        let t = "Spec quality gate (Phase 1: the specification stage)";
+        assert!(is_placed(t, "Phase 1"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_code_like_token_in_brackets_never_places_a_word_and_number() {
+        assert!(!is_placed(
+            "Task 6 (fixes-135) is blocked until the release ships.",
+            "Task 6"
+        ));
+    }
+
+    #[test]
+    fn a_file_path_containing_the_number_places_it() {
+        let t = "The retry policy follows decision 0003, in docs/decisions/0003-retry.md.";
+        assert!(is_placed(t, "decision 0003"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_file_name_next_to_a_numbered_label_places_it() {
+        let t = "The primitive is scoped in `components.md` layer 1.";
+        assert!(is_placed(t, "layer 1"), "{:?}", find(t));
+        let t = "The survey covers a primitive placed in layer 1 of components.md.";
+        assert!(is_placed(t, "layer 1"), "{:?}", find(t));
+        let t = "Layer 1 in `components.md` holds the primitive.";
+        assert!(is_placed(t, "Layer 1"), "{:?}", find(t));
+        let t = "This is a layer 1 component in components.md.";
+        assert!(is_placed(t, "layer 1"), "{:?}", find(t));
+    }
+
+    /// A file name in another clause of the same sentence says nothing about the label.
+    #[test]
+    fn a_file_name_in_another_clause_does_not_place_a_numbered_label() {
+        for t in [
+            "Decision 0014 is final; README.md documents installation.",
+            "The survey covers a primitive that components.md places in layer 1.",
+            "Layer 1 is private, and README.md explains why.",
+        ] {
+            let found = find(t);
+            assert!(
+                found.iter().any(|f| f.rule == "unplaceable-reference"),
+                "{t}: {found:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_name_in_another_sentence_does_not_place_a_numbered_label() {
+        let t = "The primitive sits in layer 1. See components.md for the rest.";
+        assert!(!is_placed(t, "layer 1"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn an_absolute_date_as_day_month_year_places_a_time_reference() {
+        let t = "Ship it on Monday, 25 September 2026, once reviews land.";
+        assert!(is_placed(t, "on Monday"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn an_absolute_date_as_month_and_day_places_a_time_reference() {
+        let t = "Ship it on Monday, September 25, once reviews land.";
+        assert!(is_placed(t, "on Monday"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_mention_marker_word_places_a_quoted_term() {
+        let t = r#"The team uses the term "the done wave" for a finished cleanup cycle."#;
+        assert!(is_placed(t, "the done wave"), "{:?}", find(t));
+    }
+
+    /// Quoting a chat-local phrase is not, on its own, a mention of it: the
+    /// sentence still needs a word about language, or the quote is just as
+    /// unresolved as if it had never been quoted at all.
+    #[test]
+    fn a_quoted_chat_local_phrase_with_no_mention_marker_is_not_placed() {
+        let t = r#"He said "as discussed" and hung up, without saying what he meant."#;
+        assert!(!is_placed(t, "as discussed"), "{:?}", find(t));
+    }
+
+    #[test]
+    fn a_speech_verb_alone_does_not_place_a_quoted_term() {
+        let t = r#"She wrote "the done wave" in the notes without explaining it."#;
+        assert!(!is_placed(t, "the done wave"), "{:?}", find(t));
+    }
+
+    /// A marker word next to the quote does not prove it explains the
+    /// quote rather than merely mentioning, dismissing or blaming it; that
+    /// judgment is the model layer's, not a shape this rule can check.
+    #[test]
+    fn a_marker_word_next_to_the_quote_is_not_proof_it_explains_the_quote() {
+        let cases = [
+            (
+                r#"He wrote the phrase "as discussed" in every reply."#,
+                "as discussed",
+            ),
+            (r#"The label "fix 5" means nothing here."#, "fix 5"),
+            (
+                r#"This example shows why "as discussed" causes confusion."#,
+                "as discussed",
+            ),
+        ];
+        for (text, excerpt) in cases {
+            assert!(is_placed(text, excerpt), "{:?}", find(text));
+        }
+    }
+
+    fn reports(text: &str) -> bool {
+        find(text).iter().any(|f| f.rule == "unplaceable-reference")
+    }
+
+    /// A date places a relative time word only in the same sentence.
+    #[test]
+    fn a_date_in_another_sentence_does_not_place_a_relative_time() {
+        let t = "Today we deploy. The previous incident began on 2025-01-01.";
+        assert!(!is_placed(t, "Today"), "{:?}", find(t));
+        let t = "Today we deploy, as set on 2025-01-01.";
+        assert!(is_placed(t, "Today"), "{:?}", find(t));
+    }
+
+    /// `now` and `currently` are not covered here; a separate time-word rule owns them.
+    #[test]
+    fn now_and_currently_are_left_to_the_time_word_rule() {
+        for t in ["Run the command again now.", "It currently fails."] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+    }
+
+    /// A comma and an article place a label only for a real appositive right after it.
+    #[test]
+    fn a_main_clause_after_a_comma_and_an_article_does_not_place_a_label() {
+        for t in [
+            "In Layer 2, the cache is private.",
+            "As agreed in Layer 2, the cache is private.",
+            "In Layer 2, the cache holds state.",
+            "Layer 2, the cache is private.",
+        ] {
+            assert!(reports(t), "{t}: {:?}", find(t));
+        }
+        for t in [
+            "In Layer 2, the cache layer, is private.",
+            "Layer 2, the specification stage, is private.",
+            "We shipped Layer 2, the specification stage.",
+            "The cache lives in layer 1, the surface primitives.",
+            "It is a type in layer 5, the generated and streaming UI layer.",
+        ] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+    }
+
+    /// A version is placed by a product name, a link, a date, or a release tag, and not otherwise.
+    #[test]
+    fn a_version_is_placed_only_by_a_product_a_link_a_date_or_a_tag() {
+        for t in [
+            "Revert to version 7.",
+            "Revert version 7.",
+            "In version 7 we dropped the old cache.",
+            "The library is active at version 7 beta.",
+        ] {
+            assert!(reports(t), "{t}: {:?}", find(t));
+        }
+        for t in [
+            "Chrome version 113 supports it.",
+            "Widget version 2 supports plugins.",
+            "Acme version 2 supports plugins.",
+            "In version 7, tagged v7, the cache changed.",
+            "Use version 1.2 or later.",
+            "Revert to [version 7](https://example.com/releases/7).",
+            "In version 7 (2026-03-01) we dropped the old cache.",
+            "In version 7 we dropped the old cache, tagged v7.0.1.",
+            "Revert to version 7 of Chrome.",
+            "Version 7 beta, from March 2026, added tabs.",
+        ] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+    }
+
+    /// A digit that counts a plural noun is no label; a label noun still is one.
+    #[test]
+    fn a_digit_counting_plural_nouns_is_no_label() {
+        for t in [
+            "The cache holds 3 items.",
+            "The queue has 3 workers.",
+            "The release has only 3 checkpoints.",
+            "Use at most 3 significant digits.",
+            "It takes roughly 30 workers.",
+            "The cache holds 1 item.",
+            "The list holds 1 entry.",
+            "The API exposes 3 status endpoints.",
+            "The suite runs 12 slow tests.",
+            "The job uses 2 large runners.",
+            "The job keeps 5 recent builds.",
+        ] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+        for t in [
+            "Layer 2 holds the cache.",
+            "Step 4 fails.",
+            "Phase 2 starts later.",
+            "Decision 0014 is final.",
+            "Decision 12 seconds the proposal.",
+            "Build 12 succeeds on all platforms.",
+        ] {
+            assert!(reports(t), "{t}: {:?}", find(t));
+        }
+    }
+
+    #[test]
+    fn a_bare_tool_name_is_reported_once_at_first_use_in_a_document() {
+        for t in [
+            "We pinned the renderer to bazel 7.1.0.",
+            "The moon task runner builds the app.",
+            "Run `moon` before you push.",
+            "Run `bazel` before you push.",
+            "Run `mise` before you push.",
+        ] {
+            let found = find(t);
+            let hit = found
+                .iter()
+                .find(|f| ["moon", "bazel", "mise"].contains(&f.excerpt.as_str()))
+                .unwrap_or_else(|| panic!("{t}: {found:?}"));
+            assert!(hit.message.contains("what"), "{hit:?}");
+        }
+        let twice = find("Run `moon` first.\n\nThen run `moon` again.");
+        assert_eq!(
+            twice.iter().filter(|f| f.excerpt == "moon").count(),
+            1,
+            "{twice:?}"
+        );
+    }
+
+    /// A tool described in its own or the next sentence, or linked, or inside a path, is not reported.
+    #[test]
+    fn a_described_linked_or_path_tool_name_is_not_reported() {
+        for t in [
+            "Run `moon`, a build tool, before you push.",
+            "Run `moon` (the build runner) before you push.",
+            "Run `moon` before you push. Here, moon means the task runner for this repository.",
+            "Run [`moon`](https://moonrepo.dev) before you push.",
+            "Edit .moon/workspace.yml and moon.yml before you push.",
+            "The moonlight shines on the moonrepo site.",
+            "Capitalised Moon is a name, not a tool word.",
+        ] {
+            let found: Vec<_> = find(t)
+                .into_iter()
+                .filter(|f| f.excerpt == "moon")
+                .collect();
+            assert!(found.is_empty(), "{t}: {found:?}");
+        }
+    }
+
+    /// A tool name that is also an ordinary word is never reported in an ordinary sentence.
+    #[test]
+    fn an_ordinary_english_word_is_never_a_tool_name() {
+        for t in [
+            "Please renovate the room before installation.",
+            "The earthly remains were found.",
+            "She writes poetry in the evening.",
+            "The ship's helm turned slowly.",
+            "The biome of the reef is fragile.",
+            "The husky barked at the mail carrier.",
+            "A meson decays quickly.",
+            "The yarn was dyed blue.",
+            "The moon is bright tonight.",
+        ] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+    }
+
+    /// A description before the name, as in `the build tool moon`, describes it.
+    #[test]
+    fn a_description_before_a_tool_name_places_it() {
+        for t in [
+            "Call the build tool moon to run tasks.",
+            "Call the build tool bazel to run tasks.",
+            "Call the task runner moon to run tasks.",
+        ] {
+            assert!(!reports(t), "{t}: {:?}", find(t));
+        }
+        assert!(reports("Call bazel to run tasks."));
+        assert!(reports("Call `moon` to run tasks."));
+        assert!(reports("The moon task runner builds the app."));
+    }
+
+    /// A tool name is a guess, so it only warns, and a transcript and a commit never see it.
+    #[test]
+    fn a_bare_tool_name_only_warns_and_only_in_a_document() {
+        let known = known();
+        let cfg = WritingConfig::default();
+        let t = "Run `moon` before you push.";
+        let in_doc = super::super::lint_writing(t, &known, &cfg, Context::Document, false, false);
+        let hit = in_doc
+            .iter()
+            .find(|f| f.excerpt == "moon")
+            .unwrap_or_else(|| panic!("{in_doc:?}"));
+        assert_eq!(hit.level, Level::Warning, "{hit:?}");
+        for context in [Context::Transcript, Context::Commit] {
+            let found = super::super::lint_writing(t, &known, &cfg, context, false, false);
+            assert!(
+                found.iter().all(|f| f.excerpt != "moon"),
+                "{context:?}: {found:?}"
+            );
+        }
+    }
 }
