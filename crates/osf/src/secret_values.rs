@@ -209,7 +209,11 @@ mod tests {
             .filter_map(|a| a.review.as_ref())
             .flat_map(|r| r.credential_env.iter().copied())
             .collect();
-        for expected in ["CODEX_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY"] {
+        for expected in [
+            "CODEX_API_KEY",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+            "OPENROUTER_API_KEY",
+        ] {
             assert!(names.contains(&expected), "{expected}: {names:?}");
         }
         assert!(CODE_HOST_TOKENS.contains(&"GH_TOKEN"));

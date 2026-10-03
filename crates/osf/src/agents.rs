@@ -463,7 +463,7 @@ pub const AGENTS: &[Agent] = &[
             schema_as: SchemaArg::Inline,
             answer_pointer: "/structured_output",
             model_flag: Some("--model"),
-            credential_env: &["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
+            credential_env: &["CLAUDE_CODE_OAUTH_TOKEN"],
             login_paths: &[".claude/.credentials.json"],
             sandbox_check: &[],
         }),

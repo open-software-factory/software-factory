@@ -183,3 +183,66 @@ fn every_job_that_runs_a_container_runs_the_pinned_image() {
         );
     }
 }
+
+/// The reviewer an `osf review run` job runs: the word after `--reviewer`.
+fn reviewer_of(body: &str) -> String {
+    body.lines()
+        .find_map(|line| line.trim().strip_prefix("--reviewer "))
+        .unwrap_or_else(|| panic!("no --reviewer in {body}"))
+        .trim()
+        .to_string()
+}
+
+/// Every `secrets.NAME` the job reads, other than the automatic token, once each.
+fn provider_secrets(body: &str) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for part in body.split("secrets.").skip(1) {
+        let name: String = part
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if name != "GITHUB_TOKEN" && !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names
+}
+
+/// A reviewer job reads one secret, and passes into its container only the
+/// variables that its agent's `credential_env` names.
+#[test]
+fn each_reviewer_job_passes_only_the_credential_its_agent_names() {
+    let text = workflow_text();
+    let reviewers = reviewer_jobs(&text);
+    assert!(reviewers.len() >= 3);
+    for (id, body) in &reviewers {
+        let name = reviewer_of(body);
+        let agent = osf::agents::AGENTS
+            .iter()
+            .find(|a| a.name == name)
+            .unwrap_or_else(|| panic!("job {id}: no agent named {name}"));
+        let mut expected: Vec<&str> = agent
+            .review
+            .as_ref()
+            .unwrap_or_else(|| panic!("job {id}: {name} cannot review"))
+            .credential_env
+            .to_vec();
+        expected.sort_unstable();
+        let mut passed: Vec<&str> = body
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("-e "))
+            .map(str::trim)
+            .collect();
+        passed.sort_unstable();
+        assert_eq!(
+            passed, expected,
+            "job {id} passes a variable its agent does not name"
+        );
+        assert_eq!(
+            provider_secrets(body).len(),
+            1,
+            "job {id} reads one provider secret: {:?}",
+            provider_secrets(body)
+        );
+    }
+}

@@ -302,7 +302,6 @@ jobs:
 
       - name: Run this reviewer, reading the pull request's tree as data
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: >-
           docker run --rm
@@ -312,7 +311,6 @@ jobs:
           -v "${{ github.workspace }}/work-item:/work-item:ro"
           -v "${{ github.workspace }}/out:/out"
           -w /pr
-          -e ANTHROPIC_API_KEY
           -e CLAUDE_CODE_OAUTH_TOKEN
           ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run

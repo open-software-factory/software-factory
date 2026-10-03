@@ -264,9 +264,10 @@ create it. Set up this short list, then the check is live.
   `secrets.VERIFIER_APP_PRIVATE_KEY` in the `review` environment. The
   job mints a short-lived token from this app, to post the review.
 - The `review` environment itself, holding at least two of these keys:
-  `secrets.OPENAI_API_KEY`, `secrets.CLAUDE_CODE_OAUTH_TOKEN` (or
-  `secrets.ANTHROPIC_API_KEY`), `secrets.OPENROUTER_API_KEY`. Each key
-  belongs to one reviewer job. The codex job gives `secrets.OPENAI_API_KEY`
+  `secrets.OPENAI_API_KEY`, `secrets.CLAUDE_CODE_OAUTH_TOKEN` and
+  `secrets.OPENROUTER_API_KEY`. Each key belongs to one reviewer job, and
+  that job passes into its container the one variable that its agent's
+  `credential_env` entry names. The codex job gives `secrets.OPENAI_API_KEY`
   to codex as `CODEX_API_KEY`. `osf` itself reads a key only to remove its
   value from answers.
 - Branch protection that requires the `review` job. Require every
@@ -377,7 +378,7 @@ family.
 |---|---|---|---|---|
 | `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--sandbox read-only`, from `codex exec --help` |
 | `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
-| `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
+| `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
 | `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
 | `omp` | from its model | none: it takes no model flag | its own login | `--tools read,grep,glob`, from `omp --help` |
 
