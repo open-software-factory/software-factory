@@ -26,8 +26,9 @@ The agent-facing files are the root `AGENTS.md`, `crates/AGENTS.md`, `.github/wo
 | Give each provider its own crate | `crates/AGENTS.md` | Not enforced |
 | Keep a functional crate free of provider-specific code | `crates/AGENTS.md` | Not enforced |
 | Put a new tool in the crate for its group | `crates/AGENTS.md` | Not enforced |
-| Prefer Rust, C#, or TypeScript, and use Go only when it has to be | `crates/AGENTS.md` | Not enforced |
-| Keep the engine, its command line, and the verifier runner in Rust | `crates/AGENTS.md`, decision 0001 | Not enforced |
+| Write everything in Rust by default, including the engine, its command line, and the verifier runner | `crates/AGENTS.md`, decision 0001 | Not enforced |
+| Choose another language only for an edge component that a host's or provider's context requires | `crates/AGENTS.md` | Not enforced |
+| Write any JavaScript in TypeScript | `crates/AGENTS.md` | Not enforced |
 | Pass build, test, clippy, and format checks before you push | `crates/AGENTS.md` | The CI job `rust` runs `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` and `cargo build --release --bin osf` |
 | Define merge-deciding and secret jobs on the base branch | `.github/workflows/AGENTS.md`, `writing-a-workflow`, decision 0020 | Not enforced. `status-block.yml` follows the pattern |
 | Never check out pull request code into a job that holds a secret | `.github/workflows/AGENTS.md` | Not enforced |

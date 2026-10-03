@@ -11,10 +11,10 @@
 
 ## Language
 
-- Prefer strict, statically typed, fast languages: Rust, C#, or TypeScript.
-- Use Go only when a task has to be in Go.
-- Keep the engine, its command-line interface, and the verifier runner in Rust.
-- You may write a provider at the factory's edges in any of these languages and reach it out of process.
+- Write everything in Rust by default. This includes the engine, its command-line interface, and the verifier runner.
+- Choose another language only for code at the factory's edges, such as an adapter or a plugin. That code must run inside a host system's or a provider's own context. Choose the language only when that context requires it.
+- Write any JavaScript in TypeScript.
+- Treat such an edge component as a cost. It exists because a host demands its language, and never as a preference.
 
 ## Tests and checks
 
