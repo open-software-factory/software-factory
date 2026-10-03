@@ -135,3 +135,14 @@ tasks:
     deps: ['~:test']
     tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
     options: { runFromWorkspaceRoot: true, shell: false }
+  # With no reviewer enabled in osf.toml this is skipped; with one enabled, could-not-run fails.
+  # --warn-only: this runs in the builder's own workspace, where the agent
+  # has a shell, so its exit code is never trusted to gate anything; the
+  # base-branch review workflow is the gate. No osf-pull-request tag: the
+  # pull-request checkpoint no longer runs this task, that workflow does.
+  review:
+    command: 'osf review run --if-enabled --warn-only --sarif-out .osf/out/review.sarif'
+    inputs: ['/**/*.rs', '/**/*.md', '/.osf/review-lenses/**/*', '@group(ignored-dirs)', '$OSF_FILES_HASH']
+    outputs: ['/.osf/out/review.sarif']
+    tags: [osf-pre-push, osf-slot-review]
+    options: { runFromWorkspaceRoot: true, shell: false }

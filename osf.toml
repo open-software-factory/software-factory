@@ -27,3 +27,25 @@ repository_visibility = "public"
 #   - Intercom: a support and feedback tool, docs/vision/product-lifecycle.md:426.
 #   - Zendesk: a support and feedback tool, docs/vision/product-lifecycle.md:426.
 must_explain_names = ["Linear", "Canny", "Figma", "Jira", "Intercom", "Zendesk"]
+
+[agents]
+# Selects from the one list of agents in crates/osf/src/agents.rs. A name
+# that list does not hold is a configuration error. Each agent's command,
+# family, credential variables and login files come from that list.
+enabled = ["dsh", "omp", "opencode", "codex", "claude"]
+builder = "dsh"
+
+# The agents that review, in the order they run. Decision 0016 needs each
+# reviewer's family to differ from the builder's.
+#
+# dsh documents no read-only mode, so it cannot review. The review
+# environment holds OPENAI_API_KEY (passed to codex as CODEX_API_KEY),
+# CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each agent's list entry
+# names the only variables its reviewer sees.
+reviewers = ["codex", "claude", "opencode"]
+
+# A model per agent. An agent left out uses its own default model, and dsh
+# and omp take no model flag.
+[agents.models]
+claude = "claude-sonnet-5"
+opencode = "openrouter/qwen/qwen3-coder-next"

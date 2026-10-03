@@ -60,3 +60,17 @@ pub fn is_fixture_path(name: &str) -> bool {
 pub fn is_scan_rule(id: &str) -> bool {
     id.starts_with("scan-")
 }
+
+/// Every rule id this tool carries, across every checker: scan, writing and
+/// skill. A single file's raw text is often read by more than one checker,
+/// so a suppression marker is validated against the whole set, never one
+/// checker's own rules alone: a marker naming a writing rule must not read
+/// as unknown just because a scan of the same file is what found it.
+#[must_use]
+pub fn all_rule_ids() -> Vec<&'static str> {
+    crate::scan::rule_ids()
+        .into_iter()
+        .chain(writing::rules::rule_ids())
+        .chain(SKILL_RULE_META.iter().map(|r| r.id))
+        .collect()
+}
