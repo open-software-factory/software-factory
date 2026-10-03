@@ -65,7 +65,7 @@ fn a_tracked_symlink_to_a_directory_is_skipped_not_read_as_a_file() {
     repo.symlink("link", "real");
     repo.commit("add a symlinked directory");
 
-    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude()).expect("scan runs");
+    let found = scan_paths(&repo.dir, &[], &rules(&repo), &no_exclude(), false).expect("scan runs");
     assert!(
         found.files.iter().all(|(_, f)| f.is_empty()),
         "a symlink must never be read as if it were the file or directory it points at: {:?}",
@@ -110,6 +110,7 @@ fn an_explicit_path_that_is_a_symlinked_directory_is_not_followed() {
         std::slice::from_ref(&target),
         &rules(&repo),
         &no_exclude(),
+        false,
     )
     .expect("scan runs");
     assert!(found.files.is_empty(), "{found:?}");
@@ -135,6 +136,7 @@ fn a_symlinked_directory_inside_a_scanned_folder_is_not_followed() {
         std::slice::from_ref(&target),
         &rules(&repo),
         &no_exclude(),
+        false,
     )
     .expect("scan runs");
     assert!(
@@ -158,6 +160,7 @@ fn a_symlink_cycle_is_skipped_once_not_followed_forever() {
         std::slice::from_ref(&target),
         &rules(&repo),
         &no_exclude(),
+        false,
     )
     .expect("scan runs");
     assert!(found.files.iter().all(|(_, f)| f.is_empty()), "{found:?}");
