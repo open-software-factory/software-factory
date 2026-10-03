@@ -49,11 +49,19 @@ assert_ok "skillevaluator --help" skillevaluator --help
 # A login shell resets PATH before sourcing /etc/profile.d/*.sh (see
 # .devcontainer/profile.d/osf-path.sh). Every tool above must still be on
 # PATH from a login shell, since a harness or a human may well start one.
-if bash -lc 'cargo --version && osf --version' >/dev/null 2>&1; then
-  pass "cargo and osf are on PATH in a login shell"
-else
-  fail "cargo and osf are on PATH in a login shell"
-fi
+TOOLS="osf moon dsh omp opencode codex claude actionlint gh git-town cargo node pnpm uv bun"
+for tool in $TOOLS; do
+  if bash -lc "command -v $tool" >/dev/null 2>&1; then
+    pass "$tool is on PATH in a login shell"
+  else
+    fail "$tool is on PATH in a login shell"
+  fi
+  if bash -c "command -v $tool" >/dev/null 2>&1; then
+    pass "$tool is on PATH in a non-login shell"
+  else
+    fail "$tool is on PATH in a non-login shell"
+  fi
+done
 
 echo ""
 echo "$((TOTAL - FAILURES))/$TOTAL passed"
