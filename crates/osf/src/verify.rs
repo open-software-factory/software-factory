@@ -418,7 +418,12 @@ fn lint_changed_skill_folders(opts: &Options, changed: &[String]) -> Result<Chec
             lints::policy::skill_levels(&opts.config.writing.levels, &opts.config.skill.levels);
         for sf in skill_findings {
             let file = format!("{label}/{}", sf.file);
-            if sf.finding.rule.starts_with("expectation-") {
+            if matches!(
+                sf.finding.rule,
+                "expectation-missing"
+                    | "expectation-unexpected"
+                    | "expectation-forbidden-scan-rule"
+            ) {
                 findings.push((file, sf.finding));
             } else {
                 findings.extend(

@@ -419,3 +419,33 @@ fn config_cannot_disable_a_skill_fixture_contract_failure_in_verify() {
         "{output:?}"
     );
 }
+
+#[test]
+fn verify_honors_config_for_a_skill_marker_outside_fixtures_warning() {
+    let repo = TempRepo::new("skill-outside-fixtures-warning-configurable");
+    repo.write("base.md", "Clean.\n");
+    let base = repo.commit("base commit");
+    repo.write(
+        "skills/demo/SKILL.md",
+        "---\nname: demo\ndescription: Use this skill when the user wants a quick health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n## Checks\n\n1. Read the folder listing.\n2. Check that a license file exists.\n3. Check that a readme file exists.\n4. Write one line per problem found, with the file path.\n\nStop when every check has run once.\n\n<!-- osf-expect-skill\n-->\n",
+    );
+    repo.write(
+        "osf.toml",
+        "[skill.levels]\nexpectation-outside-fixtures = \"off\"\n",
+    );
+    repo.commit("add an out-of-fixtures marker and configure its warning off");
+    let home = isolated_home("skill-outside-fixtures-warning-configurable");
+
+    let output = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "--config", "osf.toml", "verify", "--stage", "pre-push", "--base", &base,
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(
+        !String::from_utf8_lossy(&output.stdout).contains("expectation-outside-fixtures"),
+        "{output:?}"
+    );
+}
