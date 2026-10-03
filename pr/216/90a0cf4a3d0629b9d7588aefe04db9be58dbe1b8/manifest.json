@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "90a0cf4a3d0629b9d7588aefe04db9be58dbe1b8",
+    "contentHash": "d8b73b3e9c59172f00e07555df5a4daf"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "192862d5bfd2c0de79b0181cf4505050",
+      "bytes": 23553,
+      "width": 1738,
+      "height": 582,
+      "animated": false,
+      "path": "architecture-overview-light-192862d5bfd2c0de79b0181cf4505050.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f43c92f573e9e4da55dd362fac83104b",
+      "bytes": 23804,
+      "width": 1738,
+      "height": 582,
+      "animated": false,
+      "path": "architecture-overview-dark-f43c92f573e9e4da55dd362fac83104b.svg"
+    },
+    {
+      "id": "verify-policy-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "verify-policy",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e14943f3a62381708085a30fd7ad21cd",
+      "bytes": 12875,
+      "width": 880,
+      "height": 532,
+      "animated": false,
+      "path": "verify-policy-light-e14943f3a62381708085a30fd7ad21cd.svg"
+    },
+    {
+      "id": "verify-policy-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "verify-policy",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1f4f4ba00f06b109ffc94d822258cf8f",
+      "bytes": 13012,
+      "width": 880,
+      "height": 532,
+      "animated": false,
+      "path": "verify-policy-dark-1f4f4ba00f06b109ffc94d822258cf8f.svg"
+    },
+    {
+      "id": "script-pin-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "script-pin-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0d1c2fce67fd990b23c914b26635ddb6",
+      "bytes": 9157,
+      "width": 667,
+      "height": 389,
+      "animated": true,
+      "path": "script-pin-flow-light-0d1c2fce67fd990b23c914b26635ddb6.svg"
+    },
+    {
+      "id": "script-pin-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "script-pin-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "66e46a7422f4b0a4b0d8e2144cded30b",
+      "bytes": 9214,
+      "width": 667,
+      "height": 389,
+      "animated": true,
+      "path": "script-pin-flow-dark-66e46a7422f4b0a4b0d8e2144cded30b.svg"
+    }
+  ]
+}
