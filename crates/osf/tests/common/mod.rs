@@ -67,7 +67,9 @@ impl TempRepo {
 
     /// Creates a symlink at `link`, pointing at `target` (resolved the
     /// way a real symlink resolves it: relative to `link`'s own parent
-    /// directory), creating any parent directory `link` needs.
+    /// directory), creating any parent directory `link` needs. Plain std:
+    /// the `symlink` crate is unmaintained and fails on Windows when the
+    /// target is missing, which the dangling-link test needs.
     pub fn symlink(&self, link: &str, target: &str) {
         let full = self.dir.join(link);
         if let Some(parent) = full.parent() {
