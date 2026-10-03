@@ -19,8 +19,6 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 ## Public hygiene
 
 - Never let a private person's name, a private company name, a private project name, or a local file path reach this repository. This applies to code, a document, a commit, an issue, and a pull request description.
-- Run `osf scan --config osf.toml` before you push. It checks every file this repository tracks.
-- Run `osf scan --config osf.toml --commits origin/main..HEAD` before you push. It checks the commit messages your change adds.
 - Write an issue body or a pull request description to a file, and run `osf scan --config osf.toml <file>` on it before you post it.
 - Name a document the repository owns in lowercase kebab-case, such as `review-check.md`. Keep the names an ecosystem requires, such as `AGENTS.md`, `README.md` and `SKILL.md`.
 - Before a change goes in, picture a reader with no access to any private history. Check that every line still makes sense to that reader.
@@ -29,6 +27,7 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 
 - Treat a deterministic check as an authoritative gate. A model's judgment may augment one but never replaces it where a deterministic check exists.
 - Get a person's written approval, with a reason, recorded on the change, before a change makes a check catch fewer real problems. Never hide a real failure behind a suppression flag, an ignored error, or a narrowed scope with no reason given.
+- When a tool must run at a fixed moment, such as before a commit or a push, add it to the git hook or agent hook for that moment. Do not write it as a step in an `AGENTS.md` file or a skill.
 
 ## Sub-agents
 

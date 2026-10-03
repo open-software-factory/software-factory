@@ -24,10 +24,6 @@ The checks a pull request must pass are defined in
 to see what runs, and to work out how to reproduce any step on your own
 machine before you push.
 
-[`docs/contributing/rules-and-checks.md`](docs/contributing/rules-and-checks.md)
-lists each rule the coding agents follow here, what enforces it today, and
-what no check covers yet.
-
 ## What the checks look for
 
 The tool checks prose as well as code. It is stricter than most projects,

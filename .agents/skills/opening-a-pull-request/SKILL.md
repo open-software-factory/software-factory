@@ -22,8 +22,7 @@ description: Use this skill when you open a pull request, or update its descript
    - Name the model that wrote the change: `Code-Generator: <model> <noreply@example.com>`.
    - Never add a `Co-Authored-By` line, the git trailer that credits a second author.
    - Never add a link to a coding-agent session.
-9. Before you push, run `osf scan --config osf.toml --commits origin/main..HEAD`. Replace `origin/main` with the pull request's base branch. Fix every error, and rewrite any commit message it flags.
-10. Never force-push a branch you did not create.
-11. Have a reviewer from a model family different from the builder's review the pull request. Its own author cannot approve it.
+9. Never force-push a branch you did not create.
+10. Have a reviewer from a model family different from the builder's review the pull request. Its own author cannot approve it.
 
 Stop when the pull request is ready and names the issue it closes with a label. Its outline's claims must match the real diff, and a reviewer from a model family different from the builder's has reviewed it.

@@ -8,7 +8,6 @@ This folder is the one home for agent configuration every coding agent shares.
 
 - Keep `.claude/skills` a git symlink to `../.agents/skills`. After you touch it, run `git ls-files -s .claude/skills`. The mode must be `120000`.
 - On Windows, run `git config core.symlinks true` and turn on Developer Mode before you clone. Without both, the symlink checks out as a plain text file.
-- After you edit a skill, run `osf lint skill <folder>` on its folder, such as `osf lint skill .agents/skills/filing-an-issue`. Fix every error.
 
 ## Why there is no `CLAUDE.md`
 
