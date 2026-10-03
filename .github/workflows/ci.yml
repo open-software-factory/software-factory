@@ -199,6 +199,38 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: cargo build --release --bin osf
 
+      # Every skill the repository ships, and every skill an agent uses while
+      # working here, every run: skills are few and cheap to check.
+      - name: Check the skills
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          mapfile -t skills < <(git ls-files 'skills/*/SKILL.md' '.agents/skills/*/SKILL.md' | xargs -r -n1 dirname)
+          if [ ${#skills[@]} -eq 0 ]; then
+            echo "::notice::no skills to check"
+            exit 0
+          fi
+          ./target/release/osf lint skill --format human "${skills[@]}"
+
+      # Claude Code reads only .claude/skills, so that folder must stay a
+      # symlink to .agents/skills rather than drift as its own copy.
+      - name: Check the Claude Code skills link
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          mode="$(git ls-files -s .claude/skills | awk '{print $1}')"
+          if [ "$mode" != '120000' ]; then
+            echo "::error::.claude/skills must be a symlink to ../.agents/skills, but git records it with mode '${mode:-<untracked>}', not a symlink mode of 120000."
+            echo "::error::fix: on Windows, run 'git config core.symlinks true' and turn on developer mode first. Then remove .claude/skills, run 'ln -s ../.agents/skills .claude/skills', and commit the result."
+            exit 1
+          fi
+          target="$(readlink .claude/skills)"
+          if [ "$target" != '../.agents/skills' ]; then
+            echo "::error::.claude/skills links to '$target', not '../.agents/skills'."
+            echo "::error::fix: remove .claude/skills, run 'ln -s ../.agents/skills .claude/skills', and commit the result."
+            exit 1
+          fi
+
       # The gate reads every tracked Markdown file, on every run. A rule change
       # can flag a file that a pull request does not touch, so the pull request
       # that changes the rule must see those findings.

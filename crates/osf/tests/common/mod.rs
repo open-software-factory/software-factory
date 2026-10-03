@@ -65,6 +65,29 @@ impl TempRepo {
         self.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
     }
 
+    /// Creates a symlink at `link`, pointing at `target` (resolved the
+    /// way a real symlink resolves it: relative to `link`'s own parent
+    /// directory), creating any parent directory `link` needs. Plain std:
+    /// the `symlink` crate is unmaintained and fails on Windows when the
+    /// target is missing, which the dangling-link test needs.
+    pub fn symlink(&self, link: &str, target: &str) {
+        let full = self.dir.join(link);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).expect("symlink parent dir creates");
+        }
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(target, &full).expect("symlink creates");
+        #[cfg(windows)]
+        {
+            let resolved = full.parent().expect("symlink has a parent").join(target);
+            if resolved.is_dir() {
+                std::os::windows::fs::symlink_dir(target, &full).expect("symlink creates");
+            } else {
+                std::os::windows::fs::symlink_file(target, &full).expect("symlink creates");
+            }
+        }
+    }
+
     /// Writes `count` numbered lines to `path`, each newline-terminated,
     /// creating any parent directory it needs.
     pub fn write_lines(&self, path: &str, count: usize) {
