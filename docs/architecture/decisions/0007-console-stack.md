@@ -6,7 +6,7 @@ Date: 2026-09-15
 
 ## Context
 
-Product decision 0001 makes the console an operator control surface and requires that the engine stay operable without it.
+Product [decision 0001](../../product/decisions/0001-factory-ui-is-an-operator-console.md) makes the console an operator control surface and requires that the engine stay operable without it.
 
 ## Decision
 
@@ -16,10 +16,10 @@ The two prototype packages move into the repository unchanged: the headless stat
 
 The console reads from the engine. It does not probe the machine itself. Discovery of installed coding agents, toolchains and repositories is the engine's job, exposed as a query, so the browser and the desktop targets stay identical and no desktop-only code path forms.
 
-Every view is a projection of the event stream and the entities decision 0005 defines; no view invents its own state.
+Every view is a projection of the event stream and the entities [decision 0005](0005-the-factory-domain-model.md) defines; no view invents its own state.
 
 ## Consequences
 
 - Web and desktop share every screen. A capability one target lacks is absent from both until the engine provides it.
-- The engine grows a query surface for the console before the console needs it; that surface is factory-native, and decision 0004 keeps agent-session protocols at their own edge.
-- A Tauri desktop build can share crates with the engine, which the revised decision 0001 anticipates, without the web build depending on that.
+- The engine grows a query surface for the console before the console needs it; that surface is factory-native, and [decision 0004](0004-protocol-independent-core-with-ahp-acp-edges.md) keeps agent-session protocols at their own edge.
+- A Tauri desktop build can share crates with the engine, which the revised product [decision 0001](../../product/decisions/0001-factory-ui-is-an-operator-console.md) anticipates, without the web build depending on that.
