@@ -1,16 +1,19 @@
-//! `osf status`: the block at the top of a pull request description that
+//! `osf pr status`: the block at the top of a pull request description that
 //! says whether the change is ready to merge. Rendering is a pure function
 //! of its inputs, so the same inputs always give the same bytes; applying
 //! replaces the block between two markers, or adds it at the top, without
-//! touching anything else in the description.
+//! touching anything else in the description. The layout of the whole
+//! description lives in `.github/PULL_REQUEST_TEMPLATE.md`; this module
+//! writes only the `osf:status` block of it.
 
+use crate::marker;
 use regex::Regex;
 use serde_json::Value;
 use std::fmt::{self, Write as _};
 use std::process::Command;
 
-const BEGIN: &str = "<!-- factory:status:begin -->";
-const END: &str = "<!-- factory:status:end -->";
+const NAME: &str = "status";
+const SHORT_SHA_LEN: usize = 7;
 
 /// A `status` operation could not run: bad input, or a failed `gh` call.
 /// Distinct from the operation running and finding nothing to do.
@@ -36,51 +39,202 @@ impl fmt::Display for StatusError {
 impl std::error::Error for StatusError {}
 
 /// Everything [`render`] needs, as text: a file's worth of tier JSON, the
-/// gate results, the two free-text fields, and the review JSON. Reading
-/// files or calling `gh` is the caller's job, so this stays a pure function.
+/// gate results, the review JSON, and the commit the block is built for.
+/// Reading files or calling `gh` is the caller's job, so this stays a pure
+/// function.
 pub struct RenderInput<'a> {
     pub tier_json: &'a str,
     pub gates: &'a str,
-    pub problem: &'a str,
-    pub approach: &'a str,
     pub review_json: &'a str,
+    /// The full commit hash of the pull request's head.
+    pub head: &'a str,
+    /// The Rust test summary, already rendered by
+    /// [`crate::changeset_tests::render`], or `None` to leave it out: this
+    /// module stays a pure function of its inputs and never builds one
+    /// itself.
+    pub tests: Option<&'a str>,
+    /// One line for the Automated review row's Details, such as the model
+    /// family, the rounds and the fixing commit. `None` or empty keeps the
+    /// details computed from the review comments.
+    pub automated_review: Option<&'a str>,
+    /// One line for the Human review row's Details, such as reviewer display
+    /// names. `None` or empty keeps the details computed from the decision.
+    pub human_review: Option<&'a str>,
 }
 
-/// Renders the status block. Ready is `yes` only when every gate passed,
-/// the verdict is APPROVE, and GitHub is not still requiring a human
-/// review; otherwise it names the one blocking reason.
+/// Renders the status block: a heading naming the head commit, a table of
+/// checks with one row each, and a collapsed explanation of the risk. A
+/// result is one icon and a few words: passed, waiting, failed, or not run
+/// with the reason. A check that did not run is never shown as passed.
 ///
 /// # Errors
-/// Returns an error when `problem` or `approach` is empty, the tier JSON
-/// does not have a string `tier` and a `reasons` array of strings, a gate
-/// entry is not `name: passed` or `name: failed: <reason>`, or the review
-/// JSON does not have the shape of `gh pr view --json
-/// reviewDecision,reviews,comments`.
+/// Returns an error when `head` is empty, the tier JSON does not have a
+/// string `tier` and a `reasons` array of strings, a gate entry is not
+/// `name: passed` or `name: failed: <reason>`, or the review JSON does not
+/// have the shape of `gh pr view --json reviewDecision,reviews,comments`.
 pub fn render(input: &RenderInput) -> Result<String, StatusError> {
-    require_non_empty("problem", input.problem)?;
-    require_non_empty("approach", input.approach)?;
+    require_non_empty("head", input.head)?;
 
     let (tier, reasons) = parse_tier(input.tier_json)?;
     let gates = parse_gates(input.gates)?;
     let review = parse_review(input.review_json)?;
-    let (review_line, ready) = review_and_ready(&gates, &review);
-    let verified = gates.verified_text();
+    let short = input.head.get(..SHORT_SHA_LEN).unwrap_or(input.head);
 
-    Ok(format!(
-        "{BEGIN}\n\
-         | | |\n\
-         |---|---|\n\
-         | **Ready** | {ready} |\n\
-         | **Risk** | {tier}: {reasons} |\n\
-         | **Verified** | {verified} |\n\
-         | **Review** | {review_line} |\n\
+    let (risk_result, level) = risk_label(&tier);
+    let risk_details = reasons.first().map_or("no reason recorded", String::as_str);
+    let (tests_result, tests_details, tests_rest) = tests_row(input.tests);
+    let (ci_result, ci_details) = gates.ci_row();
+    let (auto_result, auto_details) = automated_review_row(&review);
+    let (human_result, human_details) = human_review_row(&review);
+    let auto_details =
+        review_override("--automated-review", input.automated_review)?.unwrap_or(auto_details);
+    let human_details =
+        review_override("--human-review", input.human_review)?.unwrap_or(human_details);
+
+    let mut out = String::new();
+    writeln!(out, "{}", marker::start(NAME, input.head)).expect("writing to a string never fails");
+    write!(
+        out,
+        "### Status at `{short}`\n\
          \n\
-         **Problem**: {problem}\n\
-         **Approach**: {approach}\n\
-         {END}\n",
-        problem = input.problem,
-        approach = input.approach,
-    ))
+         | Check | Result | Details |\n\
+         |---|---|---|\n\
+         | **Risk** | {risk_result} | {risk} |\n\
+         | **Tests** | {tests_result} | {tests_details} |\n\
+         | **CI** | {ci_result} | {ci_details} |\n\
+         | **Commit messages** | ⏸ not run | no check lints commit messages yet |\n\
+         | **Contributor agreement** | ⏸ not run | no check yet; a first-time author posts the CONTRIBUTING.md sentence |\n\
+         | **Automated review** | {auto_result} | {auto_details} |\n\
+         | **Human review** | {human_result} | {human_details} |\n",
+        human_details = cell(&human_details),
+        risk_result = cell(&risk_result),
+        risk = cell(risk_details),
+        tests_result = cell(&tests_result),
+        ci_result = cell(&ci_result),
+        ci_details = cell(&ci_details),
+        auto_result = cell(&auto_result),
+        auto_details = cell(&auto_details),
+    )
+    .expect("writing to a string never fails");
+
+    if !reasons.is_empty() {
+        write!(
+            out,
+            "\n<details>\n<summary><b>Why the risk is {level}</b></summary>\n\n"
+        )
+        .expect("writing to a string never fails");
+        for reason in &reasons {
+            writeln!(out, "- {reason}").expect("writing to a string never fails");
+        }
+        out.push_str("\n</details>\n");
+    }
+    if !review.rounds.is_empty() {
+        out.push_str("\n<details>\n<summary><b>Automated review rounds</b></summary>\n\n");
+        for round in &review.rounds {
+            writeln!(out, "- {}", round_bullet(round)).expect("writing to a string never fails");
+        }
+        out.push_str("\n</details>\n");
+    }
+    if let Some(rest) = tests_rest {
+        write!(
+            out,
+            "\n<details>\n<summary><b>Test changes</b></summary>\n\n{rest}\n\n</details>\n"
+        )
+        .expect("writing to a string never fails");
+    }
+    writeln!(out, "{}", marker::end(NAME)).expect("writing to a string never fails");
+    Ok(out)
+}
+
+/// A table cell holds one line, and a bar would end it early.
+fn cell(text: &str) -> String {
+    text.replace('|', "\\|")
+}
+
+/// The Tests row from the rendered test summary: its first line becomes the
+/// result, and the detail lines under it go in a collapsed section.
+fn tests_row(tests: Option<&str>) -> (String, String, Option<String>) {
+    let Some(text) = tests else {
+        return (
+            "⏸ not run".to_string(),
+            "no base to compare against".to_string(),
+            None,
+        );
+    };
+    let mut lines = text.lines();
+    let first = lines.next().unwrap_or_default();
+    let summary = first.strip_prefix("**Tests**: ").unwrap_or(first);
+    let rest: Vec<&str> = lines.collect();
+    let rest = (!rest.is_empty()).then(|| rest.join("\n"));
+    let result = if summary == "0 added, 0 changed, 0 removed" {
+        "➖ none automated".to_string()
+    } else {
+        format!("✅ {summary}")
+    };
+    (result, "[Testing notes](#testing-notes)".to_string(), rest)
+}
+
+/// The Risk row's dot and level, and the level word for the collapsed
+/// section: 🔴 High, 🟠 Medium (the `normal` tier), 🟢 Low. A tier this
+/// build does not know keeps its own name behind a white dot.
+fn risk_label(tier: &str) -> (String, String) {
+    match tier {
+        "high" => ("🔴 High".to_string(), "high".to_string()),
+        "normal" | "medium" => ("🟠 Medium".to_string(), "medium".to_string()),
+        "low" => ("🟢 Low".to_string(), "low".to_string()),
+        other => (format!("⚪ {other}"), other.to_string()),
+    }
+}
+
+/// One bullet for the rounds section: the round and its tier in bold, then
+/// the counts. A line that does not have the usual shape is kept as written.
+fn round_bullet(line: &str) -> String {
+    let shape = Regex::new(r"^Review round (\d+) \(([a-z]+)\): (.*?)\.?$").expect("fixed pattern");
+    match shape.captures(line) {
+        Some(c) => format!("**Round {} ({}):** {}", &c[1], &c[2], &c[3]),
+        None => line.to_string(),
+    }
+}
+
+/// The Automated review row: the verdict of the last advisory review, and
+/// the latest review round's counts.
+fn automated_review_row(review: &ReviewFields) -> (String, String) {
+    let result = match review.advisory_verdict.as_deref() {
+        Some("APPROVE") => "✅ clean".to_string(),
+        Some("REQUEST_CHANGES") => "❌ changes requested".to_string(),
+        Some(other) => format!("⏳ {other}"),
+        None => "⏳ waiting".to_string(),
+    };
+    let details = match &review.round_line {
+        Some(line) => {
+            let (k, word, counts) = round_parts(line);
+            format!("{k} {word}, {counts}")
+        }
+        None => "no round yet".to_string(),
+    };
+    (result, details)
+}
+
+/// The Human review row, from the decision GitHub reports.
+fn human_review_row(review: &ReviewFields) -> (&'static str, String) {
+    let (result, details) = match review.decision.as_str() {
+        "APPROVED" => ("✅ approved", "approved on GitHub"),
+        "CHANGES_REQUESTED" => ("❌ changes requested", "changes requested on GitHub"),
+        _ => ("⏳ waiting", "no approving review yet"),
+    };
+    (result, details.to_string())
+}
+
+/// The caller's one-line Details for a review row: `None` when absent or
+/// empty, an error when it spans lines, since a table cell holds one line.
+fn review_override(label: &str, value: Option<&str>) -> Result<Option<String>, StatusError> {
+    let Some(text) = value.map(str::trim).filter(|t| !t.is_empty()) else {
+        return Ok(None);
+    };
+    if text.contains(['\n', '\r']) {
+        return Err(StatusError(format!("{label} must be one line")));
+    }
+    Ok(Some(text.to_string()))
 }
 
 /// Puts `block` into `body`: between the markers when both are present,
@@ -105,8 +259,8 @@ pub fn apply(body: &str, block: &str) -> Result<String, StatusError> {
 
     let body_lines = logical_lines(content);
     let block_lines = logical_lines(block_content);
-    let begins = positions(&body_lines, BEGIN);
-    let ends = positions(&body_lines, END);
+    let begins = start_positions(&body_lines);
+    let ends = end_positions(&body_lines);
 
     let new_lines = match (begins.as_slice(), ends.as_slice()) {
         ([], []) => {
@@ -146,7 +300,7 @@ fn require_non_empty(label: &str, value: &str) -> Result<(), StatusError> {
     Ok(())
 }
 
-fn parse_tier(text: &str) -> Result<(String, String), StatusError> {
+fn parse_tier(text: &str) -> Result<(String, Vec<String>), StatusError> {
     let value: Value = serde_json::from_str(text)
         .map_err(|e| StatusError(format!("--tier-json is not valid JSON: {e}")))?;
     let tier = value.get("tier").and_then(Value::as_str);
@@ -157,12 +311,12 @@ fn parse_tier(text: &str) -> Result<(String, String), StatusError> {
     if !reasons.iter().all(Value::is_string) {
         return Err(tier_shape_error());
     }
-    let joined = reasons
+    let reasons = reasons
         .iter()
         .filter_map(Value::as_str)
-        .collect::<Vec<_>>()
-        .join("; ");
-    Ok((tier.to_string(), joined))
+        .map(str::to_string)
+        .collect();
+    Ok((tier.to_string(), reasons))
 }
 
 fn tier_shape_error() -> StatusError {
@@ -176,6 +330,8 @@ struct ReviewFields {
     decision: String,
     advisory_verdict: Option<String>,
     round_line: Option<String>,
+    /// The first line of every review-round comment, oldest first.
+    rounds: Vec<String>,
 }
 
 fn parse_review(text: &str) -> Result<ReviewFields, StatusError> {
@@ -210,6 +366,7 @@ fn parse_review(text: &str) -> Result<ReviewFields, StatusError> {
         decision,
         advisory_verdict: advisory_verdict(&reviews),
         round_line: round_line(&comments),
+        rounds: round_lines(&comments),
     })
 }
 
@@ -233,36 +390,50 @@ fn advisory_verdict(reviews: &[Value]) -> Option<String> {
 
 /// The first line of the last comment whose body opens with "Review round ".
 fn round_line(comments: &[Value]) -> Option<String> {
+    round_lines(comments).pop()
+}
+
+/// The first line of every comment whose body opens with "Review round ".
+fn round_lines(comments: &[Value]) -> Vec<String> {
     comments
         .iter()
         .filter_map(|c| c.get("body").and_then(Value::as_str))
-        .rfind(|body| body.starts_with("Review round "))
-        .and_then(|body| body.lines().next().map(str::to_string))
+        .filter(|body| body.starts_with("Review round "))
+        .filter_map(|body| body.lines().next().map(str::to_string))
+        .collect()
 }
 
 #[derive(Default)]
 struct GateSummary {
     total: usize,
     passed: usize,
-    failed_names: Vec<String>,
     failed_desc: Vec<String>,
 }
 
 impl GateSummary {
-    /// The checks tab already lists every check by name, so this names only
-    /// the failing ones: `all N passed`, `no checks reported yet`, or `P of
-    /// N passed, failed: name (reason), ...`.
-    fn verified_text(&self) -> String {
+    /// The CI row. The checks tab already lists every check by name, so the
+    /// details name only the failing ones: `all N passed`, `no checks
+    /// reported yet`, or `P of N passed, failed: name (reason), ...`.
+    fn ci_row(&self) -> (String, String) {
         if self.total == 0 {
-            return "no checks reported yet".to_string();
+            return (
+                "⏳ waiting".to_string(),
+                "no checks reported yet".to_string(),
+            );
         }
         if self.failed_desc.is_empty() {
-            return format!("all {} passed", self.total);
+            return (
+                "✅ passed".to_string(),
+                format!("all {} passed", self.total),
+            );
         }
-        let mut text = format!("{} of {} passed", self.passed, self.total);
-        write!(text, ", failed: {}", self.failed_desc.join(", "))
-            .expect("writing to a string never fails");
-        text
+        let details = format!(
+            "{} of {} passed, failed: {}",
+            self.passed,
+            self.total,
+            self.failed_desc.join(", ")
+        );
+        ("❌ failed".to_string(), details)
     }
 }
 
@@ -295,7 +466,6 @@ fn parse_gates(spec: &str) -> Result<GateSummary, StatusError> {
                 .strip_prefix(':')
                 .unwrap_or_else(|| rest.trim())
                 .trim();
-            summary.failed_names.push(name.clone());
             if reason.is_empty() {
                 summary.failed_desc.push(name);
             } else {
@@ -308,21 +478,6 @@ fn parse_gates(spec: &str) -> Result<GateSummary, StatusError> {
         }
     }
     Ok(summary)
-}
-
-/// The native decision wins; otherwise the latest advisory verdict is used
-/// and marked as advisory, and `REVIEW_REQUIRED` means a human is still
-/// needed even when the advisory verdict is APPROVE.
-fn verdict_and_flags(review: &ReviewFields) -> (String, bool, bool) {
-    match review.decision.as_str() {
-        "APPROVED" => ("APPROVE".to_string(), false, false),
-        "CHANGES_REQUESTED" => ("REQUEST_CHANGES".to_string(), false, false),
-        other => {
-            let verdict = review.advisory_verdict.clone().unwrap_or_default();
-            let advisory = !verdict.is_empty();
-            (verdict, advisory, other == "REVIEW_REQUIRED")
-        }
-    }
 }
 
 /// Splits a "Review round N (tier): counts." line into the round number,
@@ -341,39 +496,6 @@ fn round_parts(line: &str) -> (String, &'static str, String) {
         counts = stripped.to_string();
     }
     (k, word, counts)
-}
-
-fn review_and_ready(gates: &GateSummary, review: &ReviewFields) -> (String, String) {
-    let (verdict, advisory, human_required) = verdict_and_flags(review);
-    let verdict_display = if verdict.is_empty() {
-        "pending"
-    } else {
-        verdict.as_str()
-    };
-    let advisory_suffix = if advisory { " (advisory)" } else { "" };
-
-    let mut review_line = match &review.round_line {
-        Some(line) => {
-            let (k, word, counts) = round_parts(line);
-            format!("{verdict_display}{advisory_suffix}: {k} {word}, {counts}")
-        }
-        None => format!("{verdict_display}{advisory_suffix}: no round yet"),
-    };
-    if human_required {
-        review_line.push_str("; human approval required");
-    }
-
-    let ready = if let Some(first) = gates.failed_names.first() {
-        format!("blocked by {first} failed")
-    } else if verdict != "APPROVE" {
-        format!("blocked by review: {verdict_display}")
-    } else if human_required {
-        "blocked by review: human approval required".to_string()
-    } else {
-        "yes".to_string()
-    };
-
-    (review_line, ready)
 }
 
 #[derive(Clone, Copy)]
@@ -420,19 +542,31 @@ fn logical_lines(text: &str) -> Vec<String> {
         .collect()
 }
 
-fn positions(lines: &[String], marker: &str) -> Vec<usize> {
+/// The lines that are a status start marker, in either the current or the
+/// old style.
+fn start_positions(lines: &[String]) -> Vec<usize> {
+    positions(lines, |line| marker::is_start_line(line, NAME))
+}
+
+/// The lines that are a status end marker, in either the current or the old
+/// style.
+fn end_positions(lines: &[String]) -> Vec<usize> {
+    positions(lines, |line| marker::is_end_line(line, NAME))
+}
+
+fn positions(lines: &[String], is_marker: impl Fn(&str) -> bool) -> Vec<usize> {
     lines
         .iter()
         .enumerate()
-        .filter(|(_, line)| line.as_str() == marker)
+        .filter(|(_, line)| is_marker(line.as_str()))
         .map(|(i, _)| i)
         .collect()
 }
 
 fn validate_block(block: &str) -> Result<(), StatusError> {
     let lines = logical_lines(block);
-    let begins = positions(&lines, BEGIN);
-    let ends = positions(&lines, END);
+    let begins = start_positions(&lines);
+    let ends = end_positions(&lines);
     let (&[begin], &[end]) = (begins.as_slice(), ends.as_slice()) else {
         return Err(StatusError(
             "the block must carry each marker exactly once, each on its own line".to_string(),
@@ -455,8 +589,8 @@ fn validate_block(block: &str) -> Result<(), StatusError> {
 /// resolve: one without the other, a repeat, or reversed.
 pub fn current_block(body: &str) -> Result<Option<String>, StatusError> {
     let lines = logical_lines(body);
-    let begins = positions(&lines, BEGIN);
-    let ends = positions(&lines, END);
+    let begins = start_positions(&lines);
+    let ends = end_positions(&lines);
     match (begins.as_slice(), ends.as_slice()) {
         ([], []) => Ok(None),
         (&[begin], &[end]) => {
@@ -486,32 +620,6 @@ pub fn current_block(body: &str) -> Result<Option<String>, StatusError> {
 /// Propagates a marker-shape error from [`current_block`].
 pub fn is_unchanged(body: &str, rendered: &str) -> Result<bool, StatusError> {
     Ok(current_block(body)?.as_deref() == Some(rendered))
-}
-
-/// `Problem` and `Approach`, read back out of the block already in `body`.
-/// `None` when `body` carries no block yet.
-///
-/// # Errors
-/// Returns an error when `body` carries the markers in a shape
-/// [`current_block`] cannot resolve, or when a block is there but is
-/// missing a `**Problem**:` or `**Approach**:` line.
-pub fn extract_problem_approach(body: &str) -> Result<Option<(String, String)>, StatusError> {
-    let Some(block) = current_block(body)? else {
-        return Ok(None);
-    };
-    let problem = block
-        .lines()
-        .find_map(|line| line.strip_prefix("**Problem**: "));
-    let approach = block
-        .lines()
-        .find_map(|line| line.strip_prefix("**Approach**: "));
-    match (problem, approach) {
-        (Some(p), Some(a)) => Ok(Some((p.to_string(), a.to_string()))),
-        _ => Err(StatusError(
-            "the existing status block has no **Problem**: or **Approach**: line to reuse"
-                .to_string(),
-        )),
-    }
 }
 
 /// Turns `gh pr checks --json name,state,bucket` output into the
@@ -604,7 +712,7 @@ pub fn parse_pr_info(text: &str) -> Result<PrInfo, StatusError> {
     })
 }
 
-/// What [`apply`] and `osf status refresh` need from GitHub: reading a
+/// What [`apply`] and `osf pr status refresh` need from GitHub: reading a
 /// pull request's description and metadata, its checks, its review state,
 /// and writing a new description back. A trait so a test can supply a fake
 /// instead of shelling out to `gh`.
