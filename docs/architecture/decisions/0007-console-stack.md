@@ -22,4 +22,4 @@ Every view is a projection of the event stream and the entities [decision 0005](
 
 - Web and desktop share every screen. A capability one target lacks is absent from both until the engine provides it.
 - The engine grows a query surface for the console before the console needs it; that surface is factory-native, and [decision 0004](0004-protocol-independent-core-with-ahp-acp-edges.md) keeps agent-session protocols at their own edge.
-- A Tauri desktop build can share crates with the engine, which the revised product [decision 0001](../../product/decisions/0001-factory-ui-is-an-operator-console.md) anticipates, without the web build depending on that.
+- A Tauri desktop build can share crates with the engine, which the revised architecture [decision 0001](0001-rust-for-the-factory-engine.md) anticipates, without the web build depending on that.

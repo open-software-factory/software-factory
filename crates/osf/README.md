@@ -166,7 +166,7 @@ needs to translate.
 Two refusals are also on offer and they are not interchangeable. An agent
 reading the exit code ignores standard output, and an agent reading standard
 output treats exit code 2 (the code that means refuse) as the check crashing. The command guesses from the
-key spelling, which is right for Claude Code, Codex, the dsh bridge, Copilot CLI and opencode. An adapter that builds the
+key spelling, which is right for Claude Code, Codex, the dsh bridge, Copilot CLI and opencode2. An adapter that builds the
 event itself should not rely on the guess: pass `--answer exit-code` or
 `--answer decision-json` and the guess is skipped.
 

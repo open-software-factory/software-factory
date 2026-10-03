@@ -313,7 +313,7 @@ A message lives in exactly one active channel. Escalation moves it. It is never 
 | Attention item | Anything needing operator judgement | until resolved; ranked (§11.3) | P2 to P1 |
 | Banner | Factory-level condition affecting the whole session | while the condition holds; one at a time, highest wins | P1 |
 | Dialog (P0 interruption) | The factory cannot proceed safely without a decision | until decided | P0 |
-| History / inbox | Append-only record of every item in this table | permanent | all |
+| History / inbox | Append-only record of every other item in this table | permanent | all |
 
 ### 7.2 Loading and progress
 
