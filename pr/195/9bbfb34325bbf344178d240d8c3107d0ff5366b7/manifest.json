@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "9bbfb34325bbf344178d240d8c3107d0ff5366b7",
+    "contentHash": "0f54d885ed8bb218eb170dbe6207dc0f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9223417612d5325377326ff60a0bb75b",
+      "bytes": 25950,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "architecture-overview-light-9223417612d5325377326ff60a0bb75b.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a376b8d59d701c251e65371d44c940ed",
+      "bytes": 26231,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "architecture-overview-dark-a376b8d59d701c251e65371d44c940ed.svg"
+    },
+    {
+      "id": "scan-engine-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-engine-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4362da69be432b0b6d29703078db9bdc",
+      "bytes": 11186,
+      "width": 436,
+      "height": 532,
+      "animated": false,
+      "path": "scan-engine-internals-light-4362da69be432b0b6d29703078db9bdc.svg"
+    },
+    {
+      "id": "scan-engine-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-engine-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "473c3e398220eca03bd2a214f46852c3",
+      "bytes": 11311,
+      "width": 436,
+      "height": 532,
+      "animated": false,
+      "path": "scan-engine-internals-dark-473c3e398220eca03bd2a214f46852c3.svg"
+    },
+    {
+      "id": "skill-folders-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "skill-folders",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4f1207e4fefcd7e807a6768dfb9c55e4",
+      "bytes": 12858,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "skill-folders-light-4f1207e4fefcd7e807a6768dfb9c55e4.svg"
+    },
+    {
+      "id": "skill-folders-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "skill-folders",
+      "mediaType": "image/svg+xml",
+      "contentHash": "01d6e6a9763494ff4e0c6df5286e1a52",
+      "bytes": 12993,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "skill-folders-dark-01d6e6a9763494ff4e0c6df5286e1a52.svg"
+    },
+    {
+      "id": "scan-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "scan-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c9c31b5bb1974d6eb96abef271e0af04",
+      "bytes": 15079,
+      "width": 2011,
+      "height": 483,
+      "animated": true,
+      "path": "scan-flow-view-light-c9c31b5bb1974d6eb96abef271e0af04.svg"
+    },
+    {
+      "id": "scan-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "scan-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ef6b2297747d65459ef2298f9863ad51",
+      "bytes": 15193,
+      "width": 2011,
+      "height": 483,
+      "animated": true,
+      "path": "scan-flow-view-dark-ef6b2297747d65459ef2298f9863ad51.svg"
+    }
+  ]
+}
