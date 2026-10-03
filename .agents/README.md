@@ -8,7 +8,3 @@ This folder is the one home for agent configuration every coding agent shares.
 
 - Keep `.claude/skills` a git symlink to `../.agents/skills`. After you touch it, run `git ls-files -s .claude/skills`. The mode must be `120000`.
 - On Windows, run `git config core.symlinks true` and turn on Developer Mode before you clone. Without both, the symlink checks out as a plain text file.
-
-## Why there is no `CLAUDE.md`
-
-Claude Code reads the root [`AGENTS.md`](../AGENTS.md) file directly, from version 2.1.277 onward. This repository keeps no separate `CLAUDE.md` file. One set of agent rules serves every agent, including Claude Code, so do not add one.

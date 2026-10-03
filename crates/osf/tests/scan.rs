@@ -52,6 +52,9 @@ fn a_binary_tracked_file_is_skipped_not_scanned() {
     );
 }
 
+/// A scan reads only this repository's own files, each at its own path. A
+/// link's target is either one of those, scanned at its real path, or lies
+/// outside the repository, so the link itself is skipped and counted.
 #[test]
 fn a_tracked_symlink_to_a_directory_is_skipped_not_read_as_a_file() {
     let repo = TempRepo::new("symlink-to-dir");
@@ -87,7 +90,8 @@ fn a_repo_of_only_a_symlink_reports_it_excluded_not_clean() {
 }
 
 /// An explicit scan path that is itself a symlinked directory is skipped and
-/// counted as excluded.
+/// counted as excluded. A path named on the command line follows the same
+/// rule as a tracked file, so the result depends only on the files in the tree.
 #[test]
 fn an_explicit_path_that_is_a_symlinked_directory_is_not_followed() {
     let repo = TempRepo::new("explicit-path-symlinked-dir");
@@ -110,7 +114,8 @@ fn an_explicit_path_that_is_a_symlinked_directory_is_not_followed() {
 }
 
 /// A symlinked directory found while walking a scanned folder is skipped
-/// and counted, not followed to the real directory it points at.
+/// and counted. Its target belongs to another folder, or to no folder in
+/// this repository, so the walk stays inside the folder it was given.
 #[test]
 fn a_symlinked_directory_inside_a_scanned_folder_is_not_followed() {
     let repo = TempRepo::new("nested-symlinked-dir");
