@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Date: 2026-09-27, amended 2026-10-03: each reviewer runs in a CI job of its own with only its own key, and a reviewer reads the change with read-only tools inside a sandbox, so the reason for reading the pull request as data is superseded.
+Date: 2026-09-27, amended 2026-10-03: each reviewer runs in a CI job of its own with only its own key, and a reviewer reads the change with read-only tools inside a sandbox, so the reason for reading the pull request as data is superseded. Amended again 2026-10-03: the review check is advisory until the key proxy and the network split land, and the work item text comes from the linked issue.
 
 ## Context
 
@@ -125,7 +125,7 @@ The develop step is a CI job that runs in the development container image. An ag
 
 ### 5. The CI review job is the gate
 
-Branch protection requires the final job of the review from the base-branch workflow. A review run before the push, inside the builder agent's own workspace, is an early warning only, and it never counts toward the merge. The agent has a shell in its own workspace, so a run there could be made to report a pass. The pre-push run stays, as a cheap, early signal.
+The final job of the review, from the base-branch workflow, is the only review that can count toward a merge. The review check is advisory for now. It posts a check run and a review, and branch protection does not require it. It becomes a required check when the key proxy and the network split in [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) land. From then on, branch protection requires that final job. A review run before the push, inside the builder agent's own workspace, is an early warning only, and it never counts toward the merge. The agent has a shell in its own workspace, so a run there could be made to report a pass. The pre-push run stays, as a cheap, early signal.
 
 ### 6. The adopter decides the runner and the reviewer credentials
 
@@ -148,13 +148,17 @@ A reviewer job checks out the pull request as data, and never builds, tests or r
 
 An agent with no read-only mode cannot be a reviewer until it has one. A run that selects it reports could-not-run, with the reason.
 
-A pull request from a fork waits for a maintainer's approval before the jobs run. Running pull request code next to a job's secrets is the known attack on a base-branch workflow. Build and test already run in the ordinary CI jobs.
+A pull request from a fork is not reviewed unless the repository variable `OSF_REVIEW_FORKS` is `true`, and the default is off. When it is on, the pull request waits for a maintainer's approval before the jobs run. Running pull request code next to a job's secrets is the known attack on a base-branch workflow. Build and test already run in the ordinary CI jobs.
+
+The work item text that the spec and acceptance lens needs comes from the issue the pull request names on its `Issue:` line, or else the first issue it closes. The build job reads that issue through the code host's API with a read-only token. That job holds no secret. It saves the text, and each reviewer job receives it as a read-only file. The text is untrusted, as the pull request's own text is, so it reaches a reviewer only as data. A pull request that links no readable issue makes that lens could-not-run.
+
+Each reviewer job passes into its container only the credential variable that its agent names. Every job runs one container image that the workflow names once, pinned by digest.
 
 Prompt injection is still a risk, because a reviewer reads text that an agent or a fork wrote. The sandbox limits what steered text can do. The final job's reducer, in [decision 0016 (the review check)](0016-the-review-check.md), checks that every finding's quoted code exists at the file and line it names, and requires the quorum its interim policy sets. That keeps a fabricated location out. It does not check a finding's claim, so steered text can still attach a false severity or description to a genuine quote. It also does not stop a reviewer returning an all-high-score answer with no findings at all. Prompt injection aimed at silence, rather than at a forged finding, can still pass a review this way.
 
 ### Routine choices
 
-Branch protection requires both the review job and every review conversation resolved. The check shows that a review ran and passed. Resolved conversations show that a person dealt with each finding.
+Branch protection requires every review conversation resolved. It will require the review job as well once the review check is required. The check shows that a review ran and passed. Resolved conversations show that a person dealt with each finding.
 
 Findings are posted on the pull request as review comments under the verifier identity, which holds permission to write pull request comments. A must-fix finding fails the review job.
 
@@ -170,7 +174,7 @@ flowchart LR
   FJ -->|posts findings| VC[Verifier identity: pull_requests write]
   FJ -->|pass or fail under its own Actions identity| CHK[Check on the commit]
   CHK --> GATE{Branch protection}
-  GATE -->|final job passed, conversations resolved| M[Merge allowed]
+  GATE -->|conversations resolved, and the final job once it is required| M[Merge allowed]
 ```
 
 The current installed permissions of the two apps ground this record:
@@ -188,6 +192,7 @@ Neither app can write a check or a commit status. That is what lets decision 3 w
 - The builder app holds `workflows: write`, `actions: write` and `actions_variables: write`. It could change a repository variable the review workflow reads, such as the runner choice, or cancel and rerun jobs. Which variables the review workflow trusts should be reviewed, and taking `actions_variables: write` away from the builder app is worth considering.
 - `pull_request_target` is easy to misuse. A later change that checks out and runs pull request code under it would bring back the attack this record closes. A lint on the workflow file should refuse that pattern.
 - Branch protection still needs a person with admin rights to turn it on. Until then, none of this is enforced.
+- The review check is advisory until [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) lands. A passing review is evidence for a person to weigh, and it does not yet gate a merge.
 - A shared build cache is deferred until build times make one worth adding. Decision 7 applies once it exists.
 - Support for other code hosts and CI systems is deferred until a first adopter needs one. An adapter would then supply the same events, jobs and job results.
 - Each agent's read-only mode must be checked before the agent can review. An agent with none reports could-not-run until it has one.

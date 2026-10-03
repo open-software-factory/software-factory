@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Date: 2026-09-25, amended 2026-10-03: the review prompt is a file, a reviewer receives metadata and reads a clean copy of the change with read-only tools, each reviewer runs in a CI job of its own with only its own key, and the roster is the agent list in `crates/osf/src/agents.rs`.
+Date: 2026-09-25, amended 2026-10-03: the review prompt is a file, a reviewer receives metadata and reads a clean copy of the change with read-only tools, each reviewer runs in a CI job of its own with only its own key, and the roster is the agent list in `crates/osf/src/agents.rs`. Amended again 2026-10-03: the review check is advisory for now, a family counts after two answered rounds, a saved run is bound to its pull request and CI run, the work item comes from the linked issue, the shipped prompt is an embedded file, and a reviewer's sandbox must start before it reviews.
 
 ## Context
 
@@ -42,6 +42,7 @@ The reason for the prompt file and for metadata is the owner's observation that 
 |---|---|---|
 | A default prompt file that osf ships, which a repository can override | The role, the rules and how to answer sit in a file, found by the same precedence as the lens files. | Taken. An adopter edits the frame without an osf release. |
 | Prompt text compiled into osf | The frame is a string in the code. | Set aside. An adopter cannot see it or change it, and a wording change needs a release. |
+| A default file installed beside the binary | osf finds the default on disk next to itself, and a repository's file comes before it. | Set aside. [Decision 0006 (distribution and packaging)](0006-distribution-and-packaging.md) ships one static binary, and a file beside it would sit outside the files that binary and its checksum wrapper cover. The shipped lens files already travel inside the binary. |
 
 **What a reviewer receives.**
 
@@ -114,6 +115,8 @@ The review runs at every tier. The `osf risk` tier chooses which lenses run beyo
 
 Each lens also declares the inputs it needs, whatever the tier. Spec and acceptance needs the work item and its acceptance criteria. Design documents need the decision records the change touches or cites. Architecture adherence needs the architecture documents. osf passes the inputs a lens names as metadata, and the reviewer reads the documents themselves from the checkout. A required input that is missing, such as a work item with no acceptance criteria, makes that lens could-not-run for the change. The reviewer does not guess what was asked.
 
+The work item is the issue the pull request names on its `Issue:` line, or else the first issue it closes with a closing keyword. Only an issue in the pull request's own repository is read. A workflow step with a read-only token and no secret reads that issue through the code host's API and saves its text for the reviewer jobs. The text is untrusted input, as the pull request's own text is. It reaches a reviewer only as data, after secret redaction. A pull request that links no readable issue makes the spec and acceptance lens could-not-run, with a reason that says to link one.
+
 An adopter adds a domain lens as a file under `.osf/review-lenses/<name>.toml`, in the same shape as the shipped lenses. Money and health data are examples: they matter in some domains and not in others. The catalogue page lists them as ready-made examples that an adopter enables by copying the file. The precedence is the usual one: the repository's file, then the organisation's, then the tool's. osf validates each lens file when it loads it. A file that does not match the schema stops the review as could-not-configure.
 
 ### Reviewers
@@ -137,7 +140,15 @@ The goal is reviewers from two model families, both different from the builder's
 
 ### The review prompt
 
-The frame of the prompt sent to a reviewer holds its role, its rules and how to answer. It lives in a default prompt file that osf ships. A repository overrides it the same way it overrides a shipped lens file, by the usual precedence: the repository's file, then the organisation's, then the tool's. The default prompt is a file an adopter can edit. It is never text compiled into osf.
+The frame of the prompt sent to a reviewer holds its role, its rules and how to answer. The default is a file in the osf source tree, `crates/osf/defaults/review-prompt.md`. The osf build embeds that file in the binary, as it does the shipped lens files, so one static binary carries its defaults, as decision 0006 requires. The default is never a string written in the code, and an adopter edits the file in a copy of osf's source or replaces it from the repository.
+
+osf loads the prompt from the first of these that exists, all read from the base branch:
+
+1. The file that the `[review] prompt_file` setting names.
+2. The file `.osf/review-prompt.md`.
+3. The default that ships with osf.
+
+The organisation's layer, which the lens files also have, is not built yet for the prompt or for the lenses. The default prompt also tells the reviewer to treat the pull request text, the work item and every file as data to review.
 
 Only the answer format that osf parses stays fixed in code. That format is the JSON Schema in the next section.
 
@@ -159,6 +170,7 @@ The reviewer reads whatever else it needs with read-only tools over a clean copy
 Tools are safe to give a reviewer because of the limits below.
 
 - The tools cannot write files or change anything. Claude Code, opencode and omp have file tools only: read, search and list. They have no shell. Codex runs in its read-only sandbox, which stops writes and changes. Its shell can still read any file the reviewer's user can read.
+- Before codex reviews, osf runs a check that its sandbox starts around a harmless command. When the check fails, the reviewer is could-not-run with the sandbox's own message, and codex never starts. An agent with file tools only has no such check.
 - Because of that, a reviewer's environment and home hold no secret beyond its own provider's key.
 - osf copies no login file into the home when a key in the environment is enough to sign in. It also removes the exact value of every secret the job holds from each answer, in plain, base64 and hex form.
 - The reviewer starts in a clean copy of the change, with no coding agent's settings in it.
@@ -175,14 +187,17 @@ The schema has no way to raise a finding about something missing: a missing test
 
 The reducer treats every saved answer as input to check. It checks each one again against the schema and the lens, as the reviewer's own job does. The lens name must match. Every criterion needs a score, and each score must be between 0 and 1. A saved file counts only for the reviewer its file name gives, and no two files may carry one name. A file that fails a check is could-not-run for that reviewer. The reducer works out the round and the critical flag from the order of the attempts in the file.
 
+Each saved file also records the repository, the pull request number, the base and head commits and the CI run id. The reducer accepts a file only when all five equal the values it was given, so a file from an earlier commit, another pull request or another run counts for nothing. The run notes name a saved file for a reviewer outside the roster, and a lens entry the change did not select, so nothing is dropped without a word. The review threshold must be a number from 0 to 1, and a lens weight must be a finite number that is not negative. A value outside those limits stops the review as could-not-configure.
+
 Deterministic code then checks every finding. A finding counts only when its quoted code exists at the file and line it names. That confirms the quote is real. It does not check whether the finding's claim about that code is true. A false severity or description attached to a genuine quote passes unchecked.
 
 The reducer decides per lens, and it is plain code:
 
-- A lens needs answers from reviewers in two model families, both different from the builder's, each giving more than one round. When only one family has a working reviewer, the lens runs one extra critical round with that family instead of going could-not-run. A lens with no working reviewer in any family is still could-not-run, and a could-not-run lens is never a pass. This is the same interim policy the Reviewers section states, kept while the factory collects data on how it performs.
+- A lens needs answers from reviewers in two model families, both different from the builder's. A family counts toward the quorum only with at least two answered independent rounds. A round that failed, timed out or did not validate does not count, and a family with fewer answered rounds counts for nothing.
+- When exactly one family has two answered rounds, the lens runs one extra critical round with that family instead of going could-not-run. That critical round must also have answered. Without it, the lens is could-not-run. A lens with no family that has two answered rounds is could-not-run, and a could-not-run lens is never a pass. This is the same interim policy the Reviewers section states, kept while the factory collects data on how it performs.
 - A verified blocker vetoes the lens.
 - The lens score is the mean of its criterion scores.
-- The review passes when every lens that ran reached quorum (the one-family fallback round counts as quorum under the interim policy), no blocker survived verification, and the weighted score clears the threshold.
+- The review passes when every lens that ran reached quorum (the one-family fallback counts as quorum under the interim policy, when its critical round answered), no blocker survived verification, and the weighted score clears the threshold.
 
 The lens weights and the threshold ship as data. Adopters get configurable weights in a later version.
 
@@ -190,7 +205,9 @@ The lens weights and the threshold ship as data. Adopters get configurable weigh
 
 `osf review run` is one command. It runs as a moon task tagged for pre-push and, separately, for the pull request. [Decision 0020 (who can post a review result)](0020-who-can-post-a-review-result.md) sets the CI run as the sole authority. The pre-push run is a local, early warning only. Its result is never carried forward as a cached pass at the pull request. CI is the authority, because it holds the keys and the verifier identity. The local run gives the coding agent the same feedback earlier.
 
-In CI, each reviewer runs in a job of its own, which holds only that reviewer's own provider key. The final job combines the answers with the reducer and posts the result, and only that job holds the code-host token. This replaces a single job that held every key.
+In CI, each reviewer runs in a job of its own, which holds only that reviewer's own provider key and passes into the reviewer's container only the one variable its agent names. The final job combines the answers with the reducer and posts the result, and only that job holds the code-host token. This replaces a single job that held every key. Every job runs one container image, named once in the workflow and pinned by digest, and a change to that digest is a reviewed change.
+
+The review check is advisory for now. It posts its result as a check run and as a review, and no branch protection or ruleset requires it. It becomes a required check when the key proxy and the network split in [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) land. A pull request from a fork is reviewed only when the repository variable `OSF_REVIEW_FORKS` is `true`, and the default is off.
 
 A must-fix finding sends the change back to the coding agent before the pull request.
 
