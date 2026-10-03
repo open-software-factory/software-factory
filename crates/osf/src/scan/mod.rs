@@ -675,9 +675,16 @@ pub fn is_binary(bytes: &[u8]) -> bool {
     bytes.iter().take(8000).any(|&b| b == 0)
 }
 
-fn collect_files(path: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
-    let meta =
-        std::fs::metadata(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+/// Walks `path` into `out`, never through a symlink: a link is counted in
+/// `skipped` instead of being read as the file or directory it points at,
+/// so a link that cycles back on itself cannot recurse forever.
+fn collect_files(path: &Path, out: &mut Vec<PathBuf>, skipped: &mut usize) -> Result<(), String> {
+    let meta = std::fs::symlink_metadata(path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    if meta.file_type().is_symlink() {
+        *skipped += 1;
+        return Ok(());
+    }
     if !meta.is_dir() {
         out.push(path.to_path_buf());
         return Ok(());
@@ -690,39 +697,49 @@ fn collect_files(path: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
         if child.file_name().is_some_and(|n| n == ".git") {
             continue;
         }
-        collect_files(&child, out)?;
+        collect_files(&child, out, skipped)?;
     }
     Ok(())
 }
 
-/// Files to scan: a display label, and the real path to read from disk.
+/// Files to scan: a display label, and the real path to read from disk, plus
+/// how many symlinks among the given paths were skipped rather than walked.
 /// With no paths, every file git tracks in `dir`, labelled by its
 /// git-relative name; otherwise the given paths, walking any directory
-/// among them, each labelled as given.
-fn resolve_scan_targets(dir: &Path, paths: &[PathBuf]) -> Result<Vec<(String, PathBuf)>, String> {
+/// among them, each labelled as given. A symlink is never walked, whether
+/// it is one of the given paths or found while walking one.
+fn resolve_scan_targets(
+    dir: &Path,
+    paths: &[PathBuf],
+) -> Result<(Vec<(String, PathBuf)>, usize), String> {
     if paths.is_empty() {
         let tracked = crate::git::tracked_files(dir, None).map_err(|e| e.to_string())?;
-        return Ok(tracked
+        let targets = tracked
             .into_iter()
             .map(|p| {
                 let full = crate::git::to_local_path(dir, &p);
                 (p, full)
             })
-            .collect());
+            .collect();
+        return Ok((targets, 0));
     }
     let mut files = Vec::new();
+    let mut skipped = 0usize;
     for path in paths {
-        collect_files(path, &mut files)?;
+        collect_files(path, &mut files, &mut skipped)?;
     }
-    Ok(files
+    let targets = files
         .into_iter()
         .map(|f| (f.to_string_lossy().replace('\\', "/"), f))
-        .collect())
+        .collect();
+    Ok((targets, skipped))
 }
 
 /// Scans every target file, named relative to `dir` when it came from git,
 /// or as given on the command line otherwise. A binary file is skipped. A
-/// file matching `excluder` is never even read. With `no_suppress`, every
+/// file matching `excluder` is never even read. A symlink is never read
+/// either; it is counted as excluded instead, so a scan of nothing but
+/// symlinks is never reported as clean. With `no_suppress`, every
 /// `osf-disable`-family marker is ignored, so every finding it would have
 /// silenced is reported; continuous integration runs with this set.
 ///
@@ -735,11 +752,16 @@ pub fn scan_paths(
     excluder: &Excluder,
     no_suppress: bool,
 ) -> Result<ScanOutcome, String> {
-    let targets = resolve_scan_targets(dir, paths)?;
+    let (targets, skipped_links) = resolve_scan_targets(dir, paths)?;
     let mut files = Vec::new();
-    let mut dropped = 0usize;
+    let mut dropped = skipped_links;
     for (label, full) in targets {
         if excluder.is_excluded(&label) {
+            dropped += 1;
+            continue;
+        }
+        let is_symlink = std::fs::symlink_metadata(&full).is_ok_and(|m| m.file_type().is_symlink());
+        if is_symlink {
             dropped += 1;
             continue;
         }

@@ -20,7 +20,7 @@ This survey was done in September 2026.
 | **Open-JSON-UI** | OpenAI's internal declarative Generative UI schema, open-sourced | Fixed set (cards/lists/forms) rendered by frontend's own components | Declarative spec streamed similarly to A2UI | Protocol-level schema; younger, smaller ecosystem than A2UI, closely tied to OpenAI's Apps SDK lineage | Early. Newly opened, adoption still forming |
 | **MCP Apps** (MCP-UI merged in) | MCP extension: server declares a `ui://` HTML resource per tool | Arbitrary sandboxed HTML/JS per app. No shared component vocabulary | Whole-app iframe preloads, then gets pushed tool results. Re-layout inside the iframe is the app author's problem | Protocol-level, using JSON-RPC over postMessage. This is an official MCP extension, but each app ships its own UI stack, opaque to the host's design system | Production-real. Official MCP extension since Jan 2026. Shipped in Claude, Claude Desktop, VS Code Copilot, Goose, and Postman |
 | **Vercel AI SDK**, covering UI hooks, RSC genUI, and AI Elements | TypeScript SDK: `useChat`/`useCompletion` hooks, RSC component streaming, prebuilt AI Elements | Whatever React components the app author streams. No cross-app catalog | React Server Components stream in via Suspense boundaries. Layout stability depends on the app, with no guarantee | **Framework-locked to React and Next.js.** Core streaming hooks are mature. AI SDK RSC, the genUI-via-RSC piece, is explicitly paused by Vercel | Hooks/Core: production-real, with 11.5M weekly downloads. RSC genUI path: stalled, being superseded by AI Elements |
-| **json-render** (`@json-render/*`) | OSS library. JSON spec becomes a component tree via a registered catalog | **Fixed catalog** via `defineCatalog()`, Zod-validated props | JSON Patch, per RFC 6902, sends incremental patches to the mounted tree | Framework-agnostic core, `@json-render/core`. React, Vue, and Svelte renderers ship today. Not a network protocol, so you supply the transport | Production-real as a library, but niche, with 44 downstream npm packages. It has not become an industry standard |
+| **json-render** (`@json-render/*`) | OSS library. JSON spec becomes a component tree via a registered catalog | **Fixed catalog** via `defineCatalog()`, Zod-validated props | JSON Patch, per RFC 6902, sends incremental patches to the mounted tree | Framework-agnostic core, `@json-render/core`. React, Vue, and Svelte renderers ship, as of September 2026. Not a network protocol, so you supply the transport | Production-real as a library, but niche, with 44 downstream npm packages. It has not become an industry standard |
 | **Thesys C1 / Crayon** | Commercial generative-UI API, plus a React design system | Fixed Crayon component set: charts, tables, forms, and cards | Streams "live UI blocks". Specifics of patch mechanics not published | **Framework-locked to React**, via the Crayon SDK client. The C1 API itself is model-agnostic on the backend | Production-real commercially, with 300+ teams, but proprietary and React-only |
 | **CopilotKit** | React framework and toolkit wrapping AG-UI, plus pluggable genUI specs | Delegates to whichever spec it hosts: AG-UI controlled components, A2UI, Open-JSON-UI, or MCP Apps | Delegates to the hosted spec | **Framework-locked to React** at the app layer. The AG-UI layer underneath is not locked | Production-real as a React toolkit. It is useful as a reference implementation rather than a standard |
 | **W3C Generative UI Community Group** | Nascent standards body, launched 2026 | Undecided. Exploring intermediate representations | Exploratory, no shipped spec | N/A yet | **Spec-ware.** Community-group stage, with exploratory notes on evaluation, testing, and cross-vendor IR. No deliverable yet |
@@ -34,7 +34,7 @@ pattern is called "controlled generative UI." The agent can only reference compo
 already trusts. A2UI also uses a flat, streaming-friendly JSON structure.
 
 Open-JSON-UI and json-render follow the same pattern of a catalog plus a declarative spec. A2UI
-has the widest cross-platform renderer support today.
+has the widest cross-platform renderer support as of September 2026.
 
 AG-UI is not a competitor here. It is the pipe that carries A2UI's messages. It is not a
 vocabulary format on its own.
@@ -71,7 +71,7 @@ using it standalone end to end.
 
 **4. Maturity, honestly:**
 
-Production-real today:
+Production-real as of September 2026:
 - **AG-UI** has broad multi-framework adoption, an MIT license, and a mature ecosystem.
 - **MCP Apps** is an official MCP extension, shipped in five or more major hosts.
 - **Vercel AI SDK core hooks** have a huge install base, but the RSC-genUI path specifically
@@ -108,7 +108,7 @@ schema constrained to our own Level-2 component catalog.
   messages, rather than inventing our own from scratch. We do not need to adopt A2UI as an
   external dependency wholesale. `json-render`'s catalog-plus-patch approach is a viable,
   smaller, framework-agnostic implementation of the same idea. It is worth prototyping first,
-  since it is already framework-agnostic OSS with React, Vue, and Svelte renderers today.
+  since it is already framework-agnostic OSS with React, Vue, and Svelte renderers as of September 2026.
 - Reject **MCP Apps' iframe-HTML model** for StreamSurface itself. It is production-real and
   well-supported. But its trust and rendering model is the opposite of our contract. MCP Apps
   allows arbitrary sandboxed HTML/JS per app, opaque to the host. Our rule requires that an
@@ -118,7 +118,7 @@ schema constrained to our own Level-2 component catalog.
   agent-composed StreamSurface views.
 
 **Renderer shape:**
-1. A component catalog registering every Layer 1 to 4 component the agent is allowed to
+1. A component catalog registering every surface, input, shell and product component the agent is allowed to
    place, by name, with validated props. This is the Level-2 vocabulary from `components.md`.
 2. StreamSurface receives AG-UI events. It applies them as structure-then-data patches against
    a mounted tree keyed by stable component IDs. This design gives us stable placement for

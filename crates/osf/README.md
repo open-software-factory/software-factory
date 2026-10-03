@@ -166,8 +166,8 @@ needs to translate.
 
 Two refusals are also on offer and they are not interchangeable. An agent
 reading the exit code ignores standard output, and an agent reading standard
-output treats exit code 2 as the check crashing. The command guesses from the
-key spelling, which is right for every agent above. An adapter that builds the
+output treats exit code 2 (the code that means refuse) as the check crashing. The command guesses from the
+key spelling, which is right for Claude Code, Codex, the dsh bridge, Copilot CLI and opencode2. An adapter that builds the
 event itself should not rely on the guess: pass `--answer exit-code` or
 `--answer decision-json` and the guess is skipped.
 
@@ -253,7 +253,7 @@ semicolon = "off"
 reference-without-link = "error"
 ```
 
-Today, `known_names` and `writing.levels` change what `osf lint writing` and
+As of 2026-10-03, `known_names` and `writing.levels` change what `osf lint writing` and
 `osf hook stop` report. The other fields are resolved and shown by
 `osf config show`; wiring them into each rule's own check is later work.
 

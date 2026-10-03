@@ -256,7 +256,7 @@ Each check still writes its own verification event. When the aggregation finishe
 | unit-tests | this repository's Unit Tests job | pass | 412 tests, 0 failed | observed |
 | architecture-tests | empty, warning | skipped | | |
 | contract-tests | slot attestation, 2026-09-22 | pass | | reported |
-| review | second-opinion review, round 2 | 1 thread open | 1 | reported |
+| review | second-opinion review, second round | 1 thread open | 1 | reported |
 
 The result-file readers detect a file by content. The formats they read are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. JUnit XML is the test-result format most runners can write. TRX is the .NET test-result format. xUnit XML is the result format of the xUnit test framework for .NET. The coverage formats are Cobertura, LCOV and JaCoCo. JaCoCo is the Java coverage tool's own format. CTRF is a common test-report format in JSON. A glob in `osf.toml` narrows the scan. A job with a known conclusion and no readable file still counts as passed or failed.
 

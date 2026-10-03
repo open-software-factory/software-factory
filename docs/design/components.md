@@ -10,11 +10,11 @@ Components are not all built from scratch: survey existing UI component systems,
 
 Two **ownership levels** sit over the five layers:
 
-- **Level 1: adopted primitives.** It spans layers 1 and 2. These are generic behaviours: overlays, focus, dismissal, inputs, and popovers. The preferred source is a free or open-source component system, picked in the survey and themed to our tokens. Build one ourselves only when nothing available satisfies its contract. Mixing pieces from different systems is allowed and expected.
+- **Level 1: adopted primitives.** It spans layer 1 (surface primitives) and layer 2 (input primitives). These are generic behaviours: overlays, focus, dismissal, inputs, and popovers. The preferred source is a free or open-source component system, picked in the survey and themed to our tokens. Build one ourselves only when nothing available satisfies its contract. Mixing pieces from different systems is allowed and expected.
 - **Adoption rule: no requirement compromises.** A survey verdict is provisional. Before an adoption is final, spike the library against every contract rule it must own. If it falls short and can be adapted, the spike proves the adaptation. If it cannot be adapted, fork it, add the capability, and only then adopt the fork. A requirement is never weakened to fit a library.
-- **Level 2: our components.** It spans layers 3 to 5. It composes Level 1 and carries everything we have codified. That includes brand, design-system tokens, the §5 behaviours, and density modes. See the Component modes section for the mode list. **This is the vocabulary** design agents see and use. An agent composing a view picks Level 2 components. It does not reach for raw primitives directly.
+- **Level 2: our components.** It spans the upper layers: shell components, product components, and generated and streaming UI. It composes the adopted primitives and carries everything we have codified. That includes brand, design-system tokens, the §5 behaviours, and density modes. See the Component modes section for the mode list. **This is the vocabulary** design agents see and use. An agent composing a view picks our own components. It does not reach for raw primitives directly.
 
-Layers 1 and 2 carry the behaviours. A composed component needing a behaviour gets it from the primitive. New code never supplies it.
+Layer 1 (surface primitives) and layer 2 (input primitives) carry the behaviours. A composed component needing a behaviour gets it from the primitive. New code never supplies it.
 
 ## Layer 0: the placement model
 
@@ -67,7 +67,7 @@ Every pairing we rely on is asserted:
 | Secondary text | 4.5:1 | All five surfaces, both themes |
 | Faint text and every meaning-carrying colour | 3:1 | All five surfaces, both themes |
 
-**A surface declares, the slot decides.** A `SurfaceSpec` states its width appetite (`min`/`max`), whether it survives rail width (`canRail`), where it starts (`home`), and which slots it will accept (`accepts`). The shell negotiates against those declarations rather than hard-coding placements. `accepts` is permissive today. Every surface takes every slot. That is deliberate, until real views show which placements are wrong.
+**A surface declares, the slot decides.** A `SurfaceSpec` states its width appetite (`min`/`max`), whether it survives rail width (`canRail`), where it starts (`home`), and which slots it will accept (`accepts`). The shell negotiates against those declarations rather than hard-coding placements. `accepts` is permissive. Every surface takes every slot. That is deliberate, until real views show which placements are wrong.
 
 ### One representation per state
 
@@ -134,7 +134,7 @@ Adopted behaviour libraries, such as React Aria Components, sit in the view laye
 
 ## Layer 4: product components
 
-Each one composes layers 1 to 3. The "hosts" column names the primitive that gives it its behaviour.
+Each one composes surface primitives, input primitives and shell components. The "hosts" column names the primitive that gives it its behaviour.
 
 | Component | Hosts / composes | Notes |
 |---|---|---|
@@ -155,7 +155,7 @@ Each one composes layers 1 to 3. The "hosts" column names the primitive that giv
 | EmptyCalmState / StaleIndicator | ScreenHost screens | EmptyCalmState is the healthy empty view. StaleIndicator is the disconnected view |
 | TimeControl / Scrubber | TopBar | TimeControl switches between live and replay. It is parked. See `docs/design/design-tracker.md`, question Q6 |
 
-Superseded names from the old inventory: **DockPanel** was an early panel type. **DockManager** was its controller. **SidePanel** was its side dock. All three are now Workspace, in layer 1. **DynamicSurface**, an earlier name for the same idea, is now StreamSurface, the streaming-view container, in layer 5. **LensSwitcher**, an earlier control for switching lenses, is now the lens items in ModeRail, the left navigation rail. Lenses live only in the left nav. **CommandPalette**, the search-and-run field, keeps its old name. It is the layer 3 component described above.
+Superseded names from the old inventory: **DockPanel** was an early panel type. **DockManager** was its controller. **SidePanel** was its side dock. All three are now Workspace, in layer 1, the surface primitives. **DynamicSurface**, an earlier name for the same idea, is now StreamSurface, the streaming-view container, in layer 5, the generated and streaming UI layer. **LensSwitcher**, an earlier control for switching lenses, is now the lens items in ModeRail, the left navigation rail. Lenses live only in the left nav. **CommandPalette**, the search-and-run field, keeps its old name. It is the same shell component that this catalogue lists under layer 3, the shell components.
 
 ## Layer 5: generated and streaming UI
 
