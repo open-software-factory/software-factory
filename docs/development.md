@@ -238,8 +238,8 @@ reviewer's instructions to pass its own review.
 `osf` checks these numbers when it loads them. The threshold must be a
 number from 0 to 1. A lens weight must be a finite number that is not
 negative. The cost ceiling must be a finite number that is not negative. A
-value that is NaN, infinite or out of range stops the review as
-could-not-configure, and the error names the file.
+value that is not a number, is infinite or is out of range stops the
+review as could-not-configure, and the error names the file.
 
 One test starts a real opencode and checks that a plugin file in the change
 does not run. It builds only with the `real-agents` feature. Run it inside
@@ -258,6 +258,14 @@ A same-repository pull request's jobs read their secrets and variables
 through a GitHub environment named `review`. A repository admin must
 create it. Set up this short list, then the check is live.
 
+### The review check is advisory
+
+The review check posts its result as a check run and as a review. It is
+not a required check, and no branch protection or ruleset names it. It
+becomes a required check when the key proxy and the network split land.
+[open-software-factory/software-factory#208 (the key proxy and network split)](https://github.com/open-software-factory/software-factory/issues/208)
+holds the target. Until then, a person reads its result and decides.
+
 ### Required setup
 
 - The verifier app. Set `vars.VERIFIER_APP_ID` and
@@ -270,8 +278,9 @@ create it. Set up this short list, then the check is live.
   `credential_env` entry names. The codex job gives `secrets.OPENAI_API_KEY`
   to codex as `CODEX_API_KEY`. `osf` itself reads a key only to remove its
   value from answers.
-- Branch protection that requires the `review` job. Require every
-  conversation resolved too, so a person still looks at each finding.
+- Leave the `review` job out of branch protection and every ruleset for
+  now. Require every conversation resolved, so a person still looks at
+  each finding.
 
 A fork's pull request runs a separate job, also named `review`. It
 fails on purpose, with one line explaining why, unless the repository
@@ -280,8 +289,7 @@ is also set up. When both are set, the same jobs run, and the reviewer
 jobs and the last job use the `fork-review` environment. This is why: GitHub creates a missing environment on
 demand, with no protection at all. Without this off switch, a fork's
 pull request could run with the model keys before anyone set up
-`fork-review` at all. Turning it on is one of the recommendations
-below.
+`fork-review` at all. The recommendations below keep it off.
 
 ### Recommended
 
@@ -294,9 +302,11 @@ below.
   notices.
 - Remove the builder app's `actions_variables: write` permission. The
   review job only ever reads variables.
-- Turn on fork review. Set the repository variable `OSF_REVIEW_FORKS`
-  to `true`. Create a `fork-review` environment, with its own copy of
-  the required settings above, its deployment branches also limited to
+- Keep fork review off. It is off by default, and only the repository
+  variable `OSF_REVIEW_FORKS` set to `true` turns it on. Leave that
+  variable unset until the review check is a required check. To turn it on
+  later, create a `fork-review` environment, with its own copy of the
+  required settings above, its deployment branches also limited to
   `main`, and required reviewers. A fork's pull request then waits
   there until a maintainer approves the run.
 

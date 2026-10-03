@@ -7,6 +7,12 @@ name: review
 # then runs in its own job, with only its own provider's key and only its
 # own provider's network host. The last job collects the saved answers,
 # decides, and posts: it alone gets the code host's token.
+#
+# This check is advisory. It posts a check run and a review, and no branch
+# protection or ruleset requires it. It becomes a required check when the key
+# proxy and the network split in open-software-factory/software-factory#208
+# land. Reviews run for same-repository pull requests only, and a fork's pull
+# request is reviewed only when the OSF_REVIEW_FORKS variable is set to true.
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]

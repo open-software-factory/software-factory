@@ -246,3 +246,76 @@ fn each_reviewer_job_passes_only_the_credential_its_agent_names() {
         );
     }
 }
+
+fn docs_text(name: &str) -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs")
+        .join(name);
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// The `if:` line of a job.
+fn condition_of(body: &str) -> String {
+    body.lines()
+        .find(|line| line.starts_with("    if:"))
+        .unwrap_or_else(|| panic!("no job-level if in {body}"))
+        .to_string()
+}
+
+#[test]
+fn the_review_check_is_advisory_in_the_workflow_and_the_guide() {
+    let text = workflow_text();
+    assert!(
+        text.contains("This check is advisory")
+            && text.contains("no branch\n# protection or ruleset requires it"),
+        "the workflow says the check is advisory and that nothing requires it"
+    );
+    assert!(
+        text.contains("key\n# proxy and the network split"),
+        "the workflow says when it becomes required"
+    );
+    let guide = docs_text("development.md");
+    assert!(
+        guide.contains("### The review check is advisory"),
+        "{guide}"
+    );
+    assert!(
+        !guide.contains("Branch protection that requires the `review` job"),
+        "the guide no longer asks for the review job to be required"
+    );
+}
+
+/// A fork's pull request is reviewed only when the repository variable says
+/// so, and nothing in the file sets that variable.
+#[test]
+fn reviews_are_off_for_forks_unless_the_variable_is_set_and_it_is_never_set_here() {
+    let text = workflow_text();
+    let all = jobs(&text);
+    let same_or_enabled =
+        "github.event.pull_request.head.repo.full_name == github.repository || vars.OSF_REVIEW_FORKS == 'true'";
+    for id in [
+        "build",
+        "review-codex",
+        "review-claude",
+        "review-opencode",
+        "review",
+    ] {
+        let body = job_body(&text, id);
+        assert!(
+            condition_of(&body).contains(same_or_enabled),
+            "job {id} runs for a fork only when OSF_REVIEW_FORKS is true"
+        );
+    }
+    let disabled = job_body(&text, "review-fork-disabled");
+    let condition = condition_of(&disabled);
+    assert!(
+        condition.contains("head.repo.full_name != github.repository")
+            && condition.contains("vars.OSF_REVIEW_FORKS != 'true'"),
+        "{condition}"
+    );
+    assert!(all.len() >= 6);
+    assert!(
+        !text.contains("OSF_REVIEW_FORKS ||") && !text.contains("OSF_REVIEW_FORKS: "),
+        "the workflow gives the variable no default"
+    );
+}
