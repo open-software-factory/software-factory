@@ -39,29 +39,6 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 5. Keep the first implementation small enough that its abstractions can still be deleted cheaply.
 6. Add an interface only where a real seam is demonstrated. An earlier brainstorm having one is not a reason by itself. Check whether `obra/superpowers` already covers a workflow, such as brainstorming, planning, TDD, debugging, review, or verification, before building it yourself.
 
-## Before you push
+## Folder rules
 
-1. Run `osf verify --stage pre-push` from the repository root. It checks the files, prose, skill folders, and commit messages your change touches.
-2. Run `osf lint writing --no-suppress --gate <file>` on each Markdown file you changed.
-3. Fix every error these commands report.
-
-## Where the other rules live
-
-This file holds only what every task needs. A rule tied to one folder lives in that folder's own `AGENTS.md`. A rule tied to one moment in the work reaches an agent as a skill that loads when the task matches it.
-
-[`skills/README.md`](skills/README.md) and [`.agents/README.md`](.agents/README.md) say which skills folder holds what, and how an adopter installs a shipped skill.
-
-| Folder or skill | Loads |
-|---|---|
-| [`skills/README.md`](skills/README.md) | Installing or shipping a skill for adopters |
-| [`.agents/README.md`](.agents/README.md) | Working on a skill used only inside this repository, or asking why there is no `CLAUDE.md` |
-| [`crates/AGENTS.md`](crates/AGENTS.md) | Working under `crates/` |
-| [`.github/workflows/AGENTS.md`](.github/workflows/AGENTS.md) | Working under `.github/workflows/` |
-| [`.agents/skills/adding-an-osf-command/SKILL.md`](.agents/skills/adding-an-osf-command/SKILL.md) | Adding a check, a lint rule, or an `osf` command |
-| [`.agents/skills/writing-a-workflow/SKILL.md`](.agents/skills/writing-a-workflow/SKILL.md) | Adding or editing a workflow file, or handling a secret |
-| [`.agents/skills/filing-an-issue/SKILL.md`](.agents/skills/filing-an-issue/SKILL.md) | Filing or editing an issue |
-| [`.agents/skills/opening-a-pull-request/SKILL.md`](.agents/skills/opening-a-pull-request/SKILL.md) | Opening a pull request, or updating its description |
-| [`.agents/skills/reviewing-a-pull-request/SKILL.md`](.agents/skills/reviewing-a-pull-request/SKILL.md) | Reviewing a pull request, or posting a review result |
-| [`.agents/skills/running-sub-agents/SKILL.md`](.agents/skills/running-sub-agents/SKILL.md) | Dispatching a sub-agent, or a batch of them |
-| [`skills/show-me/SKILL.md`](skills/show-me/SKILL.md), [`skills/pr-outline/SKILL.md`](skills/pr-outline/SKILL.md) | A visual, or a pull request's change outline, would help |
-| [`docs/architecture/decisions/`](docs/architecture/decisions/) | Before any design decision |
+Rules for a folder live in that folder's own `AGENTS.md`.
