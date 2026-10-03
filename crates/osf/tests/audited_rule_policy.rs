@@ -154,10 +154,11 @@ fn commit_gate_does_not_enforce_audited_quantity_rule() {
         &repo.dir,
         &home,
         &[
-            "verify",
-            "--stage",
-            "pre-commit",
-            "--message-file",
+            "lint",
+            "writing",
+            "--context",
+            "commit",
+            "--message",
             "MSG",
             "--gate",
             "--format",
@@ -170,7 +171,7 @@ fn commit_gate_does_not_enforce_audited_quantity_rule() {
         output_text(&out)
     );
     assert!(
-        output_text(&out).contains("0 warning(s)"),
+        !String::from_utf8_lossy(&out.stdout).contains("[numbers-in-prose]"),
         "disabled warning leaked: {}",
         output_text(&out)
     );
@@ -181,7 +182,7 @@ fn ci_gate_cannot_reenable_disabled_rules_or_disable_retained_rules() {
     let repo = TempRepo::new("audit-ci-policy");
     let home = isolated_home("audit-ci-policy");
     repo.write("base.txt", "base\n");
-    let base = repo.commit("Add base file");
+    repo.commit("Add base file");
     repo.write("guide.md", "Count 12 axes over 3 rounds in 41 minutes.\n");
     repo.write(
         "skills/demo/SKILL.md",
@@ -189,32 +190,42 @@ fn ci_gate_cannot_reenable_disabled_rules_or_disable_retained_rules() {
     );
     repo.write("poison.toml", "[writing.levels]\nnumbers-in-prose = \"error\"\nbare-reference = \"off\"\n[skill.levels]\nskill-description-no-trigger = \"error\"\n");
     repo.commit("Add checked prose");
-    let args = [
+    let writing = [
         "--config",
         "poison.toml",
-        "verify",
-        "--stage",
-        "ci",
-        "--base",
-        &base,
+        "check",
+        "lint-writing",
+        "--checkpoint",
+        "pre-push",
         "--gate",
-        "--format",
-        "human",
+        "guide.md",
     ];
-    let out = run_osf(&repo.dir, &home, &args);
-    assert!(
-        out.status.success(),
-        "gate reenabled a disabled rule: {}",
-        output_text(&out)
-    );
-    assert!(
-        output_text(&out).contains("total: 0 error(s), 0 warning(s)"),
-        "disabled finding leaked: {}",
-        output_text(&out)
-    );
+    let skill = [
+        "--config",
+        "poison.toml",
+        "check",
+        "lint-skill",
+        "--checkpoint",
+        "pre-push",
+        "--gate",
+        "skills/demo/SKILL.md",
+    ];
+    for args in [&writing, &skill] {
+        let out = run_osf(&repo.dir, &home, args);
+        assert!(
+            out.status.success(),
+            "gate reenabled a disabled rule: {}",
+            output_text(&out)
+        );
+        assert!(
+            output_text(&out).contains("0 error(s), 0 warning(s)"),
+            "disabled finding leaked: {}",
+            output_text(&out)
+        );
+    }
     repo.write("guide.md", "Fixed in #125 today.\n");
     repo.commit("Add ordinary reference");
-    let out = run_osf(&repo.dir, &home, &args);
+    let out = run_osf(&repo.dir, &home, &writing);
     assert_eq!(
         out.status.code(),
         Some(1),
@@ -229,13 +240,20 @@ fn gate_fixtures_still_evaluate_disabled_raw_detectors() {
     let repo = TempRepo::new("audit-fixture-policy");
     let home = isolated_home("audit-fixture-policy");
     repo.write("base.txt", "base\n");
-    let base = repo.commit("Add base file");
+    repo.commit("Add base file");
     repo.write(
         "tests/fixtures/quantity.md",
         "Count 12 axes over 3 rounds in 41 minutes.\n\n<!-- osf-expect numbers-in-prose -->\n",
     );
     repo.commit("Add detector fixture");
-    let args = ["verify", "--stage", "ci", "--base", &base, "--gate"];
+    let args = [
+        "check",
+        "lint-writing",
+        "--checkpoint",
+        "pre-push",
+        "--gate",
+        "tests/fixtures/quantity.md",
+    ];
     let out = run_osf(&repo.dir, &home, &args);
     assert!(
         out.status.success(),

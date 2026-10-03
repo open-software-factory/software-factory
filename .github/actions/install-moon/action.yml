@@ -1,0 +1,21 @@
+name: Install moon
+description: Installs the pinned moon CLI and puts it on PATH
+runs:
+  using: composite
+  steps:
+    - name: Install moon
+      shell: bash
+      env:
+        MOON_VERSION: '2.5.5'
+        MOON_SHA256: f397057a22c88ff9e4b28a4a2fbf01d99f4d9a4f35e5a42634255a9f509ccbd6
+      run: |
+        set -euo pipefail
+        mkdir -p "$HOME/.local/bin"
+        curl -fsSL -o /tmp/moon.tar.xz \
+          "https://github.com/moonrepo/moon/releases/download/v${MOON_VERSION}/moon_cli-x86_64-unknown-linux-gnu.tar.xz"
+        echo "${MOON_SHA256}  /tmp/moon.tar.xz" | sha256sum -c -
+        tar -xJf /tmp/moon.tar.xz -C /tmp "moon_cli-x86_64-unknown-linux-gnu/moon"
+        install -m 0755 /tmp/moon_cli-x86_64-unknown-linux-gnu/moon "$HOME/.local/bin/moon"
+        rm -rf /tmp/moon.tar.xz /tmp/moon_cli-x86_64-unknown-linux-gnu
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        "$HOME/.local/bin/moon" --version
