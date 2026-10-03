@@ -3246,3 +3246,26 @@ fn a_lone_reviewer_whose_sandbox_cannot_start_leaves_the_review_could_not_run() 
         stdout_of(&output)
     );
 }
+
+/// A threshold that is NaN stops the review before any reviewer starts, so a
+/// bad setting can never let a review pass.
+#[test]
+fn a_threshold_that_is_not_a_number_stops_the_review_before_any_reviewer_starts() {
+    let fakes = Fakes::new(
+        "[review]\nthreshold = nan\n\n",
+        &[("codex", Fake::Answers(&fixture("valid.json")))],
+    );
+    let repo = review_repo("nan-threshold", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-nan-threshold");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(output.status.code(), Some(2), "{}", stdout_of(&output));
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("threshold must be a number from 0 to 1"),
+        "{stderr}"
+    );
+}

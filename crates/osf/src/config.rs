@@ -329,10 +329,26 @@ pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
     let Some(review) = value.get("review") else {
         return Ok(ReviewConfig::default());
     };
-    review
+    let config: ReviewConfig = review
         .clone()
         .try_into()
-        .map_err(|e| ConfigError::new(format!("{}: [review]: {e}", path.display())))
+        .map_err(|e| ConfigError::new(format!("{}: [review]: {e}", path.display())))?;
+    if !(config.threshold.is_finite() && (0.0..=1.0).contains(&config.threshold)) {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: threshold must be a number from 0 to 1, found {}",
+            path.display(),
+            config.threshold
+        )));
+    }
+    if let Some(ceiling) = config.cost_ceiling {
+        if !ceiling.is_finite() || ceiling < 0.0 {
+            return Err(ConfigError::new(format!(
+                "{}: [review]: cost_ceiling must be a finite number that is not negative, found {ceiling}",
+                path.display()
+            )));
+        }
+    }
+    Ok(config)
 }
 
 /// One field the environment can set, and how to parse it into a TOML value.
@@ -1401,6 +1417,57 @@ mod tests {
             .expect("osf.toml writes");
         let loaded = review_config(&dir).expect("review config loads");
         assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn a_threshold_that_is_not_a_number_from_zero_to_one_is_refused() {
+        for (label, value) in [
+            ("nan", "nan"),
+            ("inf", "inf"),
+            ("neg-inf", "-inf"),
+            ("negative", "-0.1"),
+            ("above-one", "1.5"),
+        ] {
+            let dir = TempDir::new(&format!("osf-config-test-review-threshold-{label}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\nthreshold = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            let err = review_config(&dir).expect_err("a bad threshold is refused");
+            assert!(
+                err.to_string()
+                    .contains("threshold must be a number from 0 to 1"),
+                "{label}: {err}"
+            );
+        }
+        for value in ["0.0", "0.7", "1.0"] {
+            let dir = TempDir::new(&format!("osf-config-test-review-threshold-ok-{value}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\nthreshold = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            assert!(review_config(&dir).is_ok(), "{value}");
+        }
+    }
+
+    #[test]
+    fn a_cost_ceiling_that_is_not_finite_or_is_negative_is_refused() {
+        for (label, value) in [("nan", "nan"), ("inf", "inf"), ("negative", "-2.0")] {
+            let dir = TempDir::new(&format!("osf-config-test-review-ceiling-{label}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\ncost_ceiling = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            let err = review_config(&dir).expect_err("a bad ceiling is refused");
+            assert!(
+                err.to_string()
+                    .contains("cost_ceiling must be a finite number"),
+                "{label}: {err}"
+            );
+        }
     }
 
     #[test]

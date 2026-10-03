@@ -171,7 +171,7 @@ pub fn load(root: &Path, org_dir: Option<&Path>) -> Result<Catalogue, String> {
     let mut sources: Vec<(String, String)> = Vec::new();
 
     for (file_name, text) in SHIPPED {
-        let lens: Lens = toml::from_str(text).map_err(|e| format!("{file_name}: {e}"))?;
+        let lens = parse_lens(text, file_name)?;
         upsert(&mut lenses, &mut sources, lens, "shipped".to_string());
     }
 
@@ -207,10 +207,28 @@ fn read_toml_dir(dir: &Path) -> Result<Vec<(PathBuf, Lens)>, String> {
     let mut loaded = Vec::with_capacity(paths.len());
     for path in paths {
         let text = fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let lens: Lens = toml::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+        let lens = parse_lens(&text, &path.display().to_string())?;
         loaded.push((path, lens));
     }
     Ok(loaded)
+}
+
+/// `text` as a lens, named `source` in an error. A weight must be a finite
+/// number that is not negative: a NaN weight would turn every weighted score
+/// into NaN.
+///
+/// # Errors
+/// Names `source` and the reason when `text` does not match the lens schema or
+/// its weight is not a finite, non-negative number.
+fn parse_lens(text: &str, source: &str) -> Result<Lens, String> {
+    let lens: Lens = toml::from_str(text).map_err(|e| format!("{source}: {e}"))?;
+    if !lens.weight.is_finite() || lens.weight < 0.0 {
+        return Err(format!(
+            "{source}: weight must be a finite number that is not negative, found {}",
+            lens.weight
+        ));
+    }
+    Ok(lens)
 }
 
 /// Replaces the lens named `lens.name` in place, keeping catalogue order, or appends it as new.
@@ -336,6 +354,42 @@ mod tests {
             .find(|l| l.name == "security")
             .expect("security");
         assert!((sec.weight - 3.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn a_weight_that_is_not_finite_or_is_negative_stops_the_load_and_names_the_file() {
+        for (label, weight) in [
+            ("nan", "nan"),
+            ("inf", "inf"),
+            ("neg-inf", "-inf"),
+            ("negative", "-1.0"),
+        ] {
+            let root = temp_root(&format!("weight-{label}"));
+            let shipped = include_str!("../defaults/review-lenses/security.toml");
+            let changed = shipped.replace("weight = 1.0", &format!("weight = {weight}"));
+            assert_ne!(
+                shipped, changed,
+                "the shipped file has a weight line to change"
+            );
+            std::fs::write(root.join(".osf/review-lenses/security.toml"), changed).expect("write");
+            let err = load(&root, None).expect_err("a bad weight must stop the load");
+            assert!(err.contains("security.toml"), "{label}: {err}");
+            assert!(
+                err.contains("weight must be a finite number"),
+                "{label}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_zero_or_fractional_weight_loads() {
+        let root = temp_root("weight-ok");
+        let shipped = include_str!("../defaults/review-lenses/security.toml");
+        for weight in ["0.0", "0.5", "7.0"] {
+            let changed = shipped.replace("weight = 1.0", &format!("weight = {weight}"));
+            std::fs::write(root.join(".osf/review-lenses/security.toml"), changed).expect("write");
+            assert!(load(&root, None).is_ok(), "{weight}");
+        }
     }
 
     #[test]

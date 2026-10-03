@@ -235,6 +235,12 @@ the threshold, the timeout, the cost ceiling, and the prompt file. A pull
 request cannot turn off a lens, lower the threshold, or rewrite its own
 reviewer's instructions to pass its own review.
 
+`osf` checks these numbers when it loads them. The threshold must be a
+number from 0 to 1. A lens weight must be a finite number that is not
+negative. The cost ceiling must be a finite number that is not negative. A
+value that is NaN, infinite or out of range stops the review as
+could-not-configure, and the error names the file.
+
 One test starts a real opencode and checks that a plugin file in the change
 does not run. It builds only with the `real-agents` feature. Run it inside
 the development container, where opencode is installed:
