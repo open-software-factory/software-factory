@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6b3bb4725a4ad05f953850353d77706892b349b8",
+    "contentHash": "05bce536718e1db0b869824f0b9c8633"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c705d8f0f83cf10eb41464f5d9f4fb1a",
+      "bytes": 32754,
+      "width": 1896,
+      "height": 874,
+      "animated": false,
+      "path": "container-view-light-c705d8f0f83cf10eb41464f5d9f4fb1a.svg"
+    },
+    {
+      "id": "container-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9cf44a79ccd20991c6a88ab6c602ec85",
+      "bytes": 33204,
+      "width": 1896,
+      "height": 874,
+      "animated": false,
+      "path": "container-view-dark-9cf44a79ccd20991c6a88ab6c602ec85.svg"
+    },
+    {
+      "id": "hook-wiring-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hook-wiring-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cfd05aea93ce6e085feea44d3cfc8691",
+      "bytes": 19380,
+      "width": 1796,
+      "height": 532,
+      "animated": false,
+      "path": "hook-wiring-view-light-cfd05aea93ce6e085feea44d3cfc8691.svg"
+    },
+    {
+      "id": "hook-wiring-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hook-wiring-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8f0cf8874fec08034e53f9d6b1eace7b",
+      "bytes": 19672,
+      "width": 1796,
+      "height": 532,
+      "animated": false,
+      "path": "hook-wiring-view-dark-8f0cf8874fec08034e53f9d6b1eace7b.svg"
+    },
+    {
+      "id": "git-guard-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "git-guard-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b37f2bafa043782aeec781bdf4854dc0",
+      "bytes": 9956,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "git-guard-view-light-b37f2bafa043782aeec781bdf4854dc0.svg"
+    },
+    {
+      "id": "git-guard-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "git-guard-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8faeb4a8a2d1ffe0b356ff77fa851d12",
+      "bytes": 10059,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "git-guard-view-dark-8faeb4a8a2d1ffe0b356ff77fa851d12.svg"
+    }
+  ]
+}
