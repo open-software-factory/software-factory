@@ -256,6 +256,25 @@ pass-through this page describes. The Dockerfile runs it during
 build instead of shipping quietly. Run it by hand inside a container
 with `sh .devcontainer/tests/git-wrapper.sh`.
 
+## GitHub access
+
+The image holds no GitHub login and no token. `gh` reports that it is not
+logged in until the caller passes a token in the `GH_TOKEN` environment
+variable. `gh` reads that variable by itself, so `gh auth status` then
+succeeds.
+
+Pass the token when you start the container. With `docker run`, add
+`-e GH_TOKEN`, so the value comes from your shell and not from the
+command line. The `devcontainer.json` file forwards `GH_TOKEN` from the
+host shell in the same way. Use a token that can read this repository.
+Give a builder the write access it needs, and nothing more.
+
+`osf scan` asks `gh` whether the repository is public. A gate run does
+not read `[scan] repository_visibility` from the configuration, so it
+always asks. Without `GH_TOKEN`, the scan warns that the visibility is
+unknown. Every rule still applies, so the warning does not change the
+result.
+
 ## Builder tools
 
 One image serves both the builder and the reviewer role. Besides the

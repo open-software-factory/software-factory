@@ -7,5 +7,8 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "workspaceFolder": "/workspace",
   "remoteUser": "dev",
+  "remoteEnv": {
+    "GH_TOKEN": "${localEnv:GH_TOKEN}"
+  },
   "postCreateCommand": "osf --version && moon --version && node --version && pnpm --version && (git config --show-origin core.hooksPath || echo 'core.hooksPath: none set locally; the git wrapper forces /opt/factory/githooks under the workspace')"
 }
