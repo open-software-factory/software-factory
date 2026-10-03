@@ -38,7 +38,7 @@ A check mark means pass. A tilde means partial or depends. A cross means fail or
 
 There is no single winner. The recommendation is a combination, chosen to keep the framework decision open as long as possible:
 
-- **If the framework decision needs to happen now or soon**, use React Aria Components for the full Layer 1 and Layer 2 set. It is the most complete, best-tested, zero-shipped-CSS option. It covers every primitive in scope, including Toast.
+- **If the framework decision needs to happen now or soon**, use React Aria Components for the full set of surface and input primitives. It is the most complete, best-tested, zero-shipped-CSS option. It covers every primitive in scope, including Toast.
 - **If we want to defer the framework decision further**, build the Overlay, Dialog, Popover, Toast, and Select contract on **Zag.js**. Consume it through the **Ark UI** component layer. This is the only path where the behaviour work, meaning light-dismiss, focus capture and return, edge-flipping, and toast stacking, is validated once. It then ports to React, Vue, Solid, or Svelte adapters without redoing the accessibility work.
 - Either way, add **Floating UI** underneath for Popover edge-flipping, if the chosen library's own positioning falls short. Zag.js and Ark UI already delegate to it. Base UI and Radix have their own equivalent.
 - If React is chosen and we want shadcn's copy-in-repo convenience for velocity, start from **Base UI** instead of Radix. It is the actively-maintained lineage, and it is shadcn's own 2026 default.

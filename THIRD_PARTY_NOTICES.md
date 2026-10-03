@@ -15,7 +15,7 @@ tools it depends on but does not copy. It follows the intent of the
 - Licence: MIT
 - Copyright: HumanLayer, 2026
 - Path in this repository: `skills/show-me/SKILL.md`, adapted from the
-  source above. Its licence text sits beside it at
+  upstream source listed here. Its licence text sits beside it at
   `skills/show-me/LICENSE`. The full provenance note and the list of
   changes are at `skills/show-me/README.md`.
 
