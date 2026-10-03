@@ -43,9 +43,9 @@ root. Each hook is a thin call to `osf` and nothing else:
 
 | Hook | What it runs |
 |---|---|
-| `pre-commit` | `osf verify --checkpoint pre-commit`, which scans staged files for text that must never reach a public repository. |
+| `pre-commit` | `osf verify --stage pre-commit`, which scans staged files for text that must never reach a public repository. |
 | `commit-msg` | `osf lint writing` over the commit message file, checking prose style. |
-| `pre-push` | `osf verify --checkpoint pre-push`, which scans changed files, changed prose, changed skill folders, and pushed commit messages. |
+| `pre-push` | `osf verify --stage pre-push`, which scans changed files, changed prose, changed skill folders, and pushed commit messages. |
 
 `git config --show-origin core.hooksPath` may still show a repository's
 own setting, for example a self-hosting one under `.osf/hooks`. That
@@ -106,8 +106,8 @@ Every hook is a thin call to `osf`, so the same commands work outside a
 hook:
 
 ```sh
-osf verify --checkpoint pre-commit
-osf verify --checkpoint pre-push
+osf verify --stage pre-commit
+osf verify --stage pre-push
 osf lint writing path/to/file.md
 ```
 
@@ -132,7 +132,7 @@ than relying on the hook:
 
 ```sh
 cargo build --release -p osf
-./target/release/osf verify --checkpoint pre-commit
+./target/release/osf verify --stage pre-commit
 ```
 
 The git hooks are not changed to prefer a workspace build automatically.
@@ -238,6 +238,15 @@ credential used to push. An agent that holds a push credential can
 still push straight past every check in this file. Taking that
 credential away from the agent is separate work. This wrapper does not
 do it.
+
+## Testing the hooks themselves
+
+`.devcontainer/tests/git-hooks.sh` checks that every hook file is
+executable, in the image and in the repository's own copy. It checks that
+every `osf` command and flag a hook calls exists in the installed `osf`.
+It then runs each hook in a scratch repository. The Dockerfile runs it
+during `docker build`. A hook that git stored without the executable bit
+fails the build. So does a hook that names a flag `osf` no longer has.
 
 ## Testing the wrapper itself
 

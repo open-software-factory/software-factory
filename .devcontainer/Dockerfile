@@ -475,3 +475,11 @@ RUN sh /tmp/builder-tools-test.sh && rm -f /tmp/builder-tools-test.sh
 COPY --chown=dev:dev .devcontainer/agents.json /tmp/agent-hooks-test/agents.json
 COPY --chown=dev:dev .devcontainer/tests/agent-hooks.sh /tmp/agent-hooks-test/tests/agent-hooks.sh
 RUN sh /tmp/agent-hooks-test/tests/agent-hooks.sh && rm -rf /tmp/agent-hooks-test
+
+# Proves the git hooks: executable, every osf flag they use exists in the
+# installed osf, and each runs in a scratch repository. The copy of the
+# source hooks keeps the mode git stored, which the test also checks. See
+# .devcontainer/tests/git-hooks.sh.
+COPY --chown=dev:dev .devcontainer/githooks /tmp/git-hooks-test/githooks
+COPY --chown=dev:dev .devcontainer/tests/git-hooks.sh /tmp/git-hooks-test/git-hooks.sh
+RUN sh /tmp/git-hooks-test/git-hooks.sh /tmp/git-hooks-test/githooks && rm -rf /tmp/git-hooks-test

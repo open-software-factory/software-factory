@@ -1,3 +1,3 @@
 #!/bin/sh
 # git commit gives this hook no arguments and no meaningful stdin.
-exec /opt/factory/bin/osf verify --checkpoint pre-commit
+exec /opt/factory/bin/osf verify --stage pre-commit
