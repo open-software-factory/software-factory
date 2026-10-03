@@ -1,7 +1,7 @@
 use osf::pr_status::GhClient;
 use osf::{
-    assets, changeset_risk, changeset_tests, config, exclude, git, hook, lints, pr_status, review,
-    scan, section, verify,
+    assets, changeset_risk, changeset_tests, config, exclude, git, hook, lints, pr_status, pr_tree,
+    review, scan, section, verify,
 };
 
 use clap::parser::ValueSource;
@@ -168,6 +168,29 @@ enum PrAction {
         #[command(subcommand)]
         action: StatusAction,
     },
+    /// Render the file table for the tree block of a pull request description.
+    Tree {
+        #[command(subcommand)]
+        action: TreeAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum TreeAction {
+    /// Print the collapsed file table for a change, with count chips and
+    /// size bars. Put it in a pull request with `osf pr section write
+    /// --name tree`.
+    Render(TreeRenderArgs),
+}
+
+#[derive(Args)]
+struct TreeRenderArgs {
+    /// What to diff against: a remote-tracking ref or any commit-ish.
+    #[arg(long, default_value = "origin/main")]
+    base: String,
+    /// The other side of the diff.
+    #[arg(long, default_value = "HEAD")]
+    head: String,
 }
 
 #[derive(Subcommand)]
@@ -182,13 +205,17 @@ struct SectionWriteArgs {
     /// The pull request number.
     #[arg(long)]
     pr: u64,
-    /// The section's name: the markers are `<!-- osf:<name>:start -->` and
-    /// `<!-- osf:<name>:end -->`.
+    /// The section's name: the markers are
+    /// `<!-- osf:<name>:start head=<sha> -->` and `<!-- osf:<name>:end -->`.
     #[arg(long)]
     name: String,
     /// Path to a file holding the section's content, in Markdown.
     #[arg(long)]
     file: PathBuf,
+    /// The commit the section is built for, written into the start marker.
+    /// Read from the pull request's head with `gh` when not given.
+    #[arg(long)]
+    head: Option<String>,
     /// The repository, as `owner/name`. Left to `gh`'s own detection of the
     /// current repository when not given.
     #[arg(long)]
@@ -247,12 +274,10 @@ struct StatusRenderArgs {
     /// Gate results, comma-separated: "name: passed" or "name: failed: reason".
     #[arg(long)]
     gates: String,
-    /// One sentence describing the problem.
+    /// The pull request's head commit, written into the block. Defaults to
+    /// `HEAD` of the current directory.
     #[arg(long)]
-    problem: String,
-    /// One sentence describing the approach.
-    #[arg(long)]
-    approach: String,
+    head: Option<String>,
     /// The repository, as `owner/name`. Needed with `--pr` when `--review-json` is absent.
     #[arg(long)]
     repo: Option<String>,
@@ -269,6 +294,14 @@ struct StatusRenderArgs {
     /// `osf pr status refresh` does.
     #[arg(long)]
     base: Option<String>,
+    /// One short line for the Automated review row's Details, for example
+    /// the model family, the rounds and the fixing commit.
+    #[arg(long)]
+    automated_review: Option<String>,
+    /// One short line for the Human review row's Details, for example the
+    /// reviewers' display names.
+    #[arg(long)]
+    human_review: Option<String>,
 }
 
 #[derive(Args)]
@@ -297,11 +330,6 @@ struct StatusApplyArgs {
 /// treats its own still-running check as a gate to report on.
 const STATUS_CHECK_NAME: &str = "status block";
 
-/// `Problem` and `Approach` text a fresh block starts with when neither
-/// `--problem` nor `--approach` was given: a refresh should never sit idle
-/// waiting for a person to run `osf pr status apply` by hand.
-const NOT_FILLED_IN: &str = "not filled in yet";
-
 #[derive(Args)]
 struct StatusRefreshArgs {
     /// The repository, as `owner/name`.
@@ -314,18 +342,6 @@ struct StatusRefreshArgs {
     /// `origin/<the pull request's base branch>`, fetched first.
     #[arg(long)]
     base: Option<String>,
-    /// One sentence describing the problem. Used to start the block when
-    /// the description has none yet; ignored once a block exists. Left
-    /// out, a fresh block starts with a placeholder instead of waiting for
-    /// a person to run `osf pr status apply` first.
-    #[arg(long)]
-    problem: Option<String>,
-    /// One sentence describing the approach. Used to start the block when
-    /// the description has none yet; ignored once a block exists. Left
-    /// out, a fresh block starts with a placeholder instead of waiting for
-    /// a person to run `osf pr status apply` first.
-    #[arg(long)]
-    approach: Option<String>,
     /// A file holding `gh pr checks --json name,state,bucket` output,
     /// instead of fetching it.
     #[arg(long)]
@@ -644,6 +660,11 @@ fn main() -> ExitCode {
                     action: StatusAction::Refresh(args),
                 },
         } => pr_status_refresh_cmd(args),
+        Command::Pr {
+            action: PrAction::Tree {
+                action: TreeAction::Render(args),
+            },
+        } => pr_tree_render_cmd(args),
         Command::Assets {
             action: AssetsAction::Publish(args),
         } => assets_publish_cmd(args),
@@ -1362,13 +1383,24 @@ fn pr_status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
         },
         None => None,
     };
+    let head = match &args.head {
+        Some(h) => h.clone(),
+        None => match git::head_sha(Path::new(".")) {
+            Ok(h) => h,
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        },
+    };
     let input = pr_status::RenderInput {
         tier_json: &tier_text,
         gates: &args.gates,
-        problem: &args.problem,
-        approach: &args.approach,
         review_json: &review_text,
+        head: &head,
         tests: tests_text.as_deref(),
+        automated_review: args.automated_review.as_deref(),
+        human_review: args.human_review.as_deref(),
     };
     match pr_status::render(&input) {
         Ok(block) => {
@@ -1555,33 +1587,6 @@ fn git_fetch(remote: &str, ref_name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// `Problem` and `Approach` for a refresh: read back from the description's
-/// own block when it has one; from `--problem`/`--approach` when given and
-/// there is no block yet; or, with neither, [`NOT_FILLED_IN`], so the first
-/// refresh always starts the block instead of waiting for a person to run
-/// `osf pr status apply` by hand.
-fn pr_status_refresh_problem_approach(
-    body: &str,
-    problem: Option<&String>,
-    approach: Option<&String>,
-) -> Result<(String, String), ExitCode> {
-    match pr_status::extract_problem_approach(body) {
-        Ok(Some((p, a))) => Ok((p, a)),
-        Ok(None) => Ok((
-            problem
-                .cloned()
-                .unwrap_or_else(|| NOT_FILLED_IN.to_string()),
-            approach
-                .cloned()
-                .unwrap_or_else(|| NOT_FILLED_IN.to_string()),
-        )),
-        Err(e) => {
-            eprintln!("osf: {e}");
-            Err(ExitCode::from(2))
-        }
-    }
-}
-
 /// The ref to assess risk against: `base` verbatim when given, else
 /// `origin/<base_ref>` after fetching it so a fresh checkout has it.
 fn pr_status_refresh_base(base: Option<&String>, base_ref: &str) -> Result<String, ExitCode> {
@@ -1650,11 +1655,10 @@ fn pr_status_refresh_run(
     let pr_info_text = client.view_pr_info(&args.repo, &args.pr).map_err(to_exit)?;
     let pr_info = pr_status::parse_pr_info(&pr_info_text).map_err(to_exit)?;
 
-    let (problem, approach) = pr_status_refresh_problem_approach(
-        &pr_info.body,
-        args.problem.as_ref(),
-        args.approach.as_ref(),
-    )?;
+    let head = git::head_sha(Path::new(".")).map_err(|e| {
+        eprintln!("osf: {e}");
+        ExitCode::from(2)
+    })?;
     let base = pr_status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
     let report = changeset_risk::assess(Path::new("."), &base).map_err(|e| {
         eprintln!("osf changeset risk: {e}");
@@ -1673,10 +1677,11 @@ fn pr_status_refresh_run(
     let input = pr_status::RenderInput {
         tier_json: &tier_text,
         gates: &gates,
-        problem: &problem,
-        approach: &approach,
         review_json: &review_text,
+        head: &head,
         tests: Some(&tests_text),
+        automated_review: None,
+        human_review: None,
     };
     let block = pr_status::render(&input).map_err(to_exit)?;
     let unchanged = pr_status::is_unchanged(&pr_info.body, &block).map_err(to_exit)?;
@@ -1797,6 +1802,26 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
     report_outcome(outcome, args, &head_sha)
 }
 
+fn pr_tree_render_cmd(args: &TreeRenderArgs) -> ExitCode {
+    match pr_tree::collect(Path::new("."), &args.base, &args.head) {
+        Ok(changes) if changes.is_empty() => {
+            eprintln!(
+                "osf: no files differ between {} and {}",
+                args.base, args.head
+            );
+            ExitCode::from(2)
+        }
+        Ok(changes) => {
+            print!("{}", pr_tree::render(&changes));
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        }
+    }
+}
+
 fn pr_section_write_cmd(args: &SectionWriteArgs) -> ExitCode {
     let content = match std::fs::read_to_string(&args.file) {
         Ok(c) => c,
@@ -1813,7 +1838,17 @@ fn pr_section_write_cmd(args: &SectionWriteArgs) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let new_body = match section::apply(&body, &args.name, &content) {
+    let head = match args.head.as_deref().filter(|h| !h.is_empty()) {
+        Some(h) => h.to_string(),
+        None => match section::fetch_head_sha(repo, args.pr) {
+            Ok(h) => h,
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        },
+    };
+    let new_body = match section::apply(&body, &args.name, &head, &content) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -1903,42 +1938,6 @@ mod tests {
     const REAL_PATH: &str = "docs/real.md";
     const TWO_RULE_TEXT: &str =
         "A thing — another thing. It ran fine; it passed the whole suite.\n";
-
-    #[test]
-    fn a_missing_block_is_started_with_a_placeholder_when_no_flags_are_given() {
-        let started = pr_status_refresh_problem_approach("just a description\n", None, None)
-            .expect("never fails");
-        assert_eq!(
-            started,
-            (NOT_FILLED_IN.to_string(), NOT_FILLED_IN.to_string())
-        );
-    }
-
-    #[test]
-    fn a_missing_block_is_started_from_the_given_flags_when_present() {
-        let p = "the problem".to_string();
-        let a = "the approach".to_string();
-        let started =
-            pr_status_refresh_problem_approach("just a description\n", Some(&p), Some(&a))
-                .expect("never fails");
-        assert_eq!(started, (p, a));
-    }
-
-    #[test]
-    fn an_existing_block_ignores_the_flags_and_keeps_its_own_text() {
-        let body = "<!-- factory:status:begin -->\n**Problem**: existing problem\n**Approach**: existing approach\n<!-- factory:status:end -->\n";
-        let flag_p = "ignored".to_string();
-        let flag_a = "ignored too".to_string();
-        let kept = pr_status_refresh_problem_approach(body, Some(&flag_p), Some(&flag_a))
-            .expect("never fails");
-        assert_eq!(
-            kept,
-            (
-                "existing problem".to_string(),
-                "existing approach".to_string()
-            )
-        );
-    }
 
     fn writing_args() -> WritingArgs {
         WritingArgs {
