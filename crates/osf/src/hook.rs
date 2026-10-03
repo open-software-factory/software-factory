@@ -41,10 +41,9 @@ const MAX_ADVICE_LINES: usize = 20;
 /// first message of a session too.
 pub const STANDING_REMINDER: &str =
     "osf writing-lint reminder for this reply. State the point and stop. \
-    Do not end a sentence with a `, not X` or `, never X` tail. \
     Write a reference as owner/repo#N (what it is). \
     Name a thing by what it is rather than by its place in a list. \
-    No sweeps such as `nobody` or `everyone`.";
+    Audited heuristic checks are disabled from enforcement; their detectors remain available for evaluation.";
 
 /// Every spelling of the session key, most common first.
 const SESSION_KEYS: &[&str] = &["session_id", "sessionId", "sessionID"];
@@ -254,7 +253,8 @@ fn refuse_could_not_run(
     refuse(answer, &reason)
 }
 
-/// Lints `text` as a transcript, and applies the config's level overrides,
+/// Lints `text` as a transcript, and applies the config's level overrides.
+/// The approved disabled defaults cannot be re-enabled in a stop check,
 /// dropping every suppressed finding. The stop check runs on every turn
 /// end, so it stays on the fast tier only.
 fn checked_findings(
@@ -264,7 +264,13 @@ fn checked_findings(
 ) -> Vec<lints::Finding> {
     let findings =
         lints::writing::lint_writing(text, known, cfg, lints::Context::Transcript, true, false);
-    osf_lint_core::apply_level_overrides(findings, &cfg.levels)
+    let mut levels = cfg.levels.clone();
+    levels.extend(lints::policy::off_levels(lints::policy::DISABLED_WRITING));
+    eprintln!(
+        "osf hook writing policy: {}",
+        lints::policy::coverage(&levels)
+    );
+    osf_lint_core::apply_level_overrides(findings, &levels)
         .into_iter()
         .filter(|f| f.suppressed.is_none())
         .collect()
@@ -855,6 +861,33 @@ mod tests {
         );
         f.remediation = remediation;
         f
+    }
+
+    #[test]
+    fn audited_detectors_do_not_block_but_retained_reference_checks_do() {
+        let known = lints::load_known_names(&[], None).expect("names load");
+        let cfg = WritingConfig::default();
+        let findings = checked_findings("Input -> output.", &known, &cfg);
+        assert!(findings.is_empty(), "disabled arrow enforced: {findings:?}");
+        let findings = checked_findings("Fixed in #125 today.", &known, &cfg);
+        assert!(
+            findings.iter().any(|f| f.rule == "bare-reference"),
+            "retained rule lost: {findings:?}"
+        );
+        assert!(blocking_set(&findings).is_some());
+    }
+
+    #[test]
+    fn a_config_override_cannot_reenable_an_audited_detector_in_the_stop_check() {
+        let known = lints::load_known_names(&[], None).expect("names load");
+        let mut cfg = WritingConfig::default();
+        cfg.levels
+            .insert("arrow".to_string(), osf_lint_core::LevelSetting::Error);
+        let findings = checked_findings("Input -> output.", &known, &cfg);
+        assert!(
+            findings.is_empty(),
+            "audit policy reenabled by config: {findings:?}"
+        );
     }
 
     /// An advise finding must not block the stop hook.

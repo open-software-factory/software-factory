@@ -70,8 +70,9 @@ pub struct WritingConfig {
     pub chat_local_labels: Vec<String>,
     /// Names that need no description on first use, on top of the built-in ones.
     pub known_names: Vec<String>,
-    /// Names this repository has decided are worth explaining on first use,
-    /// read even under `--gate`; see [`gate_loaded`] for why that is safe.
+    /// Names this repository has decided are worth explaining on first use.
+    /// The field is read under `--gate`, but `undefined-name` is disabled by
+    /// the compiled gate policy, so these names do not currently add gate errors.
     pub must_explain_names: Vec<String>,
     /// Per-rule level overrides, keyed by rule id.
     pub levels: BTreeMap<String, LevelSetting>,
@@ -150,7 +151,7 @@ impl Default for WritingConfig {
             chat_local_labels: strings(DEFAULT_CHAT_LOCAL_LABELS),
             known_names: Vec::new(),
             must_explain_names: Vec::new(),
-            levels: BTreeMap::new(),
+            levels: crate::lints::policy::off_levels(crate::lints::policy::DISABLED_WRITING),
         }
     }
 }
@@ -193,7 +194,7 @@ impl Default for SkillConfig {
             overview_max_words: 120,
             trigger_phrases: strings(DEFAULT_TRIGGER_PHRASES),
             manual_min_steps: 3,
-            levels: BTreeMap::new(),
+            levels: crate::lints::policy::off_levels(crate::lints::policy::DISABLED_SKILL),
         }
     }
 }
@@ -494,19 +495,10 @@ pub fn load(
 /// a field added to [`Config`] or [`WritingConfig`] later is safe here with
 /// no extra code: it was never merged in, so it never needs resetting.
 ///
-/// `must_explain_names` is the one field exempt from that. Every other
-/// field can only loosen the gate: turning a rule off, widening the
-/// exclude list, or growing the known-name list all shrink what the gate
-/// reports. `must_explain_names` cannot: its compiled default is empty, so
-/// it starts at the least strict setting already, and every name the
-/// repository's own file adds to it can only turn on one more
-/// `undefined-name` error, never turn one off. Reading it here from a file
-/// this change could itself have edited is therefore safe: a change that
-/// deletes an entry only pulls that name back down to the same empty floor
-/// every other repository already gates on, and a change that adds one can
-/// only make its own gate run stricter than that floor, never looser. Do
-/// not read any other field this way; every other field in this struct can
-/// remove a finding, which this reasoning does not cover.
+/// `must_explain_names` is the one field exempt from that. It is read for
+/// config parity, but the compiled gate policy sets `undefined-name` to
+/// `off`, so these names do not currently add gate errors. If the gate
+/// policy changes, revisit this exception before relying on it for gating.
 ///
 /// # Errors
 /// Returns an error if the compiled defaults themselves fail to serialise
@@ -527,8 +519,8 @@ fn gate_loaded() -> Result<Loaded, ConfigError> {
 
 /// Reads `writing.must_explain_names` from `resolve_path`'s file (never
 /// from `--config`, since `flag` is always `None` here), or returns an
-/// empty list when no such file exists. See [`gate_loaded`] for why this
-/// one field is read under `--gate` when nothing else in the file is.
+/// empty list when no such file exists. The gate currently reads this field
+/// for config parity; its `undefined-name` rule remains disabled by policy.
 fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
     let Some(path) = resolve_path(None) else {
         return Ok(Vec::new());
@@ -802,7 +794,7 @@ mod tests {
         assert_eq!(w.short_text_words, 500);
         assert!(w.known_names.contains(&"Vale".to_string()));
         assert!(w.known_names.contains(&"Postgres".to_string()));
-        assert!(w.levels.is_empty());
+        assert_eq!(w.levels, WritingConfig::default().levels);
     }
 
     #[test]
@@ -879,9 +871,8 @@ mod tests {
         assert_eq!(loaded.config.exclude, DEFAULT_EXCLUDE);
     }
 
-    /// Unlike every other field, `must_explain_names` is read from the
-    /// file at `OSF_CONFIG` even under `--gate`: see `gate_loaded` for why
-    /// growing this one list can only add errors, never remove one.
+    /// `must_explain_names` is read from `OSF_CONFIG` under `--gate`, while
+    /// the compiled gate policy keeps `undefined-name` disabled.
     #[test]
     fn gate_reads_must_explain_names_from_the_configured_file() {
         let dir = TempDir::new("osf-config-test-gate-must-explain");
@@ -1054,7 +1045,7 @@ mod tests {
         std::fs::write(&path, "[writing.levels]\nbare-reference = \"off\"\n").expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
         assert!(
-            loaded.config.writing.levels.is_empty(),
+            !loaded.config.writing.levels.contains_key("bare-reference"),
             "{:?}",
             loaded.config.writing.levels
         );
@@ -1107,10 +1098,10 @@ mod tests {
     /// default other than its own zero value, without anyone updating
     /// this test to know about it.
     ///
-    /// `must_explain_names` is carved out of the final comparison on
-    /// purpose: it is the one field [`gate_loaded`] deliberately still
-    /// reads from the file, so this test also proves that carve-out reads
-    /// exactly the file's value and nothing the environment or a flag set.
+    /// `must_explain_names` is carved out of the final comparison because
+    /// [`gate_loaded`] reads it from the file. This proves that carve-out
+    /// reads exactly the file's value and nothing the environment or a flag
+    /// set; the compiled gate policy still disables `undefined-name`.
     #[test]
     fn gate_config_matches_compiled_defaults_even_from_a_maximally_poisoned_source() {
         let defaults_tree =

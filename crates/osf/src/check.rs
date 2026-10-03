@@ -210,7 +210,7 @@ fn lint_writing_files(
             Some(expected) if lints::is_fixture_path(path) => {
                 declared_fixture_findings(&expected, &raw)
             }
-            _ => raw,
+            _ => osf_lint_core::apply_level_overrides(raw, &opts.config.writing.levels),
         };
         findings.extend(path_findings.into_iter().map(|f| (path.clone(), f)));
     }
@@ -321,11 +321,25 @@ fn lint_skill_files(opts: &Options, files: &[String]) -> Result<Vec<(String, Fin
             &known,
             &opts.config.writing,
         );
-        findings.extend(
-            skill_findings
-                .into_iter()
-                .map(|sf| (format!("{label}/{}", sf.file), sf.finding)),
-        );
+        let levels =
+            lints::policy::skill_levels(&opts.config.writing.levels, &opts.config.skill.levels);
+        for sf in skill_findings {
+            let file = format!("{label}/{}", sf.file);
+            if matches!(
+                sf.finding.rule,
+                "expectation-missing"
+                    | "expectation-unexpected"
+                    | "expectation-forbidden-scan-rule"
+            ) {
+                findings.push((file, sf.finding));
+            } else {
+                findings.extend(
+                    osf_lint_core::apply_level_overrides(vec![sf.finding], &levels)
+                        .into_iter()
+                        .map(|f| (file.clone(), f)),
+                );
+            }
+        }
     }
     Ok(findings)
 }

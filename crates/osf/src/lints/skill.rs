@@ -569,7 +569,7 @@ fn no_done_condition(body: &[&str], min_steps: usize) -> bool {
 
 fn manual_shape_findings(lines: &[&str], body_start: usize, cfg: &SkillConfig) -> Vec<Finding> {
     let body = lines.get(body_start..).unwrap_or(&[]);
-    let (overview, mut out) = overview_findings(lines, body_start, cfg);
+    let (_, mut out) = overview_findings(lines, body_start, cfg);
     let descriptive = descriptive_over_imperative(body);
     let no_done = no_done_condition(body, cfg.manual_min_steps);
     if descriptive {
@@ -586,22 +586,6 @@ fn manual_shape_findings(lines: &[&str], body_start: usize, cfg: &SkillConfig) -
             "skill-no-done-condition",
             "the steps never say when to stop".to_string(),
             "no done condition",
-        ));
-    }
-    let fired: Vec<&str> = [
-        (overview, "skill-first-section-is-overview"),
-        (descriptive, "skill-descriptive-over-imperative"),
-        (no_done, "skill-no-done-condition"),
-    ]
-    .into_iter()
-    .filter_map(|(b, name)| b.then_some(name))
-    .collect();
-    if fired.len() >= 2 {
-        out.push(finding_at(
-            body_start + 1,
-            "skill-reads-as-manual",
-            format!("this skill reads like a manual: {}", fired.join(", ")),
-            "reads as manual",
         ));
     }
     out
@@ -683,15 +667,9 @@ pub fn scripts_on_disk(dir: &Path) -> Vec<ScriptEntry> {
 }
 
 /// Scans every script in `scripts` for an install line with no pinned
-/// version. Windows has no executable bit, so a script's own permissions
-/// are never part of this check.
+/// version. File permissions are never part of this check, so the result
+/// does not depend on an operating system's executable-bit support.
 fn script_findings(scripts: &[ScriptEntry]) -> Vec<SkillFinding> {
-    static LATEST: OnceLock<Regex> = OnceLock::new();
-    static NPM: OnceLock<Regex> = OnceLock::new();
-    static PIP: OnceLock<Regex> = OnceLock::new();
-    let latest_re = re(&LATEST, r":latest\b");
-    let npm_re = re(&NPM, r"npm install -g (?:@[^\s/]+/)?[^\s@]+(@\S+)?");
-    let pip_re = re(&PIP, r"pip install [^\s=]+(==\S+)?");
     let mut out = Vec::new();
     for entry in scripts {
         let (rel, text) = match entry {
@@ -723,7 +701,11 @@ fn script_findings(scripts: &[ScriptEntry]) -> Vec<SkillFinding> {
         };
         for (i, line) in text.lines().enumerate() {
             out.extend(
-                unpinned_findings(line, i + 1, latest_re, npm_re, pip_re).map(|finding| {
+                super::script_pins::has_unpinned_install(line).then(|| finding_at(
+                    i + 1, "skill-script-unpinned",
+                    "pin the direct dependency to an exact version; a lockfile flag alone does not pin the installed package".to_string(),
+                    line.trim(),
+                )).into_iter().map(|finding| {
                     SkillFinding {
                         file: rel.clone(),
                         finding,
@@ -733,46 +715,6 @@ fn script_findings(scripts: &[ScriptEntry]) -> Vec<SkillFinding> {
         }
     }
     out
-}
-
-fn unpinned_findings<'a>(
-    line: &'a str,
-    line_no: usize,
-    latest_re: &Regex,
-    npm_re: &Regex,
-    pip_re: &Regex,
-) -> impl Iterator<Item = Finding> + 'a {
-    let latest = latest_re.is_match(line).then(|| {
-        finding_at(
-            line_no,
-            "skill-script-unpinned",
-            "pin the version instead of :latest".to_string(),
-            line.trim(),
-        )
-    });
-    let npm = npm_re
-        .captures(line)
-        .filter(|c| c.get(1).is_none())
-        .map(|_| {
-            finding_at(
-                line_no,
-                "skill-script-unpinned",
-                "pin the package version, as in name@1.2.3 or @scope/name@1.2.3".to_string(),
-                line.trim(),
-            )
-        });
-    let pip = pip_re
-        .captures(line)
-        .filter(|c| c.get(1).is_none())
-        .map(|_| {
-            finding_at(
-                line_no,
-                "skill-script-unpinned",
-                "pin the package version, as in name==1.2.3".to_string(),
-                line.trim(),
-            )
-        });
-    latest.into_iter().chain(npm).chain(pip)
 }
 
 pub const SKILL_RULE_META: &[RuleMeta] = &[
@@ -801,32 +743,6 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
               Bad: description: Checks a folder for common problems.\n\
               Good: Use this skill when the user wants a quick health check of a project \
               folder.",
-        exception: None,
-    },
-    RuleMeta {
-        id: "skill-reads-as-manual",
-        class: Class::House,
-        group: Group::Style,
-        citation: "house",
-        doc: "### What it does\n\
-              Flags a skill body where at least two of three signals fire together. One \
-              signal is an opening that reads as background rather than a step. Another \
-              is more lines describing the skill than telling an agent what to do. Or it \
-              is a run of numbered steps that never says when to stop.\n\
-              ### Why it is bad\n\
-              A skill file is read by an agent mid-task, rather than studied like a \
-              manual. Background explanation and passive description cost turns an agent \
-              should spend acting.\n\
-              ### Class\n\
-              house: our own taste. It is a composite of three heuristics, each of which \
-              can misfire on its own, so watch its false-positive rate.\n\
-              ### Citation\n\
-              house\n\
-              ### Example\n\
-              Bad: a skill that opens with three paragraphs of background, describes the \
-              tool in passive sentences, and lists steps with no stopping point.\n\
-              Good: A skill that opens with the first step and states when the run is \
-              done.",
         exception: None,
     },
     RuleMeta {
@@ -950,10 +866,24 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a line under `scripts/` that installs a dependency with no pinned \
-              version: `:latest`, `npm install -g` with no `@version`, or `pip install` \
-              with no `==version`. A scoped package, such as `@scope/name`, is included \
-              in that check.\n\
+              Flags a literal direct install with no exact package version, including \
+              scoped packages and floating tags. A lockfile flag alone does not pin \
+              the installed package. Container commands with a latest image tag also fire.\n\
+              Requirements files name dependency declarations. Their file arguments \
+              do not name direct packages. \
+              Their contents are not inspected by this check.\n\
+              ### Coverage\n\
+              The command registry supplies the supported tools named in each run's \
+              coverage statement. Only literal standalone command tokens are inspected. \
+              This is not a shell or language interpreter. Variables, expansions, \
+              escapes, chained commands, pipelines and multiline commands are not inspected. \
+              Neither are language API calls, indirect installs, unknown command \
+              options or requirements-file contents. Obvious local paths, VCS URLs, \
+              unscoped `owner/repo` shorthands, and archive filenames ending in \
+              `.whl`, `.zip`, `.tgz`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar`, or `.gz` \
+              are skipped. Other local or VCS spellings may be treated as direct \
+              packages. \
+              A clean result is not a complete script audit.\n\
               ### Why it is bad\n\
               An unpinned install can resolve to a different, unreviewed version between \
               the run that read this skill and the run that executes it. A skill's \
@@ -964,8 +894,8 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
               ### Citation\n\
               house\n\
               ### Example\n\
-              Bad: npm install -g @scope/tool\n\
-              Good: Pin the version, as in `npm install -g @scope/tool@1.4.2`.",
+              Bad: Install the helper from a floating release.\n\
+              Good: Install the helper at the exact reviewed version.",
         exception: None,
     },
     RuleMeta {
@@ -1006,7 +936,6 @@ mod tests {
 
     const RULE_IDS: &[&str] = &[
         "skill-description-no-trigger",
-        "skill-reads-as-manual",
         "skill-first-section-is-overview",
         "skill-descriptive-over-imperative",
         "skill-no-done-condition",
