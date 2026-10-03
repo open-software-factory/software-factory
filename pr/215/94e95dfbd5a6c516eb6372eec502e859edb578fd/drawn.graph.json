@@ -1,0 +1,654 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-03T09:35:42.577Z",
+  "title": "Documentation link and wording pass across the factory docs",
+  "summary": "A repository-wide editorial pass over the documentation set. It replaces bare decision numbers with relative links to the decision records, replaces vague deictic references (\"today\", \"above\", \"the table above\", \"Stage 1\") with explicit dates or named tables, and tightens a handful of sentences in the vision, design and research docs. Two Rust test doc-comments lose their stale \"Change N:\" prefixes. No runtime behaviour, no interfaces and no data structures change; the only code touched is comment text in `crates/osf/src/hook.rs` and `crates/osf/tests/skill_lint.rs`.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "27e951400c69a22ba497e7b29ee86e8fba053ece",
+      "ref": "27e951400c69a22ba497e7b29ee86e8fba053ece"
+    },
+    "head": {
+      "sha": "94e95dfbd5a6c516eb6372eec502e859edb578fd",
+      "ref": "94e95dfbd5a6c516eb6372eec502e859edb578fd"
+    },
+    "pullRequest": {
+      "number": 215,
+      "url": "https://github.com/open-software-factory/software-factory/pull/215"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "docs",
+      "label": "Documentation set",
+      "subtitle": "Markdown, repository-relative",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The prose corpus: vision, architecture decision records, design system, research notes and the skill files. Every changed file in this pull request lives here."
+    },
+    {
+      "id": "crates",
+      "label": "osf crate",
+      "subtitle": "Rust CLI and its tests",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The only compiled code in the repository. This change touches doc-comments inside its test modules and nothing else."
+    },
+    {
+      "id": "tooling",
+      "label": "Lint and link tooling",
+      "subtitle": "osf lint, skill lint, link checks",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The checks that read the documentation set. They are the consumers of this change and are not themselves modified."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "vision-docs",
+      "label": "Vision docs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "docs",
+      "group": "prose",
+      "subtitle": "docs/vision/*.md",
+      "summary": "The aspirational documents: the agent-native operating model, the automated SPDLC/SDLC vision and the product lifecycle. This pass replaces bare phase numbers with named phases and links the SPDLC vision from the documents that reference it.",
+      "files": [
+        {
+          "path": "docs/vision/agent-native-operating-model.md"
+        },
+        {
+          "path": "docs/vision/automated-spdlc-sdlc-vision.md"
+        },
+        {
+          "path": "docs/vision/product-lifecycle.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adr-set",
+      "label": "Architecture decision records",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "docs",
+      "group": "prose",
+      "subtitle": "docs/architecture/decisions/*.md",
+      "summary": "The numbered decision records. Bare references such as \"decision 0005\" become relative links to the record file, so a reader can follow them without searching.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md"
+        },
+        {
+          "path": "docs/architecture/decisions/0005-the-factory-domain-model.md"
+        },
+        {
+          "path": "docs/architecture/decisions/0007-console-stack.md"
+        },
+        {
+          "path": "docs/architecture/decisions/0008-the-smallest-working-engine.md"
+        },
+        {
+          "path": "docs/architecture/decisions/0010-first-tracker-sandbox-and-harness-adapters.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "architecture-prose",
+      "label": "Architecture prose",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "docs",
+      "group": "prose",
+      "subtitle": "docs/architecture/*.md",
+      "summary": "The non-record architecture documents: the smallest working engine, the draft vocabulary, the execution and verification design, the trust properties and the open questions. References to decisions become links; \"today\" becomes a date.",
+      "files": [
+        {
+          "path": "docs/architecture/smallest-working-engine.md"
+        },
+        {
+          "path": "docs/architecture/draft-factory-vocabulary.md"
+        },
+        {
+          "path": "docs/architecture/execution-and-verification.md"
+        },
+        {
+          "path": "docs/architecture/execution-platform-trust-properties.md"
+        },
+        {
+          "path": "docs/architecture/open-questions.md"
+        },
+        {
+          "path": "docs/architecture/verification-seam.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "design-docs",
+      "label": "Design system docs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "docs",
+      "group": "prose",
+      "subtitle": "docs/design/**",
+      "summary": "The design system, the component catalogue, the design tracker and the survey tracks. Layer numbers become named layers, \"today\" becomes a date or is dropped, and a few table headers are renamed.",
+      "files": [
+        {
+          "path": "docs/design/DESIGN.md"
+        },
+        {
+          "path": "docs/design/components.md"
+        },
+        {
+          "path": "docs/design/design-explorations.md"
+        },
+        {
+          "path": "docs/design/design-tracker.md"
+        },
+        {
+          "path": "docs/design/survey/00-synthesis.md"
+        },
+        {
+          "path": "docs/design/survey/01-behaviour-libraries.md"
+        },
+        {
+          "path": "docs/design/survey/02-docking-panels.md"
+        },
+        {
+          "path": "docs/design/survey/03-canvas-graph.md"
+        },
+        {
+          "path": "docs/design/survey/04-streaming-generated-ui.md"
+        },
+        {
+          "path": "docs/design/survey/05-voice-input.md"
+        },
+        {
+          "path": "docs/design/survey/06-workspace-spike.md"
+        },
+        {
+          "path": "docs/design/survey/07-floating-orb.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "research-docs",
+      "label": "Research notes",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "docs",
+      "group": "prose",
+      "subtitle": "docs/research/**",
+      "summary": "The skill-lint survey, the change-risk classification survey, the AHP/ACP direction note and the UX research notes. The skill-lint tier description becomes a table; source-list headings lose their section numbers.",
+      "files": [
+        {
+          "path": "docs/research/2026-09-15-skill-lint-validation-and-evaluation.md"
+        },
+        {
+          "path": "docs/research/2026-09-17-change-risk-classification.md"
+        },
+        {
+          "path": "docs/research/ahp-acp-architecture-direction.md"
+        },
+        {
+          "path": "docs/research/ux/agent-built-ui-lessons.md"
+        },
+        {
+          "path": "docs/research/ux/benchmark/benchmark-design.md"
+        },
+        {
+          "path": "docs/research/ux/design-workflow-landscape.md"
+        },
+        {
+          "path": "docs/research/ux/ux-references.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "product-docs",
+      "label": "Product docs",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "docs",
+      "group": "prose",
+      "subtitle": "docs/product/**",
+      "summary": "The operator persona and vocabulary decision, and the factory UX vision. The domain-model reference becomes a link and the product-word table is named rather than pointed at.",
+      "files": [
+        {
+          "path": "docs/product/decisions/0002-operator-persona-and-product-vocabulary.md"
+        },
+        {
+          "path": "docs/product/ux/factory-ux-vision.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "root-docs",
+      "label": "Root documents",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "docs",
+      "group": "prose",
+      "subtitle": "README, CONTRIBUTING, THIRD_PARTY_NOTICES",
+      "summary": "The repository front page, the contribution guide and the third-party notices. The contribution guide gains a link to the CLA, and two sentences lose a time-relative \"today\".",
+      "files": [
+        {
+          "path": "README.md"
+        },
+        {
+          "path": "CONTRIBUTING.md"
+        },
+        {
+          "path": "THIRD_PARTY_NOTICES.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-files",
+      "label": "Skill files",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "docs",
+      "group": "prose",
+      "subtitle": "skills/pr-outline/SKILL.md",
+      "summary": "The pull-request outline skill. One instruction step is reworded to refer to the section the agent wrote and checked rather than to step numbers.",
+      "files": [
+        {
+          "path": "skills/pr-outline/SKILL.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-hook-tests",
+      "label": "hook.rs test module",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "crates/osf/src/hook.rs",
+      "summary": "Two doc-comments on stop-hook tests lose their stale \"Change 3:\" prefix. The test bodies, names and assertions are untouched.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 611,
+          "endLine": 660
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-skill-lint-tests",
+      "label": "skill_lint.rs integration tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "crates/osf/tests/skill_lint.rs",
+      "summary": "Two doc-comments on skill-lint tests lose their stale \"Change 1:\" and \"Change 2:\" prefixes and are rewrapped. The fixtures and assertions are untouched.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 141,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-lint",
+      "label": "osf lint",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "tooling",
+      "group": "checks",
+      "subtitle": "prose and skill linting",
+      "summary": "The linter that reads the documentation set and the skill files. It is the check that will notice a broken heading, a banned phrase or a malformed skill file in this change.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "link-check",
+      "label": "Relative link resolution",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "tooling",
+      "group": "checks",
+      "subtitle": "markdown link targets",
+      "summary": "The implicit check that every relative link added by this pass resolves to a file that exists. The decision-record links are the ones most likely to break if a path is wrong.",
+      "files": [
+        {
+          "path": "CONTRIBUTING.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "root-docs-to-adr-set",
+      "from": "root-docs",
+      "to": "adr-set",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "CLA link",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The contribution guide now links clause 4 of the contributor licence agreement, so a contributor can read the clause before accepting.",
+      "files": [
+        {
+          "path": "CONTRIBUTING.md",
+          "startLine": 127,
+          "endLine": 131
+        }
+      ]
+    },
+    {
+      "id": "adr-set-to-adr-set",
+      "from": "adr-set",
+      "to": "adr-set",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "cross-record links",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Decision records now link to each other by relative path instead of naming a number in prose. This is the bulk of the change.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0001-rust-for-the-factory-engine.md"
+        },
+        {
+          "path": "docs/architecture/decisions/0007-console-stack.md"
+        }
+      ]
+    },
+    {
+      "id": "architecture-prose-to-adr-set",
+      "from": "architecture-prose",
+      "to": "adr-set",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "decision links",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The smallest-working-engine design, the draft vocabulary and the open questions now link to the decision records they cite.",
+      "files": [
+        {
+          "path": "docs/architecture/smallest-working-engine.md"
+        },
+        {
+          "path": "docs/architecture/draft-factory-vocabulary.md"
+        },
+        {
+          "path": "docs/architecture/open-questions.md"
+        }
+      ]
+    },
+    {
+      "id": "product-docs-to-adr-set",
+      "from": "product-docs",
+      "to": "adr-set",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "domain-model link",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The product vocabulary decision now links the architecture domain-model record it maps its words onto.",
+      "files": [
+        {
+          "path": "docs/product/decisions/0002-operator-persona-and-product-vocabulary.md"
+        }
+      ]
+    },
+    {
+      "id": "vision-docs-to-vision-docs",
+      "from": "vision-docs",
+      "to": "vision-docs",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "phase references",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The operating model and the product lifecycle now link the SPDLC vision and name the phases they refer to, instead of citing bare phase numbers.",
+      "files": [
+        {
+          "path": "docs/vision/agent-native-operating-model.md"
+        },
+        {
+          "path": "docs/vision/product-lifecycle.md"
+        }
+      ]
+    },
+    {
+      "id": "osf-lint-to-docs",
+      "from": "osf-lint",
+      "to": "architecture-prose",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "reads prose and skills",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The linter reads the documentation set and the skill files. Every file in this change passes through it, which is why the wording edits are constrained.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs"
+        }
+      ]
+    },
+    {
+      "id": "link-check-to-docs",
+      "from": "link-check",
+      "to": "adr-set",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "resolves targets",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Relative links added across the documentation set must resolve. This is the check that would catch a mistyped decision-record path.",
+      "files": [
+        {
+          "path": "CONTRIBUTING.md"
+        }
+      ]
+    },
+    {
+      "id": "osf-hook-tests-to-osf-lint",
+      "from": "osf-hook-tests",
+      "to": "osf-lint",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "exercises stop hook",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The hook tests drive the stop-hook path of the linter. Only their doc-comments changed.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 611,
+          "endLine": 660
+        }
+      ]
+    },
+    {
+      "id": "osf-skill-lint-tests-to-osf-lint",
+      "from": "osf-skill-lint-tests",
+      "to": "osf-lint",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "exercises skill lint",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The skill-lint integration tests run the linter over fixtures. Only their doc-comments changed.",
+      "files": [
+        {
+          "path": "crates/osf/tests/skill_lint.rs",
+          "startLine": 141,
+          "endLine": 160
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "doc-reference-resolution",
+      "title": "How a reader follows a decision reference",
+      "summary": "The path this change is really about: a reader meets a decision reference in prose and follows it to the record. Before the change the reference was a bare number and the reader had to search; now it is a relative link.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "architecture-prose",
+          "label": "Architecture prose"
+        },
+        {
+          "node": "adr-set",
+          "label": "Decision record"
+        },
+        {
+          "node": "link-check",
+          "label": "Link resolution"
+        }
+      ],
+      "messages": [
+        {
+          "id": "reader-meets-reference",
+          "from": "architecture-prose",
+          "to": "architecture-prose",
+          "label": "reader meets \"decision 0005\"",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "Before the change this was a bare number with no target.",
+          "files": [
+            {
+              "path": "docs/architecture/smallest-working-engine.md"
+            }
+          ]
+        },
+        {
+          "id": "reference-becomes-link",
+          "from": "architecture-prose",
+          "to": "adr-set",
+          "label": "relative link to the record",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The link is repository-relative and resolves from the citing file's directory.",
+          "files": [
+            {
+              "path": "docs/architecture/smallest-working-engine.md"
+            },
+            {
+              "path": "docs/architecture/draft-factory-vocabulary.md"
+            }
+          ]
+        },
+        {
+          "id": "link-resolves",
+          "from": "link-check",
+          "to": "adr-set",
+          "label": "target exists",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "A mistyped path would surface here rather than in a reader's browser.",
+          "files": [
+            {
+              "path": "CONTRIBUTING.md"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 42,
+    "additions": 157,
+    "deletions": 151,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "docs-context",
+      "title": "Documentation set and its consumers",
+      "lens": "architecture",
+      "summary": "The documentation set as three lanes: the prose corpus, the osf crate whose test comments changed, and the lint tooling that reads both. The links between prose documents are the substance of the change.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "decision-links",
+      "title": "Decision-record cross-references",
+      "lens": "architecture",
+      "summary": "The decision records and the documents that cite them, with the new relative links drawn as edges. This is the part of the change a reviewer should check path by path.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "adr-set",
+          "architecture-prose",
+          "product-docs",
+          "vision-docs"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "crate-comments",
+      "title": "The two Rust doc-comment edits",
+      "lens": "architecture",
+      "summary": "The only compiled code touched: two test modules in the osf crate whose doc-comments lost stale change-number prefixes. The tests themselves are unchanged.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "osf-hook-tests",
+          "osf-skill-lint-tests",
+          "osf-lint"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "layout": {
+    "direction": "right",
+    "laneOrder": [
+      "docs",
+      "crates",
+      "tooling"
+    ]
+  }
+}

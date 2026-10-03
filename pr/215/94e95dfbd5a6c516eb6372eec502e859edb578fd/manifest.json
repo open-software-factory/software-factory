@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "94e95dfbd5a6c516eb6372eec502e859edb578fd",
+    "contentHash": "e62ecb88052584b5383677bf9d922ff0"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "docs-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "docs-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "298ddd4392bf872e0efc78e66eeb740f",
+      "bytes": 20372,
+      "width": 1304,
+      "height": 646,
+      "animated": false,
+      "path": "docs-context-light-298ddd4392bf872e0efc78e66eeb740f.svg"
+    },
+    {
+      "id": "docs-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "docs-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "240b2abafb7528284c3fbf2579c44891",
+      "bytes": 20625,
+      "width": 1304,
+      "height": 646,
+      "animated": false,
+      "path": "docs-context-dark-240b2abafb7528284c3fbf2579c44891.svg"
+    },
+    {
+      "id": "decision-links-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "decision-links",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c490441fff0b1160ce805cd1a80d52c5",
+      "bytes": 8984,
+      "width": 541,
+      "height": 418,
+      "animated": false,
+      "path": "decision-links-light-c490441fff0b1160ce805cd1a80d52c5.svg"
+    },
+    {
+      "id": "decision-links-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "decision-links",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3a04f887ebad5bdf61c50b153c33ee77",
+      "bytes": 9077,
+      "width": 541,
+      "height": 418,
+      "animated": false,
+      "path": "decision-links-dark-3a04f887ebad5bdf61c50b153c33ee77.svg"
+    },
+    {
+      "id": "crate-comments-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "crate-comments",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ad4a79206754ec3683b1784170c7a35a",
+      "bytes": 6909,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "crate-comments-light-ad4a79206754ec3683b1784170c7a35a.svg"
+    },
+    {
+      "id": "crate-comments-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "crate-comments",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e04dfa4223f7269e70bab7312258a3c6",
+      "bytes": 6967,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "crate-comments-dark-e04dfa4223f7269e70bab7312258a3c6.svg"
+    }
+  ]
+}
