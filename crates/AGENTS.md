@@ -11,7 +11,10 @@
 
 ## Language
 
-- Write the engine, its command-line interface, and the verifier runner in Rust. You may write a provider at the factory's edges in any language and reach it out of process.
+- Prefer strict, statically typed, fast languages: Rust, C#, or TypeScript.
+- Use Go only when a task has to be in Go.
+- Keep the engine, its command-line interface, and the verifier runner in Rust.
+- You may write a provider at the factory's edges in any of these languages and reach it out of process.
 
 ## Tests and checks
 
