@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "8d57349f15507bf7603dd68b27504f58b8bcf979",
+    "contentHash": "8bb679e068f73d65e2868c50ed3ac74b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6f436dc683a8b90c0b3c81496cc1e635",
+      "bytes": 27284,
+      "width": 1718,
+      "height": 532,
+      "animated": false,
+      "path": "context-light-6f436dc683a8b90c0b3c81496cc1e635.svg"
+    },
+    {
+      "id": "context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d825282d3f141d5514bba03671356787",
+      "bytes": 27616,
+      "width": 1718,
+      "height": 532,
+      "animated": false,
+      "path": "context-dark-d825282d3f141d5514bba03671356787.svg"
+    },
+    {
+      "id": "lint-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "lint-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6bf7503db7e02f05700a31669890b91a",
+      "bytes": 10446,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "lint-internals-light-6bf7503db7e02f05700a31669890b91a.svg"
+    },
+    {
+      "id": "lint-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "lint-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4b369de80f7a91c4ca521ca69873f4bf",
+      "bytes": 10561,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "lint-internals-dark-4b369de80f7a91c4ca521ca69873f4bf.svg"
+    },
+    {
+      "id": "migration-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "migration-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "865d863cfc583207208946d7291dac31",
+      "bytes": 18743,
+      "width": 2142,
+      "height": 527,
+      "animated": true,
+      "path": "migration-flow-light-865d863cfc583207208946d7291dac31.svg"
+    },
+    {
+      "id": "migration-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "migration-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7b0fa94ba32317ac1d84e409fa613a20",
+      "bytes": 18936,
+      "width": 2142,
+      "height": 527,
+      "animated": true,
+      "path": "migration-flow-dark-7b0fa94ba32317ac1d84e409fa613a20.svg"
+    }
+  ]
+}
