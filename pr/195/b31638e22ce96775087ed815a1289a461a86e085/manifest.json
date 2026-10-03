@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "b31638e22ce96775087ed815a1289a461a86e085",
+    "contentHash": "ba330928a750eb04f59840a8ee7f56f8"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4d8a6672571e8e019b16e1dbb8a63d5f",
+      "bytes": 39684,
+      "width": 1869,
+      "height": 874,
+      "animated": false,
+      "path": "overview-light-4d8a6672571e8e019b16e1dbb8a63d5f.svg"
+    },
+    {
+      "id": "overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6d1389a62e90b7eb285e9fde95b064f4",
+      "bytes": 40157,
+      "width": 1869,
+      "height": 874,
+      "animated": false,
+      "path": "overview-dark-6d1389a62e90b7eb285e9fde95b064f4.svg"
+    },
+    {
+      "id": "scan-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7327cb5eaf33b0439ac26e52bf62c110",
+      "bytes": 12227,
+      "width": 456,
+      "height": 646,
+      "animated": false,
+      "path": "scan-internals-light-7327cb5eaf33b0439ac26e52bf62c110.svg"
+    },
+    {
+      "id": "scan-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2bd4d950010a3413f135172933daca85",
+      "bytes": 12364,
+      "width": 456,
+      "height": 646,
+      "animated": false,
+      "path": "scan-internals-dark-2bd4d950010a3413f135172933daca85.svg"
+    },
+    {
+      "id": "scan-tests-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-tests-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a65818bbc57a9d00faaa9e1d6e48d3f1",
+      "bytes": 8957,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "scan-tests-view-light-a65818bbc57a9d00faaa9e1d6e48d3f1.svg"
+    },
+    {
+      "id": "scan-tests-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-tests-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5030e959f0cb80d19bb3fbaa036c40d6",
+      "bytes": 9049,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "scan-tests-view-dark-5030e959f0cb80d19bb3fbaa036c40d6.svg"
+    },
+    {
+      "id": "ci-skills-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-skills",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b0767200e575bf14dcd7e1754a990b13",
+      "bytes": 13412,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "ci-skills-light-b0767200e575bf14dcd7e1754a990b13.svg"
+    },
+    {
+      "id": "ci-skills-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-skills",
+      "mediaType": "image/svg+xml",
+      "contentHash": "acbb2597c7f3e6ac31e21a6672a42fe6",
+      "bytes": 13547,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "ci-skills-dark-acbb2597c7f3e6ac31e21a6672a42fe6.svg"
+    },
+    {
+      "id": "scan-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "scan-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "27d45617d8a2bd4efe4e4c0e60cefabb",
+      "bytes": 15348,
+      "width": 1441,
+      "height": 483,
+      "animated": true,
+      "path": "scan-flow-light-27d45617d8a2bd4efe4e4c0e60cefabb.svg"
+    },
+    {
+      "id": "scan-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "scan-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "96be5ddac09bcba6447f18f840c81605",
+      "bytes": 15485,
+      "width": 1441,
+      "height": 483,
+      "animated": true,
+      "path": "scan-flow-dark-96be5ddac09bcba6447f18f840c81605.svg"
+    },
+    {
+      "id": "ci-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "ci-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9810b44201f136d00ec6c7439b7e741e",
+      "bytes": 11783,
+      "width": 1124,
+      "height": 337,
+      "animated": true,
+      "path": "ci-flow-light-9810b44201f136d00ec6c7439b7e741e.svg"
+    },
+    {
+      "id": "ci-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "ci-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "78ad9582a8702c22d4cd7472577262fc",
+      "bytes": 11885,
+      "width": 1124,
+      "height": 337,
+      "animated": true,
+      "path": "ci-flow-dark-78ad9582a8702c22d4cd7472577262fc.svg"
+    }
+  ]
+}

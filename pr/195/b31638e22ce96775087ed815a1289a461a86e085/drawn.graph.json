@@ -1,0 +1,1188 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-03T02:04:36.805Z",
+  "title": "Symlink-safe scanning, agent rules split by folder, and skill linting in CI",
+  "summary": "This change does three things at once. First, `osf scan` stops following symlinks: `collect_files` now uses `symlink_metadata` and counts a link as skipped instead of reading the file or directory it points at, so a link that cycles back on itself can no longer recurse forever and a scan of nothing but links is never reported as clean. Second, the agent-facing rules are reorganised: the root `AGENTS.md` keeps only cross-cutting rules, folder-scoped rules move into `crates/AGENTS.md` and `.github/workflows/AGENTS.md`, and seven new skills under `.agents/skills/` carry the moment-of-work rules, with `.claude/skills` kept as a git symlink to that folder. Third, CI gains two steps in the `rust` job that lint every skill folder and assert that `.claude/skills` is still a symlink to `../.agents/skills`.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "27e951400c69a22ba497e7b29ee86e8fba053ece",
+      "ref": "27e951400c69a22ba497e7b29ee86e8fba053ece"
+    },
+    "head": {
+      "sha": "b31638e22ce96775087ed815a1289a461a86e085",
+      "ref": "b31638e22ce96775087ed815a1289a461a86e085"
+    },
+    "pullRequest": {
+      "number": 195,
+      "url": "https://github.com/open-software-factory/software-factory/pull/195"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "agent",
+      "label": "Coding agent",
+      "subtitle": "reads rules and skills",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The agent loads the root AGENTS.md, the folder-scoped AGENTS.md files, and the skills that match the task at hand."
+    },
+    {
+      "id": "osf",
+      "label": "osf CLI",
+      "subtitle": "Rust engine",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The scan command resolves targets, walks directories, and reports what it read and what it skipped."
+    },
+    {
+      "id": "repo",
+      "label": "Repository tree",
+      "subtitle": "tracked files and links",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The working tree holds the rule documents, the skill folders, and the .claude/skills symlink."
+    },
+    {
+      "id": "ci",
+      "label": "GitHub Actions",
+      "subtitle": "ci.yml rust job",
+      "order": 3,
+      "delta": "modified",
+      "summary": "Two new steps lint skill folders and verify the Claude Code skills symlink."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "coding-agent",
+      "label": "Coding agent",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "agent",
+      "subtitle": "loads rules and skills",
+      "summary": "The agent at work in this repository. It reads the root AGENTS.md, the folder-scoped AGENTS.md files, and the skills that match the task at hand.",
+      "files": [
+        {
+          "path": "AGENTS.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "root-agents",
+      "label": "AGENTS.md",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "agent",
+      "subtitle": "cross-cutting rules only",
+      "summary": "Rewritten to hold only what every task needs: the container rule, cross-everything, public hygiene, never weaken a check, before coding, before you push, and a table pointing at the folder rules and skills.",
+      "files": [
+        {
+          "path": "AGENTS.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crates-agents",
+      "label": "crates/AGENTS.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent",
+      "subtitle": "code layout, language, tests",
+      "summary": "New folder-scoped rules for work under crates/: thin binary, one crate per logical group, provider crates, Rust for the engine, and the four cargo commands to run before pushing.",
+      "files": [
+        {
+          "path": "crates/AGENTS.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflows-agents",
+      "label": ".github/workflows/AGENTS.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent",
+      "subtitle": "workflow and secret rules",
+      "summary": "New folder-scoped rules for workflow files: define merge-deciding and secret-holding jobs on the base branch, pin actions to full SHAs, least privilege, harden-runner in block mode, and let review aids post information only.",
+      "files": [
+        {
+          "path": ".github/workflows/AGENTS.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-readme",
+      "label": ".agents/README.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent",
+      "subtitle": "why .claude/skills is a symlink",
+      "summary": "Explains that .agents/skills is the one home for repository-internal skills, that .claude/skills must stay a git symlink to it, and why there is no CLAUDE.md.",
+      "files": [
+        {
+          "path": ".agents/README.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skills-readme",
+      "label": "skills/README.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent",
+      "subtitle": "shipped skills",
+      "summary": "Explains that skills/ holds the skills shipped to adopters, how to install one, and that repository-internal skills live under .agents/skills instead.",
+      "files": [
+        {
+          "path": "skills/README.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-skills",
+      "label": ".agents/skills/",
+      "kind": "package",
+      "delta": "added",
+      "lane": "agent",
+      "group": "skills",
+      "subtitle": "7 new SKILL.md folders",
+      "summary": "adding-an-osf-command, writing-a-workflow, filing-an-issue, opening-a-pull-request, reviewing-a-pull-request, running-sub-agents, and the folder README. Each carries the moment-of-work rules that used to sit in the root AGENTS.md.",
+      "files": [
+        {
+          "path": ".agents/skills/adding-an-osf-command/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/writing-a-workflow/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/filing-an-issue/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/opening-a-pull-request/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/reviewing-a-pull-request/SKILL.md"
+        },
+        {
+          "path": ".agents/skills/running-sub-agents/SKILL.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "shipped-skills",
+      "label": "skills/",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent",
+      "group": "skills",
+      "subtitle": "show-me, pr-outline",
+      "summary": "The two shipped skills lose their trailing credit lines, which move into THIRD_PARTY_NOTICES.md and the show-me README, so a SKILL.md holds only what an agent acts on.",
+      "files": [
+        {
+          "path": "skills/pr-outline/SKILL.md"
+        },
+        {
+          "path": "skills/show-me/SKILL.md"
+        },
+        {
+          "path": "skills/show-me/README.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rules-and-checks",
+      "label": "docs/contributing/rules-and-checks.md",
+      "kind": "config",
+      "delta": "added",
+      "lane": "agent",
+      "subtitle": "rule to enforcement table",
+      "summary": "New maintainer page listing each agent-facing rule, what enforces it today, and what no check covers yet, with links to the open issues that own the gaps.",
+      "files": [
+        {
+          "path": "docs/contributing/rules-and-checks.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-command",
+      "label": "osf scan",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "scan_paths",
+      "summary": "Now threads a skipped-link count through target resolution and drops any target that is itself a symlink, so links are counted as excluded rather than read.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 574,
+          "endLine": 610
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve-targets",
+      "label": "resolve_scan_targets",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "returns (targets, skipped)",
+      "summary": "Returns the resolved targets plus how many symlinks were skipped. With no paths it reads git's tracked list and reports zero skipped; with paths it walks each one.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 542,
+          "endLine": 570
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "collect-files",
+      "label": "collect_files",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "symlink_metadata walk",
+      "summary": "Switched from metadata to symlink_metadata. A symlink increments the skipped counter and returns without being read or descended into, which is what breaks a cycle.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 520,
+          "endLine": 540
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-outcome",
+      "label": "ScanOutcome",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "osf",
+      "subtitle": "files, excluded",
+      "summary": "The result the scan returns. Its excluded count now also carries skipped symlinks, so a scan of only links reports something was skipped.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-tracked",
+      "label": "git tracked files",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "osf",
+      "subtitle": "crate::git::tracked_files",
+      "summary": "The default target list when no paths are given. Unchanged by this diff, but it is where a tracked symlink enters the scan.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 548,
+          "endLine": 556
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-tests",
+      "label": "crates/osf/tests/scan.rs",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "5 new symlink cases",
+      "summary": "Adds cases for a tracked symlink to a directory, a repo whose only entry is a symlink, an explicit symlinked directory path, a symlinked directory inside a scanned folder, and a symlink cycle.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan.rs",
+          "startLine": 55,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "temp-repo",
+      "label": "TempRepo::symlink",
+      "kind": "test",
+      "delta": "added",
+      "lane": "osf",
+      "subtitle": "test helper",
+      "summary": "New helper that creates a symlink in the temp repo, choosing symlink_dir or symlink_file on Windows and creating any parent directory first.",
+      "files": [
+        {
+          "path": "crates/osf/tests/common/mod.rs",
+          "startLine": 68,
+          "endLine": 88
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "repo-tree",
+      "label": "working tree",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "repo",
+      "subtitle": "tracked files and links",
+      "summary": "Holds the rule documents, the two skills folders, and the .claude/skills symlink that CI now asserts on.",
+      "files": [
+        {
+          "path": ".claude/skills"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude-skills-link",
+      "label": ".claude/skills",
+      "kind": "other",
+      "delta": "added",
+      "lane": "repo",
+      "subtitle": "symlink to ../.agents/skills",
+      "summary": "A git symlink (mode 120000) so Claude Code, which reads only .claude/skills, sees the same skills as every other agent without a second copy.",
+      "files": [
+        {
+          "path": ".claude/skills"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-rust-job",
+      "label": "ci.yml rust job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "build, test, lint, skills",
+      "summary": "The job that builds osf and runs the workspace checks. Two steps are added after the release build.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 209,
+          "endLine": 245
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-skills-step",
+      "label": "Check the skills",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "osf lint skill",
+      "summary": "Lists every skills/*/SKILL.md and .agents/skills/*/SKILL.md folder with git ls-files and runs osf lint skill over all of them, noticing when there are none.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 212,
+          "endLine": 223
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-link-step",
+      "label": "Check the Claude Code skills link",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "mode 120000 and target",
+      "summary": "Reads the git mode of .claude/skills and fails unless it is 120000, then reads the link target and fails unless it is ../.agents/skills, printing a Windows-aware fix in both cases.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 225,
+          "endLine": 243
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "third-party-notices",
+      "label": "THIRD_PARTY_NOTICES.md",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "repo",
+      "subtitle": "inspired-by section",
+      "summary": "Gains an 'Inspired by, with nothing copied' section recording the HumanLayer visual-pr skill as the inspiration for pr-outline, with its path and MIT licence.",
+      "files": [
+        {
+          "path": "THIRD_PARTY_NOTICES.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "agent-reads-root-agents",
+      "from": "root-agents",
+      "to": "coding-agent",
+      "kind": "data",
+      "delta": "modified",
+      "label": "cross-cutting rules",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "AGENTS.md"
+        }
+      ]
+    },
+    {
+      "id": "agent-reads-crates-agents",
+      "from": "crates-agents",
+      "to": "coding-agent",
+      "kind": "data",
+      "delta": "added",
+      "label": "rules under crates/",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/AGENTS.md"
+        }
+      ]
+    },
+    {
+      "id": "agent-reads-workflows-agents",
+      "from": "workflows-agents",
+      "to": "coding-agent",
+      "kind": "data",
+      "delta": "added",
+      "label": "rules under .github/workflows/",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/AGENTS.md"
+        }
+      ]
+    },
+    {
+      "id": "agent-loads-skills",
+      "from": "agents-skills",
+      "to": "coding-agent",
+      "kind": "data",
+      "delta": "added",
+      "label": "skill matching the task",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".agents/skills/opening-a-pull-request/SKILL.md"
+        }
+      ]
+    },
+    {
+      "id": "claude-link-to-agents-skills",
+      "from": "claude-skills-link",
+      "to": "agents-skills",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "../.agents/skills",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".claude/skills"
+        }
+      ]
+    },
+    {
+      "id": "agent-reads-shipped-skills",
+      "from": "shipped-skills",
+      "to": "coding-agent",
+      "kind": "data",
+      "delta": "modified",
+      "label": "show-me, pr-outline",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "skills/README.md"
+        }
+      ]
+    },
+    {
+      "id": "rules-doc-describes-agents",
+      "from": "rules-and-checks",
+      "to": "root-agents",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "rule to enforcement",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "docs/contributing/rules-and-checks.md"
+        }
+      ]
+    },
+    {
+      "id": "scan-calls-resolve",
+      "from": "scan-command",
+      "to": "resolve-targets",
+      "kind": "call",
+      "delta": "modified",
+      "label": "(targets, skipped_links)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 594,
+          "endLine": 594
+        }
+      ]
+    },
+    {
+      "id": "resolve-calls-collect",
+      "from": "resolve-targets",
+      "to": "collect-files",
+      "kind": "call",
+      "delta": "modified",
+      "label": "per given path",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 562,
+          "endLine": 564
+        }
+      ]
+    },
+    {
+      "id": "collect-skips-symlink",
+      "from": "collect-files",
+      "to": "repo-tree",
+      "kind": "data",
+      "delta": "modified",
+      "label": "symlink_metadata, skip link",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 523,
+          "endLine": 528
+        }
+      ]
+    },
+    {
+      "id": "scan-reads-repo",
+      "from": "scan-command",
+      "to": "repo-tree",
+      "kind": "data",
+      "delta": "modified",
+      "label": "reads non-link files",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 600,
+          "endLine": 610
+        }
+      ]
+    },
+    {
+      "id": "scan-writes-outcome",
+      "from": "scan-command",
+      "to": "scan-outcome",
+      "kind": "data",
+      "delta": "modified",
+      "label": "excluded includes skipped links",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs"
+        }
+      ]
+    },
+    {
+      "id": "scan-uses-git",
+      "from": "scan-command",
+      "to": "git-tracked",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "no paths given",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 548,
+          "endLine": 556
+        }
+      ]
+    },
+    {
+      "id": "tests-drive-scan",
+      "from": "scan-tests",
+      "to": "scan-command",
+      "kind": "call",
+      "delta": "modified",
+      "label": "scan_paths",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/scan.rs",
+          "startLine": 55,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "tests-use-temp-repo",
+      "from": "scan-tests",
+      "to": "temp-repo",
+      "kind": "call",
+      "delta": "added",
+      "label": "repo.symlink",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/common/mod.rs",
+          "startLine": 68,
+          "endLine": 88
+        }
+      ]
+    },
+    {
+      "id": "temp-repo-creates-link",
+      "from": "temp-repo",
+      "to": "repo-tree",
+      "kind": "data",
+      "delta": "added",
+      "label": "creates symlink",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/common/mod.rs",
+          "startLine": 68,
+          "endLine": 88
+        }
+      ]
+    },
+    {
+      "id": "ci-runs-check-skills",
+      "from": "ci-rust-job",
+      "to": "check-skills-step",
+      "kind": "call",
+      "delta": "added",
+      "label": "after release build",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 212,
+          "endLine": 223
+        }
+      ]
+    },
+    {
+      "id": "ci-runs-check-link",
+      "from": "ci-rust-job",
+      "to": "check-link-step",
+      "kind": "call",
+      "delta": "added",
+      "label": "after release build",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 225,
+          "endLine": 243
+        }
+      ]
+    },
+    {
+      "id": "check-skills-lints-agents-skills",
+      "from": "check-skills-step",
+      "to": "agents-skills",
+      "kind": "call",
+      "delta": "added",
+      "label": "osf lint skill",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 216,
+          "endLine": 222
+        }
+      ]
+    },
+    {
+      "id": "check-skills-lints-shipped",
+      "from": "check-skills-step",
+      "to": "shipped-skills",
+      "kind": "call",
+      "delta": "added",
+      "label": "osf lint skill",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 216,
+          "endLine": 222
+        }
+      ]
+    },
+    {
+      "id": "check-link-reads-link",
+      "from": "check-link-step",
+      "to": "claude-skills-link",
+      "kind": "data",
+      "delta": "added",
+      "label": "git ls-files -s, readlink",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 228,
+          "endLine": 242
+        }
+      ]
+    },
+    {
+      "id": "notices-credits-shipped",
+      "from": "third-party-notices",
+      "to": "shipped-skills",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "provenance",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "THIRD_PARTY_NOTICES.md"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "scan-skips-symlink",
+      "title": "A scan meets a symlink",
+      "summary": "How osf scan resolves targets and refuses to follow a link, counting it as excluded instead.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "scan-command",
+          "label": "osf scan"
+        },
+        {
+          "node": "resolve-targets",
+          "label": "resolve targets"
+        },
+        {
+          "node": "collect-files",
+          "label": "collect_files"
+        },
+        {
+          "node": "repo-tree",
+          "label": "working tree"
+        },
+        {
+          "node": "scan-outcome",
+          "label": "ScanOutcome"
+        }
+      ],
+      "messages": [
+        {
+          "id": "scan-resolve",
+          "from": "scan-command",
+          "to": "resolve-targets",
+          "label": "resolve_scan_targets(dir, paths)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 594,
+              "endLine": 594
+            }
+          ]
+        },
+        {
+          "id": "resolve-walk",
+          "from": "resolve-targets",
+          "to": "collect-files",
+          "label": "collect_files(path, out, skipped)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 562,
+              "endLine": 564
+            }
+          ]
+        },
+        {
+          "id": "collect-stat",
+          "from": "collect-files",
+          "to": "repo-tree",
+          "label": "symlink_metadata(path)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 523,
+              "endLine": 524
+            }
+          ]
+        },
+        {
+          "id": "collect-skip",
+          "from": "collect-files",
+          "to": "collect-files",
+          "label": "is_symlink: skipped += 1, return",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The link is never read and never descended into, which is what stops a cycle from recursing forever.",
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 525,
+              "endLine": 528
+            }
+          ]
+        },
+        {
+          "id": "resolve-return",
+          "from": "resolve-targets",
+          "to": "scan-command",
+          "label": "(targets, skipped_links)",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 568,
+              "endLine": 570
+            }
+          ]
+        },
+        {
+          "id": "scan-drop-link",
+          "from": "scan-command",
+          "to": "scan-command",
+          "label": "target is a symlink: dropped += 1, continue",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Covers a link given explicitly on the command line, which the walk never sees.",
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 600,
+              "endLine": 604
+            }
+          ]
+        },
+        {
+          "id": "scan-read",
+          "from": "scan-command",
+          "to": "repo-tree",
+          "label": "read non-link files",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 605,
+              "endLine": 606
+            }
+          ]
+        },
+        {
+          "id": "scan-outcome-return",
+          "from": "scan-command",
+          "to": "scan-outcome",
+          "label": "ScanOutcome { files, excluded }",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "excluded starts at skipped_links, so a scan of only symlinks reports 1 excluded rather than a clean result.",
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 594,
+              "endLine": 594
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ci-checks-skills",
+      "title": "CI checks the skills and the link",
+      "summary": "The two new steps in the rust job: lint every skill folder, then assert .claude/skills is still a symlink to ../.agents/skills.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "ci-rust-job",
+          "label": "rust job"
+        },
+        {
+          "node": "check-skills-step",
+          "label": "Check the skills"
+        },
+        {
+          "node": "check-link-step",
+          "label": "Check the link"
+        },
+        {
+          "node": "repo-tree",
+          "label": "working tree"
+        }
+      ],
+      "messages": [
+        {
+          "id": "ci-list-skills",
+          "from": "check-skills-step",
+          "to": "repo-tree",
+          "label": "git ls-files 'skills/*/SKILL.md' '.agents/skills/*/SKILL.md'",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 216,
+              "endLine": 216
+            }
+          ]
+        },
+        {
+          "id": "ci-lint-skills",
+          "from": "check-skills-step",
+          "to": "repo-tree",
+          "label": "osf lint skill --format human <folders>",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 222,
+              "endLine": 222
+            }
+          ]
+        },
+        {
+          "id": "ci-read-mode",
+          "from": "check-link-step",
+          "to": "repo-tree",
+          "label": "git ls-files -s .claude/skills",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 228,
+              "endLine": 228
+            }
+          ]
+        },
+        {
+          "id": "ci-read-target",
+          "from": "check-link-step",
+          "to": "repo-tree",
+          "label": "readlink .claude/skills",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 235,
+              "endLine": 235
+            }
+          ]
+        },
+        {
+          "id": "ci-fail",
+          "from": "check-link-step",
+          "to": "ci-rust-job",
+          "label": "::error:: mode is not 120000, or target is not ../.agents/skills",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 230,
+              "endLine": 242
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 22,
+    "additions": 514,
+    "deletions": 64,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "overview",
+      "title": "What this change touches",
+      "lens": "architecture",
+      "summary": "The agent-facing rule surface, the osf scan walk, and the CI job that now lints skills and guards the Claude Code symlink.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "scan-internals",
+      "title": "Inside osf scan",
+      "lens": "architecture",
+      "summary": "The scan command, its target resolver, and the symlink-aware walk that now counts links as excluded.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "scan-command",
+          "resolve-targets",
+          "collect-files",
+          "scan-outcome",
+          "git-tracked",
+          "scan-tests",
+          "temp-repo"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "scan-tests-view",
+          "title": "The symlink test cases",
+          "lens": "architecture",
+          "summary": "Five new cases in crates/osf/tests/scan.rs, driven through the new TempRepo::symlink helper.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "scan-tests",
+              "temp-repo",
+              "scan-command",
+              "repo-tree"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "ci-skills",
+      "title": "CI skill and link checks",
+      "lens": "architecture",
+      "summary": "The two steps added to the rust job and what each one reads.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "ci-rust-job",
+          "check-skills-step",
+          "check-link-step",
+          "agents-skills",
+          "shipped-skills",
+          "claude-skills-link"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "scan-flow",
+      "title": "A scan meets a symlink",
+      "lens": "data-flow",
+      "summary": "The ordered path from scan_paths through target resolution and the walk, ending in an excluded count.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "scan-skips-symlink"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "ci-flow",
+      "title": "CI checks the skills and the link",
+      "lens": "data-flow",
+      "summary": "The two new CI steps in order, and the failure they raise.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "ci-checks-skills"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
