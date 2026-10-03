@@ -3026,7 +3026,9 @@ fn reduce_with_flags(
     let mut args = vec!["review", "reduce", "--base", "origin/main"];
     args.extend(flags.iter().copied());
     args.extend(files.iter().copied());
-    fakes.run_unbound_with_env(&repo.dir, &home, &[], &args)
+    // A CI runner sets these two, and the flags are what this helper tests.
+    let env = [("GITHUB_REPOSITORY", ""), ("GITHUB_RUN_ID", "")];
+    fakes.run_unbound_with_env(&repo.dir, &home, &env, &args)
 }
 
 /// A saved run is bound to its pull request, its commits and its CI run:
