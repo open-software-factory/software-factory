@@ -662,6 +662,156 @@ fn a_critical_round_is_saved_by_every_reviewer_and_ignored_when_both_families_an
     assert_eq!(answers, 4, "two rounds for each family: {journal}");
 }
 
+/// Saves one reviewer's run for `repo` to `<dir>/<name>.json` through the fake agent.
+fn save_run(fakes: &Fakes, repo: &TempRepo, dir: &TempDir, name: &str) -> String {
+    let file = dir
+        .join(format!("{name}.json"))
+        .to_string_lossy()
+        .into_owned();
+    let home = common::isolated_home(&format!("review-run-save-{name}"));
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            name,
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        job.status.success(),
+        "{name}: {}",
+        String::from_utf8_lossy(&job.stderr)
+    );
+    file
+}
+
+/// Edits the first lens's attempts in the saved run at `file` with `edit`.
+fn edit_attempts(file: &str, edit: impl FnOnce(&mut Vec<serde_json::Value>)) {
+    let mut run: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(file).expect("saved run reads"))
+            .expect("saved run is JSON");
+    let attempts = run
+        .pointer_mut("/lenses/0/attempts")
+        .and_then(serde_json::Value::as_array_mut)
+        .expect("attempts");
+    edit(attempts);
+    std::fs::write(file, run.to_string()).expect("saved run writes");
+}
+
+/// Marks the attempt at `index` as one that never answered.
+fn fail_attempt(attempts: &mut [serde_json::Value], index: usize) {
+    let attempt = attempts.get_mut(index).expect("attempt exists");
+    attempt["result"] = serde_json::json!("could-not-run");
+    attempt["reason"] = serde_json::json!("timed out");
+    attempt["answer"] = serde_json::Value::Null;
+}
+
+/// Runs `review reduce` over `files` for `repo`.
+fn reduce_saved_files(
+    fakes: &Fakes,
+    repo: &TempRepo,
+    label: &str,
+    files: &[&str],
+) -> std::process::Output {
+    let home = common::isolated_home(&format!("review-run-reduce-{label}"));
+    let mut args = vec!["review", "reduce", "--base", "origin/main"];
+    args.extend(files.iter().copied());
+    fakes.run(&repo.dir, &home, &args)
+}
+
+/// Two families that each saved a single answered round do not reach the
+/// quorum: a family needs two answered rounds, so the lens is could-not-run.
+#[test]
+fn a_family_with_one_answered_round_does_not_count_at_reduce() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("one-round-each", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-one-round-each");
+    let codex = save_run(&fakes, &repo, &saved, "codex");
+    let claude = save_run(&fakes, &repo, &saved, "claude");
+    let control = reduce_saved_files(&fakes, &repo, "one-round-control", &[&codex, &claude]);
+    assert!(control.status.success(), "{}", stdout_of(&control));
+    for file in [&codex, &claude] {
+        edit_attempts(file, |attempts| attempts.truncate(1));
+    }
+    let reduced = reduce_saved_files(&fakes, &repo, "one-round-each", &[&codex, &claude]);
+    assert_eq!(reduced.status.code(), Some(2), "{}", stdout_of(&reduced));
+    assert!(
+        stdout_of(&reduced).contains("no family answered 2 rounds"),
+        "{}",
+        stdout_of(&reduced)
+    );
+}
+
+/// A second round that failed leaves its family out of the quorum. The other
+/// family then stands alone, so it needs its critical round, and it has one.
+#[test]
+fn a_family_whose_second_round_failed_is_left_out_and_the_other_needs_its_critical_round() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("second-round-failed", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-second-round-failed");
+    let codex = save_run(&fakes, &repo, &saved, "codex");
+    let claude = save_run(&fakes, &repo, &saved, "claude");
+    edit_attempts(&codex, |attempts| fail_attempt(attempts, 1));
+    let alone = reduce_saved_files(&fakes, &repo, "second-round-failed", &[&codex, &claude]);
+    assert!(alone.status.success(), "{}", stdout_of(&alone));
+    assert!(
+        stdout_of(&alone).contains("interim policy"),
+        "{}",
+        stdout_of(&alone)
+    );
+    edit_attempts(&claude, |attempts| fail_attempt(attempts, 2));
+    let no_critical = reduce_saved_files(&fakes, &repo, "critical-failed", &[&codex, &claude]);
+    assert_eq!(
+        no_critical.status.code(),
+        Some(2),
+        "{}",
+        stdout_of(&no_critical)
+    );
+    assert!(
+        stdout_of(&no_critical).contains("no critical answer"),
+        "{}",
+        stdout_of(&no_critical)
+    );
+}
+
+/// A lone family whose saved run stops after its independent rounds has no
+/// critical answer, so it cannot pass on its own.
+#[test]
+fn a_lone_family_with_no_critical_attempt_is_could_not_run_at_reduce() {
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo("lone-no-critical", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-lone-no-critical");
+    let codex = save_run(&fakes, &repo, &saved, "codex");
+    let control = reduce_saved_files(&fakes, &repo, "lone-control", &[&codex]);
+    assert!(control.status.success(), "{}", stdout_of(&control));
+    edit_attempts(&codex, |attempts| attempts.truncate(2));
+    let reduced = reduce_saved_files(&fakes, &repo, "lone-no-critical", &[&codex]);
+    assert_eq!(reduced.status.code(), Some(2), "{}", stdout_of(&reduced));
+    assert!(
+        stdout_of(&reduced).contains("no critical answer"),
+        "{}",
+        stdout_of(&reduced)
+    );
+}
+
 #[test]
 fn every_reviewer_disabled_cannot_run_and_names_no_reviewer() {
     let repo = review_repo("all-disabled", "");

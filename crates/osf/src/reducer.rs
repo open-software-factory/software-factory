@@ -10,10 +10,14 @@
 use crate::answer::{Action, Severity};
 use crate::lenses::Lens;
 use crate::quotes::VerifiedAnswer;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// How many distinct model families a lens needs among its answers before it can run at all.
 const REQUIRED_FAMILIES: usize = 2;
+
+/// How many answered independent rounds a family needs before it counts
+/// toward a lens's quorum. A critical round is never one of them.
+pub const ROUNDS_REQUIRED: usize = 2;
 
 /// One reviewer's outcome for one lens: its verified answer, when it gave one, or the reason it did not.
 #[derive(Debug, Clone)]
@@ -22,6 +26,79 @@ pub struct LensAnswer {
     pub family: String,
     pub answer: Option<VerifiedAnswer>,
     pub reason: Option<String>,
+    /// Whether this is the critical round of the one-family fallback, not an independent round.
+    pub critical: bool,
+}
+
+/// Which of a lens's answers count toward its verdict.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Counted {
+    /// One flag per answer, in the order given: whether that answer counts.
+    pub counts: Vec<bool>,
+    /// Whether exactly one family qualified, so its critical answer decided the lens.
+    pub interim: bool,
+    /// Why the lens could not run, when it could not.
+    pub could_not_run: Option<String>,
+}
+
+/// Works out which of `answers` count toward a lens's verdict.
+///
+/// A family qualifies with at least [`ROUNDS_REQUIRED`] answered independent
+/// rounds. With [`REQUIRED_FAMILIES`] or more qualified families, every
+/// answered independent round of a qualified family counts, and a critical
+/// round counts for no one. With exactly one qualified family, the interim
+/// policy applies: the lens runs only when that family also gave an answered
+/// critical round, and its independent rounds and its critical round all
+/// count. Otherwise the lens could not run. A family with fewer answered
+/// rounds never counts, whatever else it gave.
+#[must_use]
+pub fn count(answers: &[LensAnswer]) -> Counted {
+    let mut independent: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut critical: BTreeMap<&str, usize> = BTreeMap::new();
+    for answer in answers.iter().filter(|a| a.answer.is_some()) {
+        let tally = if answer.critical {
+            &mut critical
+        } else {
+            &mut independent
+        };
+        *tally.entry(answer.family.as_str()).or_default() += 1;
+    }
+    let qualified: BTreeSet<&str> = independent
+        .iter()
+        .filter(|(_, rounds)| **rounds >= ROUNDS_REQUIRED)
+        .map(|(family, _)| *family)
+        .collect();
+    let none_count = |reason: String| Counted {
+        counts: vec![false; answers.len()],
+        interim: false,
+        could_not_run: Some(reason),
+    };
+    if qualified.len() >= REQUIRED_FAMILIES {
+        return Counted {
+            counts: answers
+                .iter()
+                .map(|a| !a.critical && a.answer.is_some() && qualified.contains(a.family.as_str()))
+                .collect(),
+            interim: false,
+            could_not_run: None,
+        };
+    }
+    let Some(family) = qualified.iter().next().copied() else {
+        return none_count(quorum_reason(&independent));
+    };
+    if critical.get(family).copied().unwrap_or(0) == 0 {
+        return none_count(format!(
+            "only one family answered {ROUNDS_REQUIRED} rounds ({family}), and it gave no critical answer"
+        ));
+    }
+    Counted {
+        counts: answers
+            .iter()
+            .map(|a| a.answer.is_some() && a.family == family)
+            .collect(),
+        interim: true,
+        could_not_run: None,
+    }
 }
 
 /// One lens's verdict: a score out of 1, a score with the blockers that
@@ -43,35 +120,23 @@ pub enum Verdict {
 
 /// Decides one lens's verdict from every reviewer's outcome for it.
 ///
-/// Fewer than [`REQUIRED_FAMILIES`] distinct families among the answers
-/// that are present is [`LensVerdict::CouldNotRun`], unless
-/// `single_family_available` says exactly one family answered: the interim
-/// policy then lets that lone family's critical round (which the caller
-/// includes in `answers` only then) decide the lens on its own, rather than
-/// blocking the review on a family that did not answer. With it false, the
-/// full quorum is required. A finding
-/// with severity blocker, or action must-fix, among those answers'
-/// findings vetoes the lens whatever its score. Otherwise the lens score is
-/// the mean, over the answers, of the mean of each answer's own criterion
-/// scores.
+/// Only the answers [`count`] says count are used. When none can decide the
+/// lens, it is [`LensVerdict::CouldNotRun`]. A finding with severity
+/// blocker, or action must-fix, among the counted answers' findings vetoes
+/// the lens whatever its score. Otherwise the lens score is the mean, over
+/// the counted answers, of the mean of each answer's own criterion scores.
 #[must_use]
-pub fn decide_lens(
-    lens: &Lens,
-    answers: &[LensAnswer],
-    single_family_available: bool,
-) -> LensVerdict {
-    let present: Vec<&VerifiedAnswer> = answers.iter().filter_map(|a| a.answer.as_ref()).collect();
-    let families: BTreeSet<&str> = answers
-        .iter()
-        .filter(|a| a.answer.is_some())
-        .map(|a| a.family.as_str())
-        .collect();
-
-    let quorum_met =
-        families.len() >= REQUIRED_FAMILIES || (single_family_available && families.len() == 1);
-    if !quorum_met {
-        return LensVerdict::CouldNotRun(quorum_reason(&families));
+pub fn decide_lens(lens: &Lens, answers: &[LensAnswer]) -> LensVerdict {
+    let counted = count(answers);
+    if let Some(reason) = counted.could_not_run {
+        return LensVerdict::CouldNotRun(reason);
     }
+    let present: Vec<&VerifiedAnswer> = answers
+        .iter()
+        .zip(&counted.counts)
+        .filter(|(_, counts)| **counts)
+        .filter_map(|(a, _)| a.answer.as_ref())
+        .collect();
 
     let blockers = present
         .iter()
@@ -90,14 +155,19 @@ pub fn decide_lens(
     }
 }
 
-/// Why a lens could not run, naming the families it did get answers from.
-fn quorum_reason(families: &BTreeSet<&str>) -> String {
-    if families.is_empty() {
-        "no reviewer answered".to_string()
-    } else {
-        let names: Vec<&str> = families.iter().copied().collect();
-        format!("only one family answered: {}", names.join(", "))
+/// Why no family qualified, naming each family's answered independent rounds.
+fn quorum_reason(independent: &BTreeMap<&str, usize>) -> String {
+    if independent.is_empty() {
+        return "no reviewer answered".to_string();
     }
+    let parts: Vec<String> = independent
+        .iter()
+        .map(|(family, rounds)| format!("{family} answered {rounds}"))
+        .collect();
+    format!(
+        "no family answered {ROUNDS_REQUIRED} rounds: {}",
+        parts.join(", ")
+    )
 }
 
 /// The mean, over `answers`, of each answer's own mean criterion score for `lens`.
@@ -166,7 +236,9 @@ pub fn weighted_mean(lenses: &[(&Lens, LensVerdict)]) -> Option<f64> {
 /// is never folded into a pass. Otherwise, any lens that failed, or
 /// [`weighted_mean`] of the lens scores under `threshold`, is
 /// [`Verdict::Fail`]. A weighted mean equal to `threshold` still passes,
-/// when nothing else fails. Otherwise the review passes.
+/// when nothing else fails. A weighted mean that is not finite, or a NaN
+/// threshold, fails, so a bad setting never passes a review. Otherwise the
+/// review passes.
 #[must_use]
 pub fn decide(lenses: &[(&Lens, LensVerdict)], threshold: f64) -> Verdict {
     let Some(mean) = weighted_mean(lenses) else {
@@ -177,7 +249,7 @@ pub fn decide(lenses: &[(&Lens, LensVerdict)], threshold: f64) -> Verdict {
         .iter()
         .any(|(_, verdict)| matches!(verdict, LensVerdict::Fail { .. }));
 
-    if any_fail || mean < threshold {
+    if any_fail || !mean.is_finite() || threshold.is_nan() || mean < threshold {
         Verdict::Fail
     } else {
         Verdict::Pass
@@ -249,6 +321,14 @@ mod tests {
             family: family.to_string(),
             answer: Some(answer),
             reason: None,
+            critical: false,
+        }
+    }
+
+    fn critical(reviewer: &str, family: &str, answer: VerifiedAnswer) -> LensAnswer {
+        LensAnswer {
+            critical: true,
+            ..answered(reviewer, family, answer)
         }
     }
 
@@ -258,7 +338,22 @@ mod tests {
             family: family.to_string(),
             answer: None,
             reason: Some(reason.to_string()),
+            critical: false,
         }
+    }
+
+    /// Two answered independent rounds from one family, both scoring `s`.
+    fn two_rounds(
+        lens: &Lens,
+        root: &Path,
+        reviewer: &str,
+        family: &str,
+        s: f64,
+    ) -> Vec<LensAnswer> {
+        vec![
+            answered(reviewer, family, scored(lens, root, s, s)),
+            answered(reviewer, family, scored(lens, root, s, s)),
+        ]
     }
 
     /// A blocker finding whose quote is exactly the whole third line of the file `verified`'s `root` must hold: `"fn broken"`.
@@ -274,64 +369,145 @@ mod tests {
     }
 
     #[test]
-    fn one_family_only_is_could_not_run() {
+    fn one_family_with_two_rounds_and_no_critical_round_is_could_not_run() {
         let lens = test_lens();
         let root = TempDir::new("reducer-one-family");
         let answers = vec![
             answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
             answered("dsh", "openai", scored(&lens, &root, 0.8, 0.8)),
         ];
-        assert!(matches!(
-            decide_lens(&lens, &answers, false),
-            LensVerdict::CouldNotRun(_)
-        ));
+        match decide_lens(&lens, &answers) {
+            LensVerdict::CouldNotRun(reason) => {
+                assert!(reason.contains("no critical answer"), "{reason}");
+            }
+            other => panic!("expected CouldNotRun, got {other:?}"),
+        }
     }
 
-    /// The interim policy: when the roster only ever offered one
-    /// non-building family, that family's own rounds decide the lens on
-    /// their own, rather than blocking every review on a second family
-    /// nobody has configured yet.
+    /// The interim policy: when only one family answered both independent
+    /// rounds, its critical round must have answered too, and all three
+    /// answers decide the lens.
     #[test]
-    fn a_single_available_family_passes_under_the_interim_policy() {
+    fn a_single_family_with_two_rounds_and_a_critical_answer_passes() {
         let lens = test_lens();
         let root = TempDir::new("reducer-interim-single-family");
-        let answers = vec![
+        let mut answers = vec![
             answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
             answered("codex", "openai", scored(&lens, &root, 0.8, 0.8)),
-            answered("codex", "openai", scored(&lens, &root, 1.0, 1.0)),
         ];
-        match decide_lens(&lens, &answers, true) {
+        answers.push(critical("codex", "openai", scored(&lens, &root, 1.0, 1.0)));
+        let counted = count(&answers);
+        assert!(counted.interim);
+        assert_eq!(counted.counts, vec![true, true, true]);
+        match decide_lens(&lens, &answers) {
             LensVerdict::Pass { score } => assert!((score - 0.9).abs() < 1e-9, "{score}"),
             other => panic!("expected Pass, got {other:?}"),
         }
     }
 
-    /// `single_family_available` only relaxes the quorum down to one family;
-    /// it never lowers it below that. No answer at all is still
-    /// could-not-run even under the interim policy.
     #[test]
-    fn the_interim_policy_still_needs_at_least_one_real_answer() {
+    fn a_single_family_whose_critical_round_did_not_answer_is_could_not_run() {
         let lens = test_lens();
-        let answers = vec![missing("codex", "openai", "timed out")];
+        let root = TempDir::new("reducer-interim-missing-critical");
+        for failed in [
+            missing("codex", "openai", "timed out"),
+            LensAnswer {
+                critical: true,
+                ..missing("codex", "openai", "the answer did not validate")
+            },
+        ] {
+            let mut answers = two_rounds(&lens, &root, "codex", "openai", 1.0);
+            answers.push(LensAnswer {
+                critical: true,
+                ..failed
+            });
+            assert!(
+                matches!(decide_lens(&lens, &answers), LensVerdict::CouldNotRun(_)),
+                "a critical round that did not answer must not pass the lens"
+            );
+        }
+    }
+
+    #[test]
+    fn a_family_with_one_answered_round_does_not_count_toward_the_quorum() {
+        let lens = test_lens();
+        let root = TempDir::new("reducer-truncated-round");
+        let mut answers = two_rounds(&lens, &root, "claude", "anthropic", 1.0);
+        answers.push(answered("codex", "openai", scored(&lens, &root, 1.0, 1.0)));
+        answers.push(missing("codex", "openai", "the second round timed out"));
+        let counted = count(&answers);
+        assert_eq!(
+            counted.counts,
+            vec![false; 4],
+            "nothing counts when no quorum forms"
+        );
+        assert!(
+            !counted.interim && counted.could_not_run.is_some(),
+            "one family with two rounds is not a quorum without a critical round"
+        );
         assert!(matches!(
-            decide_lens(&lens, &answers, true),
+            decide_lens(&lens, &answers),
             LensVerdict::CouldNotRun(_)
         ));
     }
 
-    /// `single_family_available` is the caller's own claim about how many
-    /// families the roster offered, not a license to ignore a second family
-    /// when one did in fact answer: ordinary two-family scoring still
-    /// applies.
     #[test]
-    fn two_families_answering_is_unaffected_by_the_interim_flag() {
+    fn an_invalid_second_round_leaves_a_family_short_of_the_quorum() {
         let lens = test_lens();
-        let root = TempDir::new("reducer-interim-flag-with-two-families");
+        let root = TempDir::new("reducer-invalid-round");
+        let mut answers = two_rounds(&lens, &root, "claude", "anthropic", 1.0);
+        answers.push(answered("codex", "openai", scored(&lens, &root, 1.0, 1.0)));
+        answers.push(missing("codex", "openai", "invalid: no scores"));
+        answers.push(critical(
+            "claude",
+            "anthropic",
+            scored(&lens, &root, 1.0, 1.0),
+        ));
+        let counted = count(&answers);
+        assert!(counted.interim, "only anthropic qualified");
+        assert_eq!(counted.counts, vec![true, true, false, false, true]);
+    }
+
+    #[test]
+    fn a_critical_answer_never_stands_in_for_a_missing_independent_round() {
+        let lens = test_lens();
+        let root = TempDir::new("reducer-critical-only");
         let answers = vec![
-            answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
-            answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
+            answered("codex", "openai", scored(&lens, &root, 1.0, 1.0)),
+            missing("codex", "openai", "the second round timed out"),
+            critical("codex", "openai", scored(&lens, &root, 1.0, 1.0)),
         ];
-        match decide_lens(&lens, &answers, true) {
+        match decide_lens(&lens, &answers) {
+            LensVerdict::CouldNotRun(reason) => {
+                assert!(reason.contains("openai answered 1"), "{reason}");
+            }
+            other => panic!("expected CouldNotRun, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_missing_reviewer_is_could_not_run_even_with_a_critical_answer_elsewhere() {
+        let lens = test_lens();
+        let answers = vec![missing("codex", "openai", "timed out")];
+        assert!(matches!(
+            decide_lens(&lens, &answers),
+            LensVerdict::CouldNotRun(_)
+        ));
+    }
+
+    /// Two qualified families score on their independent rounds; a critical
+    /// round from either is ignored.
+    #[test]
+    fn two_qualified_families_ignore_a_critical_round() {
+        let lens = test_lens();
+        let root = TempDir::new("reducer-two-families-critical");
+        let mut answers = two_rounds(&lens, &root, "codex", "openai", 0.9);
+        answers.extend(two_rounds(&lens, &root, "claude", "anthropic", 1.0));
+        answers.push(critical("codex", "openai", scored(&lens, &root, 0.0, 0.0)));
+        let counted = count(&answers);
+        assert!(!counted.interim);
+        assert_eq!(counted.counts, vec![true, true, true, true, false]);
+        match decide_lens(&lens, &answers) {
             LensVerdict::Pass { score } => assert!((score - 0.95).abs() < 1e-9, "{score}"),
             other => panic!("expected Pass, got {other:?}"),
         }
@@ -345,7 +521,7 @@ mod tests {
             missing("claude", "anthropic", "disabled"),
         ];
         assert!(matches!(
-            decide_lens(&lens, &answers, false),
+            decide_lens(&lens, &answers),
             LensVerdict::CouldNotRun(_)
         ));
     }
@@ -358,11 +534,12 @@ mod tests {
         std::fs::write(root.join("src/lib.rs"), "one\ntwo\nfn broken\n").expect("write");
 
         let with_blocker = verified(&lens, &root, 1.0, 1.0, vec![blocker_finding()]);
-        let answers = vec![
+        let mut answers = vec![
             answered("codex", "openai", with_blocker),
-            answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
+            answered("codex", "openai", scored(&lens, &root, 1.0, 1.0)),
         ];
-        match decide_lens(&lens, &answers, false) {
+        answers.extend(two_rounds(&lens, &root, "claude", "anthropic", 1.0));
+        match decide_lens(&lens, &answers) {
             LensVerdict::Fail { score, blockers } => {
                 assert_eq!(blockers, 1);
                 assert!((score - 1.0).abs() < f64::EPSILON);
@@ -379,25 +556,42 @@ mod tests {
         std::fs::write(root.join("src/lib.rs"), "one\ntwo\nthree\n").expect("write");
 
         let with_invented_blocker = verified(&lens, &root, 1.0, 1.0, vec![blocker_finding()]);
-        let answers = vec![
+        let mut answers = vec![
             answered("codex", "openai", with_invented_blocker),
-            answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
+            answered("codex", "openai", scored(&lens, &root, 1.0, 1.0)),
         ];
-        match decide_lens(&lens, &answers, false) {
+        answers.extend(two_rounds(&lens, &root, "claude", "anthropic", 1.0));
+        match decide_lens(&lens, &answers) {
             LensVerdict::Pass { score } => assert!((score - 1.0).abs() < f64::EPSILON),
             other => panic!("expected Pass, got {other:?}"),
         }
     }
 
     #[test]
+    fn a_blocker_in_a_family_that_did_not_qualify_is_not_counted() {
+        let lens = test_lens();
+        let root = TempDir::new("reducer-unqualified-blocker");
+        std::fs::create_dir_all(root.join("src")).expect("dirs");
+        std::fs::write(root.join("src/lib.rs"), "one\ntwo\nfn broken\n").expect("write");
+
+        let with_blocker = verified(&lens, &root, 1.0, 1.0, vec![blocker_finding()]);
+        let mut answers = two_rounds(&lens, &root, "claude", "anthropic", 1.0);
+        answers.extend(two_rounds(&lens, &root, "dsh", "deepseek", 1.0));
+        answers.push(answered("codex", "openai", with_blocker));
+        answers.push(missing("codex", "openai", "the second round timed out"));
+        assert!(matches!(
+            decide_lens(&lens, &answers),
+            LensVerdict::Pass { .. }
+        ));
+    }
+
+    #[test]
     fn two_families_with_high_scores_and_no_blocker_pass() {
         let lens = test_lens();
         let root = TempDir::new("reducer-pass");
-        let answers = vec![
-            answered("codex", "openai", scored(&lens, &root, 0.9, 0.9)),
-            answered("claude", "anthropic", scored(&lens, &root, 1.0, 1.0)),
-        ];
-        match decide_lens(&lens, &answers, false) {
+        let mut answers = two_rounds(&lens, &root, "codex", "openai", 0.9);
+        answers.extend(two_rounds(&lens, &root, "claude", "anthropic", 1.0));
+        match decide_lens(&lens, &answers) {
             LensVerdict::Pass { score } => assert!((score - 0.95).abs() < 1e-9, "{score}"),
             other => panic!("expected Pass, got {other:?}"),
         }
@@ -407,23 +601,21 @@ mod tests {
     fn the_same_answers_in_a_different_order_give_the_same_lens_verdict() {
         let lens = test_lens();
         let root = TempDir::new("reducer-order-independent");
-        let forward = decide_lens(
-            &lens,
-            &[
-                answered("codex", "openai", scored(&lens, &root, 0.9, 0.7)),
-                answered("claude", "anthropic", scored(&lens, &root, 0.6, 0.8)),
-            ],
-            false,
-        );
-        let backward = decide_lens(
-            &lens,
-            &[
-                answered("claude", "anthropic", scored(&lens, &root, 0.6, 0.8)),
-                answered("codex", "openai", scored(&lens, &root, 0.9, 0.7)),
-            ],
-            false,
-        );
-        assert_eq!(forward, backward);
+        let mut forward = two_rounds(&lens, &root, "codex", "openai", 0.75);
+        forward.extend(two_rounds(&lens, &root, "claude", "anthropic", 0.5));
+        let mut backward = two_rounds(&lens, &root, "claude", "anthropic", 0.5);
+        backward.extend(two_rounds(&lens, &root, "codex", "openai", 0.75));
+        assert_eq!(decide_lens(&lens, &forward), decide_lens(&lens, &backward));
+    }
+
+    #[test]
+    fn a_nan_threshold_or_score_never_passes_a_review() {
+        let lens = test_lens();
+        let passing: Vec<(&Lens, LensVerdict)> = vec![(&lens, LensVerdict::Pass { score: 0.9 })];
+        assert_eq!(decide(&passing, f64::NAN), Verdict::Fail);
+        let nan_score: Vec<(&Lens, LensVerdict)> =
+            vec![(&lens, LensVerdict::Pass { score: f64::NAN })];
+        assert_eq!(decide(&nan_score, 0.5), Verdict::Fail);
     }
 
     #[test]

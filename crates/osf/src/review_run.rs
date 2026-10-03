@@ -50,7 +50,9 @@ const ROUNDS_PER_FAMILY: usize = 2;
 /// The interim policy's critical round. Every reviewer that answered asks
 /// once more beyond [`ROUNDS_PER_FAMILY`] and saves it marked as critical,
 /// because it cannot know whether another family answered. [`reduce`] counts a
-/// family's critical round only when exactly one family answered. Remove this,
+/// family's critical round only when exactly one family answered both
+/// independent rounds, and then it requires that critical round to have
+/// answered. Remove this,
 /// and the policy that goes with it, once a second family is a real
 /// requirement rather than a goal.
 const CRITICAL_ROUND: u32 = 3;
@@ -112,7 +114,7 @@ pub struct Attempt {
     /// The reviewer's own attempt number for this lens, one-based.
     pub round: u32,
     /// Whether this is the critical round. [`reduce`] counts it only when
-    /// exactly one family answered.
+    /// exactly one family answered both independent rounds.
     #[serde(default)]
     pub critical: bool,
     /// The validated answer, its findings not yet checked against the files.
@@ -594,6 +596,7 @@ impl Judged {
                 family: reviewer.family.clone(),
                 answer: None,
                 reason: Some(reason),
+                critical: false,
             },
             model: reviewer.model.clone(),
             result: result.to_string(),
@@ -653,10 +656,13 @@ impl Judged {
 }
 
 /// One lens's verdict from every roster reviewer's attempts at it, and
-/// whether the interim policy decided it: exactly one family answered, so
-/// that family's critical round counts. With no family or two or more, the
-/// critical rounds are ignored. A reviewer whose family built this change is
-/// never counted: it is not an independent second opinion on its own change.
+/// whether the interim policy decided it: exactly one family answered
+/// [`reducer::ROUNDS_REQUIRED`] independent rounds, and its critical round
+/// answered too, so that round counts. With two or more such families, the
+/// critical rounds are ignored. A family with fewer answered rounds counts for
+/// nothing, and the attempts that do not count lose their findings. A reviewer
+/// whose family built this change is never counted: it is not an independent
+/// second opinion on its own change.
 fn judge_lens(
     req: &Request,
     setup: &Setup,
@@ -717,30 +723,28 @@ fn judge_lens(
     if let Some(reason) = context_error {
         return (LensVerdict::CouldNotRun(reason), Vec::new(), false);
     }
-    let answered: BTreeSet<&str> = ran
-        .iter()
-        .filter(|(_, attempts)| {
-            attempts
-                .iter()
-                .any(|a| !a.critical && a.result == "answered")
-        })
-        .map(|(reviewer, _)| reviewer.family.as_str())
-        .collect();
-    let interim = answered.len() == 1;
-    for (reviewer, attempts) in ran {
-        let counts_critical = interim && answered.contains(reviewer.family.as_str());
-        judged.extend(
-            attempts
-                .into_iter()
-                .filter(|a| !a.critical || counts_critical),
-        );
+    for (_, attempts) in ran {
+        judged.extend(attempts);
     }
     let answers: Vec<LensAnswer> = judged.iter().map(|a| a.lens_answer.clone()).collect();
-    let verdict = name_builder_exclusion(
-        reducer::decide_lens(lens, &answers, interim),
-        &setup.skip_families,
-        &judged,
-    );
+    let counted = reducer::count(&answers);
+    let verdict = reducer::decide_lens(lens, &answers);
+    let mut kept_attempts = Vec::with_capacity(judged.len());
+    for (mut attempt, counts) in judged.into_iter().zip(&counted.counts) {
+        if attempt.critical && !counts {
+            continue;
+        }
+        if !counts && attempt.lens_answer.answer.is_some() {
+            attempt.kept.clear();
+            attempt
+                .notes
+                .push("not counted toward the lens verdict".to_string());
+        }
+        kept_attempts.push(attempt);
+    }
+    let judged = kept_attempts;
+    let verdict = name_builder_exclusion(verdict, &setup.skip_families, &judged);
+    let interim = counted.interim && !matches!(verdict, LensVerdict::CouldNotRun(_));
     (verdict, judged, interim)
 }
 
@@ -767,6 +771,7 @@ fn judge_attempts(
             let mut judged = judge_attempt(req, reviewer, lens, saved);
             judged.round = as_u32(index + 1);
             judged.critical = index >= ROUNDS_PER_FAMILY;
+            judged.lens_answer.critical = judged.critical;
             judged
         })
         .collect()
@@ -933,6 +938,7 @@ mod tests {
                 family: "f".to_string(),
                 answer: None,
                 reason: reason.map(str::to_string),
+                critical: false,
             },
             model: None,
             result: "answered".to_string(),
