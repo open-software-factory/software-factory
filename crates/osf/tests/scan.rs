@@ -86,8 +86,8 @@ fn a_repo_of_only_a_symlink_reports_it_excluded_not_clean() {
     assert!(stdout.contains("1 excluded"), "{stdout}");
 }
 
-/// An explicit scan path that is itself a symlinked directory is counted as
-/// excluded, not walked into.
+/// An explicit scan path that is itself a symlinked directory is skipped and
+/// counted as excluded.
 #[test]
 fn an_explicit_path_that_is_a_symlinked_directory_is_not_followed() {
     let repo = TempRepo::new("explicit-path-symlinked-dir");
