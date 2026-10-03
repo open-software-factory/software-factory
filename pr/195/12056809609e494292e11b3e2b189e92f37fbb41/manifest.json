@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "12056809609e494292e11b3e2b189e92f37fbb41",
+    "contentHash": "0c6bf7fafcf48b1ef53f3b5614cccd68"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "scan-engine-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scan-engine",
+      "mediaType": "image/svg+xml",
+      "contentHash": "46481824775ea67fdf485dcf9ee21f9d",
+      "bytes": 18049,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "scan-engine-light-46481824775ea67fdf485dcf9ee21f9d.svg"
+    },
+    {
+      "id": "scan-engine-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scan-engine",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a26b74021c14460e8b1a2f24988a37d1",
+      "bytes": 18231,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "scan-engine-dark-a26b74021c14460e8b1a2f24988a37d1.svg"
+    },
+    {
+      "id": "ci-and-agent-config-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-and-agent-config",
+      "mediaType": "image/svg+xml",
+      "contentHash": "37dd56200a39f7b8c53fc6f316b45afc",
+      "bytes": 15771,
+      "width": 881,
+      "height": 646,
+      "animated": false,
+      "path": "ci-and-agent-config-light-37dd56200a39f7b8c53fc6f316b45afc.svg"
+    },
+    {
+      "id": "ci-and-agent-config-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-and-agent-config",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a67c9289db6a6e6448850934f7ece16b",
+      "bytes": 15949,
+      "width": 881,
+      "height": 646,
+      "animated": false,
+      "path": "ci-and-agent-config-dark-a67c9289db6a6e6448850934f7ece16b.svg"
+    },
+    {
+      "id": "scan-symlink-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "scan-symlink-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "75faf80f1f74747156b05876d4dc2182",
+      "bytes": 16303,
+      "width": 2418,
+      "height": 451,
+      "animated": true,
+      "path": "scan-symlink-flow-light-75faf80f1f74747156b05876d4dc2182.svg"
+    },
+    {
+      "id": "scan-symlink-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "scan-symlink-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cd94d1e352263127680b6917d009391f",
+      "bytes": 16462,
+      "width": 2418,
+      "height": 451,
+      "animated": true,
+      "path": "scan-symlink-flow-dark-cd94d1e352263127680b6917d009391f.svg"
+    }
+  ]
+}
