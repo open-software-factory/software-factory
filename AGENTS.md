@@ -2,44 +2,33 @@
 
 ## Work inside the development container
 
-- Do all build, test, and review work inside this repository's development container, [`.devcontainer/`](.devcontainer/). Run the coding agent itself in that container too, so the root-owned git hooks apply. The container installs no agent hooks yet.
-  - Not checked yet: [open-software-factory/software-factory#197 (agent hooks in the container)](https://github.com/open-software-factory/software-factory/issues/197) adds agent hooks to the container.
-- Two kinds of container exist. `.devcontainer/` builds this repository. The per-ecosystem container templates that an adopter's own factory builds in are a separate kind, and are not designed yet. See [open-software-factory/software-factory#198 (two kinds of container)](https://github.com/open-software-factory/software-factory/issues/198).
-  - Not checked: needs judgment.
+- Do all build, test, and review work inside this repository's development container, [`.devcontainer/`](.devcontainer/).
+- Run the coding agent itself in that container too, so the root-owned git hooks apply.
 
 ## Cross-everything, without exception
 
 Everything in this repository is cross-platform, cross-operating-system, cross-shell, cross-language-ecosystem, cross-coding-agent, and cross-model. No agent is primary. No platform is the default.
 
-- Never name one coding agent, one operating system, one shell, one package ecosystem, or one model vendor on its own in code, a rule, a test, or a document. If one is named, every supported one is, read from a single shared list.
-  - Not checked: needs judgment.
-- Every supported coding agent is supported equally, and none is primary. The list of supported agents lives in one place in the code, in `crate::agents::AGENTS` (`crates/osf/src/agents.rs`), and every rule that names an agent reads it.
-  - Not checked: needs judgment. A test keeps `osf`'s own scan rules in step with that list (`crates/osf/tests/scan_rules.rs`). Nothing yet checks whether every other rule or document reads from it too.
-- Every check, rule, and verifier states what it covers and what it does not. A clean result must never be read as "nothing found" when it means "nothing looked at".
-  - Not checked: needs judgment.
-- Prefer structured detection to a hand-written pattern. Parse the URL, parse the path, ask the platform. A regex is the last resort, and where one remains, its tests carry one case per platform and per agent.
-  - Not checked: needs judgment.
-- Examples in documentation rotate across agents and platforms, or use a made-up one. No example favours a vendor.
-  - Not checked: needs judgment.
-- A change that violates this is wrong even when it works on the author's machine. Review your own diff for it before opening a pull request.
-  - Not checked: needs judgment.
+- Never name one coding agent, one operating system, one shell, one package ecosystem, or one model vendor on its own. This applies to code, a rule, a test, and a document. If you name one, name every supported one, read from a single shared list.
+- Support every coding agent equally. Keep the list of supported agents in one place, `crate::agents::AGENTS` (`crates/osf/src/agents.rs`). Make every rule that names an agent read that list.
+- State what every check, rule, and verifier covers and what it does not. Never let a clean result read as "nothing found" when it means "nothing looked at".
+- Prefer structured detection to a hand-written pattern. Parse the URL, parse the path, ask the platform. Use a regex as the last resort. Where one remains, write one test case per platform and per agent.
+- Rotate the agents and platforms in documentation examples, or use a made-up one. Never let an example favour a vendor.
+- Review your own diff against these rules before you open a pull request. A change that breaks them is wrong even when it works on your machine.
 
 ## Public hygiene
 
-- Never let a private person's name, a private company name, a private project name, or a local file path reach this repository. This applies to code, a document, a commit, an issue, and a pull request description alike.
-  - Checked by: `osf scan`, for the denylist, a session link, and a local path (`crates/osf/src/scan/mod.rs`). It runs on every file this repository tracks and on each commit message a pull request adds, in the hygiene job in `.github/workflows/ci.yml`.
-  - Not checked: needs judgment, for an issue body and a pull request description. No job scans either yet.
+- Never let a private person's name, a private company name, a private project name, or a local file path reach this repository. This applies to code, a document, a commit, an issue, and a pull request description.
+- Run `osf scan --config osf.toml` before you push. It checks every file this repository tracks.
+- Run `osf scan --config osf.toml --commits origin/main..HEAD` before you push. It checks the commit messages your change adds.
+- Write an issue body or a pull request description to a file, and run `osf scan --config osf.toml <file>` on it before you post it.
 - Name a document the repository owns in lowercase kebab-case, such as `review-check.md`. Keep the names an ecosystem requires, such as `AGENTS.md`, `README.md` and `SKILL.md`.
-  - Not checked: needs judgment.
-- Before a change goes in, picture a reader with no access to any private history. Would every line still make sense to that reader? A rule a scan cannot yet cover still binds. State that plainly wherever the rule is written down.
-  - Not checked: needs judgment.
+- Before a change goes in, picture a reader with no access to any private history. Check that every line still makes sense to that reader.
 
 ## Never weaken or bypass a check
 
-- Deterministic checks are authoritative gates. A model's judgment may augment one but never replaces it where a deterministic check exists.
-  - Not checked: needs judgment.
-- A change that makes a check catch fewer real problems than before needs a person's written approval, with a reason, recorded on the change. Never hide a real failure behind a suppression flag, an ignored error, or a narrowed scope with no reason given.
-  - Not checked: needs judgment. The weakening check that would enforce this is designed. It is not built yet.
+- Treat a deterministic check as an authoritative gate. A model's judgment may augment one but never replaces it where a deterministic check exists.
+- Get a person's written approval, with a reason, recorded on the change, before a change makes a check catch fewer real problems. Never hide a real failure behind a suppression flag, an ignored error, or a narrowed scope with no reason given.
 
 ## Before coding
 
@@ -49,6 +38,12 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 4. Challenge assumptions where the vision and implementation reality conflict.
 5. Keep the first implementation small enough that its abstractions can still be deleted cheaply.
 6. Add an interface only where a real seam is demonstrated. An earlier brainstorm having one is not a reason by itself. Check whether `obra/superpowers` already covers a workflow, such as brainstorming, planning, TDD, debugging, review, or verification, before building it yourself.
+
+## Before you push
+
+1. Run `osf verify --stage pre-push` from the repository root. It checks the files, prose, skill folders, and commit messages your change touches.
+2. Run `osf lint writing --no-suppress --gate <file>` on each Markdown file you changed.
+3. Fix every error these commands report.
 
 ## Where the other rules live
 

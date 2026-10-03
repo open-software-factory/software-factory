@@ -16,7 +16,3 @@ Write the "What changes at runtime" section of the pull request description. The
 Keep the whole section short for a small pull request.
 
 Stop when the section is written and every claim in it has been checked against the real diff.
-
----
-
-Inspired by the Change outline section of the visual-pr skill published by HumanLayer at github.com/humanlayer/skills (plugins/visual-pr/skills/visual-pr/SKILL.md), under the MIT licence. This skill does not copy its code. It writes a fresh implementation for the marked-section format the pr-lens workflow also writes into.
