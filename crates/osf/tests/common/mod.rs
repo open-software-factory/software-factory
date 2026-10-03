@@ -28,6 +28,9 @@ impl TempRepo {
     pub fn git(&self, args: &[&str]) -> String {
         let output = Command::new("git")
             .current_dir(&self.dir)
+            // A container or a machine may set core.hooksPath system-wide;
+            // this repository is throwaway and must never run real hooks.
+            .env("GIT_CONFIG_NOSYSTEM", "1")
             .args(args)
             .output()
             .expect("git runs");
