@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "251a480b27f811f25ba79a2a437f47a09ec4c78d",
+    "contentHash": "ec1beff32acdb9f82158346daf0ee38c"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "checkpoint-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "checkpoint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dc07c3bc6a4417b954244b8082507382",
+      "bytes": 28857,
+      "width": 1829,
+      "height": 874,
+      "animated": false,
+      "path": "checkpoint-architecture-light-dc07c3bc6a4417b954244b8082507382.svg"
+    },
+    {
+      "id": "checkpoint-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "checkpoint-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "49b0711ec8ca04f875fb9d9482799d88",
+      "bytes": 29192,
+      "width": 1829,
+      "height": 874,
+      "animated": false,
+      "path": "checkpoint-architecture-dark-49b0711ec8ca04f875fb9d9482799d88.svg"
+    },
+    {
+      "id": "checkpoint-run-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "checkpoint-run",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4b42972924e644e2e95c0a94c019fc8b",
+      "bytes": 18686,
+      "width": 2790,
+      "height": 505,
+      "animated": true,
+      "path": "checkpoint-run-light-4b42972924e644e2e95c0a94c019fc8b.svg"
+    },
+    {
+      "id": "checkpoint-run-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "checkpoint-run",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a9c944aa21d7452778feab512a6b3633",
+      "bytes": 18865,
+      "width": 2790,
+      "height": 505,
+      "animated": true,
+      "path": "checkpoint-run-dark-a9c944aa21d7452778feab512a6b3633.svg"
+    }
+  ]
+}
