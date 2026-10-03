@@ -389,3 +389,33 @@ fn a_writing_fixture_missing_a_declared_rule_fails() {
     let rules: Vec<&str> = report.findings().map(|(_, _, f)| f.rule).collect();
     assert!(rules.contains(&"expectation-missing"), "{rules:?}");
 }
+
+#[test]
+fn config_cannot_disable_a_skill_fixture_contract_failure_in_verify() {
+    let repo = TempRepo::new("skill-fixture-policy-is-fixed");
+    repo.write("base.md", "Clean.\n");
+    let base = repo.commit("base commit");
+    repo.write(
+        "crates/osf/tests/fixtures/skills/demo/SKILL.md",
+        "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n\n<!-- osf-expect-skill\nskill-first-person\n-->\n",
+    );
+    repo.write(
+        "osf.toml",
+        "[skill.levels]\nexpectation-missing = \"off\"\n",
+    );
+    repo.commit("add a declared skill fixture and weaken its contract policy");
+    let home = isolated_home("skill-fixture-policy-is-fixed");
+
+    let output = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "--config", "osf.toml", "verify", "--stage", "pre-push", "--base", &base,
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("expectation-missing"),
+        "{output:?}"
+    );
+}

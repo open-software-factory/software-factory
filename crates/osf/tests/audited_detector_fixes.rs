@@ -101,7 +101,7 @@ fn only_generated_commit_merge_subject_is_exempt_from_bare_reference() {
 
 #[test]
 fn labelled_references_need_links_except_in_commit_messages() {
-    let text = "Fixed in owner/repo#125 (the loading fix) today.";
+    let text = "Fixed in repo#125 (the loading fix) today.";
     assert!(!writing_rules(text, Context::Commit).contains(&"reference-without-link"));
     for context in [Context::Document, Context::Skill, Context::Transcript] {
         assert!(
@@ -109,10 +109,8 @@ fn labelled_references_need_links_except_in_commit_messages() {
             "link check lost in {context:?}"
         );
     }
-    assert!(
-        writing_rules("Fixed in owner/repo#125 today.", Context::Commit)
-            .contains(&"reference-without-label")
-    );
+    assert!(writing_rules("Fixed in repo#125 today.", Context::Commit)
+        .contains(&"reference-without-label"));
 }
 
 #[test]

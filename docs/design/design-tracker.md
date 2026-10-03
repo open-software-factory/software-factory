@@ -170,7 +170,7 @@ The Tauri adapter, `WebviewWindow`, is the app package's job. It remains **unver
 
 ### A12 plan: the ambient orb (proposed `2026-09-12`)
 
-Today there is a v1 draggable orb in `apps/console-lab/shell.html`, with a fixed menu.
+There is a v1 draggable orb in `apps/console-lab/shell.html`, with a fixed menu.
 
 The contract, DESIGN.md §5.3, asks for more from two components: L1 `FloatingOrb`, the draggable trigger, and L3 `AmbientAssistant`, the assistant surface it opens. It wants a circular draggable button above everything. That button opens a menu shaped by *context and viewport*. It is a cross-cutting modality, one of command, context action, annotation, or generated view. It is neither a surface nor a chat tab. Question Q12, which modality matters first, is still open.
 
@@ -277,7 +277,7 @@ Their captures are named `verify-orb-shell-*.png`, and the look capture is `veri
   - friction 0.004/ms
   - restitution 0.55
   - release threshold 0.25 px/ms
-- Snap-to-edge on release, which the plan above recommended, versus stay-where-dropped, which is what the lab does today. Both are one line in the release handler.
+- Snap-to-edge on release, which the plan in this entry recommended, versus stay-where-dropped, which is what the lab does. Both are one line in the release handler.
 - Whether the ring's labels should show at all, or only on hover/focus.
 - Q12 still stands: which modalities matter first, and whether it should float only or dock into a pane like the inspector.
 
@@ -303,7 +303,7 @@ On the way, this surfaced a gap: the centre floor rule, `fitToViewport`, tested 
 - the floor graph shrank with it
 
 The view now fits the side panes to the stage instead, so the centre keeps 700 px. At 1440 px the sides now give way in proportion:
-- L 382, R 358 today
+- L 382, R 358
 - down from L 459, R 430
 
 **Verification:** 220 Node tests cover this, with geometry test sizes moved inside the new appetites. Shell suites AC and AF pass at the new scale. Captures include:
@@ -385,7 +385,7 @@ Rows F1 through F9 use the **old** numbering.
 | F15 | `apps/console-lab/shell.html` | **Closing a pane must keep navigation.** The pane ✕ called `closePane`, which set the whole left region to `hidden`, taking the nav rail with it. The rule now: the ✕ closes pane content, and only the region toggle removes a region. Left collapses to `rail`, where the switcher survives. Right collapses to `hidden`, since it has no rail. Emptying a pane by closing its last tab follows the same rule, instead of leaving a zero-width husk whose mode still claims to be visible. | applied 2026-09-10, self-test suite B, six checks |
 | F16 | harness | **The exporter snapshots after boot.** It captures about 660 ms in, measured with a painted clock in the self-test box, earlier runs simply captured mid-suite and looked like a silent harness failure. A suite must therefore finish inside that window. Motion is shortened for the run via `window.__MOTION_MS`, and the suite is split, `SUITE = 'A'` regression and `'B'` close/collapse, across two renders. Keep the first wait at ~200 ms, since a shorter one reads pane widths while the boot animation is still running and produces a false FAIL. | applied 2026-09-10 |
 | F17 | DESIGN.md §5.5, `apps/console-lab/shell.html`, `data/nav.json` | **The nav conflated destinations with panels.** It listed Floor, Board, and Runway alongside Attention, Flight recorder, and Costs at one level, and set the same `aria-current` for the active centre view *and* the open left panel, so two items read as equally selected. Split into two kinds with two vocabularies. **view** uses radio, `aria-current="page"`, an accent marker, exactly one current, and a dim marker for open-but-not-current centre tabs. **panel** uses `role="switch"`, an open or closed indicator, any number open, and no accent marker. Each panel declares its own slot in the data, `attention` maps to left, `recorder` to bottom, and `logs` to right. Opening one never changes which view is current. `Costs` was dropped, since it had no surface behind it. `opensView` is retained in `nav.json` purely so the superseded spikes still boot. | applied 2026-09-10, self-test suite C, eight checks |
-| F18 | DESIGN.md §5.5, `apps/console-lab/shell.html` | **Nav section now comes from placement.** Owner asked for (a) a visible rule separating primary nav from panels and (b) the nav to re-section an item when a surface is dragged between slots. (b) forces a model change: `kind` in `nav.json` stops being an identity and becomes a *home* hint. `api.placementOf(id)` scans centre, left, right, and bottom. `api.sectionOf(id)` returns primary when the surface is in the centre, and panel otherwise, falling back to home while closed so a shut surface does not drift between sections. Nav and rail both render from that derivation. Added `api.moveSurface(id, slot)` as the single relocation entry point, using a **Move to…** menu today, and drag-and-drop will call the same function later, so placement rules stay in one place. Nav items FLIP between sections rather than jumping. Two states this exposed and now handles: an empty centre, real once surfaces can be moved out, and the centre's ✕, which previously fell through to clearing the bottom pane. | applied 2026-09-10, self-test suite D, eight checks |
+| F18 | DESIGN.md §5.5, `apps/console-lab/shell.html` | **Nav section now comes from placement.** Owner asked for (a) a visible rule separating primary nav from panels and (b) the nav to re-section an item when a surface is dragged between slots. (b) forces a model change: `kind` in `nav.json` stops being an identity and becomes a *home* hint. `api.placementOf(id)` scans centre, left, right, and bottom. `api.sectionOf(id)` returns primary when the surface is in the centre, and panel otherwise, falling back to home while closed so a shut surface does not drift between sections. Nav and rail both render from that derivation. Added `api.moveSurface(id, slot)` as the single relocation entry point, using a **Move to…** menu, and drag-and-drop will call the same function later, so placement rules stay in one place. Nav items FLIP between sections rather than jumping. Two states this exposed and now handles: an empty centre, real once surfaces can be moved out, and the centre's ✕, which previously fell through to clearing the bottom pane. | applied 2026-09-10, self-test suite D, eight checks |
 | F19 | `packages/console-model/`, `apps/console-lab/shell.html`, components.md | **Shell logic productionised into tested TypeScript.** The placement model left the prototype and became `packages/console-model/src/{types,placement,layout,geometry,persist,surfaces}.ts`, with no React and no DOM, and with 53 tests in `packages/console-model/test/*.test.ts`. Toolchain: none. Node 22 runs `.ts` tests natively (`node --test test/*.test.ts`), and the same source compiles into the page (first by a hand-rolled build script, now by the Vite build in `apps/console-lab`). The prototype now holds one `useReducer` over the model's `reduce` and no layout logic of its own, so the HTML cannot drift from the tested code. `SurfaceSpec.accepts` was added, permissive across every surface and every slot by decision, with the Move menu showing refused slots disabled rather than hidden. | applied 2026-09-10, 53 TS tests plus browser suites A, B, C, and D re-run after the refactor |
 | F20 | `apps/console-lab/shell.html`, harness | **Animation shipped off, but tests passed.** Seeding motion from `prefers-reduced-motion` is correct in the product, but this preview host reports `reduce`, so the delivered artifact opened dead. The tests missed it because the harness *clicked motion on before every suite*, a workaround that is not testing the product. Three fixes were made. First, the design artifact starts with motion on regardless of host, with the reason stated in code, while the product keeps OS seeding (unit-tested). Second, motion off now shows a **visible one-click pill** in the top bar, since a disabled capability must never be silent, the same rule that §5.1.5 already stated and that this violated in a new shape. Third, the harness force-on is deleted, and suite A's first assertion is `animation on by default`. | applied 2026-09-10, suite A 11/11, suite E 9/9 |
 | F21 | `apps/console-lab/shell.html` | **Scaffolding out, product controls in.** The motion toggle is gone, and nothing can switch it off. The A/B/C/D preset switcher is gone too. All four states are now reachable through the UI: a rail **expand** control opens full navigation, nav switches open panels, a pane's collapse control returns it to the rail, and **focus mode** is a real mode in the top bar with Esc to leave and exact restore. Tab treatment is hardcoded to **chip**, and underline and lifted were removed and archived. The viewport simulator stays, since it is the only way to exercise breakpoints in a fixed-size preview. The suites were rewritten to drive these controls instead of the preset buttons, the same rule as F20: if a suite cannot reach a state through the UI, neither can the operator. | applied 2026-09-10, suites A 11/11, B 7/7, C 8/8, D 8/8, E 11/11 |
@@ -497,7 +497,7 @@ Q numbers stay stable. This registry was formerly DESIGN.md §15.
 | 14 | Factory domain/data model, covering state taxonomies, transitions, and entity relationships, is not yet finalised. It is owned by the `software-factory` product work rather than the design system. When it lands, re-derive DESIGN.md §11's vocabularies, the §6.2 terminology table, and the fixture data from it | §11 encodings, node grammar, fixtures, and StreamSurface schemas all bind to it |
 | 15 | Toast stacking: one at a time vs several; decide after the component survey. Fixed requirement either way: each toast dismissible individually **and** the group dismissible in one action | DESIGN.md §7.1 channel taxonomy. Toast primitive contract |
 | 16 | ~~Frontend framework~~ **Decided.** React and TypeScript were chosen, with desktop via Tauri, on `2026-09-10`. Consequences: build-order step 1, the Overlay primitive, adopts **React Aria Components**, with `Ark UI/Zag` only the hedge for staying framework-open. Cytoscape, AG-UI, and the voice engines were framework-neutral and are unaffected. Tauri implications already logged: pop-out uses `WebviewWindow` instead of `window.open`. Document PiP is Chromium/WebView2-only, so it is a Windows-only enhancement at best. The local STT default differs per platform webview (`survey/05`) | Closed. This unblocks build-order step 1, the Overlay primitive |
-| 18 | **Toolchain decided**, verified against current releases rather than memory, on `2026-09-10`. TypeScript **7.0**: the Go-native compiler is now plain `tsc`, so there is no `@typescript/native-preview`. `tsgo` today means only the nightly channel. Bundler **Vite 8**, which ships **Rolldown**, Rust and Oxc-based, as its single bundler for both dev and build. Vite no longer uses esbuild. Lint **oxlint 1.x**. Format **oxfmt**, beta as of February 2026, so its status needs confirming at setup, with a fallback to Biome or Prettier. Consequence for the design loop: build the single-file design artifact with **Rolldown** rather than esbuild, so the design and production builds share one transform engine | Toolchain for `packages/*` and the design build |
+| 18 | **Toolchain decided**, verified against current releases rather than memory, on `2026-09-10`. TypeScript **7.0**: the Go-native compiler is now plain `tsc`, so there is no `@typescript/native-preview`. As of 2026-09-10, `tsgo` means only the nightly channel. Bundler **Vite 8**, which ships **Rolldown**, Rust and Oxc-based, as its single bundler for both dev and build. Vite no longer uses esbuild. Lint **oxlint 1.x**. Format **oxfmt**, beta as of February 2026, so its status needs confirming at setup, with a fallback to Biome or Prettier. Consequence for the design loop: build the single-file design artifact with **Rolldown** rather than esbuild, so the design and production builds share one transform engine | Toolchain for `packages/*` and the design build |
 | 19 | **Loops**, owner, `2026-09-11`. SDLC, product, and meta loops as operator-defined workflows with steps and optional/mandatory human gates. Loop views as task flow and/or state machine with live work-item positions overlaid. Zoom into a task/state for sub-flows. Needs a loop-definition schema before any surface. See "Owner direction, loops as an organising idea" under Next steps | Reframes Q17 and the canvas engine choice (B3). The centre becomes a set of loop views with a zoom ladder |
 | 17 | Infinite-canvas centre: "everything is somewhere on one infinite canvas". Owner to describe. Blocks the canvas-tech adoption (Cytoscape + ELK), because a general spatial canvas and a graph-layout engine are different products | Canvas adoption, MotionViewport, §5.7 label floor, zoom ladder |
 
@@ -546,9 +546,9 @@ This status is from 3 September 2026, against `factory-floor.html`, which is now
 | Dialog | partial. P0 panel exists; appears without motion |
 | Popover | Not built as a shared component. Environment menu and assistant menu are ad-hoc |
 | Toast | built |
-| ScreenHost | Not built. Instant swap today |
+| ScreenHost | Not built. Instant swap |
 | MotionViewport | partial. Zoom-reset animates; +/− and node-focus jumps snap; labels scale geometrically, violating rule 5.7 |
-| FloatingOrb | built as the assistant; the menu is fixed today and needs context-awareness added |
+| FloatingOrb | built as the assistant; the menu is fixed and needs context-awareness added |
 | Breadcrumb | Not built |
 | ListFilter | Not built as a shared part. The palette has its own filter |
 | Button / IconButton | partial. Styles exist; focus rings and touch sizes not audited |
@@ -590,8 +590,8 @@ These items are done and proven, for reference:
 | A6 | ~~**Keyboard, touch and target audit**~~ **done 2026-09-11.** Tablists, keyboard grips, Alt+n views, coarse-pointer targets, narrow top bar; residue listed in the checkpoint | 5.4.1, 5.4.3 | M | None | suite W |
 | A7 | **ListFilter** on Board, Runway and Attention when over 10 rows | 5.5.1 | S | None | From the findability build step, ListFilter and Breadcrumb. Reuse the palette's ranked filter |
 | A8 | ~~**Breadcrumb / jump back**~~ **done 2026-09-11** for the inspector's source path; deeper drills come with A9 / B4 | 5.5.2 | S | None | suite AA |
-| A9 | **Inspector focus path**: intent, then spec, then item header, evidence tiers, actions | components L4 FocusInspector | M | B5 for real evidence shape | The inspector body today shows only what the source list knows |
-| A10 | **MotionViewport**: zoom, pan, programmatic moves animate; text readability floor. Brainstorm written 2026-09-11, see "A10 brainstorm, the centre as loop views". Proposed first step: loop-definition schema + Floor redrawn from it | 5.1.4, 5.7 | L | Owner reaction to the brainstorm; Q17 | Floor is a static SVG today |
+| A9 | **Inspector focus path**: intent, then spec, then item header, evidence tiers, actions | components L4 FocusInspector | M | B5 for real evidence shape | The inspector body shows only what the source list knows |
+| A10 | **MotionViewport**: zoom, pan, programmatic moves animate; text readability floor. Brainstorm written 2026-09-11, see "A10 brainstorm, the centre as loop views". Proposed first step: loop-definition schema + Floor redrawn from it | 5.1.4, 5.7 | L | Owner reaction to the brainstorm; Q17 | Floor is a static SVG |
 | A11 | **Voice input** adapter on every text input | 5.4.2 | M | Engine choice from `survey/05`; local STT per platform | From the TextInput voice build step |
 | A12 | **Ambient assistant** orb and context-aware menu | 5.3 | M | Q12 surface forms | In the shell 2026-09-13: ring from the model, context intents, orb as the collapsed nav, assistant panel (no transport). Open: default look, transport (Q12) |
 | A13 | **StreamSurface** for generated / streaming UI | 5.6 | L | Part schema first (AG-UI + A2UI-shaped) | From the StreamSurface plus PresetSaver build step |
@@ -610,7 +610,7 @@ These items are done and proven, for reference:
 | B5 | **Domain / data model**: state taxonomies, transitions, entities; then re-derive DESIGN.md §11, §6.2 and the fixtures | tracker Q14 | L | Product work outside the design system | Everything in B4 and A13 binds to it |
 | B6 | **Owner decisions still open**: Q1 load profile · Q2 intervention vocabulary · Q3 multi-operator · Q4 presence · Q5 authoring · Q7 anomaly definition · Q10 board's place · Q13 surfaces vs modes · Q8 typography · Q9 tinting | tracker registry | None | You | Q13 reshapes the nav; Q2 shapes the inspector actions |
 | B7 | **Doc hygiene**: strip validated [C] tags in DESIGN.md; fold the superseded floor status table; keep the tracker checkpoint current | This tracker's doc-hygiene backlog | S | None | |
-| B8 | **Production path**: promote `packages/*` to the product repo, TS 7 / Vite 8 / oxlint setup, Tauri shell | tracker Q16, Q18 | M | Repo exists | the console restructure landed the packages and the Vite app in this repo; the desktop shell is still open |
+| B8 | **Production path**: promote `packages/*` to the product repo, TypeScript 7 / Vite 8 / oxlint setup, Tauri shell | tracker Q16, Q18 | M | Repo exists | the console restructure landed the packages and the Vite app in this repo; the desktop shell is still open |
 
 ### Owner priority
 
@@ -620,7 +620,7 @@ This priority is from 11 September 2026.
 2. **Then** brainstorm A10 and the canvas. Q17 likely goes with B3. See "Owner direction, loops as an organising idea" below.
 3. **Not shell work:** A7 (per-list filter) does not belong in the shell for now. A11 (voice) and A12 (ambient assistant) move to the components track as global shared components. A12 may still count as shell.
 4. **Needs thought and exploration first:** A13 (streaming UI), A15 (toasts).
-5. **A16** (retire the floor) once the above is done. The floor's "surfaces" will likely become one or more views per surface, and more. See below.
+5. **A16** (retire the floor) once the earlier items are done. The floor's "surfaces" will likely become one or more views per surface, and more. See below.
 
 ### Owner direction, loops as an organising idea
 
@@ -657,9 +657,9 @@ This starts from the owner's loops direction rather than from a canvas engine. T
 - two layout algorithms, layered for task flows and force or layered for state machines
 - label counter-scaling
 
-Cytoscape and ELK cover compound nodes and layered layout. ELK does not animate, so transitions are ours. A hand-rolled SVG, what Floor is today, stays viable for a loop with under about 40 nodes and no free panning. Spike both against the zoom-ladder-as-drill requirement first, because that is where hand-rolled SVG will break.
+Cytoscape and ELK cover compound nodes and layered layout. ELK does not animate, so transitions are ours. A hand-rolled SVG, what Floor is, stays viable for a loop with under about 40 nodes and no free panning. Spike both against the zoom-ladder-as-drill requirement first, because that is where hand-rolled SVG will break.
 
-**8. Smallest useful next step.** Build a loop-definition schema with the default SDLC loop as a fixture. Redraw the Floor from it as a task flow, with today's items overlaid by state. This needs no engine change yet. The zoom ladder can follow once the drawing is data-driven.
+**8. Smallest useful next step.** Build a loop-definition schema with the default SDLC loop as a fixture. Redraw the Floor from it as a task flow, with the current items overlaid by state. This needs no engine change yet. The zoom ladder can follow once the drawing is data-driven.
 
 ### Build order
 
@@ -685,11 +685,11 @@ This plan was agreed on 10 September 2026.
 | From the floor | Becomes | When | Note |
 |---|---|---|---|
 | Light theme | Token layer in the shell, then applied back to the floor | **Shell complete.** Generated palettes and theme toggle | Applying the shared token layer back to the older floor is not yet verified |
-| Ambient orb | `FloatingOrb` plus `AmbientAssistant`, layer 1 and layer 3 | With component work | Independent of the workspace; can proceed in parallel |
+| Ambient orb | `FloatingOrb` plus `AmbientAssistant`, a surface primitive and a shell component | With component work | Independent of the workspace; can proceed in parallel |
 | P0 interruption | `Dialog` on `Overlay` | After Overlay | Currently appears with no motion |
-| Flight recorder | `RecorderTimeline` (layer 4) | **After design work.** The owner considers it underdeveloped. Design it properly, then extract it, then reuse it | Also bound to Q6 replay semantics |
+| Flight recorder | `RecorderTimeline` (a product component) | **After design work.** The owner considers it underdeveloped. Design it properly, then extract it, then reuse it | Also bound to Q6 replay semantics |
 | Canvas / graph | `MotionViewport` + canvas engine | **Blocked on Q17.** The infinite-canvas idea may change the engine choice entirely | Do not spike Cytoscape before Q17 is described |
-| Four state files | Regenerate from the shell once surfaces land | Last | Stale today; do not maintain them in the meantime |
+| Four state files | Regenerate from the shell once surfaces land | Last | Stale; do not maintain them in the meantime |
 
 Retiring the floor would lose several things unless they are carried over deliberately:
 - the zoom ladder and its density rules

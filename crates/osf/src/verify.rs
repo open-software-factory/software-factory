@@ -418,11 +418,15 @@ fn lint_changed_skill_folders(opts: &Options, changed: &[String]) -> Result<Chec
             lints::policy::skill_levels(&opts.config.writing.levels, &opts.config.skill.levels);
         for sf in skill_findings {
             let file = format!("{label}/{}", sf.file);
-            findings.extend(
-                osf_lint_core::apply_level_overrides(vec![sf.finding], &levels)
-                    .into_iter()
-                    .map(|f| (file.clone(), f)),
-            );
+            if sf.finding.rule.starts_with("expectation-") {
+                findings.push((file, sf.finding));
+            } else {
+                findings.extend(
+                    osf_lint_core::apply_level_overrides(vec![sf.finding], &levels)
+                        .into_iter()
+                        .map(|f| (file.clone(), f)),
+                );
+            }
         }
     }
     Ok(CheckOutcome::ran("lint skill", excluded, findings))

@@ -299,7 +299,7 @@ fn clean_enforcement_reports_what_was_disabled() {
 #[test]
 fn required_reference_description_is_not_a_parenthetical_violation() {
     let known = load_known_names(&[], None).expect("names load");
-    let text = "See [owner/repo#125 (fix the slow loading path)](https://example.com/125).";
+    let text = "See [repo#125 (fix the slow loading path)](https://example.com/125).";
     let raw = osf::lints::writing::lint_writing(
         text,
         &known,
