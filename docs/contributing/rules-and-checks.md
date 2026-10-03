@@ -18,7 +18,7 @@ The agent-facing files are the root `AGENTS.md`, `crates/AGENTS.md`, `.github/wo
 | Name an owned document in lowercase kebab-case | Root `AGENTS.md` | Not enforced |
 | Write for a reader with no private history | Root `AGENTS.md` | Not enforced |
 | Treat a deterministic check as authoritative | Root `AGENTS.md`, decision 0003 | `--gate` on `osf scan` and `osf lint writing` ignores the change's own exclude settings |
-| Get written approval before a change weakens a check | Root `AGENTS.md`, `writing-a-workflow` | The CI writing gate runs `--no-suppress --gate`, so a suppression comment cannot hide a finding. Detecting a weakened check is not enforced |
+| Get written approval before a change weakens a check | Root `AGENTS.md` | The CI writing gate runs `--no-suppress --gate`, so a suppression comment cannot hide a finding. Detecting a weakened check is not enforced |
 | Read the vision, decisions, and product notes before coding | Root `AGENTS.md` | Not enforced |
 | Keep the `osf` binary a thin shell | `crates/AGENTS.md` | Not enforced |
 | Put logic in library crates, a crate for each logical group | `crates/AGENTS.md` | Not enforced |
@@ -30,15 +30,16 @@ The agent-facing files are the root `AGENTS.md`, `crates/AGENTS.md`, `.github/wo
 | Choose another language only for an edge component that a host's or provider's context requires | `crates/AGENTS.md` | Not enforced |
 | Write any JavaScript in TypeScript | `crates/AGENTS.md` | Not enforced |
 | Pass build, test, clippy, and format checks before you push | `crates/AGENTS.md` | The CI job `rust` runs `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` and `cargo build --release --bin osf` |
-| Define merge-deciding and secret jobs on the base branch | `.github/workflows/AGENTS.md`, `writing-a-workflow`, decision 0020 | Not enforced. `status-block.yml` follows the pattern |
+| Define merge-deciding and secret jobs on the base branch | `.github/workflows/AGENTS.md`, decision 0020 | Not enforced. `status-block.yml` follows the pattern |
 | Never check out pull request code into a job that holds a secret | `.github/workflows/AGENTS.md` | Not enforced |
 | Pin every action to a full commit SHA | `.github/workflows/AGENTS.md` | Not enforced |
 | Grant each job only the permissions it needs | `.github/workflows/AGENTS.md` | Not enforced |
 | Start a secret-holding job with `step-security/harden-runner` in block mode | `.github/workflows/AGENTS.md` | Not enforced |
 | Let a review aid post information only | `.github/workflows/AGENTS.md` | Not enforced |
-| Give a job a short-lived, narrow token | `writing-a-workflow`, decision 0020 | Not enforced |
-| Take the runner and reviewer credentials from the adopter's settings | `writing-a-workflow`, decision 0020 | Not enforced |
-| Name no fixed runner label and assume no always-on process | `writing-a-workflow`, decision 0020 | Not enforced |
+| Give a job a short-lived, narrow token | `.github/workflows/AGENTS.md`, decision 0020 | Not enforced |
+| Take the runner and reviewer credentials from the adopter's settings | `.github/workflows/AGENTS.md`, decision 0020 | Not enforced |
+| Name no fixed runner label and assume no always-on process | `.github/workflows/AGENTS.md`, decision 0020 | Not enforced |
+| Run `actionlint` on each changed workflow file | `.github/workflows/AGENTS.md` | Not enforced |
 | Make a rule tell "could not read" from "found nothing" | `adding-an-osf-command`, decision 0003 | `osf hook stop` refuses a turn it could not check (`crates/osf/src/hook.rs`). A shrinking test total or a new suppression as a finding is not enforced |
 | Give each rule a class and a citation | `adding-an-osf-command` | The rule metadata structs in `crates/osf/src/lints/writing/meta.rs` and `crates/osf/src/scan/meta.rs` require a class and a citation. Whether a citation is real is not enforced |
 | Report a denylist match with only the file and line | `adding-an-osf-command` | `osf scan` rule `scan-denied-name` records no matched text. Other rules are not enforced |
@@ -67,8 +68,8 @@ The agent-facing files are the root `AGENTS.md`, `crates/AGENTS.md`, `.github/wo
 | Read pull request files as data in a review job | `reviewing-a-pull-request`, decision 0020 | Not enforced. `status-block.yml` follows the pattern |
 | Resolve a thread in the step that fixes and replies | `reviewing-a-pull-request` | Not enforced |
 | Record review judgment as evidence that augments a check | `reviewing-a-pull-request`, decision 0003 | Not enforced |
-| Run dispatched commands in the foreground | `running-sub-agents` | Not enforced |
-| Report sub-agent status from evidence only | `running-sub-agents` | Not enforced |
+| Tell a sub-agent to run every command in the foreground | Root `AGENTS.md` | Not enforced |
+| Report a sub-agent's status from evidence only | Root `AGENTS.md` | Not enforced |
 | Keep `.claude/skills` a symlink to `.agents/skills` | `.agents/README.md` | The CI step "Check the Claude Code skills link" in the job `rust`. Which folder each agent reads is not enforced |
 | Lint each skill folder with `osf lint skill` | `skills/README.md`, `.agents/README.md` | The CI step "Check the skills" in the job `rust`. The container's `pre-push` hook checks changed skill folders |
 | Keep maintainer notes out of agent-facing files | All agent-facing files | `osf lint skill` covers the structure of a skill. The content of a note is not enforced |

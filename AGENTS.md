@@ -30,9 +30,14 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 - Treat a deterministic check as an authoritative gate. A model's judgment may augment one but never replaces it where a deterministic check exists.
 - Get a person's written approval, with a reason, recorded on the change, before a change makes a check catch fewer real problems. Never hide a real failure behind a suppression flag, an ignored error, or a narrowed scope with no reason given.
 
+## Sub-agents
+
+- Tell a sub-agent to run every command in the foreground. A command left running in the background can stall it.
+- Report a sub-agent's status only from evidence it leaves, such as files, logs, or command output.
+
 ## Before coding
 
-1. Read the three documents in [`docs/vision/`](docs/vision/).
+1. Read the documents in [`docs/vision/`](docs/vision/).
 2. Read the records in [`docs/architecture/decisions/`](docs/architecture/decisions/) and the current [`architecture open questions`](docs/architecture/open-questions.md).
 3. For product or interface work, also read [`docs/product/ux/`](docs/product/ux/) and [`docs/product/decisions/`](docs/product/decisions/). Read [`docs/research/`](docs/research/) only when the task touches that topic, since research is evidence rather than a requirement.
 4. Challenge assumptions where the vision and implementation reality conflict.

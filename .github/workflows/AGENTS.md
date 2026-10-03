@@ -6,3 +6,7 @@
 - Grant each job only the permissions it needs, and none when it needs none. Start from `contents: read`, as `ci.yml` does, and add only what the job writes.
 - Start a job that holds a secret with `step-security/harden-runner` in block mode, pinned to a commit SHA. Give it an allow-list of only the hosts that job needs, written as literal hosts. Copy `pr-lens.yml`, which sets `egress-policy: block` and a literal `allowed-endpoints` list.
 - Let a review aid, such as the status block or a pull request's change outline, post information only. Never let it fail a check or block a merge on its own.
+- Give a job a secret only as a short-lived, narrowly scoped token minted for that job. Keep a long-lived key out of a builder agent's own workspace.
+- Let the runner, and any reviewer-tool credential, come from the adopter's own settings, a repository variable or a repository secret. Never read them directly in the workflow itself.
+- Run every job in the code host's own workflow mechanism, on whatever runner the adopter sets. Name no fixed runner label. Assume no always-on process.
+- After you edit a workflow, run `actionlint`, a linter for workflow files, on each changed workflow file. Fix every error it reports.
