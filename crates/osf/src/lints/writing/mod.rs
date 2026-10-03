@@ -11,7 +11,11 @@ pub(super) mod rules;
 
 use super::{Context, Finding, KnownNames};
 use crate::config::WritingConfig;
-/// Lints a text written for the given [`Context`]. With `fast_only`, only
+/// Lints a text written for the given [`Context`].
+/// Evaluates raw detectors, including ones disabled from enforcement.
+/// Consumers apply `cfg.levels` after fixture contracts are evaluated.
+///
+/// With `fast_only`, only
 /// the deterministic fast tier runs; the stop hook uses this, since it
 /// must stay fast on every turn end. The command line runs every tier.
 ///
@@ -27,7 +31,16 @@ pub fn lint_writing(
     fast_only: bool,
     no_suppress: bool,
 ) -> Vec<Finding> {
-    let doc = osf_lint_core::segment::parse(text);
+    let generated_subject = (context == Context::Commit)
+        .then(|| generated_merge_subject(text.lines().next().unwrap_or("")))
+        .flatten();
+    let mut analysis_text = text.to_owned();
+    let inserted_subject_separator = generated_subject.is_some()
+        && text.find('\n').is_some_and(|newline| {
+            analysis_text.insert(newline + 1, '\n');
+            true
+        });
+    let doc = osf_lint_core::segment::parse(&analysis_text);
     let mut findings = Vec::new();
     // heading-in-short-text guards a short reply to a person: a chat
     // transcript or a commit message. A document and a skill file are
@@ -38,6 +51,27 @@ pub fn lint_writing(
     rules::per_sentence(&doc, cfg, fast_only, &mut findings);
     rules::undefined_names(&doc, known, cfg, &mut findings);
     rules::recap_ending(&doc, cfg, &mut findings);
+    if inserted_subject_separator {
+        for finding in &mut findings {
+            if finding.line > 1 {
+                finding.line -= 1;
+            }
+        }
+    }
+    if context == Context::Commit {
+        findings.retain(|f| f.rule != "reference-without-link");
+        if let Some(reference) = generated_subject {
+            // Sentence segmentation can join a subject and the first body
+            // sentence when they use a single newline. Consume exactly the
+            // subject's occurrence; another identical body reference stays.
+            if let Some(index) = findings
+                .iter()
+                .position(|f| f.rule == "bare-reference" && f.excerpt == reference)
+            {
+                findings.remove(index);
+            }
+        }
+    }
     apply_context(&mut findings, context);
     let mut findings = if no_suppress {
         findings
@@ -47,6 +81,30 @@ pub fn lint_writing(
     osf_lint_core::sort_findings(&mut findings);
     add_explain_pointers(&mut findings);
     findings
+}
+
+/// The known generated merge-subject format. This exempts only its first
+/// line in commit context, never ordinary issue references or the body.
+fn generated_merge_subject(subject: &str) -> Option<String> {
+    let parts: Vec<&str> = subject.split_whitespace().collect();
+    let ["Merge", "pull", "request", number, "from", source] = parts.as_slice() else {
+        return None;
+    };
+    if number
+        .strip_prefix('#')
+        .and_then(|n| n.parse::<u64>().ok())
+        .is_none_or(|n| n == 0)
+    {
+        return None;
+    }
+    let (owner, branch) = source.split_once('/')?;
+    (!owner.is_empty()
+        && owner
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        && !branch.is_empty()
+        && !branch.contains('#'))
+    .then(|| number.to_string())
 }
 
 /// Sets each finding's level and remediation from its rule's class and
@@ -835,9 +893,9 @@ mod tests {
     /// Change 3: reference-without-link is pinned to warning even where the
     /// matrix would otherwise make a style rule an error.
     #[test]
-    fn reference_without_link_is_always_a_warning() {
+    fn reference_without_link_is_a_warning_in_documents() {
         let f = find_in(
-            Context::Commit,
+            Context::Document,
             "Fixed in repo#125 (the canvas fixes) today.",
             "reference-without-link",
         );

@@ -221,7 +221,7 @@ warn_sentence_words = 20    # warning above this
 max_numerals = 2
 short_text_words = 500
 known_names = ["Vale", "Tauri"]
-must_explain_names = ["Linear", "Canny"]  # errors, even under --gate; see below
+must_explain_names = ["Linear", "Canny"]  # available to undefined-name checks
 filler = ["delve", "leverage"]            # replaces the built-in list
 chat_local_phrases = ["as discussed"]     # replaces the built-in list
 chat_local_labels = ["phase", "item"]     # "phase 2" and the like
@@ -235,9 +235,9 @@ Today, `known_names` and `writing.levels` change what `osf lint writing` and
 `osf hook stop` report. The other fields are resolved and shown by
 `osf config show`; wiring them into each rule's own check is later work.
 
-`must_explain_names` is read from the file even under `--gate`, unlike
-every other setting here: it can only add `undefined-name` errors, never
-remove one, so a change cannot use it to loosen its own gate.
+`must_explain_names` is read from the file under `--gate`, but it does not
+currently add gate errors: the compiled gate policy sets `undefined-name`
+to `off`. The list remains available to lint runs that enable that rule.
 
 Every environment variable maps to one field:
 

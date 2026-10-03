@@ -76,9 +76,19 @@ impl CheckOutcome {
 /// Every check `osf verify` ran for one stage, and what each one found.
 pub struct Report {
     checks: Vec<CheckOutcome>,
+    policy: Vec<String>,
 }
 
 impl Report {
+    #[must_use]
+    pub fn render_policy(&self) -> String {
+        let mut out = self.policy.join("\n");
+        if !out.is_empty() {
+            out.push('\n');
+        }
+        out
+    }
+
     #[must_use]
     pub fn total_errors(&self) -> usize {
         self.checks.iter().map(CheckOutcome::errors).sum()
@@ -110,6 +120,7 @@ impl Report {
     pub fn render_summary(&self, stage_label: &str) -> String {
         use std::fmt::Write as _;
         let mut out = format!("osf verify (stage: {stage_label})\n");
+        out.push_str(&self.render_policy());
         for check in &self.checks {
             if check.ran {
                 writeln!(
@@ -219,6 +230,8 @@ fn pre_commit(opts: &Options) -> Result<Report, String> {
                 false,
             );
             let label = path.display().to_string();
+            let findings =
+                osf_lint_core::apply_level_overrides(findings, &opts.config.writing.levels);
             CheckOutcome::ran(
                 "lint writing (commit message)",
                 0,
@@ -229,6 +242,10 @@ fn pre_commit(opts: &Options) -> Result<Report, String> {
 
     Ok(Report {
         checks: vec![scan_outcome, message_outcome],
+        policy: vec![format!(
+            "writing policy: {}",
+            lints::policy::coverage(&opts.config.writing.levels)
+        )],
     })
 }
 
@@ -314,7 +331,7 @@ fn lint_changed_markdown(
             Some(expected) if lints::is_fixture_path(path) => {
                 declared_fixture_findings(&expected, &raw)
             }
-            _ => raw,
+            _ => osf_lint_core::apply_level_overrides(raw, &opts.config.writing.levels),
         };
         findings.extend(path_findings.into_iter().map(|f| (path.clone(), f)));
     }
@@ -397,11 +414,16 @@ fn lint_changed_skill_folders(opts: &Options, changed: &[String]) -> Result<Chec
             &known,
             &opts.config.writing,
         )?;
-        findings.extend(
-            skill_findings
-                .into_iter()
-                .map(|sf| (format!("{label}/{}", sf.file), sf.finding)),
-        );
+        let levels =
+            lints::policy::skill_levels(&opts.config.writing.levels, &opts.config.skill.levels);
+        for sf in skill_findings {
+            let file = format!("{label}/{}", sf.file);
+            findings.extend(
+                osf_lint_core::apply_level_overrides(vec![sf.finding], &levels)
+                    .into_iter()
+                    .map(|f| (file.clone(), f)),
+            );
+        }
     }
     Ok(CheckOutcome::ran("lint skill", excluded, findings))
 }
@@ -440,5 +462,19 @@ fn pre_push(opts: &Options, ignore_suppress: bool) -> Result<Report, String> {
 
     Ok(Report {
         checks: vec![scan_outcome, writing_outcome, skill_outcome, commit_outcome],
+        policy: vec![
+            lints::script_pins::coverage(),
+            format!(
+                "writing policy: {}",
+                lints::policy::coverage(&opts.config.writing.levels)
+            ),
+            format!(
+                "skill policy: {}",
+                lints::policy::coverage(&lints::policy::skill_levels(
+                    &opts.config.writing.levels,
+                    &opts.config.skill.levels
+                ))
+            ),
+        ],
     })
 }

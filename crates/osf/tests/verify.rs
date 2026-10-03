@@ -104,7 +104,7 @@ fn push_fixture(name: &str) -> (TempRepo, String) {
     repo.write("guide.md", "Do Phase 2 next.\n");
     repo.write(
         "skills/demo/SKILL.md",
-        "---\nname: demo\ndescription: Checks a folder for problems.\n---\n\n1. Run the check.\n",
+        "---\nname: demo\nname: demo\ndescription: Checks a folder for problems.\n---\n\n1. Run the check.\n",
     );
     repo.commit(&format!(
         "Fix the bug.\n\n{}\n",

@@ -198,7 +198,11 @@ fn agent_state_path_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
 
 fn coauthor_trailer_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
     for (line, content) in lines(text) {
-        if content.trim_start().starts_with("Co-Authored-By:") {
+        if content
+            .trim_start()
+            .split_once(':')
+            .is_some_and(|(field, _)| field.eq_ignore_ascii_case("Co-Authored-By"))
+        {
             out.push(finding(
                 "scan-coauthor-trailer",
                 line,

@@ -16,5 +16,4 @@ Layout describes every required file for a project.
 <!-- osf-expect-skill
 skill-descriptive-over-imperative
 skill-first-section-is-overview
-skill-reads-as-manual
 -->

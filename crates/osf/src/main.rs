@@ -680,6 +680,9 @@ fn explain(rule_id: &str) -> ExitCode {
         "{} (class: {}, group: {}, citation: {})\n",
         meta.id, meta.class, meta.group, meta.citation
     );
+    if lints::policy::disabled_by_default(rule_id) {
+        println!("Enforcement: disabled by default following the rule audit. The detector and its purpose are retained for evaluation and future improvement. Gates use this compiled policy; a manual configuration can override it.\n");
+    }
     println!("{}", meta.doc);
     ExitCode::SUCCESS
 }
@@ -983,6 +986,10 @@ fn lint_writing(
         }
     };
     let cfg = &loaded.config.writing;
+    eprintln!(
+        "osf lint writing policy: {}",
+        lints::policy::coverage(&cfg.levels)
+    );
     let known = match lints::load_known_names(&cfg.known_names, args.known_names.as_deref()) {
         Ok(k) => k,
         Err(e) => {
@@ -1062,6 +1069,15 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
     };
     let cfg = &loaded.config.skill;
     let writing_cfg = &loaded.config.writing;
+    let levels = lints::policy::skill_levels(&writing_cfg.levels, &cfg.levels);
+    eprintln!(
+        "osf skill-script-unpinned {}",
+        lints::script_pins::coverage()
+    );
+    eprintln!(
+        "osf lint skill policy: {}",
+        lints::policy::coverage(&levels)
+    );
     let known = match lints::load_known_names(&writing_cfg.known_names, args.known_names.as_deref())
     {
         Ok(k) => k,
@@ -1094,7 +1110,7 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
         }
         for (file, raw_findings) in by_file {
             let name = format!("{}/{file}", dir.display());
-            let mut findings = osf_lint_core::apply_level_overrides(raw_findings, &cfg.levels);
+            let mut findings = osf_lint_core::apply_level_overrides(raw_findings, &levels);
             if args.strict {
                 for f in &mut findings {
                     if f.suppressed.is_none() && f.level == lints::Level::Warning {
@@ -1268,6 +1284,9 @@ fn verify_cmd(args: &VerifyArgs, config_flag: Option<&std::path::Path>) -> ExitC
     };
 
     let format = resolve_format(args.format, false);
+    if format != Format::Human {
+        eprint!("{}", report.render_policy());
+    }
     match format {
         Format::Human => {
             for (check, name, f) in report.findings() {

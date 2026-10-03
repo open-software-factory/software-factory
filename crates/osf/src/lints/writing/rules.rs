@@ -7,6 +7,7 @@
 use crate::config::WritingConfig;
 use osf_lint_core::segment::{reduce_inline, Doc, TextUnit};
 use osf_lint_core::{run_rules, Finding, FnRule, KnownNames, Level, Rule};
+use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -21,7 +22,6 @@ const SENTENCE_RULES: &[FnRule<WritingConfig>] = &[
     FnRule::sentence("semicolon", semicolon),
     FnRule::sentence("numbers-in-prose", numbers_in_prose),
     FnRule::sentence("bold-sentence", bold_sentence),
-    FnRule::sentence("parenthetical", parenthetical),
     FnRule::sentence("contrast-tail", contrast_tail),
     FnRule::sentence("contrast-not-just", contrast_not_just),
     FnRule::sentence("aphorism", aphorism),
@@ -345,17 +345,15 @@ fn long_sentence(s: &TextUnit, cfg: &WritingConfig) -> Vec<Finding> {
 }
 
 fn em_dash(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = re(&RE, r"—|–| -- ");
-    matches(s, re)
-        .iter()
-        .map(|m| {
+    reduce_inline(&s.text)
+        .match_indices('—')
+        .map(|_| {
             finding(
                 s,
                 "em-dash",
                 Level::Error,
                 "use a full stop or a comma".to_string(),
-                m.trim(),
+                "—",
             )
         })
         .collect()
@@ -480,28 +478,6 @@ fn bold_sentence(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
             .collect::<Vec<_>>()
             .join(" "),
     )]
-}
-
-fn parenthetical(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = re(&RE, r"\(([^()]+)\)");
-    let text = reduce_inline(&s.text);
-    re.captures_iter(&text)
-        .filter(|c| {
-            c.get(1)
-                .is_some_and(|g| g.as_str().split_whitespace().count() >= 4)
-        })
-        .filter_map(|c| c.get(0).map(|g| g.as_str().to_string()))
-        .map(|whole| {
-            finding(
-                s,
-                "parenthetical",
-                Level::Warning,
-                "make it its own sentence".to_string(),
-                &whole,
-            )
-        })
-        .collect()
 }
 
 /// A capitalised name whose first use is on the repository's must-explain
@@ -959,6 +935,34 @@ fn weasel_attribution(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         &RE,
         r"(?i)\bexperts agree\b|\bstudies show\b|\bwidely regarded\b",
     );
+    let has_labelled_source = Parser::new(&s.text)
+        .fold(
+            (false, false, String::new(), false),
+            |(in_link, safe_target, mut label, found), event| match event {
+                Event::Start(Tag::Link { dest_url, .. }) => {
+                    let safe = url::Url::parse(&dest_url).is_ok_and(|url| {
+                        matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
+                    });
+                    (true, safe, String::new(), found)
+                }
+                Event::Text(value) | Event::Code(value) if in_link => {
+                    label.push_str(&value);
+                    (in_link, safe_target, label, found)
+                }
+                Event::End(TagEnd::Link) if in_link => {
+                    let visible_label = label.trim();
+                    let is_url_label = url::Url::parse(visible_label).is_ok();
+                    let found =
+                        found || (safe_target && !visible_label.is_empty() && !is_url_label);
+                    (false, false, String::new(), found)
+                }
+                _ => (in_link, safe_target, label, found),
+            },
+        )
+        .3;
+    if has_labelled_source {
+        return vec![];
+    }
     matches(s, re)
         .iter()
         .map(|m| {
