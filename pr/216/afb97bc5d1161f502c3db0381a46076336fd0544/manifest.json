@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "afb97bc5d1161f502c3db0381a46076336fd0544",
+    "contentHash": "e9aa354dd9057a1f9912a15a91820087"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "view-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "18289e9f917961f2fcc6396ace13c447",
+      "bytes": 28402,
+      "width": 1848,
+      "height": 646,
+      "animated": false,
+      "path": "view-containers-light-18289e9f917961f2fcc6396ace13c447.svg"
+    },
+    {
+      "id": "view-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "712282fa2a5752216e95ebfe42c50203",
+      "bytes": 28757,
+      "width": 1848,
+      "height": 646,
+      "animated": false,
+      "path": "view-containers-dark-712282fa2a5752216e95ebfe42c50203.svg"
+    },
+    {
+      "id": "view-policy-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-policy-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ece8919375d329b516cb898dd442fea9",
+      "bytes": 8777,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "view-policy-components-light-ece8919375d329b516cb898dd442fea9.svg"
+    },
+    {
+      "id": "view-policy-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-policy-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1693394a86bb789da78aac80e48a0fec",
+      "bytes": 8879,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "view-policy-components-dark-1693394a86bb789da78aac80e48a0fec.svg"
+    },
+    {
+      "id": "view-policy-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-policy-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fa6271c73f378eeeb1b3d2837b711603",
+      "bytes": 10836,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "view-policy-detail-light-fa6271c73f378eeeb1b3d2837b711603.svg"
+    },
+    {
+      "id": "view-policy-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-policy-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7472f5a0fd090155e064c2764e795723",
+      "bytes": 10951,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "view-policy-detail-dark-7472f5a0fd090155e064c2764e795723.svg"
+    },
+    {
+      "id": "view-flow-writing-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "view-flow-writing",
+      "mediaType": "image/svg+xml",
+      "contentHash": "af67bc30be612e481da70fb96e3f8e44",
+      "bytes": 14486,
+      "width": 1641,
+      "height": 413,
+      "animated": true,
+      "path": "view-flow-writing-light-af67bc30be612e481da70fb96e3f8e44.svg"
+    },
+    {
+      "id": "view-flow-writing-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "view-flow-writing",
+      "mediaType": "image/svg+xml",
+      "contentHash": "adfd2a4b77cdebf3502595bb548a164d",
+      "bytes": 14633,
+      "width": 1641,
+      "height": 413,
+      "animated": true,
+      "path": "view-flow-writing-dark-adfd2a4b77cdebf3502595bb548a164d.svg"
+    },
+    {
+      "id": "view-flow-script-pin-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "view-flow-script-pin",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5b9d1a2067ead2c11dcd7f5e089878c2",
+      "bytes": 10452,
+      "width": 939,
+      "height": 337,
+      "animated": true,
+      "path": "view-flow-script-pin-light-5b9d1a2067ead2c11dcd7f5e089878c2.svg"
+    },
+    {
+      "id": "view-flow-script-pin-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "view-flow-script-pin",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e15dab5a3175438ac30e61bd821d9222",
+      "bytes": 10554,
+      "width": 939,
+      "height": 337,
+      "animated": true,
+      "path": "view-flow-script-pin-dark-e15dab5a3175438ac30e61bd821d9222.svg"
+    }
+  ]
+}
