@@ -1,6 +1,11 @@
 //! Provider-neutral forge interface: the seam between the factory and a code
 //! host. Nothing in this module names a provider, a URL or a command.
 
+pub mod fake;
+pub mod report;
+
+pub use report::{report_change, Report, ReportError, ReportRequest, ReviewDraft, Step};
+
 use serde::Serialize;
 use std::fmt;
 
