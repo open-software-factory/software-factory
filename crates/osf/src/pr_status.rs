@@ -654,6 +654,23 @@ pub fn parse_checks(text: &str) -> Result<Vec<(String, String, String)>, StatusE
     Ok(checks)
 }
 
+/// The gate spec for [`render`] from `(name, state, bucket)` triples, skipping `skip_name`.
+#[must_use]
+pub fn gates_from_checks(checks: &[(String, String, String)], skip_name: &str) -> String {
+    let mut parts = Vec::new();
+    for (name, state, bucket) in checks {
+        if name.as_str() == skip_name {
+            continue;
+        }
+        match bucket.as_str() {
+            "pass" => parts.push(format!("{name}: passed")),
+            "fail" => parts.push(format!("{name}: failed: {state}")),
+            _ => {}
+        }
+    }
+    parts.join(", ")
+}
+
 /// Turns `gh pr checks --json name,state,bucket` output into the
 /// comma-separated gate spec [`render`] understands: `name: passed` when
 /// the bucket is `pass`, `name: failed: <state>` when it is `fail`, and
@@ -664,18 +681,7 @@ pub fn parse_checks(text: &str) -> Result<Vec<(String, String, String)>, StatusE
 /// # Errors
 /// Returns an error when [`parse_checks`] cannot read the checks data.
 pub fn gates_from_checks_json(text: &str, skip_name: &str) -> Result<String, StatusError> {
-    let mut parts = Vec::new();
-    for (name, state, bucket) in parse_checks(text)? {
-        if name == skip_name {
-            continue;
-        }
-        match bucket.as_str() {
-            "pass" => parts.push(format!("{name}: passed")),
-            "fail" => parts.push(format!("{name}: failed: {state}")),
-            _ => {}
-        }
-    }
-    Ok(parts.join(", "))
+    Ok(gates_from_checks(&parse_checks(text)?, skip_name))
 }
 
 fn checks_shape_error() -> StatusError {
