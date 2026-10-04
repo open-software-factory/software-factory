@@ -117,6 +117,20 @@ pub enum BlockedCause {
     Capacity,
 }
 
+impl BlockedCause {
+    /// The kebab-case name of this cause.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::Dependency => "dependency",
+            Self::Human => "human",
+            Self::Clarification => "clarification",
+            Self::Ambiguous => "ambiguous",
+            Self::Capacity => "capacity",
+        }
+    }
+}
+
 /// The state the tracker records for a work item.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -233,7 +247,7 @@ mod tests {
         );
         for text in [
             "test:open-software-factory/demo",
-            "testopen-software-factory/demo#42",
+            "test-demo#42",
             ":open-software-factory/demo#42",
             "test:#42",
             "test:open-software-factory/demo#",
@@ -289,6 +303,15 @@ mod tests {
             serde_json::to_string(&BlockedCause::Capacity).expect("serializes"),
             r#""capacity""#
         );
+    }
+
+    #[test]
+    fn blocked_cause_as_str_names_every_cause() {
+        assert_eq!(BlockedCause::Dependency.as_str(), "dependency");
+        assert_eq!(BlockedCause::Human.as_str(), "human");
+        assert_eq!(BlockedCause::Clarification.as_str(), "clarification");
+        assert_eq!(BlockedCause::Ambiguous.as_str(), "ambiguous");
+        assert_eq!(BlockedCause::Capacity.as_str(), "capacity");
     }
 
     #[test]
