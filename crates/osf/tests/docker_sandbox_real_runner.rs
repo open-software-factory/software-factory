@@ -247,3 +247,42 @@ fn real_docker_runs_a_command_and_times_out() {
 
     drop(guard);
 }
+
+#[test]
+#[ignore = "needs a running docker daemon and OSF_SANDBOX_SMOKE_IMAGE"]
+fn osf_sandbox_run_command_runs_and_passes_the_exit_status() {
+    let Ok(image) = std::env::var("OSF_SANDBOX_SMOKE_IMAGE") else {
+        println!("skipping the docker smoke test: OSF_SANDBOX_SMOKE_IMAGE is unset");
+        return;
+    };
+    let _lock = serial();
+    let repo = TempArea::new("sandbox-cli-repo");
+    let state = TempArea::new("sandbox-cli-state");
+    let mut perms = fs::metadata(&state.dir)
+        .expect("the state folder has metadata")
+        .permissions();
+    perms.set_mode(0o777);
+    fs::set_permissions(&state.dir, perms).expect("the state folder is world-writable");
+
+    let args = vec![
+        "sandbox".to_string(),
+        "run".to_string(),
+        "--image".to_string(),
+        image,
+        "--repo".to_string(),
+        repo.dir.to_string_lossy().into_owned(),
+        "--state".to_string(),
+        state.dir.to_string_lossy().into_owned(),
+        "--".to_string(),
+        "sh".to_string(),
+        "-c".to_string(),
+        "echo hello > /state/out.txt; exit 7".to_string(),
+    ];
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_osf"))
+        .args(&args)
+        .output()
+        .expect("osf runs");
+    assert_eq!(output.status.code(), Some(7), "{output:?}");
+    let written = fs::read_to_string(state.dir.join("out.txt")).expect("the host file exists");
+    assert_eq!(written, "hello\n");
+}

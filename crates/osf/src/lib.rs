@@ -25,6 +25,7 @@ pub mod pr_tree;
 pub mod repository;
 pub mod review;
 pub mod sandbox;
+pub mod sandbox_cli;
 pub mod scan;
 pub mod section;
 #[cfg(test)]
