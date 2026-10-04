@@ -498,6 +498,66 @@ fn a_config_that_lowers_a_kept_rule_applies_on_ungated_skill_paths_and_not_on_ga
     }
 }
 
+fn run_hook(
+    repo: &TempRepo,
+    home: &Path,
+    args: &[&str],
+    event: &serde_json::Value,
+) -> (Option<i32>, String, String) {
+    let out = common::run_osf_stdin(&repo.dir, home, &[], args, &event.to_string());
+    (
+        out.status.code(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    )
+}
+
+#[test]
+fn the_stop_check_names_dropped_audited_findings_only_when_the_message_passes() {
+    let repo = TempRepo::new("audit-stop-output");
+    let home = isolated_home("audit-stop-output");
+    let stop = |session: &str, message: &str| {
+        let event = serde_json::json!({ "session_id": session, "last_assistant_message": message });
+        run_hook(&repo, &home, &["hook", "stop"], &event)
+    };
+    let (code, _, stderr) = stop("audit-stop-pass", "Input -> output.");
+    assert_eq!(code, Some(0), "{stderr}");
+    assert!(
+        stderr.contains("osf hook writing policy: dropped 1 finding(s) from audited rules: arrow"),
+        "the drop was not reported: {stderr}"
+    );
+    let (code, _, stderr) = stop("audit-stop-clean", "The check passed.");
+    assert_eq!(code, Some(0), "{stderr}");
+    assert!(
+        !stderr.contains("writing policy"),
+        "a clean check printed a policy line: {stderr}"
+    );
+    let (code, _, stderr) = stop("audit-stop-refuse", "Fixed in #125 today. Input -> output.");
+    assert_eq!(code, Some(2), "{stderr}");
+    assert!(stderr.contains("bare-reference"), "{stderr}");
+    assert!(
+        !stderr.contains("writing policy"),
+        "a refusal carried a policy line: {stderr}"
+    );
+}
+
+#[test]
+fn the_prompt_hook_gives_the_concrete_writing_instructions() {
+    let repo = TempRepo::new("audit-prompt-output");
+    let home = isolated_home("audit-prompt-output");
+    let event = serde_json::json!({ "session_id": "audit-prompt" });
+    let (code, stdout, stderr) = run_hook(&repo, &home, &["hook", "prompt"], &event);
+    assert_eq!(code, Some(0), "{stderr}");
+    for phrase in [
+        "`, not X` or `, never X` tail",
+        "owner/repo#N",
+        "`nobody` or `everyone`",
+    ] {
+        assert!(stdout.contains(phrase), "reminder lost {phrase}: {stdout}");
+    }
+    assert!(!stdout.contains("disabled"), "{stdout}");
+}
+
 #[test]
 fn lint_skill_gate_refuses_the_flags_that_loosen_it() {
     let repo = TempRepo::new("audit-skill-gate-flags");

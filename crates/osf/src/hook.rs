@@ -41,9 +41,10 @@ const MAX_ADVICE_LINES: usize = 20;
 /// first message of a session too.
 pub const STANDING_REMINDER: &str =
     "osf writing-lint reminder for this reply. State the point and stop. \
+    Do not end a sentence with a `, not X` or `, never X` tail. \
     Write a reference as owner/repo#N (what it is). \
     Name a thing by what it is rather than by its place in a list. \
-    Audited heuristic checks are disabled from enforcement; their detectors remain available for evaluation.";
+    No sweeps such as `nobody` or `everyone`.";
 
 /// Every spelling of the session key, most common first.
 const SESSION_KEYS: &[&str] = &["session_id", "sessionId", "sessionID"];
@@ -165,7 +166,8 @@ fn stop_with_input(
             return refuse_could_not_run(answer, &session, &prompt, max_bounces, &e);
         }
     };
-    let findings = checked_findings(&text, &known, cfg);
+    let checked = checked_findings(&text, &known, cfg);
+    let findings = checked.findings;
 
     let advise: Vec<&lints::Finding> = findings
         .iter()
@@ -178,6 +180,13 @@ fn stop_with_input(
     let counter = counter_path(&session, &prompt);
     let Some((blocking, verb, instruction)) = blocking_set(&findings) else {
         let _ = std::fs::remove_file(&counter);
+        if !checked.dropped.is_empty() {
+            eprintln!(
+                "osf hook writing policy: dropped {} finding(s) from audited rules: {}",
+                checked.dropped.len(),
+                audited_rule_names(&checked.dropped)
+            );
+        }
         return ExitCode::SUCCESS;
     };
 
@@ -253,27 +262,40 @@ fn refuse_could_not_run(
     refuse(answer, &reason)
 }
 
+/// What a stop check found, and the rule of every finding the audited
+/// policy dropped.
+struct Checked {
+    findings: Vec<lints::Finding>,
+    dropped: Vec<&'static str>,
+}
+
+/// The distinct rule names in `dropped`, in a stable order.
+fn audited_rule_names(dropped: &[&'static str]) -> String {
+    let mut names = dropped.to_vec();
+    names.sort_unstable();
+    names.dedup();
+    names.join(", ")
+}
+
 /// Lints `text` as a transcript, and applies the config's level overrides.
 /// The approved disabled defaults cannot be re-enabled in a stop check,
 /// dropping every suppressed finding. The stop check runs on every turn
 /// end, so it stays on the fast tier only.
-fn checked_findings(
-    text: &str,
-    known: &lints::KnownNames,
-    cfg: &WritingConfig,
-) -> Vec<lints::Finding> {
+fn checked_findings(text: &str, known: &lints::KnownNames, cfg: &WritingConfig) -> Checked {
     let findings =
         lints::writing::lint_writing(text, known, cfg, lints::Context::Transcript, true, false);
+    let dropped = findings
+        .iter()
+        .filter(|f| f.suppressed.is_none() && lints::policy::disabled_by_default(f.rule))
+        .map(|f| f.rule)
+        .collect();
     let mut levels = cfg.levels.clone();
     lints::policy::enforce(&mut levels);
-    eprintln!(
-        "osf hook writing policy: {}",
-        lints::policy::coverage(&levels)
-    );
-    osf_lint_core::apply_level_overrides(findings, &levels)
+    let findings = osf_lint_core::apply_level_overrides(findings, &levels)
         .into_iter()
         .filter(|f| f.suppressed.is_none())
-        .collect()
+        .collect();
+    Checked { findings, dropped }
 }
 
 /// The findings that block the stop, the opening line, and the
@@ -867,14 +889,21 @@ mod tests {
     fn audited_detectors_do_not_block_but_retained_reference_checks_do() {
         let known = lints::load_known_names(&[], None).expect("names load");
         let cfg = WritingConfig::default();
-        let findings = checked_findings("Input -> output.", &known, &cfg);
-        assert!(findings.is_empty(), "disabled arrow enforced: {findings:?}");
-        let findings = checked_findings("Fixed in #125 today.", &known, &cfg);
+        let checked = checked_findings("Input -> output.", &known, &cfg);
         assert!(
-            findings.iter().any(|f| f.rule == "bare-reference"),
-            "retained rule lost: {findings:?}"
+            checked.findings.is_empty(),
+            "disabled arrow enforced: {:?}",
+            checked.findings
         );
-        assert!(blocking_set(&findings).is_some());
+        assert_eq!(checked.dropped, vec!["arrow"], "the drop was not recorded");
+        let checked = checked_findings("Fixed in #125 today.", &known, &cfg);
+        assert!(
+            checked.findings.iter().any(|f| f.rule == "bare-reference"),
+            "retained rule lost: {:?}",
+            checked.findings
+        );
+        assert!(checked.dropped.is_empty(), "nothing was dropped here");
+        assert!(blocking_set(&checked.findings).is_some());
     }
 
     #[test]
@@ -883,10 +912,43 @@ mod tests {
         let mut cfg = WritingConfig::default();
         cfg.levels
             .insert("arrow".to_string(), osf_lint_core::LevelSetting::Error);
-        let findings = checked_findings("Input -> output.", &known, &cfg);
+        cfg.levels.insert(
+            "bare-reference".to_string(),
+            osf_lint_core::LevelSetting::Warning,
+        );
+        let checked = checked_findings("Input -> output. Fixed in #125 today.", &known, &cfg);
         assert!(
-            findings.is_empty(),
-            "audit policy reenabled by config: {findings:?}"
+            checked.findings.iter().all(|f| f.rule != "arrow"),
+            "audit policy reenabled by config: {:?}",
+            checked.findings
+        );
+        let kept = checked
+            .findings
+            .iter()
+            .find(|f| f.rule == "bare-reference")
+            .expect("a kept rule must still report");
+        assert_eq!(
+            kept.level,
+            lints::Level::Warning,
+            "the config's level for a kept rule must apply"
+        );
+    }
+
+    #[test]
+    fn the_standing_reminder_gives_the_concrete_writing_instructions() {
+        for phrase in [
+            "Do not end a sentence with a `, not X` or `, never X` tail.",
+            "Write a reference as owner/repo#N (what it is).",
+            "No sweeps such as `nobody` or `everyone`.",
+        ] {
+            assert!(
+                STANDING_REMINDER.contains(phrase),
+                "reminder lost: {phrase}"
+            );
+        }
+        assert!(
+            !STANDING_REMINDER.contains("disabled"),
+            "the reminder must tell the writer what to do, not what is off: {STANDING_REMINDER}"
         );
     }
 
