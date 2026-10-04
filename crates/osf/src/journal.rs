@@ -4,6 +4,7 @@
 
 mod event;
 mod hash;
+mod index;
 mod reader;
 mod schema;
 
@@ -15,6 +16,7 @@ pub use event::{
 use hash::genesis_hash;
 pub(crate) use hash::sha256_hex;
 pub use hash::{event_hash, HashInput};
+pub use index::{record_run, runs_for_work_item};
 pub use reader::{read_run, ReadError, RunJournal};
 pub use schema::validate as validate_event;
 
@@ -59,10 +61,12 @@ pub(super) fn validate_run_id(run: &str) -> Result<(), String> {
 #[derive(Debug)]
 pub struct Journal {
     path: PathBuf,
+    state_dir: PathBuf,
     run: String,
     work_item: Option<String>,
     change: Option<Change>,
     last_hash: String,
+    index_recorded: bool,
 }
 
 impl Journal {
@@ -106,10 +110,12 @@ impl Journal {
         }
         Ok(Journal {
             path,
+            state_dir: state_dir.to_path_buf(),
             run: run.to_string(),
             work_item: None,
             change: None,
             last_hash: genesis_hash(),
+            index_recorded: false,
         })
     }
 
@@ -192,6 +198,13 @@ impl Journal {
         }
         if !reasons.is_empty() {
             return Err(format!("invalid journal event: {}", reasons.join("; ")));
+        }
+        // The first accepted event records the run in its work item's index before any line is written.
+        if !self.index_recorded {
+            if let Some(work_item) = self.work_item.as_deref() {
+                index::record_run(&self.state_dir, work_item, &self.run)?;
+                self.index_recorded = true;
+            }
         }
         let line = serde_json::to_string(&event)
             .map_err(|e| format!("cannot serialise journal event: {e}"))?;
@@ -706,5 +719,68 @@ mod tests {
         j.append(&actor(), 1, verification("scan")).expect("append");
         assert!(dir.join("runs/run-path.jsonl").is_file());
         assert!(!dir.join("buffer").exists());
+    }
+
+    /// A work item with no journal still lists no runs and makes no index dir.
+    #[test]
+    fn a_journal_without_a_work_item_creates_no_index_directory() {
+        let dir = TempDir::new("osf-journal-no-index");
+        let mut j = Journal::open(&dir, "run-plain").expect("open");
+        j.append(&actor(), 1, verification("scan")).expect("append");
+        assert!(!dir.join("index").exists());
+    }
+
+    /// The first accepted event records the run before the journal line lands.
+    #[test]
+    fn the_first_event_records_the_run_in_the_index() {
+        let dir = TempDir::new("osf-journal-index-first");
+        let work_item = "github:open-software-factory/example#1";
+        let mut j = Journal::open(&dir, "run-one")
+            .expect("open")
+            .with_work_item(work_item.to_string());
+        j.append(&actor(), 1, verification("scan")).expect("append");
+        assert_eq!(
+            runs_for_work_item(&dir, work_item).expect("runs"),
+            ["run-one"].map(str::to_string)
+        );
+        assert!(dir.join("runs/run-one.jsonl").is_file());
+    }
+
+    /// Two journals for one work item list both runs in order, once each.
+    #[test]
+    fn two_journals_for_one_work_item_list_both_runs_in_order() {
+        let dir = TempDir::new("osf-journal-index-order");
+        let work_item = "github:open-software-factory/example#1".to_string();
+        let mut a = Journal::open(&dir, "run-a")
+            .expect("open")
+            .with_work_item(work_item.clone());
+        a.append(&actor(), 1, verification("scan")).expect("append");
+        let mut b = Journal::open(&dir, "run-b")
+            .expect("open")
+            .with_work_item(work_item.clone());
+        b.append(&actor(), 1, verification("scan")).expect("append");
+        a.append(&actor(), 2, verification("fmt")).expect("append");
+        assert_eq!(
+            runs_for_work_item(&dir, &work_item).expect("runs"),
+            ["run-a", "run-b"].map(str::to_string)
+        );
+    }
+
+    /// A failed index update refuses the event before any journal line is written.
+    #[test]
+    fn a_failed_index_update_writes_no_journal_line() {
+        let dir = TempDir::new("osf-journal-index-failed");
+        let work_item = "github:open-software-factory/example#1";
+        let path = index::index_path(&dir, work_item);
+        std::fs::create_dir_all(path.parent().expect("index dir")).expect("index dir");
+        std::fs::write(&path, "not JSON").expect("write index");
+        let mut j = Journal::open(&dir, "run-fail")
+            .expect("open")
+            .with_work_item(work_item.to_string());
+        let err = j
+            .append(&actor(), 1, verification("scan"))
+            .expect_err("malformed index");
+        assert!(err.contains("index"), "{err}");
+        assert!(!dir.join("runs/run-fail.jsonl").exists());
     }
 }
