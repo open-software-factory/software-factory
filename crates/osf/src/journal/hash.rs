@@ -1,5 +1,41 @@
-//! The hash chain's digest: SHA-256 over the previous hash and the canonical
-//! JSON of an event's replay-relevant parts, with wall-clock time excluded.
+//! The hash chain's input layout and its digest.
+//!
+//! The digest is SHA-256, written as 64 lower-case hex characters.
+//!
+//! The input is the previous hash as ASCII text, then one newline byte, then
+//! the canonical JSON. For the first event of a run the previous hash is 64
+//! zeros. The newline byte is 0x0A. The canonical JSON is UTF-8 with no
+//! trailing newline.
+//!
+//! The canonical JSON is the compact output of `serde_json`, with no spaces
+//! and no newlines. It is one object with exactly these keys in this order:
+//! `payload`, `work_item`, `change`, `actor`, `cost`.
+//!
+//! `payload` holds the tagged payload object:
+//! `{"event_type": <kebab-case name>, "payload": {...}}`. The fields inside
+//! follow the declaration order of the Rust struct in `event.rs`. A payload
+//! field that is `None` is left out. A top-level `work_item`, `change` or
+//! `cost` that is absent is written as `null`.
+//!
+//! Inside `actor`, `cost` and `change` the same rule applies. Fields keep
+//! declaration order and `None` fields are left out.
+//!
+//! Before hashing, a verification's `duration_ms` is written as 0 and its
+//! `cache` is left out. Every other field of every event type is hashed as
+//! it is, including `cost`.
+//!
+//! `timestamp_ms`, `run`, `schema_version` and `hash` are not hashed.
+//!
+//! The checkpoint-complete `slots` map is a `BTreeMap`. Its keys are sorted
+//! by byte order.
+//!
+//! See the tests `a_fixed_attention_event_has_a_known_hash` and
+//! `a_fixed_verification_event_has_a_known_hash` for pinned examples. The
+//! first one hashes this canonical JSON:
+//!
+//! ```text
+//! {"payload":{"event_type":"attention","payload":{"cause":"human","summary":"needs a person","grade":"unverified"}},"work_item":null,"change":null,"actor":{"kind":"system","name":"osf"},"cost":null}
+//! ```
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -55,22 +91,8 @@ pub struct HashInput<'a> {
     pub cost: Option<&'a Cost>,
 }
 
-/// The event's SHA-256 hex digest over `prev_hash`, a newline, then the
-/// canonical JSON of the [`HashInput`]'s `payload`, `work_item`, `change`,
-/// `actor` and `cost`. "Canonical" here means `serde_json::to_string` of a
-/// struct with fixed field order. `timestamp_ms`, `run` and `hash` are
-/// excluded, as decision 0005 requires: two runs with identical inputs and
-/// identical decisions must produce an identical head hash, including runs
-/// whose own run identifiers and task durations necessarily differ.
-///
-/// `run` is excluded because it is built from wall-clock time and the
-/// process id, so it names nothing about what the run decided.
-///
-/// # Panics
-/// Never in practice: the payload holds no maps and no non-finite floats, so
-/// `serde_json::to_string` cannot fail on it.
-#[must_use]
-pub fn event_hash(input: &HashInput) -> String {
+/// The canonical JSON of the hashed parts.
+fn canonical_json(input: &HashInput) -> String {
     #[derive(Serialize)]
     struct Canonical<'a> {
         payload: &'a Payload,
@@ -87,8 +109,22 @@ pub fn event_hash(input: &HashInput) -> String {
         actor: input.actor,
         cost: input.cost,
     };
-    let json =
-        serde_json::to_string(&canonical).expect("the hashed parts always serialise to JSON");
+    serde_json::to_string(&canonical).expect("the hashed parts always serialise to JSON")
+}
+
+/// The event's SHA-256 hex digest. The module docs give the exact byte
+/// layout and point to pinned examples.
+///
+/// `run` is excluded, as decision 0005 requires, because it is built from
+/// wall-clock time and the process id. It names nothing about what the run
+/// decided.
+///
+/// # Panics
+/// Never in practice: every map in the hashed parts has string keys and no
+/// value is a non-finite float, so `serde_json::to_string` cannot fail.
+#[must_use]
+pub fn event_hash(input: &HashInput) -> String {
+    let json = canonical_json(input);
     let mut hasher = Sha256::new();
     hasher.update(input.prev_hash.as_bytes());
     hasher.update(b"\n");
@@ -99,7 +135,7 @@ pub fn event_hash(input: &HashInput) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::journal::{EvidenceGrade, RunStarted};
+    use crate::journal::{Attention, CheckResult, EvidenceGrade, RunStarted};
 
     fn actor() -> Actor {
         Actor::system("osf")
@@ -179,6 +215,76 @@ mod tests {
         assert_eq!(
             digest(&miss, None, None, None),
             digest(&hit, None, None, None)
+        );
+    }
+
+    #[test]
+    fn a_fixed_attention_event_has_a_known_hash() {
+        let actor = Actor::system("osf");
+        let prev_hash = genesis_hash();
+        let payload = Payload::Attention(Attention {
+            cause: "human".into(),
+            summary: "needs a person".into(),
+            grade: EvidenceGrade::Unverified,
+        });
+        let input = HashInput {
+            prev_hash: prev_hash.as_str(),
+            payload: &payload,
+            work_item: None,
+            change: None,
+            actor: &actor,
+            cost: None,
+        };
+        assert_eq!(
+            canonical_json(&input),
+            r#"{"payload":{"event_type":"attention","payload":{"cause":"human","summary":"needs a person","grade":"unverified"}},"work_item":null,"change":null,"actor":{"kind":"system","name":"osf"},"cost":null}"#
+        );
+        assert_eq!(
+            event_hash(&input),
+            "c3b8594be772d0bd201d3ee2d6746f5b8b65d28b1d847c15725ca907da639b97"
+        );
+    }
+
+    #[test]
+    fn a_fixed_verification_event_has_a_known_hash() {
+        let actor = Actor::system("osf");
+        let payload = Payload::Verification(Verification {
+            check: "osf:lint".into(),
+            check_type: None,
+            slot: None,
+            checkpoint: "pre-commit".into(),
+            result: CheckResult::Passed,
+            duration_ms: 12,
+            cache: Some("miss".into()),
+            findings: 0,
+            summary: None,
+            grade: EvidenceGrade::Observed,
+            reason: None,
+        });
+        let change = Change {
+            branch: "main".into(),
+            commit: "abc123".into(),
+        };
+        let cost = Cost {
+            usd_micros: Some(7),
+            input_tokens: None,
+            output_tokens: None,
+        };
+        let input = HashInput {
+            prev_hash: "c3b8594be772d0bd201d3ee2d6746f5b8b65d28b1d847c15725ca907da639b97",
+            payload: &payload,
+            work_item: Some("github:open-software-factory/example#1"),
+            change: Some(&change),
+            actor: &actor,
+            cost: Some(&cost),
+        };
+        assert_eq!(
+            canonical_json(&input),
+            r#"{"payload":{"event_type":"verification","payload":{"check":"osf:lint","checkpoint":"pre-commit","result":"passed","duration_ms":0,"findings":0,"grade":"observed"}},"work_item":"github:open-software-factory/example#1","change":{"branch":"main","commit":"abc123"},"actor":{"kind":"system","name":"osf"},"cost":{"usd_micros":7}}"#
+        );
+        assert_eq!(
+            event_hash(&input),
+            "eabc2b9e564c162e57ea7a1fcc631c0b970e8c6797f64c6b2388fc7e9b7c00ed"
         );
     }
 }
