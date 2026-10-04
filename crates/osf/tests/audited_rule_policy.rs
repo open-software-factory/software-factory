@@ -425,9 +425,34 @@ fn a_config_cannot_reenable_an_audited_rule_through_the_checkpoint_runner() {
         &["verify", "--checkpoint", "pre-push", "--base", &base],
     );
     assert_eq!(code, Some(0), "{text}");
+    // A skipped or not-run task prints its name too, so the word after it decides.
     for task in ["osf:lint-writing", "osf:lint-skill"] {
-        assert!(text.contains(task), "{task} did not run: {text}");
+        assert!(
+            text.contains(&format!("{task}: passed")),
+            "{task} did not pass: {text}"
+        );
     }
+}
+
+#[test]
+fn a_kept_rule_raised_to_error_fails_its_task_in_the_checkpoint_runner() {
+    let repo = TempRepo::new("audit-verify-raise");
+    let home = isolated_home("audit-verify-raise");
+    repo.write("osf.toml", POISON);
+    write_lint_tasks(&repo);
+    let base = repo.commit("Add the checks");
+    repo.write("guide.md", SEMICOLON_DOC);
+    repo.commit("Add prose");
+    let (code, text) = run(
+        &repo,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(code, Some(1), "{text}");
+    assert!(
+        text.contains("osf:lint-writing: failed"),
+        "the raised rule did not fail its task: {text}"
+    );
 }
 
 #[test]
@@ -488,8 +513,8 @@ fn a_config_that_raises_a_kept_rule_applies_on_ungated_writing_paths_and_not_on_
     let (code, text) = run(&repo, &home, &args);
     assert_eq!(code, Some(0), "the gate honoured the config: {text}");
     assert!(
-        text.contains("osf:lint-writing-gate"),
-        "gate did not run: {text}"
+        text.contains("osf:lint-writing-gate: passed"),
+        "gate did not pass: {text}"
     );
 }
 
