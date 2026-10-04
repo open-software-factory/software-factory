@@ -652,6 +652,9 @@ fn parse_blockers(content: &Value) -> Result<Vec<Dependency>, TrackerError> {
     };
     let mut dependencies = Vec::new();
     for node in nodes {
+        if node.is_null() {
+            return Err(TrackerError::Failed("a blocker is null".to_string()));
+        }
         let number = node
             .get("number")
             .and_then(Value::as_u64)
@@ -686,35 +689,21 @@ fn parse_blockers(content: &Value) -> Result<Vec<Dependency>, TrackerError> {
     Ok(dependencies)
 }
 
-/// Reads one issue item out of one project node, if it is one.
-fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>, TrackerError> {
-    let Some(content) = node.get("content").filter(|value| !value.is_null()) else {
-        return Ok(None);
-    };
-    if !is_issue_content(content) {
-        return Ok(None);
-    }
-    let status = match node
-        .get("fieldValueByName")
-        .and_then(|field| field.get("name"))
-        .and_then(Value::as_str)
-    {
-        Some(name) if name == ready_option => Status::Ready,
-        Some(name) => Status::Other(name.to_string()),
-        None => Status::Other("no status".to_string()),
-    };
-    let number = content
-        .get("number")
-        .and_then(Value::as_u64)
-        .ok_or_else(|| TrackerError::Failed("the issue has no number".to_string()))?;
+/// Reads the strict fields of one issue, given the number and repository its
+/// caller already read.
+fn parse_issue_item(
+    content: &Value,
+    number: Option<u64>,
+    repository: Option<&str>,
+    status: &Status,
+) -> Result<WorkItem, TrackerError> {
+    let number =
+        number.ok_or_else(|| TrackerError::Failed("the issue has no number".to_string()))?;
     let title = content
         .get("title")
         .and_then(Value::as_str)
         .ok_or_else(|| TrackerError::Failed("the issue has no title".to_string()))?;
-    let repository = content
-        .get("repository")
-        .and_then(|repository| repository.get("nameWithOwner"))
-        .and_then(Value::as_str)
+    let repository = repository
         .ok_or_else(|| TrackerError::Failed("the issue has no repository".to_string()))?;
     let state = content
         .get("state")
@@ -734,7 +723,7 @@ fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>,
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
-    Ok(Some(WorkItem {
+    Ok(WorkItem {
         id: WorkItemId {
             provider: "github".to_string(),
             repo: repository.to_string(),
@@ -743,20 +732,87 @@ fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>,
         title: title.to_string(),
         body,
         repository: repository.to_string(),
-        status,
+        status: status.clone(),
         closed,
         blocked_by: parse_blockers(content)?,
-    }))
+    })
+}
+
+/// Builds the placeholder for a malformed item that is not in the ready status.
+fn unreadable_item(
+    reason: &TrackerError,
+    status: &Status,
+    number: Option<u64>,
+    repository: Option<&str>,
+) -> WorkItem {
+    let name = match status {
+        Status::Ready => "Ready",
+        Status::Other(name) => name.as_str(),
+    };
+    let repository = repository.unwrap_or("unknown/unknown");
+    let item = match number {
+        Some(number) => number.to_string(),
+        None => "unknown".to_string(),
+    };
+    WorkItem {
+        id: WorkItemId {
+            provider: "github".to_string(),
+            repo: repository.to_string(),
+            item,
+        },
+        title: String::new(),
+        body: String::new(),
+        repository: repository.to_string(),
+        status: Status::Other(format!("unreadable: {reason}, status {name}")),
+        closed: false,
+        blocked_by: Vec::new(),
+    }
+}
+
+/// Reads one issue item out of one project node, if it is one.
+///
+/// An item that is not in the ready status and misses a field is kept as a
+/// skipped item whose status text begins with `unreadable:`.
+///
+/// # Errors
+/// Returns an error only when an item in the ready status is malformed.
+fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>, TrackerError> {
+    let Some(content) = node.get("content").filter(|value| !value.is_null()) else {
+        return Ok(None);
+    };
+    if !is_issue_content(content) {
+        return Ok(None);
+    }
+    let (status, ready) = match node
+        .get("fieldValueByName")
+        .and_then(|field| field.get("name"))
+        .and_then(Value::as_str)
+    {
+        Some(name) if name == ready_option => (Status::Ready, true),
+        Some(name) => (Status::Other(name.to_string()), false),
+        None => (Status::Other("no status".to_string()), false),
+    };
+    let number = content.get("number").and_then(Value::as_u64);
+    let repository = content
+        .get("repository")
+        .and_then(|repository| repository.get("nameWithOwner"))
+        .and_then(Value::as_str);
+    match parse_issue_item(content, number, repository, &status) {
+        Ok(item) => Ok(Some(item)),
+        Err(error) if ready => Err(error),
+        Err(error) => Ok(Some(unreadable_item(&error, &status, number, repository))),
+    }
 }
 
 /// Reads one page of project items with their status.
 ///
+/// A malformed item that is not in the ready status is kept as a skipped item,
+/// so one bad non-ready item does not fail the page.
+///
 /// # Errors
 /// Returns an error when the text is not JSON, when the response carries an
 /// `errors` key, when the project or its item list is missing, when a page
-/// says it has a next one with no cursor, when a read issue misses its
-/// number, title, repository or state, or when an issue has more blockers
-/// than were read.
+/// says it has a next one with no cursor, or when a ready item is malformed.
 pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, TrackerError> {
     let value: Value = serde_json::from_str(text).map_err(|error| {
         TrackerError::Failed(format!("cannot read the items response: {error}"))
@@ -1140,6 +1196,137 @@ mod tests {
     fn ready_node(content: impl Into<Value>) -> Value {
         let content = content.into();
         json!({"fieldValueByName": {"name": "Ready"}, "content": content})
+    }
+
+    fn other_node(status: &str, content: impl Into<Value>) -> Value {
+        let content = content.into();
+        json!({"fieldValueByName": {"name": status}, "content": content})
+    }
+
+    struct Malformed {
+        label: &'static str,
+        reason: &'static str,
+        content: Value,
+        item: &'static str,
+        repo: &'static str,
+    }
+
+    fn malformed_shapes() -> Vec<Malformed> {
+        let mut shapes = blocker_shapes();
+        shapes.extend(issue_shapes());
+        shapes
+    }
+
+    fn blocker_shapes() -> Vec<Malformed> {
+        vec![
+            Malformed {
+                label: "a null blocker",
+                reason: "a blocker is null",
+                content: issue(42, "Title", json!("Body."), blockers(json!([null]), false)),
+                item: "42",
+                repo: REPO,
+            },
+            Malformed {
+                label: "a blocker with no state",
+                reason: "a blocker has no state",
+                content: issue(
+                    42,
+                    "Title",
+                    json!("Body."),
+                    blockers(
+                        json!([{"number": 7, "repository": {"nameWithOwner": REPO}}]),
+                        false,
+                    ),
+                ),
+                item: "42",
+                repo: REPO,
+            },
+            Malformed {
+                label: "a blocker with no number",
+                reason: "a blocker has no number",
+                content: issue(
+                    42,
+                    "Title",
+                    json!("Body."),
+                    blockers(
+                        json!([{"state": "OPEN", "repository": {"nameWithOwner": REPO}}]),
+                        false,
+                    ),
+                ),
+                item: "42",
+                repo: REPO,
+            },
+            Malformed {
+                label: "more blockers than were read",
+                reason: "the issue has more blockers than were read",
+                content: issue(42, "Title", json!("Body."), blockers(json!([]), true)),
+                item: "42",
+                repo: REPO,
+            },
+        ]
+    }
+
+    fn issue_shapes() -> Vec<Malformed> {
+        vec![
+            Malformed {
+                label: "a missing issue state",
+                reason: "the issue has no state",
+                content: json!({
+                    "number": 42,
+                    "title": "Title",
+                    "repository": {"nameWithOwner": REPO},
+                    "blockedBy": blockers(json!([]), false),
+                }),
+                item: "42",
+                repo: REPO,
+            },
+            Malformed {
+                label: "a weird issue state",
+                reason: "the issue state 'WEIRD' is neither OPEN nor CLOSED",
+                content: issue_with_state(
+                    42,
+                    "WEIRD",
+                    "Title",
+                    json!("Body."),
+                    blockers(json!([]), false),
+                ),
+                item: "42",
+                repo: REPO,
+            },
+            Malformed {
+                label: "a missing issue title",
+                reason: "the issue has no title",
+                content: json!({
+                    "number": 42,
+                    "repository": {"nameWithOwner": REPO},
+                    "blockedBy": blockers(json!([]), false),
+                }),
+                item: "42",
+                repo: REPO,
+            },
+            Malformed {
+                label: "a missing issue number",
+                reason: "the issue has no number",
+                content: json!({
+                    "title": "Title",
+                    "repository": {"nameWithOwner": REPO},
+                    "blockedBy": blockers(json!([]), false),
+                }),
+                item: "unknown",
+                repo: REPO,
+            },
+            Malformed {
+                label: "a missing issue repository",
+                reason: "the issue has no repository",
+                content: json!({
+                    "number": 42,
+                    "title": "Title",
+                    "blockedBy": blockers(json!([]), false),
+                }),
+                item: "42",
+                repo: "unknown/unknown",
+            },
+        ]
     }
 
     fn full_page() -> String {
@@ -1611,6 +1798,52 @@ mod tests {
     }
 
     #[test]
+    fn parse_items_page_keeps_a_malformed_non_ready_item_as_unreadable() {
+        for shape in malformed_shapes() {
+            let bad = other_node("Backlog", shape.content);
+            let good = ready_node(issue(
+                43,
+                "Ready",
+                json!("Body."),
+                blockers(json!([]), false),
+            ));
+            let page = items_page(json!([bad, good]), false, Value::Null);
+            let parsed = parse_items_page(&page, "Ready")
+                .unwrap_or_else(|error| panic!("{}: {error}", shape.label));
+            assert_eq!(parsed.items.len(), 2, "{}", shape.label);
+            let skipped = parsed.items.first().expect("the skipped item");
+            assert_eq!(skipped.id.provider, "github", "{}", shape.label);
+            assert_eq!(skipped.id.item, shape.item, "{}", shape.label);
+            assert_eq!(skipped.id.repo, shape.repo, "{}", shape.label);
+            assert_eq!(skipped.repository, shape.repo, "{}", shape.label);
+            assert!(skipped.title.is_empty(), "{}", shape.label);
+            assert!(skipped.body.is_empty(), "{}", shape.label);
+            assert!(!skipped.closed, "{}", shape.label);
+            assert!(skipped.blocked_by.is_empty(), "{}", shape.label);
+            let Status::Other(text) = &skipped.status else {
+                panic!("{}: the skipped item is not another status", shape.label);
+            };
+            assert!(text.contains("unreadable:"), "{}: {text}", shape.label);
+            assert!(text.contains(shape.reason), "{}: {text}", shape.label);
+            assert!(text.contains("Backlog"), "{}: {text}", shape.label);
+            assert_eq!(
+                parsed.items.get(1).expect("the ready item").id,
+                github_item("43"),
+                "{}",
+                shape.label
+            );
+        }
+    }
+
+    #[test]
+    fn parse_items_page_rejects_a_malformed_ready_item() {
+        for shape in malformed_shapes() {
+            let page = items_page(json!([ready_node(shape.content)]), false, Value::Null);
+            assert!(parse_items_page(&page, "Ready").is_err(), "{}", shape.label);
+        }
+    }
+
+    #[test]
     fn read_ready_finds_items_over_two_pages() {
         let first = items_page(
             json!([ready_node(issue(
@@ -1731,6 +1964,41 @@ mod tests {
             items.first().expect("one item").status,
             Status::Other("Done".to_string())
         );
+    }
+
+    #[test]
+    fn read_ready_keeps_a_malformed_backlog_item_while_picking_the_ready_one() {
+        let bad = other_node(
+            "Backlog",
+            issue_with_state(
+                41,
+                "WEIRD",
+                "Bad",
+                json!("Body."),
+                blockers(json!([]), false),
+            ),
+        );
+        let good = ready_node(issue(
+            42,
+            "Ready",
+            json!("Body."),
+            blockers(json!([]), false),
+        ));
+        let page = items_page(json!([bad, good]), false, Value::Null);
+        let tracker = tracker(vec![Ok(page.clone()), Ok(page)]);
+        let ReadOutcome::Found(items) = tracker.read_ready() else {
+            panic!("a malformed backlog item must not hide the page");
+        };
+        assert_eq!(items.len(), 2);
+        let Status::Other(text) = &items.first().expect("the malformed item").status else {
+            panic!("the malformed item must carry another status");
+        };
+        assert!(text.contains("unreadable:"));
+        let Pick::Item(item) = pick(&tracker) else {
+            panic!("the good ready item must be picked");
+        };
+        assert_eq!(item.id, github_item("42"));
+        assert_eq!(item.status, Status::Ready);
     }
 
     #[test]
