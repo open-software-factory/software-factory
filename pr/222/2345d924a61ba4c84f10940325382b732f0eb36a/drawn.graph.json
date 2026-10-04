@@ -1,0 +1,979 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-04T00:11:08.936Z",
+  "title": "OMP integration: pi-coding-agent 18.2.11 → 18.4.5",
+  "summary": "Bumps the `@oh-my-pi/pi-coding-agent` dev dependency of the `integrations/omp` workspace package from 18.2.11 to 18.4.5 and regenerates the pnpm lockfile. The whole `@oh-my-pi/*` family moves in lockstep to 18.4.5, sharp moves to 0.35.5 with libvips 1.3.4, and the new agent version drops its Tailwind/chart.js dashboard stack (tailwindcss, @tailwindcss/node, chart.js, react-chartjs-2, lightningcss 1.32, magic-string, enhanced-resolve, graceful-fs, tapable, @jridgewell/*) while picking up lucide-react 1.51.0 and a new optional `@types/react` peer. No application source changes; the effect is confined to what the OMP integration installs and links against.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "66afde947ac2b20442edd5f5f7dc1de1432255cb",
+      "ref": "66afde947ac2b20442edd5f5f7dc1de1432255cb"
+    },
+    "head": {
+      "sha": "2345d924a61ba4c84f10940325382b732f0eb36a",
+      "ref": "2345d924a61ba4c84f10940325382b732f0eb36a"
+    },
+    "pullRequest": {
+      "number": 222,
+      "url": "https://github.com/open-software-factory/software-factory/pull/222"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "pnpm monorepo",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The repository's own packages and the integration that consumes the agent."
+    },
+    {
+      "id": "agent-stack",
+      "label": "OMP agent stack",
+      "subtitle": "@oh-my-pi/* 18.4.5",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The coding-agent CLI and the internal packages it pulls in, all moved to 18.4.5 together."
+    },
+    {
+      "id": "native-and-media",
+      "label": "Native & media deps",
+      "subtitle": "optional binaries",
+      "order": 2,
+      "delta": "modified",
+      "summary": "Platform-specific native binaries and image processing that the agent loads at runtime."
+    },
+    {
+      "id": "dropped-deps",
+      "label": "Dropped dashboard deps",
+      "subtitle": "no longer installed",
+      "order": 3,
+      "delta": "removed",
+      "summary": "The Tailwind/chart.js rendering stack that 18.2.11 pulled in and 18.4.5 no longer needs."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "omp-integration",
+      "label": "integrations/omp",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "devDependency bump",
+      "summary": "The workspace package that wraps the OMP coding agent. Its only change is the pinned devDependency version; everything else in the package is untouched.",
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 19,
+          "endLine": 25
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-lockfile",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "resolved graph",
+      "summary": "The lockfile records the new resolution: importer specifier 18.4.5, the whole @oh-my-pi family at 18.4.5, and the pruned transitive set.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 63,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pi-coding-agent",
+      "label": "@oh-my-pi/pi-coding-agent",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.2.11 → 18.4.5",
+      "summary": "The agent CLI itself. It is the direct dependency being upgraded and the root of the whole dependency subtree that shifts.",
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 22,
+          "endLine": 22
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2327,
+          "endLine": 2335
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pi-agent-core",
+      "label": "@oh-my-pi/pi-agent-core",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Agent loop and tool orchestration, pulled in transitively at the new version.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-ai",
+      "label": "@oh-my-pi/pi-ai",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Model/provider layer, moved in lockstep with the agent.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-tui",
+      "label": "@oh-my-pi/pi-tui",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Terminal UI layer of the agent.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-utils",
+      "label": "@oh-my-pi/pi-utils",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Shared utilities used across the agent packages.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-catalog",
+      "label": "@oh-my-pi/pi-catalog",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Model catalog data consumed by the AI layer.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-wire",
+      "label": "@oh-my-pi/pi-wire",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Wire protocol types shared between agent packages.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pi-mnemopi",
+      "label": "@oh-my-pi/pi-mnemopi",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Memory/context package, also bumped in lockstep.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "snapcompact",
+      "label": "@oh-my-pi/snapcompact",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Context compaction package used by the agent core.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "omptype",
+      "label": "@oh-my-pi/omptype",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5",
+      "summary": "Type definitions shared across the OMP packages.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "omp-stats",
+      "label": "@oh-my-pi/omp-stats",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agent-stack",
+      "subtitle": "18.4.5, slimmer deps",
+      "summary": "The stats/dashboard package. At 18.4.5 it no longer depends on Tailwind, chart.js or react-chartjs-2, which is the source of most of the lockfile deletions.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2259,
+          "endLine": 2270
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pi-natives",
+      "label": "@oh-my-pi/pi-natives",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "native-and-media",
+      "subtitle": "18.4.5 + platform binaries",
+      "summary": "Native addon loader; its per-platform optional binaries all move to 18.4.5.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2335,
+          "endLine": 2360
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sharp",
+      "label": "sharp",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "native-and-media",
+      "subtitle": "0.35.4 → 0.35.5",
+      "summary": "Image processing library, bumped with its libvips binaries from 1.3.3 to 1.3.4.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3385,
+          "endLine": 3415
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lucide-react",
+      "label": "lucide-react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "native-and-media",
+      "subtitle": "1.48.0 → 1.51.0",
+      "summary": "Icon set used by the stats UI; the new version adds an optional @types/react peer.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3110,
+          "endLine": 3113
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tailwindcss",
+      "label": "tailwindcss",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "dropped-deps",
+      "subtitle": "no longer resolved",
+      "summary": "Tailwind and its node-side toolchain were only reachable through omp-stats 18.2.11; 18.4.5 drops them.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1793,
+          "endLine": 1796,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "chartjs",
+      "label": "chart.js + react-chartjs-2",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "dropped-deps",
+      "subtitle": "no longer resolved",
+      "summary": "The charting stack used by the old stats dashboard, removed along with @kurkle/color.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1266,
+          "endLine": 1269,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lightningcss",
+      "label": "lightningcss 1.32.0",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "dropped-deps",
+      "subtitle": "old line pruned",
+      "summary": "The 1.32.0 line and its platform binaries disappear; 1.33.0 remains for other consumers.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1440,
+          "endLine": 1520,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "jridgewell",
+      "label": "@jridgewell/* + magic-string",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "dropped-deps",
+      "subtitle": "sourcemap chain",
+      "summary": "Sourcemap and remapping helpers that only existed to serve the Tailwind build path.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 424,
+          "endLine": 445,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "omp-depends-on-agent",
+      "from": "omp-integration",
+      "to": "pi-coding-agent",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 18.4.5",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The single authored change: the pinned devDependency version in the integration's package.json.",
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 22,
+          "endLine": 22
+        }
+      ]
+    },
+    {
+      "id": "lockfile-resolves-agent",
+      "from": "pnpm-lockfile",
+      "to": "pi-coding-agent",
+      "kind": "data",
+      "delta": "modified",
+      "label": "specifier 18.4.5",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile importer entry and package snapshot are rewritten to the new version and integrity hash.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 63,
+          "endLine": 70
+        }
+      ]
+    },
+    {
+      "id": "agent-pulls-core",
+      "from": "pi-coding-agent",
+      "to": "pi-agent-core",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Agent core is resolved at 18.4.5 instead of 18.2.11.",
+      "files": []
+    },
+    {
+      "id": "agent-pulls-ai",
+      "from": "pi-coding-agent",
+      "to": "pi-ai",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "AI layer moves with the agent.",
+      "files": []
+    },
+    {
+      "id": "agent-pulls-tui",
+      "from": "pi-coding-agent",
+      "to": "pi-tui",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "TUI layer moves with the agent.",
+      "files": []
+    },
+    {
+      "id": "agent-pulls-stats",
+      "from": "pi-coding-agent",
+      "to": "omp-stats",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Stats package moves to 18.4.5 and loses its dashboard dependencies.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2259,
+          "endLine": 2270
+        }
+      ]
+    },
+    {
+      "id": "agent-pulls-mnemopi",
+      "from": "pi-coding-agent",
+      "to": "pi-mnemopi",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Memory package moves with the agent.",
+      "files": []
+    },
+    {
+      "id": "agent-pulls-snapcompact",
+      "from": "pi-coding-agent",
+      "to": "snapcompact",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Compaction package moves with the agent.",
+      "files": []
+    },
+    {
+      "id": "core-pulls-natives",
+      "from": "pi-agent-core",
+      "to": "pi-natives",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Native addon loader resolved at 18.4.5 with matching platform binaries.",
+      "files": []
+    },
+    {
+      "id": "ai-pulls-catalog",
+      "from": "pi-ai",
+      "to": "pi-catalog",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Catalog data package moves with the AI layer.",
+      "files": []
+    },
+    {
+      "id": "ai-pulls-wire",
+      "from": "pi-ai",
+      "to": "pi-wire",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Wire types move with the AI layer.",
+      "files": []
+    },
+    {
+      "id": "utils-pulls-natives",
+      "from": "pi-utils",
+      "to": "pi-natives",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Utilities keep their native dependency, at the new version.",
+      "files": []
+    },
+    {
+      "id": "catalog-pulls-omptype",
+      "from": "pi-catalog",
+      "to": "omptype",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Shared type package moves with the catalog.",
+      "files": []
+    },
+    {
+      "id": "stats-pulls-lucide",
+      "from": "omp-stats",
+      "to": "lucide-react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "1.51.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The stats UI keeps its icon library, now at 1.51.0 with an optional @types/react peer.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3110,
+          "endLine": 3113
+        }
+      ]
+    },
+    {
+      "id": "stats-dropped-tailwind",
+      "from": "omp-stats",
+      "to": "tailwindcss",
+      "kind": "dependency",
+      "delta": "removed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "omp-stats 18.4.5 no longer depends on Tailwind, so the package and its toolchain leave the lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2259,
+          "endLine": 2270
+        }
+      ]
+    },
+    {
+      "id": "stats-dropped-chartjs",
+      "from": "omp-stats",
+      "to": "chartjs",
+      "kind": "dependency",
+      "delta": "removed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The chart.js / react-chartjs-2 pair is no longer a dependency of the stats package.",
+      "files": []
+    },
+    {
+      "id": "tailwind-pulled-lightningcss",
+      "from": "tailwindcss",
+      "to": "lightningcss",
+      "kind": "dependency",
+      "delta": "removed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "With Tailwind gone, the 1.32.0 lightningcss line it required is pruned.",
+      "files": []
+    },
+    {
+      "id": "tailwind-pulled-jridgewell",
+      "from": "tailwindcss",
+      "to": "jridgewell",
+      "kind": "dependency",
+      "delta": "removed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The sourcemap/remapping helpers existed only for the Tailwind build path.",
+      "files": []
+    },
+    {
+      "id": "natives-pulls-sharp",
+      "from": "pi-natives",
+      "to": "sharp",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.35.5",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Image processing stays in the native layer, bumped to 0.35.5 with libvips 1.3.4.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3385,
+          "endLine": 3415
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "install-resolution",
+      "title": "Resolving the OMP integration's dependency tree",
+      "summary": "What happens when the lockfile is applied: the integration's pinned version selects the 18.4.5 agent, which fans out to the OMP package family, the native binaries and the trimmed stats dependencies.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "omp-integration",
+          "label": "integrations/omp"
+        },
+        {
+          "node": "pnpm-lockfile",
+          "label": "pnpm-lock.yaml"
+        },
+        {
+          "node": "pi-coding-agent",
+          "label": "pi-coding-agent"
+        },
+        {
+          "node": "omp-stats",
+          "label": "omp-stats"
+        },
+        {
+          "node": "pi-natives",
+          "label": "pi-natives"
+        },
+        {
+          "node": "sharp",
+          "label": "sharp"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-pin",
+          "from": "omp-integration",
+          "to": "pnpm-lockfile",
+          "label": "devDependency @oh-my-pi/pi-coding-agent 18.4.5",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "integrations/omp/package.json",
+              "startLine": 22,
+              "endLine": 22
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "DependencySpec",
+              "shape": "{ name: string; range: string }",
+              "sample": {
+                "name": "@oh-my-pi/pi-coding-agent",
+                "range": "18.4.5"
+              },
+              "before": {
+                "name": "@oh-my-pi/pi-coding-agent",
+                "range": "18.2.11"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-resolve-agent",
+          "from": "pnpm-lockfile",
+          "to": "pi-coding-agent",
+          "label": "resolve 18.4.5 + integrity",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 63,
+              "endLine": 70
+            }
+          ],
+          "payload": {
+            "response": {
+              "type": "ResolvedPackage",
+              "shape": "{ version: string; integrity: string }",
+              "sample": {
+                "version": "18.4.5",
+                "integrity": "sha512-XR3bMg78K51P0Dj9dC+dYqgrXVlCQdn2Q8rnd9HE/+sveBDVLtC5nSKiGD2UhavsHAD4JMxhe3KZm2sCs8bzqg=="
+              },
+              "before": {
+                "version": "18.2.11",
+                "integrity": "sha512-+F/6HPGcxS3X7ti7OXcf7gb25BgA+OQu+52BFqUfN6wIaI80gte66xOcvUuO+n5UtoCTzjCc0D6iBjvJWmzRBA=="
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-fanout-stats",
+          "from": "pi-coding-agent",
+          "to": "omp-stats",
+          "label": "@oh-my-pi/omp-stats 18.4.5",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2259,
+              "endLine": 2270
+            }
+          ]
+        },
+        {
+          "id": "step-stats-drop",
+          "from": "omp-stats",
+          "to": "omp-stats",
+          "label": "drop tailwindcss, chart.js, react-chartjs-2",
+          "kind": "self",
+          "delta": "removed",
+          "animated": true,
+          "note": "The stats package's dependency list shrinks; this is where the bulk of the lockfile deletions come from.",
+          "files": []
+        },
+        {
+          "id": "step-fanout-natives",
+          "from": "pi-coding-agent",
+          "to": "pi-natives",
+          "label": "@oh-my-pi/pi-natives 18.4.5",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2335,
+              "endLine": 2360
+            }
+          ]
+        },
+        {
+          "id": "step-natives-sharp",
+          "from": "pi-natives",
+          "to": "sharp",
+          "label": "sharp 0.35.5 (libvips 1.3.4)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 3385,
+              "endLine": 3415
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "NativeBinaryRequest",
+              "shape": "{ name: string; version: string }",
+              "sample": {
+                "name": "sharp",
+                "version": "0.35.5"
+              },
+              "before": {
+                "name": "sharp",
+                "version": "0.35.4"
+              },
+              "changedPaths": []
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 248,
+    "deletions": 467,
+    "chips": [
+      {
+        "label": "Agent version",
+        "value": "18.2.11 → 18.4.5",
+        "tone": "hero"
+      },
+      {
+        "label": "OMP packages bumped",
+        "value": "13",
+        "tone": "modified"
+      },
+      {
+        "label": "Packages pruned",
+        "value": "~20",
+        "tone": "removed"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "view-containers",
+      "title": "Container view: OMP integration and its dependency tree",
+      "lens": "architecture",
+      "summary": "The integration package, the lockfile that pins it, and the OMP package family it resolves to — including the native/media layer and the dashboard dependencies the new version drops.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-agent-stack",
+      "title": "Component view: inside the OMP agent stack",
+      "lens": "architecture",
+      "summary": "How the 18.4.5 agent fans out to its internal packages, and which of those reach the native layer.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "agent-stack",
+          "native-and-media"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "view-dropped",
+      "title": "Component view: what 18.4.5 stops installing",
+      "lens": "architecture",
+      "summary": "The Tailwind/chart.js subtree that was only reachable through omp-stats 18.2.11 and is pruned in the new resolution.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "dropped-deps"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "walk-pin",
+        "heading": "One line changes",
+        "body": "The integration pins the agent at 18.4.5 instead of 18.2.11.",
+        "stage": {
+          "kind": "view",
+          "view": "view-containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "omp-integration",
+            "pi-coding-agent"
+          ],
+          "edges": [
+            "omp-depends-on-agent"
+          ],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-lock",
+        "heading": "Lockfile follows",
+        "body": "The importer specifier and the package snapshot are rewritten with a new integrity hash.",
+        "stage": {
+          "kind": "view",
+          "view": "view-containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "pnpm-lockfile",
+            "pi-coding-agent"
+          ],
+          "edges": [
+            "lockfile-resolves-agent"
+          ],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-family",
+        "heading": "The family moves together",
+        "body": "Every @oh-my-pi package resolves at 18.4.5, so no mixed-version pair remains.",
+        "stage": {
+          "kind": "view",
+          "view": "view-agent-stack"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [
+            "agent-stack"
+          ],
+          "nodes": [],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-natives",
+        "heading": "Native layer bumps",
+        "body": "Platform binaries and sharp move with the agent; libvips goes 1.3.3 to 1.3.4.",
+        "stage": {
+          "kind": "view",
+          "view": "view-agent-stack"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "pi-natives",
+            "sharp"
+          ],
+          "edges": [
+            "natives-pulls-sharp"
+          ],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-prune",
+        "heading": "Dashboard stack leaves",
+        "body": "omp-stats 18.4.5 no longer needs Tailwind or chart.js, so that subtree is pruned.",
+        "stage": {
+          "kind": "view",
+          "view": "view-dropped"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [
+            "dropped-deps"
+          ],
+          "nodes": [],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-flow",
+        "heading": "Install-time resolution",
+        "body": "The ordered path from the pinned specifier to the resolved native binaries.",
+        "stage": {
+          "kind": "flow",
+          "flow": "install-resolution"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}
