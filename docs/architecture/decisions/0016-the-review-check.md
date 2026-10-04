@@ -212,7 +212,7 @@ The review check is advisory for now. It posts its result as a check run and as 
 
 A must-fix finding fails the final job at the pull request. At pre-push it is a warning only, and it never stops a push.
 
-[open-software-factory/software-factory#178 (review check)](https://github.com/open-software-factory/software-factory/pull/178) carries `osf review run`, `osf review reduce`, `osf review work-item`, the workflow `review.yml`, the default prompt file and the lens files. Main has only `osf review post` until that pull request merges.
+[open-software-factory/software-factory#178 (review check)](https://github.com/open-software-factory/software-factory/pull/178) carries `osf review run`, `osf review reduce`, `osf review work-item`, the workflow `review.yml`, the default prompt file and the lens files. Main has only `osf review post`, and the `osf.toml` on main has no `[agents]` section, until that pull request merges.
 
 The journal keeps each reviewer's answer as one event, with its lens, reviewer, family, scores and findings, linked to the reviewer's transcript. The reducer's decision is one more event.
 
