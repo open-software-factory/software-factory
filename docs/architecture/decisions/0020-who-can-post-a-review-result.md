@@ -123,7 +123,7 @@ The review is defined in a workflow that always runs the base branch's own file.
 
 The develop step is a CI job that runs in the development container image. An agent takes a work item, builds it, runs the checkpoints, and opens the pull request under the builder identity. The review is a separate workflow, run from the base branch, whose reviewer jobs also use the container image, because they run agent reviewers. The container image is used only by jobs that do agent or model work. The console stays a viewer that a person starts and stops. The factory's own command line runs the work inside the workflows instead of inside the console. Other code hosts and CI systems stay in view for later: an adapter can supply the same events and jobs without changing this shape.
 
-### 5. The CI review job is the gate
+### 5. The CI review job is the only review that counts
 
 The final job of the review, from the base-branch workflow, is the only review that can count toward a merge. The review check is advisory for now. It posts a check run and a review, and branch protection does not require it. It becomes a required check when the key proxy and the network split in [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) land. From then on, branch protection requires that final job. A review run before the push, inside the builder agent's own workspace, is an early warning only, and it never counts toward the merge. The agent has a shell in its own workspace, so a run there could be made to report a pass. The pre-push run stays, as a cheap, early signal.
 

@@ -4,11 +4,11 @@ Status: draft. This document states principles for later enforcement. It becomes
 
 Date: 2026-09-30
 
-Decision 0020, the decision on who can post a review result the factory trusts, is [open-software-factory/software-factory#136 (the review check design)](https://github.com/open-software-factory/software-factory/issues/136). It settles the review gate on one platform, GitHub Actions. This document names the general properties behind that record. Any gate, on any platform, needs these properties to be safe.
+Decision 0020, the decision on who can post a review result the factory trusts, is [open-software-factory/software-factory#136 (the review check design)](https://github.com/open-software-factory/software-factory/issues/136). It settles the review check on one platform, GitHub Actions. This document names the general properties behind that record. Any gate, on any platform, needs these properties to be safe.
 
 ## Problem
 
-A gate checks a change. A gate blocks or allows a merge. The review check is one gate. A gate is only as safe as the platform that runs it.
+A gate checks a change. A gate blocks or allows a merge. The review check is meant to be one gate, and it is advisory for now. A gate is only as safe as the platform that runs it.
 
 The factory plans to support more than one execution platform over time. GitHub Actions is the first platform, and other platforms come later.
 
