@@ -307,7 +307,14 @@ mod tests {
 
     #[test]
     fn plan_refuses_an_unpinned_image() {
-        for image in ["example/base:latest", "example/base"] {
+        for image in [
+            "example/base:latest",
+            "example/base",
+            "--user=0:1",
+            "-x",
+            "sleep",
+            "example/Base:1",
+        ] {
             let mut request = request();
             request.image = image.to_string();
             assert!(
@@ -349,30 +356,44 @@ mod tests {
             serde_json::json!({
                 "create": [
                     "create",
-                    "--name",
-                    "osf-sandbox-1",
+                    "--name=osf-sandbox-1",
                     "--cap-drop",
                     "ALL",
                     "--security-opt",
                     "no-new-privileges",
-                    "--user",
-                    "dev",
-                    "--workdir",
-                    "/workspace",
+                    "--user=dev",
+                    "--workdir=/workspace",
                     "--network",
                     "none",
-                    "--mount",
-                    "type=bind,source=/host/repo,target=/workspace",
-                    "--mount",
-                    "type=bind,source=/host/state,target=/state",
+                    "--mount=type=bind,source=/host/repo,target=/workspace",
+                    "--mount=type=bind,source=/host/state,target=/state",
+                    "--",
                     "example/base:1",
                     "sleep",
                     "2147483647",
                 ],
-                "start": ["start", "<id>"],
-                "exec": ["exec", "<id>", "sh", "-c", "echo hi"],
-                "remove": ["rm", "--force", "<id>"],
+                "start": ["start", "--", "<id>"],
+                "exec": ["exec", "--", "<id>", "sh", "-c", "echo hi"],
+                "remove": ["rm", "--force", "--", "<id>"],
             })
+        );
+    }
+
+    #[test]
+    fn dry_run_exec_keeps_dashed_command_words_after_the_id() {
+        let mut request = request();
+        request.command = vec!["--user=0:0".to_string(), "-x".to_string()];
+        let plan = plan_of(&request);
+        let value: serde_json::Value = serde_json::from_str(&dry_run_json(&plan)).expect("parses");
+        assert_eq!(
+            value.get("exec"),
+            Some(&serde_json::json!([
+                "exec",
+                "--",
+                "<id>",
+                "--user=0:0",
+                "-x"
+            ]))
         );
     }
 

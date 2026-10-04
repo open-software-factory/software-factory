@@ -18,8 +18,9 @@ fn argv(value: &Value, key: &str) -> Vec<String> {
         .collect()
 }
 
-/// The `source=` path of a `type=bind,...` mount value.
+/// The `source=` path of a `--mount=type=bind,...` mount value.
 fn mount_source(mount: &str) -> &str {
+    let mount = mount.strip_prefix("--mount=").unwrap_or(mount);
     mount
         .strip_prefix("type=bind,source=")
         .and_then(|rest| rest.split(",target=").next())
@@ -37,7 +38,7 @@ fn mount_for<'a>(create: &'a [String], target: &str) -> &'a String {
     let suffix = format!(",target={target}");
     create
         .iter()
-        .find(|part| part.starts_with("type=bind,") && part.ends_with(&suffix))
+        .find(|part| part.starts_with("--mount=type=bind,") && part.ends_with(&suffix))
         .unwrap_or_else(|| panic!("a mount for {target}: {create:?}"))
 }
 
@@ -93,8 +94,8 @@ fn dry_run_prints_the_pinned_argv_for_both_folders() {
         exec.ends_with(&["sh".to_string(), "-c".to_string(), "echo hi".to_string()]),
         "{exec:?}"
     );
-    assert_eq!(argv(&value, "start"), vec!["start", "<id>"]);
-    assert_eq!(argv(&value, "remove"), vec!["rm", "--force", "<id>"]);
+    assert_eq!(argv(&value, "start"), vec!["start", "--", "<id>"]);
+    assert_eq!(argv(&value, "remove"), vec!["rm", "--force", "--", "<id>"]);
 }
 
 #[test]
@@ -304,4 +305,65 @@ fn a_command_with_no_words_is_a_clap_error() {
         ],
     );
     assert_eq!(output.status.code(), Some(2), "{output:?}");
+}
+
+#[test]
+fn a_flag_shaped_image_is_refused_in_dry_run() {
+    let repo = TempDir::new("osf-sandbox-cli-flag-repo");
+    let state = TempDir::new("osf-sandbox-cli-flag-state");
+    let repo_arg = repo.to_string_lossy().into_owned();
+    let state_arg = state.to_string_lossy().into_owned();
+    let home = isolated_home("osf-sandbox-cli-flag");
+    let cases: [&[&str]; 3] = [
+        &["--image=--user=0:1"],
+        &["--image=-x"],
+        &["--image", "sleep"],
+    ];
+    for image_args in cases {
+        let mut args: Vec<&str> = vec!["sandbox", "run"];
+        args.extend_from_slice(image_args);
+        args.extend_from_slice(&[
+            "--repo",
+            repo_arg.as_str(),
+            "--state",
+            state_arg.as_str(),
+            "--dry-run",
+            "--",
+            "true",
+        ]);
+        let output = run_osf(&repo, &home, &args);
+        assert_eq!(output.status.code(), Some(2), "{image_args:?}: {output:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("image"), "{image_args:?}: {stderr}");
+    }
+}
+
+#[test]
+fn a_dashed_command_stays_after_the_exec_separator() {
+    let repo = TempDir::new("osf-sandbox-cli-dashed-repo");
+    let state = TempDir::new("osf-sandbox-cli-dashed-state");
+    let repo_arg = repo.to_string_lossy().into_owned();
+    let state_arg = state.to_string_lossy().into_owned();
+    let home = isolated_home("osf-sandbox-cli-dashed");
+    let output = run_osf(
+        &repo,
+        &home,
+        &[
+            "sandbox",
+            "run",
+            "--image",
+            "example/base:1",
+            "--repo",
+            &repo_arg,
+            "--state",
+            &state_arg,
+            "--dry-run",
+            "--",
+            "--user=0:0",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    let value: Value = serde_json::from_slice(&output.stdout).expect("one JSON object");
+    let exec = argv(&value, "exec");
+    assert_eq!(exec, ["exec", "--", "<id>", "--user=0:0"]);
 }

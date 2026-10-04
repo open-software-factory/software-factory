@@ -238,23 +238,20 @@ fn kill_tree(child: &Child) -> Result<(), String> {
 pub fn create_argv(spec: &SandboxSpec) -> Vec<String> {
     let mut argv = vec![
         "create".to_string(),
-        "--name".to_string(),
-        spec.name.clone(),
+        format!("--name={}", spec.name),
         "--cap-drop".to_string(),
         "ALL".to_string(),
         "--security-opt".to_string(),
         "no-new-privileges".to_string(),
-        "--user".to_string(),
-        spec.user.clone(),
-        "--workdir".to_string(),
-        spec.workdir.clone(),
+        format!("--user={}", spec.user),
+        format!("--workdir={}", spec.workdir),
         "--network".to_string(),
         network_name(&spec.network).to_string(),
     ];
     for mount in &spec.mounts {
-        argv.push("--mount".to_string());
-        argv.push(mount_spec(mount));
+        argv.push(format!("--mount={}", mount_spec(mount)));
     }
+    argv.push("--".to_string());
     argv.push(spec.image.clone());
     argv.push(KEEPALIVE_PROGRAM.to_string());
     argv.push(KEEPALIVE_SECS.to_string());
@@ -285,7 +282,7 @@ fn mount_spec(mount: &Mount) -> String {
 /// The `docker start` argv for `id`, without the program name.
 #[must_use]
 pub fn start_argv(id: &str) -> Vec<String> {
-    vec!["start".to_string(), id.to_string()]
+    vec!["start".to_string(), "--".to_string(), id.to_string()]
 }
 
 /// The `docker exec` argv for `command` in `id`, without the program name.
@@ -293,9 +290,9 @@ pub fn start_argv(id: &str) -> Vec<String> {
 pub fn exec_argv(id: &str, command: &CommandSpec) -> Vec<String> {
     let mut argv = vec!["exec".to_string()];
     if let Some(workdir) = &command.workdir {
-        argv.push("--workdir".to_string());
-        argv.push(workdir.clone());
+        argv.push(format!("--workdir={workdir}"));
     }
+    argv.push("--".to_string());
     argv.push(id.to_string());
     argv.push(command.program.clone());
     argv.extend(command.args.iter().cloned());
@@ -305,13 +302,18 @@ pub fn exec_argv(id: &str, command: &CommandSpec) -> Vec<String> {
 /// The `docker kill` argv for `id`, without the program name.
 #[must_use]
 pub fn kill_argv(id: &str) -> Vec<String> {
-    vec!["kill".to_string(), id.to_string()]
+    vec!["kill".to_string(), "--".to_string(), id.to_string()]
 }
 
 /// The `docker rm --force` argv for `id`, without the program name.
 #[must_use]
 pub fn remove_argv(id: &str) -> Vec<String> {
-    vec!["rm".to_string(), "--force".to_string(), id.to_string()]
+    vec![
+        "rm".to_string(),
+        "--force".to_string(),
+        "--".to_string(),
+        id.to_string(),
+    ]
 }
 
 /// The `docker version` argv, without the program name.
@@ -332,6 +334,7 @@ pub fn image_inspect_argv(image: &str) -> Vec<String> {
         "inspect".to_string(),
         "--format".to_string(),
         "{{.Id}}".to_string(),
+        "--".to_string(),
         image.to_string(),
     ]
 }
@@ -346,36 +349,208 @@ pub fn network_probe_argv() -> Vec<String> {
     ]
 }
 
-/// Whether `image` is pinned: a `name@sha256:` digest or a non-`latest` tag.
+/// Whether `image` is pinned: a valid reference with a digest or a non-`latest` tag.
 #[must_use]
 pub fn image_is_pinned(image: &str) -> bool {
-    if let Some((_, digest)) = image.rsplit_once('@') {
-        return digest.strip_prefix("sha256:").is_some_and(is_digest_hex);
-    }
-    // The tag is what follows the last `:` of the last `/`-separated part, so
-    // a registry port such as `registry:5000/image` names no tag at all.
-    let last = image.rsplit('/').next().unwrap_or(image);
-    last.rsplit_once(':')
-        .is_some_and(|(_, tag)| !tag.is_empty() && tag != "latest")
+    validate_image(image).is_ok()
 }
 
-/// Whether `hex` is exactly 64 hexadecimal digits.
-fn is_digest_hex(hex: &str) -> bool {
-    hex.len() == 64 && hex.bytes().all(|byte| byte.is_ascii_hexdigit())
+/// One image rejection: the reason, then the image text it names.
+fn rejected_image(reason: &str, image: &str) -> SandboxError {
+    SandboxError::Rejected(format!("{reason}: {image}"))
+}
+
+/// Checks `image` as `name[:tag][@digest]` and requires it to be pinned.
+///
+/// # Errors
+/// Returns [`SandboxError::Rejected`] for an empty, dashed, malformed or
+/// unpinned image.
+fn validate_image(image: &str) -> Result<(), SandboxError> {
+    if image.is_empty() {
+        return Err(rejected_image("the image must not be empty", image));
+    }
+    if image.starts_with('-') {
+        return Err(rejected_image("the image must not start with '-'", image));
+    }
+    if !is_valid_reference(image) {
+        return Err(rejected_image("the image is not a valid reference", image));
+    }
+    if is_pinned_reference(image) {
+        return Ok(());
+    }
+    Err(rejected_image(
+        "the image must be pinned by digest or a non-latest tag",
+        image,
+    ))
+}
+
+/// Whether `image` matches `name[:tag][@digest]`.
+fn is_valid_reference(image: &str) -> bool {
+    if image.matches('@').count() > 1 {
+        return false;
+    }
+    let (reference, digest) = match image.split_once('@') {
+        Some((reference, digest)) => (reference, Some(digest)),
+        None => (image, None),
+    };
+    if digest.is_some_and(|digest| !is_digest(digest)) {
+        return false;
+    }
+    let (name, tag) = split_tag(reference);
+    tag.is_none_or(is_tag) && is_name(name)
+}
+
+/// Whether a valid `image` carries a digest or a non-`latest` tag.
+fn is_pinned_reference(image: &str) -> bool {
+    if image.contains('@') {
+        return true;
+    }
+    split_tag(image).1.is_some_and(|tag| tag != "latest")
+}
+
+/// Splits `reference` into its name and optional tag: the last `:` after the
+/// last `/` (or in the whole text when it holds no `/`); a `:` before the last
+/// `/` is a registry port.
+fn split_tag(reference: &str) -> (&str, Option<&str>) {
+    let start = reference.rfind('/').map_or(0, |slash| slash + 1);
+    let Some(colon) = reference.get(start..).and_then(|rest| rest.rfind(':')) else {
+        return (reference, None);
+    };
+    let colon = start + colon;
+    let name = reference.get(..colon).unwrap_or_default();
+    let tag = reference.get(colon + 1..).unwrap_or_default();
+    (name, Some(tag))
+}
+
+/// Whether `digest` is `sha256:` then exactly 64 lowercase hex characters.
+fn is_digest(digest: &str) -> bool {
+    let Some(hex) = digest.strip_prefix("sha256:") else {
+        return false;
+    };
+    hex.len() == 64
+        && hex
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// Whether `tag` is a letter, digit or `_`, then up to 127 more letters,
+/// digits, `.`, `_` or `-`.
+fn is_tag(tag: &str) -> bool {
+    let mut bytes = tag.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    if !first.is_ascii_alphanumeric() && first != b'_' {
+        return false;
+    }
+    tag.len() <= 128
+        && bytes.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+/// Whether `name` is `[registry/]path`, with at least one path component.
+fn is_name(name: &str) -> bool {
+    let components: Vec<&str> = name.split('/').collect();
+    let Some(first) = components.first().copied() else {
+        return false;
+    };
+    let path_start = if components.len() > 1
+        && (first.contains('.') || first.contains(':') || first == "localhost")
+    {
+        if !is_registry_host(first) {
+            return false;
+        }
+        1
+    } else {
+        0
+    };
+    let Some(path) = components.get(path_start..) else {
+        return false;
+    };
+    !path.is_empty() && path.iter().all(|part| is_path_component(part))
+}
+
+/// Whether `component` is `host` or `host:port`: dot-separated labels, then
+/// one to five port digits.
+fn is_registry_host(component: &str) -> bool {
+    let (host, port) = match component.rsplit_once(':') {
+        Some((host, port)) => (host, Some(port)),
+        None => (component, None),
+    };
+    if port.is_some_and(|port| !is_port(port)) {
+        return false;
+    }
+    !host.is_empty() && host.split('.').all(is_host_label)
+}
+
+/// Whether `port` is one to five ASCII digits.
+fn is_port(port: &str) -> bool {
+    (1..=5).contains(&port.len()) && port.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+/// Whether `label` starts and ends with a letter or digit and holds only
+/// letters, digits and `-` between them.
+fn is_host_label(label: &str) -> bool {
+    let (Some(first), Some(last)) = (label.as_bytes().first(), label.as_bytes().last()) else {
+        return false;
+    };
+    first.is_ascii_alphanumeric()
+        && last.is_ascii_alphanumeric()
+        && label
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+}
+
+/// Whether `part` is lowercase letters and digits joined by `.`, `_`, `__`
+/// or one or more `-`.
+fn is_path_component(part: &str) -> bool {
+    let bytes = part.as_bytes();
+    let mut index = 0;
+    while bytes.get(index).copied().is_some_and(is_path_byte) {
+        index += 1;
+    }
+    if index == 0 {
+        return false;
+    }
+    while index < bytes.len() {
+        match bytes.get(index) {
+            Some(b'.') => index += 1,
+            Some(b'-') => {
+                while bytes.get(index) == Some(&b'-') {
+                    index += 1;
+                }
+            }
+            Some(b'_') => {
+                index += 1;
+                if bytes.get(index) == Some(&b'_') {
+                    index += 1;
+                }
+            }
+            _ => return false,
+        }
+        let token_start = index;
+        while bytes.get(index).copied().is_some_and(is_path_byte) {
+            index += 1;
+        }
+        if index == token_start {
+            return false;
+        }
+    }
+    true
+}
+
+/// Whether `byte` may appear in a path component word: a lowercase letter or digit.
+fn is_path_byte(byte: u8) -> bool {
+    byte.is_ascii_lowercase() || byte.is_ascii_digit()
 }
 
 /// Checks `spec` before any runner call.
 ///
 /// # Errors
-/// Returns [`SandboxError::Rejected`] for an unpinned image, an empty, root,
-/// zero or malformed user, a relative workdir, a malformed name, or a bad mount.
+/// Returns [`SandboxError::Rejected`] for an invalid or unpinned image, an
+/// empty, root, zero or malformed user, a relative workdir, a malformed name,
+/// or a bad mount.
 pub fn validate_spec(spec: &SandboxSpec) -> Result<(), SandboxError> {
-    if !image_is_pinned(&spec.image) {
-        return Err(SandboxError::Rejected(format!(
-            "the image must be pinned by digest or a non-latest tag: {}",
-            spec.image
-        )));
-    }
+    validate_image(&spec.image)?;
     validate_user(&spec.user)?;
     if !spec.workdir.starts_with('/') {
         return Err(SandboxError::Rejected(format!(
@@ -906,27 +1081,38 @@ mod tests {
             create_argv(&spec()),
             strings(&[
                 "create",
-                "--name",
-                "build",
+                "--name=build",
                 "--cap-drop",
                 "ALL",
                 "--security-opt",
                 "no-new-privileges",
-                "--user",
-                "dev",
-                "--workdir",
-                "/work",
+                "--user=dev",
+                "--workdir=/work",
                 "--network",
                 "none",
-                "--mount",
-                "type=bind,source=/host/project,target=/work/project",
-                "--mount",
-                "type=bind,source=/host/cache,target=/cache,readonly",
+                "--mount=type=bind,source=/host/project,target=/work/project",
+                "--mount=type=bind,source=/host/cache,target=/cache,readonly",
+                "--",
                 "example/base:1",
                 "sleep",
                 "2147483647",
             ])
         );
+    }
+
+    #[test]
+    fn create_argv_puts_the_image_after_one_double_dash() {
+        let argv = create_argv(&spec());
+        let at = argv
+            .iter()
+            .position(|part| part.as_str() == "--")
+            .expect("one --");
+        assert_eq!(
+            argv.iter().filter(|part| part.as_str() == "--").count(),
+            1,
+            "{argv:?}"
+        );
+        assert_eq!(argv.get(at + 1).map(String::as_str), Some("example/base:1"));
     }
 
     #[test]
@@ -943,14 +1129,14 @@ mod tests {
 
     #[test]
     fn start_argv_pins_the_exact_vector() {
-        assert_eq!(start_argv("abc"), strings(&["start", "abc"]));
+        assert_eq!(start_argv("abc"), strings(&["start", "--", "abc"]));
     }
 
     #[test]
     fn exec_argv_pins_the_exact_vector_without_a_workdir() {
         assert_eq!(
             exec_argv("abc", &command()),
-            strings(&["exec", "abc", "run", "--fast"])
+            strings(&["exec", "--", "abc", "run", "--fast"])
         );
     }
 
@@ -960,18 +1146,56 @@ mod tests {
         command.workdir = Some("/work".to_string());
         assert_eq!(
             exec_argv("abc", &command),
-            strings(&["exec", "--workdir", "/work", "abc", "run", "--fast"])
+            strings(&["exec", "--workdir=/work", "--", "abc", "run", "--fast"])
+        );
+    }
+
+    #[test]
+    fn exec_argv_keeps_dashed_words_after_the_double_dash() {
+        let command = CommandSpec {
+            program: "--user=0:0".to_string(),
+            args: vec![
+                "-x".to_string(),
+                "--workdir=/".to_string(),
+                "--".to_string(),
+            ],
+            workdir: None,
+            timeout_secs: None,
+        };
+        let argv = exec_argv("abc", &command);
+        assert_eq!(
+            argv,
+            strings(&["exec", "--", "abc", "--user=0:0", "-x", "--workdir=/", "--",])
+        );
+        let id_at = argv.iter().position(|part| part == "abc").expect("the id");
+        let before = id_at.checked_sub(1).and_then(|at| argv.get(at));
+        assert_eq!(before.map(String::as_str), Some("--"));
+        let after_id: Vec<&str> = argv
+            .get(id_at..)
+            .unwrap_or_default()
+            .iter()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(after_id, ["abc", "--user=0:0", "-x", "--workdir=/", "--"]);
+        let before_id = argv.get(..id_at).unwrap_or_default();
+        assert_eq!(
+            before_id
+                .iter()
+                .filter(|part| part.as_str() == "--")
+                .count(),
+            1,
+            "{argv:?}"
         );
     }
 
     #[test]
     fn kill_argv_pins_the_exact_vector() {
-        assert_eq!(kill_argv("abc"), strings(&["kill", "abc"]));
+        assert_eq!(kill_argv("abc"), strings(&["kill", "--", "abc"]));
     }
 
     #[test]
     fn remove_argv_pins_the_exact_vector() {
-        assert_eq!(remove_argv("abc"), strings(&["rm", "--force", "abc"]));
+        assert_eq!(remove_argv("abc"), strings(&["rm", "--force", "--", "abc"]));
     }
 
     #[test]
@@ -986,7 +1210,14 @@ mod tests {
     fn image_inspect_argv_pins_the_exact_vector() {
         assert_eq!(
             image_inspect_argv("example/base:1"),
-            strings(&["image", "inspect", "--format", "{{.Id}}", "example/base:1",])
+            strings(&[
+                "image",
+                "inspect",
+                "--format",
+                "{{.Id}}",
+                "--",
+                "example/base:1",
+            ])
         );
     }
 
@@ -1001,38 +1232,143 @@ mod tests {
     #[test]
     fn image_is_pinned_accepts_digests_and_explicit_tags() {
         let hex = "a".repeat(64);
+        let long_tag = "a".repeat(128);
         for pinned in [
-            format!("example/base@sha256:{hex}"),
+            "example/base:1".to_string(),
             "example/base:1.2".to_string(),
             "registry:5000/example/base:1.2".to_string(),
-            "example/base:22.04".to_string(),
+            "localhost/a:1".to_string(),
+            format!("example/base@sha256:{hex}"),
+            format!("example/base:1@sha256:{hex}"),
+            "ghcr.io/org/img:v1_2-rc.1".to_string(),
+            format!("example/base:{long_tag}"),
         ] {
             assert!(image_is_pinned(&pinned), "{pinned} is pinned");
         }
     }
 
     #[test]
-    fn image_is_pinned_rejects_latest_untagged_and_bad_digests() {
+    fn image_is_pinned_rejects_bad_references_latest_and_untagged() {
+        let short = "a".repeat(63);
+        let upper = "A".repeat(64);
         let wrong = "z".repeat(64);
+        let long_tag = "a".repeat(129);
+        let hex = "a".repeat(64);
         for unpinned in [
+            "--image=--user=0:1".to_string(),
+            "--user=0:1".to_string(),
+            "-x".to_string(),
+            "-".to_string(),
+            "sleep".to_string(),
             "example/base".to_string(),
             "example/base:latest".to_string(),
-            "example/base:".to_string(),
-            "registry:5000/example/base".to_string(),
-            "registry:5000/example/base:latest".to_string(),
-            "example/base@sha256:short".to_string(),
+            format!("example/base@sha256:{short}"),
+            format!("example/base@sha256:{upper}"),
             format!("example/base@sha256:{wrong}"),
+            "Example/base:1".to_string(),
+            "example/Base:1".to_string(),
+            "example//base:1".to_string(),
+            "/example:1".to_string(),
+            "example/:1".to_string(),
+            "example/base:".to_string(),
+            "example/base:1:2".to_string(),
+            "example/base:-1".to_string(),
+            "example/base:.1".to_string(),
+            format!("example/base:{long_tag}"),
+            "example/base:1 --user=0:1".to_string(),
+            "example/base:1\n".to_string(),
+            " example/base:1".to_string(),
+            "example base:1".to_string(),
+            format!("example/base:1@sha256:{hex}@sha256:{hex}"),
+            "alpine".to_string(),
+            "alpine:".to_string(),
+            "alpine:1:2".to_string(),
+            "Alpine:1".to_string(),
+            "registry:123456/a:1".to_string(),
+            "-registry.io/a:1".to_string(),
+            "a/.b:1".to_string(),
+            "a/b.:1".to_string(),
+            "a/b_:1".to_string(),
             String::new(),
         ] {
-            assert!(!image_is_pinned(&unpinned), "{unpinned} is not pinned");
+            assert!(!image_is_pinned(&unpinned), "{unpinned:?} is not pinned");
         }
     }
 
     #[test]
-    fn validate_spec_rejects_a_non_pinned_image_without_a_call() {
-        let mut spec = spec();
-        spec.image = "example/base:latest".to_string();
-        create_rejected(&spec);
+    fn validate_spec_accepts_every_valid_image() {
+        let hex = "a".repeat(64);
+        let long_tag = "a".repeat(128);
+        for image in [
+            "example/base:1".to_string(),
+            "example/base:1.2".to_string(),
+            "registry:5000/example/base:1.2".to_string(),
+            "localhost/a:1".to_string(),
+            format!("example/base@sha256:{hex}"),
+            format!("example/base:1@sha256:{hex}"),
+            "ghcr.io/org/img:v1_2-rc.1".to_string(),
+            format!("example/base:{long_tag}"),
+            "alpine:3.20".to_string(),
+            "osf-devcontainer:pr151".to_string(),
+            "registry:5000".to_string(),
+            "localhost:5000/a:1".to_string(),
+            format!("alpine@sha256:{hex}"),
+        ] {
+            let mut spec = spec();
+            spec.image = image.clone();
+            validate_spec(&spec).expect(&image);
+        }
+    }
+
+    #[test]
+    fn validate_spec_rejects_every_bad_image() {
+        let short = "a".repeat(63);
+        let upper = "A".repeat(64);
+        let wrong = "z".repeat(64);
+        let long_tag = "a".repeat(129);
+        let hex = "a".repeat(64);
+        for image in [
+            "--image=--user=0:1".to_string(),
+            "--user=0:1".to_string(),
+            "-x".to_string(),
+            "-".to_string(),
+            "sleep".to_string(),
+            "example/base".to_string(),
+            "example/base:latest".to_string(),
+            format!("example/base@sha256:{short}"),
+            format!("example/base@sha256:{upper}"),
+            format!("example/base@sha256:{wrong}"),
+            "Example/base:1".to_string(),
+            "example/Base:1".to_string(),
+            "example//base:1".to_string(),
+            "/example:1".to_string(),
+            "example/:1".to_string(),
+            "example/base:".to_string(),
+            "example/base:1:2".to_string(),
+            "example/base:-1".to_string(),
+            "example/base:.1".to_string(),
+            format!("example/base:{long_tag}"),
+            "example/base:1 --user=0:1".to_string(),
+            "example/base:1\n".to_string(),
+            " example/base:1".to_string(),
+            "example base:1".to_string(),
+            format!("example/base:1@sha256:{hex}@sha256:{hex}"),
+            "alpine".to_string(),
+            "alpine:".to_string(),
+            "alpine:1:2".to_string(),
+            "Alpine:1".to_string(),
+            "registry:123456/a:1".to_string(),
+            "-registry.io/a:1".to_string(),
+            "a/.b:1".to_string(),
+            "a/b.:1".to_string(),
+            "a/b_:1".to_string(),
+            String::new(),
+        ] {
+            let mut spec = spec();
+            spec.image = image.clone();
+            create_rejected(&spec);
+            assert!(!image_is_pinned(&image), "{image:?} is not pinned");
+        }
     }
 
     #[test]
@@ -1500,6 +1836,29 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn capabilities_probes_a_dashed_image_after_a_double_dash() {
+        let mut spec = spec();
+        spec.image = "-x".to_string();
+        let sandbox = sandbox(vec![
+            Ok(ok("1.2.3")),
+            Ok(ok("sha256:deadbeef")),
+            Ok(ok(r#"["null"]"#)),
+        ]);
+        let capabilities = sandbox.capabilities(&spec);
+        assert_eq!(capabilities.image, Capability::Supported);
+        let calls = sandbox.runner.calls();
+        let inspect = calls.get(1).expect("the image probe");
+        assert_eq!(inspect.argv, image_inspect_argv("-x"));
+        let image_at = inspect
+            .argv
+            .iter()
+            .position(|part| part == "-x")
+            .expect("the image");
+        let before = image_at.checked_sub(1).and_then(|at| inspect.argv.get(at));
+        assert_eq!(before.map(String::as_str), Some("--"));
     }
 
     #[test]
