@@ -144,6 +144,38 @@ fn reclaim_note(lock: &Path, stale_after: Duration) -> String {
     )
 }
 
+/// Moves the stale `lock` aside, then removes it; `true` when this call won.
+fn reclaim_stale_lock(lock: &Path) -> Result<bool, String> {
+    let name = lock
+        .file_name()
+        .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+    let nanos = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| since.as_nanos());
+    let stale = lock.with_file_name(format!("{name}.stale.{}.{nanos}", std::process::id()));
+    match std::fs::rename(lock, &stale) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => {
+            return Err(format!(
+                "cannot move the stale lock file {} aside: {e}",
+                lock.display()
+            ));
+        }
+    }
+    match std::fs::remove_file(&stale) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            return Err(format!(
+                "cannot remove the stale lock file {}: {e}",
+                stale.display()
+            ));
+        }
+    }
+    Ok(true)
+}
+
 /// Takes the lock file for `path`, waiting up to `wait` and reclaiming a lock
 /// older than `stale_after`. Returns the lock path and a reclaim note.
 fn take_lock(
@@ -170,19 +202,10 @@ fn take_lock(
                         continue;
                     };
                     if age > stale_after {
-                        match std::fs::remove_file(&lock) {
-                            Ok(()) => {
-                                note = Some(reclaim_note(&lock, stale_after));
-                                continue;
-                            }
-                            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-                            Err(e) => {
-                                return Err(format!(
-                                    "cannot remove the stale lock file {}: {e}",
-                                    lock.display()
-                                ));
-                            }
+                        if reclaim_stale_lock(&lock)? {
+                            note = Some(reclaim_note(&lock, stale_after));
                         }
+                        continue;
                     }
                 }
                 if Instant::now() >= deadline {
@@ -538,6 +561,56 @@ mod tests {
             ["run-1"].map(str::to_string)
         );
         assert!(!lock.exists(), "the stale lock file is still present");
+    }
+
+    #[test]
+    fn two_writers_racing_for_one_stale_lock_reclaim_it_once() {
+        for attempt in 0..20 {
+            let dir = TempDir::new(&format!("osf-index-race-{attempt}"));
+            let lock = old_lock_file(&dir, ITEM, Duration::from_secs(3600));
+            let barrier = std::sync::Barrier::new(2);
+            let results = std::thread::scope(|scope| {
+                let barrier = &barrier;
+                let dir = &dir;
+                let first = scope.spawn(move || {
+                    barrier.wait();
+                    record_run(dir, ITEM, "run-a")
+                });
+                let second = scope.spawn(move || {
+                    barrier.wait();
+                    record_run(dir, ITEM, "run-b")
+                });
+                [
+                    first.join().expect("the first writer did not panic"),
+                    second.join().expect("the second writer did not panic"),
+                ]
+            });
+            assert!(results.iter().all(Result::is_ok), "{results:?}");
+            let notes: Vec<Option<String>> = results
+                .into_iter()
+                .map(|result| result.expect("both writers recorded"))
+                .collect();
+            let reclaimed: Vec<&String> = notes.iter().flatten().collect();
+            assert_eq!(reclaimed.len(), 1, "{notes:?}");
+            let note = reclaimed.first().expect("one reclaim note");
+            assert!(note.contains(&lock.display().to_string()), "{note}");
+            let mut runs = runs_for_work_item(&dir, ITEM).expect("runs");
+            runs.sort();
+            assert_eq!(runs, ["run-a", "run-b"].map(str::to_string));
+            assert!(!lock.exists(), "the stale lock file is still present");
+            let stale: Vec<String> = std::fs::read_dir(dir.join("index"))
+                .expect("index dir")
+                .map(|entry| {
+                    entry
+                        .expect("entry")
+                        .file_name()
+                        .to_string_lossy()
+                        .into_owned()
+                })
+                .filter(|name| name.contains(".stale."))
+                .collect();
+            assert!(stale.is_empty(), "{stale:?}");
+        }
     }
 
     #[test]
