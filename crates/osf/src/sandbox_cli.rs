@@ -5,7 +5,7 @@ use crate::docker_sandbox::{
     create_argv, exec_argv, remove_argv, start_argv, validate_command, validate_spec,
 };
 use crate::sandbox::{
-    CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox, SandboxError,
+    CommandSpec, Destroyed, Limits, Mount, Network, RunOutcome, RunResult, Sandbox, SandboxError,
     SandboxId, SandboxSpec,
 };
 use std::collections::BTreeMap;
@@ -130,6 +130,7 @@ pub fn plan(request: &RunRequest) -> Result<Plan, SandboxError> {
                 read_only: false,
             },
         ],
+        limits: Limits::default(),
     };
     validate_spec(&spec)?;
     let mut words = request.command.iter();
@@ -495,6 +496,7 @@ mod tests {
                         read_only: false,
                     },
                 ],
+                limits: Limits::default(),
             }
         );
         assert_eq!(
@@ -570,6 +572,11 @@ mod tests {
                     "ALL",
                     "--security-opt",
                     "no-new-privileges",
+                    "--init",
+                    "--pids-limit",
+                    "512",
+                    "--memory",
+                    "4g",
                     "--user=dev",
                     "--workdir=/workspace",
                     "--network",

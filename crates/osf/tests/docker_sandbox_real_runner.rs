@@ -7,7 +7,9 @@
 use osf::docker_sandbox::{
     DockerRunner, DockerSandbox, RealDockerRunner, DEFAULT_OUTPUT_CAP_BYTES,
 };
-use osf::sandbox::{CommandSpec, Mount, Network, RunOutcome, Sandbox, SandboxId, SandboxSpec};
+use osf::sandbox::{
+    CommandSpec, Limits, Mount, Network, RunOutcome, Sandbox, SandboxId, SandboxSpec,
+};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -420,6 +422,7 @@ fn real_docker_runs_a_command_and_times_out() {
             sandbox_path: "/state".to_string(),
             read_only: false,
         }],
+        limits: Limits::default(),
     };
     let sandbox = DockerSandbox::real();
     let id = sandbox.create(&spec).expect("the smoke sandbox creates");

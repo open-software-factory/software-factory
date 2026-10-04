@@ -3,7 +3,7 @@
 
 use osf::sandbox::fake::{Call, FakeSandbox, Operation};
 use osf::sandbox::{
-    Capability, CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox,
+    Capability, CommandSpec, Destroyed, Limits, Mount, Network, RunOutcome, RunResult, Sandbox,
     SandboxError, SandboxId, SandboxSpec,
 };
 
@@ -26,6 +26,7 @@ fn spec() -> SandboxSpec {
                 read_only: false,
             },
         ],
+        limits: Limits::default(),
     }
 }
 

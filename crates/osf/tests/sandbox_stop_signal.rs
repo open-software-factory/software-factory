@@ -22,6 +22,9 @@ fn serial() -> MutexGuard<'static, ()> {
     SPAWN_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// The 64-character lowercase hexadecimal id the fake `create` prints.
+const CREATE_ID: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
 /// Writes the fake `docker` script in `dir`, with `exec_body` for its `exec`
 /// branch. Every call appends its argv to `calls.log` next to the script.
 fn fake_docker(dir: &Path, exec_body: &str) {
@@ -31,7 +34,7 @@ fn fake_docker(dir: &Path, exec_body: &str) {
 dir="$(cd "$(dirname "$0")" && pwd)"
 printf '%s\n' "$*" >> "$dir/calls.log"
 case "$1" in
-create) printf 'abc123\n'; exit 0 ;;
+create) printf '{CREATE_ID}\n'; exit 0 ;;
 start) exit 0 ;;
 exec) {exec_body} ;;
 rm) exit 0 ;;
@@ -144,7 +147,7 @@ fn a_sigterm_removes_the_sandbox_and_exits_143() {
     assert!(stderr.contains("stopped by signal 15"), "{stderr}");
     assert!(
         log.lines()
-            .any(|line| line.starts_with("rm --force -- abc123")),
+            .any(|line| line.starts_with(&format!("rm --force -- {CREATE_ID}"))),
         "{log}"
     );
 }
@@ -158,7 +161,7 @@ fn a_sigint_removes_the_sandbox_and_exits_130() {
     assert!(stderr.contains("stopped by signal 2"), "{stderr}");
     assert!(
         log.lines()
-            .any(|line| line.starts_with("rm --force -- abc123")),
+            .any(|line| line.starts_with(&format!("rm --force -- {CREATE_ID}"))),
         "{log}"
     );
 }

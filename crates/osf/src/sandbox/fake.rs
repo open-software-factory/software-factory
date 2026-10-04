@@ -157,8 +157,8 @@ impl Sandbox for FakeSandbox {
 mod tests {
     use crate::sandbox::fake::{Call, FakeSandbox, Operation};
     use crate::sandbox::{
-        Capability, CommandSpec, Destroyed, Network, RunOutcome, RunResult, Sandbox, SandboxError,
-        SandboxId, SandboxSpec,
+        Capability, CommandSpec, Destroyed, Limits, Network, RunOutcome, RunResult, Sandbox,
+        SandboxError, SandboxId, SandboxSpec,
     };
 
     fn spec() -> SandboxSpec {
@@ -169,6 +169,7 @@ mod tests {
             workdir: "/work".to_string(),
             network: Network::Isolated,
             mounts: Vec::new(),
+            limits: Limits::default(),
         }
     }
 
@@ -384,7 +385,7 @@ mod tests {
     fn calls_serialize() {
         assert_eq!(
             serde_json::to_string(&Call::Create { spec: spec() }).expect("serializes"),
-            r#"{"create":{"spec":{"name":"build","image":"example/base:1","user":"dev","workdir":"/work","network":"isolated","mounts":[]}}}"#
+            r#"{"create":{"spec":{"name":"build","image":"example/base:1","user":"dev","workdir":"/work","network":"isolated","mounts":[],"limits":{"max_processes":512,"memory":"4g"}}}}"#
         );
     }
 }

@@ -2,7 +2,7 @@
 //! with every argv and every response built and read by a pure function.
 
 use crate::sandbox::{
-    Capability, CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox,
+    Capability, CommandSpec, Destroyed, Limits, Mount, Network, RunOutcome, RunResult, Sandbox,
     SandboxCapabilities, SandboxError, SandboxId, SandboxSpec,
 };
 use std::collections::VecDeque;
@@ -21,6 +21,9 @@ const KEEPALIVE_SECS: &str = "2147483647";
 
 /// How long `create` waits for the image and the container.
 const CREATE_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// The largest accepted process count: 2^22.
+const MAX_PROCESSES: u32 = 4_194_304;
 
 /// `docker exec` inherits the container's environment; this fixes PATH, HOME and LANG, but Docker cannot unset other variables the image sets with ENV, so the image must hold no secret; the engine passes anything else per command.
 const SANDBOX_ENV: [(&str, &str); 3] = [
@@ -344,6 +347,11 @@ pub fn create_argv(spec: &SandboxSpec) -> Vec<String> {
         "ALL".to_string(),
         "--security-opt".to_string(),
         "no-new-privileges".to_string(),
+        "--init".to_string(),
+        "--pids-limit".to_string(),
+        spec.limits.max_processes.to_string(),
+        "--memory".to_string(),
+        spec.limits.memory.clone(),
         format!("--user={}", spec.user),
         format!("--workdir={}", spec.workdir),
         "--network".to_string(),
@@ -357,6 +365,34 @@ pub fn create_argv(spec: &SandboxSpec) -> Vec<String> {
     argv.push(KEEPALIVE_PROGRAM.to_string());
     argv.push(KEEPALIVE_SECS.to_string());
     argv
+}
+
+/// The id in `stdout`: one trailing newline is removed, then 64 lowercase hex characters.
+#[must_use]
+pub fn parse_container_id(stdout: &str) -> Option<&str> {
+    let candidate = stdout
+        .strip_suffix("\r\n")
+        .or_else(|| stdout.strip_suffix('\n'))
+        .unwrap_or(stdout);
+    is_container_id(candidate).then_some(candidate)
+}
+
+/// Whether `text` is exactly 64 lowercase hexadecimal characters.
+fn is_container_id(text: &str) -> bool {
+    text.len() == 64
+        && text
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// The create output for a failure: trimmed, cut to 200 characters, then debug-formatted.
+fn shown_create_output(stdout: &str) -> String {
+    let trimmed = stdout.trim();
+    let mut shown: String = trimmed.chars().take(200).collect();
+    if trimmed.chars().count() > 200 {
+        shown.push_str("...");
+    }
+    format!("{shown:?}")
 }
 
 /// The network a sandbox gets: no driver for [`Network::Isolated`], the
@@ -657,7 +693,7 @@ fn is_path_byte(byte: u8) -> bool {
 /// # Errors
 /// Returns [`SandboxError::Rejected`] for an invalid or unpinned image, an
 /// empty, root, zero or malformed user, a relative workdir, a malformed name,
-/// or a bad mount.
+/// a bad mount, or a bad resource limit.
 pub fn validate_spec(spec: &SandboxSpec) -> Result<(), SandboxError> {
     validate_image(&spec.image)?;
     validate_user(&spec.user)?;
@@ -671,7 +707,38 @@ pub fn validate_spec(spec: &SandboxSpec) -> Result<(), SandboxError> {
     for mount in &spec.mounts {
         validate_mount(mount)?;
     }
+    validate_limits(&spec.limits)?;
     Ok(())
+}
+
+/// Checks the resource limits before any runner call.
+fn validate_limits(limits: &Limits) -> Result<(), SandboxError> {
+    if limits.max_processes == 0 || limits.max_processes > MAX_PROCESSES {
+        return Err(SandboxError::Rejected(format!(
+            "the max_processes must be between 1 and {MAX_PROCESSES}: {}",
+            limits.max_processes
+        )));
+    }
+    if !is_memory_limit(&limits.memory) {
+        return Err(SandboxError::Rejected(format!(
+            "the memory must be a positive size with an optional b, k, m or g suffix: {}",
+            limits.memory
+        )));
+    }
+    Ok(())
+}
+
+/// Whether `memory` is 1-12 digits without a leading zero, then an optional b, k, m or g.
+fn is_memory_limit(memory: &str) -> bool {
+    let digits = ["b", "k", "m", "g"]
+        .iter()
+        .find_map(|suffix| memory.strip_suffix(*suffix))
+        .unwrap_or(memory);
+    let mut bytes = digits.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    matches!(first, b'1'..=b'9') && digits.len() <= 12 && bytes.all(|byte| byte.is_ascii_digit())
 }
 
 /// Checks one user string as `name[:group]`, neither part root or zero.
@@ -987,12 +1054,13 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
         if output.status != Some(0) || output.timed_out {
             return Err(SandboxError::Failed(tool_text(&output)));
         }
-        let id = output.stdout.trim().to_string();
-        if id.is_empty() {
-            return Err(SandboxError::Failed(
-                "the create call returned no container id".to_string(),
-            ));
-        }
+        let Some(container_id) = parse_container_id(&output.stdout) else {
+            return Err(SandboxError::Failed(format!(
+                "the create call did not return one container id; its output was: {}",
+                shown_create_output(&output.stdout)
+            )));
+        };
+        let id = container_id.to_string();
         if let Err(start_error) = self.start_container(&id) {
             let mut message = start_error.to_string();
             if let Err(removal_error) = self.remove_container(&id) {
@@ -1164,6 +1232,7 @@ mod tests {
                     read_only: true,
                 },
             ],
+            limits: Limits::default(),
         }
     }
 
@@ -1225,6 +1294,11 @@ mod tests {
         parts.iter().map(|part| (*part).to_string()).collect()
     }
 
+    /// A 64-character lowercase hexadecimal id built from `seed`.
+    fn id64(seed: char) -> String {
+        seed.to_string().repeat(64)
+    }
+
     fn sandbox(results: Vec<Result<ToolOutput, RunnerError>>) -> DockerSandbox<ScriptedRunner> {
         DockerSandbox::new(ScriptedRunner::new(results))
     }
@@ -1261,6 +1335,11 @@ mod tests {
                 "ALL",
                 "--security-opt",
                 "no-new-privileges",
+                "--init",
+                "--pids-limit",
+                "512",
+                "--memory",
+                "4g",
                 "--user=dev",
                 "--workdir=/work",
                 "--network",
@@ -1273,6 +1352,45 @@ mod tests {
                 "2147483647",
             ])
         );
+    }
+
+    #[test]
+    fn create_argv_puts_the_default_limits_after_no_new_privileges() {
+        let argv = create_argv(&spec());
+        let security = argv
+            .iter()
+            .position(|part| part == "no-new-privileges")
+            .expect("the security option");
+        assert_eq!(
+            argv.get(security + 1..security + 6).map(<[String]>::to_vec),
+            Some(strings(&[
+                "--init",
+                "--pids-limit",
+                "512",
+                "--memory",
+                "4g"
+            ]))
+        );
+    }
+
+    #[test]
+    fn create_argv_uses_the_spec_limits() {
+        let mut spec = spec();
+        spec.limits = Limits {
+            max_processes: 64,
+            memory: "512m".to_string(),
+        };
+        let argv = create_argv(&spec);
+        let pids = argv
+            .iter()
+            .position(|part| part == "--pids-limit")
+            .expect("the process limit flag");
+        assert_eq!(argv.get(pids + 1).map(String::as_str), Some("64"));
+        let memory = argv
+            .iter()
+            .position(|part| part == "--memory")
+            .expect("the memory flag");
+        assert_eq!(argv.get(memory + 1).map(String::as_str), Some("512m"));
     }
 
     #[test]
@@ -1723,6 +1841,52 @@ mod tests {
     }
 
     #[test]
+    fn validate_spec_rejects_a_bad_process_limit_without_a_call() {
+        for max_processes in [0, 4_194_305] {
+            let mut spec = spec();
+            spec.limits.max_processes = max_processes;
+            create_rejected(&spec);
+        }
+    }
+
+    #[test]
+    fn validate_spec_accepts_the_largest_process_limit() {
+        let mut spec = spec();
+        spec.limits.max_processes = 4_194_304;
+        validate_spec(&spec).expect("the limit is accepted");
+    }
+
+    #[test]
+    fn validate_spec_rejects_a_bad_memory_limit_without_a_call() {
+        for memory in [
+            "",
+            "0",
+            "4G",
+            "4gb",
+            "-1",
+            "4 g",
+            "--x",
+            "1e3",
+            "4g;",
+            "0123",
+            "1234567890123",
+        ] {
+            let mut spec = spec();
+            spec.limits.memory = memory.to_string();
+            create_rejected(&spec);
+        }
+    }
+
+    #[test]
+    fn validate_spec_accepts_a_good_memory_limit() {
+        for memory in ["1", "512m", "4g", "100000k", "7b", "123456789012"] {
+            let mut spec = spec();
+            spec.limits.memory = memory.to_string();
+            validate_spec(&spec).expect("the memory is accepted");
+        }
+    }
+
+    #[test]
     fn validate_command_rejects_an_empty_program_without_a_call() {
         let mut command = command();
         command.program = String::new();
@@ -1780,9 +1944,11 @@ mod tests {
 
     #[test]
     fn create_runs_create_then_start_and_returns_the_trimmed_id() {
-        let sandbox = sandbox(vec![Ok(ok("abc123\n")), Ok(ok(""))]);
+        let created = id64('a');
+        let output = format!("{created}\n");
+        let sandbox = sandbox(vec![Ok(ok(&output)), Ok(ok(""))]);
         let id = sandbox.create(&spec()).expect("creates");
-        assert_eq!(id, SandboxId("abc123".to_string()));
+        assert_eq!(id, SandboxId(created.clone()));
         assert_eq!(
             sandbox.runner.calls(),
             vec![
@@ -1792,7 +1958,7 @@ mod tests {
                     stdin: None,
                 },
                 Call {
-                    argv: start_argv("abc123"),
+                    argv: start_argv(&created),
                     timeout: None,
                     stdin: None,
                 },
@@ -1834,8 +2000,65 @@ mod tests {
     }
 
     #[test]
+    fn create_rejects_a_short_container_id_and_shows_the_output() {
+        let sandbox = sandbox(vec![Ok(ok("abc123\n"))]);
+        let error = sandbox.create(&spec()).expect_err("no id");
+        assert_eq!(
+            error,
+            SandboxError::Failed(
+                "the create call did not return one container id; its output was: \"abc123\""
+                    .to_string()
+            )
+        );
+        assert_eq!(sandbox.runner.calls().len(), 1);
+    }
+
+    #[test]
+    fn create_cuts_a_long_create_output_to_two_hundred_characters() {
+        let long = "x".repeat(250);
+        let sandbox = sandbox(vec![Ok(ok(&long))]);
+        let error = sandbox.create(&spec()).expect_err("no id");
+        let expected = format!("\"{}...\"", "x".repeat(200));
+        assert!(error.to_string().contains(&expected), "{error}");
+        assert!(!error.to_string().contains(&"x".repeat(201)), "{error}");
+    }
+
+    #[test]
+    fn parse_container_id_accepts_one_id_with_one_trailing_newline() {
+        let id = id64('d');
+        assert_eq!(parse_container_id(&id), Some(id.as_str()));
+        assert_eq!(parse_container_id(&format!("{id}\n")), Some(id.as_str()));
+        assert_eq!(parse_container_id(&format!("{id}\r\n")), Some(id.as_str()));
+    }
+
+    #[test]
+    fn parse_container_id_refuses_anything_but_one_id() {
+        let id = id64('d');
+        for bad in [
+            String::new(),
+            "abc123".to_string(),
+            "a".repeat(63),
+            "a".repeat(65),
+            "A".repeat(64),
+            format!("{id}\n\n"),
+            format!("{id}\n{id}"),
+            format!("warning\n{id}"),
+            format!("{id} extra"),
+            format!("{id} "),
+            format!(" {id}"),
+        ] {
+            assert_eq!(parse_container_id(&bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
     fn a_failed_start_removes_the_container_and_returns_the_start_text() {
-        let sandbox = sandbox(vec![Ok(ok("abc")), Ok(fail(1, "boom start")), Ok(ok(""))]);
+        let created = id64('b');
+        let sandbox = sandbox(vec![
+            Ok(ok(&created)),
+            Ok(fail(1, "boom start")),
+            Ok(ok("")),
+        ]);
         let error = sandbox.create(&spec()).expect_err("start fails");
         assert_eq!(error, SandboxError::Failed("boom start".to_string()));
         assert_eq!(
@@ -1847,12 +2070,12 @@ mod tests {
                     stdin: None,
                 },
                 Call {
-                    argv: start_argv("abc"),
+                    argv: start_argv(&created),
                     timeout: None,
                     stdin: None,
                 },
                 Call {
-                    argv: remove_argv("abc"),
+                    argv: remove_argv(&created),
                     timeout: None,
                     stdin: None,
                 },
@@ -1862,8 +2085,9 @@ mod tests {
 
     #[test]
     fn a_failed_start_appends_a_failed_removal_text() {
+        let created = id64('c');
         let sandbox = sandbox(vec![
-            Ok(ok("abc")),
+            Ok(ok(&created)),
             Ok(fail(1, "boom start")),
             Ok(fail(1, "boom remove")),
         ]);

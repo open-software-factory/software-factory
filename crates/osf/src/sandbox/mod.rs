@@ -25,6 +25,22 @@ pub struct Mount {
     pub read_only: bool,
 }
 
+/// The resource limits one sandbox runs under.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Limits {
+    pub max_processes: u32,
+    pub memory: String,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            max_processes: 512,
+            memory: "4g".to_string(),
+        }
+    }
+}
+
 /// What the factory asks a provider to create.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SandboxSpec {
@@ -34,6 +50,7 @@ pub struct SandboxSpec {
     pub workdir: String,
     pub network: Network,
     pub mounts: Vec<Mount>,
+    pub limits: Limits,
 }
 
 /// One command to run inside a sandbox.
@@ -195,6 +212,7 @@ mod tests {
                 sandbox_path: "/work/project".to_string(),
                 read_only: true,
             }],
+            limits: Limits::default(),
         }
     }
 
@@ -282,10 +300,21 @@ mod tests {
     }
 
     #[test]
+    fn limits_default_to_512_processes_and_4g() {
+        assert_eq!(
+            Limits::default(),
+            Limits {
+                max_processes: 512,
+                memory: "4g".to_string(),
+            }
+        );
+    }
+
+    #[test]
     fn sandbox_spec_serializes_every_field() {
         assert_eq!(
             serde_json::to_string(&spec()).expect("serializes"),
-            r#"{"name":"build","image":"example/base:1","user":"dev","workdir":"/work","network":"isolated","mounts":[{"host_path":"/host/project","sandbox_path":"/work/project","read_only":true}]}"#
+            r#"{"name":"build","image":"example/base:1","user":"dev","workdir":"/work","network":"isolated","mounts":[{"host_path":"/host/project","sandbox_path":"/work/project","read_only":true}],"limits":{"max_processes":512,"memory":"4g"}}"#
         );
     }
 
