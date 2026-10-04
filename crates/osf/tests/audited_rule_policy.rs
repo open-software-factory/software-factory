@@ -456,6 +456,26 @@ fn a_kept_rule_raised_to_error_fails_its_task_in_the_checkpoint_runner() {
 }
 
 #[test]
+fn config_show_prints_audited_rules_as_off_when_the_config_sets_them_to_error() {
+    let repo = TempRepo::new("audit-config-show");
+    let home = isolated_home("audit-config-show");
+    repo.write("osf.toml", POISON);
+    let (code, text) = run(&repo, &home, &["config", "show"]);
+    assert_eq!(code, Some(0), "{text}");
+    for key in ["writing.levels.arrow", "skill.levels.skill-first-person"] {
+        let line = text
+            .lines()
+            .find(|l| l.starts_with(&format!("{key} = ")))
+            .unwrap_or_else(|| panic!("{key} is not listed: {text}"));
+        assert!(line.contains("\"off\""), "{key} is not shown as off: {line}");
+    }
+    assert!(
+        text.contains("writing.levels.semicolon = \"error\""),
+        "the kept rule's raised level is not shown: {text}"
+    );
+}
+
+#[test]
 fn a_config_that_raises_a_kept_rule_applies_on_ungated_writing_paths_and_not_on_gated_ones() {
     let repo = TempRepo::new("audit-kept-raise");
     let home = isolated_home("audit-kept-raise");
