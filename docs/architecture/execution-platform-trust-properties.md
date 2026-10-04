@@ -44,7 +44,7 @@ This loop carries forward the rule in [decision 0003](decisions/0003-determinist
 As of 2026-10-03, the review check is advisory. It posts a check run and a review, and no branch protection requires it. It becomes a required check, and so meets the Gate property, when the key proxy and the network split land. An adopter who wants the review check needs two things:
 
 - the verifier app's ID and its key
-- one environment, named `review`, holding two model keys
+- one environment, named `review`, holding at least two model keys
 
 When the review check becomes required, the adopter adds one more thing: branch protection that requires the review job.
 

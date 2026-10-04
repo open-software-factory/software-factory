@@ -55,14 +55,14 @@ The reason for the prompt file and for metadata is the owner's observation that 
 
 | Option | What it meant | Outcome |
 |---|---|---|
-| Read-only tools, no shell beyond read-only use, network only to the reviewer's own model provider | The sandbox removes what a steered reviewer could do. The quote check stays. | Taken. |
+| Read-only tools, no shell beyond read-only use, and a network allow-list | The sandbox removes what a steered reviewer could do. The quote check stays. | Taken. |
 | Tools with write access, or an open network | The reviewer can edit the checkout or call any host. | Set aside. A steered reviewer could change the code it judges or send out what it can read. |
 
 **Where each reviewer's key lives.**
 
 | Option | What it meant | Outcome |
 |---|---|---|
-| Each reviewer in its own CI job, holding only its own provider's key | Only the final job, which combines the answers and posts the result, holds the code-host token. | Taken. |
+| Each reviewer in its own CI job, holding only its own provider's key | Only the final job, which combines the answers and posts the result, mints the verifier's write token. | Taken. |
 | A single job holding every reviewer's key | The reviewers run side by side in one job. | Set aside. A steered reviewer that can read files could reach the key of every other provider. |
 
 **Where the roster lives.**
@@ -159,11 +159,12 @@ A reviewer receives metadata about the change in place of a pasted excerpt of it
 - the pull request number, title and body
 - the base commit and the head commit
 - the changed files
+- the path of one file that holds the commit log and the diff of the change, which osf writes into a new read-only folder before the reviewer starts
 - the work item
 - the linked decision records
 - the lens questions
 
-The reviewer reads whatever else it needs with read-only tools over a clean copy of the change. The copy is a temporary folder that holds the change's files. It holds no coding agent's settings, plugins or instruction files, and no symbolic link, so the change cannot configure the agent that reviews it. There is no fixed cap on context size. A reviewer given only limited context "will raise irrelevant things", and a cap decides for the reviewer what is relevant.
+The reviewer reads whatever else it needs with read-only tools over a clean copy of the change. The copy is a temporary folder that holds the change's files. It holds no coding agent's settings, plugins or instruction files, and no symbolic link, so the change cannot configure the agent that reviews it. osf sets no cap on how much of the change a reviewer reads. The one cut is on the work item: `work_item.rs` cuts an issue body at 60,000 characters and adds a note that it cut it. A reviewer given only limited context "will raise irrelevant things", and a cap decides for the reviewer what is relevant.
 
 ### The reviewer sandbox
 
@@ -174,7 +175,7 @@ Tools are safe to give a reviewer because of the limits below.
 - Because of that, a reviewer's environment and home hold no secret beyond its own provider's key.
 - osf copies no login file into the home when a key in the environment is enough to sign in. It also removes the exact value of every secret the job holds from each answer, in plain, base64 and hex form.
 - The reviewer starts in a clean copy of the change, with no coding agent's settings in it.
-- The network is open only to that reviewer's own model provider.
+- The network is limited by an allow-list that the job sets. The list holds the reviewer's model provider and the GitHub hosts the job needs: `github.com`, `api.github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `ghcr.io` and `pkg-containers.githubusercontent.com`. The opencode job adds `models.opencode.ai`. A request from the reviewer to GitHub is not blocked. [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) narrows the list to the provider alone.
 - The quote check stays. Every finding must cite code that exists, as the next section sets out. It reads the real checkout of the change.
 
 [Decision 0020 (who can post a review result)](0020-who-can-post-a-review-result.md) holds how the keys and the jobs are arranged around this sandbox.
@@ -195,21 +196,23 @@ The reducer decides per lens, and it is plain code:
 
 - A lens needs answers from reviewers in two model families, both different from the builder's. A family counts toward the quorum only with at least two answered independent rounds. A round that failed, timed out or did not validate does not count, and a family with fewer answered rounds counts for nothing.
 - When exactly one family has two answered rounds, the lens runs one extra critical round with that family instead of going could-not-run. That critical round must also have answered. Without it, the lens is could-not-run. A lens with no family that has two answered rounds is could-not-run, and a could-not-run lens is never a pass. This is the same interim policy the Reviewers section states, kept while the factory collects data on how it performs.
-- A verified blocker vetoes the lens.
+- A finding with a blocker severity or a must-fix action vetoes the lens, when its quote is verified.
 - The lens score is the mean of its criterion scores.
-- The review passes when every lens that ran reached quorum (the one-family fallback counts as quorum under the interim policy, when its critical round answered), no blocker survived verification, and the weighted score clears the threshold.
+- The review passes when every lens that ran reached quorum (the one-family fallback counts as quorum under the interim policy, when its critical round answered), no finding with a blocker severity or a must-fix action survived verification, and the weighted score clears the threshold.
 
 The lens weights and the threshold ship as data. Adopters get configurable weights in a later version.
 
 ### Where it runs
 
-`osf review run` is one command. It runs as a moon task tagged for pre-push and, separately, for the pull request. [Decision 0020 (who can post a review result)](0020-who-can-post-a-review-result.md) sets the CI run as the sole authority. The pre-push run is a local, early warning only. Its result is never carried forward as a cached pass at the pull request. CI is the authority, because it holds the keys and the verifier identity. The local run gives the coding agent the same feedback earlier.
+`osf review run` with no `--reviewer` runs every enabled reviewer in turn and decides, in one process. A moon task named `review` runs it at pre-push. The task is tagged `osf-pre-push` and `osf-slot-review`, has no pull-request tag, and runs with `--warn-only`, so a finding there never stops a push. [Decision 0020 (who can post a review result)](0020-who-can-post-a-review-result.md) sets the CI run as the sole authority. The pre-push run is a local, early warning only. Its result is never carried forward as a cached pass at the pull request. CI is the authority, because it holds the keys and the verifier identity.
 
-In CI, each reviewer runs in a job of its own, which holds only that reviewer's own provider key and passes into the reviewer's container only the one variable its agent names. The final job combines the answers with the reducer and posts the result, and only that job holds the code-host token. This replaces a single job that held every key. Every job runs one container image, named once in the workflow and pinned by digest, and a change to that digest is a reviewed change.
+At the pull request, the workflow `.github/workflows/review.yml` runs from the base branch. Its `build` job builds osf from the base branch with no secret, and runs `osf review work-item` to find the work item. Each reviewer then runs `osf review run --reviewer <name>` in a job of its own. That job holds only that reviewer's own provider key, from the `review` environment, which has one named secret for each job. It passes into the reviewer's container only the one variable its agent names. The final job runs `osf review reduce` over the saved answers and posts the result. Every job has the automatic `GITHUB_TOKEN`, with the permissions its `permissions` block names. The build job passes it into its container to read the issue. The final job alone mints the verifier's write token, to post the review. This replaces a single job that held every key. Every job runs one container image, named once in the workflow and pinned by digest, and a change to that digest is a reviewed change.
 
-The review check is advisory for now. It posts its result as a check run and as a review, and no branch protection or ruleset requires it. It becomes a required check when the key proxy and the network split in [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) land. A pull request from a fork is reviewed only when the repository variable `OSF_REVIEW_FORKS` is `true`, and the default is off.
+The review check is advisory for now. It posts its result as a check run and as a review, and no branch protection or ruleset requires it. It becomes a required check when the key proxy and the network split in [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) land. A pull request from a fork is reviewed only when the repository variable `OSF_REVIEW_FORKS` is `true`, and the default is off. When it is on, the reviewer jobs and the final job use a `fork-review` environment. A maintainer's approval gates those jobs only when the adopter has made that environment with required reviewers, which [open-software-factory/software-factory#213 (protect the fork-review environment)](https://github.com/open-software-factory/software-factory/issues/213) tracks. The `build` job has no environment and runs first.
 
-A must-fix finding sends the change back to the coding agent before the pull request.
+A must-fix finding fails the final job at the pull request. At pre-push it is a warning only, and it never stops a push.
+
+[open-software-factory/software-factory#178 (review check)](https://github.com/open-software-factory/software-factory/pull/178) carries `osf review run`, `osf review reduce`, `osf review work-item`, the workflow `review.yml`, the default prompt file and the lens files. Main has only `osf review post` until that pull request merges.
 
 The journal keeps each reviewer's answer as one event, with its lens, reviewer, family, scores and findings, linked to the reviewer's transcript. The reducer's decision is one more event.
 

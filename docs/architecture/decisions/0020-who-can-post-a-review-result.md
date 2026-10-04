@@ -21,13 +21,13 @@ That reason is superseded. Reading the pull request as data still holds, because
 Prompt injection is still a risk. The design contains it with these limits:
 
 - A reviewer cannot write files or change anything. Claude Code, opencode and omp have file tools only, with no shell. Codex runs in its read-only sandbox, which stops writes and changes. Its shell can still read any file the reviewer's user can read.
-- A reviewer holds no secret beyond its own provider's key, because each reviewer runs in a CI job of its own. Only the final job holds the code-host token.
+- A reviewer holds no secret beyond its own provider's key, because each reviewer runs in a CI job of its own. Only the final job mints the verifier's write token. Every job has the automatic `GITHUB_TOKEN`, and the build job passes it into its container to read the issue.
 - That stays true for a reviewer that can read any file, because the job passes in that one key only.
 - osf copies no login file into the reviewer's home when a key in the environment is enough. It removes the key's exact value from the answer.
 - A reviewer starts in a clean copy of the change. The copy holds no coding agent's settings, plugins or instruction files, and no symbolic link, so the change cannot configure the agent that reviews it.
-- A reviewer's network is open only to its own model provider.
+- A reviewer's network is limited by the job's allow-list. The list holds the reviewer's model provider and the GitHub hosts the job needs: `github.com`, `api.github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `ghcr.io` and `pkg-containers.githubusercontent.com`. The opencode job adds `models.opencode.ai`. [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) narrows the list to the provider alone.
 - The quote check keeps a fabricated location out of the result.
-- The reducer needs quorum, and a verified blocker vetoes the lens.
+- The reducer needs quorum, and a finding with a blocker severity or a must-fix action vetoes the lens.
 - The reducer checks every saved answer again against the schema and the lens. It takes a saved file only for the reviewer its file name gives. It works out the rounds from the order of the attempts.
 
 What the design cannot contain is unchanged. A steered reviewer can attach a false severity or description to a genuine quote, and it can return high scores with no findings, which passes the review.
@@ -46,10 +46,10 @@ What the design cannot contain is unchanged. A steered reviewer can attach a fal
 
 | Option | What it meant | Outcome |
 |---|---|---|
-| Repository secrets in CI, a mounted read-only key in the container | A CI job mints a short-lived, narrowly scoped token. The container mounts only the builder's key, and the builder app cannot write a check with it. | Taken. |
+| Secrets in the `review` environment in CI, with one named secret for each job, and a mounted read-only key in the container | A CI job mints a short-lived, narrowly scoped token. The container mounts only the builder's key, and the builder app cannot write a check with it. | Taken. |
 | A host-side process that mints tokens | A process on one machine hands out tokens on request. | Set aside. It needs a process that always runs, and the factory has none. |
 | Each sandbox holds its own role's key | A review sandbox would carry the verifier's key directly. | Set aside. The container split above already covers the builder; the verifier key never needs to enter an agent's workspace at all. |
-| An operating-system secret store | Keys held in a platform credential store instead of repository secrets and a mount. | Set aside for now. It can follow later behind the same split. |
+| An operating-system secret store | Keys held in a platform credential store instead of the `review` environment's secrets and a mount. | Set aside for now. It can follow later behind the same split. |
 
 **How the review job resists tampering.**
 
@@ -94,7 +94,7 @@ What the design cannot contain is unchanged. A steered reviewer can attach a fal
 
 | Option | What it meant | Outcome |
 |---|---|---|
-| Each reviewer in its own CI job, holding only its own provider's key | A final job combines the answers with the reducer and posts the result. Only the final job holds the code-host token. | Taken. |
+| Each reviewer in its own CI job, holding only its own provider's key | A final job combines the answers with the reducer and posts the result. Only the final job mints the verifier's write token. | Taken. |
 | A single job holding every reviewer's key and the code-host token | The reviewers and the poster share one environment. | Set aside. A reviewer that reads files and is steered could reach every key in the job, and the token that posts the result. |
 
 **Whether the review job runs code.**
@@ -109,15 +109,15 @@ What the design cannot contain is unchanged. A steered reviewer can attach a fal
 
 ### 1. A builder agent must not be able to force a passing result
 
-No builder agent can produce a passing result unless a real review passed on that exact commit. This guard targets an agent inside the pipeline. A person with admin rights can already turn off branch protection some other way, so guarding against people adds little. The target is a deliberate attempt to force a pass.
+Once the review check is required, no builder agent can produce a passing result unless a real review passed on that exact commit. While the check is advisory, a pull request can merge with no review at all. This guard targets an agent inside the pipeline. A person with admin rights can already turn off branch protection some other way, so guarding against people adds little. The target is a deliberate attempt to force a pass.
 
 ### 2. Keys are split by where the work runs
 
-In CI, private keys live in repository secrets. A job mints a short-lived token, scoped only to the permissions that job needs, using the code host's own token-minting action. Each reviewer's job holds only its own model provider's key. Only the final job of the review, which combines the answers and posts the result, holds the code-host token. Inside the development container, only the builder's key is mounted, and the builder app can only read checks, so that key cannot write one. The verifier's key never enters an agent's workspace.
+In CI, private keys live in the `review` environment, with one named secret for each job. A job mints a short-lived token, scoped only to the permissions that job needs, using the code host's own token-minting action. Each reviewer's job holds only its own model provider's key. Only the final job of the review, which combines the answers and posts the result, mints the verifier's write token. Every job also has the automatic `GITHUB_TOKEN`, with the permissions its `permissions` block names. Inside the development container, only the builder's key is mounted, and the builder app can only read checks, so that key cannot write one. The verifier's key never enters an agent's workspace.
 
 ### 3. The review job runs from the base branch
 
-The review is defined in a workflow that always runs the base branch's own file. It checks out no pull request code to run. Its jobs are a reviewer job for each reviewer, and a final job. A reviewer job holds only its own provider's key in repository secrets. The final job combines the answers with the reducer and posts the result, and it alone holds the code-host token. GitHub posts a job's pass or fail as a check under its own identity, so no app needs permission to write checks directly. An ordinary pull-request workflow would run the file from the pull request's own branch instead, and the builder app holds permission to write workflow files. A pull request from the builder could otherwise change the review job to always pass. Running the job from the base branch closes that gap. The job that judges a pull request is always one that was already reviewed and merged into the base branch. For the same reason, the review reads its lenses, its prompt file and its review settings, such as the chosen reviewers and the pass threshold, from the base branch. A pull request cannot weaken its own review by editing them.
+The review is defined in a workflow that always runs the base branch's own file. It checks out no pull request code to run. Its jobs are a build job, a reviewer job for each reviewer, and a final job. The build job builds osf from the base branch with no secret, and finds the work item. A reviewer job holds only its own provider's key, as a named secret of the `review` environment. The final job combines the answers with the reducer and posts the result, and it alone mints the verifier's write token. GitHub posts a job's pass or fail as a check under its own identity, so no app needs permission to write checks directly. An ordinary pull-request workflow would run the file from the pull request's own branch instead, and the builder app holds permission to write workflow files. A pull request from the builder could otherwise change the review job to always pass. Running the job from the base branch closes that gap. The job that judges a pull request is always one that was already reviewed and merged into the base branch. For the same reason, the review reads its lenses, its prompt file and its review settings, such as the chosen reviewers and the pass threshold, from the base branch. A pull request cannot weaken its own review by editing them.
 
 ### 4. The factory has no server, so reviews run as CI workflows
 
@@ -141,14 +141,14 @@ A reviewer job checks out the pull request as data, and never builds, tests or r
 
 - The tools cannot write files or change anything. Claude Code, opencode and omp have file tools only: read, search and list. They have no shell. Codex runs in its read-only sandbox. That sandbox stops writes and changes, and its shell can still read any file the reviewer's user can read.
 - The reviewer starts in a clean copy of the change, with no coding agent's settings in it.
-- The network is open only to that reviewer's own model provider.
+- The network is limited by the job's allow-list. The list holds the reviewer's model provider and the GitHub hosts the job needs, which are the six hosts that the amendment above names. The opencode job adds `models.opencode.ai`. [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) narrows the list to the provider alone.
 - The job holds no secret beyond that provider's key, as decision 3 sets.
 - osf copies no login file into the reviewer's home when a key in the environment is enough. It removes the exact value of the job's secrets from each answer, in plain, base64 and hex form.
 - The quote check stays, so every finding must cite code that exists. It reads the real checkout of the change.
 
 An agent with no read-only mode cannot be a reviewer until it has one. A run that selects it reports could-not-run, with the reason.
 
-A pull request from a fork is not reviewed unless the repository variable `OSF_REVIEW_FORKS` is `true`, and the default is off. When it is on, the pull request waits for a maintainer's approval before the jobs run. Running pull request code next to a job's secrets is the known attack on a base-branch workflow. Build and test already run in the ordinary CI jobs.
+A pull request from a fork is not reviewed unless the repository variable `OSF_REVIEW_FORKS` is `true`, and the default is off. When it is on, the reviewer jobs and the final job use a `fork-review` environment. A maintainer's approval gates those jobs only when the adopter has made that environment with required reviewers, which [open-software-factory/software-factory#213 (protect the fork-review environment)](https://github.com/open-software-factory/software-factory/issues/213) tracks. The build job has no environment and runs first. Running pull request code next to a job's secrets is the known attack on a base-branch workflow. Build and test already run in the ordinary CI jobs.
 
 The work item text that the spec and acceptance lens needs comes from the issue the pull request names on its `Issue:` line, or else the first issue it closes. The build job reads that issue through the code host's API with a read-only token. That job holds no secret. It saves the text, and each reviewer job receives it as a read-only file. The text is untrusted, as the pull request's own text is, so it reaches a reviewer only as data. A pull request that links no readable issue makes that lens could-not-run.
 
@@ -168,9 +168,9 @@ A later pull-request workflow can react to a failed review job or a new comment 
 flowchart LR
   B[Builder agent, development container] -->|read-only key, cannot write checks| PR[Pull request]
   PR --> RJ[Reviewer jobs, base-branch workflow, each with only its own provider key]
-  RJ --> RV[Reviewer tools, read-only, network only to the provider]
+  RJ --> RV[Reviewer tools, read-only, network limited to an allow-list]
   RV -->|read-only checkout, no build or test| PR
-  RJ -->|answers| FJ[Final job: reducer, holds the code-host token]
+  RJ -->|answers| FJ[Final job: reducer, mints the verifier's write token]
   FJ -->|posts findings| VC[Verifier identity: pull_requests write]
   FJ -->|pass or fail under its own Actions identity| CHK[Check on the commit]
   CHK --> GATE{Branch protection}
@@ -188,7 +188,7 @@ Neither app can write a check or a commit status. That is what lets decision 3 w
 
 ## Consequences
 
-- A base-branch workflow with secrets still reads text that an agent, or a fork, wrote. A reviewer tool could be steered by that text. The sandbox in decision 8 limits the damage. A steered reviewer can read only its own key, osf removes that key's value from its answer, and its network reaches only the provider that issued that key. The limit holds only while the network rule is enforced for every reviewer job, so the review workflow must set it for each.
+- A base-branch workflow with secrets still reads text that an agent, or a fork, wrote. A reviewer tool could be steered by that text. The sandbox in decision 8 limits the damage. A steered reviewer can read only its own key, and osf removes that key's value from its answer. Its network reaches its provider and the GitHub hosts on the job's allow-list, so the network limits where the key can go, but not to the provider alone until [open-software-factory/software-factory#208 (hold provider keys outside the reviewer)](https://github.com/open-software-factory/software-factory/issues/208) lands. The limit holds only while the allow-list is set for every reviewer job, so the review workflow must set it for each.
 - The builder app holds `workflows: write`, `actions: write` and `actions_variables: write`. It could change a repository variable the review workflow reads, such as the runner choice, or cancel and rerun jobs. Which variables the review workflow trusts should be reviewed, and taking `actions_variables: write` away from the builder app is worth considering.
 - `pull_request_target` is easy to misuse. A later change that checks out and runs pull request code under it would bring back the attack this record closes. A lint on the workflow file should refuse that pattern.
 - Branch protection still needs a person with admin rights to turn it on. Until then, none of this is enforced.
@@ -197,10 +197,4 @@ Neither app can write a check or a commit status. That is what lets decision 3 w
 - Support for other code hosts and CI systems is deferred until a first adopter needs one. An adapter would then supply the same events, jobs and job results.
 - Each agent's read-only mode must be checked before the agent can review. An agent with none reports could-not-run until it has one.
 - Splitting the review into a job for each reviewer and a final job adds jobs, and so runner use, to every pull request.
-- [open-software-factory/software-factory#178 (the review check)](https://github.com/open-software-factory/software-factory/issues/178) must be reworked to match this record. It needs these changes:
-  - bring the review back as a base-branch workflow with an adopter-set runner
-  - run each reviewer in a job of its own with only its own provider key, and add a final job that holds the code-host token
-  - give each reviewer metadata and read-only tools, with the sandbox in decision 8
-  - post findings as review comments under the verifier identity
-  - fail the final job on a must-fix finding
-  - keep the pre-push run as a warning only
+- [open-software-factory/software-factory#178 (review check)](https://github.com/open-software-factory/software-factory/pull/178) holds the changes this record asked for. It has the base-branch workflow with an adopter-set runner. It runs each reviewer in a job of its own with only its own provider key, and a final job that mints the verifier's write token. A reviewer receives metadata and read-only tools, with the sandbox in decision 8. Findings post as review comments under the verifier identity, and a must-fix finding fails the final job. The pre-push run is a warning only. The same pull request carries `osf review run`, `osf review reduce`, `osf review work-item`, the workflow `review.yml`, the default prompt file and the lens files. Main has only `osf review post` until that pull request merges.
