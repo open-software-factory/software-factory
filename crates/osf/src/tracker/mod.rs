@@ -203,6 +203,10 @@ pub trait Tracker {
     /// If the cause cannot be recorded, the status is left untouched and the call returns the error.
     /// If the status move fails after the cause was recorded, a cause comment can remain on an item that is not blocked.
     ///
+    /// After a failed status move the cause comment stays in place.
+    /// The caller must move the item to failed and must not retry the same write, or the cause posts twice.
+    /// The retry policy belongs to open-software-factory/software-factory#117 (policy).
+    ///
     /// # Errors
     /// Returns an error when the tracker refuses the write or it cannot run.
     fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), TrackerError>;
