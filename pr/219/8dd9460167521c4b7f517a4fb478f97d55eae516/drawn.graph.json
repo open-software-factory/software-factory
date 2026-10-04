@@ -1,0 +1,394 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-04T00:07:50.561Z",
+  "title": "Bump agnix-core 0.54.0 → 0.56.1 in osf",
+  "summary": "A dependency-only change: the osf crate pins agnix-core to 0.56.1 (from 0.54.0), which drags agnix-rules to 0.56.2 and rewrites the corresponding Cargo.lock entries. No source code changes, so the runtime graph is untouched — what moves is the version of the lint/rule engine that osf links against at build time.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "66afde947ac2b20442edd5f5f7dc1de1432255cb",
+      "ref": "66afde947ac2b20442edd5f5f7dc1de1432255cb"
+    },
+    "head": {
+      "sha": "8dd9460167521c4b7f517a4fb478f97d55eae516",
+      "ref": "8dd9460167521c4b7f517a4fb478f97d55eae516"
+    },
+    "pullRequest": {
+      "number": 219,
+      "url": "https://github.com/open-software-factory/software-factory/pull/219"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "subtitle": "Rust workspace member",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The software-factory CLI crate whose manifest pins the agnix dependency."
+    },
+    {
+      "id": "agnix",
+      "label": "agnix engine",
+      "subtitle": "crates.io dependencies",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The external lint/rule engine osf links against; both its crates move to the 0.56 line in this change."
+    },
+    {
+      "id": "registry",
+      "label": "Cargo registry",
+      "subtitle": "crates.io + lockfile",
+      "order": 2,
+      "delta": "modified",
+      "summary": "Where the pinned versions are resolved and recorded for reproducible builds."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-crate",
+      "label": "osf",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "osf-crate",
+      "subtitle": "crates/osf",
+      "summary": "The workspace crate that consumes agnix-core. Its manifest is the only hand-edited file in this diff; the pin moves from =0.54.0 to =0.56.1.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 29,
+          "endLine": 29
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agnix-core",
+      "label": "agnix-core",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agnix",
+      "subtitle": "0.54.0 → 0.56.1",
+      "summary": "The engine crate osf depends on. Only its version and checksum change; its own dependency list (agnix-rules, anyhow, …) is unchanged in shape.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 15,
+          "endLine": 22
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agnix-rules",
+      "label": "agnix-rules",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "agnix",
+      "subtitle": "0.54.0 → 0.56.2",
+      "summary": "The rule data crate pulled in transitively by agnix-core. It moves to 0.56.2, a different patch level than agnix-core, so the two are versioned independently.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 39,
+          "endLine": 45
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-lock",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "registry",
+      "subtitle": "resolved versions + checksums",
+      "summary": "The lockfile records the new resolved versions and their checksums, keeping builds reproducible across the workspace.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 14,
+          "endLine": 45
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crates-io",
+      "label": "crates.io",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "registry source",
+      "summary": "The registry the pinned crates are fetched from; unchanged, but it is where the new 0.56 artifacts come from.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-depends-agnix-core",
+      "from": "osf-crate",
+      "to": "agnix-core",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=0.56.1",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one semantic change in the diff: osf's manifest pin moves from agnix-core 0.54.0 to 0.56.1.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 29,
+          "endLine": 29
+        }
+      ]
+    },
+    {
+      "id": "agnix-core-depends-rules",
+      "from": "agnix-core",
+      "to": "agnix-rules",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.56.2",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Transitive dependency carried by agnix-core; it resolves to 0.56.2 in the new lockfile.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 19,
+          "endLine": 22
+        }
+      ]
+    },
+    {
+      "id": "lock-records-agnix-core",
+      "from": "cargo-lock",
+      "to": "agnix-core",
+      "kind": "data",
+      "delta": "modified",
+      "label": "version + checksum",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile pins agnix-core's exact version and checksum for reproducible resolution.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 15,
+          "endLine": 18
+        }
+      ]
+    },
+    {
+      "id": "lock-records-agnix-rules",
+      "from": "cargo-lock",
+      "to": "agnix-rules",
+      "kind": "data",
+      "delta": "modified",
+      "label": "version + checksum",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile pins agnix-rules' exact version and checksum.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 39,
+          "endLine": 42
+        }
+      ]
+    },
+    {
+      "id": "crates-io-serves-agnix-core",
+      "from": "crates-io",
+      "to": "agnix-core",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "crate download",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Cargo fetches the newly pinned agnix-core artifact from crates.io at build time.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "dependency-resolution",
+      "title": "Resolving the agnix bump",
+      "summary": "How the manifest edit becomes a reproducible build input: the pin is declared in osf, resolved against crates.io, and frozen with checksums in the lockfile.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-crate",
+          "label": "osf manifest"
+        },
+        {
+          "node": "crates-io"
+        },
+        {
+          "node": "cargo-lock"
+        },
+        {
+          "node": "agnix-core"
+        },
+        {
+          "node": "agnix-rules"
+        }
+      ],
+      "messages": [
+        {
+          "id": "declare-pin",
+          "from": "osf-crate",
+          "to": "crates-io",
+          "label": "agnix-core = \"=0.56.1\"",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The only hand-edited line in the diff; the exact-version pin is raised from 0.54.0.",
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 29,
+              "endLine": 29
+            }
+          ]
+        },
+        {
+          "id": "resolve-core",
+          "from": "crates-io",
+          "to": "agnix-core",
+          "label": "resolve agnix-core 0.56.1",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 15,
+              "endLine": 18
+            }
+          ]
+        },
+        {
+          "id": "resolve-rules",
+          "from": "agnix-core",
+          "to": "agnix-rules",
+          "label": "requires agnix-rules 0.56.2",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Transitive resolution lands on 0.56.2, a different patch level than agnix-core.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 19,
+              "endLine": 22
+            }
+          ]
+        },
+        {
+          "id": "write-lock",
+          "from": "crates-io",
+          "to": "cargo-lock",
+          "label": "versions + checksums",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Both entries are rewritten with new checksums, so the lockfile diff is four lines in and four lines out.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 14,
+              "endLine": 45
+            }
+          ]
+        },
+        {
+          "id": "build-link",
+          "from": "cargo-lock",
+          "to": "osf-crate",
+          "label": "linked agnix-core 0.56.1",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "At build time osf links the 0.56.1 engine; no osf source changes accompany it.",
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 29,
+              "endLine": 29
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 5,
+    "deletions": 5,
+    "chips": [
+      {
+        "label": "Dependency bump",
+        "value": "0.54.0 → 0.56.1",
+        "tone": "modified"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      },
+      {
+        "label": "Lockfile entries",
+        "value": "2",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "view-dependency-graph",
+      "title": "Dependency graph around osf",
+      "lens": "architecture",
+      "summary": "The osf crate, the agnix engine crates it pulls in, and the lockfile that freezes the resolution.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-agnix-internals",
+      "title": "agnix engine internals",
+      "lens": "architecture",
+      "summary": "The two agnix crates and the dependency between them, both moved to the 0.56 line.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "agnix-core",
+          "agnix-rules",
+          "cargo-lock"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
