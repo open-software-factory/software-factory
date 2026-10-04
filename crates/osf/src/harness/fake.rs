@@ -133,6 +133,8 @@ mod tests {
             outcome: HarnessOutcome::Finished,
             exit: 0,
             changed_files: Vec::new(),
+            branch: Some("main".to_string()),
+            head_commit: "abc123".to_string(),
             usage: Some(Usage {
                 input_tokens: 1,
                 output_tokens: 2,

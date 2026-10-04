@@ -2,7 +2,8 @@
 //! with the in-memory fakes. The only concrete adapter named here is `dsh`.
 
 use osf::dsh_harness::{
-    parse_events, probe_command, status_command, DshConfig, DshHarness, PINNED_VERSION,
+    branch_command, head_command, parse_events, probe_command, status_command, DshConfig,
+    DshHarness, PINNED_VERSION,
 };
 use osf::harness::fake::{FakeHarness, FakeRunner};
 use osf::harness::{
@@ -63,9 +64,33 @@ fn one_new_file() -> Result<CommandOutput, HarnessError> {
     ok("?? hello.txt\0")
 }
 
-/// The script of one successful run: clean, created-file fixture, one file.
+/// The head commit before and after a run that follows the rules.
+const HEAD_BEFORE: &str = "1111111111111111111111111111111111111111";
+const HEAD_AFTER: &str = "1111111111111111111111111111111111111111";
+
+/// The branch a run started on.
+const BRANCH: &str = "feat/harness-adapter";
+
+/// A head output line for `commit`.
+fn head(commit: &str) -> Result<CommandOutput, HarnessError> {
+    ok(&format!("{commit}\n"))
+}
+
+/// A branch output line for `name`.
+fn branch(name: &str) -> Result<CommandOutput, HarnessError> {
+    ok(&format!("{name}\n"))
+}
+
+/// The script of one successful run: clean, head, branch, fixture, file, head.
 fn successful_script() -> Vec<Result<CommandOutput, HarnessError>> {
-    vec![clean(), ok(CREATED_FILE), one_new_file()]
+    vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(CREATED_FILE),
+        one_new_file(),
+        head(HEAD_AFTER),
+    ]
 }
 
 /// The adapter config: a program and a complete child environment.
@@ -146,6 +171,8 @@ fn a_created_file_run_reports_the_file_the_message_and_usage() {
     let runner = FakeRunner::new(successful_script());
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(result.changed_files, strings(&["hello.txt"]));
+    assert_eq!(result.branch.as_deref(), Some(BRANCH));
+    assert_eq!(result.head_commit, HEAD_AFTER);
     assert_eq!(result.final_message, final_message(CREATED_FILE));
     assert_eq!(
         result.session_id.as_deref(),
@@ -174,7 +201,14 @@ fn a_final_message_without_a_question_line_is_finished_even_when_it_asks() {
         ("prose statement", QUESTION_PROSE_STATEMENT),
         ("prose quoted", QUESTION_PROSE_QUOTED),
     ] {
-        let runner = FakeRunner::new(vec![clean(), ok(fixture), clean()]);
+        let runner = FakeRunner::new(vec![
+            clean(),
+            head(HEAD_BEFORE),
+            branch(BRANCH),
+            ok(fixture),
+            clean(),
+            head(HEAD_AFTER),
+        ]);
         let result = harness().run(&runner, &task()).expect("the run succeeds");
         assert_eq!(
             result.outcome,
@@ -190,7 +224,14 @@ fn a_final_message_without_a_question_line_is_finished_even_when_it_asks() {
 
 #[test]
 fn a_question_line_is_asked_with_no_changed_file() {
-    let runner = FakeRunner::new(vec![clean(), ok(QUESTION_MARKER), clean()]);
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(QUESTION_MARKER),
+        clean(),
+        head(HEAD_AFTER),
+    ]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
         result.outcome,
@@ -203,7 +244,14 @@ fn a_question_line_is_asked_with_no_changed_file() {
 
 #[test]
 fn a_real_run_that_followed_the_question_rule_is_asked() {
-    let runner = FakeRunner::new(vec![clean(), ok(QUESTION_CONTRACT), clean()]);
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(QUESTION_CONTRACT),
+        clean(),
+        head(HEAD_AFTER),
+    ]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
         result.outcome,
@@ -215,7 +263,14 @@ fn a_real_run_that_followed_the_question_rule_is_asked() {
 
 #[test]
 fn a_question_line_that_changed_a_file_is_still_asked_and_reports_the_file() {
-    let runner = FakeRunner::new(vec![clean(), ok(QUESTION_MARKER), one_new_file()]);
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(QUESTION_MARKER),
+        one_new_file(),
+        head(HEAD_AFTER),
+    ]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
         result.outcome,
@@ -228,15 +283,29 @@ fn a_question_line_that_changed_a_file_is_still_asked_and_reports_the_file() {
 
 #[test]
 fn a_non_zero_exit_is_failed_with_the_tool_stderr() {
-    let runner = FakeRunner::new(vec![clean(), exited(3, "boom\n")]);
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        exited(3, "boom\n"),
+    ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert_eq!(error, HarnessError::Failed("boom".to_string()));
-    assert_eq!(runner.commands().len(), 2, "the status and the agent only");
+    assert_eq!(
+        runner.commands().len(),
+        4,
+        "the status, the head, the branch and the agent only"
+    );
 }
 
 #[test]
 fn a_non_zero_exit_with_no_text_is_failed_with_the_status() {
-    let runner = FakeRunner::new(vec![clean(), exited(4, "")]);
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        exited(4, ""),
+    ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert_eq!(
         error,
@@ -246,7 +315,12 @@ fn a_non_zero_exit_with_no_text_is_failed_with_the_status() {
 
 #[test]
 fn a_timeout_is_failed_and_names_the_limit() {
-    let runner = FakeRunner::new(vec![clean(), timed_out(7)]);
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        timed_out(7),
+    ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert_eq!(
         error,
@@ -257,14 +331,24 @@ fn a_timeout_is_failed_and_names_the_limit() {
 #[test]
 fn exit_zero_with_no_final_event_is_failed() {
     let first_line = CREATED_FILE.lines().next().expect("the fixture has a line");
-    let runner = FakeRunner::new(vec![clean(), ok(first_line)]);
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(first_line),
+    ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert!(failed(error).contains("no final event"));
 }
 
 #[test]
 fn a_non_json_line_is_failed_with_its_line_number() {
-    let runner = FakeRunner::new(vec![clean(), ok("oops\n")]);
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok("oops\n"),
+    ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert_eq!(failed(error), "line 1 is not a JSON object: oops");
 }
@@ -284,11 +368,86 @@ fn a_failed_status_before_the_run_is_failed_with_its_text() {
 fn a_failed_status_after_the_run_is_failed_with_its_text() {
     let runner = FakeRunner::new(vec![
         clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
         ok(CREATED_FILE),
         exited(128, "fatal: broken index\n"),
     ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert_eq!(failed(error), "fatal: broken index".to_string());
+}
+
+#[test]
+fn a_detached_head_reports_no_branch() {
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch("HEAD"),
+        ok(CREATED_FILE),
+        one_new_file(),
+        head(HEAD_AFTER),
+    ]);
+    let result = harness().run(&runner, &task()).expect("the run succeeds");
+    assert_eq!(result.branch, None);
+    assert_eq!(result.head_commit, HEAD_AFTER);
+}
+
+#[test]
+fn a_commit_by_the_agent_is_failed_with_both_heads() {
+    let moved = "2222222222222222222222222222222222222222";
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(CREATED_FILE),
+        one_new_file(),
+        head(moved),
+    ]);
+    let error = harness().run(&runner, &task()).expect_err("the run fails");
+    let text = failed(error);
+    assert!(text.contains(moved), "{text} must name the new head");
+    assert!(text.contains(HEAD_BEFORE), "{text} must name the old head");
+}
+
+#[test]
+fn a_failed_head_before_the_run_is_failed_with_its_text() {
+    let runner = FakeRunner::new(vec![clean(), exited(128, "fatal: bad revision\n")]);
+    let error = harness().run(&runner, &task()).expect_err("the run fails");
+    assert_eq!(failed(error), "fatal: bad revision".to_string());
+    let commands = runner.commands();
+    assert_eq!(commands.len(), 2, "the status and the head only");
+    assert_eq!(
+        commands.get(1).expect("the head before"),
+        &head_command(&config(), "/repo")
+    );
+}
+
+#[test]
+fn a_failed_head_after_the_run_is_failed_with_its_text() {
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(CREATED_FILE),
+        one_new_file(),
+        exited(128, "fatal: bad revision\n"),
+    ]);
+    let error = harness().run(&runner, &task()).expect_err("the run fails");
+    assert_eq!(failed(error), "fatal: bad revision".to_string());
+}
+
+#[test]
+fn a_head_that_prints_nothing_is_failed() {
+    let runner = FakeRunner::new(vec![clean(), ok("")]);
+    let error = harness().run(&runner, &task()).expect_err("the run fails");
+    assert_eq!(failed(error), "git rev-parse HEAD printed nothing");
+}
+
+#[test]
+fn a_head_that_times_out_is_failed_and_names_the_limit() {
+    let runner = FakeRunner::new(vec![clean(), timed_out(9)]);
+    let error = harness().run(&runner, &task()).expect_err("the run fails");
+    assert_eq!(failed(error), "git rev-parse HEAD timed out after 9s");
 }
 
 #[test]
@@ -334,13 +493,22 @@ fn the_commands_reaching_the_runner_are_the_documented_ones() {
     let runner = FakeRunner::new(successful_script());
     harness().run(&runner, &task()).expect("the run succeeds");
     let commands = runner.commands();
-    assert_eq!(commands.len(), 3, "status, agent, status");
+    assert_eq!(
+        commands.len(),
+        6,
+        "status, head, branch, agent, status, head"
+    );
 
     let status = status_command(&config(), "/repo");
+    let head = head_command(&config(), "/repo");
+    let branch = branch_command(&config(), "/repo");
     assert_eq!(commands.first().expect("the status before"), &status);
-    assert_eq!(commands.get(2).expect("the status after"), &status);
+    assert_eq!(commands.get(1).expect("the head before"), &head);
+    assert_eq!(commands.get(2).expect("the branch"), &branch);
+    assert_eq!(commands.get(4).expect("the status after"), &status);
+    assert_eq!(commands.get(5).expect("the head after"), &head);
 
-    let agent = commands.get(1).expect("the agent command");
+    let agent = commands.get(3).expect("the agent command");
     assert_eq!(agent.program, "dsh");
     assert_eq!(
         agent.args,
@@ -382,6 +550,14 @@ fn the_result_is_plain_data_for_the_journal() {
     assert_eq!(
         value.get("changed_files").cloned(),
         Some(serde_json::json!(["hello.txt"]))
+    );
+    assert_eq!(
+        value.get("branch").and_then(serde_json::Value::as_str),
+        Some(BRANCH)
+    );
+    assert_eq!(
+        value.get("head_commit").and_then(serde_json::Value::as_str),
+        Some(HEAD_AFTER)
     );
     assert_eq!(
         value
@@ -541,6 +717,8 @@ fn two_harnesses_run_the_same_task_through_one_function() {
         outcome: HarnessOutcome::Finished,
         exit: 0,
         changed_files: Vec::new(),
+        branch: Some("main".to_string()),
+        head_commit: "abc123".to_string(),
         usage: None,
         cost_micro_usd: None,
     };

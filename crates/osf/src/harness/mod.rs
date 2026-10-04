@@ -89,6 +89,9 @@ pub enum HarnessOutcome {
 /// Plain data for the journal.
 ///
 /// `changed_files` are repository-relative, sorted, without duplicates.
+/// `branch` is `None` on a detached head. `head_commit` is the repository
+/// head after the run, and it equals the head before the run because a run
+/// that moved it fails.
 /// `usage` is the sum over the whole run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct HarnessResult {
@@ -98,6 +101,8 @@ pub struct HarnessResult {
     pub outcome: HarnessOutcome,
     pub exit: i32,
     pub changed_files: Vec<String>,
+    pub branch: Option<String>,
+    pub head_commit: String,
     pub usage: Option<Usage>,
     pub cost_micro_usd: Option<u64>,
 }
@@ -363,6 +368,8 @@ mod tests {
             outcome: HarnessOutcome::Finished,
             exit: 0,
             changed_files: vec!["a.rs".to_string()],
+            branch: Some("main".to_string()),
+            head_commit: "abc123".to_string(),
             usage: Some(Usage {
                 input_tokens: 1,
                 output_tokens: 2,
@@ -372,7 +379,7 @@ mod tests {
         };
         assert_eq!(
             serde_json::to_string(&result).expect("serializes"),
-            r#"{"actor":{"harness":"the-harness","model":"the-model","model_family":"the-family"},"session_id":"session-1","final_message":"done","outcome":"finished","exit":0,"changed_files":["a.rs"],"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3},"cost_micro_usd":null}"#
+            r#"{"actor":{"harness":"the-harness","model":"the-model","model_family":"the-family"},"session_id":"session-1","final_message":"done","outcome":"finished","exit":0,"changed_files":["a.rs"],"branch":"main","head_commit":"abc123","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3},"cost_micro_usd":null}"#
         );
     }
 

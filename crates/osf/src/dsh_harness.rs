@@ -14,8 +14,7 @@
 //! - There is no question event: the prompt asks the agent to end its final
 //!   message with a `QUESTION:` line, and the adapter reads that line.
 //! - Changed files come from `git status --porcelain=v1 -z`, so ignored files
-//!   and commits the agent made are not seen. The prompt therefore forbids
-//!   commits.
+//!   are not seen. A commit moves the head, and a run that moves it fails.
 
 use crate::harness::{
     build_prompt, question_line, Actor, Capability, CommandOutcome, CommandRunner, CommandSpec,
@@ -91,22 +90,56 @@ pub fn build_command(
     }
 }
 
-/// The command that lists every change in the repository, NUL separated.
-#[must_use]
-pub fn status_command(config: &DshConfig, repository_path: &str) -> CommandSpec {
+/// A git command in `repository_path`, with the configured environment.
+fn git_command(config: &DshConfig, repository_path: &str, args: &[&str]) -> CommandSpec {
     CommandSpec {
         program: "git".to_string(),
-        args: vec![
-            "status".to_string(),
-            "--porcelain=v1".to_string(),
-            "-z".to_string(),
-            "--untracked-files=all".to_string(),
-        ],
+        args: args.iter().copied().map(String::from).collect(),
         workdir: Some(repository_path.to_string()),
         env: config.env.clone(),
         stdin: None,
         timeout_secs: Some(60),
     }
+}
+
+/// The command that lists every change in the repository, NUL separated.
+#[must_use]
+pub fn status_command(config: &DshConfig, repository_path: &str) -> CommandSpec {
+    git_command(
+        config,
+        repository_path,
+        &["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+    )
+}
+
+/// The command that reads the head commit of the repository.
+#[must_use]
+pub fn head_command(config: &DshConfig, repository_path: &str) -> CommandSpec {
+    git_command(config, repository_path, &["rev-parse", "HEAD"])
+}
+
+/// The command that reads the current branch, or `HEAD` when detached.
+#[must_use]
+pub fn branch_command(config: &DshConfig, repository_path: &str) -> CommandSpec {
+    git_command(
+        config,
+        repository_path,
+        &["rev-parse", "--abbrev-ref", "HEAD"],
+    )
+}
+
+/// The head commit in `stdout`, trimmed, or `None` when it is empty.
+#[must_use]
+pub fn parse_head(stdout: &str) -> Option<String> {
+    let head = stdout.trim();
+    (!head.is_empty()).then(|| head.to_string())
+}
+
+/// The branch in `stdout`, trimmed, or `None` when empty or detached (`HEAD`).
+#[must_use]
+pub fn parse_branch(stdout: &str) -> Option<String> {
+    let branch = stdout.trim();
+    (!branch.is_empty() && branch != "HEAD").then(|| branch.to_string())
 }
 
 /// The command that probes `dsh` itself, for `--version` and `--help`.
@@ -279,6 +312,8 @@ impl Harness for DshHarness {
                 before.join(", ")
             )));
         }
+        let head_before = head_of(runner, &self.config, &task.repository_path)?;
+        let branch = branch_of(runner, &self.config, &task.repository_path)?;
 
         let command = build_command(
             &self.config,
@@ -312,6 +347,12 @@ impl Harness for DshHarness {
         };
 
         let changed_files = status_of(runner, &self.config, &task.repository_path)?;
+        let head_after = head_of(runner, &self.config, &task.repository_path)?;
+        if head_before != head_after {
+            return Err(HarnessError::Failed(format!(
+                "the agent made a commit although the rules forbid it: head moved from {head_before} to {head_after}"
+            )));
+        }
         let outcome = match question_line(&final_message) {
             Some(question) => HarnessOutcome::Asked { question },
             None => HarnessOutcome::Finished,
@@ -328,6 +369,8 @@ impl Harness for DshHarness {
             outcome,
             exit: 0,
             changed_files,
+            branch,
+            head_commit: head_after,
             usage: parsed.usage,
             cost_micro_usd: None,
         })
@@ -355,25 +398,68 @@ impl Harness for DshHarness {
     }
 }
 
+/// Runs one git command and returns its stdout, or the tool's own failure text.
+fn git_stdout(
+    runner: &dyn CommandRunner,
+    command: &CommandSpec,
+    name: &str,
+) -> Result<String, HarnessError> {
+    let output = runner.run(command)?;
+    match &output.outcome {
+        CommandOutcome::TimedOut { limit_secs } => Err(HarnessError::Failed(format!(
+            "{name} timed out after {limit_secs}s"
+        ))),
+        CommandOutcome::Exited(0) => Ok(output.stdout.clone()),
+        CommandOutcome::Exited(code) => Err(HarnessError::Failed(failure_text(
+            name,
+            *code,
+            &output.stderr,
+            &output.stdout,
+        ))),
+    }
+}
+
 /// Runs the clean-tree status command and parses the changed files.
 fn status_of(
     runner: &dyn CommandRunner,
     config: &DshConfig,
     repository_path: &str,
 ) -> Result<Vec<String>, HarnessError> {
-    let output = runner.run(&status_command(config, repository_path))?;
-    match &output.outcome {
-        CommandOutcome::TimedOut { limit_secs } => Err(HarnessError::Failed(format!(
-            "git status timed out after {limit_secs}s"
-        ))),
-        CommandOutcome::Exited(0) => Ok(parse_changed_files(&output.stdout)),
-        CommandOutcome::Exited(code) => Err(HarnessError::Failed(failure_text(
-            "git status",
-            *code,
-            &output.stderr,
-            &output.stdout,
-        ))),
-    }
+    let stdout = git_stdout(
+        runner,
+        &status_command(config, repository_path),
+        "git status",
+    )?;
+    Ok(parse_changed_files(&stdout))
+}
+
+/// Runs the head command and parses the head commit.
+fn head_of(
+    runner: &dyn CommandRunner,
+    config: &DshConfig,
+    repository_path: &str,
+) -> Result<String, HarnessError> {
+    let stdout = git_stdout(
+        runner,
+        &head_command(config, repository_path),
+        "git rev-parse HEAD",
+    )?;
+    parse_head(&stdout)
+        .ok_or_else(|| HarnessError::Failed("git rev-parse HEAD printed nothing".to_string()))
+}
+
+/// Runs the branch command and parses the branch.
+fn branch_of(
+    runner: &dyn CommandRunner,
+    config: &DshConfig,
+    repository_path: &str,
+) -> Result<Option<String>, HarnessError> {
+    let stdout = git_stdout(
+        runner,
+        &branch_command(config, repository_path),
+        "git rev-parse --abbrev-ref HEAD",
+    )?;
+    Ok(parse_branch(&stdout))
 }
 
 /// The tool's own text for a failed command, or a status fallback.
@@ -538,6 +624,50 @@ mod tests {
         assert_eq!(command.workdir.as_deref(), Some("/repo"));
         assert_eq!(command.timeout_secs, Some(60));
         assert!(command.stdin.is_none());
+        assert_eq!(command.env, config().env);
+    }
+
+    #[test]
+    fn head_command_pins_its_arguments_and_workdir() {
+        let command = head_command(&config(), "/repo");
+        assert_eq!(command.program, "git");
+        assert_eq!(command.args, strings(&["rev-parse", "HEAD"]));
+        assert_eq!(command.workdir.as_deref(), Some("/repo"));
+        assert_eq!(command.timeout_secs, Some(60));
+        assert!(command.stdin.is_none());
+        assert_eq!(command.env, config().env);
+    }
+
+    #[test]
+    fn branch_command_pins_its_arguments_and_workdir() {
+        let command = branch_command(&config(), "/repo");
+        assert_eq!(command.program, "git");
+        assert_eq!(
+            command.args,
+            strings(&["rev-parse", "--abbrev-ref", "HEAD"])
+        );
+        assert_eq!(command.workdir.as_deref(), Some("/repo"));
+        assert_eq!(command.timeout_secs, Some(60));
+        assert!(command.stdin.is_none());
+        assert_eq!(command.env, config().env);
+    }
+
+    #[test]
+    fn parse_head_trims_and_rejects_empty_output() {
+        assert_eq!(parse_head("abc123\n"), Some("abc123".to_string()));
+        assert_eq!(parse_head("  abc123  "), Some("abc123".to_string()));
+        assert_eq!(parse_head(""), None);
+        assert_eq!(parse_head("  \n"), None);
+    }
+
+    #[test]
+    fn parse_branch_reads_a_name_and_rejects_detached_and_empty() {
+        assert_eq!(parse_branch("main\n"), Some("main".to_string()));
+        assert_eq!(parse_branch("feat/x\n"), Some("feat/x".to_string()));
+        assert_eq!(parse_branch("HEAD\n"), None);
+        assert_eq!(parse_branch("HEAD"), None);
+        assert_eq!(parse_branch(""), None);
+        assert_eq!(parse_branch("  \n"), None);
     }
 
     #[test]
