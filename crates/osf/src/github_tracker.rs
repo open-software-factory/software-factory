@@ -604,21 +604,23 @@ fn parse_blockers(content: &Value) -> Result<Vec<Dependency>, TrackerError> {
     Ok(dependencies)
 }
 
-/// Reads one ready item out of one project node, if it is one.
+/// Reads one issue item out of one project node, if it is one.
 fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>, TrackerError> {
-    let status = node
-        .get("fieldValueByName")
-        .and_then(|field| field.get("name"))
-        .and_then(Value::as_str);
-    if status != Some(ready_option) {
-        return Ok(None);
-    }
     let Some(content) = node.get("content").filter(|value| !value.is_null()) else {
         return Ok(None);
     };
     if !is_issue_content(content) {
         return Ok(None);
     }
+    let status = match node
+        .get("fieldValueByName")
+        .and_then(|field| field.get("name"))
+        .and_then(Value::as_str)
+    {
+        Some(name) if name == ready_option => Status::Ready,
+        Some(name) => Status::Other(name.to_string()),
+        None => Status::Other("no status".to_string()),
+    };
     let number = content
         .get("number")
         .and_then(Value::as_u64)
@@ -659,18 +661,18 @@ fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>,
         title: title.to_string(),
         body,
         repository: repository.to_string(),
-        status: Status::Ready,
+        status,
         closed,
         blocked_by: parse_blockers(content)?,
     }))
 }
 
-/// Reads one page of project items, keeping only the ready ones.
+/// Reads one page of project items with their status.
 ///
 /// # Errors
 /// Returns an error when the text is not JSON, when the response carries an
 /// `errors` key, when the project or its item list is missing, when a page
-/// says it has a next one with no cursor, when a kept issue misses its
+/// says it has a next one with no cursor, when a read issue misses its
 /// number, title, repository or state, or when an issue has more blockers
 /// than were read.
 pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, TrackerError> {
@@ -922,6 +924,7 @@ fn split_repo(repo: &str) -> Result<(&str, &str), TrackerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tracker::ready::{pick, NotDispatchable, Pick, Skipped};
     use std::cell::RefCell;
     use std::collections::VecDeque;
 
@@ -1297,11 +1300,11 @@ mod tests {
     }
 
     #[test]
-    fn parse_items_page_skips_another_status() {
+    fn parse_items_page_keeps_another_status() {
         let page = items_page(
             json!([
                 {
-                    "fieldValueByName": {"name": "In progress"},
+                    "fieldValueByName": {"name": "Backlog"},
                     "content": issue(41, "Not ready", json!("Body."), blockers(json!([]), false)),
                 },
                 ready_node(issue(42, "Ready", json!("Body."), blockers(json!([]), false))),
@@ -1310,11 +1313,38 @@ mod tests {
             Value::Null,
         );
         let parsed = parse_items_page(&page, "Ready").expect("parses");
-        assert_eq!(parsed.items.len(), 1);
+        assert_eq!(parsed.items.len(), 2);
         assert_eq!(
-            parsed.items.first().expect("one item").id,
-            github_item("42")
+            parsed.items.first().expect("one item").status,
+            Status::Other("Backlog".to_string())
         );
+        assert_eq!(
+            parsed.items.get(1).expect("another item").status,
+            Status::Ready
+        );
+    }
+
+    #[test]
+    fn parse_items_page_treats_a_null_or_missing_status_as_no_status() {
+        let page = items_page(
+            json!([
+                {
+                    "fieldValueByName": {"name": null},
+                    "content": issue(41, "No status", json!("Body."), blockers(json!([]), false)),
+                },
+                {
+                    "content": issue(42, "No status", json!("Body."), blockers(json!([]), false)),
+                },
+            ]),
+            false,
+            Value::Null,
+        );
+        let parsed = parse_items_page(&page, "Ready").expect("parses");
+        assert_eq!(parsed.items.len(), 2);
+        assert!(parsed
+            .items
+            .iter()
+            .all(|item| item.status == Status::Other("no status".to_string())));
     }
 
     #[test]
@@ -1323,6 +1353,11 @@ mod tests {
             json!([
                 {"fieldValueByName": {"name": "Ready"}, "content": null},
                 {"fieldValueByName": {"name": "Ready"}, "content": {}},
+                {"fieldValueByName": {"name": "Ready"}, "content": {"__typename": "PullRequest"}},
+                {
+                    "fieldValueByName": {"name": "Ready"},
+                    "content": {"__typename": "ProjectV2DraftIssue"},
+                },
                 ready_node(issue(42, "Ready", json!("Body."), blockers(json!([]), false))),
             ]),
             false,
@@ -1528,15 +1563,30 @@ mod tests {
     }
 
     #[test]
-    fn read_ready_is_empty_for_a_project_with_no_ready_item() {
+    fn read_ready_finds_items_in_another_status_with_their_status() {
         let page = items_page(
             json!([{
-                "fieldValueByName": {"name": "In progress"},
+                "fieldValueByName": {"name": "Backlog"},
                 "content": issue(42, "Not ready", json!("Body."), blockers(json!([]), false)),
             }]),
             false,
             Value::Null,
         );
+        let tracker = tracker(vec![Ok(page)]);
+        let ReadOutcome::Found(items) = tracker.read_ready() else {
+            panic!("a backlog item is still found");
+        };
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items.first().expect("one item").status,
+            Status::Other("Backlog".to_string())
+        );
+        assert_eq!(tracker.runner.calls().len(), 1);
+    }
+
+    #[test]
+    fn read_ready_is_empty_for_a_project_with_no_items() {
+        let page = items_page(json!([]), false, Value::Null);
         let tracker = tracker(vec![Ok(page)]);
         assert_eq!(tracker.read_ready(), ReadOutcome::Empty);
         assert_eq!(tracker.runner.calls().len(), 1);
@@ -2049,5 +2099,43 @@ mod tests {
             ..StateOptions::standard()
         };
         assert_eq!(no_verifying.option_for(&WorkState::Verifying), None);
+    }
+
+    #[test]
+    fn pick_over_the_real_adapter_reports_a_backlog_item_as_status_not_ready() {
+        let mixed = items_page(
+            json!([
+                {
+                    "fieldValueByName": {"name": "Backlog"},
+                    "content": issue(41, "Backlog", json!("Body."), blockers(json!([]), false)),
+                },
+                ready_node(issue(42, "Ready", json!("Body."), blockers(json!([]), false))),
+            ]),
+            false,
+            Value::Null,
+        );
+        let mixed_tracker = tracker(vec![Ok(mixed)]);
+        let Pick::Item(item) = pick(&mixed_tracker) else {
+            panic!("the ready item must be picked");
+        };
+        assert_eq!(item.id, github_item("42"));
+        assert_eq!(item.status, Status::Ready);
+
+        let backlog_only = items_page(
+            json!([{
+                "fieldValueByName": {"name": "Backlog"},
+                "content": issue(41, "Backlog", json!("Body."), blockers(json!([]), false)),
+            }]),
+            false,
+            Value::Null,
+        );
+        let tracker = tracker(vec![Ok(backlog_only)]);
+        assert_eq!(
+            pick(&tracker),
+            Pick::NoneDispatchable(vec![Skipped {
+                id: github_item("41"),
+                reason: NotDispatchable::StatusNotReady("Backlog".to_string()),
+            }])
+        );
     }
 }

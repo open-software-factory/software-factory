@@ -191,7 +191,9 @@ pub struct TrackerCapabilities {
 
 /// The seam between the factory and a work tracker.
 pub trait Tracker {
-    /// Reads the items the tracker marks ready.
+    /// Reads the work items with their status.
+    /// The ready rule in `dispatchable` decides which one may be dispatched.
+    /// An adapter must not filter by the ready status itself.
     fn read_ready(&self) -> ReadOutcome<Vec<WorkItem>>;
 
     /// Writes the state of one work item.
