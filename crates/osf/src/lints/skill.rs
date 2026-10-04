@@ -699,19 +699,18 @@ fn script_findings(scripts: &[ScriptEntry]) -> Vec<SkillFinding> {
                 continue;
             }
         };
-        for (i, line) in text.lines().enumerate() {
-            out.extend(
-                super::script_pins::has_unpinned_install(line).then(|| finding_at(
-                    i + 1, "skill-script-unpinned",
-                    "pin the direct dependency to an exact version; a lockfile flag alone does not pin the installed package".to_string(),
-                    line.trim(),
-                )).into_iter().map(|finding| {
-                    SkillFinding {
-                        file: rel.clone(),
-                        finding,
-                    }
-                }),
-            );
+        let lines: Vec<&str> = text.lines().collect();
+        for number in super::script_pins::unpinned_line_numbers(text) {
+            let line = number.checked_sub(1).and_then(|i| lines.get(i));
+            out.push(SkillFinding {
+                file: rel.clone(),
+                finding: finding_at(
+                    number,
+                    "skill-script-unpinned",
+                    "pin the direct dependency or image to an exact version; a lockfile flag alone does not pin the installed package".to_string(),
+                    line.map_or("", |l| l.trim()),
+                ),
+            });
         }
     }
     out
