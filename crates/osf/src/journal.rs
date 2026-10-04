@@ -41,8 +41,16 @@ pub fn state_dir() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home).join(".osf").join("state"))
 }
 
-/// Refuses a run id that is not a safe single path component: an empty id,
-/// one carrying a path separator, or one carrying `..`.
+// Windows device names that name a device rather than a file.
+const RESERVED_DEVICE_NAMES: [&str; 22] = [
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+    "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
+
+/// Refuses a run id that is not a safe single path component. Accepts only
+/// the characters `A-Z`, `a-z`, `0-9`, `.`, `_` and `-`; refuses an empty id,
+/// one carrying a path separator or `..`, one starting or ending with `.`,
+/// and a Windows reserved device name such as `CON`.
 pub(super) fn validate_run_id(run: &str) -> Result<(), String> {
     if run.is_empty() {
         return Err("run id must not be empty".to_string());
@@ -52,6 +60,29 @@ pub(super) fn validate_run_id(run: &str) -> Result<(), String> {
     }
     if run.contains("..") {
         return Err(format!("run id '{run}' must not contain '..'"));
+    }
+    if let Some(c) = run
+        .chars()
+        .find(|c| !c.is_ascii_alphanumeric() && !matches!(c, '.' | '_' | '-'))
+    {
+        return Err(format!(
+            "run id '{run}' must not contain '{c}' (use only letters, digits, '.', '_' and '-')"
+        ));
+    }
+    if run.starts_with('.') {
+        return Err(format!("run id '{run}' must not start with '.'"));
+    }
+    if run.ends_with('.') {
+        return Err(format!("run id '{run}' must not end with '.'"));
+    }
+    let stem = run.split('.').next().unwrap_or(run);
+    if RESERVED_DEVICE_NAMES
+        .iter()
+        .any(|name| stem.eq_ignore_ascii_case(name))
+    {
+        return Err(format!(
+            "run id '{run}' is a reserved device name on Windows"
+        ));
     }
     Ok(())
 }
@@ -720,6 +751,54 @@ mod tests {
         let dir = TempDir::new("osf-journal-run-id-parent");
         let err = Journal::open(&dir, "..").expect_err("parent component");
         assert!(err.contains(".."), "{err}");
+    }
+
+    #[test]
+    fn a_run_id_with_a_colon_is_refused() {
+        let dir = TempDir::new("osf-journal-run-id-colon");
+        let err = Journal::open(&dir, "a:b").expect_err("colon");
+        assert!(err.contains(':'), "{err}");
+    }
+
+    #[test]
+    fn other_unsafe_characters_are_refused() {
+        let dir = TempDir::new("osf-journal-run-id-unsafe");
+        for run in ["a b", "a*b", "a?b", "a\"b", "a<b", "a>b", "a|b", "aéb"] {
+            Journal::open(&dir, run).expect_err(run);
+        }
+    }
+
+    #[test]
+    fn a_run_id_with_a_leading_or_trailing_dot_is_refused() {
+        let dir = TempDir::new("osf-journal-run-id-dot");
+        Journal::open(&dir, ".hidden").expect_err("leading dot");
+        Journal::open(&dir, "run.").expect_err("trailing dot");
+    }
+
+    #[test]
+    fn a_windows_reserved_device_name_is_refused() {
+        let dir = TempDir::new("osf-journal-run-id-device");
+        for run in [
+            "CON", "con", "PRN", "AUX", "Nul", "COM1", "com9", "LPT1", "lpt9", "CON.txt",
+        ] {
+            let err = Journal::open(&dir, run).expect_err(run);
+            assert!(err.contains("reserved"), "{run}: {err}");
+        }
+    }
+
+    #[test]
+    fn ordinary_run_ids_are_accepted() {
+        let dir = TempDir::new("osf-journal-run-id-ordinary");
+        for run in [
+            "run-1",
+            "pre-push-1000-111",
+            "console",
+            "com10",
+            "run-con",
+            "a.b_c-d",
+        ] {
+            Journal::open(&dir, run).expect(run);
+        }
     }
 
     #[test]
