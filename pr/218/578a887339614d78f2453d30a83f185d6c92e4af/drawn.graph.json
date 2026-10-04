@@ -1,0 +1,454 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-tree-sitter-0-27-bump",
+  "generatedAt": "2026-10-04T00:07:48.335Z",
+  "title": "osf: tree-sitter 0.25.10 → 0.27.0",
+  "summary": "A dependency-only change: the `osf` crate pins `tree-sitter` to 0.27.0 instead of 0.25.10, and Cargo.lock follows, dropping the transitive `regex-syntax` edge that 0.25.10 pulled in. No source file changes, so the runtime shape of the system is untouched — what moves is the parser runtime that `osf` links against and the grammar crates that must stay ABI-compatible with it.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "66afde947ac2b20442edd5f5f7dc1de1432255cb",
+      "ref": "66afde947ac2b20442edd5f5f7dc1de1432255cb"
+    },
+    "head": {
+      "sha": "578a887339614d78f2453d30a83f185d6c92e4af",
+      "ref": "578a887339614d78f2453d30a83f185d6c92e4af"
+    },
+    "pullRequest": {
+      "number": 218,
+      "url": "https://github.com/open-software-factory/software-factory/pull/218"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "crates",
+      "label": "Workspace crates",
+      "subtitle": "Rust workspace",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The crates that make up the factory. Only the `osf` crate's manifest changes here."
+    },
+    {
+      "id": "parser-runtime",
+      "label": "Parser runtime",
+      "subtitle": "tree-sitter + grammars",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The tree-sitter runtime and the language grammars compiled against it. The runtime version is what this change moves."
+    },
+    {
+      "id": "registry",
+      "label": "Crates.io registry",
+      "subtitle": "External supply chain",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "Where the pinned runtime and grammar artifacts are resolved from at build time."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-crate",
+      "label": "osf",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "crates",
+      "subtitle": "crates/osf/Cargo.toml",
+      "summary": "The crate whose manifest pins the parser runtime. Its dependency line moves from `=0.25.10` to `=0.27.0`; no Rust source in the crate changes.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 31,
+          "endLine": 31
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workspace-lockfile",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "crates",
+      "subtitle": "resolved dependency graph",
+      "summary": "The resolved graph for the whole workspace. It records tree-sitter 0.27.0 with a new checksum and drops the `regex-syntax` dependency that 0.25.10 carried.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1392,
+          "endLine": 1402
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-runtime",
+      "label": "tree-sitter",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "parser-runtime",
+      "subtitle": "0.25.10 → 0.27.0",
+      "summary": "The incremental parsing runtime. Two minor versions forward: a new checksum, and one fewer transitive dependency (`regex-syntax` is gone).",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1393,
+          "endLine": 1394
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-rust-grammar",
+      "label": "tree-sitter-rust",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "parser-runtime",
+      "subtitle": "=0.24.2",
+      "summary": "The Rust grammar the osf crate compiles against the runtime. Its pin is untouched, so it must remain ABI-compatible with the new runtime — the compatibility question this bump raises.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 32,
+          "endLine": 32
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-language",
+      "label": "tree-sitter-language",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "parser-runtime",
+      "subtitle": "grammar ABI shim",
+      "summary": "The crate that carries the grammar ABI between runtime and grammar. Unchanged in the lockfile, which is why the grammar pin can stay put.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1400,
+          "endLine": 1400
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crates-io",
+      "label": "crates.io",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "registry index",
+      "summary": "Source of the pinned runtime and grammar artifacts. The lockfile checksum is what pins the exact bytes fetched from here.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-pins-runtime",
+      "from": "osf-crate",
+      "to": "tree-sitter-runtime",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=0.27.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one line the change is about: the osf crate's exact-version pin on the parser runtime.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 31,
+          "endLine": 31
+        }
+      ]
+    },
+    {
+      "id": "osf-pins-rust-grammar",
+      "from": "osf-crate",
+      "to": "tree-sitter-rust-grammar",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "=0.24.2",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The grammar pin that stays fixed while the runtime moves, so the two must still agree on the grammar ABI.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 32,
+          "endLine": 32
+        }
+      ]
+    },
+    {
+      "id": "grammar-uses-language",
+      "from": "tree-sitter-rust-grammar",
+      "to": "tree-sitter-language",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The grammar speaks to the runtime through the language shim rather than directly.",
+      "files": []
+    },
+    {
+      "id": "runtime-uses-language",
+      "from": "tree-sitter-runtime",
+      "to": "tree-sitter-language",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The runtime consumes the same shim, which is the seam that keeps the version skew survivable.",
+      "files": []
+    },
+    {
+      "id": "lockfile-records-runtime",
+      "from": "workspace-lockfile",
+      "to": "tree-sitter-runtime",
+      "kind": "data",
+      "delta": "modified",
+      "label": "0.27.0 + checksum",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile records the new version and checksum, and no longer lists regex-syntax under it.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1393,
+          "endLine": 1402
+        }
+      ]
+    },
+    {
+      "id": "runtime-fetched-from-registry",
+      "from": "tree-sitter-runtime",
+      "to": "crates-io",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pinned artifact is resolved and fetched from the registry at build time.",
+      "files": []
+    },
+    {
+      "id": "grammar-fetched-from-registry",
+      "from": "tree-sitter-rust-grammar",
+      "to": "crates-io",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The grammar artifact is fetched from the same registry under its own unchanged pin.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "dependency-resolution",
+      "title": "Resolving the parser runtime for osf",
+      "summary": "How the pinned runtime reaches a build of the osf crate, and where the version bump lands.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-crate",
+          "label": "osf"
+        },
+        {
+          "node": "workspace-lockfile",
+          "label": "Cargo.lock"
+        },
+        {
+          "node": "crates-io",
+          "label": "crates.io"
+        },
+        {
+          "node": "tree-sitter-runtime",
+          "label": "tree-sitter"
+        },
+        {
+          "node": "tree-sitter-rust-grammar",
+          "label": "ts-rust"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-declare-pin",
+          "from": "osf-crate",
+          "to": "workspace-lockfile",
+          "label": "tree-sitter = \"=0.27.0\"",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The manifest's exact-version requirement is the only authored change; the lockfile is regenerated from it.",
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 31,
+              "endLine": 31
+            }
+          ]
+        },
+        {
+          "id": "step-resolve",
+          "from": "workspace-lockfile",
+          "to": "crates-io",
+          "label": "resolve 0.27.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Resolution picks the new runtime and recomputes its transitive set, which no longer includes regex-syntax.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1393,
+              "endLine": 1402
+            }
+          ]
+        },
+        {
+          "id": "step-fetch-runtime",
+          "from": "crates-io",
+          "to": "tree-sitter-runtime",
+          "label": "tree-sitter 0.27.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "CrateArchive",
+              "shape": "tree-sitter 0.27.0",
+              "sample": {
+                "name": "tree-sitter",
+                "version": "0.27.0",
+                "checksum": "2038684e0058edba0d17302619f62eabce4a8e11c6ac59506996a8d79848851d",
+                "dependencies": [
+                  "cc",
+                  "serde_json",
+                  "streaming-iterator",
+                  "tree-sitter-language"
+                ]
+              },
+              "before": {
+                "name": "tree-sitter",
+                "version": "0.25.10",
+                "checksum": "78f873475d258561b06f1c595d93308a7ed124d9977cb26b148c2084a4a3cc87",
+                "dependencies": [
+                  "cc",
+                  "regex",
+                  "regex-syntax",
+                  "serde_json",
+                  "streaming-iterator",
+                  "tree-sitter-language"
+                ]
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-fetch-grammar",
+          "from": "crates-io",
+          "to": "tree-sitter-rust-grammar",
+          "label": "tree-sitter-rust 0.24.2",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The grammar pin is untouched, so the same artifact is fetched as before.",
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 32,
+              "endLine": 32
+            }
+          ]
+        },
+        {
+          "id": "step-link",
+          "from": "tree-sitter-rust-grammar",
+          "to": "tree-sitter-runtime",
+          "label": "grammar ABI",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The grammar is compiled against the new runtime through the language shim; this is the compatibility seam the bump exercises.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1400,
+              "endLine": 1400
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 3,
+    "deletions": 4,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "view-containers",
+      "title": "Containers touched by the bump",
+      "lens": "architecture",
+      "summary": "The osf crate, the parser runtime it pins, and the registry the artifacts come from.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-parser-runtime",
+      "title": "Parser runtime internals",
+      "lens": "architecture",
+      "summary": "The runtime, the Rust grammar and the language shim that sits between them.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "parser-runtime"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "view-dependency-resolution",
+      "title": "Dependency resolution flow",
+      "lens": "data-flow",
+      "summary": "The ordered path from the manifest pin to a linked grammar.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "dependency-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

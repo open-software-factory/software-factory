@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-tree-sitter-0-27-bump",
+    "headSha": "578a887339614d78f2453d30a83f185d6c92e4af",
+    "contentHash": "25bf67cf37b8deb4db4f642ed0854881"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "view-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8b42621079f4d08fba1c279829c42371",
+      "bytes": 12220,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "view-containers-light-8b42621079f4d08fba1c279829c42371.svg"
+    },
+    {
+      "id": "view-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ee95b60b68c5a49b46e37367dc512581",
+      "bytes": 12323,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "view-containers-dark-ee95b60b68c5a49b46e37367dc512581.svg"
+    },
+    {
+      "id": "view-parser-runtime-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-parser-runtime",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b4c29c438ca61b2bb94fe37c6efcda9b",
+      "bytes": 6112,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "view-parser-runtime-light-b4c29c438ca61b2bb94fe37c6efcda9b.svg"
+    },
+    {
+      "id": "view-parser-runtime-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-parser-runtime",
+      "mediaType": "image/svg+xml",
+      "contentHash": "83ddc8258c639d5c19fe6700f0a7bb2d",
+      "bytes": 6158,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "view-parser-runtime-dark-83ddc8258c639d5c19fe6700f0a7bb2d.svg"
+    },
+    {
+      "id": "view-dependency-resolution-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "view-dependency-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b1e0a6b5e563ec3e39cc646a9c69a0e8",
+      "bytes": 13096,
+      "width": 1411,
+      "height": 337,
+      "animated": true,
+      "path": "view-dependency-resolution-light-b1e0a6b5e563ec3e39cc646a9c69a0e8.svg"
+    },
+    {
+      "id": "view-dependency-resolution-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "view-dependency-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a790bee9dec4a44d908e0b5fe2432756",
+      "bytes": 13232,
+      "width": 1411,
+      "height": 337,
+      "animated": true,
+      "path": "view-dependency-resolution-dark-a790bee9dec4a44d908e0b5fe2432756.svg"
+    }
+  ]
+}
