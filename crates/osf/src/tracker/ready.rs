@@ -36,14 +36,17 @@ pub fn dispatchable(item: &WorkItem) -> bool {
         && item.blocked_by.iter().all(|dependency| dependency.closed)
 }
 
-/// Reads the ready items and picks the first dispatchable one, or explains why none is.
+/// Picks the first dispatchable item, or `NothingReady` when no item has status ready.
 #[must_use]
 pub fn pick(tracker: &dyn Tracker) -> Pick {
     match tracker.read_ready() {
         ReadOutcome::Empty => Pick::NothingReady,
         ReadOutcome::Unknown(text) => Pick::Unknown(text),
         ReadOutcome::Found(items) => {
-            if items.is_empty() {
+            if !items
+                .iter()
+                .any(|item| matches!(&item.status, Status::Ready))
+            {
                 return Pick::NothingReady;
             }
             for item in &items {
@@ -196,6 +199,15 @@ mod tests {
     fn pick_of_an_empty_found_list_is_nothing_ready() {
         let mut tracker = FakeTracker::new();
         tracker.ready = ReadOutcome::Found(Vec::new());
+        assert_eq!(pick(&tracker), Pick::NothingReady);
+    }
+
+    #[test]
+    fn pick_of_only_non_ready_items_is_nothing_ready() {
+        let mut tracker = FakeTracker::new();
+        let paused = work_item("1", Status::Other("Paused".to_string()), Vec::new());
+        let backlog = work_item("2", Status::Other("Backlog".to_string()), Vec::new());
+        tracker.ready = ReadOutcome::Found(vec![paused, backlog]);
         assert_eq!(pick(&tracker), Pick::NothingReady);
     }
 

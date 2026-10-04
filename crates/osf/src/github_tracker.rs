@@ -1006,7 +1006,7 @@ fn split_repo(repo: &str) -> Result<(&str, &str), TrackerError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tracker::ready::{pick, NotDispatchable, Pick, Skipped};
+    use crate::tracker::ready::{pick, Pick};
     use std::cell::RefCell;
     use std::collections::VecDeque;
 
@@ -2251,7 +2251,7 @@ mod tests {
     }
 
     #[test]
-    fn pick_over_the_real_adapter_reports_a_backlog_item_as_status_not_ready() {
+    fn pick_over_the_real_adapter_reports_a_backlog_only_page_as_nothing_ready() {
         let mixed = items_page(
             json!([
                 {
@@ -2279,12 +2279,6 @@ mod tests {
             Value::Null,
         );
         let tracker = tracker(vec![Ok(backlog_only)]);
-        assert_eq!(
-            pick(&tracker),
-            Pick::NoneDispatchable(vec![Skipped {
-                id: github_item("41"),
-                reason: NotDispatchable::StatusNotReady("Backlog".to_string()),
-            }])
-        );
+        assert_eq!(pick(&tracker), Pick::NothingReady);
     }
 }
