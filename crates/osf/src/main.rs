@@ -498,9 +498,9 @@ struct VerifyArgs {
 
 #[derive(Subcommand)]
 enum LintKind {
-    /// Check prose for references, names, sentence length, and filler.
+    /// Check prose for references, chat-local phrases, sentence length, and style shapes.
     Writing(WritingArgs),
-    /// Check a skill folder's SKILL.md against eleven structural and safety rules.
+    /// Check a skill folder's SKILL.md and scripts for structural and safety problems.
     Skill(SkillLintArgs),
 }
 
