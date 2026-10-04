@@ -90,11 +90,57 @@ fn the_build_job_finds_the_work_item_with_read_only_access() {
         "the build job's permissions are read-only"
     );
     assert!(build.contains("osf review work-item"), "{build}");
+    assert!(
+        build.contains("--head ${{ github.event.pull_request.head.sha }}"),
+        "the build job records the head commit: {build}"
+    );
     assert!(build.contains("--out /work-item/work-item.json"), "{build}");
     assert!(
         build.contains("name: work-item\n          path: work-item/work-item.json"),
         "the build job keeps the work item as an artifact"
     );
+}
+
+/// The trigger types named under `on: pull_request_target:`.
+fn trigger_types(text: &str) -> Vec<String> {
+    let mut in_on = false;
+    for line in text.lines() {
+        if line == "on:" {
+            in_on = true;
+            continue;
+        }
+        if !in_on {
+            continue;
+        }
+        if line.starts_with("permissions:") {
+            break;
+        }
+        if let Some(rest) = line.trim().strip_prefix("types:") {
+            let list = rest.trim().trim_start_matches('[').trim_end_matches(']');
+            return list
+                .split(',')
+                .map(|name| name.trim().to_string())
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
+#[test]
+fn the_workflow_runs_again_when_the_pull_request_text_is_edited() {
+    let types = trigger_types(&workflow_text());
+    for name in [
+        "opened",
+        "synchronize",
+        "reopened",
+        "ready_for_review",
+        "edited",
+    ] {
+        assert!(
+            types.iter().any(|found| found == name),
+            "missing {name} in {types:?}"
+        );
+    }
 }
 
 #[test]

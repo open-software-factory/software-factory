@@ -15,7 +15,7 @@ name: review
 # request is reviewed only when the OSF_REVIEW_FORKS variable is set to true.
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
 
 permissions:
   contents: read
@@ -119,6 +119,7 @@ jobs:
             /base/target/release/osf review work-item \
             --pull-request /work-item/pull-request.json \
             --repository ${{ github.repository }} \
+            --head ${{ github.event.pull_request.head.sha }} \
             --out /work-item/work-item.json
 
       - name: Keep the work item for the reviewer jobs

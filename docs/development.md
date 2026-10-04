@@ -151,7 +151,8 @@ separate job.
 
 GitHub always reads a `pull_request_target` workflow from the base
 branch. That is why `.github/workflows/review.yml` is the real gate, and
-a pull request cannot change what this job does.
+a pull request cannot change what this job does. The workflow runs again
+when the pull request text is edited.
 
 The workflow has one job for each step. A `build` job builds the `osf`
 tool from the base branch only, with no secrets. Each reviewer then runs
@@ -223,11 +224,16 @@ pull request's body from the event. It takes the issue that the `Issue:`
 line names, or else the first issue the body closes with a closing keyword.
 It reads that issue from this repository through the code host's API. It
 saves the issue's text, or the reason there is none, as the `work-item`
-artifact, and each reviewer job receives that file read-only. The issue's
-text is untrusted, like the pull request's body. The prompt tells the
-reviewer to treat it as data, and `osf` redacts a secret in it. A pull
-request with no readable linked issue makes the spec and acceptance lens
-could-not-run, with a reason that says to link one.
+artifact, and each reviewer job receives that file read-only. The saved work
+item records the issue number and the pull request's head commit. A reviewer
+refuses a saved work item that does not match its own pull request text and
+commit, and reports the reason. The issue's text is untrusted, like the pull
+request's body. The prompt tells the reviewer to treat it as data, and `osf`
+redacts a secret in it. A pull request with no readable linked issue makes
+the spec and acceptance lens could-not-run, with a reason that says to link
+one. A work item whose acceptance section is empty makes the spec and
+acceptance lens could-not-run too, with a reason that says the section is
+empty.
 
 The job also reads the lens catalogue from the base branch. It reads the
 `[agents]` and `[review]` settings from the base branch too: the reviewers,

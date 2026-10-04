@@ -30,6 +30,13 @@ pub struct PullRequest {
     pub body: Option<String>,
 }
 
+/// The pull request a saved work item must belong to: its repository and head commit.
+#[derive(Debug, Clone, Copy)]
+pub struct WorkItemBinding<'a> {
+    pub repository: &'a str,
+    pub head: &'a str,
+}
+
 /// Where a lens's metadata comes from: the repository, the base it diffs
 /// against, the work item file the caller saved, if any, the pull request,
 /// if any, and where the trusted `[scan]` redaction settings are read from.
@@ -45,6 +52,8 @@ pub struct Sources<'a> {
     pub base: &'a str,
     pub work_item: Option<&'a Path>,
     pub pull_request: Option<&'a PullRequest>,
+    /// The pull request a saved work item must match, when one is known.
+    pub work_item_binding: Option<WorkItemBinding<'a>>,
 }
 
 /// Builds the metadata section of `lens`'s prompt from `sources`.
@@ -68,10 +77,12 @@ pub fn build(lens: &Lens, sources: &Sources) -> Result<String, String> {
     if lens.context.contains(&ContextInput::AcceptanceCriteria) {
         let body = work_item.as_deref().unwrap_or_default();
         if acceptance_section_text(body).is_none() {
-            return Err(
+            return Err(if acceptance_heading_present(body) {
+                "acceptance-criteria: the acceptance criteria section is empty".to_string()
+            } else {
                 "acceptance-criteria: the work item has no \"Done when\" or \"Acceptance criteria\" heading"
-                    .to_string(),
-            );
+                    .to_string()
+            });
         }
     }
 
@@ -242,6 +253,10 @@ fn read_work_item(sources: &Sources) -> Result<String, String> {
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
     {
+        if let Some(binding) = sources.work_item_binding {
+            let body = sources.pull_request.and_then(|pr| pr.body.as_deref());
+            crate::work_item::check_binding(&text, binding.repository, binding.head, body)?;
+        }
         return crate::work_item::read_saved(&text);
     }
     Ok(text)
@@ -268,10 +283,26 @@ fn is_acceptance_heading(line: &str) -> bool {
     lower.contains("done when") || lower.contains("acceptance criteria")
 }
 
+/// `body` with code, comments and quotes blanked, for heading detection.
+fn visible_lines(body: &str) -> Vec<String> {
+    crate::work_item::prose(body)
+        .lines()
+        .map(str::to_string)
+        .collect()
+}
+
+/// Whether `body` holds an acceptance heading outside a code block.
+fn acceptance_heading_present(body: &str) -> bool {
+    visible_lines(body)
+        .iter()
+        .any(|line| is_acceptance_heading(line))
+}
+
 /// The acceptance heading in `body` and everything under it, up to the next
-/// heading at the same or a shallower level, or `None` when there is no such heading.
+/// heading at the same or a shallower level. `None` when there is no such
+/// heading, or when the section holds no text.
 fn acceptance_section_text(body: &str) -> Option<String> {
-    let lines: Vec<&str> = body.lines().collect();
+    let lines = visible_lines(body);
     let start = lines.iter().position(|line| is_acceptance_heading(line))?;
     let level = heading_level(lines.get(start)?)?;
     let end = lines
@@ -280,7 +311,9 @@ fn acceptance_section_text(body: &str) -> Option<String> {
         .skip(start + 1)
         .find(|(_, line)| heading_level(line).is_some_and(|found| found <= level))
         .map_or(lines.len(), |(i, _)| i);
-    lines.get(start..end).map(|section| section.join("\n"))
+    let section = lines.get(start..end)?;
+    let has_text = section.iter().skip(1).any(|line| !line.trim().is_empty());
+    has_text.then(|| section.join("\n"))
 }
 
 // --- decision records ------------------------------------------------------
@@ -463,6 +496,41 @@ mod tests {
     fn acceptance_section_is_none_with_no_matching_heading() {
         let body = "# Title\n\nno acceptance heading here\n";
         assert!(acceptance_section_text(body).is_none());
+    }
+
+    #[test]
+    fn acceptance_section_is_none_when_the_body_ends_with_the_heading() {
+        assert!(acceptance_section_text("# Title\n\n## Done when").is_none());
+    }
+
+    #[test]
+    fn acceptance_section_is_none_when_only_blank_lines_follow_the_heading() {
+        assert!(acceptance_section_text("## Done when\n\n\n   \n").is_none());
+    }
+
+    #[test]
+    fn acceptance_section_is_none_when_only_an_html_comment_follows_the_heading() {
+        let body = "## Done when\n<!-- nothing here yet -->\n";
+        assert!(acceptance_section_text(body).is_none());
+    }
+
+    #[test]
+    fn acceptance_section_is_none_when_the_next_heading_follows_at_once() {
+        let body = "## Done when\n## Notes\nsome notes\n";
+        assert!(acceptance_section_text(body).is_none());
+    }
+
+    #[test]
+    fn a_heading_inside_a_code_fence_is_not_an_acceptance_heading() {
+        let body = "```\n## Done when\n- not a section\n```\n";
+        assert!(acceptance_section_text(body).is_none());
+        assert!(!acceptance_heading_present(body));
+    }
+
+    #[test]
+    fn acceptance_section_with_one_list_item_still_works() {
+        let section = acceptance_section_text("## Done when\n- one item\n").expect("section");
+        assert!(section.contains("- one item"), "{section}");
     }
 
     #[test]

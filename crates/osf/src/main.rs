@@ -433,6 +433,9 @@ struct ReviewWorkItemArgs {
     /// to the `GITHUB_REPOSITORY` environment variable.
     #[arg(long)]
     repository: Option<String>,
+    /// The pull request's head commit, recorded with the work item.
+    #[arg(long)]
+    head: String,
     /// Where to save the work item, as JSON. A pull request that links no
     /// readable issue saves the reason instead, and the command still exits 0.
     #[arg(long)]
@@ -2126,6 +2129,7 @@ fn review_work_item_cmd(args: &ReviewWorkItemArgs) -> ExitCode {
         &osf::work_item::GhIssues,
         &repository,
         pull_request.body.as_deref().unwrap_or_default(),
+        &args.head,
     ) {
         Ok(item) => item,
         Err(e) => {

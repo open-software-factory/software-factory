@@ -6,7 +6,7 @@ mod common;
 
 use common::{fake_forge_token, suppress_marker, TempDir, TempRepo};
 use osf::lenses::{ContextInput, Criterion, Lens, Runs, SeverityGuide, Trigger};
-use osf::review_context::{build, PullRequest, Sources};
+use osf::review_context::{build, PullRequest, Sources, WorkItemBinding};
 
 /// A lens built only to carry a `context` list; its criteria and severity
 /// guide are never read by `build`.
@@ -49,6 +49,7 @@ fn sources<'a>(repo: &'a TempRepo, work_item: Option<&'a std::path::Path>) -> So
         base: "origin/main",
         work_item,
         pull_request: None,
+        work_item_binding: None,
     }
 }
 
@@ -259,6 +260,7 @@ fn a_pull_requests_own_osf_toml_cannot_turn_off_scan_secret() {
         base: "origin/main",
         work_item: None,
         pull_request: Some(&pr),
+        work_item_binding: None,
     };
     let ctx = build(&lens_with(Vec::new()), &sources).expect("builds");
     assert!(!ctx.contains(&secret), "{ctx}");
@@ -289,8 +291,64 @@ fn a_pull_requests_own_project_owner_cannot_hide_a_foreign_reference() {
         base: "origin/main",
         work_item: None,
         pull_request: Some(&pr),
+        work_item_binding: None,
     };
     let ctx = build(&lens_with(Vec::new()), &sources).expect("builds");
     assert!(!ctx.contains(&reference), "{ctx}");
     assert!(ctx.contains("redacted by scan-foreign-reference"), "{ctx}");
+}
+
+/// A saved work item for another commit than the reviewer run is for is
+/// refused, and the reason names both commits.
+#[test]
+fn a_work_item_bound_to_another_commit_is_refused_by_name() {
+    let repo = changed_repo("work-item-binding");
+    let work_item = repo.dir.join("issue.json");
+    let head = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let other = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    std::fs::write(
+        &work_item,
+        serde_json::json!({
+            "issue": "open-software-factory/software-factory#137",
+            "number": 137,
+            "head": head,
+            "title": "Build the check",
+            "body": "## Done when\n- it works\n",
+        })
+        .to_string(),
+    )
+    .expect("work item writes");
+    let pr = pull_request("Issue: #137");
+    let mut src = sources(&repo, Some(&work_item));
+    src.pull_request = Some(&pr);
+    src.work_item_binding = Some(WorkItemBinding {
+        repository: "open-software-factory/software-factory",
+        head: other,
+    });
+    let err = build(&lens_with(vec![ContextInput::WorkItem]), &src).expect_err("must fail");
+    assert!(err.contains(head) && err.contains(other), "{err}");
+}
+
+/// An acceptance heading with no text under it is could-not-run for the
+/// shipped spec and acceptance lens, and the reason says the section is empty.
+#[test]
+fn an_empty_acceptance_section_fails_the_spec_and_acceptance_lens() {
+    let repo = changed_repo("empty-acceptance-section");
+    let work_item = repo.dir.join("issue.md");
+    std::fs::write(
+        &work_item,
+        "# Some work item\n\n## Done when\n\n## Notes\nmore text\n",
+    )
+    .expect("work item writes");
+    let catalogue = osf::lenses::load(&repo.dir, None).expect("the shipped catalogue loads");
+    let lens = catalogue
+        .lenses
+        .iter()
+        .find(|l| l.name == "spec-and-acceptance")
+        .expect("the shipped spec and acceptance lens");
+    let err = build(lens, &sources(&repo, Some(&work_item))).expect_err("must fail");
+    assert!(
+        err.contains("acceptance-criteria") && err.contains("empty"),
+        "{err}"
+    );
 }

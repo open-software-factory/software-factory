@@ -357,6 +357,10 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
         base: req.base,
         work_item: req.work_item,
         pull_request: req.pull_request,
+        work_item_binding: req.binding.map(|binding| review_context::WorkItemBinding {
+            repository: &binding.repository,
+            head: &binding.head,
+        }),
     };
     let idle = reviewer.family_error.is_some() || reviewer.is_excluded_by(&setup.skip_families);
     // Written once, before any reviewer starts, and removed when this run ends.

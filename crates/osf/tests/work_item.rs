@@ -39,6 +39,9 @@ struct Run {
     log: String,
 }
 
+/// The head commit every `osf review work-item` run in this file records.
+const HEAD: &str = "0123456789abcdef0123456789abcdef01234567";
+
 /// Runs `osf review work-item` for a pull request whose body is `body`, with
 /// the fake `gh` answering `issue_json`, or failing with `error` when it is `Some`.
 fn run_work_item(label: &str, body: &str, issue_json: &str, error: Option<&str>) -> Run {
@@ -82,6 +85,8 @@ fn run_work_item(label: &str, body: &str, issue_json: &str, error: Option<&str>)
             &pr.to_string_lossy(),
             "--repository",
             "open-software-factory/software-factory",
+            "--head",
+            HEAD,
             "--out",
             &out.to_string_lossy(),
         ],
@@ -124,6 +129,14 @@ fn the_work_item_is_the_issue_the_pull_request_names_on_its_issue_line() {
         .get("body")
         .and_then(serde_json::Value::as_str)
         .is_some_and(|b| b.contains("## Done when")));
+    assert_eq!(
+        saved.get("number").and_then(serde_json::Value::as_u64),
+        Some(137)
+    );
+    assert_eq!(
+        saved.get("head").and_then(serde_json::Value::as_str),
+        Some(HEAD)
+    );
 }
 
 #[test]
@@ -199,6 +212,7 @@ fn spec_context(repo: &TempRepo, saved: &Path) -> Result<String, String> {
             base: "origin/main",
             work_item: Some(saved),
             pull_request: None,
+            work_item_binding: None,
         },
     )
 }
@@ -251,6 +265,7 @@ fn a_lens_that_needs_no_work_item_still_builds_when_none_is_linked() {
             base: "origin/main",
             work_item: Some(&saved),
             pull_request: None,
+            work_item_binding: None,
         },
     )
     .expect("builds");
