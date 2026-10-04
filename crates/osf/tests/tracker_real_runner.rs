@@ -8,6 +8,14 @@ use osf::github_tracker::{GhRunner, RealGhRunner};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
+/// Held for a whole test: a script that is still open for writing makes a parallel spawn fail with "Text file busy".
+static SPAWN_LOCK: Mutex<()> = Mutex::new(());
+
+fn serial() -> MutexGuard<'static, ()> {
+    SPAWN_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 const OK_SCRIPT: &str = r#"#!/usr/bin/env bash
 set -euo pipefail
@@ -60,6 +68,7 @@ impl Drop for TempArea {
 
 #[test]
 fn real_runner_returns_stdout_and_passes_argv_and_stdin() {
+    let _lock = serial();
     let area = TempArea::new("ok");
     let script = area.script("gh", OK_SCRIPT);
     let runner = RealGhRunner::new(script.as_path());
@@ -82,6 +91,7 @@ fn real_runner_returns_stdout_and_passes_argv_and_stdin() {
 
 #[test]
 fn real_runner_reports_trimmed_stderr_on_a_nonzero_exit() {
+    let _lock = serial();
     let area = TempArea::new("fail");
     let script = area.script("gh", FAIL_SCRIPT);
     let runner = RealGhRunner::new(script.as_path());
@@ -95,6 +105,7 @@ fn real_runner_reports_trimmed_stderr_on_a_nonzero_exit() {
 
 #[test]
 fn real_runner_reports_a_program_that_does_not_exist() {
+    let _lock = serial();
     let area = TempArea::new("missing");
     let runner = RealGhRunner::new(area.dir.join("does-not-exist"));
 
