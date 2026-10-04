@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{isolated_home, run_osf, TempRepo};
+use common::{isolated_home, run_osf, TempDir, TempRepo};
 use osf::config::WritingConfig;
 use osf::lints::{load_known_names, Context};
 use std::path::Path;
@@ -541,13 +541,27 @@ fn a_config_that_lowers_a_kept_rule_applies_on_ungated_skill_paths_and_not_on_ga
     }
 }
 
+/// A session id no other run, test or process shares.
+fn unique_session(name: &str) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock is after the epoch")
+        .as_nanos();
+    format!("{name}-{}-{nanos}", std::process::id())
+}
+
+/// Runs a hook with its bounce counter and advice file under `state`, the
+/// test's own folder, instead of the shared system temp folder.
 fn run_hook(
     repo: &TempRepo,
     home: &Path,
+    state: &Path,
     args: &[&str],
     event: &serde_json::Value,
 ) -> (Option<i32>, String, String) {
-    let out = common::run_osf_stdin(&repo.dir, home, &[], args, &event.to_string());
+    let state = state.to_str().expect("state folder is UTF-8");
+    let env = [("TMPDIR", state), ("TEMP", state), ("TMP", state)];
+    let out = common::run_osf_stdin(&repo.dir, home, &env, args, &event.to_string());
     (
         out.status.code(),
         String::from_utf8_lossy(&out.stdout).into_owned(),
@@ -559,9 +573,11 @@ fn run_hook(
 fn the_stop_check_names_dropped_audited_findings_only_when_the_message_passes() {
     let repo = TempRepo::new("audit-stop-output");
     let home = isolated_home("audit-stop-output");
+    let state = TempDir::new("audit-stop-state");
     let stop = |session: &str, message: &str| {
+        let session = unique_session(session);
         let event = serde_json::json!({ "session_id": session, "last_assistant_message": message });
-        run_hook(&repo, &home, &["hook", "stop"], &event)
+        run_hook(&repo, &home, &state, &["hook", "stop"], &event)
     };
     let (code, _, stderr) = stop("audit-stop-pass", "Input -> output.");
     assert_eq!(code, Some(0), "{stderr}");
@@ -588,8 +604,9 @@ fn the_stop_check_names_dropped_audited_findings_only_when_the_message_passes() 
 fn the_prompt_hook_gives_the_concrete_writing_instructions() {
     let repo = TempRepo::new("audit-prompt-output");
     let home = isolated_home("audit-prompt-output");
-    let event = serde_json::json!({ "session_id": "audit-prompt" });
-    let (code, stdout, stderr) = run_hook(&repo, &home, &["hook", "prompt"], &event);
+    let state = TempDir::new("audit-prompt-state");
+    let event = serde_json::json!({ "session_id": unique_session("audit-prompt") });
+    let (code, stdout, stderr) = run_hook(&repo, &home, &state, &["hook", "prompt"], &event);
     assert_eq!(code, Some(0), "{stderr}");
     for phrase in [
         "`, not X` or `, never X` tail",

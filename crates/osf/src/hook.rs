@@ -706,6 +706,19 @@ mod tests {
     use super::*;
     use crate::test_support::TempDir;
 
+    /// A session id no other test or run shares, so a leftover or parallel
+    /// run never meets this test's counter or advice file.
+    fn unique(name: &str) -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock is after the epoch")
+            .as_nanos();
+        format!("{name}-{}-{nanos}", std::process::id())
+    }
+
+    /// The fallback `unknown` key is shared by design, so its tests take turns.
+    static UNKNOWN_SESSION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// A path lexically inside the repository that is actually a symlink to
     /// somewhere else must not be accepted as repository-relative: the
     /// canonical check, which follows the symlink, must run and must be the
@@ -1000,7 +1013,7 @@ mod tests {
     /// An advise finding's advice survives to `osf hook prompt`.
     #[test]
     fn advice_survives_to_the_next_prompt() {
-        let session = "test-session-advice-survives";
+        let session = &unique("test-session-advice-survives");
         let _ = std::fs::remove_file(advice_path(session));
         let finding = finding_with(Remediation::Advise);
         store_advice(session, &[&finding]);
@@ -1016,7 +1029,7 @@ mod tests {
     /// kilobytes of advice. Each turn now replaces the last turn's lines.
     #[test]
     fn advice_holds_the_last_turn_only() {
-        let session = "test-session-advice-last-turn";
+        let session = &unique("test-session-advice-last-turn");
         let _ = std::fs::remove_file(advice_path(session));
         let mut first = finding_with(Remediation::Advise);
         first.excerpt = "first-turn".to_string();
@@ -1031,7 +1044,7 @@ mod tests {
 
     #[test]
     fn advice_is_capped_and_deduplicated() {
-        let session = "test-session-advice-cap";
+        let session = &unique("test-session-advice-cap");
         let _ = std::fs::remove_file(advice_path(session));
         let same = finding_with(Remediation::Advise);
         let mut distinct: Vec<lints::Finding> = Vec::new();
@@ -1063,7 +1076,7 @@ mod tests {
     fn the_standing_reminder_is_one_line_and_leads_the_prompt_text() {
         assert_eq!(STANDING_REMINDER.lines().count(), 1);
         assert!(STANDING_REMINDER.len() < 400, "{}", STANDING_REMINDER.len());
-        let session = "test-session-reminder-order";
+        let session = &unique("test-session-reminder-order");
         let _ = std::fs::remove_file(advice_path(session));
         assert_eq!(prompt_text(session), STANDING_REMINDER);
         let finding = finding_with(Remediation::Advise);
@@ -1092,6 +1105,7 @@ mod tests {
     /// `stop` can fail to run at all.
     #[test]
     fn a_standard_input_read_failure_refuses_rather_than_passes() {
+        let _turn = UNKNOWN_SESSION.lock().unwrap_or_else(|e| e.into_inner());
         let _ = std::fs::remove_file(counter_path("unknown", ""));
         let err = std::io::Error::other("device is busy");
         let code = stop_with_input(Err(err), None, 2, &WritingConfig::default(), None);
@@ -1100,6 +1114,7 @@ mod tests {
 
     #[test]
     fn input_that_is_not_json_refuses_rather_than_passes() {
+        let _turn = UNKNOWN_SESSION.lock().unwrap_or_else(|e| e.into_inner());
         let _ = std::fs::remove_file(counter_path("unknown", ""));
         let code = stop_with_input(
             Ok("not json at all".to_string()),
@@ -1113,7 +1128,7 @@ mod tests {
 
     #[test]
     fn an_event_with_no_assistant_message_refuses_rather_than_passes() {
-        let session = "test-session-no-assistant-message";
+        let session = &unique("test-session-no-assistant-message");
         let _ = std::fs::remove_file(counter_path(session, ""));
         let raw = serde_json::json!({ "session_id": session }).to_string();
         let code = stop_with_input(Ok(raw), None, 2, &WritingConfig::default(), None);
@@ -1122,7 +1137,7 @@ mod tests {
 
     #[test]
     fn an_unreadable_known_names_file_refuses_rather_than_passes() {
-        let session = "test-session-unreadable-known-names";
+        let session = &unique("test-session-unreadable-known-names");
         let _ = std::fs::remove_file(counter_path(session, ""));
         let raw = serde_json::json!({
             "session_id": session,
@@ -1141,7 +1156,7 @@ mod tests {
     /// than hanging the turn forever.
     #[test]
     fn a_could_not_run_refusal_is_let_through_after_max_bounces() {
-        let session = "test-session-could-not-run-bounce-limit";
+        let session = &unique("test-session-could-not-run-bounce-limit");
         let counter = counter_path(session, "");
         let _ = std::fs::remove_file(&counter);
         let raw = serde_json::json!({
