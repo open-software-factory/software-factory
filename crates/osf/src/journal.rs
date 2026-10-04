@@ -1,9 +1,10 @@
-//! Hash-chained journal events, appended one per line to a local buffer
-//! file, so a checkpoint runner can later replay what happened without
-//! trusting wall-clock time.
+//! Hash-chained journal events, appended one per line to a run's journal
+//! file under the state directory, so a checkpoint runner can later replay
+//! what happened without trusting wall-clock time.
 
 mod event;
 mod hash;
+mod schema;
 
 pub use event::{
     Actor, ActorKind, Attention, BlockedCause, Change, CheckResult, CheckpointComplete, Cost,
@@ -13,6 +14,7 @@ pub use event::{
 use hash::genesis_hash;
 pub(crate) use hash::sha256_hex;
 pub use hash::{event_hash, HashInput};
+pub use schema::validate as validate_event;
 
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -35,8 +37,23 @@ pub fn state_dir() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home).join(".osf").join("state"))
 }
 
+/// Refuses a run id that is not a safe single path component: an empty id,
+/// one carrying a path separator, or one carrying `..`.
+fn validate_run_id(run: &str) -> Result<(), String> {
+    if run.is_empty() {
+        return Err("run id must not be empty".to_string());
+    }
+    if run.contains('/') || run.contains('\\') {
+        return Err(format!("run id '{run}' must not contain a path separator"));
+    }
+    if run.contains("..") {
+        return Err(format!("run id '{run}' must not contain '..'"));
+    }
+    Ok(())
+}
+
 /// A run's hash-chained event log, appended to
-/// `<state_dir>/buffer/<run>.jsonl`.
+/// `<state_dir>/runs/<run>.jsonl`.
 #[derive(Debug)]
 pub struct Journal {
     path: PathBuf,
@@ -47,32 +64,34 @@ pub struct Journal {
 }
 
 impl Journal {
-    /// Opens the buffer file for `run` under `state_dir`, creating the
-    /// `buffer` directory if needed. Each run is its own hash chain starting
-    /// from genesis, so a run whose buffer file already holds events is
+    /// Opens the journal file for `run` under `state_dir`, creating the
+    /// `runs` directory if needed. Each run is its own hash chain starting
+    /// from genesis, so a run whose journal file already holds events is
     /// refused rather than resumed: resuming would let two processes
     /// interleave one chain, and a real caller only ever reuses a run id by
     /// mistake.
     ///
     /// # Errors
-    /// Returns the path and the underlying error when the buffer directory
-    /// cannot be created, or when the buffer file cannot be inspected.
-    /// Returns an error naming the file when it already holds events.
+    /// Returns an error when `run` is not a safe single path component, when
+    /// the `runs` directory cannot be created, or when the journal file
+    /// cannot be inspected. Returns an error naming the file when it already
+    /// holds events.
     pub fn open(state_dir: &Path, run: &str) -> Result<Journal, String> {
-        let buffer_dir = state_dir.join("buffer");
-        std::fs::create_dir_all(&buffer_dir).map_err(|e| {
+        validate_run_id(run)?;
+        let runs_dir = state_dir.join("runs");
+        std::fs::create_dir_all(&runs_dir).map_err(|e| {
             format!(
-                "cannot create the journal buffer directory {}: {e}",
-                buffer_dir.display()
+                "cannot create the journal runs directory {}: {e}",
+                runs_dir.display()
             )
         })?;
-        let path = buffer_dir.join(format!("{run}.jsonl"));
+        let path = runs_dir.join(format!("{run}.jsonl"));
         let has_events = match std::fs::metadata(&path) {
             Ok(meta) => meta.len() > 0,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
             Err(e) => {
                 return Err(format!(
-                    "cannot check the journal buffer {}: {e}",
+                    "cannot check the journal file {}: {e}",
                     path.display()
                 ))
             }
@@ -109,8 +128,8 @@ impl Journal {
     /// Appends one event with no cost, using `actor` at `timestamp_ms`.
     ///
     /// # Errors
-    /// Returns an error when the event cannot be serialised or the buffer
-    /// file cannot be opened or written to.
+    /// Returns an error when the event is invalid, cannot be serialised, or
+    /// the journal file cannot be opened or written to.
     pub fn append(
         &mut self,
         actor: &Actor,
@@ -125,13 +144,15 @@ impl Journal {
         })
     }
 
-    /// Computes the draft's hash, appends it as one JSON line with a
-    /// trailing newline, and returns the event that was written. The event
-    /// carries this journal's run, work item and change.
+    /// Validates the draft's event against the schema, appends it as one
+    /// JSON line with a trailing newline, and returns the event that was
+    /// written. The event carries this journal's run, work item and change.
+    /// A run-complete event must name the journal's current head hash. An
+    /// invalid event writes no byte and leaves the chain's head unchanged.
     ///
     /// # Errors
-    /// Returns an error when the event cannot be serialised or the buffer
-    /// file cannot be opened or written to.
+    /// Returns an error when the event is invalid, cannot be serialised, or
+    /// the journal file cannot be opened or written to.
     pub fn append_draft(&mut self, draft: EventDraft) -> Result<Event, String> {
         let hash = event_hash(&HashInput {
             prev_hash: &self.last_hash,
@@ -153,19 +174,32 @@ impl Journal {
             prev_hash: self.last_hash.clone(),
             hash: hash.clone(),
         };
+        let value = serde_json::to_value(&event)
+            .map_err(|e| format!("cannot serialise journal event: {e}"))?;
+        let mut reasons = match schema::validate(&value) {
+            Ok(()) => Vec::new(),
+            Err(reasons) => reasons,
+        };
+        if let Payload::RunComplete(complete) = &event.payload {
+            if complete.head_hash != self.last_hash {
+                reasons.push(format!(
+                    "run-complete head_hash {} does not match the journal head {}",
+                    complete.head_hash, self.last_hash
+                ));
+            }
+        }
+        if !reasons.is_empty() {
+            return Err(format!("invalid journal event: {}", reasons.join("; ")));
+        }
         let line = serde_json::to_string(&event)
             .map_err(|e| format!("cannot serialise journal event: {e}"))?;
         let mut file = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&self.path)
-            .map_err(|e| format!("cannot open journal buffer {}: {e}", self.path.display()))?;
-        writeln!(file, "{line}").map_err(|e| {
-            format!(
-                "cannot write to journal buffer {}: {e}",
-                self.path.display()
-            )
-        })?;
+            .map_err(|e| format!("cannot open journal file {}: {e}", self.path.display()))?;
+        writeln!(file, "{line}")
+            .map_err(|e| format!("cannot write to journal file {}: {e}", self.path.display()))?;
         self.last_hash = hash;
         Ok(event)
     }
@@ -303,7 +337,7 @@ mod tests {
         let second = j.append(&actor(), 2, verification("fmt")).expect("append");
         assert_eq!(first.prev_hash, "0".repeat(64));
         assert_eq!(second.prev_hash, first.hash);
-        let text = std::fs::read_to_string(dir.join("buffer/run-2.jsonl")).expect("file");
+        let text = std::fs::read_to_string(dir.join("runs/run-2.jsonl")).expect("file");
         assert_eq!(text.lines().count(), 2);
     }
 
@@ -366,11 +400,268 @@ mod tests {
     }
 
     #[test]
-    fn an_existing_empty_buffer_file_opens_fine() {
+    fn an_existing_empty_journal_file_opens_fine() {
         let dir = TempDir::new("osf-journal-empty");
-        let buffer_dir = dir.join("buffer");
-        std::fs::create_dir_all(&buffer_dir).expect("buffer dir");
-        std::fs::write(buffer_dir.join("run-5.jsonl"), "").expect("empty file");
+        let runs_dir = dir.join("runs");
+        std::fs::create_dir_all(&runs_dir).expect("runs dir");
+        std::fs::write(runs_dir.join("run-5.jsonl"), "").expect("empty file");
         Journal::open(&dir, "run-5").expect("open");
+    }
+
+    /// A validator built in the test directly from the schema file, never
+    /// through `schema::validate`.
+    fn test_validator() -> jsonschema::Validator {
+        let schema: serde_json::Value =
+            serde_json::from_str(include_str!("journal/event.schema.json")).expect("schema JSON");
+        jsonschema::validator_for(&schema).expect("schema compiles")
+    }
+
+    fn draft(payload: Payload) -> EventDraft {
+        EventDraft {
+            actor: actor(),
+            timestamp_ms: 1,
+            cost: None,
+            payload,
+        }
+    }
+
+    fn finding(grade: EvidenceGrade, verified_by: Option<&str>) -> Payload {
+        Payload::Finding(Finding {
+            rule: "example-rule".into(),
+            severity: Severity::Warning,
+            action: "fix".into(),
+            path: Some("src/lib.rs".into()),
+            line: Some(3),
+            column: None,
+            message: "something to fix".into(),
+            grade,
+            verified_by: verified_by.map(str::to_string),
+        })
+    }
+
+    fn run_complete(head_hash: String) -> Payload {
+        Payload::RunComplete(RunComplete {
+            outcome: RunOutcome::Completed,
+            head_hash,
+            summary: "all checks passed".into(),
+            grade: EvidenceGrade::Derived,
+            transcript_hash: None,
+        })
+    }
+
+    #[test]
+    fn the_writer_accepts_every_event_type_and_each_line_validates() {
+        let dir = TempDir::new("osf-journal-eight-types");
+        let mut j = Journal::open(&dir, "run-8").expect("open");
+        let mut events = vec![j
+            .append_draft(draft(Payload::RunStarted(RunStarted {
+                title: Some("Ship the fix".into()),
+                repository: Some("github:open-software-factory/example".into()),
+                retry_of: None,
+                transcript: Some("runs/run-1/transcript.jsonl".into()),
+            })))
+            .expect("run-started")];
+        for payload in [
+            verification("scan"),
+            Payload::Review(Review {
+                round: 1,
+                scope: "the change".into(),
+                findings: 0,
+                summary: "looked at the diff".into(),
+                grade: EvidenceGrade::Derived,
+            }),
+            finding(EvidenceGrade::Observed, Some("osf:lint")),
+            Payload::StateChange(StateChange {
+                from: Some(WorkItemState::Ready),
+                to: WorkItemState::InProgress,
+                cause: None,
+            }),
+            Payload::Attention(Attention {
+                cause: "human".into(),
+                summary: "needs a person".into(),
+                grade: EvidenceGrade::Unverified,
+            }),
+            Payload::CheckpointComplete(CheckpointComplete {
+                checkpoint: "pre-push".into(),
+                commit: Some("abc123".into()),
+                result: CheckResult::Passed,
+                checks: 3,
+                slots: std::collections::BTreeMap::from([(
+                    "lint".to_string(),
+                    CheckResult::Passed,
+                )]),
+            }),
+        ] {
+            events.push(j.append_draft(draft(payload)).expect("append"));
+        }
+        let head = events.last().expect("at least one event").hash.clone();
+        j.append_draft(draft(run_complete(head)))
+            .expect("run-complete");
+        let text = std::fs::read_to_string(dir.join("runs/run-8.jsonl")).expect("file");
+        let validator = test_validator();
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 8);
+        for line in lines {
+            let value: serde_json::Value = serde_json::from_str(line).expect("line is JSON");
+            assert!(validator.is_valid(&value), "{line}");
+        }
+    }
+
+    #[test]
+    fn a_finding_with_a_reported_grade_and_verified_by_is_refused() {
+        let dir = TempDir::new("osf-journal-finding-reported");
+        let mut j = Journal::open(&dir, "run-finding").expect("open");
+        let err = j
+            .append_draft(draft(finding(EvidenceGrade::Reported, Some("osf:lint"))))
+            .expect_err("reported evidence may not claim verification");
+        assert!(err.contains("verified_by"), "{err}");
+    }
+
+    #[test]
+    fn a_finding_with_an_observed_grade_and_verified_by_is_accepted() {
+        let dir = TempDir::new("osf-journal-finding-observed");
+        let mut j = Journal::open(&dir, "run-finding").expect("open");
+        j.append_draft(draft(finding(EvidenceGrade::Observed, Some("osf:lint"))))
+            .expect("observed evidence may name its verifier");
+    }
+
+    #[test]
+    fn a_state_change_to_blocked_requires_a_cause() {
+        let dir = TempDir::new("osf-journal-blocked-no-cause");
+        let mut j = Journal::open(&dir, "run-state").expect("open");
+        let err = j
+            .append_draft(draft(Payload::StateChange(StateChange {
+                from: Some(WorkItemState::InProgress),
+                to: WorkItemState::Blocked,
+                cause: None,
+            })))
+            .expect_err("blocked without a cause");
+        assert!(err.contains("cause"), "{err}");
+        j.append_draft(draft(Payload::StateChange(StateChange {
+            from: Some(WorkItemState::InProgress),
+            to: WorkItemState::Blocked,
+            cause: Some(BlockedCause::Human),
+        })))
+        .expect("blocked with a cause");
+    }
+
+    #[test]
+    fn a_state_change_to_another_state_must_not_carry_a_cause() {
+        let dir = TempDir::new("osf-journal-cause-elsewhere");
+        let mut j = Journal::open(&dir, "run-state").expect("open");
+        let err = j
+            .append_draft(draft(Payload::StateChange(StateChange {
+                from: Some(WorkItemState::Ready),
+                to: WorkItemState::InProgress,
+                cause: Some(BlockedCause::Human),
+            })))
+            .expect_err("a cause belongs only to blocked");
+        assert!(err.contains("cause"), "{err}");
+    }
+
+    #[test]
+    fn a_harness_actor_without_a_model_is_refused() {
+        let dir = TempDir::new("osf-journal-harness-no-model");
+        let mut j = Journal::open(&dir, "run-harness").expect("open");
+        let err = j
+            .append_draft(EventDraft {
+                actor: Actor {
+                    kind: ActorKind::Harness,
+                    name: "demo-harness".into(),
+                    model: None,
+                    model_family: None,
+                },
+                timestamp_ms: 1,
+                cost: None,
+                payload: verification("scan"),
+            })
+            .expect_err("a harness must name its model");
+        assert!(err.contains("model"), "{err}");
+    }
+
+    #[test]
+    fn a_refused_event_leaves_the_file_and_the_chain_head_unchanged() {
+        let dir = TempDir::new("osf-journal-refused-unchanged");
+        let mut j = Journal::open(&dir, "run-unchanged").expect("open");
+        let head = j
+            .append(&actor(), 1, verification("scan"))
+            .expect("append")
+            .hash;
+        let path = dir.join("runs/run-unchanged.jsonl");
+        let before = std::fs::read(&path).expect("read");
+        let err = j
+            .append_draft(draft(Payload::StateChange(StateChange {
+                from: Some(WorkItemState::Ready),
+                to: WorkItemState::Blocked,
+                cause: None,
+            })))
+            .expect_err("refused");
+        assert!(err.starts_with("invalid journal event: "), "{err}");
+        assert_eq!(std::fs::read(&path).expect("read"), before);
+        let next = j.append(&actor(), 2, verification("fmt")).expect("append");
+        assert_eq!(next.prev_hash, head);
+    }
+
+    #[test]
+    fn a_run_complete_with_the_wrong_head_hash_is_refused() {
+        let dir = TempDir::new("osf-journal-run-complete-wrong");
+        let mut j = Journal::open(&dir, "run-complete").expect("open");
+        j.append(&actor(), 1, verification("scan")).expect("append");
+        let wrong = "a".repeat(64);
+        let err = j
+            .append_draft(draft(run_complete(wrong.clone())))
+            .expect_err("a mismatched head hash");
+        assert!(err.contains("head_hash"), "{err}");
+        assert!(err.contains(&wrong), "{err}");
+    }
+
+    #[test]
+    fn a_run_complete_with_the_current_head_hash_is_accepted() {
+        let dir = TempDir::new("osf-journal-run-complete-right");
+        let mut j = Journal::open(&dir, "run-complete").expect("open");
+        let head = j
+            .append(&actor(), 1, verification("scan"))
+            .expect("append")
+            .hash;
+        j.append_draft(draft(run_complete(head.clone())))
+            .expect("the current head hash");
+        let text = std::fs::read_to_string(dir.join("runs/run-complete.jsonl")).expect("file");
+        let value: serde_json::Value =
+            serde_json::from_str(text.lines().last().expect("lines")).expect("json");
+        let head_hash = value
+            .get("payload")
+            .and_then(|payload| payload.get("head_hash"))
+            .and_then(serde_json::Value::as_str);
+        assert_eq!(head_hash, Some(head.as_str()));
+    }
+
+    #[test]
+    fn an_empty_run_id_is_refused() {
+        let dir = TempDir::new("osf-journal-run-id-empty");
+        let err = Journal::open(&dir, "").expect_err("empty run id");
+        assert!(err.contains("empty"), "{err}");
+    }
+
+    #[test]
+    fn a_run_id_with_a_path_separator_is_refused() {
+        let dir = TempDir::new("osf-journal-run-id-separator");
+        let err = Journal::open(&dir, "a/b").expect_err("path separator");
+        assert!(err.contains("separator"), "{err}");
+    }
+
+    #[test]
+    fn a_run_id_with_a_parent_component_is_refused() {
+        let dir = TempDir::new("osf-journal-run-id-parent");
+        let err = Journal::open(&dir, "..").expect_err("parent component");
+        assert!(err.contains(".."), "{err}");
+    }
+
+    #[test]
+    fn the_journal_file_is_under_the_runs_directory() {
+        let dir = TempDir::new("osf-journal-path");
+        let mut j = Journal::open(&dir, "run-path").expect("open");
+        j.append(&actor(), 1, verification("scan")).expect("append");
+        assert!(dir.join("runs/run-path.jsonl").is_file());
+        assert!(!dir.join("buffer").exists());
     }
 }

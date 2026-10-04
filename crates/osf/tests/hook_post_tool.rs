@@ -7,18 +7,18 @@ fn state(home: &std::path::Path) -> std::path::PathBuf {
     home.join(".osf").join("state")
 }
 
-/// Every verification-event payload in every buffer file under `home`'s
+/// Every verification-event payload in every journal file under `home`'s
 /// journal state directory, across every run: a timeout writes its own
 /// run id, distinct from any other event written in the same test.
 fn verification_payloads(home: &std::path::Path) -> Vec<serde_json::Value> {
     let mut out = Vec::new();
-    let buffer = state(home).join("buffer");
-    let Ok(entries) = std::fs::read_dir(&buffer) else {
+    let runs = state(home).join("runs");
+    let Ok(entries) = std::fs::read_dir(&runs) else {
         return out;
     };
     for entry in entries {
         let path = entry.expect("entry").path();
-        let text = std::fs::read_to_string(&path).expect("buffer file reads");
+        let text = std::fs::read_to_string(&path).expect("journal file reads");
         for line in text.lines() {
             let v: serde_json::Value = serde_json::from_str(line).expect("json");
             let is_verification =
@@ -247,7 +247,7 @@ fn an_unwritable_journal_names_the_failure_exactly_once_in_the_refusal() {
     );
     assert_eq!(out.status.code(), Some(2), "{out:?}");
     let stderr = String::from_utf8_lossy(&out.stderr);
-    let needle = "cannot create the journal buffer directory";
+    let needle = "cannot create the journal runs directory";
     assert_eq!(
         stderr.matches(needle).count(),
         1,
@@ -364,7 +364,7 @@ fn a_repository_that_never_adopted_osf_stands_down_for_the_hook() {
         "{out:?}"
     );
     assert!(
-        !state(&home).join("buffer").exists(),
+        !state(&home).join("runs").exists(),
         "no journal should open for a repository that never adopted osf"
     );
 }

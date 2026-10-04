@@ -343,6 +343,6 @@ jobs:
         with:
           name: checkpoint-evidence
           path: |
-            ${{ env.OSF_STATE_DIR }}/buffer
+            ${{ env.OSF_STATE_DIR }}/runs
             .osf/out
           if-no-files-found: error

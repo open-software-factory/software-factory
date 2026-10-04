@@ -1,0 +1,326 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Software Factory journal event",
+  "description": "One hash-chained journal event, with its payload selected by event_type.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run",
+    "actor",
+    "timestamp_ms",
+    "event_type",
+    "payload",
+    "prev_hash",
+    "hash"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "run": { "$ref": "#/$defs/identifier" },
+    "work_item": { "$ref": "#/$defs/identifier" },
+    "change": { "$ref": "#/$defs/change" },
+    "actor": { "$ref": "#/$defs/actor" },
+    "timestamp_ms": { "$ref": "#/$defs/u64" },
+    "cost": { "$ref": "#/$defs/cost" },
+    "event_type": {
+      "enum": [
+        "run-started",
+        "verification",
+        "review",
+        "finding",
+        "state-change",
+        "run-complete",
+        "attention",
+        "checkpoint-complete"
+      ]
+    },
+    "payload": { "type": "object" },
+    "prev_hash": { "$ref": "#/$defs/hash" },
+    "hash": { "$ref": "#/$defs/hash" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event_type": { "const": "run-started" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/run_started" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "verification" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/verification" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "review" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/review" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "finding" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/finding" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "state-change" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/state_change" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "run-complete" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/run_complete" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "attention" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/attention" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "checkpoint-complete" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/checkpoint_complete" } } }
+    }
+  ],
+  "$defs": {
+    "identifier": { "type": "string", "minLength": 1 },
+    "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "u64": { "type": "integer", "minimum": 0, "maximum": 18446744073709551615 },
+    "u32": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+    "evidence_grade": {
+      "enum": ["observed", "derived", "reported", "unverified"]
+    },
+    "severity": { "enum": ["error", "warning", "note"] },
+    "check_result": {
+      "enum": ["passed", "failed", "skipped", "could-not-run", "nothing-to-check"]
+    },
+    "run_outcome": { "enum": ["completed", "blocked", "failed"] },
+    "work_item_state": {
+      "enum": [
+        "ready",
+        "in-progress",
+        "verifying",
+        "in-review",
+        "deploying",
+        "deployed",
+        "signed-off",
+        "blocked",
+        "failed",
+        "recovering",
+        "aborted",
+        "rolled-back",
+        "paused"
+      ]
+    },
+    "blocked_cause": {
+      "enum": ["dependency", "human", "clarification", "ambiguous", "capacity"]
+    },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["branch", "commit"],
+      "properties": {
+        "branch": { "$ref": "#/$defs/identifier" },
+        "commit": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "usd_micros": { "$ref": "#/$defs/u64" },
+        "input_tokens": { "$ref": "#/$defs/u64" },
+        "output_tokens": { "$ref": "#/$defs/u64" }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "name"],
+      "properties": {
+        "kind": { "enum": ["harness", "person", "system"] },
+        "name": { "$ref": "#/$defs/identifier" },
+        "model": { "$ref": "#/$defs/identifier" },
+        "model_family": { "$ref": "#/$defs/identifier" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "kind": { "const": "harness" } },
+            "required": ["kind"]
+          },
+          "then": { "required": ["model", "model_family"] }
+        }
+      ]
+    },
+    "run_started": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "title": { "$ref": "#/$defs/identifier" },
+        "repository": { "$ref": "#/$defs/identifier" },
+        "retry_of": { "$ref": "#/$defs/identifier" },
+        "transcript": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "check",
+        "checkpoint",
+        "result",
+        "duration_ms",
+        "findings",
+        "grade"
+      ],
+      "properties": {
+        "check": { "$ref": "#/$defs/identifier" },
+        "check_type": { "$ref": "#/$defs/identifier" },
+        "slot": { "$ref": "#/$defs/identifier" },
+        "checkpoint": { "$ref": "#/$defs/identifier" },
+        "result": { "$ref": "#/$defs/check_result" },
+        "duration_ms": { "$ref": "#/$defs/u64" },
+        "cache": { "$ref": "#/$defs/identifier" },
+        "findings": { "$ref": "#/$defs/u32" },
+        "summary": { "$ref": "#/$defs/identifier" },
+        "grade": { "$ref": "#/$defs/evidence_grade" },
+        "reason": { "$ref": "#/$defs/identifier" }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["round", "scope", "findings", "summary", "grade"],
+      "properties": {
+        "round": { "$ref": "#/$defs/u32" },
+        "scope": { "$ref": "#/$defs/identifier" },
+        "findings": { "$ref": "#/$defs/u32" },
+        "summary": { "$ref": "#/$defs/identifier" },
+        "grade": { "$ref": "#/$defs/evidence_grade" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "severity", "action", "message", "grade"],
+      "properties": {
+        "rule": { "$ref": "#/$defs/identifier" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "action": { "$ref": "#/$defs/identifier" },
+        "path": { "$ref": "#/$defs/identifier" },
+        "line": { "$ref": "#/$defs/u32" },
+        "column": { "$ref": "#/$defs/u32" },
+        "message": { "$ref": "#/$defs/identifier" },
+        "grade": { "$ref": "#/$defs/evidence_grade" },
+        "verified_by": { "$ref": "#/$defs/identifier" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "grade": { "enum": ["derived", "reported", "unverified"] }
+            },
+            "required": ["grade"]
+          },
+          "then": { "not": { "required": ["verified_by"] } }
+        }
+      ]
+    },
+    "state_change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["to"],
+      "properties": {
+        "from": { "$ref": "#/$defs/work_item_state" },
+        "to": { "$ref": "#/$defs/work_item_state" },
+        "cause": { "$ref": "#/$defs/blocked_cause" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "to": { "const": "blocked" } },
+            "required": ["to"]
+          },
+          "then": { "required": ["cause"] }
+        },
+        {
+          "if": {
+            "properties": {
+              "to": {
+                "enum": [
+                  "ready",
+                  "in-progress",
+                  "verifying",
+                  "in-review",
+                  "deploying",
+                  "deployed",
+                  "signed-off",
+                  "failed",
+                  "recovering",
+                  "aborted",
+                  "rolled-back",
+                  "paused"
+                ]
+              }
+            },
+            "required": ["to"]
+          },
+          "then": { "not": { "required": ["cause"] } }
+        }
+      ]
+    },
+    "run_complete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "head_hash", "summary", "grade"],
+      "properties": {
+        "outcome": { "$ref": "#/$defs/run_outcome" },
+        "head_hash": { "$ref": "#/$defs/hash" },
+        "summary": { "$ref": "#/$defs/identifier" },
+        "grade": { "$ref": "#/$defs/evidence_grade" },
+        "transcript_hash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "attention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cause", "summary", "grade"],
+      "properties": {
+        "cause": { "$ref": "#/$defs/identifier" },
+        "summary": { "$ref": "#/$defs/identifier" },
+        "grade": { "$ref": "#/$defs/evidence_grade" }
+      }
+    },
+    "checkpoint_complete": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checkpoint", "result", "checks", "slots"],
+      "properties": {
+        "checkpoint": { "$ref": "#/$defs/identifier" },
+        "commit": { "$ref": "#/$defs/identifier" },
+        "result": { "$ref": "#/$defs/check_result" },
+        "checks": { "$ref": "#/$defs/u32" },
+        "slots": {
+          "type": "object",
+          "propertyNames": { "minLength": 1 },
+          "additionalProperties": { "$ref": "#/$defs/check_result" }
+        }
+      }
+    }
+  }
+}

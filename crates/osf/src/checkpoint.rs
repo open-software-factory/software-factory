@@ -1,7 +1,7 @@
 //! `osf verify --checkpoint <name>`: selects this repository's moon tasks
 //! tagged for a checkpoint, runs them on the affected files, and writes one
 //! verification event per task plus one checkpoint-complete event to the
-//! local journal buffer.
+//! local journal file.
 
 use crate::journal::{
     Actor, CheckResult, CheckpointComplete, EvidenceGrade, Journal, Payload, Verification,

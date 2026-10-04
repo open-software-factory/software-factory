@@ -23,13 +23,13 @@ fn pre_push_runs_the_tagged_tasks_and_writes_one_event_per_task_plus_one() {
         &["verify", "--checkpoint", "pre-push", "--base", &base],
     );
     assert_eq!(out.status.code(), Some(1), "{out:?}");
-    let buffer = std::fs::read_dir(state(&home).join("buffer"))
-        .expect("buffer")
+    let runs = std::fs::read_dir(state(&home).join("runs"))
+        .expect("runs")
         .next()
         .expect("one file")
         .expect("entry")
         .path();
-    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(runs)
         .expect("read")
         .lines()
         .map(|l| serde_json::from_str(l).expect("json"))
@@ -243,13 +243,13 @@ fn a_failed_task_with_no_sarif_reports_unknown_findings() {
         String::from_utf8_lossy(&out.stdout).contains("findings unknown"),
         "{out:?}"
     );
-    let buffer = std::fs::read_dir(state(&home).join("buffer"))
-        .expect("buffer")
+    let runs = std::fs::read_dir(state(&home).join("runs"))
+        .expect("runs")
         .next()
         .expect("one file")
         .expect("entry")
         .path();
-    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(runs)
         .expect("read")
         .lines()
         .map(|l| serde_json::from_str(l).expect("json"))
@@ -537,13 +537,13 @@ fn a_missing_moon_journals_a_could_not_run_verification_per_task() {
         &["verify", "--checkpoint", "pre-push", "--base", &base],
     );
     assert_eq!(out.status.code(), Some(2), "{out:?}");
-    let buffer = std::fs::read_dir(state(&home).join("buffer"))
-        .expect("buffer")
+    let runs = std::fs::read_dir(state(&home).join("runs"))
+        .expect("runs")
         .next()
         .expect("one file")
         .expect("entry")
         .path();
-    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(runs)
         .expect("read")
         .lines()
         .map(|l| serde_json::from_str(l).expect("json"))
@@ -661,7 +661,7 @@ fn verify_stands_down_with_no_git_repository_at_all() {
         "{out:?}"
     );
     assert!(
-        !state(&home).join("buffer").exists(),
+        !state(&home).join("runs").exists(),
         "no journal should open for a folder that never adopted osf"
     );
 }
@@ -1027,13 +1027,13 @@ fn a_pre_push_timeout_is_journaled_as_could_not_run_not_a_hook_time_limit_skip()
     );
     assert_eq!(out.status.code(), Some(2), "{out:?}");
 
-    let buffer = std::fs::read_dir(state(&home).join("buffer"))
-        .expect("buffer")
+    let runs = std::fs::read_dir(state(&home).join("runs"))
+        .expect("runs")
         .next()
         .expect("one file")
         .expect("entry")
         .path();
-    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(runs)
         .expect("read")
         .lines()
         .map(|l| serde_json::from_str(l).expect("json"))
@@ -1271,13 +1271,13 @@ fn a_task_slot_comes_from_the_one_task_query_the_run_makes() {
         &["verify", "--checkpoint", "pre-push", "--base", &base],
     );
     assert_eq!(out.status.code(), Some(0), "{out:?}");
-    let buffer = std::fs::read_dir(state(&home).join("buffer"))
-        .expect("buffer")
+    let runs = std::fs::read_dir(state(&home).join("runs"))
+        .expect("runs")
         .next()
         .expect("one file")
         .expect("entry")
         .path();
-    let lines: Vec<serde_json::Value> = std::fs::read_to_string(buffer)
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(runs)
         .expect("read")
         .lines()
         .map(|l| serde_json::from_str(l).expect("json"))
