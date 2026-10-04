@@ -1,0 +1,413 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-04T00:07:20.608Z",
+  "title": "OpenCode plugin dependency bump 1.18.31 → 1.18.34",
+  "summary": "A dependency-only change: the `integrations/opencode` workspace pins `@opencode-ai/plugin` from 1.18.31 to 1.18.34, and the lockfile is regenerated so the plugin and its transitive `@opencode-ai/sdk` resolve to the matching 1.18.34 releases. No source, build script or runtime wiring changes — the plugin's public surface is consumed exactly as before, only the resolved package versions move.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "66afde947ac2b20442edd5f5f7dc1de1432255cb",
+      "ref": "66afde947ac2b20442edd5f5f7dc1de1432255cb"
+    },
+    "head": {
+      "sha": "f81a1dda4ca9a99e6cc2d08e30597a1642708ec8",
+      "ref": "f81a1dda4ca9a99e6cc2d08e30597a1642708ec8"
+    },
+    "pullRequest": {
+      "number": 220,
+      "url": "https://github.com/open-software-factory/software-factory/pull/220"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "pnpm monorepo",
+      "order": 0,
+      "summary": "The repository's package manifests and the single lockfile that pins every resolved version."
+    },
+    {
+      "id": "integration",
+      "label": "OpenCode integration",
+      "subtitle": "integrations/opencode",
+      "order": 1,
+      "summary": "The adapter package that plugs the factory into the OpenCode agent runtime."
+    },
+    {
+      "id": "runtime",
+      "label": "OpenCode runtime",
+      "subtitle": "external",
+      "order": 2,
+      "summary": "The host process that loads the plugin and drives its hooks."
+    },
+    {
+      "id": "registry",
+      "label": "npm registry",
+      "subtitle": "external",
+      "order": 3,
+      "summary": "Where the pinned tarballs are fetched from at install time."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "opencode-package-json",
+      "label": "integrations/opencode/package.json",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration",
+      "subtitle": "devDependencies pin",
+      "summary": "Declares the workspace's dev dependency on the OpenCode plugin. The only line that changed is the pinned version, 1.18.31 → 1.18.34.",
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 25,
+          "endLine": 31
+        }
+      ],
+      "badges": [
+        "pin bump"
+      ]
+    },
+    {
+      "id": "pnpm-lockfile",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "resolved graph",
+      "summary": "Records the resolved version for every dependency. Regenerated so the importer specifier, the package entry and the snapshot all agree on 1.18.34.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 81,
+          "endLine": 88
+        }
+      ],
+      "badges": [
+        "lockfile"
+      ]
+    },
+    {
+      "id": "opencode-plugin",
+      "label": "@opencode-ai/plugin",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration",
+      "subtitle": "1.18.31 → 1.18.34",
+      "summary": "The plugin package the integration is built against. Its own dependency on the SDK moves in lockstep, so plugin and SDK stay on the same release train.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2531,
+          "endLine": 2537
+        }
+      ],
+      "badges": [
+        "1.18.34"
+      ]
+    },
+    {
+      "id": "opencode-sdk",
+      "label": "@opencode-ai/sdk",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration",
+      "subtitle": "1.18.31 → 1.18.34",
+      "summary": "Transitive dependency pulled in by the plugin. Bumped only because the plugin's manifest requires the matching version; nothing in this repository references it directly.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2539,
+          "endLine": 2541
+        }
+      ],
+      "badges": [
+        "transitive"
+      ]
+    },
+    {
+      "id": "opencode-runtime",
+      "label": "OpenCode runtime",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "runtime",
+      "subtitle": "host process",
+      "summary": "Loads the integration at runtime and invokes its hooks. Unchanged by this diff, but it is the consumer whose behaviour the new plugin version can affect.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "npm-registry",
+      "label": "npm registry",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "tarball source",
+      "summary": "Serves the 1.18.34 tarballs and their integrity hashes. The lockfile now records the new hashes for both packages.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "package-json-declares-plugin",
+      "from": "opencode-package-json",
+      "to": "opencode-plugin",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 1.18.34",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The manifest pin that drives the whole change.",
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 28,
+          "endLine": 28
+        }
+      ]
+    },
+    {
+      "id": "lockfile-pins-plugin",
+      "from": "pnpm-lockfile",
+      "to": "opencode-plugin",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "specifier + version",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile importer entry and package entry both move to 1.18.34.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 81,
+          "endLine": 88
+        }
+      ]
+    },
+    {
+      "id": "plugin-depends-sdk",
+      "from": "opencode-plugin",
+      "to": "opencode-sdk",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "@opencode-ai/sdk 1.18.34",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The plugin's own dependency edge, which is why the SDK version moves too.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2531,
+          "endLine": 2537
+        }
+      ]
+    },
+    {
+      "id": "lockfile-pins-sdk",
+      "from": "pnpm-lockfile",
+      "to": "opencode-sdk",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "snapshot entry",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The SDK snapshot is rewritten to the 1.18.34 resolution and integrity hash.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2539,
+          "endLine": 2541
+        }
+      ]
+    },
+    {
+      "id": "runtime-loads-plugin",
+      "from": "opencode-runtime",
+      "to": "opencode-plugin",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "loads plugin hooks",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unchanged wiring: the runtime still loads the plugin the same way, only the resolved version differs.",
+      "files": []
+    },
+    {
+      "id": "install-fetches-registry",
+      "from": "pnpm-lockfile",
+      "to": "npm-registry",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "fetch pinned tarballs",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Install resolves the pinned versions against the registry using the recorded integrity hashes.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "dependency-resolution",
+      "title": "Resolving the bumped plugin",
+      "summary": "How the version pin in the manifest becomes a concrete package on disk, and how the runtime then picks it up.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "opencode-package-json",
+          "label": "package.json"
+        },
+        {
+          "node": "pnpm-lockfile",
+          "label": "pnpm-lock.yaml"
+        },
+        {
+          "node": "npm-registry",
+          "label": "npm registry"
+        },
+        {
+          "node": "opencode-plugin",
+          "label": "@opencode-ai/plugin"
+        },
+        {
+          "node": "opencode-sdk",
+          "label": "@opencode-ai/sdk"
+        },
+        {
+          "node": "opencode-runtime",
+          "label": "OpenCode runtime"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-declare-pin",
+          "from": "opencode-package-json",
+          "to": "pnpm-lockfile",
+          "label": "devDependency @opencode-ai/plugin 1.18.34",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The single manifest edit that starts the change.",
+          "files": [
+            {
+              "path": "integrations/opencode/package.json",
+              "startLine": 28,
+              "endLine": 28
+            }
+          ]
+        },
+        {
+          "id": "step-resolve",
+          "from": "pnpm-lockfile",
+          "to": "npm-registry",
+          "label": "resolve 1.18.34 + integrity hash",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Lockfile regeneration records the new resolution and hash for the plugin and its SDK.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 81,
+              "endLine": 88
+            }
+          ]
+        },
+        {
+          "id": "step-fetch-plugin",
+          "from": "npm-registry",
+          "to": "opencode-plugin",
+          "label": "tarball @opencode-ai/plugin@1.18.34",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2531,
+              "endLine": 2537
+            }
+          ]
+        },
+        {
+          "id": "step-fetch-sdk",
+          "from": "opencode-plugin",
+          "to": "opencode-sdk",
+          "label": "requires @opencode-ai/sdk@1.18.34",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Transitive pull, not a direct dependency of this repository.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2539,
+              "endLine": 2541
+            }
+          ]
+        },
+        {
+          "id": "step-load",
+          "from": "opencode-runtime",
+          "to": "opencode-plugin",
+          "label": "load plugin hooks",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Runtime wiring is untouched; only the version behind it changed.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 10,
+    "deletions": 10,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "view-containers",
+      "title": "Containers touched by the bump",
+      "lens": "architecture",
+      "summary": "The integration workspace, the lockfile that pins it, and the external runtime and registry it depends on.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-dependency-resolution",
+      "title": "Dependency resolution sequence",
+      "lens": "data-flow",
+      "summary": "The ordered path from the manifest pin through lockfile resolution to the runtime loading the new plugin.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "dependency-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

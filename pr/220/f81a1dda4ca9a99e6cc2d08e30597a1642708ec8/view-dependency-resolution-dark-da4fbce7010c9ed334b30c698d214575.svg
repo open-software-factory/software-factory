@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1626 337" width="1626" height="337" role="img" aria-label="Dependency resolution sequence" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Dependency resolution sequence</title>
+<desc>The ordered path from the manifest pin through lockfile resolution to the runtime loading the new plugin.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1626" height="337" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1626" height="337" rx="12" fill="url(#dots)"/>
+<g transform="translate(12,10)"><g><rect class="lanebox" x="4" y="6" width="219" height="305" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="279" y="6" width="219" height="305" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="554" y="6" width="219" height="305" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="829" y="6" width="219" height="305" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="1104" y="6" width="219" height="305" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="1379" y="6" width="219" height="305" rx="12" fill="rgba(110,118,129,.07)"/></g>
+<g><line class="lifeline" x1="113.5" y1="82" x2="113.5" y2="299" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="388.5" y1="82" x2="388.5" y2="299" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="382.5" y="123" width="12" height="50.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/>
+<line class="lifeline" x1="663.5" y1="82" x2="663.5" y2="299" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="657.5" y="161" width="12" height="50.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/>
+<line class="lifeline" x1="938.5" y1="82" x2="938.5" y2="299" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="932.5" y="275" width="12" height="12.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/>
+<line class="lifeline" x1="1213.5" y1="82" x2="1213.5" y2="299" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="1207.5" y="237" width="12" height="12.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/>
+<line class="lifeline" x1="1488.5" y1="82" x2="1488.5" y2="299" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="16" y="18" width="195" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="30" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M43,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M36.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M43,49 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="66" y="45" font-size="13" font-weight="600" fill="#e6edf3">package.json</text>
+<text class="nsub" x="66" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">devDependencies pin</text>
+<g class="bdg bdg-neutral"><rect x="72.24" y="10" width="59.14" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="101.81" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">pin bump</text></g>
+<g class="bdg bdg-modified"><rect x="137.38" y="10" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="170.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="291" y="18" width="195" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="305" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M311,45 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M311,53 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="316" cy="45" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="321" cy="53" r="2.2"/></g>
+<text class="ntitle" x="341" y="45" font-size="13" font-weight="600" fill="#e6edf3">pnpm-lock.yaml</text>
+<text class="nsub" x="341" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">resolved graph</text>
+<g class="bdg bdg-neutral"><rect x="356.77" y="10" width="49.61" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="381.58" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">lockfile</text></g>
+<g class="bdg bdg-modified"><rect x="412.38" y="10" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="445.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="566" y="18" width="195" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="580" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="585" y="43" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M585,45 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="616" y="45" font-size="13" font-weight="600" fill="#e6edf3">npm registry</text>
+<text class="nsub" x="616" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">tarball source</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="841" y="18" width="195" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="855" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M868,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M861.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M868,49 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="891" y="45" font-size="13" font-weight="600" fill="#e6edf3">@opencode-ai/plugin</text>
+<text class="nsub" x="891" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">1.18.31 → 1.18.34</text>
+<g class="bdg bdg-neutral"><rect x="904.75" y="10" width="51.63" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="930.57" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">1.18.34</text></g>
+<g class="bdg bdg-modified"><rect x="962.38" y="10" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="995.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="1116" y="18" width="195" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="1130" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M1143,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1136.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1143,49 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1166" y="45" font-size="13" font-weight="600" fill="#e6edf3">@opencode-ai/sdk</text>
+<text class="nsub" x="1166" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">1.18.31 → 1.18.34</text>
+<g class="bdg bdg-neutral"><rect x="1172.23" y="10" width="59.15" height="16" rx="8" fill="rgba(110,118,129,.18)" stroke="#3d444d" stroke-width="1"/><text x="1201.81" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#9198a1">transitive</text></g>
+<g class="bdg bdg-modified"><rect x="1237.38" y="10" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1270.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1391" y="18" width="195" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1405" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1410" y="43" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1410,45 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1441" y="45" font-size="13" font-weight="600" fill="#e6edf3">OpenCode runtime</text>
+<text class="nsub" x="1441" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">host process</text></g></g>
+<g><path class="msg edge-modified" d="M113.5,123 L377.5,123" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<circle r="2.6" fill="#d29922" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0;0.2;1" calcMode="linear" path="M113.5,123 L377.5,123"/><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0;0.016;0.184;0.2;1"/></circle>
+<path class="msg edge-modified" d="M394.5,161 L652.5,161" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<circle r="2.6" fill="#d29922" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.2;0.4;1" calcMode="linear" path="M394.5,161 L652.5,161"/><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.2;0.216;0.384;0.4;1"/></circle>
+<path class="msg edge-modified msg-return" d="M669.5,199 L933.5,199" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>
+<circle r="2.6" fill="#d29922" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.4;0.6;1" calcMode="linear" path="M669.5,199 L933.5,199"/><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.4;0.416;0.584;0.6;1"/></circle>
+<path class="msg edge-modified" d="M938.5,237 L1202.5,237" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<circle r="2.6" fill="#d29922" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.6;0.8;1" calcMode="linear" path="M938.5,237 L1202.5,237"/><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.6;0.616;0.784;0.8;1"/></circle>
+<path class="msg edge-neutral" d="M1488.5,275 L949.5,275" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5"/>
+<circle r="2.6" fill="#6e7681" opacity="0"><animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.8;1;1" calcMode="linear" path="M1488.5,275 L949.5,275"/><animate attributeName="opacity" dur="7s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.8;0.816;0.984;1;1"/></circle></g>
+<g><g><rect class="lpill" x="133.87" y="115.5" width="223.26" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="245.5" y="126.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">devDependency @opencode-ai/plugin 1.18.34</text></g>
+<g><rect class="lpill" x="445.4" y="153.5" width="156.21" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="523.5" y="164.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">resolve 1.18.34 + integrity hash</text></g>
+<g><rect class="lpill" x="708.83" y="191.5" width="185.34" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="801.5" y="202.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">tarball @opencode-ai/plugin@1.18.34</text></g>
+<g><rect class="lpill" x="978.96" y="229.5" width="183.09" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="1070.5" y="240.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">requires @opencode-ai/sdk@1.18.34</text></g>
+<g><rect class="lpill" x="1171.82" y="267.5" width="94.36" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1219" y="278.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">load plugin hooks</text></g></g></g>
+</svg>
