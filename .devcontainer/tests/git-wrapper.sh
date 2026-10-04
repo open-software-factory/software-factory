@@ -121,6 +121,24 @@ assert_refused "GIT_CONFIG_SYSTEM is refused" env GIT_CONFIG_SYSTEM=/tmp/evil.gi
 assert_refused "GIT_CONFIG_KEY_0 alone is refused" env GIT_CONFIG_KEY_0=core.hooksPath git status
 assert_refused "GIT_CONFIG_VALUE_0 alone is refused" env GIT_CONFIG_VALUE_0=/tmp/evil git status
 
+# --- The one allowed git config environment override. ---
+assert_ok "GIT_CONFIG_COUNT=1 with core.fsmonitor=false is allowed" \
+  env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false git status
+assert_ok "the allowed key is matched in any case" \
+  env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=Core.FSMonitor GIT_CONFIG_VALUE_0=false git status
+assert_refused "a second config pair is refused" \
+  env GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=user.name GIT_CONFIG_VALUE_1=x git status
+assert_refused "a different key is refused" \
+  env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath GIT_CONFIG_VALUE_0=/tmp/evil git status
+assert_refused "core.fsmonitor=true is refused" \
+  env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=true git status
+assert_refused "a count with a missing pair is refused" \
+  env GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false git status
+assert_refused "an extra config pair past the count is refused" \
+  env GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.fsmonitor GIT_CONFIG_VALUE_0=false GIT_CONFIG_KEY_1=core.hooksPath GIT_CONFIG_VALUE_1=/tmp/evil git status
+assert_refused "a non-numeric GIT_CONFIG_COUNT is refused" \
+  env GIT_CONFIG_COUNT=x git status
+
 # --- Still fails closed for an option this wrapper does not know. ---
 assert_refused "an unrecognized option is refused" git --totally-bogus-option status
 

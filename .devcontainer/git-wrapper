@@ -6,8 +6,10 @@
 # caller-chosen hooks path, then explains why. It also refuses a "-c"
 # that sets core.hooksPath, core.fsmonitor, or core.editor, because each
 # of those can run an arbitrary command as part of a commit, checked and
-# confirmed in docs/development.md. It does nothing else that git's own
-# settings cannot already do without it.
+# confirmed in docs/development.md. The git config environment overrides
+# are refused too, with one exception: GIT_CONFIG_COUNT carrying only the
+# pair core.fsmonitor=false, which the build tool moon needs. It does
+# nothing else that git's own settings cannot already do without it.
 #
 # One thing defeats this wrapper, and it cannot stop it: calling the real
 # git binary at its full path, /usr/bin/git.
@@ -65,8 +67,9 @@ refuse_env() {
   echo "git: refused. The environment variable '$name' is set." >&2
   echo "This wrapper blocks the git config environment overrides" >&2
   echo "(GIT_CONFIG_COUNT, GIT_CONFIG_KEY_*, GIT_CONFIG_VALUE_*," >&2
-  echo "GIT_CONFIG_PARAMETERS, GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM)," >&2
-  echo "because each can set core.hooksPath the same way '-c' can." >&2
+  echo "GIT_CONFIG_PARAMETERS, GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM)." >&2
+  echo "One exception is allowed: GIT_CONFIG_COUNT carrying only" >&2
+  echo "core.fsmonitor=false, which the build tool moon needs." >&2
   echo "Unset it and run the command again. See docs/development.md." >&2
   exit 1
 }
@@ -86,20 +89,77 @@ check_config_value() {
   esac
 }
 
+# The allow-list for GIT_CONFIG_KEY_n/VALUE_n: one pair, exact value.
+config_pair_allowed() {
+  key_lc=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  [ "$key_lc" = "core.fsmonitor" ] && [ "$2" = "false" ]
+}
+
+# Accepts GIT_CONFIG_COUNT only when every pair it names is allow-listed.
+check_config_count() {
+  count="$GIT_CONFIG_COUNT"
+  case "$count" in
+    '' | *[!0-9]*) refuse_env GIT_CONFIG_COUNT ;;
+  esac
+  if [ "${#count}" -gt 4 ]; then
+    refuse_env GIT_CONFIG_COUNT
+  fi
+  case "$count" in
+    *[1-9]*) : ;;
+    *) refuse_env GIT_CONFIG_COUNT ;;
+  esac
+  while [ "${count#0}" != "$count" ]; do
+    count="${count#0}"
+  done
+
+  expected=""
+  n=0
+  while [ "$n" -lt "$count" ]; do
+    expected="$expected GIT_CONFIG_KEY_$n GIT_CONFIG_VALUE_$n"
+    n=$((n + 1))
+  done
+
+  for name in $(env | LC_ALL=C sed -n \
+    -e 's/^\(GIT_CONFIG_KEY_[0-9A-Za-z_]*\)=.*/\1/p' \
+    -e 's/^\(GIT_CONFIG_VALUE_[0-9A-Za-z_]*\)=.*/\1/p'); do
+    case " $expected " in
+      *" $name "*) : ;;
+      *) refuse_env "$name" ;;
+    esac
+  done
+
+  n=0
+  while [ "$n" -lt "$count" ]; do
+    eval "key_set=\${GIT_CONFIG_KEY_$n+x}"
+    eval "value_set=\${GIT_CONFIG_VALUE_$n+x}"
+    if [ -z "$key_set" ] || [ -z "$value_set" ]; then
+      refuse_env GIT_CONFIG_COUNT
+    fi
+    eval "key=\${GIT_CONFIG_KEY_$n}"
+    eval "value=\${GIT_CONFIG_VALUE_$n}"
+    config_pair_allowed "$key" "$value" || refuse_config "$key" "GIT_CONFIG_KEY_$n"
+    n=$((n + 1))
+  done
+}
+
 # Refuses every git config environment override this wrapper does not
 # allow, run once before anything else: unlike "-c", these are set on
 # the process environment, so no amount of argument parsing finds them.
 check_config_env_overrides() {
-  [ -n "${GIT_CONFIG_COUNT+x}" ] && refuse_env GIT_CONFIG_COUNT
+  if [ -n "${GIT_CONFIG_COUNT+x}" ]; then
+    check_config_count
+  fi
   [ -n "${GIT_CONFIG_PARAMETERS+x}" ] && refuse_env GIT_CONFIG_PARAMETERS
   [ -n "${GIT_CONFIG_GLOBAL+x}" ] && refuse_env GIT_CONFIG_GLOBAL
   [ -n "${GIT_CONFIG_SYSTEM+x}" ] && refuse_env GIT_CONFIG_SYSTEM
-  for name in $(env | LC_ALL=C sed -n 's/^\(GIT_CONFIG_KEY_[0-9A-Za-z_]*\)=.*/\1/p'); do
-    refuse_env "$name"
-  done
-  for name in $(env | LC_ALL=C sed -n 's/^\(GIT_CONFIG_VALUE_[0-9A-Za-z_]*\)=.*/\1/p'); do
-    refuse_env "$name"
-  done
+  if [ -z "${GIT_CONFIG_COUNT+x}" ]; then
+    for name in $(env | LC_ALL=C sed -n 's/^\(GIT_CONFIG_KEY_[0-9A-Za-z_]*\)=.*/\1/p'); do
+      refuse_env "$name"
+    done
+    for name in $(env | LC_ALL=C sed -n 's/^\(GIT_CONFIG_VALUE_[0-9A-Za-z_]*\)=.*/\1/p'); do
+      refuse_env "$name"
+    done
+  fi
 }
 
 # Git accepts its own options before the subcommand (commit, push, and so

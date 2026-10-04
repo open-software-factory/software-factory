@@ -189,11 +189,13 @@ routes git offers for it, on any git call:
   an environment variable instead of a literal.
 - The git config environment overrides: `GIT_CONFIG_COUNT`,
   `GIT_CONFIG_KEY_*`, `GIT_CONFIG_VALUE_*`, `GIT_CONFIG_PARAMETERS`,
-  `GIT_CONFIG_GLOBAL`, and `GIT_CONFIG_SYSTEM`. The wrapper refuses the
-  whole call the moment any one of these is set, even before it looks at
-  the command line. A tool that legitimately needs one of these, such as
-  some IDE integrations, does not work inside this container. Unset it
-  and run the command by hand instead.
+  `GIT_CONFIG_GLOBAL`, and `GIT_CONFIG_SYSTEM`. The wrapper refuses all
+  of them, before it looks at the command line. There is one exception.
+  `GIT_CONFIG_COUNT` is allowed when it carries only the pair
+  `core.fsmonitor=false`, which the build tool moon needs to turn the
+  file-system monitor off. Any other key or value, or a count that does
+  not match the pairs, is refused. Unset the others and run the command
+  by hand instead.
 
 The same three keys are also refused for `-c` and `--config-env`, for the
 reason they always were. Each one was tested by hand in this container,
