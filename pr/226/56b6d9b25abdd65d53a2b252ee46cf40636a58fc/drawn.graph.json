@@ -1,0 +1,863 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-04T13:03:45.360Z",
+  "title": "Journal v2: schema-validated, indexed run journals",
+  "summary": "The journal module is split into five files and grows from a two-payload buffer into a versioned, schema-validated event log. Events now carry an actor, an optional work item and change, and an optional cost; eight payload types replace the original two. Every appended event is validated against a JSON Schema before a byte is written, a run-complete event must name the current head hash and closes the run, and the first accepted event records the run in a per-work-item index guarded by a lock file. The journal directory moves from `buffer/` to `runs/`, and a new reader replays a run's chain, refusing any line that is malformed, schema-invalid, off the chain, or after run-complete.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "e65bc935278c31449cdfa65f579c9155584a4f02",
+      "ref": "e65bc935278c31449cdfa65f579c9155584a4f02"
+    },
+    "head": {
+      "sha": "56b6d9b25abdd65d53a2b252ee46cf40636a58fc",
+      "ref": "56b6d9b25abdd65d53a2b252ee46cf40636a58fc"
+    },
+    "pullRequest": {
+      "number": 226,
+      "url": "https://github.com/open-software-factory/software-factory/pull/226"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "callers",
+      "label": "Callers",
+      "subtitle": "checkpoint runner and hooks",
+      "order": 0
+    },
+    {
+      "id": "journal",
+      "label": "Journal",
+      "subtitle": "crates/osf/src/journal",
+      "order": 1
+    },
+    {
+      "id": "state",
+      "label": "State directory",
+      "subtitle": "~/.osf/state",
+      "order": 2
+    },
+    {
+      "id": "external",
+      "label": "External",
+      "subtitle": "crates.io and CI",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "checkpoint-runner",
+      "label": "Checkpoint runner",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "callers",
+      "subtitle": "osf verify --checkpoint",
+      "summary": "Runs moon tasks for a checkpoint and writes one verification event per task plus a checkpoint-complete event. Now builds an `Actor::system(\"osf\")` instead of a bare string, and fills the new `check_type`, `summary` and typed `EvidenceGrade` fields.",
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 444,
+          "endLine": 450
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal-writer",
+      "label": "Journal writer",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "journal",
+      "subtitle": "Journal::append / append_draft",
+      "summary": "Opens `<state_dir>/runs/<run>.jsonl`, validates each draft against the event schema, records the run in the work-item index on the first accepted event, and appends one JSON line. A refused event writes nothing and leaves the chain head unchanged; a run-complete event closes the journal to further appends.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 143,
+          "endLine": 270
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "event-model",
+      "label": "Event model",
+      "kind": "module",
+      "delta": "added",
+      "lane": "journal",
+      "subtitle": "event.rs",
+      "summary": "The versioned envelope and its payloads: Actor, Cost, Change, EvidenceGrade, and the eight event types (run-started, verification, review, finding, state-change, run-complete, attention, checkpoint-complete).",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/event.rs",
+          "startLine": 1,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "event-schema",
+      "label": "Event schema",
+      "kind": "config",
+      "delta": "added",
+      "lane": "journal",
+      "subtitle": "event.schema.json",
+      "summary": "Draft 2020-12 JSON Schema for one event envelope, with per-event-type payload branches and cross-field rules: a harness actor must name its model, a non-observed finding may not claim `verified_by`, and only a blocked state change may carry a cause.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/event.schema.json",
+          "startLine": 1,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "schema-validator",
+      "label": "Schema validator",
+      "kind": "module",
+      "delta": "added",
+      "lane": "journal",
+      "subtitle": "schema::validate",
+      "summary": "Compiles the embedded schema once per process into a `jsonschema::Validator` and returns one reason string per violation, each naming the JSON path.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/schema.rs",
+          "startLine": 1,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hash-chain",
+      "label": "Hash chain",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "journal",
+      "subtitle": "hash.rs",
+      "summary": "Computes the SHA-256 digest over prev_hash, a newline, and the canonical JSON of payload, work_item, change, actor and cost. Verification duration and cache are neutralised; run id, timestamp and schema version are excluded. Two pinned digests lock the layout.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/hash.rs",
+          "startLine": 1,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-index",
+      "label": "Run index",
+      "kind": "module",
+      "delta": "added",
+      "lane": "journal",
+      "subtitle": "index.rs",
+      "summary": "One JSON file per work item under `<state_dir>/index`, named by the SHA-256 hex of the work item id, listing that work item's run ids in recorded order. Writes go through a temporary file renamed over the target, guarded by a lock file that is waited on and reclaimed when stale.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/index.rs",
+          "startLine": 1,
+          "endLine": 30
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal-reader",
+      "label": "Journal reader",
+      "kind": "module",
+      "delta": "added",
+      "lane": "journal",
+      "subtitle": "reader::read_run",
+      "summary": "Replays a run's journal, checking every line against the schema and every link against the recomputed hash before returning any event. A broken chain is reported as broken, never as a partial list; a truncated tail reads as incomplete rather than invalid.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/reader.rs",
+          "startLine": 1,
+          "endLine": 30
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "runs-dir",
+      "label": "runs/",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "state",
+      "subtitle": "<state_dir>/runs/<run>.jsonl",
+      "summary": "The per-run hash-chained journal file, one JSON event per line. Renamed from `buffer/`; the run id is validated as a safe single path component before the path is built.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 41,
+          "endLine": 90
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "index-dir",
+      "label": "index/",
+      "kind": "datastore",
+      "delta": "added",
+      "lane": "state",
+      "subtitle": "<state_dir>/index/<sha256>.json",
+      "summary": "Per-work-item run lists, plus a `.lock` sibling per index file. Created only when a journal carries a work item.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/index.rs",
+          "startLine": 20,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "jsonschema-crate",
+      "label": "jsonschema 0.58.5",
+      "kind": "package",
+      "delta": "added",
+      "lane": "external",
+      "subtitle": "default-features = false",
+      "summary": "New dependency of the osf crate, pulling in referencing, fancy-regex, ahash and friends. Used only by the journal schema validator.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 22,
+          "endLine": 28
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "CI checkpoint job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "external",
+      "subtitle": ".github/workflows/ci.yml",
+      "summary": "The checkpoint-evidence artifact path follows the journal from `$OSF_STATE_DIR/buffer` to `$OSF_STATE_DIR/runs`.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 343,
+          "endLine": 348
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "checkpoint-appends",
+      "from": "checkpoint-runner",
+      "to": "journal-writer",
+      "kind": "call",
+      "delta": "modified",
+      "label": "append(actor, payload)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The runner hands each verification and checkpoint-complete payload to the writer, now with an Actor value and the new typed fields.",
+      "files": [
+        {
+          "path": "crates/osf/src/checkpoint.rs",
+          "startLine": 676,
+          "endLine": 694
+        }
+      ]
+    },
+    {
+      "id": "writer-validates",
+      "from": "journal-writer",
+      "to": "schema-validator",
+      "kind": "call",
+      "delta": "added",
+      "label": "validate(event)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Every draft is serialised and validated before any byte is written; a failure returns the reasons and leaves the file and chain head untouched.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 200,
+          "endLine": 230
+        }
+      ]
+    },
+    {
+      "id": "validator-compiles",
+      "from": "schema-validator",
+      "to": "event-schema",
+      "kind": "data",
+      "delta": "added",
+      "label": "include_str!",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The schema is embedded in the binary and compiled once into a process-wide validator.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/schema.rs",
+          "startLine": 6,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "validator-uses-crate",
+      "from": "schema-validator",
+      "to": "jsonschema-crate",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The validator is the only consumer of the new jsonschema dependency.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 25,
+          "endLine": 25
+        }
+      ]
+    },
+    {
+      "id": "writer-hashes",
+      "from": "journal-writer",
+      "to": "hash-chain",
+      "kind": "call",
+      "delta": "modified",
+      "label": "event_hash(HashInput)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The writer builds a HashInput from the draft plus the journal's work item and change, and stores the returned digest as the event's hash.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 180,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "writer-records-index",
+      "from": "journal-writer",
+      "to": "run-index",
+      "kind": "call",
+      "delta": "added",
+      "label": "record_run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "On the first accepted event of a run that carries a work item, the writer records the run in the index before writing the journal line; a failed index update refuses the event.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 232,
+          "endLine": 245
+        }
+      ]
+    },
+    {
+      "id": "writer-writes-runs",
+      "from": "journal-writer",
+      "to": "runs-dir",
+      "kind": "data",
+      "delta": "modified",
+      "label": "one JSON line",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The validated event is appended as one JSON line with a trailing newline.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 246,
+          "endLine": 262
+        }
+      ]
+    },
+    {
+      "id": "index-writes-index-dir",
+      "from": "run-index",
+      "to": "index-dir",
+      "kind": "data",
+      "delta": "added",
+      "label": "temp file + rename",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The index body is written to a temporary sibling and renamed over the target, so a reader never sees a half-written index.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/index.rs",
+          "startLine": 80,
+          "endLine": 110
+        }
+      ]
+    },
+    {
+      "id": "reader-reads-runs",
+      "from": "journal-reader",
+      "to": "runs-dir",
+      "kind": "data",
+      "delta": "added",
+      "label": "read_to_string",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reader loads the run's journal file and checks it line by line.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/reader.rs",
+          "startLine": 120,
+          "endLine": 140
+        }
+      ]
+    },
+    {
+      "id": "reader-validates",
+      "from": "journal-reader",
+      "to": "schema-validator",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each line is validated against the same schema the writer used before it is accepted.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/reader.rs",
+          "startLine": 200,
+          "endLine": 215
+        }
+      ]
+    },
+    {
+      "id": "reader-rehashes",
+      "from": "journal-reader",
+      "to": "hash-chain",
+      "kind": "call",
+      "delta": "added",
+      "label": "recompute + compare",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reader recomputes each event's hash from its own fields and compares it with the stored hash, and checks prev_hash against the running head.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal/reader.rs",
+          "startLine": 216,
+          "endLine": 240
+        }
+      ]
+    },
+    {
+      "id": "reader-reads-index",
+      "from": "journal-reader",
+      "to": "run-index",
+      "kind": "call",
+      "delta": "added",
+      "label": "runs_for_work_item",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reader module re-exports the index lookup so a caller can list a work item's runs without scanning the runs directory.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 30,
+          "endLine": 32
+        }
+      ]
+    },
+    {
+      "id": "ci-collects-runs",
+      "from": "ci-workflow",
+      "to": "runs-dir",
+      "kind": "data",
+      "delta": "modified",
+      "label": "artifact upload",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CI checkpoint job uploads the runs directory as evidence instead of the old buffer directory.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 343,
+          "endLine": 348
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "append-validated-event",
+      "title": "Appending a validated event",
+      "summary": "What happens between a caller handing the journal a payload and a line landing on disk: hash, validate, index, write.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "checkpoint-runner",
+          "label": "Caller"
+        },
+        {
+          "node": "journal-writer",
+          "label": "Journal"
+        },
+        {
+          "node": "schema-validator",
+          "label": "Schema"
+        },
+        {
+          "node": "run-index",
+          "label": "Index"
+        },
+        {
+          "node": "runs-dir",
+          "label": "runs/"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-draft",
+          "from": "checkpoint-runner",
+          "to": "journal-writer",
+          "label": "append(actor, payload)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/checkpoint.rs",
+              "startLine": 676,
+              "endLine": 694
+            }
+          ]
+        },
+        {
+          "id": "step-hash",
+          "from": "journal-writer",
+          "to": "journal-writer",
+          "label": "event_hash(HashInput)",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "prev_hash + canonical JSON of payload, work_item, change, actor, cost.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal/hash.rs",
+              "startLine": 100,
+              "endLine": 130
+            }
+          ]
+        },
+        {
+          "id": "step-validate",
+          "from": "journal-writer",
+          "to": "schema-validator",
+          "label": "validate(event)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/journal.rs",
+              "startLine": 200,
+              "endLine": 230
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "serde_json::Value",
+              "shape": "Event serialised to JSON",
+              "source": {
+                "path": "crates/osf/src/journal.rs",
+                "startLine": 200,
+                "endLine": 215
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "Result<(), Vec<String>>",
+              "shape": "Ok(()) | Err(reasons)",
+              "source": {
+                "path": "crates/osf/src/journal/schema.rs",
+                "startLine": 30,
+                "endLine": 45
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-index",
+          "from": "journal-writer",
+          "to": "run-index",
+          "label": "record_run(state_dir, work_item, run)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Only on the first accepted event, and only when the journal carries a work item.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal.rs",
+              "startLine": 232,
+              "endLine": 245
+            }
+          ]
+        },
+        {
+          "id": "step-write",
+          "from": "journal-writer",
+          "to": "runs-dir",
+          "label": "writeln!(file, line)",
+          "kind": "async",
+          "delta": "modified",
+          "animated": true,
+          "note": "A refused event never reaches this step.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal.rs",
+              "startLine": 246,
+              "endLine": 262
+            }
+          ]
+        },
+        {
+          "id": "step-head",
+          "from": "journal-writer",
+          "to": "journal-writer",
+          "label": "last_hash = hash",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "A run-complete event also sets run_complete, closing the journal.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal.rs",
+              "startLine": 263,
+              "endLine": 270
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "read-and-verify-run",
+      "title": "Reading a run back",
+      "summary": "The reader's line-by-line check: parse, version, schema, run id, prev_hash, recomputed hash, run-complete head.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "journal-reader",
+          "label": "Reader"
+        },
+        {
+          "node": "runs-dir",
+          "label": "runs/"
+        },
+        {
+          "node": "schema-validator",
+          "label": "Schema"
+        },
+        {
+          "node": "hash-chain",
+          "label": "Hash"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-open",
+          "from": "journal-reader",
+          "to": "runs-dir",
+          "label": "read_to_string(<run>.jsonl)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/journal/reader.rs",
+              "startLine": 120,
+              "endLine": 140
+            }
+          ]
+        },
+        {
+          "id": "read-parse",
+          "from": "journal-reader",
+          "to": "journal-reader",
+          "label": "parse line as JSON",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "A blank line, a non-JSON line, or a last line with no newline is Malformed.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal/reader.rs",
+              "startLine": 180,
+              "endLine": 200
+            }
+          ]
+        },
+        {
+          "id": "read-validate",
+          "from": "journal-reader",
+          "to": "schema-validator",
+          "label": "validate(value)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/journal/reader.rs",
+              "startLine": 200,
+              "endLine": 215
+            }
+          ]
+        },
+        {
+          "id": "read-rehash",
+          "from": "journal-reader",
+          "to": "hash-chain",
+          "label": "event_hash(HashInput)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Compared with the stored hash and with the running head.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal/reader.rs",
+              "startLine": 216,
+              "endLine": 240
+            }
+          ]
+        },
+        {
+          "id": "read-return",
+          "from": "journal-reader",
+          "to": "journal-reader",
+          "label": "RunJournal { events, head_hash, complete }",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Any failure returns that line's error and no events at all.",
+          "files": [
+            {
+              "path": "crates/osf/src/journal/reader.rs",
+              "startLine": 240,
+              "endLine": 260
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 14,
+    "additions": 4062,
+    "deletions": 222,
+    "chips": [
+      {
+        "label": "Event types",
+        "value": "2 → 8",
+        "tone": "added"
+      },
+      {
+        "label": "Journal files",
+        "value": "1 → 5",
+        "tone": "added"
+      },
+      {
+        "label": "Schema checks",
+        "value": "every event",
+        "tone": "hero"
+      },
+      {
+        "label": "Journal dir",
+        "value": "buffer → runs",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "journal-containers",
+      "title": "Journal containers",
+      "lens": "architecture",
+      "summary": "The osf crate's journal module, the state directory it owns, and the new jsonschema dependency.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "journal-components",
+      "title": "Inside the journal module",
+      "lens": "architecture",
+      "summary": "The five files the module was split into and how the writer, reader, validator, hash and index fit together.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "journal-writer",
+          "event-model",
+          "event-schema",
+          "schema-validator",
+          "hash-chain",
+          "run-index",
+          "journal-reader",
+          "runs-dir",
+          "index-dir"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "append-flow",
+      "title": "Appending a validated event",
+      "lens": "data-flow",
+      "summary": "The ordered path from a caller's payload to a line on disk.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "append-validated-event"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "read-flow",
+      "title": "Reading a run back",
+      "lens": "data-flow",
+      "summary": "The reader's line-by-line verification of a run's chain.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "read-and-verify-run"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
