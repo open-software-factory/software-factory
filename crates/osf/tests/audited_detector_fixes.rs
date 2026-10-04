@@ -54,6 +54,18 @@ fn trailer_field_case_is_insensitive_for_every_supported_agent() {
         Context::Commit,
     );
     assert!(!findings.iter().any(|f| f.rule == "scan-coauthor-trailer"));
+    let findings = rules.scan_text(
+        "co-authored-by-not: Example <agent@example.com>\nCo-Authored-By: Claude <noreply@anthropic.com>\n",
+        Context::Commit,
+    );
+    assert_eq!(
+        findings
+            .iter()
+            .filter(|f| f.rule == "scan-coauthor-trailer")
+            .count(),
+        1,
+        "only the real trailer counts: {findings:?}"
+    );
 }
 
 #[test]

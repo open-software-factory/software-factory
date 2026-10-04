@@ -62,7 +62,8 @@ fn ordinary_writing_does_not_enforce_audited_detectors_but_raw_fixtures_do() {
             raw.iter().any(|f| f.rule == rule),
             "raw detector lost: {rule}: {raw:?}"
         );
-        repo.write("ordinary.md", &text);
+        // A kept finding proves the command ran and printed its findings.
+        repo.write("ordinary.md", &format!("{text}\n\nFixed in #125 today.\n"));
         let out = run_osf(
             &repo.dir,
             &home,
@@ -73,6 +74,10 @@ fn ordinary_writing_does_not_enforce_audited_detectors_but_raw_fixtures_do() {
             .lines()
             .map(|line| serde_json::from_str(line).expect("finding JSON"))
             .collect();
+        assert!(
+            findings.iter().any(|f| f["rule"] == "bare-reference"),
+            "the kept finding is missing, so the output proves nothing: {stdout}"
+        );
         assert!(
             findings.iter().all(|f| f["rule"] != rule),
             "disabled {rule} enforced: {stdout}"
@@ -106,6 +111,10 @@ fn skill_enforcement_uses_both_audited_families_without_hiding_syntax_errors() {
             &["lint", "skill", "--format", "human", "skills/demo"],
         );
         let printed = output_text(&out);
+        assert!(
+            printed.contains("osf lint skill:") && printed.contains("disabled from enforcement:"),
+            "{fixture}: the command printed no result: {printed}"
+        );
         for rule in [
             "skill-description-no-trigger",
             "skill-first-person",
@@ -128,6 +137,11 @@ fn skill_enforcement_uses_both_audited_families_without_hiding_syntax_errors() {
     assert!(
         out.status.success(),
         "writing policy missing from skill: {}",
+        output_text(&out)
+    );
+    assert!(
+        output_text(&out).contains("osf lint skill: 0 error(s)"),
+        "the command printed no result: {}",
         output_text(&out)
     );
     repo.write("skills/demo/SKILL.md", "---\nname: demo\nname: demo\ndescription: Use when checking a folder.\n---\n\n1. Run the check.\n");
@@ -175,6 +189,35 @@ fn commit_gate_does_not_enforce_audited_quantity_rule() {
         "disabled warning leaked: {}",
         output_text(&out)
     );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("osf lint writing: 0 error(s)"),
+        "the command printed no result: {}",
+        output_text(&out)
+    );
+    // The same message with a kept finding must report it, and still not the quantity rule.
+    repo.write(
+        "MSG",
+        "Count 12 axes over 3 rounds in 41 minutes.\n\nFixed in #125 today.\n",
+    );
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "lint",
+            "writing",
+            "--context",
+            "commit",
+            "--message",
+            "MSG",
+            "--gate",
+            "--format",
+            "human",
+        ],
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(1), "{}", output_text(&out));
+    assert!(stdout.contains("[bare-reference]"), "{}", output_text(&out));
+    assert!(!stdout.contains("[numbers-in-prose]"), "{stdout}");
 }
 
 #[test]

@@ -369,8 +369,14 @@ fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_fix() {
             "skills/demo/SKILL.md",
         ],
     );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(
-        !String::from_utf8_lossy(&out.stdout).contains("AS-016"),
+        stdout.contains("osf check lint-skill: 0 error(s)"),
+        "the check printed no result: {out:?}"
+    );
+    assert!(
+        !stdout.contains("AS-016"),
         "the on-disk fix must be what the hook checkpoint reads: {out:?}"
     );
 }
@@ -430,8 +436,14 @@ fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_script() {
             "skills/demo/SKILL.md",
         ],
     );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(
-        !String::from_utf8_lossy(&out.stdout).contains("skill-script-unpinned"),
+        stdout.contains("osf check lint-skill: 0 error(s)"),
+        "the check printed no result: {out:?}"
+    );
+    assert!(
+        !stdout.contains("skill-script-unpinned"),
         "the on-disk fix must be what the hook checkpoint reads: {out:?}"
     );
 }
