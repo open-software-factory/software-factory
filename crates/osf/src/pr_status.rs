@@ -10,8 +10,6 @@ use crate::marker;
 use regex::Regex;
 use serde_json::Value;
 use std::fmt::{self, Write as _};
-use std::io::Write as _;
-use std::process::{Command, Stdio};
 
 const NAME: &str = "status";
 const SHORT_SHA_LEN: usize = 7;
@@ -787,154 +785,6 @@ pub fn apply_via_gh(
     Ok(new_body)
 }
 
-/// Calls the real `gh` command line tool.
-pub struct RealGh;
-
-#[allow(clippy::unused_self)]
-impl GhClient for RealGh {
-    fn run(&self, args: &[String], stdin: Option<&str>) -> Result<GhOutput, StatusError> {
-        let mut command = Command::new("gh");
-        command
-            .args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        if stdin.is_some() {
-            command.stdin(Stdio::piped());
-        }
-        let mut child = command
-            .spawn()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if let Some(text) = stdin {
-            if let Some(mut pipe) = child.stdin.take() {
-                pipe.write_all(text.as_bytes())
-                    .map_err(|e| StatusError(format!("cannot write to gh: {e}")))?;
-            }
-        }
-        let output = child
-            .wait_with_output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        Ok(GhOutput {
-            success: output.status.success(),
-            status: output.status.to_string(),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        })
-    }
-
-    fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-        let output = Command::new("gh")
-            .args([
-                "pr", "view", pr, "--repo", repo, "--json", "body", "-q", ".body",
-            ])
-            .output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            return Err(StatusError(format!(
-                "gh pr view failed for {repo}#{pr}; nothing was changed"
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-    }
-
-    fn view_review(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-        let output = Command::new("gh")
-            .args([
-                "pr",
-                "view",
-                pr,
-                "--repo",
-                repo,
-                "--json",
-                "reviewDecision,reviews,comments",
-            ])
-            .output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(StatusError(format!(
-                "gh pr view failed for {repo}#{pr}: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-    }
-
-    fn view_pr_info(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-        let output = Command::new("gh")
-            .args([
-                "pr",
-                "view",
-                pr,
-                "--repo",
-                repo,
-                "--json",
-                "body,baseRefName,headRefName",
-            ])
-            .output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(StatusError(format!(
-                "gh pr view failed for {repo}#{pr}: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-    }
-
-    fn view_checks(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-        let output = Command::new("gh")
-            .args([
-                "pr",
-                "checks",
-                pr,
-                "--repo",
-                repo,
-                "--json",
-                "name,state,bucket",
-            ])
-            .output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            if stderr.to_lowercase().contains("no checks reported") {
-                return Ok("[]".to_string());
-            }
-            return Err(StatusError(format!(
-                "gh pr checks failed for {repo}#{pr}: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-    }
-
-    fn edit_body(&self, repo: &str, pr: &str, body: &str) -> Result<(), StatusError> {
-        let base = std::env::temp_dir(); // osf: temp-dir allowed, gh needs a real file path
-        let tmp = base.join(format!("osf-status-{}.md", std::process::id()));
-        std::fs::write(&tmp, body)
-            .map_err(|e| StatusError(format!("cannot write a temporary file: {e}")))?;
-        let run = Command::new("gh")
-            .arg("pr")
-            .arg("edit")
-            .arg(pr)
-            .arg("--repo")
-            .arg(repo)
-            .arg("--body-file")
-            .arg(&tmp)
-            .output();
-        let _ = std::fs::remove_file(&tmp);
-        let output = run.map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(StatusError(format!(
-                "gh pr edit failed for {repo}#{pr}: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -998,5 +848,16 @@ mod tests {
     fn gates_from_checks_json_still_reads_an_empty_array_as_empty() {
         let gates = gates_from_checks_json("[]", "status block").expect("valid checks JSON");
         assert_eq!(gates, "");
+    }
+
+    #[test]
+    fn the_module_text_names_no_process_command() {
+        let text = include_str!("pr_status.rs");
+        let word = ["Com", "mand"].concat();
+        let words: Vec<&str> = text.split(|c: char| !c.is_alphanumeric()).collect();
+        assert!(
+            !words.contains(&word.as_str()),
+            "the pure status module must hold no process-starting code"
+        );
     }
 }

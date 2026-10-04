@@ -1646,6 +1646,11 @@ fn read_to_string_or_exit(path: &Path) -> Result<String, ExitCode> {
     })
 }
 
+/// The only place that builds the GitHub adapter.
+fn github_adapter() -> github::GitHub<github::RealGh> {
+    github::GitHub::real()
+}
+
 fn pr_status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
     let tier_text = match read_to_string_or_exit(&args.tier_json) {
         Ok(t) => t,
@@ -1661,7 +1666,7 @@ fn pr_status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
             eprintln!("osf pr status render: needs --repo and --pr, or --review-json");
             return ExitCode::from(2);
         };
-        match pr_status::RealGh.view_review(repo, pr) {
+        match github_adapter().client().view_review(repo, pr) {
             Ok(t) => t,
             Err(e) => {
                 eprintln!("osf: {e}");
@@ -1841,8 +1846,8 @@ fn pr_status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
         return ExitCode::from(2);
     };
     if args.dry_run {
-        let client = pr_status::RealGh;
-        let body = match client.view_body(repo, pr) {
+        let github = github_adapter();
+        let body = match github.client().view_body(repo, pr) {
             Ok(b) => b,
             Err(e) => {
                 eprintln!("osf: {e}");
@@ -1863,7 +1868,7 @@ fn pr_status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
         repo: repo.clone(),
         pr: pr.clone(),
     };
-    let github = github::GitHub::real();
+    let github = github_adapter();
     let forge: &dyn forge::Forge = &github;
     match forge.write_status_block(&pull_request, &block_text) {
         Ok(()) => {
@@ -1963,9 +1968,8 @@ fn pr_status_refresh_review(
 }
 
 fn pr_status_refresh_cmd(args: &StatusRefreshArgs) -> ExitCode {
-    let client = pr_status::RealGh;
-    let forge = github::GitHub::real();
-    pr_status_refresh_run(&client, &forge, args).unwrap_or_else(|code| code)
+    let github = github_adapter();
+    pr_status_refresh_run(github.client(), &github, args).unwrap_or_else(|code| code)
 }
 
 fn pr_status_refresh_run(
@@ -2124,7 +2128,8 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let head_sha = match review::fetch_head_sha(&args.repo, args.pr) {
+    let github = github_adapter();
+    let head_sha = match github.head_commit(&args.repo, args.pr) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -2139,7 +2144,6 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
         repo: args.repo.clone(),
         pr: args.pr.to_string(),
     };
-    let github = github::GitHub::real();
     let outcome = post_plan(&github, &pull_request, &plan, &head_sha);
     report_outcome(outcome, args, &head_sha)
 }

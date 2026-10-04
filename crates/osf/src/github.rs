@@ -7,9 +7,11 @@ use crate::forge::{
     NewReview, PostedReview, PullRequestId, ReadCapability, ReadOutcome, ReviewComment, Verdict,
     VerdictCapability,
 };
-use crate::pr_status::{self, GhClient, RealGh};
+use crate::pr_status::{self, GhClient, GhOutput, StatusError};
 use crate::review;
 use serde_json::Value;
+use std::io::Write as _;
+use std::process::{Command, Stdio};
 
 /// Wraps a [`GhClient`] as a [`Forge`].
 pub struct GitHub<C: GhClient> {
@@ -21,6 +23,38 @@ impl<C: GhClient> GitHub<C> {
     #[must_use]
     pub fn new(client: C) -> Self {
         Self { client }
+    }
+
+    /// The wrapped client.
+    #[must_use]
+    pub fn client(&self) -> &C {
+        &self.client
+    }
+
+    /// The head commit of a pull request's branch, the one a review anchors
+    /// its comments to.
+    ///
+    /// # Errors
+    /// Returns an error if the command cannot run, fails, or its answer
+    /// holds no head commit.
+    pub fn head_commit(&self, repo: &str, pr: u64) -> Result<String, String> {
+        let argv = vec![
+            "pr".to_string(),
+            "view".to_string(),
+            pr.to_string(),
+            "--repo".to_string(),
+            repo.to_string(),
+            "--json".to_string(),
+            "headRefOid".to_string(),
+        ];
+        let out = self.client.run(&argv, None).map_err(|e| e.to_string())?;
+        if !out.success {
+            return Err(format!(
+                "could not read the head commit of {repo}#{pr}: {}",
+                out.stderr.trim()
+            ));
+        }
+        review::parse_head_sha_json(&out.stdout).map_err(|e| format!("{e} ({repo}#{pr})"))
     }
 }
 
@@ -73,7 +107,7 @@ impl<C: GhClient> Forge for GitHub<C> {
             comments: request.comments.iter().map(to_review_comment).collect(),
         };
         let repo = request.pull_request.repo.as_str();
-        let poster = |payload: &Value| review::post_via_gh(repo, number, payload);
+        let poster = |payload: &Value| post_review_attempt(&self.client, repo, number, payload);
         let mut warn = |text: &str| eprintln!("{text}");
         match post_with_fallback(&poster, &plan, &request.head_sha, &mut warn) {
             review::Outcome::Reviewed {
@@ -308,6 +342,33 @@ fn gh_failure_text(status: &str, stdout: &str, stderr: &str) -> String {
     }
 }
 
+/// Posts one review payload through `client` and classifies the raw result.
+fn post_review_attempt(
+    client: &dyn GhClient,
+    repo: &str,
+    pr: u64,
+    payload: &Value,
+) -> review::PostAttempt {
+    let argv = vec![
+        "api".to_string(),
+        "-X".to_string(),
+        "POST".to_string(),
+        format!("repos/{repo}/pulls/{pr}/reviews"),
+        "--input".to_string(),
+        "-".to_string(),
+    ];
+    let stdin = payload.to_string();
+    let out = match client.run(&argv, Some(&stdin)) {
+        Ok(out) => out,
+        Err(e) => return review::PostAttempt::Error(e.to_string()),
+    };
+    if out.success {
+        review::classify_post_result(true, &out.stdout)
+    } else {
+        review::classify_post_result(false, &format!("{}{}", out.stdout, out.stderr))
+    }
+}
+
 /// Runs one read-only command and returns its standard output, or trimmed
 /// standard error on a non-zero exit.
 fn run_read(client: &dyn GhClient, argv: &[String]) -> Result<String, String> {
@@ -437,6 +498,156 @@ fn post_with_fallback(
             warn(&self_review_warning(plan.verdict.as_event()));
             review::after_fallback_attempt(poster(&advisory), plan)
         }
+    }
+}
+
+/// Calls the real `gh` command line tool.
+pub struct RealGh;
+
+#[allow(clippy::unused_self)]
+impl GhClient for RealGh {
+    fn run(&self, args: &[String], stdin: Option<&str>) -> Result<GhOutput, StatusError> {
+        let mut command = Command::new("gh");
+        command
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if stdin.is_some() {
+            command.stdin(Stdio::piped());
+        } else {
+            command.stdin(Stdio::null());
+        }
+        let mut child = command
+            .spawn()
+            .map_err(|e| StatusError::new(format!("cannot run gh: {e}")))?;
+        if let Some(text) = stdin {
+            if let Some(mut pipe) = child.stdin.take() {
+                pipe.write_all(text.as_bytes())
+                    .map_err(|e| StatusError::new(format!("cannot write to gh: {e}")))?;
+            }
+        }
+        let output = child
+            .wait_with_output()
+            .map_err(|e| StatusError::new(format!("cannot run gh: {e}")))?;
+        Ok(GhOutput {
+            success: output.status.success(),
+            status: output.status.to_string(),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        })
+    }
+
+    fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
+        let output = Command::new("gh")
+            .args([
+                "pr", "view", pr, "--repo", repo, "--json", "body", "-q", ".body",
+            ])
+            .output()
+            .map_err(|e| StatusError::new(format!("cannot run gh: {e}")))?;
+        if !output.status.success() {
+            return Err(StatusError::new(format!(
+                "gh pr view failed for {repo}#{pr}; nothing was changed"
+            )));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
+
+    fn view_review(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
+        let output = Command::new("gh")
+            .args([
+                "pr",
+                "view",
+                pr,
+                "--repo",
+                repo,
+                "--json",
+                "reviewDecision,reviews,comments",
+            ])
+            .output()
+            .map_err(|e| StatusError::new(format!("cannot run gh: {e}")))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(StatusError::new(format!(
+                "gh pr view failed for {repo}#{pr}: {}",
+                stderr.trim()
+            )));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
+
+    fn view_pr_info(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
+        let output = Command::new("gh")
+            .args([
+                "pr",
+                "view",
+                pr,
+                "--repo",
+                repo,
+                "--json",
+                "body,baseRefName,headRefName",
+            ])
+            .output()
+            .map_err(|e| StatusError::new(format!("cannot run gh: {e}")))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(StatusError::new(format!(
+                "gh pr view failed for {repo}#{pr}: {}",
+                stderr.trim()
+            )));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
+
+    fn view_checks(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
+        let output = Command::new("gh")
+            .args([
+                "pr",
+                "checks",
+                pr,
+                "--repo",
+                repo,
+                "--json",
+                "name,state,bucket",
+            ])
+            .output()
+            .map_err(|e| StatusError::new(format!("cannot run gh: {e}")))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.to_lowercase().contains("no checks reported") {
+                return Ok("[]".to_string());
+            }
+            return Err(StatusError::new(format!(
+                "gh pr checks failed for {repo}#{pr}: {}",
+                stderr.trim()
+            )));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    }
+
+    fn edit_body(&self, repo: &str, pr: &str, body: &str) -> Result<(), StatusError> {
+        let base = std::env::temp_dir(); // osf: temp-dir allowed, gh needs a real file path
+        let tmp = base.join(format!("osf-status-{}.md", std::process::id()));
+        std::fs::write(&tmp, body)
+            .map_err(|e| StatusError::new(format!("cannot write a temporary file: {e}")))?;
+        let run = Command::new("gh")
+            .arg("pr")
+            .arg("edit")
+            .arg(pr)
+            .arg("--repo")
+            .arg(repo)
+            .arg("--body-file")
+            .arg(&tmp)
+            .output();
+        let _ = std::fs::remove_file(&tmp);
+        let output = run.map_err(|e| StatusError::new(format!("cannot run gh: {e}")))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(StatusError::new(format!(
+                "gh pr edit failed for {repo}#{pr}: {}",
+                stderr.trim()
+            )));
+        }
+        Ok(())
     }
 }
 
@@ -1271,6 +1482,224 @@ mod tests {
         assert_eq!(
             capabilities.check_status,
             ReadCapability::Unknown("cannot run gh: no such file".to_string())
+        );
+    }
+
+    /// A review request with one inline comment, for the post path.
+    fn new_review() -> NewReview {
+        NewReview {
+            pull_request: pr(),
+            head_sha: "abc123".to_string(),
+            verdict: Verdict::RequestChanges,
+            body: "Summary.\n".to_string(),
+            comments: vec![ReviewComment {
+                path: "README.md".to_string(),
+                line: 1,
+                body: "fix this".to_string(),
+            }],
+        }
+    }
+
+    /// The argv every review POST sends.
+    fn review_argv() -> Vec<String> {
+        argv(&[
+            "api",
+            "-X",
+            "POST",
+            "repos/open-software-factory/demo/pulls/7/reviews",
+            "--input",
+            "-",
+        ])
+    }
+
+    #[test]
+    fn post_review_attempt_posts_the_payload_and_reads_the_result() {
+        let payload = serde_json::json!({"event": "APPROVE"});
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_ok(
+            r#"{"id":42,"state":"APPROVED","html_url":"https://example.invalid/42"}"#,
+        ))]));
+        assert_eq!(
+            post_review_attempt(&github.client, "open-software-factory/demo", 7, &payload),
+            review::PostAttempt::Success {
+                id: "42".to_string(),
+                state: "APPROVED".to_string(),
+                url: "https://example.invalid/42".to_string(),
+            }
+        );
+        let calls = github.client.run_calls.borrow();
+        assert_eq!(calls.len(), 1, "one run call: {calls:?}");
+        let (args, stdin) = calls.first().expect("one run call");
+        assert_eq!(args, &review_argv());
+        assert_eq!(stdin.as_deref(), Some(payload.to_string().as_str()));
+    }
+
+    #[test]
+    fn post_review_attempt_recognizes_the_self_review_refusal() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_fail(
+            "exit status: 1",
+            "gh: Review cannot be requested",
+            " on your own pull request (HTTP 422)",
+        ))]));
+        assert_eq!(
+            post_review_attempt(
+                &github.client,
+                "open-software-factory/demo",
+                7,
+                &serde_json::json!({})
+            ),
+            review::PostAttempt::RefusedSelfReview
+        );
+    }
+
+    #[test]
+    fn post_review_attempt_reports_another_failure() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_fail(
+            "exit status: 1",
+            "gh: rate limited",
+            " (HTTP 403)",
+        ))]));
+        assert_eq!(
+            post_review_attempt(
+                &github.client,
+                "open-software-factory/demo",
+                7,
+                &serde_json::json!({})
+            ),
+            review::PostAttempt::Error("gh: rate limited (HTTP 403)".to_string())
+        );
+    }
+
+    #[test]
+    fn post_review_attempt_reports_a_command_that_could_not_start() {
+        let github = GitHub::new(fake_with_runs(vec![Err(StatusError::new(
+            "cannot run gh: no such file",
+        ))]));
+        assert_eq!(
+            post_review_attempt(
+                &github.client,
+                "open-software-factory/demo",
+                7,
+                &serde_json::json!({})
+            ),
+            review::PostAttempt::Error("cannot run gh: no such file".to_string())
+        );
+    }
+
+    #[test]
+    fn post_review_posts_a_native_review_through_the_client() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_ok(
+            r#"{"id":42,"state":"CHANGES_REQUESTED","html_url":"https://example.invalid/r/42"}"#,
+        ))]));
+        let posted = github.post_review(&new_review()).expect("posts");
+        assert_eq!(
+            posted,
+            PostedReview {
+                verdict: Verdict::RequestChanges,
+                advisory: false,
+                inline: 1,
+                id: "42".to_string(),
+                state: "CHANGES_REQUESTED".to_string(),
+                url: "https://example.invalid/r/42".to_string(),
+            }
+        );
+        let calls = github.client.run_calls.borrow();
+        assert_eq!(calls.len(), 1, "one run call: {calls:?}");
+        let (args, _stdin) = calls.first().expect("one run call");
+        assert_eq!(args, &review_argv());
+    }
+
+    #[test]
+    fn post_review_falls_back_to_an_advisory_comment_through_the_client() {
+        let github = GitHub::new(fake_with_runs(vec![
+            Ok(gh_fail(
+                "exit status: 1",
+                "",
+                "gh: Review cannot be requested on your own pull request (HTTP 422)",
+            )),
+            Ok(gh_ok(
+                r#"{"id":43,"state":"COMMENTED","html_url":"https://example.invalid/r/43"}"#,
+            )),
+        ]));
+        let posted = github.post_review(&new_review()).expect("posts");
+        assert_eq!(
+            posted,
+            PostedReview {
+                verdict: Verdict::RequestChanges,
+                advisory: true,
+                inline: 1,
+                id: "43".to_string(),
+                state: "COMMENTED".to_string(),
+                url: "https://example.invalid/r/43".to_string(),
+            }
+        );
+        let calls = github.client.run_calls.borrow();
+        assert_eq!(calls.len(), 2, "two run calls: {calls:?}");
+        for (args, _stdin) in calls.iter() {
+            assert_eq!(args, &review_argv());
+        }
+    }
+
+    #[test]
+    fn head_commit_reads_the_sha_through_the_client() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_ok(
+            r#"{"headRefOid":"abc123"}"#,
+        ))]));
+        assert_eq!(
+            github.head_commit("open-software-factory/demo", 7),
+            Ok("abc123".to_string())
+        );
+        let calls = github.client.run_calls.borrow();
+        assert_eq!(calls.len(), 1, "one run call: {calls:?}");
+        let (args, stdin) = calls.first().expect("one run call");
+        assert_eq!(
+            args,
+            &argv(&[
+                "pr",
+                "view",
+                "7",
+                "--repo",
+                "open-software-factory/demo",
+                "--json",
+                "headRefOid"
+            ])
+        );
+        assert!(stdin.is_none());
+    }
+
+    #[test]
+    fn head_commit_reports_a_failed_command_with_the_repo_number_and_stderr() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_fail(
+            "exit status: 1",
+            "",
+            "no such pull request\n",
+        ))]));
+        assert_eq!(
+            github.head_commit("open-software-factory/demo", 7),
+            Err(
+                "could not read the head commit of open-software-factory/demo#7: no such pull \
+                 request"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn head_commit_reports_bad_json_with_the_repo_and_number() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_ok("not json"))]));
+        let err = github
+            .head_commit("open-software-factory/demo", 7)
+            .expect_err("bad json");
+        assert!(err.ends_with(" (open-software-factory/demo#7)"), "{err}");
+    }
+
+    #[test]
+    fn head_commit_reports_a_command_that_could_not_start() {
+        let github = GitHub::new(fake_with_runs(vec![Err(StatusError::new(
+            "cannot run gh: no such file",
+        ))]));
+        assert_eq!(
+            github.head_commit("open-software-factory/demo", 7),
+            Err("cannot run gh: no such file".to_string())
         );
     }
 }
