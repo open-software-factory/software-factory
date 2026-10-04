@@ -80,6 +80,51 @@ mod tests {
     }
 
     #[test]
+    fn a_system_actor_validates() {
+        let mut event = valid_event();
+        set(
+            &mut event,
+            "actor",
+            serde_json::json!({ "kind": "system", "name": "osf" }),
+        );
+        assert_eq!(validate(&event), Ok(()));
+    }
+
+    #[test]
+    fn an_unknown_actor_kind_is_refused() {
+        let mut event = valid_event();
+        set(
+            &mut event,
+            "actor",
+            serde_json::json!({ "kind": "robot", "name": "osf" }),
+        );
+        let reasons = validate(&event).expect_err("an unknown actor kind is refused");
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.contains("kind") || r.contains("actor")),
+            "{reasons:?}"
+        );
+    }
+
+    #[test]
+    fn a_harness_actor_without_a_model_is_refused() {
+        let mut event = valid_event();
+        set(
+            &mut event,
+            "actor",
+            serde_json::json!({ "kind": "harness", "name": "demo-harness" }),
+        );
+        let reasons = validate(&event).expect_err("a harness without a model is refused");
+        assert!(
+            reasons
+                .iter()
+                .any(|r| r.contains("model") || r.contains("actor")),
+            "{reasons:?}"
+        );
+    }
+
+    #[test]
     fn a_hand_built_schema_version_2_is_refused() {
         let mut event = valid_event();
         set(&mut event, "schema_version", serde_json::json!(2));

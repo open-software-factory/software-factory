@@ -45,7 +45,7 @@ pub struct Actor {
     pub model_family: Option<String>,
 }
 
-/// The three kinds of actor decision 0005 names.
+/// The three kinds of actor decision 0005 lists (harness, person, system).
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum ActorKind {
@@ -471,6 +471,25 @@ mod tests {
         assert!(!json.contains("\"change\""), "{json}");
         assert!(!json.contains("\"cost\""), "{json}");
         assert!(!json.contains("model"), "{json}");
+    }
+
+    #[test]
+    fn actor_kinds_serialise_to_their_lower_case_names() {
+        let cases = [
+            (Actor::system("osf"), "system"),
+            (Actor::person("demo-person"), "person"),
+            (
+                Actor::harness("demo-harness", "demo-model", "demo-family"),
+                "harness",
+            ),
+        ];
+        for (actor, name) in cases {
+            let value = serde_json::to_value(&actor).expect("actor serialises");
+            assert_eq!(
+                value.get("kind").and_then(serde_json::Value::as_str),
+                Some(name)
+            );
+        }
     }
 
     #[test]

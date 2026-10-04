@@ -2,7 +2,7 @@
 
 Status: accepted. Amended by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md) to add the checkpoint-complete and gap event types.
 
-Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below.
+Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below. Amended 2026-10-05 to add the `system` actor kind.
 
 ## Context
 
@@ -17,7 +17,7 @@ The engine owns one domain model. Provider schemas are translated to it at the e
 | Entity | Holds |
 |---|---|
 | Work item | The durable unit. Lifecycle states: ready, in progress, verifying, in review, deploying, deployed, signed off, blocked, failed, recovering, and the explicit stops aborted, rolled back, paused. A blocked item names its cause: dependency, human, clarification, ambiguous, capacity. |
-| Run | One execution against a work item by one actor. An actor is a harness, a model and a model family, or a person. |
+| Run | One execution against a work item by one actor. The actor kind is harness, person or `system`. A harness names a model and a model family. |
 | Verifier run | One deterministic check inside a run: command, tool version, environment, timing, exit status, and whether it ran at all. |
 | Review run | One judgment pass: harness, model family, round number, the scope it read. |
 | Finding | A located claim from a verifier or a review, with severity, an action bucket, and an evidence grade. |
@@ -47,10 +47,12 @@ A state change is an event. The entity tables in this record are projections of 
 | schema version | The envelope version, required. |
 | event type | One of: run started, verification, review, finding, state change, run complete, attention, checkpoint-complete, gap. The checkpoint-complete and gap types are added by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md). |
 | run, work item, change | Identifiers, provider-qualified. |
-| actor | Harness, model, model family, or the person. |
+| actor | The actor kind: harness, person or `system`. A harness names a model and a model family. |
 | timestamp | Wall-clock time, excluded from the run hash below. |
 | cost | Money and tokens, when known. |
 | payload | The event type's own fields. A verification carries the check name, the check type, the result, the duration, a summary, and the evidence grade. |
+
+The `system` kind is used for events the engine itself produces, such as run start and run complete.
 
 A reporter validates every event against the schema and rejects an invalid one loudly. An event is never dropped silently.
 
