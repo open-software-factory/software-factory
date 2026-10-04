@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "dddd8af8cd35350d771841b9fafed91c0da39eee",
+    "contentHash": "4c5b69cb41881a29fc0431537c196bef"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9a6f34ad585ed5bdda336ca9da235c12",
+      "bytes": 26356,
+      "width": 1728,
+      "height": 874,
+      "animated": false,
+      "path": "architecture-overview-light-9a6f34ad585ed5bdda336ca9da235c12.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b65dc166a300743a52f75f054786cf7e",
+      "bytes": 26653,
+      "width": 1728,
+      "height": 874,
+      "animated": false,
+      "path": "architecture-overview-dark-b65dc166a300743a52f75f054786cf7e.svg"
+    },
+    {
+      "id": "policy-enforcement-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "policy-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1a0197c5a2fcb3457173a95ad0285868",
+      "bytes": 10770,
+      "width": 1708,
+      "height": 418,
+      "animated": false,
+      "path": "policy-enforcement-light-1a0197c5a2fcb3457173a95ad0285868.svg"
+    },
+    {
+      "id": "policy-enforcement-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "policy-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "154ab44885464829adbfb55bbd82e9ce",
+      "bytes": 10884,
+      "width": 1708,
+      "height": 418,
+      "animated": false,
+      "path": "policy-enforcement-dark-154ab44885464829adbfb55bbd82e9ce.svg"
+    },
+    {
+      "id": "script-pin-check-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "script-pin-check",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cd45293d5b340c1ae618e0f310fb92cb",
+      "bytes": 8856,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "script-pin-check-light-cd45293d5b340c1ae618e0f310fb92cb.svg"
+    },
+    {
+      "id": "script-pin-check-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "script-pin-check",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9e15f4c456f353fa85c1fdf07b69e217",
+      "bytes": 8947,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "script-pin-check-dark-9e15f4c456f353fa85c1fdf07b69e217.svg"
+    }
+  ]
+}

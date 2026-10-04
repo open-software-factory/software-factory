@@ -1,0 +1,1012 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-04T02:37:02.221Z",
+  "title": "Audited rule policy: a compiled Off list config cannot re-enable",
+  "summary": "This change adds a compiled enforcement policy that pins a fixed list of audited writing and skill rules to off and applies it last, after every config file, environment variable and flag has been merged. A config can still raise or lower a kept rule's level, but it can no longer re-enable an audited detector, and --gate now reads compiled defaults only. The skill script-pin check is replaced by a shared literal command-token registry covering pip, npm, pnpm, yarn, cargo, docker and podman, python -m pip, uv pip, Dockerfile FROM and image: lines, with a mandatory coverage statement. Several detectors are tightened or removed: em-dash matches only U+2014, weasel-attribution accepts a labelled HTTP(S) link after the phrase, the co-author trailer match is case-insensitive, generated merge subjects are exempt from bare-reference in commit context, and the composite skill-reads-as-manual and parenthetical rules are deleted.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "66afde947ac2b20442edd5f5f7dc1de1432255cb",
+      "ref": "66afde947ac2b20442edd5f5f7dc1de1432255cb"
+    },
+    "head": {
+      "sha": "dddd8af8cd35350d771841b9fafed91c0da39eee",
+      "ref": "dddd8af8cd35350d771841b9fafed91c0da39eee"
+    },
+    "pullRequest": {
+      "number": 216,
+      "url": "https://github.com/open-software-factory/software-factory/pull/216"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "invocation",
+      "label": "Invocation surfaces",
+      "subtitle": "CLI, hooks, CI",
+      "order": 0,
+      "delta": "modified",
+      "summary": "Every entry point that runs a lint: the command line, the agent stop and prompt hooks, and the CI workflow. All of them now route through the compiled policy."
+    },
+    {
+      "id": "lint-engine",
+      "label": "Lint engine",
+      "subtitle": "crates/osf/src",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The detectors, the new policy module, the script-pin registry, and the config loader that merges layers before policy is applied."
+    },
+    {
+      "id": "config",
+      "label": "Configuration",
+      "subtitle": "osf.toml, env, flags",
+      "order": 2,
+      "delta": "modified",
+      "summary": "Layered config sources. They can raise or lower a kept rule, but the compiled Off list is applied after them."
+    },
+    {
+      "id": "output",
+      "label": "Findings and reporting",
+      "subtitle": "stdout, stderr, exit codes",
+      "order": 3,
+      "delta": "modified",
+      "summary": "Findings, the coverage statement, the dropped-finding notice, and the exit code that gates a change."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "invocation",
+      "subtitle": "main.rs subcommands",
+      "summary": "lint writing, lint skill, check, explain and verify. lint skill gains --gate, which conflicts with the loosening flags --known-names, --overview-max-words and --overview-max-paragraphs.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 498,
+          "endLine": 540
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "stop-hook",
+      "label": "Stop hook",
+      "kind": "service",
+      "delta": "modified",
+      "lane": "invocation",
+      "subtitle": "osf hook stop",
+      "summary": "Lints the agent's final message on every turn end. It now records which audited findings were dropped and prints them only when the message passes, and it enforces the compiled policy so a config cannot re-enable an audited detector.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 166,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "CI workflow",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "invocation",
+      "subtitle": ".github/workflows/ci.yml",
+      "summary": "The skill lint step now passes --gate, so the change's own osf.toml cannot loosen a skill rule during CI.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 214,
+          "endLine": 218
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-lints",
+      "label": "Writing detectors",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lint-engine",
+      "subtitle": "lints/writing",
+      "summary": "Raw detectors for prose. Em-dash now matches only U+2014; weasel-attribution accepts a labelled HTTP(S) link after the phrase; the parenthetical rule is removed; commit context exempts a generated merge subject and drops reference-without-link.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/rules.rs",
+          "startLine": 345,
+          "endLine": 500
+        },
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 31,
+          "endLine": 110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-lints",
+      "label": "Skill detectors",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lint-engine",
+      "subtitle": "lints/skill",
+      "summary": "Structural skill rules. The composite skill-reads-as-manual vote is removed while its three component detectors remain, and the script-pin check now delegates to the shared registry.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/skill.rs",
+          "startLine": 569,
+          "endLine": 720
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "policy",
+      "label": "Audited policy",
+      "kind": "module",
+      "delta": "added",
+      "lane": "lint-engine",
+      "subtitle": "lints/policy.rs",
+      "summary": "The compiled Off list for writing and skill rules, enforce which applies it last, disabled_by_default, skill_levels which merges writing and skill overrides before enforcing, and coverage which reports the resolved Off set.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/policy.rs",
+          "startLine": 1,
+          "endLine": 78
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "script-pins",
+      "label": "Script-pin registry",
+      "kind": "module",
+      "delta": "added",
+      "lane": "lint-engine",
+      "subtitle": "lints/script_pins.rs",
+      "summary": "A literal command-token check with a shared command registry. Splits lines on shell separators, skips prefixes such as sudo and env assignments, reads options before or after the package, and flags unpinned pip, npm, pnpm, yarn and cargo installs and floating container images.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/script_pins.rs",
+          "startLine": 1,
+          "endLine": 670
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-rules",
+      "label": "Scan rules",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lint-engine",
+      "subtitle": "scan/mod.rs",
+      "summary": "The co-author trailer check now matches the field name case-insensitively by splitting on the first colon.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 198,
+          "endLine": 210
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-loader",
+      "label": "Config loader",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "config.rs",
+      "summary": "Merges file, environment and flag layers, then calls enforce_audited_policy to write the compiled Off list into both the config and the tree osf config show prints. gate_loaded still reads must_explain_names for parity, but undefined-name is off.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 470,
+          "endLine": 560
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "repository config",
+      "summary": "The repository's own config. Its must_explain_names comment now records that the list does not add gate errors because undefined-name is off.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 14,
+          "endLine": 22
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "findings",
+      "label": "Findings",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "output",
+      "subtitle": "level, rule, excerpt",
+      "summary": "The finding stream after level overrides. Audited rules are filtered out here; kept rules keep the level the config gave them.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 210,
+          "endLine": 345
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "coverage-report",
+      "label": "Coverage statement",
+      "kind": "other",
+      "delta": "added",
+      "lane": "output",
+      "subtitle": "stderr policy lines",
+      "summary": "osf lint writing policy, osf lint skill policy and osf skill-script-unpinned lines printed to stderr, naming the rules disabled from enforcement and the command forms the script-pin check reads.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1193,
+          "endLine": 1360
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "exit-code",
+      "label": "Exit code",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "output",
+      "subtitle": "0 pass, 1 findings, 2 refusal",
+      "summary": "The gate result. A config can no longer turn an audited rule into a blocking finding, and a gate run ignores the config's levels for kept rules.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1262,
+          "endLine": 1400
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-config-loader",
+      "from": "cli",
+      "to": "config-loader",
+      "kind": "call",
+      "delta": "modified",
+      "label": "load(config, overlay, gate)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "lint skill now passes its --gate flag into the loader, so a gate run reads compiled defaults only.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1336,
+          "endLine": 1345
+        }
+      ]
+    },
+    {
+      "id": "config-loader-to-policy",
+      "from": "config-loader",
+      "to": "policy",
+      "kind": "call",
+      "delta": "added",
+      "label": "enforce_audited_policy",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The loader applies the compiled Off list after every layer is merged, in both the config and the tree osf config show prints. This is the connection the change is about: no config file can re-enable an audited rule.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 470,
+          "endLine": 525
+        }
+      ]
+    },
+    {
+      "id": "cli-to-writing-lints",
+      "from": "cli",
+      "to": "writing-lints",
+      "kind": "call",
+      "delta": "modified",
+      "label": "lint_writing",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI runs the raw detectors, then applies the resolved levels.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1262,
+          "endLine": 1300
+        }
+      ]
+    },
+    {
+      "id": "cli-to-skill-lints",
+      "from": "cli",
+      "to": "skill-lints",
+      "kind": "call",
+      "delta": "modified",
+      "label": "lint_skill",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI runs the skill detectors with the merged writing and skill levels.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1345,
+          "endLine": 1400
+        }
+      ]
+    },
+    {
+      "id": "skill-lints-to-script-pins",
+      "from": "skill-lints",
+      "to": "script-pins",
+      "kind": "call",
+      "delta": "added",
+      "label": "unpinned_line_numbers",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The skill script check now delegates every script line to the shared registry instead of three local regexes, so detection and the coverage statement read the same command table.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/skill.rs",
+          "startLine": 667,
+          "endLine": 720
+        }
+      ]
+    },
+    {
+      "id": "policy-to-writing-lints",
+      "from": "policy",
+      "to": "writing-lints",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "DISABLED_WRITING",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The writing detectors' rule ids are the ones the policy pins off.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/policy.rs",
+          "startLine": 8,
+          "endLine": 22
+        }
+      ]
+    },
+    {
+      "id": "policy-to-skill-lints",
+      "from": "policy",
+      "to": "skill-lints",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "DISABLED_SKILL",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The skill detectors' rule ids are the ones the policy pins off.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/policy.rs",
+          "startLine": 24,
+          "endLine": 30
+        }
+      ]
+    },
+    {
+      "id": "stop-hook-to-policy",
+      "from": "stop-hook",
+      "to": "policy",
+      "kind": "call",
+      "delta": "added",
+      "label": "enforce + disabled_by_default",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The stop check clones the config levels, enforces the compiled policy, and records which audited findings were dropped.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 262,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "stop-hook-to-writing-lints",
+      "from": "stop-hook",
+      "to": "writing-lints",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "lint_writing (fast tier)",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The stop check still runs the fast tier only, on every turn end.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 166,
+          "endLine": 180
+        }
+      ]
+    },
+    {
+      "id": "ci-workflow-to-cli",
+      "from": "ci-workflow",
+      "to": "cli",
+      "kind": "other",
+      "delta": "modified",
+      "label": "osf lint skill --gate",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "CI now gates the skill lint, so the change's own config cannot loosen a skill rule.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 214,
+          "endLine": 218
+        }
+      ]
+    },
+    {
+      "id": "writing-lints-to-findings",
+      "from": "writing-lints",
+      "to": "findings",
+      "kind": "data",
+      "delta": "modified",
+      "label": "Vec<Finding>",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Raw findings, including disabled detectors, flow to the consumer that applies levels.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 31,
+          "endLine": 90
+        }
+      ]
+    },
+    {
+      "id": "skill-lints-to-findings",
+      "from": "skill-lints",
+      "to": "findings",
+      "kind": "data",
+      "delta": "modified",
+      "label": "Vec<SkillFinding>",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Skill findings, including the script-pin findings, flow to the consumer.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 321,
+          "endLine": 345
+        }
+      ]
+    },
+    {
+      "id": "findings-to-exit-code",
+      "from": "findings",
+      "to": "exit-code",
+      "kind": "data",
+      "delta": "modified",
+      "label": "blocking set",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Only findings that survive the policy and are not suppressed can block.",
+      "files": [
+        {
+          "path": "crates/osf/src/hook.rs",
+          "startLine": 180,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "policy-to-coverage-report",
+      "from": "policy",
+      "to": "coverage-report",
+      "kind": "data",
+      "delta": "added",
+      "label": "coverage(levels)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The resolved Off set is printed on every lint run, so a clean result states what was not enforced.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/policy.rs",
+          "startLine": 66,
+          "endLine": 78
+        }
+      ]
+    },
+    {
+      "id": "script-pins-to-coverage-report",
+      "from": "script-pins",
+      "to": "coverage-report",
+      "kind": "data",
+      "delta": "added",
+      "label": "coverage()",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The command registry's coverage statement is printed before the skill findings.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/script_pins.rs",
+          "startLine": 150,
+          "endLine": 175
+        }
+      ]
+    },
+    {
+      "id": "osf-toml-to-config-loader",
+      "from": "osf-toml",
+      "to": "config-loader",
+      "kind": "data",
+      "delta": "modified",
+      "label": "[writing.levels]",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The repository's own levels are merged, then overridden by the compiled Off list.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 14,
+          "endLine": 22
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "gate-lint-writing",
+      "title": "A gate run over a change that edits its own config",
+      "summary": "A pull-request gate lints a changed document while the change's own config tries to turn an audited rule on and a kept rule off. The compiled policy wins on the audited rule; the gate ignores the config on the kept rule.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "ci-workflow",
+          "label": "CI"
+        },
+        {
+          "node": "cli",
+          "label": "osf CLI"
+        },
+        {
+          "node": "config-loader",
+          "label": "Config loader"
+        },
+        {
+          "node": "policy",
+          "label": "Audited policy"
+        },
+        {
+          "node": "writing-lints",
+          "label": "Writing detectors"
+        },
+        {
+          "node": "findings",
+          "label": "Findings"
+        },
+        {
+          "node": "exit-code",
+          "label": "Exit code"
+        }
+      ],
+      "messages": [
+        {
+          "id": "gate-invoke",
+          "from": "ci-workflow",
+          "to": "cli",
+          "label": "osf check lint-writing --gate",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 214,
+              "endLine": 218
+            }
+          ]
+        },
+        {
+          "id": "gate-load",
+          "from": "cli",
+          "to": "config-loader",
+          "label": "load(config, gate=true)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 1336,
+              "endLine": 1345
+            }
+          ]
+        },
+        {
+          "id": "gate-enforce",
+          "from": "config-loader",
+          "to": "policy",
+          "label": "enforce_audited_policy",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The compiled Off list is written into the config and the tree after every layer is merged.",
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 470,
+              "endLine": 525
+            }
+          ]
+        },
+        {
+          "id": "gate-detect",
+          "from": "config-loader",
+          "to": "writing-lints",
+          "label": "lint_writing(text, cfg)",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/mod.rs",
+              "startLine": 31,
+              "endLine": 90
+            }
+          ]
+        },
+        {
+          "id": "gate-return",
+          "from": "writing-lints",
+          "to": "findings",
+          "label": "raw findings",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/mod.rs",
+              "startLine": 31,
+              "endLine": 90
+            }
+          ]
+        },
+        {
+          "id": "gate-apply",
+          "from": "findings",
+          "to": "policy",
+          "label": "apply_level_overrides(levels)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Audited rules resolve to Off; kept rules keep the compiled level because the gate ignored the file.",
+          "files": [
+            {
+              "path": "crates/osf/src/check.rs",
+              "startLine": 210,
+              "endLine": 220
+            }
+          ]
+        },
+        {
+          "id": "gate-block",
+          "from": "findings",
+          "to": "exit-code",
+          "label": "blocking set",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 180,
+              "endLine": 200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "stop-check-policy",
+      "title": "Stop hook drops an audited finding and reports it",
+      "summary": "The agent ends a turn with a message that trips an audited detector and a kept rule. The audited finding is dropped and named on stderr; the kept finding blocks the stop.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "stop-hook",
+          "label": "Stop hook"
+        },
+        {
+          "node": "writing-lints",
+          "label": "Writing detectors"
+        },
+        {
+          "node": "policy",
+          "label": "Audited policy"
+        },
+        {
+          "node": "findings",
+          "label": "Findings"
+        },
+        {
+          "node": "exit-code",
+          "label": "Exit code"
+        }
+      ],
+      "messages": [
+        {
+          "id": "stop-lint",
+          "from": "stop-hook",
+          "to": "writing-lints",
+          "label": "lint_writing (fast tier)",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 166,
+              "endLine": 180
+            }
+          ]
+        },
+        {
+          "id": "stop-return",
+          "from": "writing-lints",
+          "to": "stop-hook",
+          "label": "raw findings",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 262,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "stop-enforce",
+          "from": "stop-hook",
+          "to": "policy",
+          "label": "enforce(levels)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The config's levels are cloned and the compiled Off list is applied last.",
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 262,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "stop-drop",
+          "from": "stop-hook",
+          "to": "stop-hook",
+          "label": "dropped audited findings",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Recorded only when the message passes, so a refusal does not carry a policy line.",
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 180,
+              "endLine": 195
+            }
+          ]
+        },
+        {
+          "id": "stop-block",
+          "from": "findings",
+          "to": "exit-code",
+          "label": "blocking set",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/hook.rs",
+              "startLine": 180,
+              "endLine": 200
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 24,
+    "additions": 2300,
+    "deletions": 245,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Architecture overview",
+      "lens": "architecture",
+      "summary": "The invocation surfaces, the lint engine with the new policy and script-pin modules, the config layers, and the reporting path.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "policy-enforcement",
+      "title": "Policy enforcement path",
+      "lens": "architecture",
+      "summary": "How the compiled Off list reaches every consumer: the loader writes it into the config, the stop hook enforces it on cloned levels, and the coverage statement reports the resolved set.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "config-loader",
+          "policy",
+          "stop-hook",
+          "coverage-report",
+          "findings"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "script-pin-check",
+      "title": "Script-pin check",
+      "lens": "architecture",
+      "summary": "The skill script check delegates to the shared command registry, which also supplies the coverage statement printed before the findings.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "skill-lints",
+          "script-pins",
+          "coverage-report",
+          "findings"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-invoke",
+        "heading": "A gate run starts",
+        "body": "CI invokes the skill lint with --gate, so the change's own config is not read.",
+        "stage": {
+          "kind": "view",
+          "view": "architecture-overview"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "ci-workflow",
+            "cli"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-enforce",
+        "heading": "Policy is applied last",
+        "body": "The loader merges every layer, then writes the compiled Off list over the result.",
+        "stage": {
+          "kind": "view",
+          "view": "policy-enforcement"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "config-loader",
+            "policy"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-detect",
+        "heading": "Detectors still run",
+        "body": "Raw detectors evaluate every rule, including the disabled ones, so fixtures keep working.",
+        "stage": {
+          "kind": "view",
+          "view": "architecture-overview"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "writing-lints",
+            "skill-lints"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-drop",
+        "heading": "Audited findings are dropped",
+        "body": "The stop hook records which audited findings it dropped and names them only when the message passes.",
+        "stage": {
+          "kind": "flow",
+          "flow": "stop-check-policy"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "stop-enforce",
+            "stop-drop"
+          ]
+        }
+      },
+      {
+        "id": "step-report",
+        "heading": "Coverage is stated",
+        "body": "Every lint run prints the resolved Off set and the script-pin command registry.",
+        "stage": {
+          "kind": "view",
+          "view": "script-pin-check"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "script-pins",
+            "coverage-report"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      }
+    ]
+  }
+}
