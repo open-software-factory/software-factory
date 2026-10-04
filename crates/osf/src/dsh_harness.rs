@@ -225,6 +225,9 @@ pub fn parse_events(stdout: &str) -> Result<Parsed, String> {
                         Some(sum) => Usage {
                             input_tokens: sum.input_tokens.saturating_add(step.input_tokens),
                             output_tokens: sum.output_tokens.saturating_add(step.output_tokens),
+                            cache_read_tokens: sum
+                                .cache_read_tokens
+                                .saturating_add(step.cache_read_tokens),
                             total_tokens: sum.total_tokens.saturating_add(step.total_tokens),
                         },
                         None => step,
@@ -270,7 +273,7 @@ fn not_a_json_object(number: usize, line: &str) -> String {
     format!("line {number} is not a JSON object: {shown}")
 }
 
-/// The three token figures of one step, missing figures counting as zero.
+/// The four token figures of one step, missing figures counting as zero.
 fn usage_of(usage: &serde_json::Map<String, serde_json::Value>) -> Usage {
     Usage {
         input_tokens: usage
@@ -279,6 +282,10 @@ fn usage_of(usage: &serde_json::Map<String, serde_json::Value>) -> Usage {
             .unwrap_or(0),
         output_tokens: usage
             .get("outputTokens")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0),
+        cache_read_tokens: usage
+            .get("cacheReadTokens")
             .and_then(serde_json::Value::as_u64)
             .unwrap_or(0),
         total_tokens: usage
@@ -948,6 +955,7 @@ mod tests {
             Some(Usage {
                 input_tokens: 789,
                 output_tokens: 184,
+                cache_read_tokens: 16000,
                 total_tokens: 16973,
             })
         );
@@ -965,9 +973,28 @@ mod tests {
             Some(Usage {
                 input_tokens: 369,
                 output_tokens: 40,
+                cache_read_tokens: 5120,
                 total_tokens: 5529,
             })
         );
+    }
+
+    #[test]
+    fn parse_events_usage_fields_sum_to_the_reported_total_on_both_real_fixtures() {
+        for (label, fixture) in [
+            ("created file", CREATED_FILE_FIXTURE),
+            ("question", QUESTION_FIXTURE),
+        ] {
+            let usage = parse_events(fixture)
+                .unwrap_or_else(|error| panic!("{label}: {error}"))
+                .usage
+                .unwrap_or_else(|| panic!("{label}: the fixture reports usage"));
+            assert_eq!(
+                usage.input_tokens + usage.output_tokens + usage.cache_read_tokens,
+                usage.total_tokens,
+                "{label}"
+            );
+        }
     }
 
     #[test]
@@ -1096,7 +1123,40 @@ mod tests {
             Some(Usage {
                 input_tokens: 5,
                 output_tokens: 0,
+                cache_read_tokens: 0,
                 total_tokens: 7,
+            })
+        );
+    }
+
+    #[test]
+    fn parse_events_counts_a_missing_cache_read_figure_as_zero_and_sums_two_steps() {
+        let without = "{\"type\":\"status\",\"phase\":\"step_end\",\"usage\":{\"inputTokens\":5,\"totalTokens\":7}}\n";
+        let parsed = parse_events(without).expect("the line parses");
+        assert_eq!(
+            parsed.usage,
+            Some(Usage {
+                input_tokens: 5,
+                output_tokens: 0,
+                cache_read_tokens: 0,
+                total_tokens: 7,
+            })
+        );
+
+        let stdout = concat!(
+            r#"{"type":"status","phase":"step_end","usage":{"inputTokens":1,"outputTokens":2,"cacheReadTokens":10,"totalTokens":13}}"#,
+            "\n",
+            r#"{"type":"status","phase":"step_end","usage":{"inputTokens":3,"outputTokens":4,"cacheReadTokens":20,"totalTokens":27}}"#,
+            "\n",
+        );
+        let parsed = parse_events(stdout).expect("the lines parse");
+        assert_eq!(
+            parsed.usage,
+            Some(Usage {
+                input_tokens: 4,
+                output_tokens: 6,
+                cache_read_tokens: 30,
+                total_tokens: 40,
             })
         );
     }

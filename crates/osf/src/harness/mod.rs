@@ -71,10 +71,18 @@ pub struct Actor {
 }
 
 /// Tokens used over a whole run.
+///
+/// `input_tokens` counts tokens sent that were not read from a cache;
+/// `cache_read_tokens` counts tokens the provider read from its cache.
+/// `total_tokens` is the figure the harness reports, and it includes the
+/// cache-read tokens: input plus output plus cache-read equals it for the
+/// harness the adapter reads today. Cache-write tokens are not carried
+/// because the recorded runs report none.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct Usage {
     pub input_tokens: u64,
     pub output_tokens: u64,
+    pub cache_read_tokens: u64,
     pub total_tokens: u64,
 }
 
@@ -373,13 +381,14 @@ mod tests {
             usage: Some(Usage {
                 input_tokens: 1,
                 output_tokens: 2,
+                cache_read_tokens: 0,
                 total_tokens: 3,
             }),
             cost_micro_usd: None,
         };
         assert_eq!(
             serde_json::to_string(&result).expect("serializes"),
-            r#"{"actor":{"harness":"the-harness","model":"the-model","model_family":"the-family"},"session_id":"session-1","final_message":"done","outcome":"finished","exit":0,"changed_files":["a.rs"],"branch":"main","head_commit":"abc123","usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3},"cost_micro_usd":null}"#
+            r#"{"actor":{"harness":"the-harness","model":"the-model","model_family":"the-family"},"session_id":"session-1","final_message":"done","outcome":"finished","exit":0,"changed_files":["a.rs"],"branch":"main","head_commit":"abc123","usage":{"input_tokens":1,"output_tokens":2,"cache_read_tokens":0,"total_tokens":3},"cost_micro_usd":null}"#
         );
     }
 

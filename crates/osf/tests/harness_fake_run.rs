@@ -192,6 +192,7 @@ fn a_created_file_run_reports_the_file_the_message_and_usage() {
         Some(Usage {
             input_tokens: 789,
             output_tokens: 184,
+            cache_read_tokens: 16000,
             total_tokens: 16973,
         })
     );
@@ -631,6 +632,13 @@ fn the_result_is_plain_data_for_the_journal() {
             .and_then(|usage| usage.get("total_tokens"))
             .and_then(serde_json::Value::as_u64),
         Some(16973)
+    );
+    assert_eq!(
+        value
+            .get("usage")
+            .and_then(|usage| usage.get("cache_read_tokens"))
+            .and_then(serde_json::Value::as_u64),
+        Some(16000)
     );
     assert_eq!(
         value.get("outcome").and_then(serde_json::Value::as_str),

@@ -138,6 +138,7 @@ mod tests {
             usage: Some(Usage {
                 input_tokens: 1,
                 output_tokens: 2,
+                cache_read_tokens: 0,
                 total_tokens: 3,
             }),
             cost_micro_usd: None,
