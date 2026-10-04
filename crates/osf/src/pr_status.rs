@@ -622,23 +622,19 @@ pub fn is_unchanged(body: &str, rendered: &str) -> Result<bool, StatusError> {
     Ok(current_block(body)?.as_deref() == Some(rendered))
 }
 
-/// Turns `gh pr checks --json name,state,bucket` output into the
-/// comma-separated gate spec [`render`] understands: `name: passed` when
-/// the bucket is `pass`, `name: failed: <state>` when it is `fail`, and
-/// left out of the list entirely for any other bucket (pending, skipping,
-/// or cancel). `skip_name` is left out too, so the check running this very
-/// refresh never reports on itself.
+/// Reads `gh pr checks --json name,state,bucket` output into one
+/// `(name, state, bucket)` triple per entry, in order.
 ///
 /// # Errors
 /// Returns an error when the JSON is not an array of objects each with a
 /// string `name`, `state`, and `bucket`.
-pub fn gates_from_checks_json(text: &str, skip_name: &str) -> Result<String, StatusError> {
+pub fn parse_checks(text: &str) -> Result<Vec<(String, String, String)>, StatusError> {
     let value: Value = serde_json::from_str(text)
         .map_err(|e| StatusError(format!("the checks data is not valid JSON: {e}")))?;
     let Some(items) = value.as_array() else {
         return Err(checks_shape_error());
     };
-    let mut parts = Vec::new();
+    let mut checks = Vec::new();
     for item in items {
         let obj = item.as_object().ok_or_else(checks_shape_error)?;
         let name = obj
@@ -653,10 +649,27 @@ pub fn gates_from_checks_json(text: &str, skip_name: &str) -> Result<String, Sta
             .get("bucket")
             .and_then(Value::as_str)
             .ok_or_else(checks_shape_error)?;
+        checks.push((name.to_string(), state.to_string(), bucket.to_string()));
+    }
+    Ok(checks)
+}
+
+/// Turns `gh pr checks --json name,state,bucket` output into the
+/// comma-separated gate spec [`render`] understands: `name: passed` when
+/// the bucket is `pass`, `name: failed: <state>` when it is `fail`, and
+/// left out of the list entirely for any other bucket (pending, skipping,
+/// or cancel). `skip_name` is left out too, so the check running this very
+/// refresh never reports on itself.
+///
+/// # Errors
+/// Returns an error when [`parse_checks`] cannot read the checks data.
+pub fn gates_from_checks_json(text: &str, skip_name: &str) -> Result<String, StatusError> {
+    let mut parts = Vec::new();
+    for (name, state, bucket) in parse_checks(text)? {
         if name == skip_name {
             continue;
         }
-        match bucket {
+        match bucket.as_str() {
             "pass" => parts.push(format!("{name}: passed")),
             "fail" => parts.push(format!("{name}: failed: {state}")),
             _ => {}
@@ -868,5 +881,71 @@ impl GhClient for RealGh {
             )));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const CHECKS: &str = r#"[
+        {"name":"hygiene","state":"SUCCESS","bucket":"pass"},
+        {"name":"rust","state":"FAILURE","bucket":"fail"},
+        {"name":"slow-check","state":"PENDING","bucket":"pending"}
+    ]"#;
+
+    #[test]
+    fn parse_checks_reads_every_entry_in_order() {
+        let checks = parse_checks(CHECKS).expect("valid checks JSON");
+        assert_eq!(
+            checks,
+            vec![
+                (
+                    "hygiene".to_string(),
+                    "SUCCESS".to_string(),
+                    "pass".to_string()
+                ),
+                (
+                    "rust".to_string(),
+                    "FAILURE".to_string(),
+                    "fail".to_string()
+                ),
+                (
+                    "slow-check".to_string(),
+                    "PENDING".to_string(),
+                    "pending".to_string()
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_checks_refuses_a_bad_shape_with_the_existing_text() {
+        let err = parse_checks(r#"{"name":"only-one-object"}"#).expect_err("not an array");
+        assert_eq!(
+            err.to_string(),
+            "the checks data must have the shape of `gh pr checks --json name,state,bucket`"
+        );
+    }
+
+    #[test]
+    fn parse_checks_refuses_a_missing_field_with_the_existing_text() {
+        let err = parse_checks(r#"[{"name":"a","state":"SUCCESS"}]"#).expect_err("no bucket");
+        assert_eq!(
+            err.to_string(),
+            "the checks data must have the shape of `gh pr checks --json name,state,bucket`"
+        );
+    }
+
+    #[test]
+    fn gates_from_checks_json_still_maps_buckets_and_skips_the_self_check() {
+        let gates = gates_from_checks_json(CHECKS, "hygiene").expect("valid checks JSON");
+        assert_eq!(gates, "rust: failed: FAILURE");
+    }
+
+    #[test]
+    fn gates_from_checks_json_still_reads_an_empty_array_as_empty() {
+        let gates = gates_from_checks_json("[]", "status block").expect("valid checks JSON");
+        assert_eq!(gates, "");
     }
 }
