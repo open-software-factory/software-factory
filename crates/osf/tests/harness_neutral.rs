@@ -1,5 +1,5 @@
-//! The provider-neutral `harness` folder must name no harness, and the
-//! scanner that checks it must be able to fail.
+//! The provider-neutral `harness` folder must name no harness and no model
+//! vendor, and the scanner that checks it must be able to fail.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -37,6 +37,30 @@ fn banned_words(agent_words: &[String]) -> Vec<String> {
         banned.push(word.to_string());
     }
     banned
+}
+
+/// The model vendor and model family names the folder must not carry.
+const VENDOR_WORDS: [&str; 12] = [
+    "anthropic",
+    "openai",
+    "deepseek",
+    "google",
+    "gemini",
+    "claude",
+    "gpt",
+    "mistral",
+    "llama",
+    "cohere",
+    "grok",
+    "qwen",
+];
+
+/// `VENDOR_WORDS` as owned, lowercase words.
+fn vendor_words() -> Vec<String> {
+    VENDOR_WORDS
+        .iter()
+        .map(|word| word.to_lowercase())
+        .collect()
 }
 
 /// The banned words in `text`, as whole words, sorted and deduplicated.
@@ -123,5 +147,58 @@ fn the_scanner_flags_a_source_that_names_an_agent() {
         !found.is_empty(),
         "the scanner found no harness name in {}",
         path.display()
+    );
+}
+
+#[test]
+fn no_model_vendor_name_appears_in_the_harness_folder() {
+    let banned = vendor_words();
+    let mut violations = Vec::new();
+    for name in harness_file_names() {
+        let found = banned_in_file(&harness_dir().join(&name), &banned);
+        if !found.is_empty() {
+            violations.push(format!("{name}: {found:?}"));
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "the provider-neutral harness folder names a model vendor: {}",
+        violations.join("; ")
+    );
+}
+
+#[test]
+fn the_scanner_flags_a_source_that_names_a_model_vendor() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("dsh_harness.rs");
+    let found = banned_in_file(&path, &vendor_words());
+    assert!(
+        found.iter().any(|word| word == "deepseek"),
+        "the scanner found no model vendor in {}: {found:?}",
+        path.display()
+    );
+}
+
+#[test]
+fn banned_in_text_matches_whole_vendor_words_only() {
+    let banned = vendor_words();
+    let found = banned_in_text("Ask Claude.", &banned);
+    assert!(
+        found.iter().any(|word| word == "claude"),
+        "the scanner must find claude in a whole word"
+    );
+    assert!(
+        banned_in_text("claudette", &banned).is_empty(),
+        "the scanner must not match claude inside claudette"
+    );
+    let found = banned_in_text("a GPT model", &banned);
+    assert!(
+        found.iter().any(|word| word == "gpt"),
+        "the scanner must find gpt in a whole word"
+    );
+    assert!(
+        banned_in_text("gptq", &banned).is_empty(),
+        "the scanner must not match gpt inside gptq"
     );
 }
