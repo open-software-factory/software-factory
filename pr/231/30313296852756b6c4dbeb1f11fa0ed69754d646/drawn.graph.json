@@ -1,0 +1,981 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-sandbox-seam",
+  "generatedAt": "2026-10-04T13:31:47.184Z",
+  "title": "Provider-neutral sandbox seam with a Docker adapter",
+  "summary": "Adds a provider-neutral `Sandbox` trait (create / run / destroy / capabilities) plus its value types, an in-memory `FakeSandbox` double that records every call, and a Docker adapter that implements the trait by shelling out to `docker` one invocation per operation. Every argv and every response is built and read by a pure function, so the adapter is testable without a daemon; the real runner is exercised against a fake `docker` script, and a neutrality test asserts the seam's own source names no provider.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "e65bc935278c31449cdfa65f579c9155584a4f02",
+      "ref": "e65bc935278c31449cdfa65f579c9155584a4f02"
+    },
+    "head": {
+      "sha": "30313296852756b6c4dbeb1f11fa0ed69754d646",
+      "ref": "30313296852756b6c4dbeb1f11fa0ed69754d646"
+    },
+    "pullRequest": {
+      "number": 231,
+      "url": "https://github.com/open-software-factory/software-factory/pull/231"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "callers",
+      "label": "Factory callers",
+      "subtitle": "engine-side code that drives a run",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The code that will create a sandbox, run commands in it and destroy it. Nothing here changed; it is the consumer the new seam exists for."
+    },
+    {
+      "id": "seam",
+      "label": "Sandbox seam",
+      "subtitle": "crates/osf/src/sandbox",
+      "order": 1,
+      "delta": "added",
+      "summary": "The provider-neutral trait and its value types, plus the in-memory double. This is the boundary the rest of the factory programs against."
+    },
+    {
+      "id": "adapter",
+      "label": "Docker adapter",
+      "subtitle": "crates/osf/src/docker_sandbox.rs",
+      "order": 2,
+      "delta": "added",
+      "summary": "The Docker implementation: pure argv builders and response parsers, a runner trait, and the real runner that spawns the `docker` program."
+    },
+    {
+      "id": "host",
+      "label": "Host runtime",
+      "subtitle": "docker CLI and daemon",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The installed `docker` program and the daemon behind it. The adapter reaches it only through the runner trait."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "engine-run",
+      "label": "Engine run loop",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "callers",
+      "subtitle": "create → run* → destroy",
+      "summary": "The caller-side sequence the seam is shaped around: create one sandbox, run each command in order, and destroy it afterwards even when a run failed.",
+      "files": [
+        {
+          "path": "crates/osf/tests/sandbox_fake_run.rs",
+          "startLine": 47,
+          "endLine": 66
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sandbox-trait",
+      "label": "Sandbox trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "create / run / destroy / capabilities",
+      "summary": "The seam between the factory and any sandbox provider. Object-safe, so callers can hold a `Box<dyn Sandbox>`; destroy is documented as not idempotent.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox/mod.rs",
+          "startLine": 88,
+          "endLine": 110
+        }
+      ],
+      "badges": [
+        "object-safe"
+      ]
+    },
+    {
+      "id": "sandbox-types",
+      "label": "Sandbox value types",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "SandboxSpec, CommandSpec, RunResult, Capability",
+      "summary": "The plain data crossing the seam: what to create, what to run, how a run ended, and what a provider can do. All serialize with pinned names.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox/mod.rs",
+          "startLine": 8,
+          "endLine": 80
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fake-sandbox",
+      "label": "FakeSandbox",
+      "kind": "test",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "in-memory double, records every call",
+      "summary": "Answers from memory, records each call as serializable data, and can be scripted to fail one operation or to queue run results. Reaches no process, file, network or clock.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox/fake.rs",
+          "startLine": 26,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-sandbox",
+      "label": "DockerSandbox",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "impl Sandbox for R: DockerRunner",
+      "summary": "Implements the trait over any runner: validates the spec, builds argv, folds tool output into `RunResult` or `SandboxError`, and probes capabilities.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 497,
+          "endLine": 620
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "argv-builders",
+      "label": "argv builders",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "create_argv, exec_argv, kill_argv, …",
+      "summary": "Pure functions that turn a spec or command into the exact `docker` argument vector, including the keep-alive program, cap-drop, no-new-privileges and mount strings.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 196,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "validators",
+      "label": "Spec and command validators",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "validate_spec, validate_command",
+      "summary": "Rejects an unpinned image, a root or empty user, a relative workdir, a malformed name and a bad mount before any runner call is made.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 330,
+          "endLine": 430
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "response-parsers",
+      "label": "Response parsers",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "parse_server_version, parse_image, parse_network, is_docker_failure",
+      "summary": "Read a `ToolOutput` into a `Capability` or decide whether an exec ended in docker's own failure rather than the command's exit status.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 432,
+          "endLine": 495
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-runner",
+      "label": "DockerRunner trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "run(argv, timeout) -> ToolOutput",
+      "summary": "The one method the adapter needs from the outside world. Splitting it out is what lets the whole adapter be tested with a scripted runner.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 44,
+          "endLine": 52
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "real-runner",
+      "label": "RealDockerRunner",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "spawns the docker program",
+      "summary": "Spawns the program in its own process group, reads both pipes on threads, waits with a timeout, and kills the whole tree on timeout or error.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 73,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-cli",
+      "label": "docker CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "host",
+      "subtitle": "create / start / exec / kill / rm / version / info",
+      "summary": "The installed program the real runner spawns. One invocation per sandbox operation; the adapter never links against the daemon.",
+      "files": [
+        {
+          "path": "crates/osf/tests/docker_sandbox_real_runner.rs",
+          "startLine": 1,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-daemon",
+      "label": "docker daemon",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "host",
+      "subtitle": "containers, images, network plugins",
+      "summary": "Holds the containers the adapter creates and answers the version, image-inspect and network-plugin probes. Reached only by the ignored smoke test.",
+      "files": [
+        {
+          "path": "crates/osf/tests/docker_sandbox_real_runner.rs",
+          "startLine": 140,
+          "endLine": 249
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "neutrality-test",
+      "label": "Provider-neutrality test",
+      "kind": "test",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "sandbox source names no provider",
+      "summary": "Reads every file under src/sandbox and fails if any word is docker, podman or container; a second test proves the scanner can fail by finding the word in the provider file.",
+      "files": [
+        {
+          "path": "crates/osf/tests/sandbox_neutral.rs",
+          "startLine": 1,
+          "endLine": 59
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "engine-to-trait",
+      "from": "engine-run",
+      "to": "sandbox-trait",
+      "kind": "call",
+      "delta": "added",
+      "label": "create / run / destroy",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The engine drives a whole run through the trait alone, never naming a provider.",
+      "files": [
+        {
+          "path": "crates/osf/tests/sandbox_fake_run.rs",
+          "startLine": 47,
+          "endLine": 66
+        }
+      ]
+    },
+    {
+      "id": "trait-to-fake",
+      "from": "sandbox-trait",
+      "to": "fake-sandbox",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The in-memory double is one implementation of the seam, used by engine-style tests.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox/fake.rs",
+          "startLine": 62,
+          "endLine": 110
+        }
+      ]
+    },
+    {
+      "id": "trait-to-docker",
+      "from": "sandbox-trait",
+      "to": "docker-sandbox",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The Docker adapter is the other implementation, generic over the runner.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 497,
+          "endLine": 620
+        }
+      ]
+    },
+    {
+      "id": "docker-to-builders",
+      "from": "docker-sandbox",
+      "to": "argv-builders",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every operation builds its argv with a pure function before touching the runner.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 196,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "docker-to-validators",
+      "from": "docker-sandbox",
+      "to": "validators",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "create and run validate first, so a bad spec is rejected without a runner call.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 330,
+          "endLine": 430
+        }
+      ]
+    },
+    {
+      "id": "docker-to-parsers",
+      "from": "docker-sandbox",
+      "to": "response-parsers",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Tool output is folded into a capability or an error by pure parsers.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 432,
+          "endLine": 495
+        }
+      ]
+    },
+    {
+      "id": "docker-to-runner",
+      "from": "docker-sandbox",
+      "to": "docker-runner",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter holds a runner and calls it once per operation.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 44,
+          "endLine": 52
+        }
+      ]
+    },
+    {
+      "id": "runner-to-cli",
+      "from": "real-runner",
+      "to": "docker-cli",
+      "kind": "other",
+      "delta": "added",
+      "label": "spawn argv",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The real runner spawns the docker program in its own process group and reads both pipes.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 73,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "cli-to-daemon",
+      "from": "docker-cli",
+      "to": "docker-daemon",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "daemon API",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI talks to the daemon; the adapter only sees the CLI's stdout, stderr and exit status.",
+      "files": [
+        {
+          "path": "crates/osf/tests/docker_sandbox_real_runner.rs",
+          "startLine": 140,
+          "endLine": 249
+        }
+      ]
+    },
+    {
+      "id": "neutrality-to-seam",
+      "from": "neutrality-test",
+      "to": "sandbox-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test guards the seam's source against provider words, keeping the boundary honest.",
+      "files": [
+        {
+          "path": "crates/osf/tests/sandbox_neutral.rs",
+          "startLine": 1,
+          "endLine": 59
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "create-run-destroy",
+      "title": "One sandboxed run, end to end",
+      "summary": "The engine creates a sandbox, runs each command in order, and destroys it afterwards — including when a run failed. The Docker adapter turns each step into one `docker` invocation.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "engine-run",
+          "label": "Engine"
+        },
+        {
+          "node": "docker-sandbox",
+          "label": "DockerSandbox"
+        },
+        {
+          "node": "real-runner",
+          "label": "RealDockerRunner"
+        },
+        {
+          "node": "docker-cli",
+          "label": "docker"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m-create",
+          "from": "engine-run",
+          "to": "docker-sandbox",
+          "label": "create(spec)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "validate_spec runs first; a rejected spec never reaches the runner.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 560,
+              "endLine": 590
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "SandboxSpec",
+              "shape": "SandboxSpec { name, image, user, workdir, network, mounts }",
+              "sample": {
+                "name": "build",
+                "image": "example/base:1",
+                "user": "dev",
+                "workdir": "/work",
+                "network": "isolated",
+                "mounts": [
+                  {
+                    "host_path": "/host/project",
+                    "sandbox_path": "/work/project",
+                    "read_only": false
+                  }
+                ]
+              },
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 330,
+                "endLine": 430
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "SandboxId",
+              "shape": "SandboxId(String)",
+              "sample": {
+                "id": "abc123"
+              },
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 560,
+                "endLine": 590
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m-create-argv",
+          "from": "docker-sandbox",
+          "to": "real-runner",
+          "label": "create_argv + start_argv",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Two invocations: `docker create` with a 120s timeout, then `docker start`. A failed start removes the container.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 196,
+              "endLine": 260
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "Vec<String>",
+              "shape": "[\"create\", \"--name\", …, \"--network\", \"none\", \"--mount\", …, image, \"sleep\", \"2147483647\"]",
+              "sample": [
+                "create",
+                "--name",
+                "build",
+                "--cap-drop",
+                "ALL",
+                "--security-opt",
+                "no-new-privileges",
+                "--user",
+                "dev",
+                "--workdir",
+                "/work",
+                "--network",
+                "none",
+                "example/base:1",
+                "sleep",
+                "2147483647"
+              ],
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 196,
+                "endLine": 260
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m-create-spawn",
+          "from": "real-runner",
+          "to": "docker-cli",
+          "label": "spawn docker create",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Spawned in its own process group so a timeout can kill the whole tree.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 73,
+              "endLine": 160
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "argv",
+              "shape": "&[String]",
+              "sample": [
+                "create",
+                "--name",
+                "build",
+                "--network",
+                "none",
+                "example/base:1",
+                "sleep",
+                "2147483647"
+              ],
+              "changedPaths": []
+            },
+            "response": {
+              "type": "ToolOutput",
+              "shape": "ToolOutput { status, stdout, stderr, timed_out }",
+              "sample": {
+                "status": 0,
+                "stdout": "abc123\n",
+                "stderr": "",
+                "timed_out": false
+              },
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 20,
+                "endLine": 30
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m-run",
+          "from": "engine-run",
+          "to": "docker-sandbox",
+          "label": "run(id, command)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "repeat": 2,
+          "note": "One call per command in the run; validate_command runs first.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 592,
+              "endLine": 640
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "CommandSpec { program, args, workdir, timeout_secs }",
+              "sample": {
+                "program": "run",
+                "args": [
+                  "--fast"
+                ],
+                "workdir": null,
+                "timeout_secs": 30
+              },
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 330,
+                "endLine": 430
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "RunResult",
+              "shape": "RunResult { outcome, stdout, stderr }",
+              "sample": {
+                "outcome": {
+                  "exited": 0
+                },
+                "stdout": "out",
+                "stderr": "err"
+              },
+              "source": {
+                "path": "crates/osf/src/sandbox/mod.rs",
+                "startLine": 44,
+                "endLine": 52
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m-exec-argv",
+          "from": "docker-sandbox",
+          "to": "real-runner",
+          "label": "exec_argv",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The command's timeout_secs becomes the runner timeout; none means wait forever.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 262,
+              "endLine": 280
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "Vec<String>",
+              "shape": "[\"exec\", (\"--workdir\", wd)?, id, program, args…]",
+              "sample": [
+                "exec",
+                "abc123",
+                "run",
+                "--fast"
+              ],
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 262,
+                "endLine": 280
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m-exec-spawn",
+          "from": "real-runner",
+          "to": "docker-cli",
+          "label": "spawn docker exec",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "On timeout the runner kills the process tree and reports timed_out; the adapter then issues `docker kill`.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 73,
+              "endLine": 160
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "argv",
+              "shape": "&[String]",
+              "sample": [
+                "exec",
+                "abc123",
+                "run",
+                "--fast"
+              ],
+              "changedPaths": []
+            },
+            "response": {
+              "type": "ToolOutput",
+              "shape": "ToolOutput { status, stdout, stderr, timed_out }",
+              "sample": {
+                "status": 0,
+                "stdout": "out",
+                "stderr": "err",
+                "timed_out": false
+              },
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 20,
+                "endLine": 30
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m-destroy",
+          "from": "engine-run",
+          "to": "docker-sandbox",
+          "label": "destroy(id)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Always attempted, even after a failed run; a failed destroy is returned when every run succeeded.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 642,
+              "endLine": 650
+            }
+          ]
+        },
+        {
+          "id": "m-remove-argv",
+          "from": "docker-sandbox",
+          "to": "real-runner",
+          "label": "remove_argv",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 296,
+              "endLine": 300
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "Vec<String>",
+              "shape": "[\"rm\", \"--force\", id]",
+              "sample": [
+                "rm",
+                "--force",
+                "abc123"
+              ],
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 296,
+                "endLine": 300
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m-remove-spawn",
+          "from": "real-runner",
+          "to": "docker-cli",
+          "label": "spawn docker rm --force",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 73,
+              "endLine": 160
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "argv",
+              "shape": "&[String]",
+              "sample": [
+                "rm",
+                "--force",
+                "abc123"
+              ],
+              "changedPaths": []
+            },
+            "response": {
+              "type": "ToolOutput",
+              "shape": "ToolOutput { status, stdout, stderr, timed_out }",
+              "sample": {
+                "status": 0,
+                "stdout": "",
+                "stderr": "",
+                "timed_out": false
+              },
+              "source": {
+                "path": "crates/osf/src/docker_sandbox.rs",
+                "startLine": 20,
+                "endLine": 30
+              },
+              "changedPaths": []
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 7,
+    "additions": 2532,
+    "deletions": 0,
+    "chips": [
+      {
+        "label": "New public trait",
+        "value": "Sandbox",
+        "tone": "hero"
+      },
+      {
+        "label": "Implementations",
+        "value": "2",
+        "tone": "added"
+      },
+      {
+        "label": "Docker invocations per run",
+        "value": "1 per op",
+        "tone": "neutral"
+      },
+      {
+        "label": "Daemon needed for tests",
+        "value": "no",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "sandbox-architecture",
+      "title": "Sandbox seam and its two implementations",
+      "lens": "architecture",
+      "summary": "The factory programs against a provider-neutral trait; the fake double and the Docker adapter are the two implementations, and only the adapter reaches the host runtime.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "docker-adapter-internals",
+      "title": "Inside the Docker adapter",
+      "lens": "architecture",
+      "summary": "The adapter's internals: pure argv builders, validators and response parsers around the runner trait, with the real runner as the only piece that spawns a process.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "docker-sandbox",
+          "argv-builders",
+          "validators",
+          "response-parsers",
+          "docker-runner",
+          "real-runner",
+          "docker-cli"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "runner-internals",
+          "title": "RealDockerRunner process handling",
+          "lens": "architecture",
+          "summary": "Spawn in its own process group, read both pipes on threads, wait with a timeout, and kill the whole tree on timeout or error.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "real-runner",
+              "docker-cli",
+              "docker-daemon"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "create-run-destroy-flow",
+      "title": "Create, run, destroy",
+      "lens": "data-flow",
+      "summary": "The ordered sequence of one sandboxed run, with the argv each step produces.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "create-run-destroy"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

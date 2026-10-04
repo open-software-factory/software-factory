@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-sandbox-seam",
+    "headSha": "30313296852756b6c4dbeb1f11fa0ed69754d646",
+    "contentHash": "ffd80eedcf391f9b1357e03846b616de"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "sandbox-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "sandbox-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a429350af1a48ffa3304edfecbce5f73",
+      "bytes": 20174,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "sandbox-architecture-light-a429350af1a48ffa3304edfecbce5f73.svg"
+    },
+    {
+      "id": "sandbox-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "sandbox-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5aba471b768c795ff03fe1a80ac9bee9",
+      "bytes": 20442,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "sandbox-architecture-dark-5aba471b768c795ff03fe1a80ac9bee9.svg"
+    },
+    {
+      "id": "docker-adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "docker-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "97e82ccd392eeebd0fa2d1190ddd7917",
+      "bytes": 11842,
+      "width": 878,
+      "height": 418,
+      "animated": false,
+      "path": "docker-adapter-internals-light-97e82ccd392eeebd0fa2d1190ddd7917.svg"
+    },
+    {
+      "id": "docker-adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "docker-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "64e5cba9cba4828c4e697e239e4863f9",
+      "bytes": 11986,
+      "width": 878,
+      "height": 418,
+      "animated": false,
+      "path": "docker-adapter-internals-dark-64e5cba9cba4828c4e697e239e4863f9.svg"
+    },
+    {
+      "id": "runner-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "runner-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "91e1e6598e0f68161a57a26acb553fc1",
+      "bytes": 6905,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "runner-internals-light-91e1e6598e0f68161a57a26acb553fc1.svg"
+    },
+    {
+      "id": "runner-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "runner-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "10281b67cf899b442dd5cab2c2eb5645",
+      "bytes": 6950,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "runner-internals-dark-10281b67cf899b442dd5cab2c2eb5645.svg"
+    },
+    {
+      "id": "create-run-destroy-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "create-run-destroy-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2c31d1ef7a90aa6f7d78ae96a29526b6",
+      "bytes": 14513,
+      "width": 1692,
+      "height": 489,
+      "animated": true,
+      "path": "create-run-destroy-flow-light-2c31d1ef7a90aa6f7d78ae96a29526b6.svg"
+    },
+    {
+      "id": "create-run-destroy-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "create-run-destroy-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "241c42450061859cc85913125d604e71",
+      "bytes": 14613,
+      "width": 1692,
+      "height": 489,
+      "animated": true,
+      "path": "create-run-destroy-flow-dark-241c42450061859cc85913125d604e71.svg"
+    }
+  ]
+}
