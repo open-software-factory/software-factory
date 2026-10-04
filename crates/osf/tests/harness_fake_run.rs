@@ -2,7 +2,7 @@
 //! with the in-memory fakes. The only concrete adapter named here is `dsh`.
 
 use osf::dsh_harness::{
-    branch_command, head_command, parse_events, probe_command, status_command, DshConfig,
+    branch_command, git_env, head_command, parse_events, probe_command, status_command, DshConfig,
     DshHarness, PINNED_VERSION,
 };
 use osf::harness::fake::{FakeHarness, FakeRunner};
@@ -101,6 +101,8 @@ fn config() -> DshConfig {
         vec![
             ("PATH".into(), "/usr/bin".into()),
             ("HOME".into(), "/var/agent-home".into()),
+            ("DEEPSEEK_API_KEY".into(), "key-value-for-test".into()),
+            ("GIT_AUTHOR_NAME".into(), "someone".into()),
         ],
     )
 }
@@ -552,9 +554,34 @@ fn the_commands_reaching_the_runner_are_the_documented_ones() {
     assert_eq!(agent.workdir.as_deref(), Some("/repo"));
     assert_eq!(agent.timeout_secs, Some(600));
     assert_eq!(agent.env, config().env);
+    assert!(
+        agent.env.iter().any(|(name, _)| name == "DEEPSEEK_API_KEY"),
+        "the agent command carries the API key"
+    );
 
+    let minimal = git_env(&config());
+    assert_eq!(
+        minimal,
+        vec![
+            ("PATH".to_string(), "/usr/bin".to_string()),
+            ("HOME".to_string(), "/var/agent-home".to_string()),
+            ("GIT_AUTHOR_NAME".to_string(), "someone".to_string()),
+        ]
+    );
     for command in &commands {
-        assert_eq!(command.env, config().env, "every command carries the env");
+        if command.program == "git" {
+            assert_eq!(
+                command.env, minimal,
+                "a git command carries only the minimal environment"
+            );
+            assert!(
+                !command
+                    .env
+                    .iter()
+                    .any(|(name, _)| name == "DEEPSEEK_API_KEY"),
+                "no git command carries the API key"
+            );
+        }
         assert_eq!(
             command.workdir.as_deref(),
             Some("/repo"),

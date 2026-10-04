@@ -17,6 +17,7 @@
 //!   message with a `QUESTION:` line, and the adapter reads that line.
 //! - Changed files come from `git status --porcelain=v1 -z`, so ignored files
 //!   are not seen. A commit moves the head, and a run that moves it fails.
+//! - Git gets only `PATH`, `HOME` and `GIT_*`; no credential reaches it.
 
 use crate::harness::{
     build_prompt, question_line, Actor, Capability, CommandOutcome, CommandRunner, CommandSpec,
@@ -92,13 +93,25 @@ pub fn build_command(
     }
 }
 
-/// A git command in `repository_path`, with the configured environment.
+/// The minimal environment for git, so a credential the agent needs never
+/// reaches it.
+#[must_use]
+pub fn git_env(config: &DshConfig) -> Vec<(String, String)> {
+    config
+        .env
+        .iter()
+        .filter(|(name, _)| name == "PATH" || name == "HOME" || name.starts_with("GIT_"))
+        .cloned()
+        .collect()
+}
+
+/// A git command in `repository_path`, with the minimal git environment.
 fn git_command(config: &DshConfig, repository_path: &str, args: &[&str]) -> CommandSpec {
     CommandSpec {
         program: "git".to_string(),
         args: args.iter().copied().map(String::from).collect(),
         workdir: Some(repository_path.to_string()),
-        env: config.env.clone(),
+        env: git_env(config),
         stdin: None,
         timeout_secs: Some(60),
     }
@@ -658,6 +671,63 @@ mod tests {
     }
 
     #[test]
+    fn git_env_keeps_only_path_home_and_git_names_in_order() {
+        let config = DshConfig::new(
+            "dsh",
+            vec![
+                ("DEEPSEEK_API_KEY".to_string(), "secret".to_string()),
+                ("PATH".to_string(), "/bin".to_string()),
+                ("UNRELATED".to_string(), "value".to_string()),
+                ("NOT_GIT_X".to_string(), "value".to_string()),
+                ("GIT_AUTHOR_NAME".to_string(), "someone".to_string()),
+                ("HOME".to_string(), "/var/agent-home".to_string()),
+            ],
+        );
+        assert_eq!(
+            git_env(&config),
+            vec![
+                ("PATH".to_string(), "/bin".to_string()),
+                ("GIT_AUTHOR_NAME".to_string(), "someone".to_string()),
+                ("HOME".to_string(), "/var/agent-home".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn git_env_of_an_empty_environment_is_empty() {
+        assert!(git_env(&config()).is_empty());
+    }
+
+    #[test]
+    fn git_commands_carry_only_the_minimal_environment() {
+        let config = DshConfig::new(
+            "dsh",
+            vec![
+                ("PATH".to_string(), "/bin".to_string()),
+                ("DEEPSEEK_API_KEY".to_string(), "secret".to_string()),
+                ("GIT_AUTHOR_NAME".to_string(), "someone".to_string()),
+                ("HOME".to_string(), "/var/agent-home".to_string()),
+            ],
+        );
+        let minimal = git_env(&config);
+        assert_eq!(status_command(&config, "/repo").env, minimal);
+        assert_eq!(head_command(&config, "/repo").env, minimal);
+        assert_eq!(branch_command(&config, "/repo").env, minimal);
+        assert!(minimal.iter().all(|(name, _)| name != "DEEPSEEK_API_KEY"));
+    }
+
+    #[test]
+    fn build_command_keeps_the_complete_environment_including_the_key() {
+        let env = vec![
+            ("PATH".to_string(), "/bin".to_string()),
+            ("DEEPSEEK_API_KEY".to_string(), "secret".to_string()),
+            ("GIT_AUTHOR_NAME".to_string(), "someone".to_string()),
+        ];
+        let command = build_command(&DshConfig::new("dsh", env.clone()), "go", "/repo", None);
+        assert_eq!(command.env, env);
+    }
+
+    #[test]
     fn status_command_pins_its_arguments_and_workdir() {
         let command = status_command(&config(), "/repo");
         assert_eq!(command.program, "git");
@@ -668,7 +738,7 @@ mod tests {
         assert_eq!(command.workdir.as_deref(), Some("/repo"));
         assert_eq!(command.timeout_secs, Some(60));
         assert!(command.stdin.is_none());
-        assert_eq!(command.env, config().env);
+        assert_eq!(command.env, git_env(&config()));
     }
 
     #[test]
@@ -679,7 +749,7 @@ mod tests {
         assert_eq!(command.workdir.as_deref(), Some("/repo"));
         assert_eq!(command.timeout_secs, Some(60));
         assert!(command.stdin.is_none());
-        assert_eq!(command.env, config().env);
+        assert_eq!(command.env, git_env(&config()));
     }
 
     #[test]
@@ -693,7 +763,7 @@ mod tests {
         assert_eq!(command.workdir.as_deref(), Some("/repo"));
         assert_eq!(command.timeout_secs, Some(60));
         assert!(command.stdin.is_none());
-        assert_eq!(command.env, config().env);
+        assert_eq!(command.env, git_env(&config()));
     }
 
     #[test]
