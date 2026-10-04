@@ -345,10 +345,14 @@ fn truncation_notes(result: &RunResult) -> Vec<String> {
     };
     let mut notes = Vec::new();
     if result.stdout_truncated {
-        notes.push(format!("stdout was cut at {cap} bytes"));
+        notes.push(format!(
+            "stdout was cut to {cap} bytes (start and end kept)"
+        ));
     }
     if result.stderr_truncated {
-        notes.push(format!("stderr was cut at {cap} bytes"));
+        notes.push(format!(
+            "stderr was cut to {cap} bytes (start and end kept)"
+        ));
     }
     notes
 }
@@ -766,7 +770,7 @@ mod tests {
         assert_eq!(execution.exit_code, 0);
         assert_eq!(
             execution.message.as_deref(),
-            Some("stdout was cut at 10 bytes")
+            Some("stdout was cut to 10 bytes (start and end kept)")
         );
     }
 
@@ -784,7 +788,7 @@ mod tests {
         assert_eq!(execution.exit_code, 0);
         assert_eq!(
             execution.message.as_deref(),
-            Some("stderr was cut at 10 bytes")
+            Some("stderr was cut to 10 bytes (start and end kept)")
         );
     }
 
@@ -802,7 +806,8 @@ mod tests {
         assert_eq!(
             execution.message.as_deref(),
             Some(
-                "stdout was cut at 5 bytes; stderr was cut at 5 bytes; \
+                "stdout was cut to 5 bytes (start and end kept); \
+                 stderr was cut to 5 bytes (start and end kept); \
                  the sandbox was already gone when it was removed"
             )
         );

@@ -99,7 +99,8 @@ pub struct RunResult {
     pub outcome: RunOutcome,
     pub stdout: String,
     pub stderr: String,
-    /// The per-stream cap in bytes, or none when the provider applied no cap.
+    /// The per-stream cap in bytes, or none when the provider applied no cap;
+    /// a cut stream keeps its first half and its last half with a marker between.
     pub output_cap_bytes: Option<u64>,
     pub stdout_truncated: bool,
     pub stderr_truncated: bool,

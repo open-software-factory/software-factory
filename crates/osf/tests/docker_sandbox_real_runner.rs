@@ -43,6 +43,20 @@ set -euo pipefail
 printf 'a%.0s' {1..100}
 ";
 
+const BIG_TAIL_SCRIPT: &str = r"#!/usr/bin/env bash
+set -euo pipefail
+export LC_ALL=C
+head -c 5242880 /dev/zero | tr '\0' x
+printf '\nFINAL-EVENT\n'
+";
+
+const BIG_TAIL_STDERR_SCRIPT: &str = r"#!/usr/bin/env bash
+set -euo pipefail
+export LC_ALL=C
+head -c 5242880 /dev/zero | tr '\0' x >&2
+printf '\nFINAL-EVENT\n' >&2
+";
+
 /// A throwaway folder holding the fake program, removed on drop.
 struct TempArea {
     dir: PathBuf,
@@ -134,10 +148,103 @@ fn real_runner_caps_stdout_and_reports_truncation() {
     let output = runner
         .run(&["exec".to_string()], None)
         .expect("the fake runs");
-    assert_eq!(output.stdout, "a".repeat(10));
+    assert_eq!(output.stdout, "aaaaa\n[... 90 bytes omitted ...]\naaaaa");
     assert!(output.stdout_truncated);
     assert!(!output.stderr_truncated);
     assert_eq!(output.output_cap_bytes, Some(10));
+}
+
+#[test]
+fn real_runner_keeps_the_first_and_last_half_of_a_cut_stdout() {
+    let _lock = serial();
+    let area = TempArea::new("big-tail-stdout");
+    let script = area.script("docker", BIG_TAIL_SCRIPT);
+    let runner = RealDockerRunner::new(script.as_path());
+
+    let output = runner
+        .run(&["exec".to_string()], None)
+        .expect("the fake runs");
+    assert!(output.stdout.starts_with('x'), "{:?}", output.stdout);
+    assert!(
+        output.stdout.ends_with("FINAL-EVENT\n"),
+        "{:?}",
+        output.stdout
+    );
+    assert_eq!(
+        output.stdout.matches("bytes omitted").count(),
+        1,
+        "{:?}",
+        output.stdout
+    );
+    assert!(
+        u64::try_from(output.stdout.len()).expect("the length fits")
+            <= DEFAULT_OUTPUT_CAP_BYTES + 64,
+        "{}",
+        output.stdout.len()
+    );
+    assert!(output.stdout_truncated);
+    assert!(!output.stderr_truncated);
+}
+
+#[test]
+fn real_runner_keeps_the_first_and_last_half_of_a_cut_stderr() {
+    let _lock = serial();
+    let area = TempArea::new("big-tail-stderr");
+    let script = area.script("docker", BIG_TAIL_STDERR_SCRIPT);
+    let runner = RealDockerRunner::new(script.as_path());
+
+    let output = runner
+        .run(&["exec".to_string()], None)
+        .expect("the fake runs");
+    assert!(output.stderr.starts_with('x'), "{:?}", output.stderr);
+    assert!(
+        output.stderr.ends_with("FINAL-EVENT\n"),
+        "{:?}",
+        output.stderr
+    );
+    assert_eq!(
+        output.stderr.matches("bytes omitted").count(),
+        1,
+        "{:?}",
+        output.stderr
+    );
+    assert!(
+        u64::try_from(output.stderr.len()).expect("the length fits")
+            <= DEFAULT_OUTPUT_CAP_BYTES + 64,
+        "{}",
+        output.stderr.len()
+    );
+    assert!(output.stderr_truncated);
+    assert!(!output.stdout_truncated);
+}
+
+#[test]
+fn real_docker_sandbox_run_keeps_the_tail_of_a_cut_stream() {
+    let _lock = serial();
+    let area = TempArea::new("big-tail-sandbox");
+    let script = area.script("docker", BIG_TAIL_SCRIPT);
+    let runner = RealDockerRunner::new(script.as_path());
+    let sandbox = DockerSandbox::new(runner);
+    let command = CommandSpec {
+        program: "run".to_string(),
+        args: Vec::new(),
+        workdir: None,
+        timeout_secs: Some(30),
+        env: std::collections::BTreeMap::new(),
+        stdin: None,
+    };
+
+    let result = sandbox
+        .run(&SandboxId("abc".to_string()), &command)
+        .expect("the fake runs");
+    assert_eq!(result.outcome, RunOutcome::Exited(0));
+    assert!(
+        result.stdout.ends_with("FINAL-EVENT\n"),
+        "{:?}",
+        result.stdout
+    );
+    assert!(result.stdout_truncated);
+    assert_eq!(result.output_cap_bytes, Some(DEFAULT_OUTPUT_CAP_BYTES));
 }
 
 #[test]

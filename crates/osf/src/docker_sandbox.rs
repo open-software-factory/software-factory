@@ -5,6 +5,7 @@ use crate::sandbox::{
     Capability, CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox,
     SandboxCapabilities, SandboxError, SandboxId, SandboxSpec,
 };
+use std::collections::VecDeque;
 use std::fmt;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt as _;
@@ -242,30 +243,68 @@ fn join_reader(
     }
 }
 
-/// Reads a pipe to its end, keeping at most `cap` bytes and draining the rest.
+/// Reads a pipe to its end, keeping at most `cap` bytes plus a marker: a
+/// stream longer than `cap` keeps its first half and its last half, with a marker between.
 fn read_capped(pipe: &mut impl std::io::Read, cap: u64) -> (String, bool) {
     let cap = usize::try_from(cap).unwrap_or(usize::MAX);
-    let mut kept: Vec<u8> = Vec::new();
-    let mut dropped = false;
+    let head_len = cap / 2;
+    let tail_len = cap - head_len;
+    let mut head: Vec<u8> = Vec::new();
+    let mut tail: VecDeque<u8> = VecDeque::new();
+    let mut total = 0usize;
     let mut chunk = [0u8; 8192];
     loop {
         match std::io::Read::read(pipe, &mut chunk) {
             Ok(0) | Err(_) => break,
             Ok(read) => {
-                if kept.len() < cap {
-                    let room = cap - kept.len();
-                    let take = room.min(read);
-                    kept.extend_from_slice(chunk.get(..take).unwrap_or_default());
-                    if take < read {
-                        dropped = true;
-                    }
-                } else {
-                    dropped = true;
+                total = total.saturating_add(read);
+                let mut rest = chunk.get(..read).unwrap_or_default();
+                if head.len() < head_len {
+                    let room = head_len - head.len();
+                    let take = room.min(rest.len());
+                    head.extend_from_slice(rest.get(..take).unwrap_or_default());
+                    rest = rest.get(take..).unwrap_or_default();
+                }
+                tail.extend(rest.iter().copied());
+                while tail.len() > tail_len {
+                    tail.pop_front();
                 }
             }
         }
     }
-    (String::from_utf8_lossy(&kept).into_owned(), dropped)
+    if total <= cap {
+        let mut whole = head;
+        whole.extend(tail.iter().copied());
+        return (String::from_utf8_lossy(&whole).into_owned(), false);
+    }
+    trim_head(&mut head);
+    trim_tail(&mut tail);
+    let omitted = total.saturating_sub(head.len()).saturating_sub(tail.len());
+    let marker = format!("\n[... {omitted} bytes omitted ...]\n");
+    let mut text = String::from_utf8_lossy(&head).into_owned();
+    text.push_str(&marker);
+    text.push_str(&String::from_utf8_lossy(tail.make_contiguous()));
+    (text, true)
+}
+
+/// Drops an incomplete UTF-8 sequence at the end of `head`.
+fn trim_head(head: &mut Vec<u8>) {
+    if let Err(error) = std::str::from_utf8(head) {
+        if error.error_len().is_none() {
+            head.truncate(error.valid_up_to());
+        }
+    }
+}
+
+/// Drops UTF-8 continuation bytes at the start of `tail`.
+fn trim_tail(tail: &mut VecDeque<u8>) {
+    while tail
+        .front()
+        .copied()
+        .is_some_and(|byte| (byte & 0b1100_0000) == 0b1000_0000)
+    {
+        tail.pop_front();
+    }
 }
 
 /// Kills `child` and every process it spawned: `taskkill /T` on Windows,
@@ -2424,13 +2463,37 @@ mod tests {
         );
     }
 
+    /// The marker `read_capped` puts between the kept halves.
+    fn omission_marker(omitted: usize) -> String {
+        format!("\n[... {omitted} bytes omitted ...]\n")
+    }
+
+    /// A reader that counts every byte a caller reads from it.
+    struct CountingReader {
+        data: std::io::Cursor<Vec<u8>>,
+        read: usize,
+    }
+
+    impl std::io::Read for CountingReader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let read = std::io::Read::read(&mut self.data, buffer)?;
+            self.read = self.read.saturating_add(read);
+            Ok(read)
+        }
+    }
+
     #[test]
     fn read_capped_keeps_everything_under_the_cap() {
-        let mut pipe = std::io::Cursor::new(b"hello".to_vec());
-        let (text, truncated) = read_capped(&mut pipe, 10);
-        assert_eq!(text, "hello");
-        assert!(!truncated);
-        assert_eq!(pipe.position(), 5);
+        for input in [&b"hello"[..], &b"hello!"[..]] {
+            let mut pipe = std::io::Cursor::new(input.to_vec());
+            let (text, truncated) = read_capped(&mut pipe, 10);
+            assert_eq!(text.as_bytes(), input);
+            assert!(!truncated);
+            assert_eq!(
+                pipe.position(),
+                u64::try_from(input.len()).expect("the length fits")
+            );
+        }
     }
 
     #[test]
@@ -2439,16 +2502,88 @@ mod tests {
         let (text, truncated) = read_capped(&mut pipe, 5);
         assert_eq!(text, "hello");
         assert!(!truncated);
+        assert!(!text.contains("bytes omitted"), "{text:?}");
+    }
+
+    #[test]
+    fn read_capped_one_over_the_cap_keeps_both_halves_and_the_omitted_count() {
+        let mut pipe = std::io::Cursor::new(b"hello!".to_vec());
+        let (text, truncated) = read_capped(&mut pipe, 5);
+        assert!(truncated);
+        assert_eq!(text, format!("he{}lo!", omission_marker(1)));
+        assert_eq!(text.matches("bytes omitted").count(), 1, "{text:?}");
+        assert_eq!(pipe.position(), 6, "the reader drains the whole pipe");
+    }
+
+    #[test]
+    fn read_capped_keeps_the_last_line_of_a_long_chunked_stream() {
+        let cap = 16 * 1024;
+        let mut input = vec![b'x'; 40 * 8192];
+        input.extend_from_slice(b"\nFINAL-EVENT\n");
+        let total = input.len();
+        let mut pipe = std::io::Cursor::new(input);
+
+        let (text, truncated) = read_capped(&mut pipe, u64::try_from(cap).expect("the cap fits"));
+
+        assert!(truncated);
+        assert!(text.starts_with('x'), "{text:?}");
+        assert!(text.ends_with("\nFINAL-EVENT\n"), "{text:?}");
+        assert_eq!(text.matches("bytes omitted").count(), 1, "{text:?}");
+        assert!(
+            text.len() <= cap + omission_marker(total - cap).len(),
+            "{}",
+            text.len()
+        );
+    }
+
+    #[test]
+    fn read_capped_zero_cap_keeps_only_the_marker() {
+        let mut pipe = std::io::Cursor::new(b"hello".to_vec());
+        let (text, truncated) = read_capped(&mut pipe, 0);
+        assert!(truncated);
+        assert_eq!(text, omission_marker(5));
         assert_eq!(pipe.position(), 5);
     }
 
     #[test]
-    fn read_capped_drops_the_remainder_but_drains_the_pipe() {
-        let mut pipe = std::io::Cursor::new(b"hello world".to_vec());
-        let (text, truncated) = read_capped(&mut pipe, 5);
-        assert_eq!(text, "hello");
+    fn read_capped_one_byte_cap_keeps_the_last_byte_only() {
+        let mut pipe = std::io::Cursor::new(b"hello".to_vec());
+        let (text, truncated) = read_capped(&mut pipe, 1);
         assert!(truncated);
-        assert_eq!(pipe.position(), 11, "the reader drains the whole pipe");
+        assert_eq!(text, format!("{}o", omission_marker(4)));
+        assert_eq!(pipe.position(), 5);
+    }
+
+    #[test]
+    fn read_capped_an_odd_cap_gives_the_extra_byte_to_the_tail() {
+        let mut pipe = std::io::Cursor::new(b"abcdefghij".to_vec());
+        let (text, truncated) = read_capped(&mut pipe, 7);
+        assert!(truncated);
+        assert_eq!(text, format!("abc{}ghij", omission_marker(3)));
+    }
+
+    #[test]
+    fn read_capped_does_not_split_a_multibyte_character_at_the_head() {
+        let mut input = b"aaaa".to_vec();
+        input.extend_from_slice("é".as_bytes());
+        input.extend_from_slice(b"zzzzzz");
+        let mut pipe = std::io::Cursor::new(input);
+        let (text, truncated) = read_capped(&mut pipe, 10);
+        assert!(truncated);
+        assert_eq!(text, format!("aaaa{}zzzzz", omission_marker(3)));
+        assert!(!text.contains('\u{fffd}'), "{text:?}");
+    }
+
+    #[test]
+    fn read_capped_does_not_split_a_multibyte_character_at_the_tail() {
+        let mut input = vec![b'z'; 6];
+        input.extend_from_slice("€".as_bytes());
+        input.extend_from_slice(b"aaaa");
+        let mut pipe = std::io::Cursor::new(input);
+        let (text, truncated) = read_capped(&mut pipe, 10);
+        assert!(truncated);
+        assert_eq!(text, format!("zzzzz{}aaaa", omission_marker(4)));
+        assert!(!text.contains('\u{fffd}'), "{text:?}");
     }
 
     #[test]
@@ -2457,6 +2592,32 @@ mod tests {
         let (text, truncated) = read_capped(&mut pipe, 10);
         assert_eq!(text, "\u{fffd}a");
         assert!(!truncated);
+    }
+
+    #[test]
+    fn read_capped_keeps_a_real_invalid_byte_lossy_over_the_cap() {
+        let mut pipe = std::io::Cursor::new(vec![b'a', 0xff, b'b', b'c', b'd']);
+        let (text, truncated) = read_capped(&mut pipe, 4);
+        assert!(truncated);
+        assert_eq!(text, format!("a\u{fffd}{}cd", omission_marker(1)));
+    }
+
+    #[test]
+    fn read_capped_drains_the_whole_pipe_of_a_cut_stream() {
+        let input = vec![b'a'; 40_000];
+        let total = input.len();
+        let mut pipe = CountingReader {
+            data: std::io::Cursor::new(input),
+            read: 0,
+        };
+        let (text, truncated) = read_capped(&mut pipe, 1024);
+        assert!(truncated);
+        assert_eq!(pipe.read, total, "the reader reached the end");
+        assert!(
+            text.len() <= 1024 + omission_marker(total - 1024).len(),
+            "{}",
+            text.len()
+        );
     }
 
     #[test]
