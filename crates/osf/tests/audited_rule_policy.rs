@@ -467,7 +467,10 @@ fn config_show_prints_audited_rules_as_off_when_the_config_sets_them_to_error() 
             .lines()
             .find(|l| l.starts_with(&format!("{key} = ")))
             .unwrap_or_else(|| panic!("{key} is not listed: {text}"));
-        assert!(line.contains("\"off\""), "{key} is not shown as off: {line}");
+        assert!(
+            line.contains("\"off\""),
+            "{key} is not shown as off: {line}"
+        );
     }
     assert!(
         text.contains("writing.levels.semicolon = \"error\""),

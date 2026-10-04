@@ -1001,7 +1001,11 @@ fn plain_text_with_raw_ends(text: &str) -> (String, Vec<usize>) {
             Event::Text(value) => {
                 let exact = value.len() == range.len();
                 for i in 0..value.len() {
-                    ends.push(if exact { range.start + i + 1 } else { range.end });
+                    ends.push(if exact {
+                        range.start + i + 1
+                    } else {
+                        range.end
+                    });
                 }
                 plain.push_str(&value);
             }

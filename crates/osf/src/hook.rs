@@ -1109,7 +1109,9 @@ mod tests {
     /// `stop` can fail to run at all.
     #[test]
     fn a_standard_input_read_failure_refuses_rather_than_passes() {
-        let _turn = UNKNOWN_SESSION.lock().unwrap_or_else(|e| e.into_inner());
+        let _turn = UNKNOWN_SESSION
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = std::fs::remove_file(counter_path("unknown", ""));
         let err = std::io::Error::other("device is busy");
         let code = stop_with_input(Err(err), None, 2, &WritingConfig::default(), None);
@@ -1118,7 +1120,9 @@ mod tests {
 
     #[test]
     fn input_that_is_not_json_refuses_rather_than_passes() {
-        let _turn = UNKNOWN_SESSION.lock().unwrap_or_else(|e| e.into_inner());
+        let _turn = UNKNOWN_SESSION
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = std::fs::remove_file(counter_path("unknown", ""));
         let code = stop_with_input(
             Ok("not json at all".to_string()),
