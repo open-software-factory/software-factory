@@ -3,7 +3,9 @@
 //! verification event per task plus one checkpoint-complete event to the
 //! local journal buffer.
 
-use crate::journal::{CheckResult, CheckpointComplete, Journal, Payload, Verification};
+use crate::journal::{
+    Actor, CheckResult, CheckpointComplete, EvidenceGrade, Journal, Payload, Verification,
+};
 use crate::moon::{self, Invocation, Outcome, TaskStatus};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -442,7 +444,10 @@ fn output_stream_block(target: &str, stream: &str, tail: Option<(String, usize, 
     }
 }
 
-const ACTOR: &str = "osf";
+/// The engine's own actor for every event the checkpoint runner writes.
+fn actor() -> Actor {
+    Actor::system("osf")
+}
 
 /// One slot's table entry, kept to the most significant of the results of
 /// however many tasks share it: failed outranks could-not-run, which
@@ -495,7 +500,7 @@ fn append_checkpoint_complete(
         return;
     };
     if let Err(e) = j.append(
-        ACTOR,
+        &actor(),
         now_millis(),
         Payload::CheckpointComplete(CheckpointComplete {
             checkpoint: label.to_string(),
@@ -671,17 +676,19 @@ fn handle_ran(
         insert_slot_result(&mut slot_table, slot.clone(), outcome.result);
         if let Some(j) = journal.as_mut() {
             if let Err(e) = j.append(
-                ACTOR,
+                &actor(),
                 now_millis(),
                 Payload::Verification(Verification {
                     check: task.target.clone(),
+                    check_type: None,
                     slot,
                     checkpoint: label.to_string(),
                     result: outcome.result,
                     duration_ms: task.duration_ms,
                     cache: Some(cache.to_string()),
                     findings: outcome.findings_count,
-                    grade: "observed".to_string(),
+                    summary: None,
+                    grade: EvidenceGrade::Observed,
                     reason: outcome.reason.clone(),
                 }),
             ) {
@@ -853,17 +860,19 @@ fn append_unset_verification(
     journal_error: &mut Option<String>,
 ) {
     if let Err(e) = journal.append(
-        ACTOR,
+        &actor(),
         now_millis(),
         Payload::Verification(Verification {
             check,
+            check_type: None,
             slot,
             checkpoint: label.to_string(),
             result,
             duration_ms: 0,
             cache: None,
             findings: 0,
-            grade: "observed".to_string(),
+            summary: None,
+            grade: EvidenceGrade::Observed,
             reason: Some(reason.to_string()),
         }),
     ) {
