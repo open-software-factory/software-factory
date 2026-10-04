@@ -5,7 +5,7 @@ pub mod ready;
 pub mod report;
 
 pub use ready::{dispatchable, pick, NotDispatchable, Pick, Skipped};
-pub use report::{finish_run, FinishError, Step};
+pub use report::{finish_run, require_capabilities, FinishError, Step};
 
 use std::fmt;
 use std::str::FromStr;
@@ -211,7 +211,7 @@ pub trait Tracker {
     /// Returns an error when the tracker refuses the write or it cannot run.
     fn write_recap(&self, id: &WorkItemId, recap: &str) -> Result<(), TrackerError>;
 
-    /// Reports what the tracker can do.
+    /// Reports what the tracker can do; the engine reads it before its first write.
     fn capabilities(&self) -> TrackerCapabilities;
 }
 

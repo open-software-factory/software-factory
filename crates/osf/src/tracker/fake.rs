@@ -27,6 +27,7 @@ pub enum Operation {
 pub struct FakeTracker {
     calls: RefCell<Vec<Call>>,
     failures: Vec<(Operation, TrackerError)>,
+    state_failures: Vec<(WorkState, TrackerError)>,
     /// The answer [`Tracker::read_ready`] returns.
     pub ready: ReadOutcome<Vec<WorkItem>>,
     /// The answer [`Tracker::capabilities`] returns.
@@ -40,6 +41,7 @@ impl FakeTracker {
         Self {
             calls: RefCell::new(Vec::new()),
             failures: Vec::new(),
+            state_failures: Vec::new(),
             ready: ReadOutcome::Empty,
             capabilities: TrackerCapabilities {
                 title: Capability::Supported,
@@ -65,6 +67,22 @@ impl FakeTracker {
                         capability: Capability::Supported,
                     },
                     StateWrite {
+                        state: WorkState::Blocked(BlockedCause::Human),
+                        capability: Capability::Supported,
+                    },
+                    StateWrite {
+                        state: WorkState::Blocked(BlockedCause::Clarification),
+                        capability: Capability::Supported,
+                    },
+                    StateWrite {
+                        state: WorkState::Blocked(BlockedCause::Ambiguous),
+                        capability: Capability::Supported,
+                    },
+                    StateWrite {
+                        state: WorkState::Blocked(BlockedCause::Capacity),
+                        capability: Capability::Supported,
+                    },
+                    StateWrite {
                         state: WorkState::Failed,
                         capability: Capability::Supported,
                     },
@@ -78,6 +96,31 @@ impl FakeTracker {
     #[must_use]
     pub fn fail(mut self, operation: Operation, error: TrackerError) -> Self {
         self.failures.push((operation, error));
+        self
+    }
+
+    /// Marks `state` unsupported with `reason`.
+    ///
+    /// # Panics
+    /// Panics when the capability list omits `state`.
+    #[must_use]
+    pub fn unsupported(mut self, state: &WorkState, reason: &str) -> Self {
+        let Some(entry) = self
+            .capabilities
+            .state_writes
+            .iter_mut()
+            .find(|write| write.state == *state)
+        else {
+            panic!("the fake tracker lists no {state:?} state");
+        };
+        entry.capability = Capability::Unsupported(reason.to_string());
+        self
+    }
+
+    /// Makes `write_state` fail with `error` for exactly `state`, after recording the call.
+    #[must_use]
+    pub fn fail_state(mut self, state: WorkState, error: TrackerError) -> Self {
+        self.state_failures.push((state, error));
         self
     }
 
@@ -113,6 +156,13 @@ impl Tracker for FakeTracker {
             id: id.clone(),
             state: state.clone(),
         });
+        if let Some((_, error)) = self
+            .state_failures
+            .iter()
+            .find(|(failed, _)| failed == state)
+        {
+            return Err(error.clone());
+        }
         if let Some(error) = self.failure(Operation::WriteState) {
             return Err(error);
         }
@@ -235,6 +285,10 @@ mod tests {
                 WorkState::Verifying,
                 WorkState::InReview,
                 WorkState::Blocked(BlockedCause::Dependency),
+                WorkState::Blocked(BlockedCause::Human),
+                WorkState::Blocked(BlockedCause::Clarification),
+                WorkState::Blocked(BlockedCause::Ambiguous),
+                WorkState::Blocked(BlockedCause::Capacity),
                 WorkState::Failed,
             ]
         );
@@ -277,6 +331,68 @@ mod tests {
                 id: id(),
                 recap: "done".to_string(),
             }]
+        );
+    }
+
+    #[test]
+    fn unsupported_marks_only_the_named_state() {
+        let tracker = FakeTracker::new().unsupported(&WorkState::Verifying, "no verifying");
+        let capabilities = tracker.capabilities();
+        let verifying = capabilities
+            .state_writes
+            .iter()
+            .find(|write| write.state == WorkState::Verifying)
+            .expect("verifying is listed");
+        assert_eq!(
+            verifying.capability,
+            Capability::Unsupported("no verifying".to_string())
+        );
+        assert!(capabilities
+            .state_writes
+            .iter()
+            .filter(|write| write.state != WorkState::Verifying)
+            .all(|write| write.capability == Capability::Supported));
+    }
+
+    #[test]
+    #[should_panic(expected = "lists no")]
+    fn unsupported_panics_for_a_state_that_is_not_listed() {
+        let mut tracker = FakeTracker::new();
+        tracker.capabilities.state_writes.clear();
+        let _ = tracker.unsupported(&WorkState::Verifying, "no verifying");
+    }
+
+    #[test]
+    fn fail_state_fails_only_the_named_state_after_recording_it() {
+        let tracker = FakeTracker::new().fail_state(
+            WorkState::Verifying,
+            TrackerError::Failed("refused".to_string()),
+        );
+        let item = id();
+        tracker
+            .write_state(&item, &WorkState::InProgress)
+            .expect("writes");
+        let error = tracker
+            .write_state(&item, &WorkState::Verifying)
+            .expect_err("fails");
+        assert_eq!(error, TrackerError::Failed("refused".to_string()));
+        tracker.write_recap(&item, "done").expect("writes");
+        assert_eq!(
+            tracker.calls(),
+            vec![
+                Call::WriteState {
+                    id: item.clone(),
+                    state: WorkState::InProgress,
+                },
+                Call::WriteState {
+                    id: item.clone(),
+                    state: WorkState::Verifying,
+                },
+                Call::WriteRecap {
+                    id: item.clone(),
+                    recap: "done".to_string(),
+                },
+            ]
         );
     }
 }

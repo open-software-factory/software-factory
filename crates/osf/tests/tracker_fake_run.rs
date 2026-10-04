@@ -3,8 +3,8 @@
 
 use osf::tracker::fake::{Call, FakeTracker, Operation};
 use osf::tracker::{
-    finish_run, pick, BlockedCause, Dependency, Pick, ReadOutcome, Status, Step, Tracker,
-    TrackerError, WorkItem, WorkItemId, WorkState,
+    finish_run, pick, require_capabilities, BlockedCause, Capability, Dependency, Pick,
+    ReadOutcome, Status, Step, Tracker, TrackerError, WorkItem, WorkItemId, WorkState,
 };
 
 const REPO: &str = "open-software-factory/demo";
@@ -49,6 +49,16 @@ fn run_one(tracker: &dyn Tracker) -> Result<WorkItemId, String> {
         }
     };
     let chosen = item.id;
+    require_capabilities(
+        tracker,
+        &[
+            WorkState::InProgress,
+            WorkState::Verifying,
+            WorkState::InReview,
+        ],
+        true,
+    )
+    .map_err(|error| error.to_string())?;
     tracker
         .write_state(&chosen, &WorkState::InProgress)
         .map_err(|error| error.to_string())?;
@@ -70,6 +80,7 @@ fn a_full_run_reads_a_ready_item_and_writes_state_then_recap() {
         tracker.calls(),
         vec![
             Call::ReadReady,
+            Call::Capabilities,
             Call::WriteState {
                 id: chosen.clone(),
                 state: WorkState::InProgress,
@@ -78,6 +89,7 @@ fn a_full_run_reads_a_ready_item_and_writes_state_then_recap() {
                 id: chosen.clone(),
                 state: WorkState::Verifying,
             },
+            Call::Capabilities,
             Call::WriteState {
                 id: chosen.clone(),
                 state: WorkState::InReview,
@@ -168,6 +180,7 @@ fn a_blocked_item_run_finishes_with_its_cause() {
     assert_eq!(
         tracker.calls(),
         vec![
+            Call::Capabilities,
             Call::WriteState {
                 id: item.clone(),
                 state: WorkState::Blocked(BlockedCause::Human),
@@ -199,5 +212,102 @@ fn a_failed_state_write_stops_the_run_with_its_step_named() {
             .iter()
             .any(|call| matches!(call, Call::WriteRecap { .. })),
         "the recap is never written"
+    );
+}
+
+#[test]
+fn a_run_stops_before_any_write_when_verifying_is_unsupported() {
+    let mut tracker = FakeTracker::new().unsupported(&WorkState::Verifying, "no verifying");
+    tracker.ready = ReadOutcome::Found(vec![work_item("1", Vec::new())]);
+    let error = run_one(&tracker).expect_err("fails");
+    assert!(error.contains("check capabilities"), "{error}");
+    assert!(error.contains("verifying"), "{error}");
+    assert_eq!(tracker.calls(), vec![Call::ReadReady, Call::Capabilities]);
+}
+
+#[test]
+fn a_run_stops_before_any_write_when_verifying_is_unknown() {
+    let mut tracker = FakeTracker::new();
+    let entry = tracker
+        .capabilities
+        .state_writes
+        .iter_mut()
+        .find(|write| write.state == WorkState::Verifying)
+        .expect("verifying is listed");
+    entry.capability = Capability::Unknown("maybe".to_string());
+    tracker.ready = ReadOutcome::Found(vec![work_item("1", Vec::new())]);
+    let error = run_one(&tracker).expect_err("fails");
+    assert!(error.contains("check capabilities"), "{error}");
+    assert!(error.contains("verifying"), "{error}");
+    assert_eq!(tracker.calls(), vec![Call::ReadReady, Call::Capabilities]);
+}
+
+#[test]
+fn a_run_stops_at_a_refused_verifying_write_and_never_reviews() {
+    let mut tracker = FakeTracker::new().fail_state(
+        WorkState::Verifying,
+        TrackerError::Failed("refused".to_string()),
+    );
+    tracker.ready = ReadOutcome::Found(vec![work_item("1", Vec::new())]);
+    let error = run_one(&tracker).expect_err("fails");
+    assert!(error.contains("refused"), "{error}");
+    let chosen = id("1");
+    assert_eq!(
+        tracker.calls(),
+        vec![
+            Call::ReadReady,
+            Call::Capabilities,
+            Call::WriteState {
+                id: chosen.clone(),
+                state: WorkState::InProgress,
+            },
+            Call::WriteState {
+                id: chosen.clone(),
+                state: WorkState::Verifying,
+            },
+        ]
+    );
+    assert!(
+        !tracker.calls().iter().any(|call| matches!(
+            call,
+            Call::WriteState {
+                state: WorkState::InReview,
+                ..
+            } | Call::WriteRecap { .. }
+        )),
+        "no review write and no recap"
+    );
+}
+
+#[test]
+fn a_full_run_succeeds_when_an_unneeded_state_is_unsupported() {
+    let mut tracker = FakeTracker::new().unsupported(&WorkState::Failed, "no failed");
+    let item = work_item("1", Vec::new());
+    tracker.ready = ReadOutcome::Found(vec![item.clone()]);
+    let chosen = run_one(&tracker).expect("runs");
+    assert_eq!(chosen, item.id);
+    assert_eq!(
+        tracker.calls(),
+        vec![
+            Call::ReadReady,
+            Call::Capabilities,
+            Call::WriteState {
+                id: chosen.clone(),
+                state: WorkState::InProgress,
+            },
+            Call::WriteState {
+                id: chosen.clone(),
+                state: WorkState::Verifying,
+            },
+            Call::Capabilities,
+            Call::WriteState {
+                id: chosen.clone(),
+                state: WorkState::InReview,
+            },
+            Call::WriteRecap {
+                id: chosen.clone(),
+                recap: RECAP.to_string(),
+            },
+        ]
     );
 }
