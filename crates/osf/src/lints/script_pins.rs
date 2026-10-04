@@ -474,6 +474,8 @@ pub fn has_unpinned_install(line: &str) -> bool {
 #[must_use]
 pub fn unpinned_line_numbers(text: &str) -> Vec<usize> {
     let mut stages = Vec::new();
+    // A lone `\r` ends a line, so a final one with no `\n` is not left on the text.
+    let text = text.replace("\r\n", "\n").replace('\r', "\n");
     text.lines()
         .enumerate()
         .filter(|(_, line)| line_unpinned(line, &mut stages))
@@ -611,6 +613,20 @@ mod tests {
     fn a_dockerfile_stage_name_is_not_read_as_an_image() {
         let text = "FROM node:22.4.1 AS build\nFROM build\nFROM node\n";
         assert_eq!(unpinned_line_numbers(text), vec![3]);
+    }
+
+    #[test]
+    fn a_last_line_ending_in_a_lone_carriage_return_is_read_like_any_other() {
+        for (text, found) in [
+            ("pip install requests==2.31.0\r", Vec::<usize>::new()),
+            ("docker run ubuntu:latest\r", vec![1]),
+            ("pip install requests==2.31.0\r\n", Vec::new()),
+            ("docker run ubuntu:latest\r\n", vec![1]),
+            ("echo ok\rdocker run ubuntu:latest\r", vec![2]),
+            ("echo ok\r\npip install requests\r", vec![2]),
+        ] {
+            assert_eq!(unpinned_line_numbers(text), found, "{text:?}");
+        }
     }
 
     #[test]
