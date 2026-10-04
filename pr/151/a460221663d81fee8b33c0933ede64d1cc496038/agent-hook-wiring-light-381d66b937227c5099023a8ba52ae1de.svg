@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1758 532" width="1758" height="532" role="img" aria-label="Agent hook wiring" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Agent hook wiring</title>
+<desc>Each coding agent's hook configuration and the single osf hook entry point they all call.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1758" height="532" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1758" height="532" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="472" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">DEVCONTAINER IMAGE · ROOT-OWNED TOOLCHAIN AND…</text>
+<rect class="lanebox" x="440" y="44" width="404" height="472" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">CODING AGENTS · BUILDER AND REVIEWER ROLES</text>
+<rect class="lanebox" x="913.85" y="44" width="404" height="472" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="929.85" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">OSF CLI · RUST BINARY AND GIT HOOKS</text>
+<rect class="lanebox" x="1337.85" y="44" width="404" height="472" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="1353.85" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">WORKSPACE · BIND-MOUNTED REPOSITORY</text></g>
+<g><path class="edge edge-added" d="M218,154 L218,206" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,140 L427,140 C439.7,140 450,150.3 450,163 L450,462 C450,463.66 451.34,465 453,465 L456,465" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,114.5 L412,114.5 C416.42,114.5 420,118.08 420,122.5 L420,219 C420,228.94 428.06,237 438,237 L456,237" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,106 L407,106 C408.66,106 410,107.34 410,109 L410,139 C410,157.23 424.77,172 443,172 L721,172 C730.39,172 738,179.61 738,189 L738,206" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,131.5 L422,131.5 C431.94,131.5 440,139.56 440,149.5 L440,343 C440,347.42 443.58,351 448,351 L456,351" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,123 L417,123 C424.18,123 430,128.82 430,136 L430,252 C430,270.78 445.22,286 464,286 L721,286 C730.39,286 738,293.61 738,303 L738,320" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="glow" stroke="#1f883d" d="M828,457 L868.93,457 C887.7,457 902.93,441.78 902.93,423 L902.93,381.46 C902.93,374.03 908.95,368 916.39,368 L929.85,368" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M828,457 L868.93,457 C887.7,457 902.93,441.78 902.93,423 L902.93,381.46 C902.93,374.03 908.95,368 916.39,368 L929.85,368" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25"/>
+<circle r="3" fill="#1f883d"><animateMotion dur="2.1s" repeatCount="indefinite" path="M828,457 L868.93,457 C887.7,457 902.93,441.78 902.93,423 L902.93,381.46 C902.93,374.03 908.95,368 916.39,368 L929.85,368"/></circle>
+<circle r="3" fill="#1f883d"><animateMotion dur="2.1s" begin="-1.4s" repeatCount="indefinite" path="M828,457 L868.93,457 C887.7,457 902.93,441.78 902.93,423 L902.93,381.46 C902.93,374.03 908.95,368 916.39,368 L929.85,368"/></circle>
+<circle r="3" fill="#1f883d"><animateMotion dur="2.1s" begin="-0.7s" repeatCount="indefinite" path="M828,457 L868.93,457 C887.7,457 902.93,441.78 902.93,423 L902.93,381.46 C902.93,374.03 908.95,368 916.39,368 L929.85,368"/></circle>
+<path class="edge edge-added" d="M546,268 L546,285 C546,294.39 553.61,302 563,302 L834.68,302 C845.86,302 854.93,311.07 854.93,322.25 C854.93,333.43 863.99,342.5 875.18,342.5 L929.85,342.5" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<circle r="2.6" fill="#1f883d"><animateMotion dur="1.6s" repeatCount="indefinite" path="M546,268 L546,285 C546,294.39 553.61,302 563,302 L834.68,302 C845.86,302 854.93,311.07 854.93,322.25 C854.93,333.43 863.99,342.5 875.18,342.5 L929.85,342.5"/></circle>
+<path class="edge edge-added" d="M828,237 L833.46,237 C836.48,237 838.93,239.45 838.93,242.46 L838.93,300 C838.93,318.78 854.15,334 872.93,334 L929.85,334" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<circle r="2.6" fill="#1f883d"><animateMotion dur="1.6s" repeatCount="indefinite" path="M828,237 L833.46,237 C836.48,237 838.93,239.45 838.93,242.46 L838.93,300 C838.93,318.78 854.15,334 872.93,334 L929.85,334"/></circle>
+<path class="edge edge-added" d="M546,382 L546,391 C546,395.97 550.03,400 555,400 L866.68,400 C877.86,400 886.93,390.93 886.93,379.75 C886.93,368.57 895.99,359.5 907.18,359.5 L929.85,359.5" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<circle r="2.6" fill="#1f883d"><animateMotion dur="1.6s" repeatCount="indefinite" path="M546,382 L546,391 C546,395.97 550.03,400 555,400 L866.68,400 C877.86,400 886.93,390.93 886.93,379.75 C886.93,368.57 895.99,359.5 907.18,359.5 L929.85,359.5"/></circle>
+<path class="edge edge-added" d="M828,351 L929.85,351" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<circle r="2.6" fill="#1f883d"><animateMotion dur="1.6s" repeatCount="indefinite" path="M828,351 L929.85,351"/></circle>
+<path class="edge edge-added" d="M828,473 L890.43,473 C906.17,473 918.93,460.24 918.93,444.5 C918.93,428.76 931.68,416 947.43,416 L1295.35,416 C1313.3,416 1327.85,401.45 1327.85,383.5 L1327.85,364 C1327.85,356.82 1333.67,351 1340.85,351 L1353.85,351" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="32" y="92" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M52,119 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,127 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="57" cy="119" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="62" cy="127" r="2.2"/></g>
+<text class="ntitle" x="82" y="119" font-size="13" font-weight="600" fill="#1f2328">agents.json</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">one list of agents and hook wiring</text>
+<g class="bdg bdg-added"><rect x="356.45" y="84" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="376.73" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="32" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M52,233 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,241 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="57" cy="233" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="62" cy="241" r="2.2"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#1f2328">Agent hook config</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">/etc/claude-code, /etc/codex, /etc/opencode, ~/.omp,…</text>
+<g class="bdg bdg-added"><rect x="356.45" y="198" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="376.73" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="456" y="206" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="470" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="476" y="231" width="14" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,235 h14" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="233" font-size="11.5" font-weight="600" fill="#1f2328">omp</text>
+<text class="nsub" x="506" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">Bun-based, stop hoo…</text>
+<g class="bdg bdg-added"><rect x="588.45" y="198" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="608.73" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="648" y="206" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="662" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="668" y="231" width="14" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M668,235 h14" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="233" font-size="11.5" font-weight="600" fill="#1f2328">opencode</text>
+<text class="nsub" x="698" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">system config plugin</text>
+<g class="bdg bdg-added"><rect x="780.45" y="198" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="800.73" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="456" y="320" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="470" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="476" y="345" width="14" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,349 h14" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="347" font-size="11.5" font-weight="600" fill="#1f2328">codex</text>
+<text class="nsub" x="506" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">prompt hook only</text>
+<g class="bdg bdg-added"><rect x="588.45" y="312" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="608.73" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="648" y="320" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="662" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="668" y="345" width="14" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M668,349 h14" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="347" font-size="11.5" font-weight="600" fill="#1f2328">claude-code</text>
+<text class="nsub" x="698" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">managed settings</text>
+<g class="bdg bdg-added"><rect x="780.45" y="312" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="800.73" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="456" y="434" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="470" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="476" y="459" width="14" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,463 h14" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="461" font-size="13" font-weight="600" fill="#1f2328">dsh</text>
+<text class="nsub" x="506" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">default builder</text>
+<g class="bdg bdg-added"><rect x="780.45" y="426" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="800.73" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="929.85" y="320" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="943.85" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph" fill="#59636e" d="M949.85,345 L963.85,351 L949.85,357 Z"/></g>
+<text class="ntitle" x="979.85" y="347" font-size="13" font-weight="600" fill="#1f2328">osf hook</text>
+<text class="nsub" x="979.85" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">prompt and stop events</text>
+<g class="bdg bdg-modified"><rect x="1228.23" y="312" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1261.54" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="1353.85" y="320" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="1367.85" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1373.85,347 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1373.85,355 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="1378.85" cy="347" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="1383.85" cy="355" r="2.2"/></g>
+<text class="ntitle" x="1403.85" y="347" font-size="13" font-weight="600" fill="#1f2328">.claude/hooks.json</text>
+<text class="nsub" x="1403.85" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">prompt bridge target</text>
+<g class="bdg bdg-added"><rect x="1678.3" y="312" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="1698.58" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g></g>
+<g><g><rect class="lpill" x="163.82" y="172.5" width="108.37" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="218" y="183.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">hook_path per agent</text></g>
+<g><rect class="lpill" x="833.78" y="400" width="138.3" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="902.93" y="411" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">stop plugin + prompt bridge</text></g>
+<g><rect class="lpill" x="681.32" y="294.5" width="35.03" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="698.84" y="305.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">stop</text></g>
+<g><rect class="lpill" x="821.41" y="280" width="35.03" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="838.93" y="291" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">stop</text></g>
+<g><rect class="lpill" x="656.95" y="392.5" width="107.78" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="710.84" y="403.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">user_prompt_submit</text></g>
+<g><rect class="lpill" x="840" y="343.5" width="77.85" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="878.93" y="354.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">prompt + stop</text></g>
+<g><rect class="lpill" x="1054.06" y="408.5" width="134.65" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1121.39" y="419.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">configPath, launch-relative</text></g></g>
+</svg>

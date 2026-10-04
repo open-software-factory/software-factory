@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "a460221663d81fee8b33c0933ede64d1cc496038",
+    "contentHash": "f99745ed74022f01802dd8a4432167a2"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "devcontainer-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "devcontainer-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "963ad7c9cd9664958242a69d444ebd3f",
+      "bytes": 44464,
+      "width": 2362,
+      "height": 940,
+      "animated": true,
+      "path": "devcontainer-context-light-963ad7c9cd9664958242a69d444ebd3f.svg"
+    },
+    {
+      "id": "devcontainer-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "devcontainer-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "595634772c7933ec2c46455fe886744b",
+      "bytes": 44934,
+      "width": 2362,
+      "height": 940,
+      "animated": true,
+      "path": "devcontainer-context-dark-595634772c7933ec2c46455fe886744b.svg"
+    },
+    {
+      "id": "agent-hook-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "381d66b937227c5099023a8ba52ae1de",
+      "bytes": 20088,
+      "width": 1758,
+      "height": 532,
+      "animated": true,
+      "path": "agent-hook-wiring-light-381d66b937227c5099023a8ba52ae1de.svg"
+    },
+    {
+      "id": "agent-hook-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d1d3f5e72dc4806135339ff7d71a2775",
+      "bytes": 20288,
+      "width": 1758,
+      "height": 532,
+      "animated": true,
+      "path": "agent-hook-wiring-dark-d1d3f5e72dc4806135339ff7d71a2775.svg"
+    },
+    {
+      "id": "git-enforcement-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "git-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4262d97a930a4904a3dc86efa9c7d3f8",
+      "bytes": 11891,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "git-enforcement-light-4262d97a930a4904a3dc86efa9c7d3f8.svg"
+    },
+    {
+      "id": "git-enforcement-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "git-enforcement",
+      "mediaType": "image/svg+xml",
+      "contentHash": "921754d805f5859960b5b347c1eecb3e",
+      "bytes": 12005,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "git-enforcement-dark-921754d805f5859960b5b347c1eecb3e.svg"
+    },
+    {
+      "id": "agent-prompt-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "agent-prompt-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5bc99034d68634fa9edeb1752865748f",
+      "bytes": 10982,
+      "width": 819,
+      "height": 375,
+      "animated": true,
+      "path": "agent-prompt-flow-light-5bc99034d68634fa9edeb1752865748f.svg"
+    },
+    {
+      "id": "agent-prompt-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "agent-prompt-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "49a2a8309374c5fa63fd4a442e89abd8",
+      "bytes": 11072,
+      "width": 819,
+      "height": 375,
+      "animated": true,
+      "path": "agent-prompt-flow-dark-49a2a8309374c5fa63fd4a442e89abd8.svg"
+    },
+    {
+      "id": "git-commit-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "git-commit-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "688b87f3d5ee02ea4686af8a7082f96c",
+      "bytes": 11793,
+      "width": 1284,
+      "height": 337,
+      "animated": true,
+      "path": "git-commit-flow-light-688b87f3d5ee02ea4686af8a7082f96c.svg"
+    },
+    {
+      "id": "git-commit-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "git-commit-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1be408e3550136c1e2ffb94c94f0a5a7",
+      "bytes": 11918,
+      "width": 1284,
+      "height": 337,
+      "animated": true,
+      "path": "git-commit-flow-dark-1be408e3550136c1e2ffb94c94f0a5a7.svg"
+    }
+  ]
+}
