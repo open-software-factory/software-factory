@@ -256,8 +256,7 @@ pub fn parse_opened_pull_request(repo: &str, text: &str) -> Result<PullRequestId
     })
 }
 
-/// Runs one command-line POST, feeding `payload` on standard input and
-/// returning trimmed standard error on a non-zero exit.
+/// Runs one command-line POST and returns stdout, or a never-empty failure text.
 fn run_gh_json(argv: &[String], payload: &Value) -> Result<String, ForgeError> {
     let mut child = Command::new("gh")
         .args(argv)
@@ -275,10 +274,41 @@ fn run_gh_json(argv: &[String], payload: &Value) -> Result<String, ForgeError> {
         .wait_with_output()
         .map_err(|e| ForgeError::Failed(format!("cannot run gh: {e}")))?;
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ForgeError::Failed(stderr.trim().to_string()));
+        return Err(ForgeError::Failed(gh_failure_text(
+            &output.status.to_string(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+        )));
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// The never-empty failure text for one failed command.
+fn gh_failure_text(status: &str, stdout: &str, stderr: &str) -> String {
+    let stderr = stderr.trim();
+    let message = serde_json::from_str::<Value>(stdout.trim())
+        .ok()
+        .and_then(|value| {
+            value
+                .get("message")
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        });
+    let message = message.as_deref().unwrap_or("").trim();
+    match (message.is_empty(), stderr.is_empty()) {
+        (false, false) if message == stderr => message.to_string(),
+        (false, false) => format!("{message}\n{stderr}"),
+        (false, true) => message.to_string(),
+        (true, false) => stderr.to_string(),
+        (true, true) => {
+            let status = status.trim();
+            if status.is_empty() {
+                "gh failed with no output".to_string()
+            } else {
+                status.to_string()
+            }
+        }
+    }
 }
 
 /// Runs one read-only command and returns its standard output, or trimmed
@@ -912,6 +942,60 @@ mod tests {
         assert_eq!(
             from_review_verdict(review::Verdict::RequestChanges),
             Verdict::RequestChanges
+        );
+    }
+
+    #[test]
+    fn gh_failure_text_uses_the_stdout_message() {
+        assert_eq!(
+            gh_failure_text("exit status: 1", r#"{"message":"Validation Failed"}"#, ""),
+            "Validation Failed"
+        );
+    }
+
+    #[test]
+    fn gh_failure_text_uses_the_stderr_when_stdout_has_no_message() {
+        assert_eq!(
+            gh_failure_text("exit status: 1", "", "gh: Validation Failed (HTTP 422)\n"),
+            "gh: Validation Failed (HTTP 422)"
+        );
+    }
+
+    #[test]
+    fn gh_failure_text_joins_the_message_and_stderr() {
+        assert_eq!(
+            gh_failure_text(
+                "exit status: 1",
+                r#"{"message":"Validation Failed"}"#,
+                "gh: Validation Failed (HTTP 422)"
+            ),
+            "Validation Failed\ngh: Validation Failed (HTTP 422)"
+        );
+    }
+
+    #[test]
+    fn gh_failure_text_falls_back_to_the_status() {
+        assert_eq!(gh_failure_text("exit status: 1", "", ""), "exit status: 1");
+    }
+
+    #[test]
+    fn gh_failure_text_falls_back_when_status_is_empty() {
+        assert_eq!(gh_failure_text("", "   ", "\n"), "gh failed with no output");
+    }
+
+    #[test]
+    fn gh_failure_text_ignores_stdout_that_is_not_json() {
+        assert_eq!(
+            gh_failure_text("exit status: 1", "not json", "boom"),
+            "boom"
+        );
+    }
+
+    #[test]
+    fn gh_failure_text_does_not_repeat_equal_parts() {
+        assert_eq!(
+            gh_failure_text("exit status: 1", r#"{"message":"boom"}"#, "boom"),
+            "boom"
         );
     }
 }
