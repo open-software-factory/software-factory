@@ -2,8 +2,8 @@
 //! with every argv and every response built and read by a pure function.
 
 use crate::sandbox::{
-    Capability, CommandSpec, Mount, Network, RunOutcome, RunResult, Sandbox, SandboxCapabilities,
-    SandboxError, SandboxId, SandboxSpec,
+    Capability, CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox,
+    SandboxCapabilities, SandboxError, SandboxId, SandboxSpec,
 };
 use std::fmt;
 #[cfg(unix)]
@@ -21,6 +21,9 @@ const KEEPALIVE_SECS: &str = "2147483647";
 /// How long `create` waits for the image and the container.
 const CREATE_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// The default per-stream output cap in bytes: 1 MiB.
+pub const DEFAULT_OUTPUT_CAP_BYTES: u64 = 1_048_576;
+
 /// What one runner invocation produced.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ToolOutput {
@@ -30,6 +33,10 @@ pub struct ToolOutput {
     pub stderr: String,
     /// True when the runner killed the program at its own timeout.
     pub timed_out: bool,
+    /// The per-stream cap in bytes the runner applied.
+    pub output_cap_bytes: Option<u64>,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
 }
 
 /// The runner could not start the program at all.
@@ -56,6 +63,7 @@ pub trait DockerRunner {
 /// The [`DockerRunner`] over the real `docker` program.
 pub struct RealDockerRunner {
     program: PathBuf,
+    output_cap_bytes: u64,
 }
 
 impl RealDockerRunner {
@@ -64,7 +72,15 @@ impl RealDockerRunner {
     pub fn new(program: impl Into<PathBuf>) -> Self {
         Self {
             program: program.into(),
+            output_cap_bytes: DEFAULT_OUTPUT_CAP_BYTES,
         }
+    }
+
+    /// Sets the per-stream output cap in bytes.
+    #[must_use]
+    pub fn with_output_cap(mut self, cap_bytes: u64) -> Self {
+        self.output_cap_bytes = cap_bytes;
+        self
     }
 }
 
@@ -92,14 +108,15 @@ impl DockerRunner for RealDockerRunner {
 
         // Both pipes are read on their own threads before the wait: a run
         // that fills one pipe buffer would otherwise block before it exits.
+        let cap = self.output_cap_bytes;
         let stdout_reader = child
             .stdout
             .take()
-            .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
+            .map(|mut pipe| std::thread::spawn(move || read_capped(&mut pipe, cap)));
         let stderr_reader = child
             .stderr
             .take()
-            .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
+            .map(|mut pipe| std::thread::spawn(move || read_capped(&mut pipe, cap)));
 
         let waited = match timeout {
             Some(limit) => child.wait_timeout(limit),
@@ -108,13 +125,16 @@ impl DockerRunner for RealDockerRunner {
 
         match waited {
             Ok(Some(status)) => {
-                let stdout = join_reader(stdout_reader)?;
-                let stderr = join_reader(stderr_reader)?;
+                let (stdout, stdout_truncated) = join_reader(stdout_reader)?;
+                let (stderr, stderr_truncated) = join_reader(stderr_reader)?;
                 Ok(ToolOutput {
                     status: status.code(),
                     stdout,
                     stderr,
                     timed_out: false,
+                    output_cap_bytes: Some(self.output_cap_bytes),
+                    stdout_truncated,
+                    stderr_truncated,
                 })
             }
             Ok(None) => {
@@ -126,13 +146,16 @@ impl DockerRunner for RealDockerRunner {
                         "docker timed out and could not be killed: {error}"
                     )));
                 }
-                let stdout = join_reader(stdout_reader)?;
-                let stderr = join_reader(stderr_reader)?;
+                let (stdout, stdout_truncated) = join_reader(stdout_reader)?;
+                let (stderr, stderr_truncated) = join_reader(stderr_reader)?;
                 Ok(ToolOutput {
                     status: None,
                     stdout,
                     stderr,
                     timed_out: true,
+                    output_cap_bytes: Some(self.output_cap_bytes),
+                    stdout_truncated,
+                    stderr_truncated,
                 })
             }
             Err(error) => {
@@ -154,20 +177,41 @@ impl DockerRunner for RealDockerRunner {
 }
 
 /// Joins one reader thread, turning a panic into a [`RunnerError`].
-fn join_reader(handle: Option<std::thread::JoinHandle<String>>) -> Result<String, RunnerError> {
+fn join_reader(
+    handle: Option<std::thread::JoinHandle<(String, bool)>>,
+) -> Result<(String, bool), RunnerError> {
     match handle {
         Some(handle) => handle
             .join()
             .map_err(|_| RunnerError("a reader thread panicked".to_string())),
-        None => Ok(String::new()),
+        None => Ok((String::new(), false)),
     }
 }
 
-/// Reads a pipe to the end, keeping a partial read.
-fn read_all(pipe: &mut impl std::io::Read) -> String {
-    let mut buf = String::new();
-    let _ = std::io::Read::read_to_string(pipe, &mut buf);
-    buf
+/// Reads a pipe to its end, keeping at most `cap` bytes and draining the rest.
+fn read_capped(pipe: &mut impl std::io::Read, cap: u64) -> (String, bool) {
+    let cap = usize::try_from(cap).unwrap_or(usize::MAX);
+    let mut kept: Vec<u8> = Vec::new();
+    let mut dropped = false;
+    let mut chunk = [0u8; 8192];
+    loop {
+        match std::io::Read::read(pipe, &mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(read) => {
+                if kept.len() < cap {
+                    let room = cap - kept.len();
+                    let take = room.min(read);
+                    kept.extend_from_slice(chunk.get(..take).unwrap_or_default());
+                    if take < read {
+                        dropped = true;
+                    }
+                } else {
+                    dropped = true;
+                }
+            }
+        }
+    }
+    (String::from_utf8_lossy(&kept).into_owned(), dropped)
 }
 
 /// Kills `child` and every process it spawned: `taskkill /T` on Windows,
@@ -520,13 +564,16 @@ impl<R: DockerRunner> DockerSandbox<R> {
     }
 
     /// Removes the container `id`, or reports why it remains.
-    fn remove_container(&self, id: &str) -> Result<(), SandboxError> {
+    fn remove_container(&self, id: &str) -> Result<Destroyed, SandboxError> {
         let output = self
             .runner
             .run(&remove_argv(id), None)
             .map_err(|error| SandboxError::Failed(error.0))?;
         if output.status == Some(0) && !output.timed_out {
-            return Ok(());
+            return Ok(Destroyed::Removed);
+        }
+        if output.stderr.trim().contains("No such container") {
+            return Ok(Destroyed::AlreadyGone);
         }
         Err(SandboxError::Failed(tool_text(&output)))
     }
@@ -596,6 +643,9 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
                 },
                 stdout: output.stdout,
                 stderr: output.stderr,
+                output_cap_bytes: output.output_cap_bytes,
+                stdout_truncated: output.stdout_truncated,
+                stderr_truncated: output.stderr_truncated,
             });
         }
 
@@ -607,6 +657,9 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
                 outcome: RunOutcome::Exited(code),
                 stdout: output.stdout,
                 stderr: output.stderr,
+                output_cap_bytes: output.output_cap_bytes,
+                stdout_truncated: output.stdout_truncated,
+                stderr_truncated: output.stderr_truncated,
             });
         }
         let mut message = "the tool ended without an exit status".to_string();
@@ -617,7 +670,10 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
         Err(SandboxError::Failed(message))
     }
 
-    fn destroy(&self, id: &SandboxId) -> Result<(), SandboxError> {
+    /// Docker 29 `rm --force` of a missing container already exits 0, so that
+    /// case reads as `Removed`; the `AlreadyGone` path covers runtimes that
+    /// report it.
+    fn destroy(&self, id: &SandboxId) -> Result<Destroyed, SandboxError> {
         self.remove_container(&id.0)
     }
 
@@ -726,6 +782,9 @@ mod tests {
             stdout: stdout.to_string(),
             stderr: String::new(),
             timed_out: false,
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         }
     }
 
@@ -735,6 +794,9 @@ mod tests {
             stdout: String::new(),
             stderr: stderr.to_string(),
             timed_out: false,
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         }
     }
 
@@ -744,6 +806,9 @@ mod tests {
             stdout: stdout.to_string(),
             stderr: String::new(),
             timed_out: true,
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         }
     }
 
@@ -1085,6 +1150,9 @@ mod tests {
             stdout: "out".to_string(),
             stderr: "err".to_string(),
             timed_out: false,
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         })]);
         let id = SandboxId("abc".to_string());
         let result = sandbox.run(&id, &command()).expect("runs");
@@ -1094,6 +1162,9 @@ mod tests {
                 outcome: RunOutcome::Exited(0),
                 stdout: "out".to_string(),
                 stderr: "err".to_string(),
+                output_cap_bytes: None,
+                stdout_truncated: false,
+                stderr_truncated: false,
             }
         );
         assert_eq!(
@@ -1175,6 +1246,9 @@ mod tests {
                 outcome: RunOutcome::TimedOut { limit_secs: 30 },
                 stdout: "partial".to_string(),
                 stderr: String::new(),
+                output_cap_bytes: None,
+                stdout_truncated: false,
+                stderr_truncated: false,
             }
         );
         assert_eq!(
@@ -1207,6 +1281,9 @@ mod tests {
             stdout: String::new(),
             stderr: "killed".to_string(),
             timed_out: false,
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         })]);
         let id = SandboxId("abc".to_string());
         let error = sandbox.run(&id, &command()).expect_err("signal fails");
@@ -1223,6 +1300,9 @@ mod tests {
             stdout: String::new(),
             stderr: String::new(),
             timed_out: false,
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         })]);
         let id = SandboxId("abc".to_string());
         let error = sandbox.run(&id, &command()).expect_err("signal fails");
@@ -1244,7 +1324,7 @@ mod tests {
     fn destroy_removes_the_container() {
         let sandbox = sandbox(vec![Ok(ok(""))]);
         let id = SandboxId("abc".to_string());
-        sandbox.destroy(&id).expect("destroys");
+        assert_eq!(sandbox.destroy(&id).expect("destroys"), Destroyed::Removed);
         assert_eq!(
             sandbox.runner.calls(),
             vec![Call {
@@ -1255,11 +1335,32 @@ mod tests {
     }
 
     #[test]
+    fn destroy_of_a_missing_container_reports_already_gone() {
+        let sandbox = sandbox(vec![Ok(fail(
+            1,
+            "Error response from daemon: No such container: x",
+        ))]);
+        let id = SandboxId("abc".to_string());
+        assert_eq!(
+            sandbox.destroy(&id).expect("destroys"),
+            Destroyed::AlreadyGone
+        );
+    }
+
+    #[test]
     fn destroy_reports_a_failure() {
         let sandbox = sandbox(vec![Ok(fail(1, "boom remove"))]);
         let id = SandboxId("abc".to_string());
         let error = sandbox.destroy(&id).expect_err("destroy fails");
         assert_eq!(error, SandboxError::Failed("boom remove".to_string()));
+    }
+
+    #[test]
+    fn destroy_reports_a_runner_error_as_failed() {
+        let sandbox = sandbox(vec![Err(RunnerError("cannot run docker".to_string()))]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox.destroy(&id).expect_err("runner error");
+        assert_eq!(error, SandboxError::Failed("cannot run docker".to_string()));
     }
 
     #[test]
@@ -1451,6 +1552,9 @@ mod tests {
                 stdout: "out".to_string(),
                 stderr: "err".to_string(),
                 timed_out: false,
+                output_cap_bytes: None,
+                stdout_truncated: false,
+                stderr_truncated: false,
             }),
             "err"
         );
@@ -1460,6 +1564,9 @@ mod tests {
                 stdout: "out".to_string(),
                 stderr: String::new(),
                 timed_out: false,
+                output_cap_bytes: None,
+                stdout_truncated: false,
+                stderr_truncated: false,
             }),
             "out"
         );
@@ -1470,8 +1577,111 @@ mod tests {
                 stdout: String::new(),
                 stderr: String::new(),
                 timed_out: false,
+                output_cap_bytes: None,
+                stdout_truncated: false,
+                stderr_truncated: false,
             }),
             "the tool ended without an exit status"
         );
+    }
+
+    #[test]
+    fn read_capped_keeps_everything_under_the_cap() {
+        let mut pipe = std::io::Cursor::new(b"hello".to_vec());
+        let (text, truncated) = read_capped(&mut pipe, 10);
+        assert_eq!(text, "hello");
+        assert!(!truncated);
+        assert_eq!(pipe.position(), 5);
+    }
+
+    #[test]
+    fn read_capped_keeps_everything_exactly_at_the_cap() {
+        let mut pipe = std::io::Cursor::new(b"hello".to_vec());
+        let (text, truncated) = read_capped(&mut pipe, 5);
+        assert_eq!(text, "hello");
+        assert!(!truncated);
+        assert_eq!(pipe.position(), 5);
+    }
+
+    #[test]
+    fn read_capped_drops_the_remainder_but_drains_the_pipe() {
+        let mut pipe = std::io::Cursor::new(b"hello world".to_vec());
+        let (text, truncated) = read_capped(&mut pipe, 5);
+        assert_eq!(text, "hello");
+        assert!(truncated);
+        assert_eq!(pipe.position(), 11, "the reader drains the whole pipe");
+    }
+
+    #[test]
+    fn read_capped_keeps_invalid_utf8_lossy() {
+        let mut pipe = std::io::Cursor::new(vec![0xff, b'a']);
+        let (text, truncated) = read_capped(&mut pipe, 10);
+        assert_eq!(text, "\u{fffd}a");
+        assert!(!truncated);
+    }
+
+    #[test]
+    fn run_copies_the_output_cap_and_flags_on_an_exit() {
+        let sandbox = sandbox(vec![Ok(ToolOutput {
+            status: Some(0),
+            stdout: "out".to_string(),
+            stderr: "err".to_string(),
+            timed_out: false,
+            output_cap_bytes: Some(10),
+            stdout_truncated: true,
+            stderr_truncated: true,
+        })]);
+        let id = SandboxId("abc".to_string());
+        assert_eq!(
+            sandbox.run(&id, &command()).expect("runs"),
+            RunResult {
+                outcome: RunOutcome::Exited(0),
+                stdout: "out".to_string(),
+                stderr: "err".to_string(),
+                output_cap_bytes: Some(10),
+                stdout_truncated: true,
+                stderr_truncated: true,
+            }
+        );
+    }
+
+    #[test]
+    fn run_copies_the_output_cap_and_flags_on_a_timeout() {
+        let sandbox = sandbox(vec![
+            Ok(ToolOutput {
+                status: None,
+                stdout: "partial".to_string(),
+                stderr: "err".to_string(),
+                timed_out: true,
+                output_cap_bytes: Some(7),
+                stdout_truncated: true,
+                stderr_truncated: false,
+            }),
+            Ok(ok("")),
+        ]);
+        let id = SandboxId("abc".to_string());
+        assert_eq!(
+            sandbox.run(&id, &command()).expect("runs"),
+            RunResult {
+                outcome: RunOutcome::TimedOut { limit_secs: 30 },
+                stdout: "partial".to_string(),
+                stderr: "err".to_string(),
+                output_cap_bytes: Some(7),
+                stdout_truncated: true,
+                stderr_truncated: false,
+            }
+        );
+    }
+
+    #[test]
+    fn default_runner_carries_the_default_cap() {
+        let runner = RealDockerRunner::new("docker");
+        assert_eq!(runner.output_cap_bytes, DEFAULT_OUTPUT_CAP_BYTES);
+    }
+
+    #[test]
+    fn with_output_cap_sets_the_cap() {
+        let runner = RealDockerRunner::new("docker").with_output_cap(10);
+        assert_eq!(runner.output_cap_bytes, 10);
     }
 }

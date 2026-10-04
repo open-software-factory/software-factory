@@ -1,8 +1,8 @@
 //! An in-memory [`Sandbox`] test double: it records every call as plain data and does no I/O.
 
 use crate::sandbox::{
-    Capability, CommandSpec, RunOutcome, RunResult, Sandbox, SandboxCapabilities, SandboxError,
-    SandboxId, SandboxSpec,
+    Capability, CommandSpec, Destroyed, RunOutcome, RunResult, Sandbox, SandboxCapabilities,
+    SandboxError, SandboxId, SandboxSpec,
 };
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -30,6 +30,7 @@ pub struct FakeSandbox {
     calls: RefCell<Vec<Call>>,
     failures: Vec<(Operation, SandboxError)>,
     run_results: RefCell<VecDeque<RunResult>>,
+    created: RefCell<Vec<SandboxId>>,
     /// The answer [`Sandbox::capabilities`] returns.
     pub capabilities: SandboxCapabilities,
 }
@@ -42,6 +43,7 @@ impl FakeSandbox {
             calls: RefCell::new(Vec::new()),
             failures: Vec::new(),
             run_results: RefCell::new(VecDeque::new()),
+            created: RefCell::new(Vec::new()),
             capabilities: SandboxCapabilities {
                 platforms: vec!["local".to_string()],
                 runtime: Capability::Supported,
@@ -75,6 +77,11 @@ impl FakeSandbox {
         self.calls.borrow().clone()
     }
 
+    /// Removes `id` from the ids this double remembers; for tests only.
+    pub fn forget(&self, id: &SandboxId) {
+        self.created.borrow_mut().retain(|known| known != id);
+    }
+
     /// The scripted failure for `operation`, if any.
     fn failure(&self, operation: Operation) -> Option<SandboxError> {
         self.failures
@@ -98,7 +105,9 @@ impl Sandbox for FakeSandbox {
         if let Some(error) = self.failure(Operation::Create) {
             return Err(error);
         }
-        Ok(SandboxId(format!("fake-{}", spec.name)))
+        let id = SandboxId(format!("fake-{}", spec.name));
+        self.created.borrow_mut().push(id.clone());
+        Ok(id)
     }
 
     fn run(&self, id: &SandboxId, command: &CommandSpec) -> Result<RunResult, SandboxError> {
@@ -114,17 +123,27 @@ impl Sandbox for FakeSandbox {
             outcome: RunOutcome::Exited(0),
             stdout: String::new(),
             stderr: String::new(),
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         }))
     }
 
-    fn destroy(&self, id: &SandboxId) -> Result<(), SandboxError> {
+    fn destroy(&self, id: &SandboxId) -> Result<Destroyed, SandboxError> {
         self.calls
             .borrow_mut()
             .push(Call::Destroy { id: id.clone() });
         if let Some(error) = self.failure(Operation::Destroy) {
             return Err(error);
         }
-        Ok(())
+        let mut created = self.created.borrow_mut();
+        match created.iter().position(|known| known == id) {
+            Some(index) => {
+                created.remove(index);
+                Ok(Destroyed::Removed)
+            }
+            None => Ok(Destroyed::AlreadyGone),
+        }
     }
 
     fn capabilities(&self, spec: &SandboxSpec) -> SandboxCapabilities {
@@ -139,8 +158,8 @@ impl Sandbox for FakeSandbox {
 mod tests {
     use crate::sandbox::fake::{Call, FakeSandbox, Operation};
     use crate::sandbox::{
-        Capability, CommandSpec, Network, RunOutcome, RunResult, Sandbox, SandboxError, SandboxId,
-        SandboxSpec,
+        Capability, CommandSpec, Destroyed, Network, RunOutcome, RunResult, Sandbox, SandboxError,
+        SandboxId, SandboxSpec,
     };
 
     fn spec() -> SandboxSpec {
@@ -168,6 +187,9 @@ mod tests {
             outcome: RunOutcome::Exited(0),
             stdout: stdout.to_string(),
             stderr: String::new(),
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         }
     }
 
@@ -213,6 +235,9 @@ mod tests {
                 outcome: RunOutcome::Exited(0),
                 stdout: String::new(),
                 stderr: String::new(),
+                output_cap_bytes: None,
+                stdout_truncated: false,
+                stderr_truncated: false,
             }
         );
     }
@@ -243,6 +268,56 @@ mod tests {
         assert_eq!(error, SandboxError::Rejected("no".to_string()));
         let id = SandboxId("fake-build".to_string());
         sandbox.destroy(&id).expect("destroys");
+    }
+
+    #[test]
+    fn destroy_removes_a_created_id_then_reports_it_already_gone() {
+        let sandbox = FakeSandbox::new();
+        let id = sandbox.create(&spec()).expect("creates");
+        assert_eq!(
+            sandbox.destroy(&id).expect("the first destroy"),
+            Destroyed::Removed
+        );
+        assert_eq!(
+            sandbox.destroy(&id).expect("the second destroy"),
+            Destroyed::AlreadyGone
+        );
+    }
+
+    #[test]
+    fn destroy_of_an_unknown_id_reports_already_gone() {
+        let sandbox = FakeSandbox::new();
+        let id = SandboxId("never-created".to_string());
+        assert_eq!(
+            sandbox.destroy(&id).expect("the destroy"),
+            Destroyed::AlreadyGone
+        );
+    }
+
+    #[test]
+    fn an_already_gone_destroy_is_still_recorded() {
+        let sandbox = FakeSandbox::new();
+        let id = SandboxId("never-created".to_string());
+        sandbox.destroy(&id).expect("the first destroy");
+        sandbox.destroy(&id).expect("the second destroy");
+        assert_eq!(
+            sandbox.calls(),
+            vec![
+                Call::Destroy { id: id.clone() },
+                Call::Destroy { id: id.clone() },
+            ]
+        );
+    }
+
+    #[test]
+    fn forget_makes_a_created_id_unknown() {
+        let sandbox = FakeSandbox::new();
+        let id = sandbox.create(&spec()).expect("creates");
+        sandbox.forget(&id);
+        assert_eq!(
+            sandbox.destroy(&id).expect("the destroy"),
+            Destroyed::AlreadyGone
+        );
     }
 
     #[test]

@@ -4,7 +4,10 @@
 use crate::docker_sandbox::{
     create_argv, exec_argv, remove_argv, start_argv, validate_command, validate_spec,
 };
-use crate::sandbox::{CommandSpec, Mount, Network, RunOutcome, Sandbox, SandboxError, SandboxSpec};
+use crate::sandbox::{
+    CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox, SandboxError,
+    SandboxSpec,
+};
 use std::path::PathBuf;
 
 /// The container id the dry-run JSON prints in place of a real one.
@@ -107,39 +110,87 @@ pub fn execute(sandbox: &dyn Sandbox, plan: &Plan) -> Execution {
     };
     let run = sandbox.run(&id, &plan.command);
     let destroyed = sandbox.destroy(&id);
+    let already_gone = matches!(destroyed, Ok(Destroyed::AlreadyGone));
     let result = match run {
         Ok(result) => result,
         Err(error) => {
             let mut execution = refused(&error);
-            if let Err(removal) = destroyed {
-                execution.message =
-                    Some(format!("{error}; the sandbox was not removed: {removal}"));
+            match &destroyed {
+                Err(removal) => {
+                    execution.message =
+                        Some(format!("{error}; the sandbox was not removed: {removal}"));
+                }
+                Ok(Destroyed::AlreadyGone) => {
+                    execution.message = Some(format!(
+                        "{error}; the sandbox was already gone when it was removed"
+                    ));
+                }
+                Ok(Destroyed::Removed) => {}
             }
             return execution;
         }
     };
-    if let Err(error) = destroyed {
+    let notes = truncation_notes(&result);
+    if let Err(error) = &destroyed {
+        let mut message = Some(format!("the sandbox was not removed: {error}"));
+        for note in &notes {
+            append_note(&mut message, note.clone());
+        }
         return Execution {
             stdout: result.stdout,
             stderr: result.stderr,
             exit_code: 125,
-            message: Some(format!("the sandbox was not removed: {error}")),
+            message,
         };
     }
-    match result.outcome {
-        RunOutcome::TimedOut { limit_secs } => Execution {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exit_code: 124,
-            message: Some(format!("the command timed out after {limit_secs} seconds")),
-        },
-        RunOutcome::Exited(code) => Execution {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exit_code: clamp(code),
-            message: None,
-        },
+    let (exit_code, mut message) = match result.outcome {
+        RunOutcome::TimedOut { limit_secs } => (
+            124,
+            Some(format!("the command timed out after {limit_secs} seconds")),
+        ),
+        RunOutcome::Exited(code) => (clamp(code), None),
+    };
+    for note in &notes {
+        append_note(&mut message, note.clone());
     }
+    if already_gone {
+        append_note(
+            &mut message,
+            "the sandbox was already gone when it was removed".to_string(),
+        );
+    }
+    Execution {
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exit_code,
+        message,
+    }
+}
+
+/// Appends `note` to `message`, joined with `; ` when one already exists.
+fn append_note(message: &mut Option<String>, note: String) {
+    match message {
+        Some(existing) => {
+            existing.push_str("; ");
+            existing.push_str(&note);
+        }
+        None => *message = Some(note),
+    }
+}
+
+/// The cut-stream notes for `result`, one per stream that was cut.
+fn truncation_notes(result: &RunResult) -> Vec<String> {
+    let Some(cap) = result.output_cap_bytes else {
+        return Vec::new();
+    };
+    let mut notes = Vec::new();
+    if result.stdout_truncated {
+        notes.push(format!("stdout was cut at {cap} bytes"));
+    }
+    if result.stderr_truncated {
+        notes.push(format!("stderr was cut at {cap} bytes"));
+    }
+    notes
 }
 
 /// The execution one provider error maps to: 2 for a refusal, else 125.
@@ -165,7 +216,30 @@ fn clamp(code: i32) -> u8 {
 mod tests {
     use super::*;
     use crate::sandbox::fake::{Call, FakeSandbox, Operation};
-    use crate::sandbox::{RunResult, SandboxId};
+    use crate::sandbox::{Destroyed, RunResult, SandboxCapabilities, SandboxId, SandboxSpec};
+
+    /// A double that forgets the id it just created, so destroy sees it gone.
+    struct ForgetfulSandbox(FakeSandbox);
+
+    impl Sandbox for ForgetfulSandbox {
+        fn create(&self, spec: &SandboxSpec) -> Result<SandboxId, SandboxError> {
+            let id = self.0.create(spec)?;
+            self.0.forget(&id);
+            Ok(id)
+        }
+
+        fn run(&self, id: &SandboxId, command: &CommandSpec) -> Result<RunResult, SandboxError> {
+            self.0.run(id, command)
+        }
+
+        fn destroy(&self, id: &SandboxId) -> Result<Destroyed, SandboxError> {
+            self.0.destroy(id)
+        }
+
+        fn capabilities(&self, spec: &SandboxSpec) -> SandboxCapabilities {
+            self.0.capabilities(spec)
+        }
+    }
 
     fn request() -> RunRequest {
         RunRequest {
@@ -189,6 +263,9 @@ mod tests {
             outcome,
             stdout: stdout.to_string(),
             stderr: stderr.to_string(),
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
         }
     }
 
@@ -435,6 +512,73 @@ mod tests {
                     id: SandboxId("fake-osf-sandbox-1".to_string()),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn execute_notes_an_already_gone_destroy() {
+        let sandbox = ForgetfulSandbox(FakeSandbox::new());
+        let execution = execute(&sandbox, &plan_of(&request()));
+        assert_eq!(execution.exit_code, 0);
+        assert_eq!(
+            execution.message.as_deref(),
+            Some("the sandbox was already gone when it was removed")
+        );
+    }
+
+    #[test]
+    fn execute_notes_a_cut_stdout() {
+        let sandbox = FakeSandbox::new().with_run_result(RunResult {
+            outcome: RunOutcome::Exited(0),
+            stdout: "out".to_string(),
+            stderr: String::new(),
+            output_cap_bytes: Some(10),
+            stdout_truncated: true,
+            stderr_truncated: false,
+        });
+        let execution = execute(&sandbox, &plan_of(&request()));
+        assert_eq!(execution.exit_code, 0);
+        assert_eq!(
+            execution.message.as_deref(),
+            Some("stdout was cut at 10 bytes")
+        );
+    }
+
+    #[test]
+    fn execute_notes_a_cut_stderr() {
+        let sandbox = FakeSandbox::new().with_run_result(RunResult {
+            outcome: RunOutcome::Exited(0),
+            stdout: String::new(),
+            stderr: "err".to_string(),
+            output_cap_bytes: Some(10),
+            stdout_truncated: false,
+            stderr_truncated: true,
+        });
+        let execution = execute(&sandbox, &plan_of(&request()));
+        assert_eq!(execution.exit_code, 0);
+        assert_eq!(
+            execution.message.as_deref(),
+            Some("stderr was cut at 10 bytes")
+        );
+    }
+
+    #[test]
+    fn execute_orders_the_truncation_notes_before_the_already_gone_note() {
+        let sandbox = ForgetfulSandbox(FakeSandbox::new().with_run_result(RunResult {
+            outcome: RunOutcome::Exited(0),
+            stdout: "out".to_string(),
+            stderr: "err".to_string(),
+            output_cap_bytes: Some(5),
+            stdout_truncated: true,
+            stderr_truncated: true,
+        }));
+        let execution = execute(&sandbox, &plan_of(&request()));
+        assert_eq!(
+            execution.message.as_deref(),
+            Some(
+                "stdout was cut at 5 bytes; stderr was cut at 5 bytes; \
+                 the sandbox was already gone when it was removed"
+            )
         );
     }
 }

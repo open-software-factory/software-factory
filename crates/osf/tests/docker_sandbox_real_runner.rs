@@ -4,7 +4,9 @@
 
 #![cfg(unix)]
 
-use osf::docker_sandbox::{DockerRunner, DockerSandbox, RealDockerRunner};
+use osf::docker_sandbox::{
+    DockerRunner, DockerSandbox, RealDockerRunner, DEFAULT_OUTPUT_CAP_BYTES,
+};
 use osf::sandbox::{CommandSpec, Mount, Network, RunOutcome, Sandbox, SandboxId, SandboxSpec};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -34,6 +36,11 @@ exit 3
 
 const SLEEP_SCRIPT: &str = r"#!/usr/bin/env bash
 sleep 5
+";
+
+const LONG_SCRIPT: &str = r"#!/usr/bin/env bash
+set -euo pipefail
+printf 'a%.0s' {1..100}
 ";
 
 /// A throwaway folder holding the fake program, removed on drop.
@@ -100,6 +107,37 @@ fn real_runner_returns_stdout_and_passes_argv() {
 
     let seen_argv = fs::read_to_string(area.dir.join("argv")).expect("argv was written");
     assert_eq!(seen_argv, "version\n--format\n{{.Server.Version}}\n");
+}
+
+#[test]
+fn real_runner_reports_the_default_cap_and_no_truncation_for_small_output() {
+    let _lock = serial();
+    let area = TempArea::new("default-cap");
+    let script = area.script("docker", OK_SCRIPT);
+    let runner = RealDockerRunner::new(script.as_path());
+
+    let output = runner
+        .run(&["version".to_string()], None)
+        .expect("the fake runs");
+    assert_eq!(output.output_cap_bytes, Some(DEFAULT_OUTPUT_CAP_BYTES));
+    assert!(!output.stdout_truncated);
+    assert!(!output.stderr_truncated);
+}
+
+#[test]
+fn real_runner_caps_stdout_and_reports_truncation() {
+    let _lock = serial();
+    let area = TempArea::new("cap");
+    let script = area.script("docker", LONG_SCRIPT);
+    let runner = RealDockerRunner::new(script.as_path()).with_output_cap(10);
+
+    let output = runner
+        .run(&["exec".to_string()], None)
+        .expect("the fake runs");
+    assert_eq!(output.stdout, "a".repeat(10));
+    assert!(output.stdout_truncated);
+    assert!(!output.stderr_truncated);
+    assert_eq!(output.output_cap_bytes, Some(10));
 }
 
 #[test]

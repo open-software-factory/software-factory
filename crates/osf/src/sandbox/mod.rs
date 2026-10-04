@@ -58,6 +58,18 @@ pub struct RunResult {
     pub outcome: RunOutcome,
     pub stdout: String,
     pub stderr: String,
+    /// The per-stream cap in bytes, or none when the provider applied no cap.
+    pub output_cap_bytes: Option<u64>,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
+}
+
+/// What destroying a sandbox did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Destroyed {
+    Removed,
+    AlreadyGone,
 }
 
 /// A sandbox operation failed: the provider refused it, or it could not run.
@@ -99,7 +111,8 @@ pub struct SandboxCapabilities {
 
 /// The seam between the factory and a sandbox provider.
 ///
-/// Destroy is not idempotent: destroying a sandbox the provider does not know may be an error.
+/// Destroying a sandbox the provider does not know is `Ok(Destroyed::AlreadyGone)`,
+/// because the goal state is reached.
 pub trait Sandbox {
     /// Creates a sandbox for `spec`.
     ///
@@ -117,7 +130,7 @@ pub trait Sandbox {
     ///
     /// # Errors
     /// Returns an error when the provider refuses the request or it cannot run.
-    fn destroy(&self, id: &SandboxId) -> Result<(), SandboxError>;
+    fn destroy(&self, id: &SandboxId) -> Result<Destroyed, SandboxError>;
 
     /// Reports what the provider can do for `spec`.
     fn capabilities(&self, spec: &SandboxSpec) -> SandboxCapabilities;
@@ -179,6 +192,18 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&RunOutcome::TimedOut { limit_secs: 5 }).expect("serializes"),
             r#"{"timed-out":{"limit_secs":5}}"#
+        );
+    }
+
+    #[test]
+    fn destroyed_serde_names_are_pinned() {
+        assert_eq!(
+            serde_json::to_string(&Destroyed::Removed).expect("serializes"),
+            r#""removed""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Destroyed::AlreadyGone).expect("serializes"),
+            r#""already-gone""#
         );
     }
 

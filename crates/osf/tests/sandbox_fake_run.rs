@@ -3,8 +3,8 @@
 
 use osf::sandbox::fake::{Call, FakeSandbox, Operation};
 use osf::sandbox::{
-    Capability, CommandSpec, Mount, Network, RunOutcome, RunResult, Sandbox, SandboxError,
-    SandboxId, SandboxSpec,
+    Capability, CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox,
+    SandboxError, SandboxId, SandboxSpec,
 };
 
 fn spec() -> SandboxSpec {
@@ -48,6 +48,9 @@ fn result(outcome: RunOutcome, stdout: &str, stderr: &str) -> RunResult {
         outcome,
         stdout: stdout.to_string(),
         stderr: stderr.to_string(),
+        output_cap_bytes: None,
+        stdout_truncated: false,
+        stderr_truncated: false,
     }
 }
 
@@ -74,7 +77,7 @@ fn run_one(
     if let Some(error) = run_error {
         return Err(error);
     }
-    destroyed?;
+    let _ = destroyed?;
     Ok(results)
 }
 
@@ -228,7 +231,21 @@ fn the_result_list_serializes_to_pinned_journal_json() {
     let results = run_one(&sandbox, &spec(), &commands).expect("runs");
     assert_eq!(
         serde_json::to_string(&results).expect("serializes"),
-        r#"[{"outcome":{"exited":0},"stdout":"out","stderr":""},{"outcome":{"timed-out":{"limit_secs":5}},"stdout":"","stderr":"partial"}]"#
+        r#"[{"outcome":{"exited":0},"stdout":"out","stderr":"","output_cap_bytes":null,"stdout_truncated":false,"stderr_truncated":false},{"outcome":{"timed-out":{"limit_secs":5}},"stdout":"","stderr":"partial","output_cap_bytes":null,"stdout_truncated":false,"stderr_truncated":false}]"#
+    );
+}
+
+#[test]
+fn a_second_destroy_of_the_same_id_is_already_gone() {
+    let sandbox = FakeSandbox::new();
+    let id = sandbox.create(&spec()).expect("creates");
+    assert_eq!(
+        sandbox.destroy(&id).expect("the first destroy"),
+        Destroyed::Removed
+    );
+    assert_eq!(
+        sandbox.destroy(&id).expect("the second destroy"),
+        Destroyed::AlreadyGone
     );
 }
 
