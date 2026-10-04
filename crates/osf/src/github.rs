@@ -432,6 +432,21 @@ pub fn verdict_capability(author: Option<&str>, viewer: Option<&str>) -> Verdict
     }
 }
 
+/// Whether some line of `text` prints an HTTP status `code`, either as a
+/// leading `HTTP <code>` or as the parenthesised token `(HTTP <code>)`.
+#[must_use]
+fn has_http_status(text: &str, code: u16) -> bool {
+    let leading = format!("http {code}");
+    let parenthesised = format!("(http {code})");
+    text.lines().any(|line| {
+        let lower = line.trim().to_lowercase();
+        if let Some(rest) = lower.strip_prefix(&leading) {
+            return rest.chars().next().is_none_or(|c| !c.is_ascii_digit());
+        }
+        lower.contains(&parenthesised)
+    })
+}
+
 /// Whether the check status is readable, unreadable, or unknown, from the
 /// command's success and its standard error.
 #[must_use]
@@ -440,7 +455,7 @@ pub fn check_status_capability(success: bool, stderr: &str) -> ReadCapability {
     if success || lower.contains("no checks reported") {
         return ReadCapability::Readable;
     }
-    if lower.contains("403") || lower.contains("not accessible") {
+    if has_http_status(stderr, 403) || lower.contains("not accessible") {
         return ReadCapability::Unreadable(stderr.trim().to_string());
     }
     ReadCapability::Unknown(stderr.trim().to_string())
@@ -1180,6 +1195,42 @@ mod tests {
     }
 
     #[test]
+    fn has_http_status_matches_a_leading_status_line() {
+        assert!(has_http_status("HTTP 403: Forbidden", 403));
+        assert!(has_http_status(
+            "gh: Resource not accessible by integration (HTTP 403)",
+            403
+        ));
+        assert!(has_http_status("first line\nHTTP 403: Forbidden", 403));
+        assert!(has_http_status("http 403: forbidden", 403));
+    }
+
+    #[test]
+    fn has_http_status_rejects_numbers_and_other_statuses() {
+        assert!(!has_http_status(
+            "Could not resolve to a PullRequest with the number of 403",
+            403
+        ));
+        assert!(!has_http_status("pull request #403 not found", 403));
+        assert!(!has_http_status("HTTP 4030: odd", 403));
+        assert!(!has_http_status("HTTP 404: Not Found", 403));
+        assert!(!has_http_status("", 403));
+    }
+
+    #[test]
+    fn check_status_capability_keeps_an_issue_number_unknown() {
+        assert_eq!(
+            check_status_capability(
+                false,
+                "Could not resolve to a PullRequest with the number of 403"
+            ),
+            ReadCapability::Unknown(
+                "Could not resolve to a PullRequest with the number of 403".to_string()
+            )
+        );
+    }
+
+    #[test]
     fn verdict_conversions_round_trip() {
         assert_eq!(
             to_review_verdict(Verdict::Approve),
@@ -1454,6 +1505,26 @@ mod tests {
         assert_eq!(
             capabilities.check_status,
             ReadCapability::Unreadable("HTTP 403: Forbidden".to_string())
+        );
+    }
+
+    #[test]
+    fn capabilities_keeps_an_issue_number_in_the_stderr_unknown() {
+        let github = GitHub::new(fake_with_runs(vec![
+            Ok(gh_ok("reviewer\n")),
+            Ok(gh_ok("builder\n")),
+            Ok(gh_fail(
+                "exit status: 1",
+                "",
+                "Could not resolve to a PullRequest with the number of 403",
+            )),
+        ]));
+        let capabilities = github.capabilities(&pr());
+        assert_eq!(
+            capabilities.check_status,
+            ReadCapability::Unknown(
+                "Could not resolve to a PullRequest with the number of 403".to_string()
+            )
         );
     }
 
