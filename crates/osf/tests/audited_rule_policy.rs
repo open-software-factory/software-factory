@@ -653,12 +653,14 @@ fn the_prompt_hook_gives_the_concrete_writing_instructions() {
     let event = serde_json::json!({ "session_id": unique_session("audit-prompt") });
     let (code, stdout, stderr) = run_hook(&repo, &home, &state, &["hook", "prompt"], &event);
     assert_eq!(code, Some(0), "{stderr}");
-    for phrase in [
-        "`, not X` or `, never X` tail",
-        "owner/repo#N",
-        "`nobody` or `everyone`",
-    ] {
+    for phrase in ["owner/repo#N", "by what it is rather than by its place"] {
         assert!(stdout.contains(phrase), "reminder lost {phrase}: {stdout}");
+    }
+    for phrase in ["`, not X`", "nobody", "everyone"] {
+        assert!(
+            !stdout.contains(phrase),
+            "the reminder names a disabled rule's shape {phrase}: {stdout}"
+        );
     }
     assert!(!stdout.contains("disabled"), "{stdout}");
 }

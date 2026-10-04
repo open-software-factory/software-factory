@@ -240,9 +240,9 @@ checks, which are off. It changes no finding now. The other fields are
 resolved and shown by `osf config show`. Wiring them into each rule's own
 check is later work.
 
-`must_explain_names` is read from the file under `--gate`, but it does not
-currently add gate errors: the compiled gate policy sets `undefined-name`
-to `off`. The list remains available to lint runs that enable that rule.
+`must_explain_names` is read from the file under `--gate`, but it changes
+no finding now. Only the `undefined-name` check reads it, and that check is
+off on every path, so no lint run can use the list.
 
 Every environment variable maps to one field:
 

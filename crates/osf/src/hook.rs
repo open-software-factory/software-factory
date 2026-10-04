@@ -41,10 +41,8 @@ const MAX_ADVICE_LINES: usize = 20;
 /// first message of a session too.
 pub const STANDING_REMINDER: &str =
     "osf writing-lint reminder for this reply. State the point and stop. \
-    Do not end a sentence with a `, not X` or `, never X` tail. \
     Write a reference as owner/repo#N (what it is). \
-    Name a thing by what it is rather than by its place in a list. \
-    No sweeps such as `nobody` or `everyone`.";
+    Name a thing by what it is rather than by its place in a list.";
 
 /// Every spelling of the session key, most common first.
 const SESSION_KEYS: &[&str] = &["session_id", "sessionId", "sessionID"];
@@ -950,13 +948,19 @@ mod tests {
     #[test]
     fn the_standing_reminder_gives_the_concrete_writing_instructions() {
         for phrase in [
-            "Do not end a sentence with a `, not X` or `, never X` tail.",
             "Write a reference as owner/repo#N (what it is).",
-            "No sweeps such as `nobody` or `everyone`.",
+            "Name a thing by what it is rather than by its place in a list.",
         ] {
             assert!(
                 STANDING_REMINDER.contains(phrase),
                 "reminder lost: {phrase}"
+            );
+        }
+        // Advice for a rule that is off can never be checked, so it stays out.
+        for phrase in ["`, not X`", "nobody", "everyone"] {
+            assert!(
+                !STANDING_REMINDER.contains(phrase),
+                "the reminder names a disabled rule's shape: {phrase}"
             );
         }
         assert!(
