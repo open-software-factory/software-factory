@@ -10,6 +10,7 @@ pub mod changeset_tests;
 pub mod check;
 pub mod checkpoint;
 pub mod config;
+pub mod docker_sandbox;
 pub mod exclude;
 pub mod git;
 pub use git::{scrub_git_env, scrub_git_env_for_dir};
