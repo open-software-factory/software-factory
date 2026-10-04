@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "63c50d22cb654522ea20cd30dacfc496b81a00b3",
+    "contentHash": "12e03ba7344eaeff0747f06be947f745"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "arch-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "af6d0607a46a26de0f2610bb2d50384a",
+      "bytes": 18715,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "arch-overview-light-af6d0607a46a26de0f2610bb2d50384a.svg"
+    },
+    {
+      "id": "arch-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "aa8395c7cbc7348883474485c91bd467",
+      "bytes": 18915,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "arch-overview-dark-aa8395c7cbc7348883474485c91bd467.svg"
+    },
+    {
+      "id": "arch-cli-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-cli",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3b7b7977c87be690718bf8a5902b3ee0",
+      "bytes": 13521,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "arch-cli-light-3b7b7977c87be690718bf8a5902b3ee0.svg"
+    },
+    {
+      "id": "arch-cli-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-cli",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f10e56926e2d29824f7299d2dd1a5c55",
+      "bytes": 13655,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "arch-cli-dark-f10e56926e2d29824f7299d2dd1a5c55.svg"
+    },
+    {
+      "id": "flow-run-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "flow-run",
+      "mediaType": "image/svg+xml",
+      "contentHash": "740fbe26a7caa67fd127e8b813406295",
+      "bytes": 20390,
+      "width": 1974,
+      "height": 641,
+      "animated": true,
+      "path": "flow-run-light-740fbe26a7caa67fd127e8b813406295.svg"
+    },
+    {
+      "id": "flow-run-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "flow-run",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a7f71f500ec75b81a9afad4c096594f0",
+      "bytes": 20557,
+      "width": 1974,
+      "height": 641,
+      "animated": true,
+      "path": "flow-run-dark-a7f71f500ec75b81a9afad4c096594f0.svg"
+    }
+  ]
+}
