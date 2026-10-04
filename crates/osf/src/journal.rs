@@ -622,6 +622,32 @@ mod tests {
             .expect("observed evidence may name its verifier");
     }
 
+    /// Free text may be empty even though identifiers may not.
+    #[test]
+    fn the_writer_accepts_empty_free_text() {
+        let dir = TempDir::new("osf-journal-empty-text");
+        let mut j = Journal::open(&dir, "run-empty-text").expect("open");
+        let empty_text = match verification("scan") {
+            Payload::Verification(v) => Payload::Verification(Verification {
+                summary: Some(String::new()),
+                reason: Some(String::new()),
+                ..v
+            }),
+            other => other,
+        };
+        j.append(&actor(), 1, empty_text)
+            .expect("an empty reason and summary");
+        let empty_message = match finding(EvidenceGrade::Observed, None) {
+            Payload::Finding(f) => Payload::Finding(Finding {
+                message: String::new(),
+                ..f
+            }),
+            other => other,
+        };
+        j.append(&actor(), 2, empty_message)
+            .expect("an empty finding message");
+    }
+
     #[test]
     fn a_state_change_to_blocked_requires_a_cause() {
         let dir = TempDir::new("osf-journal-blocked-no-cause");

@@ -108,4 +108,97 @@ mod tests {
             "{reasons:?}"
         );
     }
+
+    #[test]
+    fn an_empty_free_text_field_is_accepted() {
+        let mut event = valid_event();
+        set(&mut event, "event_type", serde_json::json!("verification"));
+        set(
+            &mut event,
+            "payload",
+            serde_json::json!({
+                "check": "scan",
+                "checkpoint": "pre-commit",
+                "result": "passed",
+                "duration_ms": 12,
+                "findings": 0,
+                "grade": "observed",
+                "reason": "",
+                "summary": ""
+            }),
+        );
+        assert_eq!(validate(&event), Ok(()));
+    }
+
+    #[test]
+    fn an_empty_finding_message_is_accepted() {
+        let mut event = valid_event();
+        set(&mut event, "event_type", serde_json::json!("finding"));
+        set(
+            &mut event,
+            "payload",
+            serde_json::json!({
+                "rule": "example-rule",
+                "severity": "warning",
+                "action": "fix",
+                "message": "",
+                "grade": "observed"
+            }),
+        );
+        assert_eq!(validate(&event), Ok(()));
+    }
+
+    #[test]
+    fn an_empty_identifier_is_still_refused() {
+        let mut event = valid_event();
+        set(&mut event, "event_type", serde_json::json!("verification"));
+        set(
+            &mut event,
+            "payload",
+            serde_json::json!({
+                "check": "",
+                "checkpoint": "pre-commit",
+                "result": "passed",
+                "duration_ms": 12,
+                "findings": 0,
+                "grade": "observed",
+                "reason": "",
+                "summary": ""
+            }),
+        );
+        let reasons = validate(&event).expect_err("an empty check is refused");
+        assert!(reasons.iter().any(|r| r.contains("check")), "{reasons:?}");
+    }
+
+    #[test]
+    fn a_work_item_of_the_documented_shape_is_accepted() {
+        let mut event = valid_event();
+        set(
+            &mut event,
+            "work_item",
+            serde_json::json!("github:open-software-factory/example#1"),
+        );
+        assert_eq!(validate(&event), Ok(()));
+    }
+
+    #[test]
+    fn a_work_item_of_another_shape_is_refused() {
+        for work_item in [
+            "x",
+            "open-software-factory/example#1",
+            "github:open-software-factory/example",
+            "github:open-software-factory/example#",
+            "github:open-software-factory#1",
+            "GitHub:open-software-factory/example#1",
+            "github:open-software-factory/example#1 ",
+        ] {
+            let mut event = valid_event();
+            set(&mut event, "work_item", serde_json::json!(work_item));
+            let reasons = validate(&event).expect_err(work_item);
+            assert!(
+                reasons.iter().any(|r| r.contains("work_item")),
+                "{work_item}: {reasons:?}"
+            );
+        }
+    }
 }

@@ -17,7 +17,7 @@
   "properties": {
     "schema_version": { "const": 1 },
     "run": { "$ref": "#/$defs/identifier" },
-    "work_item": { "$ref": "#/$defs/identifier" },
+    "work_item": { "$ref": "#/$defs/work_item" },
     "change": { "$ref": "#/$defs/change" },
     "actor": { "$ref": "#/$defs/actor" },
     "timestamp_ms": { "$ref": "#/$defs/u64" },
@@ -98,6 +98,15 @@
   ],
   "$defs": {
     "identifier": { "type": "string", "minLength": 1 },
+    "text": {
+      "type": "string",
+      "description": "Free text, which may be empty."
+    },
+    "work_item": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+$",
+      "description": "A provider-qualified work item, provider:owner/repo#number, for example github:open-software-factory/example#1."
+    },
     "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "u64": { "type": "integer", "minimum": 0, "maximum": 18446744073709551615 },
     "u32": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
@@ -171,7 +180,7 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "title": { "$ref": "#/$defs/identifier" },
+        "title": { "$ref": "#/$defs/text" },
         "repository": { "$ref": "#/$defs/identifier" },
         "retry_of": { "$ref": "#/$defs/identifier" },
         "transcript": { "$ref": "#/$defs/identifier" }
@@ -197,9 +206,9 @@
         "duration_ms": { "$ref": "#/$defs/u64" },
         "cache": { "$ref": "#/$defs/identifier" },
         "findings": { "$ref": "#/$defs/u32" },
-        "summary": { "$ref": "#/$defs/identifier" },
+        "summary": { "$ref": "#/$defs/text" },
         "grade": { "$ref": "#/$defs/evidence_grade" },
-        "reason": { "$ref": "#/$defs/identifier" }
+        "reason": { "$ref": "#/$defs/text" }
       }
     },
     "review": {
@@ -208,9 +217,9 @@
       "required": ["round", "scope", "findings", "summary", "grade"],
       "properties": {
         "round": { "$ref": "#/$defs/u32" },
-        "scope": { "$ref": "#/$defs/identifier" },
+        "scope": { "$ref": "#/$defs/text" },
         "findings": { "$ref": "#/$defs/u32" },
-        "summary": { "$ref": "#/$defs/identifier" },
+        "summary": { "$ref": "#/$defs/text" },
         "grade": { "$ref": "#/$defs/evidence_grade" }
       }
     },
@@ -225,7 +234,7 @@
         "path": { "$ref": "#/$defs/identifier" },
         "line": { "$ref": "#/$defs/u32" },
         "column": { "$ref": "#/$defs/u32" },
-        "message": { "$ref": "#/$defs/identifier" },
+        "message": { "$ref": "#/$defs/text" },
         "grade": { "$ref": "#/$defs/evidence_grade" },
         "verified_by": { "$ref": "#/$defs/identifier" }
       },
@@ -291,7 +300,7 @@
       "properties": {
         "outcome": { "$ref": "#/$defs/run_outcome" },
         "head_hash": { "$ref": "#/$defs/hash" },
-        "summary": { "$ref": "#/$defs/identifier" },
+        "summary": { "$ref": "#/$defs/text" },
         "grade": { "$ref": "#/$defs/evidence_grade" },
         "transcript_hash": { "$ref": "#/$defs/hash" }
       }
@@ -302,7 +311,7 @@
       "required": ["cause", "summary", "grade"],
       "properties": {
         "cause": { "$ref": "#/$defs/identifier" },
-        "summary": { "$ref": "#/$defs/identifier" },
+        "summary": { "$ref": "#/$defs/text" },
         "grade": { "$ref": "#/$defs/evidence_grade" }
       }
     },
