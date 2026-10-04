@@ -156,7 +156,7 @@ pub struct Capabilities {
 }
 
 /// The seam between the factory and a code host.
-pub trait Forge {
+pub trait Forge: Send + Sync {
     /// Creates a branch and returns what the forge recorded.
     ///
     /// # Errors

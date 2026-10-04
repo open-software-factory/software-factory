@@ -116,8 +116,9 @@ mod tests {
         report_change, Report, ReportError, ReportRequest, ReviewDraft, Step,
     };
     use crate::forge::{
-        Capabilities, ForgeError, NewPullRequest, NewReview, PostedReview, PullRequestId,
-        ReadCapability, ReadOutcome, ReviewComment, Verdict, VerdictCapability,
+        Capabilities, Check, CheckStatus, Forge, ForgeError, NewPullRequest, NewReview,
+        PostedReview, PullRequestId, ReadCapability, ReadOutcome, ReviewComment, Verdict,
+        VerdictCapability,
     };
 
     fn request() -> ReportRequest {
@@ -289,6 +290,28 @@ mod tests {
         let forge = FakeForge::new();
         let report = report_change(&forge, &request()).expect("reports");
         assert_eq!(report.checks, ReadOutcome::Empty);
+    }
+
+    #[test]
+    fn a_scripted_check_status_serves_one_answer_per_report() {
+        let pending = ReadOutcome::Found(CheckStatus {
+            checks: vec![Check {
+                name: "ci".to_string(),
+                state: "PENDING".to_string(),
+                bucket: "pending".to_string(),
+            }],
+        });
+        let pass = ReadOutcome::Found(CheckStatus {
+            checks: vec![Check {
+                name: "ci".to_string(),
+                state: "SUCCESS".to_string(),
+                bucket: "pass".to_string(),
+            }],
+        });
+        let forge = FakeForge::new().script_check_status(vec![pending.clone(), pass.clone()]);
+        let report = report_change(&forge, &request()).expect("reports");
+        assert_eq!(report.checks, pending);
+        assert_eq!(forge.read_check_status(&opened()), pass);
     }
 
     #[test]

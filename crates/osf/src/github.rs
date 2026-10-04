@@ -67,7 +67,7 @@ impl GitHub<RealGh> {
 }
 
 #[allow(clippy::unused_self)]
-impl<C: GhClient> Forge for GitHub<C> {
+impl<C: GhClient + Send + Sync> Forge for GitHub<C> {
     fn create_branch(&self, branch: &NewBranch) -> Result<Branch, ForgeError> {
         let argv = create_branch_argv(&branch.repo);
         let payload = create_branch_payload(branch);
@@ -672,35 +672,43 @@ mod tests {
     use crate::pr_status::{GhOutput, StatusError};
     use std::cell::{Cell, RefCell};
     use std::collections::VecDeque;
+    use std::sync::{Mutex, MutexGuard};
 
     struct FakeGh {
-        calls: RefCell<Vec<String>>,
+        calls: Mutex<Vec<String>>,
         body: String,
         body_error: Option<String>,
         checks: String,
         checks_error: Option<String>,
-        edited: RefCell<Option<String>>,
-        runs: RefCell<VecDeque<Result<GhOutput, StatusError>>>,
-        run_calls: RefCell<Vec<(Vec<String>, Option<String>)>>,
+        edited: Mutex<Option<String>>,
+        runs: Mutex<VecDeque<Result<GhOutput, StatusError>>>,
+        run_calls: Mutex<Vec<(Vec<String>, Option<String>)>>,
+    }
+
+    /// Locks `mutex`, panicking only when a thread panicked while holding it.
+    fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+        mutex
+            .lock()
+            .expect("the fake client lock is never poisoned")
     }
 
     fn fake(body: &str, checks: &str) -> FakeGh {
         FakeGh {
-            calls: RefCell::new(Vec::new()),
+            calls: Mutex::new(Vec::new()),
             body: body.to_string(),
             body_error: None,
             checks: checks.to_string(),
             checks_error: None,
-            edited: RefCell::new(None),
-            runs: RefCell::new(VecDeque::new()),
-            run_calls: RefCell::new(Vec::new()),
+            edited: Mutex::new(None),
+            runs: Mutex::new(VecDeque::new()),
+            run_calls: Mutex::new(Vec::new()),
         }
     }
 
     /// A fake whose `run` answers with `answers`, in order.
     fn fake_with_runs(answers: Vec<Result<GhOutput, StatusError>>) -> FakeGh {
         let mut client = fake("", "[]");
-        client.runs = RefCell::new(VecDeque::from(answers));
+        client.runs = Mutex::new(VecDeque::from(answers));
         client
     }
 
@@ -732,19 +740,14 @@ mod tests {
     #[allow(clippy::unused_self)]
     impl GhClient for FakeGh {
         fn run(&self, args: &[String], stdin: Option<&str>) -> Result<GhOutput, StatusError> {
-            self.run_calls
-                .borrow_mut()
-                .push((args.to_vec(), stdin.map(str::to_string)));
-            self.runs
-                .borrow_mut()
+            lock(&self.run_calls).push((args.to_vec(), stdin.map(str::to_string)));
+            lock(&self.runs)
                 .pop_front()
                 .expect("FakeGh ran out of scripted answers")
         }
 
         fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-            self.calls
-                .borrow_mut()
-                .push(format!("view_body {repo}#{pr}"));
+            lock(&self.calls).push(format!("view_body {repo}#{pr}"));
             match &self.body_error {
                 Some(e) => Err(StatusError::new(e.clone())),
                 None => Ok(self.body.clone()),
@@ -760,9 +763,7 @@ mod tests {
         }
 
         fn view_checks(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-            self.calls
-                .borrow_mut()
-                .push(format!("view_checks {repo}#{pr}"));
+            lock(&self.calls).push(format!("view_checks {repo}#{pr}"));
             match &self.checks_error {
                 Some(e) => Err(StatusError::new(e.clone())),
                 None => Ok(self.checks.clone()),
@@ -770,10 +771,8 @@ mod tests {
         }
 
         fn edit_body(&self, repo: &str, pr: &str, body: &str) -> Result<(), StatusError> {
-            self.calls
-                .borrow_mut()
-                .push(format!("edit_body {repo}#{pr}"));
-            *self.edited.borrow_mut() = Some(body.to_string());
+            lock(&self.calls).push(format!("edit_body {repo}#{pr}"));
+            *lock(&self.edited) = Some(body.to_string());
             Ok(())
         }
     }
@@ -812,11 +811,11 @@ mod tests {
         github.write_status_block(&pr(), &block).expect("writes");
         let expected = pr_status::apply("old body\n", &block).expect("applies");
         assert_eq!(
-            github.client.edited.borrow().as_deref(),
+            lock(&github.client.edited).as_deref(),
             Some(expected.as_str())
         );
         assert_eq!(
-            *github.client.calls.borrow(),
+            *lock(&github.client.calls),
             vec![
                 "view_body open-software-factory/demo#7".to_string(),
                 "edit_body open-software-factory/demo#7".to_string()
@@ -836,9 +835,9 @@ mod tests {
             err.to_string(),
             "gh pr view failed for open-software-factory/demo#7"
         );
-        assert!(github.client.edited.borrow().is_none());
+        assert!(lock(&github.client.edited).is_none());
         assert_eq!(
-            *github.client.calls.borrow(),
+            *lock(&github.client.calls),
             vec!["view_body open-software-factory/demo#7".to_string()]
         );
     }
@@ -1336,7 +1335,7 @@ mod tests {
                 sha: "def".to_string(),
             }
         );
-        let calls = github.client.run_calls.borrow();
+        let calls = lock(&github.client.run_calls);
         assert_eq!(calls.len(), 1, "one run call: {calls:?}");
         let (args, stdin) = calls.first().expect("one run call");
         assert_eq!(args, &create_branch_argv(&branch.repo));
@@ -1386,7 +1385,7 @@ mod tests {
                 pr: "42".to_string(),
             }
         );
-        let calls = github.client.run_calls.borrow();
+        let calls = lock(&github.client.run_calls);
         assert_eq!(calls.len(), 1, "one run call: {calls:?}");
         let (args, stdin) = calls.first().expect("one run call");
         assert_eq!(args, &open_pull_request_argv(&request.repo));
@@ -1446,7 +1445,7 @@ mod tests {
             }
         );
         assert_eq!(
-            *github.client.run_calls.borrow(),
+            *lock(&github.client.run_calls),
             vec![
                 (argv(&["api", "user", "--jq", ".login"]), None),
                 (
@@ -1597,7 +1596,7 @@ mod tests {
                 url: "https://example.invalid/42".to_string(),
             }
         );
-        let calls = github.client.run_calls.borrow();
+        let calls = lock(&github.client.run_calls);
         assert_eq!(calls.len(), 1, "one run call: {calls:?}");
         let (args, stdin) = calls.first().expect("one run call");
         assert_eq!(args, &review_argv());
@@ -1673,7 +1672,7 @@ mod tests {
                 url: "https://example.invalid/r/42".to_string(),
             }
         );
-        let calls = github.client.run_calls.borrow();
+        let calls = lock(&github.client.run_calls);
         assert_eq!(calls.len(), 1, "one run call: {calls:?}");
         let (args, _stdin) = calls.first().expect("one run call");
         assert_eq!(args, &review_argv());
@@ -1703,7 +1702,7 @@ mod tests {
                 url: "https://example.invalid/r/43".to_string(),
             }
         );
-        let calls = github.client.run_calls.borrow();
+        let calls = lock(&github.client.run_calls);
         assert_eq!(calls.len(), 2, "two run calls: {calls:?}");
         for (args, _stdin) in calls.iter() {
             assert_eq!(args, &review_argv());
@@ -1719,7 +1718,7 @@ mod tests {
             github.head_commit("open-software-factory/demo", 7),
             Ok("abc123".to_string())
         );
-        let calls = github.client.run_calls.borrow();
+        let calls = lock(&github.client.run_calls);
         assert_eq!(calls.len(), 1, "one run call: {calls:?}");
         let (args, stdin) = calls.first().expect("one run call");
         assert_eq!(
@@ -1772,5 +1771,12 @@ mod tests {
             github.head_commit("open-software-factory/demo", 7),
             Err("cannot run gh: no such file".to_string())
         );
+    }
+
+    fn assert_send_sync<T: Send + Sync + ?Sized>() {}
+
+    #[test]
+    fn the_adapter_is_send_and_sync() {
+        assert_send_sync::<GitHub<FakeGh>>();
     }
 }
