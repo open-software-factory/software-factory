@@ -8,6 +8,7 @@ use crate::tracker::{ReadOutcome, Status, Tracker, WorkItem, WorkItemId};
 pub enum NotDispatchable {
     StatusNotReady(String),
     OpenBlockers(Vec<WorkItemId>),
+    Closed,
 }
 
 /// A read item the ready rule skipped, and why.
@@ -27,10 +28,11 @@ pub enum Pick {
     Unknown(String),
 }
 
-/// Whether the ready rule may dispatch this item: its status is ready and every blocker is closed.
+/// Whether the ready rule may dispatch this item: it is open, its status is ready, and every blocker is closed.
 #[must_use]
 pub fn dispatchable(item: &WorkItem) -> bool {
-    matches!(&item.status, Status::Ready)
+    !item.closed
+        && matches!(&item.status, Status::Ready)
         && item.blocked_by.iter().all(|dependency| dependency.closed)
 }
 
@@ -63,6 +65,9 @@ pub fn pick(tracker: &dyn Tracker) -> Pick {
 
 /// The reason one non-dispatchable item was skipped.
 fn reason(item: &WorkItem) -> NotDispatchable {
+    if item.closed && matches!(&item.status, Status::Ready) {
+        return NotDispatchable::Closed;
+    }
     match &item.status {
         Status::Ready => NotDispatchable::OpenBlockers(
             item.blocked_by
@@ -103,7 +108,15 @@ mod tests {
             body: "Body.".to_string(),
             repository: "open-software-factory/demo".to_string(),
             status,
+            closed: false,
             blocked_by,
+        }
+    }
+
+    fn closed_work_item(item: &str, blocked_by: Vec<Dependency>) -> WorkItem {
+        WorkItem {
+            closed: true,
+            ..work_item(item, Status::Ready, blocked_by)
         }
     }
 
@@ -128,12 +141,40 @@ mod tests {
     }
 
     #[test]
+    fn dispatchable_rejects_a_closed_ready_item() {
+        let closed = closed_work_item("1", Vec::new());
+        assert!(!dispatchable(&closed));
+    }
+
+    #[test]
     fn pick_returns_the_first_dispatchable_item_and_skips_ahead() {
         let mut tracker = FakeTracker::new();
         let skipped = work_item("1", Status::Other("Paused".to_string()), Vec::new());
         let chosen = work_item("2", Status::Ready, Vec::new());
         tracker.ready = ReadOutcome::Found(vec![skipped, chosen.clone()]);
         assert_eq!(pick(&tracker), Pick::Item(chosen));
+    }
+
+    #[test]
+    fn pick_skips_a_closed_ready_item_and_takes_the_next_open_one() {
+        let mut tracker = FakeTracker::new();
+        let closed = closed_work_item("1", Vec::new());
+        let open = work_item("2", Status::Ready, Vec::new());
+        tracker.ready = ReadOutcome::Found(vec![closed, open.clone()]);
+        assert_eq!(pick(&tracker), Pick::Item(open));
+    }
+
+    #[test]
+    fn pick_lists_a_closed_ready_item_as_closed() {
+        let mut tracker = FakeTracker::new();
+        tracker.ready = ReadOutcome::Found(vec![closed_work_item("1", Vec::new())]);
+        assert_eq!(
+            pick(&tracker),
+            Pick::NoneDispatchable(vec![Skipped {
+                id: id("1"),
+                reason: NotDispatchable::Closed,
+            }])
+        );
     }
 
     #[test]

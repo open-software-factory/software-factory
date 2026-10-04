@@ -396,7 +396,7 @@ fragment P on ProjectV2 {
       }
       content {
         ... on Issue {
-          number title body repository { nameWithOwner }
+          number title body state repository { nameWithOwner }
           blockedBy(first: 100) {
             pageInfo { hasNextPage }
             nodes { number state repository { nameWithOwner } }
@@ -537,9 +537,16 @@ fn project_of(value: &Value) -> Result<&Value, TrackerError> {
 /// Whether `content` holds at least one Issue field.
 fn is_issue_content(content: &Value) -> bool {
     content.as_object().is_some_and(|object| {
-        ["number", "title", "body", "repository", "blockedBy"]
-            .iter()
-            .any(|key| object.contains_key(*key))
+        [
+            "number",
+            "title",
+            "body",
+            "state",
+            "repository",
+            "blockedBy",
+        ]
+        .iter()
+        .any(|key| object.contains_key(*key))
     })
 }
 
@@ -625,6 +632,19 @@ fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>,
         .and_then(|repository| repository.get("nameWithOwner"))
         .and_then(Value::as_str)
         .ok_or_else(|| TrackerError::Failed("the issue has no repository".to_string()))?;
+    let state = content
+        .get("state")
+        .and_then(Value::as_str)
+        .ok_or_else(|| TrackerError::Failed("the issue has no state".to_string()))?;
+    let closed = match state {
+        "OPEN" => false,
+        "CLOSED" => true,
+        other => {
+            return Err(TrackerError::Failed(format!(
+                "the issue state '{other}' is neither OPEN nor CLOSED"
+            )))
+        }
+    };
     let body = content
         .get("body")
         .and_then(Value::as_str)
@@ -640,6 +660,7 @@ fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>,
         body,
         repository: repository.to_string(),
         status: Status::Ready,
+        closed,
         blocked_by: parse_blockers(content)?,
     }))
 }
@@ -650,8 +671,8 @@ fn parse_item_node(node: &Value, ready_option: &str) -> Result<Option<WorkItem>,
 /// Returns an error when the text is not JSON, when the response carries an
 /// `errors` key, when the project or its item list is missing, when a page
 /// says it has a next one with no cursor, when a kept issue misses its
-/// number, title or repository, or when an issue has more blockers than were
-/// read.
+/// number, title, repository or state, or when an issue has more blockers
+/// than were read.
 pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, TrackerError> {
     let value: Value = serde_json::from_str(text).map_err(|error| {
         TrackerError::Failed(format!("cannot read the items response: {error}"))
@@ -1004,12 +1025,23 @@ mod tests {
         body: impl Into<Value>,
         blocked_by: impl Into<Value>,
     ) -> Value {
+        issue_with_state(number, "OPEN", title, body, blocked_by)
+    }
+
+    fn issue_with_state(
+        number: u64,
+        state: &str,
+        title: &str,
+        body: impl Into<Value>,
+        blocked_by: impl Into<Value>,
+    ) -> Value {
         let body = body.into();
         let blocked_by = blocked_by.into();
         json!({
             "number": number,
             "title": title,
             "body": body,
+            "state": state,
             "repository": {"nameWithOwner": REPO},
             "blockedBy": blocked_by,
         })
@@ -1193,10 +1225,75 @@ mod tests {
         assert_eq!(item.body, "Body.");
         assert_eq!(item.repository, REPO);
         assert_eq!(item.status, Status::Ready);
+        assert!(!item.closed);
         assert_eq!(
             item.blocked_by,
             vec![dependency("7", true), dependency("8", false)]
         );
+    }
+
+    #[test]
+    fn parse_items_page_reads_a_closed_ready_item() {
+        let page = items_page(
+            json!([ready_node(issue_with_state(
+                42,
+                "CLOSED",
+                "Ready",
+                json!("Body."),
+                blockers(json!([]), false),
+            ))]),
+            false,
+            Value::Null,
+        );
+        let parsed = parse_items_page(&page, "Ready").expect("parses");
+        let item = parsed.items.first().expect("one item");
+        assert!(item.closed);
+    }
+
+    #[test]
+    fn parse_items_page_reads_an_open_ready_item() {
+        let page = items_page(
+            json!([ready_node(issue_with_state(
+                42,
+                "OPEN",
+                "Ready",
+                json!("Body."),
+                blockers(json!([]), false),
+            ))]),
+            false,
+            Value::Null,
+        );
+        let parsed = parse_items_page(&page, "Ready").expect("parses");
+        let item = parsed.items.first().expect("one item");
+        assert!(!item.closed);
+    }
+
+    #[test]
+    fn parse_items_page_rejects_a_missing_issue_state() {
+        let content = json!({
+            "number": 42,
+            "title": "Ready",
+            "repository": {"nameWithOwner": REPO},
+            "blockedBy": blockers(json!([]), false),
+        });
+        let page = items_page(json!([ready_node(content)]), false, Value::Null);
+        assert!(parse_items_page(&page, "Ready").is_err());
+    }
+
+    #[test]
+    fn parse_items_page_rejects_a_weird_issue_state() {
+        let page = items_page(
+            json!([ready_node(issue_with_state(
+                42,
+                "MERGED",
+                "Ready",
+                json!("Body."),
+                blockers(json!([]), false),
+            ))]),
+            false,
+            Value::Null,
+        );
+        assert!(parse_items_page(&page, "Ready").is_err());
     }
 
     #[test]

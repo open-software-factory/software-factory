@@ -32,6 +32,7 @@ fn work_item(item: &str, blocked_by: Vec<Dependency>) -> WorkItem {
         body: "Body.".to_string(),
         repository: REPO.to_string(),
         status: Status::Ready,
+        closed: false,
         blocked_by,
     }
 }
@@ -120,6 +121,37 @@ fn a_run_skips_an_item_with_an_open_blocker() {
         Call::ReadReady | Call::Capabilities => false,
     });
     assert!(!names_blocked, "no write may name the skipped item");
+}
+
+#[test]
+fn a_run_skips_a_closed_ready_item_and_takes_the_next_open_one() {
+    let mut tracker = FakeTracker::new();
+    let closed = WorkItem {
+        closed: true,
+        ..work_item("1", Vec::new())
+    };
+    let ready = work_item("2", Vec::new());
+    tracker.ready = ReadOutcome::Found(vec![closed.clone(), ready.clone()]);
+    let chosen = run_one(&tracker).expect("runs");
+    assert_eq!(chosen, ready.id);
+    let names_closed = tracker.calls().iter().any(|call| match call {
+        Call::WriteState { id, .. } | Call::WriteRecap { id, .. } => *id == closed.id,
+        Call::ReadReady | Call::Capabilities => false,
+    });
+    assert!(!names_closed, "no write may name the closed item");
+}
+
+#[test]
+fn a_run_with_only_a_closed_ready_item_writes_nothing() {
+    let mut tracker = FakeTracker::new();
+    let closed = WorkItem {
+        closed: true,
+        ..work_item("1", Vec::new())
+    };
+    tracker.ready = ReadOutcome::Found(vec![closed]);
+    let error = run_one(&tracker).expect_err("fails");
+    assert!(error.contains("none dispatchable"), "{error}");
+    assert_eq!(tracker.calls(), vec![Call::ReadReady]);
 }
 
 #[test]

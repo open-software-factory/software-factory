@@ -159,6 +159,7 @@ mod tests {
             body: "Body.".to_string(),
             repository: "open-software-factory/demo".to_string(),
             status: Status::Ready,
+            closed: false,
             blocked_by: Vec::new(),
         }
     }

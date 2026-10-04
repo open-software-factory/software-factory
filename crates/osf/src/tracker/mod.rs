@@ -103,6 +103,8 @@ pub struct WorkItem {
     pub body: String,
     pub repository: String,
     pub status: Status,
+    /// True when the tracker closed the item.
+    pub closed: bool,
     pub blocked_by: Vec<Dependency>,
 }
 
