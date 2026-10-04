@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "210080a348801e5897c5bfbc82f7b74d0079b233",
+    "contentHash": "b86960928a71867848fcf3013e192429"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "harness-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "98989084ad115e652064c085704f48f4",
+      "bytes": 27589,
+      "width": 1748,
+      "height": 650,
+      "animated": false,
+      "path": "harness-architecture-light-98989084ad115e652064c085704f48f4.svg"
+    },
+    {
+      "id": "harness-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "44a1bff54b8b672e3e415d83e43f8c66",
+      "bytes": 27909,
+      "width": 1748,
+      "height": 650,
+      "animated": false,
+      "path": "harness-architecture-dark-44a1bff54b8b672e3e415d83e43f8c66.svg"
+    },
+    {
+      "id": "adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "abb23f1a8d9dcb9f7e128944e52d8dbc",
+      "bytes": 12322,
+      "width": 570,
+      "height": 646,
+      "animated": false,
+      "path": "adapter-internals-light-abb23f1a8d9dcb9f7e128944e52d8dbc.svg"
+    },
+    {
+      "id": "adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "80d46b5909665185c07bd6d73cc8592c",
+      "bytes": 12477,
+      "width": 570,
+      "height": 646,
+      "animated": false,
+      "path": "adapter-internals-dark-80d46b5909665185c07bd6d73cc8592c.svg"
+    },
+    {
+      "id": "dsh-run-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "dsh-run",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9a2caa67e41c5b1746123ae5dd5e171c",
+      "bytes": 13781,
+      "width": 1328,
+      "height": 487,
+      "animated": true,
+      "path": "dsh-run-light-9a2caa67e41c5b1746123ae5dd5e171c.svg"
+    },
+    {
+      "id": "dsh-run-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "dsh-run",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5ab6a2104193c43948e59d3ae69a647c",
+      "bytes": 13881,
+      "width": 1328,
+      "height": 487,
+      "animated": true,
+      "path": "dsh-run-dark-5ab6a2104193c43948e59d3ae69a647c.svg"
+    }
+  ]
+}
