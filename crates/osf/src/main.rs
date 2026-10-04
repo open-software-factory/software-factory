@@ -515,14 +515,23 @@ struct SkillLintArgs {
     #[arg(long)]
     strict: bool,
     /// A first section that is not step-shaped may hold this many paragraphs. Overrides the config file.
-    #[arg(long)]
+    /// For a person running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
     overview_max_paragraphs: Option<usize>,
     /// A first section that is not step-shaped may hold this many words. Overrides the config file.
-    #[arg(long)]
+    /// For a person running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
     overview_max_words: Option<usize>,
-    /// Extra names that need no description, one per line.
-    #[arg(long)]
+    /// Extra names that need no description, one per line. For a person
+    /// running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
     known_names: Option<PathBuf>,
+    /// Runs as a gate over a change that has not yet been approved: every
+    /// setting is the compiled default, never the config file or the
+    /// environment, so that change cannot loosen this check by editing its
+    /// own configuration.
+    #[arg(long)]
+    gate: bool,
 }
 
 #[derive(Args)]
@@ -789,7 +798,7 @@ fn explain(rule_id: &str) -> ExitCode {
         meta.id, meta.class, meta.group, meta.citation
     );
     if lints::policy::disabled_by_default(rule_id) {
-        println!("Enforcement: disabled by default following the rule audit. The detector and its purpose are retained for evaluation and future improvement. Gates use this compiled policy; a manual configuration can override it.\n");
+        println!("Enforcement: disabled by default following the rule audit. The detector and its purpose are retained for evaluation and future improvement. Every command applies this compiled policy last, so a configuration cannot re-enable the rule.\n");
     }
     println!("{}", meta.doc);
     ExitCode::SUCCESS
@@ -1327,7 +1336,7 @@ fn skill_flags_overlay(args: &SkillLintArgs) -> Vec<(&'static [&'static str], to
 
 fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
     let overlay = skill_flags_overlay(args);
-    let loaded = match config::load(config_flag, &overlay, &[], false) {
+    let loaded = match config::load(config_flag, &overlay, &[], args.gate) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("osf: {e}");

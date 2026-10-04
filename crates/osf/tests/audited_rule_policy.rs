@@ -235,6 +235,289 @@ fn ci_gate_cannot_reenable_disabled_rules_or_disable_retained_rules() {
     assert!(output_text(&out).contains("bare-reference"));
 }
 
+/// Sets two audited rules to error in both sections, raises one kept rule
+/// for prose, and turns the same kept rule off for skills.
+const POISON: &str = "[writing.levels]\narrow = \"error\"\nskill-first-person = \"error\"\nsemicolon = \"error\"\n[skill.levels]\nskill-first-person = \"error\"\narrow = \"error\"\nsemicolon = \"off\"\n";
+const ARROW_DOC: &str = "Input -> output.\n";
+const SEMICOLON_DOC: &str = "Run the check; then stop.\n";
+const ARROW_SKILL: &str = "---\nname: demo\ndescription: I can check a folder when the user wants a health check.\n---\n\nRun this skill to check a folder.\n\n1. Map input -> output for each file.\n\nStop when every file has been mapped.\n";
+const SEMICOLON_SKILL: &str = "---\nname: demo\ndescription: Use when checking a folder.\n---\n\nRun this skill to check a folder.\n\n1. Check the folder; note any large file.\n\nStop when every file has been checked.\n";
+
+fn run(repo: &TempRepo, home: &Path, args: &[&str]) -> (Option<i32>, String) {
+    let out = run_osf(&repo.dir, home, args);
+    (out.status.code(), output_text(&out))
+}
+
+/// One moon task per checkpoint and gate state, each running the built binary.
+fn write_lint_tasks(repo: &TempRepo) {
+    repo.write(
+        ".moon/workspace.yml",
+        "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+    );
+    let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+    let task = |name: &str, check: &str, checkpoint: &str, gate: &str, inputs: &str, tag: &str| {
+        format!(
+            "  {name}:\n    command: '\"{bin}\" check {check} --checkpoint {checkpoint}{gate}'\n    inputs: [{inputs}]\n    tags: [{tag}]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+        )
+    };
+    let skill_inputs = "'/**/SKILL.md', '/**/skills/**/*'";
+    let tasks = [
+        task(
+            "lint-writing",
+            "lint-writing",
+            "pre-push",
+            "",
+            "'/**/*.md'",
+            "osf-pre-push",
+        ),
+        task(
+            "lint-skill",
+            "lint-skill",
+            "pre-push",
+            "",
+            skill_inputs,
+            "osf-pre-push",
+        ),
+        task(
+            "lint-writing-gate",
+            "lint-writing",
+            "pull-request",
+            " --gate",
+            "'/**/*.md'",
+            "osf-pull-request",
+        ),
+        task(
+            "lint-skill-gate",
+            "lint-skill",
+            "pull-request",
+            " --gate",
+            skill_inputs,
+            "osf-pull-request",
+        ),
+    ]
+    .concat();
+    repo.write(".osf/moon.yml", &format!("language: rust\ntasks:\n{tasks}"));
+}
+
+#[test]
+fn a_config_cannot_reenable_an_audited_rule_on_an_ungated_path() {
+    let repo = TempRepo::new("audit-ungated-off");
+    let home = isolated_home("audit-ungated-off");
+    repo.write("osf.toml", POISON);
+    repo.write("guide.md", ARROW_DOC);
+    repo.write("skills/demo/SKILL.md", ARROW_SKILL);
+    repo.commit("Add prose and a skill");
+    let raw = osf::lints::skill::lint_skill(
+        &repo.dir.join("skills/demo"),
+        &osf::config::SkillConfig::default(),
+        &load_known_names(&[], None).expect("names load"),
+        &WritingConfig::default(),
+    )
+    .expect("skill reads");
+    assert!(
+        raw.iter().any(|f| f.finding.rule == "skill-first-person"),
+        "the fixture no longer trips the raw detector: {:?}",
+        raw.iter().map(|f| f.finding.rule).collect::<Vec<_>>()
+    );
+    let cases: [(&str, &[&str]); 4] = [
+        (
+            "osf lint writing: 0 error(s)",
+            &["lint", "writing", "--format", "human", "guide.md"],
+        ),
+        (
+            "osf lint skill: 0 error(s)",
+            &["lint", "skill", "--format", "human", "skills/demo"],
+        ),
+        (
+            "osf check lint-writing: 0 error(s)",
+            &[
+                "check",
+                "lint-writing",
+                "--checkpoint",
+                "pre-push",
+                "guide.md",
+            ],
+        ),
+        (
+            "osf check lint-skill: 0 error(s)",
+            &[
+                "check",
+                "lint-skill",
+                "--checkpoint",
+                "pre-push",
+                "skills/demo/SKILL.md",
+            ],
+        ),
+    ];
+    for (summary, args) in cases {
+        let (code, text) = run(&repo, &home, args);
+        assert_eq!(code, Some(0), "{args:?}: {text}");
+        assert!(
+            text.contains(summary),
+            "{args:?} printed no summary: {text}"
+        );
+        assert!(
+            text.contains("disabled from enforcement:") && text.contains("arrow"),
+            "{args:?} did not report the enforced policy: {text}"
+        );
+        for rule in ["[arrow]", "[skill-first-person]"] {
+            assert!(!text.contains(rule), "{args:?} enforced {rule}: {text}");
+        }
+    }
+}
+
+#[test]
+fn a_config_cannot_reenable_an_audited_rule_through_the_checkpoint_runner() {
+    let repo = TempRepo::new("audit-verify-off");
+    let home = isolated_home("audit-verify-off");
+    repo.write("osf.toml", POISON);
+    write_lint_tasks(&repo);
+    let base = repo.commit("Add the checks");
+    repo.write("guide.md", ARROW_DOC);
+    repo.write("skills/demo/SKILL.md", ARROW_SKILL);
+    repo.commit("Add prose and a skill");
+    let (code, text) = run(
+        &repo,
+        &home,
+        &["verify", "--checkpoint", "pre-push", "--base", &base],
+    );
+    assert_eq!(code, Some(0), "{text}");
+    for task in ["osf:lint-writing", "osf:lint-skill"] {
+        assert!(text.contains(task), "{task} did not run: {text}");
+    }
+}
+
+#[test]
+fn a_config_that_raises_a_kept_rule_applies_on_ungated_writing_paths_and_not_on_gated_ones() {
+    let repo = TempRepo::new("audit-kept-raise");
+    let home = isolated_home("audit-kept-raise");
+    repo.write("osf.toml", POISON);
+    write_lint_tasks(&repo);
+    let base = repo.commit("Add the checks");
+    repo.write("guide.md", SEMICOLON_DOC);
+    repo.commit("Add prose");
+    let ungated: [&[&str]; 2] = [
+        &["lint", "writing", "--format", "human", "guide.md"],
+        &[
+            "check",
+            "lint-writing",
+            "--checkpoint",
+            "pre-push",
+            "guide.md",
+        ],
+    ];
+    for args in ungated {
+        let (code, text) = run(&repo, &home, args);
+        assert_eq!(
+            code,
+            Some(1),
+            "{args:?} ignored the kept rule's level: {text}"
+        );
+        assert!(text.contains("[semicolon]"), "{args:?}: {text}");
+    }
+    let gated: [&[&str]; 2] = [
+        &["lint", "writing", "--gate", "--format", "human", "guide.md"],
+        &[
+            "check",
+            "lint-writing",
+            "--checkpoint",
+            "pull-request",
+            "--gate",
+            "guide.md",
+        ],
+    ];
+    for args in gated {
+        let (code, text) = run(&repo, &home, args);
+        assert_eq!(code, Some(0), "{args:?} honoured the config: {text}");
+        assert!(
+            text.contains("[semicolon]") && text.contains("0 error(s)"),
+            "{args:?} lost the kept finding at its compiled level: {text}"
+        );
+    }
+    let args = ["verify", "--checkpoint", "pre-push", "--base", &base];
+    let (code, text) = run(&repo, &home, &args);
+    assert_eq!(
+        code,
+        Some(1),
+        "pre-push ignored the kept rule's level: {text}"
+    );
+    let args = ["verify", "--checkpoint", "pull-request", "--base", &base];
+    let (code, text) = run(&repo, &home, &args);
+    assert_eq!(code, Some(0), "the gate honoured the config: {text}");
+    assert!(
+        text.contains("osf:lint-writing-gate"),
+        "gate did not run: {text}"
+    );
+}
+
+#[test]
+fn a_config_that_lowers_a_kept_rule_applies_on_ungated_skill_paths_and_not_on_gated_ones() {
+    let repo = TempRepo::new("audit-kept-lower");
+    let home = isolated_home("audit-kept-lower");
+    repo.write("osf.toml", POISON);
+    repo.write("skills/demo/SKILL.md", SEMICOLON_SKILL);
+    repo.commit("Add a skill");
+    let ungated: [&[&str]; 2] = [
+        &["lint", "skill", "--format", "human", "skills/demo"],
+        &[
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pre-push",
+            "skills/demo/SKILL.md",
+        ],
+    ];
+    for args in ungated {
+        let (code, text) = run(&repo, &home, args);
+        assert_eq!(code, Some(0), "{args:?} ignored the lowered level: {text}");
+        assert!(text.contains(": 0 error(s)"), "{args:?}: {text}");
+        assert!(!text.contains("[semicolon]"), "{args:?}: {text}");
+    }
+    let gated: [&[&str]; 2] = [
+        &[
+            "lint",
+            "skill",
+            "--gate",
+            "--format",
+            "human",
+            "skills/demo",
+        ],
+        &[
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pull-request",
+            "--gate",
+            "skills/demo/SKILL.md",
+        ],
+    ];
+    for args in gated {
+        let (code, text) = run(&repo, &home, args);
+        assert_eq!(code, Some(1), "{args:?} honoured the config: {text}");
+        assert!(text.contains("[semicolon]"), "{args:?}: {text}");
+    }
+}
+
+#[test]
+fn lint_skill_gate_refuses_the_flags_that_loosen_it() {
+    let repo = TempRepo::new("audit-skill-gate-flags");
+    let home = isolated_home("audit-skill-gate-flags");
+    repo.write("skills/demo/SKILL.md", SEMICOLON_SKILL);
+    repo.write("names.txt", "Demo\n");
+    for flag in [
+        &["--known-names", "names.txt"][..],
+        &["--overview-max-words", "10"][..],
+        &["--overview-max-paragraphs", "1"][..],
+    ] {
+        let mut args = vec!["lint", "skill", "--gate"];
+        args.extend_from_slice(flag);
+        args.push("skills/demo");
+        let (code, text) = run(&repo, &home, &args);
+        assert_eq!(code, Some(2), "{args:?}: {text}");
+        assert!(text.contains("cannot be used with"), "{args:?}: {text}");
+    }
+}
+
 #[test]
 fn gate_fixtures_still_evaluate_disabled_raw_detectors() {
     let repo = TempRepo::new("audit-fixture-policy");

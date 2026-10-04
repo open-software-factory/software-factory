@@ -35,6 +35,13 @@ pub fn off_levels(ids: &[&str]) -> BTreeMap<String, LevelSetting> {
         .collect()
 }
 
+/// Applies the compiled Off list last. A config may raise or lower a kept
+/// rule's level, and may never re-enable an audited rule.
+pub fn enforce(levels: &mut BTreeMap<String, LevelSetting>) {
+    levels.extend(off_levels(DISABLED_WRITING));
+    levels.extend(off_levels(DISABLED_SKILL));
+}
+
 #[must_use]
 pub fn disabled_by_default(id: &str) -> bool {
     DISABLED_WRITING.contains(&id) || DISABLED_SKILL.contains(&id)
@@ -50,6 +57,7 @@ pub fn skill_levels(
 ) -> BTreeMap<String, LevelSetting> {
     let mut levels = writing.clone();
     levels.extend(skill.iter().map(|(id, level)| (id.clone(), *level)));
+    enforce(&mut levels);
     levels
 }
 

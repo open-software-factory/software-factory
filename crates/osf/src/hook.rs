@@ -265,7 +265,7 @@ fn checked_findings(
     let findings =
         lints::writing::lint_writing(text, known, cfg, lints::Context::Transcript, true, false);
     let mut levels = cfg.levels.clone();
-    levels.extend(lints::policy::off_levels(lints::policy::DISABLED_WRITING));
+    lints::policy::enforce(&mut levels);
     eprintln!(
         "osf hook writing policy: {}",
         lints::policy::coverage(&levels)

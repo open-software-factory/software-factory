@@ -470,6 +470,7 @@ pub fn load(
 
     let (mut config, mut tree, mut sources): (Config, toml::Value, BTreeMap<String, Layer>) =
         layered.finish()?;
+    enforce_audited_policy(&mut config, &mut tree, &mut sources);
     if !extra_exclude.is_empty() {
         config.exclude.extend(extra_exclude.iter().cloned());
         set_exclude_tree(&mut tree, &config.exclude);
@@ -481,6 +482,45 @@ pub fn load(
         sources,
         file,
     })
+}
+
+/// Applies the compiled Off list last, in the config and in the tree that
+/// `osf config show` prints. Every consumer reads its levels from here.
+fn enforce_audited_policy(
+    config: &mut Config,
+    tree: &mut toml::Value,
+    sources: &mut BTreeMap<String, Layer>,
+) {
+    config
+        .writing
+        .levels
+        .extend(crate::lints::policy::off_levels(
+            crate::lints::policy::DISABLED_WRITING,
+        ));
+    config.skill.levels.extend(crate::lints::policy::off_levels(
+        crate::lints::policy::DISABLED_SKILL,
+    ));
+    let sections = [
+        ("writing", crate::lints::policy::DISABLED_WRITING),
+        ("skill", crate::lints::policy::DISABLED_SKILL),
+    ];
+    for (section, ids) in sections {
+        let Some(table) = tree.get_mut(section).and_then(toml::Value::as_table_mut) else {
+            continue;
+        };
+        let levels = table
+            .entry("levels")
+            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+        let Some(levels) = levels.as_table_mut() else {
+            continue;
+        };
+        for id in ids {
+            levels.insert(id.to_string(), toml::Value::String("off".to_string()));
+            if let Some(layer) = sources.get_mut(&format!("{section}.levels.{id}")) {
+                *layer = Layer::Default;
+            }
+        }
+    }
 }
 
 /// The config a gate run always gets: the compiled defaults, with nothing
