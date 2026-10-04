@@ -1,0 +1,646 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-04T00:07:03.232Z",
+  "title": "sha2 0.10 → 0.11 in the osf crate",
+  "summary": "The osf crate bumps its sha2 dependency from 0.10 to 0.11, which pulls the RustCrypto digest stack forward: digest 0.11, block-buffer 0.12, crypto-common 0.2 and cpufeatures 0.3. The old generic-array/typenum/version_check trio is dropped in favour of hybrid-array, and const-oid appears as a new transitive dependency of digest. Only the lockfile and the one version constraint in crates/osf/Cargo.toml change; no source file is touched, so the hashing call sites in osf keep their existing shape while the implementation underneath them is replaced.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "66afde947ac2b20442edd5f5f7dc1de1432255cb",
+      "ref": "66afde947ac2b20442edd5f5f7dc1de1432255cb"
+    },
+    "head": {
+      "sha": "a6ed203e255f9e0b53f71e7ab0e284b5f141c909",
+      "ref": "a6ed203e255f9e0b53f71e7ab0e284b5f141c909"
+    },
+    "pullRequest": {
+      "number": 217,
+      "url": "https://github.com/open-software-factory/software-factory/pull/217"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "crates and manifests",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The osf crate and its manifest, where the sha2 version constraint is declared."
+    },
+    {
+      "id": "hashing",
+      "label": "Hashing stack",
+      "subtitle": "RustCrypto crates",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The sha2 implementation and the digest traits it is built on, all moving to the 0.11 generation."
+    },
+    {
+      "id": "buffer",
+      "label": "Buffer & array layer",
+      "subtitle": "block-buffer, hybrid-array",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The fixed-size buffer and array abstractions the digest stack is generic over; generic-array is replaced by hybrid-array."
+    },
+    {
+      "id": "platform",
+      "label": "Platform support",
+      "subtitle": "cpufeatures, libc",
+      "order": 3,
+      "delta": "modified",
+      "summary": "CPU feature detection used to select accelerated SHA-2 backends at runtime."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "crates/osf",
+      "summary": "The crate whose manifest changes: its sha2 requirement moves from 0.10 to 0.11. No source file in the crate is edited, so the hashing call sites are unchanged and only the resolved implementation differs.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 22,
+          "endLine": 28
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-lock",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "resolved dependency graph",
+      "summary": "The lockfile records the new resolution: sha2 0.11.0, digest 0.11.3, block-buffer 0.12.1, crypto-common 0.2.2, cpufeatures 0.3.1 and the new hybrid-array and const-oid entries, with generic-array and version_check removed.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sha2",
+      "label": "sha2",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "hashing",
+      "subtitle": "0.10.9 → 0.11.0",
+      "summary": "The SHA-2 implementation itself. The 0.11 release is built against digest 0.11 and cpufeatures 0.3, so its public surface and internal buffer types move with the trait generation.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1171,
+          "endLine": 1180
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "digest",
+      "label": "digest",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "hashing",
+      "subtitle": "0.10.7 → 0.11.3",
+      "summary": "The trait crate that defines the hashing interface sha2 implements. It now depends on const-oid in addition to block-buffer and crypto-common, and drops its typenum dependency.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 302,
+          "endLine": 312
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crypto-common",
+      "label": "crypto-common",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "hashing",
+      "subtitle": "0.1.7 → 0.2.2",
+      "summary": "Shared traits and types for the RustCrypto crates. Its dependency on generic-array and typenum is replaced by hybrid-array.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 295,
+          "endLine": 303
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "block-buffer",
+      "label": "block-buffer",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "buffer",
+      "subtitle": "0.10.4 → 0.12.1",
+      "summary": "The fixed-size block buffer used by block-based hashes. It swaps generic-array for hybrid-array, which is the mechanical core of this upgrade.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 168,
+          "endLine": 178
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hybrid-array",
+      "label": "hybrid-array",
+      "kind": "package",
+      "delta": "added",
+      "lane": "buffer",
+      "subtitle": "0.4.15 (new)",
+      "summary": "Newly introduced array abstraction that replaces generic-array across the digest stack. It depends only on typenum.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 469,
+          "endLine": 478
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "generic-array",
+      "label": "generic-array",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "buffer",
+      "subtitle": "0.14.7 (gone)",
+      "summary": "The previous array abstraction, no longer referenced by any crate in the graph after the upgrade.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 408,
+          "endLine": 418,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "const-oid",
+      "label": "const-oid",
+      "kind": "package",
+      "delta": "added",
+      "lane": "buffer",
+      "subtitle": "0.10.2 (new)",
+      "summary": "New transitive dependency pulled in by digest 0.11; it was not present in the base lockfile.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 247,
+          "endLine": 253
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cpufeatures",
+      "label": "cpufeatures",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "platform",
+      "subtitle": "0.2.17 → 0.3.1",
+      "summary": "Runtime CPU feature detection used by sha2 to pick accelerated backends. The 0.3 line is the version compatible with sha2 0.11.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 261,
+          "endLine": 269
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "libc",
+      "label": "libc",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "platform",
+      "subtitle": "platform syscalls",
+      "summary": "Unchanged dependency of cpufeatures; included as context because it sits directly under the upgraded crate.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 263,
+          "endLine": 268
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-requires-sha2",
+      "from": "osf-crate",
+      "to": "sha2",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "sha2 = \"0.11\"",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The single authored change in this diff: the osf crate's sha2 requirement moves from 0.10 to 0.11, which is what forces the rest of the lockfile churn.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 25,
+          "endLine": 25
+        }
+      ]
+    },
+    {
+      "id": "lock-resolves-sha2",
+      "from": "cargo-lock",
+      "to": "sha2",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.11.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile pins the newly resolved sha2 version and its checksum.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1171,
+          "endLine": 1180
+        }
+      ]
+    },
+    {
+      "id": "sha2-uses-digest",
+      "from": "sha2",
+      "to": "digest",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "sha2 implements the digest traits; the 0.11 release targets digest 0.11.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1176,
+          "endLine": 1179
+        }
+      ]
+    },
+    {
+      "id": "sha2-uses-cpufeatures",
+      "from": "sha2",
+      "to": "cpufeatures",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "sha2 uses cpufeatures to detect SHA-NI and other accelerated paths at runtime.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1176,
+          "endLine": 1179
+        }
+      ]
+    },
+    {
+      "id": "digest-uses-block-buffer",
+      "from": "digest",
+      "to": "block-buffer",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "digest buffers input blocks through block-buffer, now at 0.12.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 306,
+          "endLine": 310
+        }
+      ]
+    },
+    {
+      "id": "digest-uses-crypto-common",
+      "from": "digest",
+      "to": "crypto-common",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "digest builds on the shared traits in crypto-common 0.2.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 306,
+          "endLine": 310
+        }
+      ]
+    },
+    {
+      "id": "digest-uses-const-oid",
+      "from": "digest",
+      "to": "const-oid",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "New edge in this change: digest 0.11 now depends on const-oid, which did not appear in the base lockfile.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 306,
+          "endLine": 310
+        }
+      ]
+    },
+    {
+      "id": "block-buffer-uses-hybrid-array",
+      "from": "block-buffer",
+      "to": "hybrid-array",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "block-buffer 0.12 is generic over hybrid-array instead of generic-array.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 173,
+          "endLine": 177
+        }
+      ]
+    },
+    {
+      "id": "crypto-common-uses-hybrid-array",
+      "from": "crypto-common",
+      "to": "hybrid-array",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "crypto-common 0.2 also moves onto hybrid-array.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 299,
+          "endLine": 303
+        }
+      ]
+    },
+    {
+      "id": "block-buffer-dropped-generic-array",
+      "from": "block-buffer",
+      "to": "generic-array",
+      "kind": "dependency",
+      "delta": "removed",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The old generic-array dependency of block-buffer, gone in the new resolution.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 173,
+          "endLine": 177,
+          "revision": "base"
+        }
+      ]
+    },
+    {
+      "id": "crypto-common-dropped-generic-array",
+      "from": "crypto-common",
+      "to": "generic-array",
+      "kind": "dependency",
+      "delta": "removed",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "crypto-common's former generic-array dependency, also removed.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 299,
+          "endLine": 303,
+          "revision": "base"
+        }
+      ]
+    },
+    {
+      "id": "cpufeatures-uses-libc",
+      "from": "cpufeatures",
+      "to": "libc",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "cpufeatures still reaches the platform through libc; unchanged by this diff.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 265,
+          "endLine": 268
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "sha2-resolution",
+      "title": "Resolving sha2 0.11 for the osf crate",
+      "summary": "How the one-line manifest bump propagates through the lockfile: the requirement change forces a new sha2, which drags digest, crypto-common, block-buffer and cpufeatures forward and swaps generic-array for hybrid-array.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-crate",
+          "label": "osf"
+        },
+        {
+          "node": "cargo-lock",
+          "label": "Cargo.lock"
+        },
+        {
+          "node": "sha2"
+        },
+        {
+          "node": "digest"
+        },
+        {
+          "node": "block-buffer"
+        },
+        {
+          "node": "hybrid-array"
+        },
+        {
+          "node": "cpufeatures"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-bump-requirement",
+          "from": "osf-crate",
+          "to": "cargo-lock",
+          "label": "sha2 = \"0.11\"",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The only authored edit: the version constraint in crates/osf/Cargo.toml.",
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 25,
+              "endLine": 25
+            }
+          ]
+        },
+        {
+          "id": "step-resolve-sha2",
+          "from": "cargo-lock",
+          "to": "sha2",
+          "label": "resolve 0.11.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Cargo picks sha2 0.11.0 and records its checksum.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1171,
+              "endLine": 1180
+            }
+          ]
+        },
+        {
+          "id": "step-sha2-digest",
+          "from": "sha2",
+          "to": "digest",
+          "label": "digest 0.11",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "sha2 0.11 is built against the 0.11 digest traits.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1176,
+              "endLine": 1179
+            }
+          ]
+        },
+        {
+          "id": "step-digest-block-buffer",
+          "from": "digest",
+          "to": "block-buffer",
+          "label": "block-buffer 0.12",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "digest buffers through block-buffer, which moves to 0.12.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 306,
+              "endLine": 310
+            }
+          ]
+        },
+        {
+          "id": "step-block-buffer-hybrid",
+          "from": "block-buffer",
+          "to": "hybrid-array",
+          "label": "hybrid-array 0.4",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The buffer is now generic over hybrid-array; generic-array and version_check leave the graph.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 173,
+              "endLine": 177
+            }
+          ]
+        },
+        {
+          "id": "step-sha2-cpufeatures",
+          "from": "sha2",
+          "to": "cpufeatures",
+          "label": "cpufeatures 0.3",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Accelerated SHA-2 backends are still selected at runtime, now via cpufeatures 0.3.",
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1176,
+              "endLine": 1179
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 29,
+    "deletions": 30,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "dependency-graph",
+      "title": "Dependency graph after the bump",
+      "lens": "architecture",
+      "summary": "The osf crate's sha2 requirement and the crates it resolves to, with the removed generic-array path shown as context.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "hashing-stack",
+      "title": "Hashing stack internals",
+      "lens": "architecture",
+      "summary": "The digest, crypto-common and block-buffer layer beneath sha2, where the generic-array to hybrid-array swap happens.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "sha2",
+          "digest",
+          "crypto-common",
+          "block-buffer",
+          "hybrid-array",
+          "generic-array",
+          "const-oid"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
