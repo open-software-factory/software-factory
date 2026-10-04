@@ -67,6 +67,7 @@ pub struct Journal {
     change: Option<Change>,
     last_hash: String,
     index_recorded: bool,
+    run_complete: bool,
 }
 
 impl Journal {
@@ -116,6 +117,7 @@ impl Journal {
             change: None,
             last_hash: genesis_hash(),
             index_recorded: false,
+            run_complete: false,
         })
     }
 
@@ -157,11 +159,16 @@ impl Journal {
     /// written. The event carries this journal's run, work item and change.
     /// A run-complete event must name the journal's current head hash. An
     /// invalid event writes no byte and leaves the chain's head unchanged.
+    /// Once a run-complete event is accepted, no later event is accepted.
     ///
     /// # Errors
-    /// Returns an error when the event is invalid, cannot be serialised, or
-    /// the journal file cannot be opened or written to.
+    /// Returns an error when the run is already complete, when the event is
+    /// invalid, cannot be serialised, or the journal file cannot be opened or
+    /// written to.
     pub fn append_draft(&mut self, draft: EventDraft) -> Result<Event, String> {
+        if self.run_complete {
+            return Err("invalid journal event: the run is already complete".to_string());
+        }
         let hash = event_hash(&HashInput {
             prev_hash: &self.last_hash,
             payload: &draft.payload,
@@ -216,6 +223,9 @@ impl Journal {
         writeln!(file, "{line}")
             .map_err(|e| format!("cannot write to journal file {}: {e}", self.path.display()))?;
         self.last_hash = hash;
+        if matches!(&event.payload, Payload::RunComplete(_)) {
+            self.run_complete = true;
+        }
         Ok(event)
     }
 }
@@ -782,5 +792,28 @@ mod tests {
             .expect_err("malformed index");
         assert!(err.contains("index"), "{err}");
         assert!(!dir.join("runs/run-fail.jsonl").exists());
+    }
+
+    #[test]
+    fn the_writer_refuses_an_event_after_run_complete() {
+        let dir = TempDir::new("osf-journal-after-complete");
+        let work_item = "github:open-software-factory/example#1";
+        let mut j = Journal::open(&dir, "run-done")
+            .expect("open")
+            .with_work_item(work_item.to_string());
+        let head = j
+            .append(&actor(), 1, verification("scan"))
+            .expect("append")
+            .hash;
+        j.append_draft(draft(run_complete(head)))
+            .expect("run-complete");
+        let path = dir.join("runs/run-done.jsonl");
+        let before = std::fs::read(&path).expect("read");
+        let err = j
+            .append(&actor(), 2, verification("fmt"))
+            .expect_err("an event after run-complete");
+        assert!(err.contains("run"), "{err}");
+        assert!(err.contains("complete"), "{err}");
+        assert_eq!(std::fs::read(&path).expect("read"), before);
     }
 }

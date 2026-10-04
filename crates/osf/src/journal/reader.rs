@@ -16,6 +16,8 @@ pub struct RunJournal {
     pub events: Vec<Event>,
     /// The last event's hash, or the genesis hash for an empty journal.
     pub head_hash: String,
+    /// True when the last event is a run-complete event.
+    pub complete: bool,
 }
 
 /// Every way reading a run's journal can fail.
@@ -66,6 +68,11 @@ pub enum ReadError {
         /// Why the link is broken.
         reason: String,
     },
+    /// A line follows a run-complete event.
+    EventAfterRunComplete {
+        /// The 1-based line number.
+        line: usize,
+    },
 }
 
 impl fmt::Display for ReadError {
@@ -97,6 +104,12 @@ impl fmt::Display for ReadError {
             ReadError::ChainBroken { line, reason } => {
                 write!(f, "line {line} breaks the hash chain: {reason}")
             }
+            ReadError::EventAfterRunComplete { line } => {
+                write!(
+                    f,
+                    "line {line} follows a run-complete event: the run was already complete"
+                )
+            }
         }
     }
 }
@@ -107,11 +120,19 @@ impl std::error::Error for ReadError {}
 /// every link in order. Any failure returns that line's error and no events
 /// at all, so a caller never sees a partial chain.
 ///
+/// `Ok` means every line present is valid and linked. The `complete` field
+/// says whether the run finished. `Ok` does not mean no lines were removed
+/// from the end. It also does not detect a rewrite in which every hash was
+/// recomputed, because the hash is unkeyed. Copy the head hash somewhere the
+/// writer cannot reach, such as a sink or the pull request, to detect such a
+/// rewrite.
+///
 /// # Errors
 /// Returns [`ReadError::InvalidRunId`] when `run` is not a safe single path
 /// component, [`ReadError::NotFound`] when the file is missing,
 /// [`ReadError::Io`] when it cannot be read, and a line error when a line is
-/// malformed, schema-invalid, at an unsupported version or off the chain.
+/// malformed, schema-invalid, at an unsupported version, off the chain or
+/// after a run-complete event.
 pub fn read_run(state_dir: &Path, run: &str) -> Result<RunJournal, ReadError> {
     validate_run_id(run).map_err(|reason| ReadError::InvalidRunId { reason })?;
     let path = state_dir.join("runs").join(format!("{run}.jsonl"));
@@ -136,6 +157,7 @@ fn read_text(text: &str, run: &str) -> Result<RunJournal, ReadError> {
         return Ok(RunJournal {
             events: Vec::new(),
             head_hash: genesis_hash(),
+            complete: false,
         });
     }
     let missing_newline = !text.ends_with('\n');
@@ -143,8 +165,12 @@ fn read_text(text: &str, run: &str) -> Result<RunJournal, ReadError> {
     let last = lines.len().saturating_sub(1);
     let mut events = Vec::with_capacity(lines.len());
     let mut head = genesis_hash();
+    let mut complete = false;
     for (index, line) in lines.iter().enumerate() {
         let number = index + 1;
+        if complete {
+            return Err(ReadError::EventAfterRunComplete { line: number });
+        }
         if missing_newline && index == last {
             return Err(ReadError::Malformed {
                 line: number,
@@ -153,11 +179,13 @@ fn read_text(text: &str, run: &str) -> Result<RunJournal, ReadError> {
         }
         let event = check_line(line, number, run, &head)?;
         head.clone_from(&event.hash);
+        complete = matches!(&event.payload, Payload::RunComplete(_));
         events.push(event);
     }
     Ok(RunJournal {
         events,
         head_hash: head,
+        complete,
     })
 }
 
@@ -728,5 +756,74 @@ mod tests {
             .expect("append draft");
         let read = read_run(&dir, "run-cost").expect("read");
         assert_eq!(read.events.first().expect("event").cost, Some(cost));
+    }
+
+    #[test]
+    fn a_complete_journal_reads_as_complete() {
+        let dir = TempDir::new("osf-reader-complete");
+        write_all_eight(&dir, "run-done");
+        let journal = read_run(&dir, "run-done").expect("read");
+        assert!(journal.complete);
+    }
+
+    #[test]
+    fn deleting_the_last_line_reads_as_incomplete() {
+        let dir = TempDir::new("osf-reader-cut");
+        let written = write_all_eight(&dir, "run-cut");
+        let mut lines = journal_lines(&dir, "run-cut");
+        lines.pop();
+        write_lines(&dir, "run-cut", &lines);
+        let journal = read_run(&dir, "run-cut").expect("read");
+        assert_eq!(journal.events.len(), written.len() - 1);
+        assert!(!journal.complete);
+    }
+
+    #[test]
+    fn keeping_only_two_lines_reads_as_incomplete() {
+        let dir = TempDir::new("osf-reader-two");
+        write_all_eight(&dir, "run-two");
+        let mut lines = journal_lines(&dir, "run-two");
+        lines.truncate(2);
+        write_lines(&dir, "run-two", &lines);
+        let journal = read_run(&dir, "run-two").expect("read");
+        assert_eq!(journal.events.len(), 2);
+        assert!(!journal.complete);
+    }
+
+    #[test]
+    fn an_empty_journal_file_reads_as_incomplete() {
+        let dir = TempDir::new("osf-reader-none");
+        write_lines(&dir, "run-none", &[]);
+        let journal = read_run(&dir, "run-none").expect("read");
+        assert!(journal.events.is_empty());
+        assert!(!journal.complete);
+    }
+
+    #[test]
+    fn an_event_after_run_complete_is_refused_by_the_reader() {
+        let dir = TempDir::new("osf-reader-after-complete");
+        write_all_eight(&dir, "run-after-complete");
+        let mut lines = journal_lines(&dir, "run-after-complete");
+        let last: Event = serde_json::from_str(lines.last().expect("run-complete")).expect("event");
+        let mut event = Event {
+            schema_version: last.schema_version,
+            run: last.run.clone(),
+            work_item: last.work_item.clone(),
+            change: last.change.clone(),
+            actor: actor(),
+            timestamp_ms: 9,
+            cost: None,
+            payload: verification(),
+            prev_hash: last.hash.clone(),
+            hash: String::new(),
+        };
+        rehash(&mut event);
+        lines.push(serde_json::to_string(&event).expect("event serialises"));
+        write_lines(&dir, "run-after-complete", &lines);
+        let error = read_run(&dir, "run-after-complete").expect_err("event after run-complete");
+        assert!(
+            matches!(error, ReadError::EventAfterRunComplete { line: 9 }),
+            "{error:?}"
+        );
     }
 }
