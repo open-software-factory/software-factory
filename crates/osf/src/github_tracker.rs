@@ -240,7 +240,7 @@ impl<R: GhRunner> GitHubTracker<R> {
             &self.config.status_field,
         );
         let text = self.run_graphql(&argv, &payload)?;
-        parse_project_status(&text)
+        parse_project_status(&text, &self.config.status_field)
     }
 
     /// Reads the project item id of one issue in one project.
@@ -276,6 +276,10 @@ impl GitHubTracker<RealGhRunner> {
 
 impl<R: GhRunner> Tracker for GitHubTracker<R> {
     fn read_ready(&self) -> ReadOutcome<Vec<WorkItem>> {
+        // One extra project query verifies the configured status field before any item page.
+        if let Err(error) = self.read_project_status() {
+            return ReadOutcome::Unknown(error.to_string());
+        }
         let ready_option = self.config.options.ready.clone();
         let query = self.skip_query();
         let mut cursor: Option<String> = None;
@@ -372,7 +376,7 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
             .runner
             .run(&argv, Some(&payload.to_string()))
             .map_err(TrackerError::Failed)
-            .and_then(|text| parse_project_status(&text));
+            .and_then(|text| parse_project_status(&text, &self.config.status_field));
         match read {
             Ok(project) => TrackerCapabilities {
                 title: Capability::Supported,
@@ -868,7 +872,7 @@ pub fn parse_items_page(text: &str, ready_option: &str) -> Result<ItemPage, Trac
 /// Returns an error when the text is not JSON, when the response carries an
 /// `errors` key, when the project or its status field is missing, or when an
 /// id is missing.
-pub fn parse_project_status(text: &str) -> Result<ProjectStatus, TrackerError> {
+pub fn parse_project_status(text: &str, field: &str) -> Result<ProjectStatus, TrackerError> {
     let value: Value = serde_json::from_str(text).map_err(|error| {
         TrackerError::Failed(format!("cannot read the project response: {error}"))
     })?;
@@ -881,17 +885,17 @@ pub fn parse_project_status(text: &str) -> Result<ProjectStatus, TrackerError> {
         .and_then(Value::as_str)
         .ok_or_else(|| TrackerError::Failed("the project has no id".to_string()))?
         .to_string();
-    let Some(field) = project.get("field").filter(|value| !value.is_null()) else {
-        return Err(TrackerError::Failed(
-            "the project has no status field".to_string(),
-        ));
+    let Some(status_field) = project.get("field").filter(|value| !value.is_null()) else {
+        return Err(TrackerError::Failed(format!(
+            "the project has no field named '{field}'"
+        )));
     };
-    let field_id = field
+    let field_id = status_field
         .get("id")
         .and_then(Value::as_str)
         .ok_or_else(|| TrackerError::Failed("the status field has no id".to_string()))?
         .to_string();
-    let options = match field.get("options").and_then(Value::as_array) {
+    let options = match status_field.get("options").and_then(Value::as_array) {
         Some(options) => options
             .iter()
             .filter_map(|option| {
@@ -1865,7 +1869,11 @@ mod tests {
             false,
             Value::Null,
         );
-        let tracker = tracker(vec![Ok(first), Ok(second)]);
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(first),
+            Ok(second),
+        ]);
         let outcome = tracker.read_ready();
         let ReadOutcome::Found(items) = outcome else {
             panic!("two pages must be found");
@@ -1875,17 +1883,21 @@ mod tests {
             vec![github_item("42"), github_item("43")]
         );
         let calls = tracker.runner.calls();
-        assert_eq!(calls.len(), 2);
-        assert_eq!(call(&calls, 0).argv, graphql_argv_expected());
+        assert_eq!(calls.len(), 3);
+        assert_eq!(call(&calls, 0).argv, project_status_argv());
         assert_eq!(
-            pointer(&payload(call(&calls, 0)), "/variables/cursor"),
-            &Value::Null
+            payload(call(&calls, 0)),
+            project_status_payload(OWNER, 5, "Status")
         );
         assert_eq!(
             pointer(&payload(call(&calls, 1)), "/variables/cursor"),
+            &Value::Null
+        );
+        assert_eq!(
+            pointer(&payload(call(&calls, 2)), "/variables/cursor"),
             &json!("cursor-2")
         );
-        for index in 0..2 {
+        for index in 1..3 {
             assert_eq!(
                 pointer(&payload(call(&calls, index)), "/variables/query"),
                 &json!("-status:\"Done\"")
@@ -1907,11 +1919,15 @@ mod tests {
         );
         let mut config = config();
         config.skip_status = None;
-        let tracker = GitHubTracker::new(ScriptedRunner::new(vec![Ok(page)]), config);
+        let tracker = GitHubTracker::new(
+            ScriptedRunner::new(vec![Ok(project_response(all_options())), Ok(page)]),
+            config,
+        );
         assert!(matches!(tracker.read_ready(), ReadOutcome::Found(_)));
         let calls = tracker.runner.calls();
+        assert_eq!(calls.len(), 2);
         assert_eq!(
-            pointer(&payload(call(&calls, 0)), "/variables/query"),
+            pointer(&payload(call(&calls, 1)), "/variables/query"),
             &Value::Null
         );
     }
@@ -1933,7 +1949,7 @@ mod tests {
             false,
             Value::Null,
         );
-        let tracker = tracker(vec![Ok(page)]);
+        let tracker = tracker(vec![Ok(project_response(all_options())), Ok(page)]);
         let ReadOutcome::Found(items) = tracker.read_ready() else {
             panic!("a backlog item is still found");
         };
@@ -1942,7 +1958,7 @@ mod tests {
             items.first().expect("one item").status,
             Status::Other("Backlog".to_string())
         );
-        assert_eq!(tracker.runner.calls().len(), 1);
+        assert_eq!(tracker.runner.calls().len(), 2);
     }
 
     #[test]
@@ -1955,7 +1971,7 @@ mod tests {
             false,
             Value::Null,
         );
-        let tracker = tracker(vec![Ok(page)]);
+        let tracker = tracker(vec![Ok(project_response(all_options())), Ok(page)]);
         let ReadOutcome::Found(items) = tracker.read_ready() else {
             panic!("a done item that still arrives is returned");
         };
@@ -1985,7 +2001,12 @@ mod tests {
             blockers(json!([]), false),
         ));
         let page = items_page(json!([bad, good]), false, Value::Null);
-        let tracker = tracker(vec![Ok(page.clone()), Ok(page)]);
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(page.clone()),
+            Ok(project_response(all_options())),
+            Ok(page),
+        ]);
         let ReadOutcome::Found(items) = tracker.read_ready() else {
             panic!("a malformed backlog item must not hide the page");
         };
@@ -2004,9 +2025,9 @@ mod tests {
     #[test]
     fn read_ready_is_empty_for_a_project_with_no_items() {
         let page = items_page(json!([]), false, Value::Null);
-        let tracker = tracker(vec![Ok(page)]);
+        let tracker = tracker(vec![Ok(project_response(all_options())), Ok(page)]);
         assert_eq!(tracker.read_ready(), ReadOutcome::Empty);
-        assert_eq!(tracker.runner.calls().len(), 1);
+        assert_eq!(tracker.runner.calls().len(), 2);
     }
 
     #[test]
@@ -2021,7 +2042,11 @@ mod tests {
             true,
             json!("cursor-2"),
         );
-        let tracker = tracker(vec![Ok(first), Err("boom".to_string())]);
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(first),
+            Err("boom".to_string()),
+        ]);
         let outcome = tracker.read_ready();
         assert_eq!(outcome, ReadOutcome::Unknown("boom".to_string()));
         assert!(!matches!(outcome, ReadOutcome::Found(_)));
@@ -2033,6 +2058,32 @@ mod tests {
         assert_eq!(
             tracker.read_ready(),
             ReadOutcome::Unknown("cannot run gh".to_string())
+        );
+        assert_eq!(tracker.runner.calls().len(), 1);
+    }
+
+    #[test]
+    fn read_ready_is_unknown_when_the_configured_field_is_missing() {
+        let text = json!({
+            "data": {
+                "repositoryOwner": {
+                    "projectV2": {"id": "PVT_1", "field": null},
+                }
+            }
+        })
+        .to_string();
+        let mut config = config();
+        config.status_field = "Stage".to_string();
+        let tracker = GitHubTracker::new(ScriptedRunner::new(vec![Ok(text)]), config);
+        let ReadOutcome::Unknown(message) = tracker.read_ready() else {
+            panic!("a missing status field must be unknown");
+        };
+        assert!(message.contains("Stage"), "{message}");
+        let calls = tracker.runner.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            pointer(&payload(call(&calls, 0)), "/variables/field"),
+            &json!("Stage")
         );
     }
 
@@ -2048,14 +2099,19 @@ mod tests {
             true,
             json!("cursor-2"),
         );
-        let tracker = tracker(vec![Ok(page.clone()), Ok(page)]);
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(page.clone()),
+            Ok(page),
+        ]);
         assert!(matches!(tracker.read_ready(), ReadOutcome::Unknown(_)));
-        assert_eq!(tracker.runner.calls().len(), 2);
+        assert_eq!(tracker.runner.calls().len(), 3);
     }
 
     #[test]
     fn parse_project_status_reads_ids_and_options() {
-        let project = parse_project_status(&project_response(all_options())).expect("parses");
+        let project =
+            parse_project_status(&project_response(all_options()), "Status").expect("parses");
         assert_eq!(project.project_id, "PVT_1");
         assert_eq!(project.field_id, "PVTSSF_1");
         assert_eq!(
@@ -2074,7 +2130,7 @@ mod tests {
     #[test]
     fn parse_project_status_rejects_a_missing_project() {
         let text = json!({"data": {"repositoryOwner": {"projectV2": null}}}).to_string();
-        assert!(parse_project_status(&text).is_err());
+        assert!(parse_project_status(&text, "Status").is_err());
     }
 
     #[test]
@@ -2531,7 +2587,7 @@ mod tests {
             false,
             Value::Null,
         );
-        let mixed_tracker = tracker(vec![Ok(mixed)]);
+        let mixed_tracker = tracker(vec![Ok(project_response(all_options())), Ok(mixed)]);
         let Pick::Item(item) = pick(&mixed_tracker) else {
             panic!("the ready item must be picked");
         };
@@ -2546,7 +2602,7 @@ mod tests {
             false,
             Value::Null,
         );
-        let tracker = tracker(vec![Ok(backlog_only)]);
+        let tracker = tracker(vec![Ok(project_response(all_options())), Ok(backlog_only)]);
         assert_eq!(pick(&tracker), Pick::NothingReady);
     }
 }
