@@ -171,26 +171,32 @@ mod tests {
     }
 
     #[test]
-    fn a_work_item_of_the_documented_shape_is_accepted() {
-        let mut event = valid_event();
-        set(
-            &mut event,
-            "work_item",
-            serde_json::json!("github:open-software-factory/example#1"),
-        );
-        assert_eq!(validate(&event), Ok(()));
+    fn work_items_of_each_provider_shape_are_accepted() {
+        for work_item in [
+            "github:open-software-factory/example#1",
+            "jira:PROJ-123",
+            "linear:ENG-12",
+            concat!("gitlab:group/sub/repo", "#4"),
+        ] {
+            let mut event = valid_event();
+            set(&mut event, "work_item", serde_json::json!(work_item));
+            assert_eq!(validate(&event), Ok(()), "{work_item}");
+        }
     }
 
     #[test]
-    fn a_work_item_of_another_shape_is_refused() {
+    fn a_work_item_without_a_provider_or_remainder_is_refused() {
         for work_item in [
             "x",
             "open-software-factory/example#1",
-            "github:open-software-factory/example",
-            "github:open-software-factory/example#",
-            "github:open-software-factory#1",
+            ":abc",
+            "github:",
+            "github:has space",
+            "github:tab\there",
+            "github:trailing ",
+            " github:leading",
             "GitHub:open-software-factory/example#1",
-            "github:open-software-factory/example#1 ",
+            "github:abc\n",
         ] {
             let mut event = valid_event();
             set(&mut event, "work_item", serde_json::json!(work_item));

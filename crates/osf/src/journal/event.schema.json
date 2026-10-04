@@ -104,8 +104,8 @@
     },
     "work_item": {
       "type": "string",
-      "pattern": "^[a-z][a-z0-9-]*:[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+$",
-      "description": "A provider-qualified work item, provider:owner/repo#number, for example github:open-software-factory/example#1."
+      "pattern": "^[a-z][a-z0-9-]*:\\S+$",
+      "description": "A provider-qualified work item: a lower-case provider name, a colon, and the provider's own id with no whitespace, for example `github:open-software-factory/example#1` or `jira:PROJ-123`; each provider adapter checks its own shape."
     },
     "hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "u64": { "type": "integer", "minimum": 0, "maximum": 18446744073709551615 },
