@@ -72,6 +72,17 @@ fn temporary_path(path: &Path) -> PathBuf {
     path.with_file_name(format!(".{name}.{}.{nanos}.tmp", std::process::id()))
 }
 
+/// Appends a failed temporary-file cleanup to `primary`, hiding no error.
+fn with_cleanup_result(primary: String, temp: &Path) -> String {
+    match std::fs::remove_file(temp) {
+        Ok(()) => primary,
+        Err(e) => format!(
+            "{primary}; the temporary file {} could not be removed: {e}",
+            temp.display()
+        ),
+    }
+}
+
 /// Writes `index` to `path` through a temporary file renamed over it, so a
 /// reader never sees a half-written index.
 fn write_index(path: &Path, index: &WorkItemIndex) -> Result<(), String> {
@@ -79,18 +90,12 @@ fn write_index(path: &Path, index: &WorkItemIndex) -> Result<(), String> {
         .map_err(|e| format!("cannot serialise the index for {}: {e}", path.display()))?;
     let temp = temporary_path(path);
     if let Err(e) = std::fs::write(&temp, format!("{text}\n")) {
-        let _ = std::fs::remove_file(&temp);
-        return Err(format!(
-            "cannot write the index file {}: {e}",
-            path.display()
-        ));
+        let primary = format!("cannot write the index file {}: {e}", path.display());
+        return Err(with_cleanup_result(primary, &temp));
     }
     if let Err(e) = std::fs::rename(&temp, path) {
-        let _ = std::fs::remove_file(&temp);
-        return Err(format!(
-            "cannot replace the index file {}: {e}",
-            path.display()
-        ));
+        let primary = format!("cannot replace the index file {}: {e}", path.display());
+        return Err(with_cleanup_result(primary, &temp));
     }
     Ok(())
 }
@@ -335,6 +340,47 @@ mod tests {
             .map(|entry| entry.expect("entry").path())
             .collect();
         assert_eq!(entries, [index_path(&dir, ITEM)]);
+    }
+
+    #[test]
+    fn a_failed_cleanup_is_appended_to_the_error() {
+        let dir = TempDir::new("osf-index-cleanup-failed");
+        let temp = dir.join("absent.tmp");
+        let primary = "cannot write the index file: boom".to_string();
+        let message = with_cleanup_result(primary.clone(), &temp);
+        assert!(message.starts_with(&primary), "{message}");
+        assert!(message.contains("could not be removed"), "{message}");
+        assert!(message.contains(&temp.display().to_string()), "{message}");
+    }
+
+    #[test]
+    fn a_successful_cleanup_leaves_the_error_unchanged() {
+        let dir = TempDir::new("osf-index-cleanup-succeeded");
+        let temp = dir.join("present.tmp");
+        std::fs::write(&temp, "temporary").expect("temp file");
+        let primary = "cannot replace the index file: boom".to_string();
+        let message = with_cleanup_result(primary.clone(), &temp);
+        assert_eq!(message, primary);
+        assert!(!temp.exists());
+    }
+
+    #[test]
+    fn a_failed_rename_returns_the_error_and_leaves_no_temporary_file() {
+        let dir = TempDir::new("osf-index-rename-failed");
+        let path = index_path(&dir, ITEM);
+        std::fs::create_dir_all(&path).expect("index path as a directory");
+        std::fs::write(path.join("blocker"), "blocker").expect("blocker file");
+        let index = WorkItemIndex {
+            work_item: ITEM.to_string(),
+            runs: vec!["run-1".to_string()],
+        };
+        let err = write_index(&path, &index).expect_err("rename fails");
+        assert!(err.contains("cannot replace the index file"), "{err}");
+        let leftover_tmp = std::fs::read_dir(path.parent().expect("index dir"))
+            .expect("index dir")
+            .map(|entry| entry.expect("entry").path())
+            .any(|entry| entry.extension().is_some_and(|ext| ext == "tmp"));
+        assert!(!leftover_tmp, "a temporary file was left behind");
     }
 
     #[test]
