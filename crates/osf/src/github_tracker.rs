@@ -273,13 +273,13 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
             TrackerError::Rejected(format!("the item is not a number: {}", id.item))
         })?;
         let item_id = self.read_item_id(owner, name, number, &project.project_id)?;
+        if let WorkState::Blocked(cause) = state {
+            self.post_comment(&id.repo, &id.item, &format!("Blocked: {}.", cause.as_str()))?;
+        }
         let argv = mutation_argv();
         let payload = mutation_payload(&project.project_id, &item_id, &project.field_id, option_id);
         let text = self.run_graphql(&argv, &payload)?;
         parse_write_result(&text)?;
-        if let WorkState::Blocked(cause) = state {
-            self.post_comment(&id.repo, &id.item, &format!("Blocked: {}.", cause.as_str()))?;
-        }
         Ok(())
     }
 
@@ -1771,20 +1771,107 @@ mod tests {
         let tracker = tracker(vec![
             Ok(project_response(all_options())),
             Ok(item_found_response()),
-            Ok(write_result_response()),
             Ok(String::new()),
+            Ok(write_result_response()),
         ]);
         tracker
             .write_state(&github_item("42"), &WorkState::Blocked(BlockedCause::Human))
             .expect("writes");
         let calls = tracker.runner.calls();
         assert_eq!(calls.len(), 4);
+        assert_eq!(call(&calls, 2).argv, comment_argv(REPO, "42"));
+        assert_eq!(payload(call(&calls, 2)), json!({"body": "Blocked: human."}));
         assert_eq!(
-            pointer(&payload(call(&calls, 2)), "/variables/option"),
+            pointer(&payload(call(&calls, 3)), "/variables/option"),
             &json!("opt-blocked")
         );
-        assert_eq!(call(&calls, 3).argv, comment_argv(REPO, "42"));
-        assert_eq!(payload(call(&calls, 3)), json!({"body": "Blocked: human."}));
+    }
+
+    #[test]
+    fn write_state_of_a_block_orders_reads_comment_then_mutation() {
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(item_found_response()),
+            Ok(String::new()),
+            Ok(write_result_response()),
+        ]);
+        tracker
+            .write_state(&github_item("42"), &WorkState::Blocked(BlockedCause::Human))
+            .expect("writes");
+        let calls = tracker.runner.calls();
+        assert_eq!(calls.len(), 4);
+        assert_eq!(call(&calls, 0).argv, project_status_argv());
+        assert_eq!(
+            payload(call(&calls, 0)),
+            project_status_payload(OWNER, 5, "Status")
+        );
+        assert_eq!(call(&calls, 1).argv, item_id_argv());
+        assert_eq!(payload(call(&calls, 1)), item_id_payload(OWNER, "demo", 42));
+        assert_eq!(call(&calls, 2).argv, comment_argv(REPO, "42"));
+        assert_eq!(payload(call(&calls, 2)), json!({"body": "Blocked: human."}));
+        assert_eq!(call(&calls, 3).argv, mutation_argv());
+        assert_eq!(
+            payload(call(&calls, 3)),
+            mutation_payload("PVT_1", "PVTI_2", "PVTSSF_1", "opt-blocked")
+        );
+    }
+
+    #[test]
+    fn write_state_of_a_block_returns_the_comment_error_before_the_mutation() {
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(item_found_response()),
+            Err("comment boom".to_string()),
+        ]);
+        let error = tracker
+            .write_state(&github_item("42"), &WorkState::Blocked(BlockedCause::Human))
+            .expect_err("fails");
+        assert_eq!(error, TrackerError::Failed("comment boom".to_string()));
+        let calls = tracker.runner.calls();
+        assert_eq!(calls.len(), 3);
+        assert_eq!(call(&calls, 2).argv, comment_argv(REPO, "42"));
+        assert!(!calls.iter().any(|call| {
+            payload(call)
+                .pointer("/query")
+                .and_then(Value::as_str)
+                .is_some_and(|query| query.contains("updateProjectV2ItemFieldValue"))
+        }));
+    }
+
+    #[test]
+    fn write_state_of_a_block_reports_a_failed_mutation_after_the_comment() {
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(item_found_response()),
+            Ok(String::new()),
+            Err("mutation boom".to_string()),
+        ]);
+        let error = tracker
+            .write_state(&github_item("42"), &WorkState::Blocked(BlockedCause::Human))
+            .expect_err("fails");
+        assert_eq!(error, TrackerError::Failed("mutation boom".to_string()));
+        let calls = tracker.runner.calls();
+        assert_eq!(calls.len(), 4);
+        assert_eq!(call(&calls, 2).argv, comment_argv(REPO, "42"));
+        assert_eq!(payload(call(&calls, 2)), json!({"body": "Blocked: human."}));
+        assert_eq!(call(&calls, 3).argv, mutation_argv());
+    }
+
+    #[test]
+    fn write_state_of_a_non_block_makes_no_comment_call() {
+        let tracker = tracker(vec![
+            Ok(project_response(all_options())),
+            Ok(item_found_response()),
+            Ok(write_result_response()),
+        ]);
+        tracker
+            .write_state(&github_item("42"), &WorkState::InProgress)
+            .expect("writes");
+        let calls = tracker.runner.calls();
+        assert_eq!(calls.len(), 3);
+        assert!(!calls
+            .iter()
+            .any(|call| call.argv == comment_argv(REPO, "42")));
     }
 
     #[test]

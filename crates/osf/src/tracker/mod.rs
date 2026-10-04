@@ -196,6 +196,11 @@ pub trait Tracker {
 
     /// Writes the state of one work item.
     ///
+    /// For a blocked state the adapter records the cause before it moves the status.
+    /// A blocked item then always carries its cause.
+    /// If the cause cannot be recorded, the status is left untouched and the call returns the error.
+    /// If the status move fails after the cause was recorded, a cause comment can remain on an item that is not blocked.
+    ///
     /// # Errors
     /// Returns an error when the tracker refuses the write or it cannot run.
     fn write_state(&self, id: &WorkItemId, state: &WorkState) -> Result<(), TrackerError>;
