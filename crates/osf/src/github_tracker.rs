@@ -10,33 +10,65 @@ use crate::tracker::{
     TrackerCapabilities, TrackerError, WorkItem, WorkItemId, WorkState,
 };
 use serde_json::{json, Value};
-use std::io::Write as _;
+use std::io::{Read, Write as _};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 /// Runs one `gh` invocation: standard output on success, or the trimmed
 /// standard error text on a non-zero exit, or `cannot run gh: <error>`.
 pub trait GhRunner {
     /// Runs `argv`, feeding `stdin` when it is given.
     ///
+    /// A real runner may time the program out; a timeout is an error.
+    ///
     /// # Errors
     /// Returns the trimmed standard error text on a non-zero exit, or
-    /// `cannot run gh: <error>` when the program cannot be run.
+    /// `cannot run gh: <error>` when the program cannot be run or it times out.
     fn run(&self, argv: &[String], stdin: Option<&str>) -> Result<String, String>;
 }
 
 /// The [`GhRunner`] over the real `gh` program.
+///
+/// It stops waiting for `gh` after a timeout; the default is 60 seconds.
 pub struct RealGhRunner {
     program: PathBuf,
+    timeout: Duration,
 }
 
 impl RealGhRunner {
+    /// The default timeout for one `gh` invocation.
+    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
+
     /// A runner that spawns `program`.
     #[must_use]
     pub fn new(program: impl Into<PathBuf>) -> Self {
         Self {
             program: program.into(),
+            timeout: Self::DEFAULT_TIMEOUT,
         }
+    }
+
+    /// A runner that waits at most `timeout` for each invocation.
+    #[must_use]
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
+    /// The timeout for one invocation.
+    #[must_use]
+    pub fn timeout(&self) -> Duration {
+        self.timeout
+    }
+
+    /// Reads one child pipe to its end on its own thread.
+    fn drain<R: Read + Send + 'static>(mut reader: R) -> std::thread::JoinHandle<Vec<u8>> {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = reader.read_to_end(&mut bytes);
+            bytes
+        })
     }
 }
 
@@ -55,24 +87,52 @@ impl GhRunner for RealGhRunner {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| format!("cannot run gh: {error}"))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| "cannot run gh: no standard output".to_string())?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| "cannot run gh: no standard error".to_string())?;
+        let stdout = Self::drain(stdout);
+        let stderr = Self::drain(stderr);
         let write = {
             let mut handle = child
                 .stdin
                 .take()
                 .ok_or_else(|| "cannot run gh: no standard input".to_string())?;
-            match stdin {
+            let payload = stdin.map(str::to_string);
+            std::thread::spawn(move || match payload {
                 Some(text) => handle.write_all(text.as_bytes()),
                 None => Ok(()),
+            })
+        };
+        let deadline = Instant::now() + self.timeout;
+        let status = loop {
+            match child
+                .try_wait()
+                .map_err(|error| format!("cannot run gh: {error}"))?
+            {
+                Some(status) => break status,
+                None if Instant::now() >= deadline => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("cannot run gh: timed out after {:?}", self.timeout));
+                }
+                None => std::thread::sleep(Duration::from_millis(10)),
             }
         };
-        let output = child
-            .wait_with_output()
-            .map_err(|error| format!("cannot run gh: {error}"))?;
-        if !output.status.success() {
-            return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+        let stdout_bytes = stdout.join().unwrap_or_default();
+        let stderr_bytes = stderr.join().unwrap_or_default();
+        if !status.success() {
+            return Err(String::from_utf8_lossy(&stderr_bytes).trim().to_string());
         }
-        write.map_err(|error| format!("cannot run gh: {error}"))?;
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+        write
+            .join()
+            .unwrap_or(Ok(()))
+            .map_err(|error| format!("cannot run gh: {error}"))?;
+        Ok(String::from_utf8_lossy(&stdout_bytes).into_owned())
     }
 }
 

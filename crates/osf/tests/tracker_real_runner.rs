@@ -9,6 +9,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 /// Held for a whole test: a script that is still open for writing makes a parallel spawn fail with "Text file busy".
 static SPAWN_LOCK: Mutex<()> = Mutex::new(());
@@ -29,6 +30,14 @@ const FAIL_SCRIPT: &str = r"#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' 'boom from the fake' >&2
 exit 1
+";
+
+const HANG_SCRIPT: &str = r"#!/usr/bin/env bash
+exec sleep 5
+";
+
+const QUICK_SCRIPT: &str = r"#!/usr/bin/env bash
+printf '%s' 'the output'
 ";
 
 /// A throwaway folder holding the fake program, removed on drop.
@@ -113,4 +122,46 @@ fn real_runner_reports_a_program_that_does_not_exist() {
         .run(&["api".to_string()], None)
         .expect_err("the program is missing");
     assert!(error.starts_with("cannot run gh"));
+}
+
+#[test]
+fn real_runner_times_out_a_hanging_program() {
+    let _lock = serial();
+    let area = TempArea::new("timeout");
+    let script = area.script("gh", HANG_SCRIPT);
+    let runner = RealGhRunner::new(script).with_timeout(Duration::from_millis(300));
+
+    let started = Instant::now();
+    let error = runner
+        .run(&["api".to_string()], None)
+        .expect_err("the fake hangs");
+    assert!(error.starts_with("cannot run gh"));
+    assert!(error.contains("timed out"));
+    assert!(started.elapsed() < Duration::from_secs(3));
+}
+
+#[test]
+fn real_runner_defaults_to_a_sixty_second_timeout() {
+    let _lock = serial();
+    assert_eq!(RealGhRunner::default().timeout(), Duration::from_secs(60));
+    assert_eq!(RealGhRunner::new("gh").timeout(), Duration::from_secs(60));
+    assert_eq!(
+        RealGhRunner::new("gh")
+            .with_timeout(Duration::from_secs(5))
+            .timeout(),
+        Duration::from_secs(5)
+    );
+}
+
+#[test]
+fn real_runner_returns_output_when_the_timeout_is_not_exceeded() {
+    let _lock = serial();
+    let area = TempArea::new("quick");
+    let script = area.script("gh", QUICK_SCRIPT);
+    let runner = RealGhRunner::new(script).with_timeout(Duration::from_secs(10));
+
+    let output = runner
+        .run(&["api".to_string()], None)
+        .expect("the fake finishes");
+    assert_eq!(output, "the output");
 }
