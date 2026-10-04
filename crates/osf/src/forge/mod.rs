@@ -295,7 +295,7 @@ mod tests {
         let forge = TinyForge;
         let dynamic: &dyn Forge = &forge;
         let id = PullRequestId {
-            repo: "o/r".to_string(),
+            repo: "open-software-factory/demo".to_string(),
             pr: "1".to_string(),
         };
         assert!(matches!(dynamic.read_check_status(&id), ReadOutcome::Empty));

@@ -236,7 +236,7 @@ fn review_post(fake: &FakeGh, home: &Path, extra: &[&str]) -> Output {
     let mut args = vec![
         "review",
         "post",
-        "o/r",
+        "open-software-factory/demo",
         "7",
         findings.to_str().expect("a utf-8 path"),
         summary.to_str().expect("a utf-8 path"),
@@ -270,15 +270,15 @@ fn review_post_posts_one_native_review() {
         stdout_text(&output),
         concat!(
             "posted review 42: CHANGES_REQUESTED, https://example.invalid/r/42\n",
-            "osf review post: REQUEST_CHANGES with 1 inline comment(s) on o/r#7 at cafe1234\n",
+            "osf review post: REQUEST_CHANGES with 1 inline comment(s) on open-software-factory/demo#7 at cafe1234\n",
         )
     );
     assert_eq!(stderr_text(&output), "");
     assert_eq!(
         fake.calls(),
         concat!(
-            "pr view 7 --repo o/r --json headRefOid\n",
-            "api -X POST repos/o/r/pulls/7/reviews --input -\n",
+            "pr view 7 --repo open-software-factory/demo --json headRefOid\n",
+            "api -X POST repos/open-software-factory/demo/pulls/7/reviews --input -\n",
         )
     );
     let saved: serde_json::Value =
@@ -297,7 +297,7 @@ fn review_post_falls_back_to_an_advisory_comment_on_a_self_review_refusal() {
         stdout_text(&output),
         concat!(
             "posted comment 43: COMMENTED, https://example.invalid/r/43\n",
-            "osf review post: COMMENT (advisory REQUEST_CHANGES) with 1 inline comment(s) on o/r#7 at cafe1234\n",
+            "osf review post: COMMENT (advisory REQUEST_CHANGES) with 1 inline comment(s) on open-software-factory/demo#7 at cafe1234\n",
         )
     );
     assert_eq!(
@@ -307,9 +307,9 @@ fn review_post_falls_back_to_an_advisory_comment_on_a_self_review_refusal() {
     assert_eq!(
         fake.calls(),
         concat!(
-            "pr view 7 --repo o/r --json headRefOid\n",
-            "api -X POST repos/o/r/pulls/7/reviews --input -\n",
-            "api -X POST repos/o/r/pulls/7/reviews --input -\n",
+            "pr view 7 --repo open-software-factory/demo --json headRefOid\n",
+            "api -X POST repos/open-software-factory/demo/pulls/7/reviews --input -\n",
+            "api -X POST repos/open-software-factory/demo/pulls/7/reviews --input -\n",
         )
     );
     let advisory_body = format!(
@@ -336,8 +336,8 @@ fn review_post_reports_a_post_failure_with_exit_1() {
     assert_eq!(
         fake.calls(),
         concat!(
-            "pr view 7 --repo o/r --json headRefOid\n",
-            "api -X POST repos/o/r/pulls/7/reviews --input -\n",
+            "pr view 7 --repo open-software-factory/demo --json headRefOid\n",
+            "api -X POST repos/open-software-factory/demo/pulls/7/reviews --input -\n",
         )
     );
 }
@@ -351,11 +351,14 @@ fn review_post_dry_run_posts_nothing() {
     let pretty = serde_json::to_string_pretty(&expected_payload(REVIEW_BODY, "REQUEST_CHANGES"))
         .expect("the payload serializes");
     let expected_stdout = format!(
-        "osf review post: dry run — REQUEST_CHANGES with 1 inline comment(s) on o/r#7 at cafe1234\n{pretty}\n"
+        "osf review post: dry run — REQUEST_CHANGES with 1 inline comment(s) on open-software-factory/demo#7 at cafe1234\n{pretty}\n"
     );
     assert_eq!(stdout_text(&output), expected_stdout);
     assert_eq!(stderr_text(&output), "");
-    assert_eq!(fake.calls(), "pr view 7 --repo o/r --json headRefOid\n");
+    assert_eq!(
+        fake.calls(),
+        "pr view 7 --repo open-software-factory/demo --json headRefOid\n"
+    );
 }
 
 /// Writes the shared apply fixture: the block file and the fake's body.
@@ -367,7 +370,15 @@ fn apply_fixture(fake: &FakeGh) -> String {
 
 fn apply_args<'a>(block: &'a str, extra: &'a [&'a str]) -> Vec<&'a str> {
     let mut args = vec![
-        "pr", "status", "apply", "--repo", "o/r", "--pr", "7", "--block", block,
+        "pr",
+        "status",
+        "apply",
+        "--repo",
+        "open-software-factory/demo",
+        "--pr",
+        "7",
+        "--block",
+        block,
     ];
     args.extend_from_slice(extra);
     args
@@ -382,7 +393,7 @@ fn status_apply_reads_then_writes_the_block() {
     assert_ok(&output);
     assert_eq!(
         stdout_text(&output),
-        "osf pr status apply: applied to o/r#7\n"
+        "osf pr status apply: applied to open-software-factory/demo#7\n"
     );
     assert_eq!(stderr_text(&output), "");
     assert_eq!(fake.written_body(), format!("{STATUS_BLOCK}\n{APPLY_BODY}"));
@@ -390,11 +401,11 @@ fn status_apply_reads_then_writes_the_block() {
     let mut lines = calls.lines();
     assert_eq!(
         lines.next(),
-        Some("pr view 7 --repo o/r --json body -q .body")
+        Some("pr view 7 --repo open-software-factory/demo --json body -q .body")
     );
     let edit = lines.next().expect("an edit call followed the view");
     assert!(
-        edit.starts_with("pr edit 7 --repo o/r --body-file "),
+        edit.starts_with("pr edit 7 --repo open-software-factory/demo --body-file "),
         "{edit}"
     );
     assert_eq!(lines.next(), None);
@@ -411,9 +422,12 @@ fn status_apply_a_failed_view_stops_before_the_edit() {
     assert_eq!(stdout_text(&output), "");
     assert_eq!(
         stderr_text(&output),
-        "osf: gh pr view failed for o/r#7; nothing was changed\n"
+        "osf: gh pr view failed for open-software-factory/demo#7; nothing was changed\n"
     );
-    assert_eq!(fake.calls(), "pr view 7 --repo o/r --json body -q .body\n");
+    assert_eq!(
+        fake.calls(),
+        "pr view 7 --repo open-software-factory/demo --json body -q .body\n"
+    );
 }
 
 #[test]
@@ -428,7 +442,10 @@ fn status_apply_dry_run_prints_without_editing() {
         format!("{STATUS_BLOCK}\n{APPLY_BODY}")
     );
     assert_eq!(stderr_text(&output), "");
-    assert_eq!(fake.calls(), "pr view 7 --repo o/r --json body -q .body\n");
+    assert_eq!(
+        fake.calls(),
+        "pr view 7 --repo open-software-factory/demo --json body -q .body\n"
+    );
 }
 
 /// A throwaway repository with one commit and one uncommitted file, so
@@ -446,7 +463,15 @@ fn run_refresh(repo: &TempRepo, fake: &FakeGh, home: &Path) -> Output {
         &repo.dir,
         home,
         &[
-            "pr", "status", "refresh", "--repo", "o/r", "--pr", "7", "--base", "HEAD",
+            "pr",
+            "status",
+            "refresh",
+            "--repo",
+            "open-software-factory/demo",
+            "--pr",
+            "7",
+            "--base",
+            "HEAD",
         ],
     )
 }
@@ -496,7 +521,7 @@ fn status_refresh_fails_on_a_real_checks_error() {
     assert_eq!(stdout_text(&output), "");
     assert_eq!(
         stderr_text(&output),
-        "osf: gh pr checks failed for o/r#7: HTTP 502\n"
+        "osf: gh pr checks failed for open-software-factory/demo#7: HTTP 502\n"
     );
     assert!(!fake.calls().lines().any(|line| line.starts_with("pr edit")));
 }

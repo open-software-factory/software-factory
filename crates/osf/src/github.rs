@@ -481,7 +481,7 @@ mod tests {
 
     fn pr() -> PullRequestId {
         PullRequestId {
-            repo: "o/r".to_string(),
+            repo: "open-software-factory/demo".to_string(),
             pr: "7".to_string(),
         }
     }
@@ -518,34 +518,43 @@ mod tests {
         );
         assert_eq!(
             *github.client.calls.borrow(),
-            vec!["view_body o/r#7".to_string(), "edit_body o/r#7".to_string()]
+            vec![
+                "view_body open-software-factory/demo#7".to_string(),
+                "edit_body open-software-factory/demo#7".to_string()
+            ]
         );
     }
 
     #[test]
     fn write_status_block_never_edits_when_the_read_fails() {
         let mut client = fake("old body\n", "[]");
-        client.body_error = Some("gh pr view failed for o/r#7".to_string());
+        client.body_error = Some("gh pr view failed for open-software-factory/demo#7".to_string());
         let github = GitHub::new(client);
         let err = github
             .write_status_block(&pr(), &status_block())
             .expect_err("read fails");
-        assert_eq!(err.to_string(), "gh pr view failed for o/r#7");
+        assert_eq!(
+            err.to_string(),
+            "gh pr view failed for open-software-factory/demo#7"
+        );
         assert!(github.client.edited.borrow().is_none());
         assert_eq!(
             *github.client.calls.borrow(),
-            vec!["view_body o/r#7".to_string()]
+            vec!["view_body open-software-factory/demo#7".to_string()]
         );
     }
 
     #[test]
     fn read_check_status_reports_unknown_on_a_failed_read() {
         let mut client = fake("", "[]");
-        client.checks_error = Some("gh pr checks failed for o/r#7: boom".to_string());
+        client.checks_error =
+            Some("gh pr checks failed for open-software-factory/demo#7: boom".to_string());
         let github = GitHub::new(client);
         assert_eq!(
             github.read_check_status(&pr()),
-            ReadOutcome::Unknown("gh pr checks failed for o/r#7: boom".to_string())
+            ReadOutcome::Unknown(
+                "gh pr checks failed for open-software-factory/demo#7: boom".to_string()
+            )
         );
     }
 
@@ -704,12 +713,12 @@ mod tests {
     #[test]
     fn create_branch_argv_posts_to_the_refs_endpoint() {
         assert_eq!(
-            create_branch_argv("o/r"),
+            create_branch_argv("open-software-factory/demo"),
             vec![
                 "api",
                 "--method",
                 "POST",
-                "repos/o/r/git/refs",
+                "repos/open-software-factory/demo/git/refs",
                 "--input",
                 "-"
             ]
@@ -722,7 +731,7 @@ mod tests {
     #[test]
     fn create_branch_payload_carries_the_ref_and_sha() {
         let branch = NewBranch {
-            repo: "o/r".to_string(),
+            repo: "open-software-factory/demo".to_string(),
             name: "topic".to_string(),
             from_sha: "abc".to_string(),
         };
@@ -735,7 +744,7 @@ mod tests {
     #[test]
     fn parse_branch_response_reads_the_name_and_sha() {
         let branch = NewBranch {
-            repo: "o/r".to_string(),
+            repo: "open-software-factory/demo".to_string(),
             name: "topic".to_string(),
             from_sha: "abc".to_string(),
         };
@@ -752,7 +761,7 @@ mod tests {
     #[test]
     fn parse_branch_response_refuses_a_missing_ref() {
         let branch = NewBranch {
-            repo: "o/r".to_string(),
+            repo: "open-software-factory/demo".to_string(),
             name: "topic".to_string(),
             from_sha: "abc".to_string(),
         };
@@ -767,7 +776,7 @@ mod tests {
     #[test]
     fn parse_branch_response_refuses_a_missing_sha() {
         let branch = NewBranch {
-            repo: "o/r".to_string(),
+            repo: "open-software-factory/demo".to_string(),
             name: "topic".to_string(),
             from_sha: "abc".to_string(),
         };
@@ -782,18 +791,25 @@ mod tests {
     #[test]
     fn open_pull_request_argv_posts_to_the_pulls_endpoint() {
         assert_eq!(
-            open_pull_request_argv("o/r"),
-            vec!["api", "--method", "POST", "repos/o/r/pulls", "--input", "-"]
-                .into_iter()
-                .map(str::to_string)
-                .collect::<Vec<_>>()
+            open_pull_request_argv("open-software-factory/demo"),
+            vec![
+                "api",
+                "--method",
+                "POST",
+                "repos/open-software-factory/demo/pulls",
+                "--input",
+                "-"
+            ]
+            .into_iter()
+            .map(str::to_string)
+            .collect::<Vec<_>>()
         );
     }
 
     #[test]
     fn open_pull_request_payload_carries_the_fields() {
         let request = NewPullRequest {
-            repo: "o/r".to_string(),
+            repo: "open-software-factory/demo".to_string(),
             head: "topic".to_string(),
             base: "main".to_string(),
             title: "Title".to_string(),
@@ -813,9 +829,9 @@ mod tests {
     #[test]
     fn parse_opened_pull_request_reads_the_number() {
         assert_eq!(
-            parse_opened_pull_request("o/r", r#"{"number":42}"#),
+            parse_opened_pull_request("open-software-factory/demo", r#"{"number":42}"#),
             Ok(PullRequestId {
-                repo: "o/r".to_string(),
+                repo: "open-software-factory/demo".to_string(),
                 pr: "42".to_string(),
             })
         );
@@ -823,7 +839,8 @@ mod tests {
 
     #[test]
     fn parse_opened_pull_request_refuses_a_missing_number() {
-        let err = parse_opened_pull_request("o/r", r#"{"title":"x"}"#).expect_err("no number");
+        let err = parse_opened_pull_request("open-software-factory/demo", r#"{"title":"x"}"#)
+            .expect_err("no number");
         assert_eq!(err.to_string(), "the pull request response has no number");
     }
 
