@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1581 375" width="1581" height="375" role="img" aria-label="Install-time resolution" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Install-time resolution</title>
+<desc>The ordered path from the manifest edit to the installed package.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1581" height="375" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1581" height="375" rx="12" fill="url(#dots)"/>
+<g transform="translate(12,10)"><g><rect class="lanebox" x="4" y="6" width="265" height="343" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="325" y="6" width="265" height="343" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="646" y="6" width="265" height="343" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="967" y="6" width="265" height="343" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="1288" y="6" width="265" height="343" rx="12" fill="rgba(255,255,255,.55)"/></g>
+<g><line class="lifeline" x1="136.5" y1="82" x2="136.5" y2="337" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="130.5" y="313" width="12" height="12.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="457.5" y1="82" x2="457.5" y2="337" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="451.5" y="123" width="12" height="126.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="778.5" y1="82" x2="778.5" y2="337" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="772.5" y="161" width="12" height="38" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="1099.5" y1="82" x2="1099.5" y2="337" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="1093.5" y="237" width="12" height="50.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="1420.5" y1="82" x2="1420.5" y2="337" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="16" y="18" width="241" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="30" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M43,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M36.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M43,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="66" y="45" font-size="13" font-weight="600" fill="#1f2328">DSH package.json</text>
+<text class="nsub" x="66" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">integrations/dsh/package.json</text>
+<g class="bdg bdg-modified"><rect x="183.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="216.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="337" y="18" width="241" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="351" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M364,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M357.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M364,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="387" y="45" font-size="13" font-weight="600" fill="#1f2328">pnpm workspace</text>
+<text class="nsub" x="387" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">root manifest + workspace globs</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="658" y="18" width="241" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="672" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M678,45 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M678,53 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="683" cy="45" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="688" cy="53" r="2.2"/></g>
+<text class="ntitle" x="708" y="45" font-size="13" font-weight="600" fill="#1f2328">pnpm-lock.yaml</text>
+<text class="nsub" x="708" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">lockfile resolution + snapshots</text>
+<g class="bdg bdg-modified"><rect x="825.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="858.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="979" y="18" width="241" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="993" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="998" y="43" width="16" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M998,45 l8,6 8,-6" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1029" y="45" font-size="13" font-weight="600" fill="#1f2328">npm registry</text>
+<text class="nsub" x="1029" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">registry.npmjs.org</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1300" y="18" width="241" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1314" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1327,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1320.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1327,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1350" y="45" font-size="13" font-weight="600" fill="#1f2328">schemastery</text>
+<text class="nsub" x="1350" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">3.18.2 → 3.18.4</text>
+<g class="bdg bdg-neutral"><rect x="1370.12" y="10" width="91.26" height="16" rx="8" fill="#f1f3f5" stroke="#d1d9e0" stroke-width="1"/><text x="1415.75" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#59636e">dev dependency</text></g>
+<g class="bdg bdg-modified"><rect x="1467.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1500.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g></g>
+<g><path class="msg edge-modified" d="M136.5,123 L446.5,123" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0;0.1667;1" calcMode="linear" path="M136.5,123 L446.5,123"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0;0.0133;0.1533;0.1667;1"/></circle>
+<path class="msg edge-modified" d="M463.5,161 L767.5,161" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.1667;0.3333;1" calcMode="linear" path="M463.5,161 L767.5,161"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.1667;0.18;0.32;0.3333;1"/></circle>
+<path class="msg edge-modified msg-return" d="M772.5,199 L468.5,199" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.3333;0.5;1" calcMode="linear" path="M772.5,199 L468.5,199"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.3333;0.3467;0.4867;0.5;1"/></circle>
+<path class="msg edge-added msg-strong" d="M463.5,237 L1088.5,237" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25"/>
+<circle r="2.6" fill="#1f883d" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.5;0.6667;1" calcMode="linear" path="M463.5,237 L1088.5,237"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.5;0.5133;0.6533;0.6667;1"/></circle>
+<path class="msg edge-added msg-return msg-strong" d="M1105.5,275 L1415.5,275" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25" stroke-dasharray="4 3" opacity="0.8"/>
+<circle r="2.6" fill="#1f883d" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.6667;0.8333;1" calcMode="linear" path="M1105.5,275 L1415.5,275"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.6667;0.68;0.82;0.8333;1"/></circle>
+<path class="msg edge-modified" d="M1420.5,313 L147.5,313" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.8333;1;1" calcMode="linear" path="M1420.5,313 L147.5,313"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.8333;0.8467;0.9867;1;1"/></circle></g>
+<g><g><rect class="lpill" x="230.32" y="115.5" width="122.36" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="291.5" y="126.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">devDependency: 3.18.4</text></g>
+<g><rect class="lpill" x="527.4" y="153.5" width="176.2" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="615.5" y="164.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">resolve @deepseek-ai/schemastery</text></g>
+<g><rect class="lpill" x="562.82" y="191.5" width="115.36" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="620.5" y="202.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">3.18.4 + integrity hash</text></g>
+<g><rect class="lpill" x="708.6" y="229.5" width="134.8" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="776" y="240.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">GET schemastery@3.18.4</text></g>
+<g><rect class="lpill" x="1238.79" y="267.5" width="43.42" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="1260.5" y="278.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">tarball</text></g>
+<g><rect class="lpill" x="718.91" y="305.5" width="130.18" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="784" y="316.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">linked into node_modules</text></g></g></g>
+</svg>
