@@ -27,4 +27,5 @@ pub mod scan;
 pub mod section;
 #[cfg(test)]
 mod test_support;
+pub mod tracker;
 pub mod verify;
