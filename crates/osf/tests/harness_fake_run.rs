@@ -12,6 +12,14 @@ use osf::harness::{
 
 const CREATED_FILE: &str = include_str!("fixtures/harness/dsh-run-created-file.jsonl");
 const QUESTION: &str = include_str!("fixtures/harness/dsh-run-question.jsonl");
+const QUESTION_PROSE_STATEMENT: &str =
+    include_str!("fixtures/harness/dsh-run-question-prose-statement.jsonl");
+const QUESTION_PROSE_QUOTED: &str =
+    include_str!("fixtures/harness/dsh-run-question-prose-quoted.jsonl");
+const QUESTION_MARKER: &str = include_str!("fixtures/harness/dsh-run-question-marker.jsonl");
+const QUESTION_CONTRACT: &str = include_str!("fixtures/harness/dsh-run-question-contract.jsonl");
+const QUESTION_MARKER_TEXT: &str = "Which colour should `hello.txt` mention, red or blue?";
+const QUESTION_SIGNAL_REASON: &str = "prompt-contract: no question event exists; the prompt asks the agent to end with a QUESTION: line and the adapter reads that line";
 const VERSION: &str = include_str!("fixtures/harness/dsh-version.txt");
 const HELP: &str = include_str!("fixtures/harness/dsh-headless-help.txt");
 
@@ -160,23 +168,62 @@ fn a_created_file_run_reports_the_file_the_message_and_usage() {
 }
 
 #[test]
-fn a_question_run_is_asked_with_no_changed_file() {
-    let runner = FakeRunner::new(vec![clean(), ok(QUESTION), clean()]);
+fn a_final_message_without_a_question_line_is_finished_even_when_it_asks() {
+    for (label, fixture) in [
+        ("question mark", QUESTION),
+        ("prose statement", QUESTION_PROSE_STATEMENT),
+        ("prose quoted", QUESTION_PROSE_QUOTED),
+    ] {
+        let runner = FakeRunner::new(vec![clean(), ok(fixture), clean()]);
+        let result = harness().run(&runner, &task()).expect("the run succeeds");
+        assert_eq!(
+            result.outcome,
+            HarnessOutcome::Finished,
+            "{label} must not be reported as asked"
+        );
+        assert!(
+            result.changed_files.is_empty(),
+            "{label} must report no changed file"
+        );
+    }
+}
+
+#[test]
+fn a_question_line_is_asked_with_no_changed_file() {
+    let runner = FakeRunner::new(vec![clean(), ok(QUESTION_MARKER), clean()]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
     assert_eq!(
         result.outcome,
         HarnessOutcome::Asked {
-            question: final_message(QUESTION),
+            question: QUESTION_MARKER_TEXT.to_string(),
         }
     );
     assert!(result.changed_files.is_empty());
 }
 
 #[test]
-fn a_question_that_changed_a_file_is_finished() {
-    let runner = FakeRunner::new(vec![clean(), ok(QUESTION), one_new_file()]);
+fn a_real_run_that_followed_the_question_rule_is_asked() {
+    let runner = FakeRunner::new(vec![clean(), ok(QUESTION_CONTRACT), clean()]);
     let result = harness().run(&runner, &task()).expect("the run succeeds");
-    assert_eq!(result.outcome, HarnessOutcome::Finished);
+    assert_eq!(
+        result.outcome,
+        HarnessOutcome::Asked {
+            question: "Which colour do you prefer, red or blue?".to_string(),
+        }
+    );
+}
+
+#[test]
+fn a_question_line_that_changed_a_file_is_still_asked_and_reports_the_file() {
+    let runner = FakeRunner::new(vec![clean(), ok(QUESTION_MARKER), one_new_file()]);
+    let result = harness().run(&runner, &task()).expect("the run succeeds");
+    assert_eq!(
+        result.outcome,
+        HarnessOutcome::Asked {
+            question: QUESTION_MARKER_TEXT.to_string(),
+        }
+    );
+    assert_eq!(result.changed_files, strings(&["hello.txt"]));
 }
 
 #[test]
@@ -372,10 +419,10 @@ fn capability_report_for_a_pinned_installed_harness() {
         capabilities.stop_hook_checks_messages,
         Capability::Unsupported(_)
     ));
-    assert!(matches!(
+    assert_eq!(
         capabilities.question_signal,
-        Capability::Unsupported(_)
-    ));
+        Capability::Unsupported(QUESTION_SIGNAL_REASON.to_string())
+    );
 
     let commands = runner.commands();
     assert_eq!(commands.len(), 2);
@@ -415,10 +462,10 @@ fn capability_report_when_the_binary_cannot_start() {
         capabilities.stop_hook_checks_messages,
         Capability::Unsupported(_)
     ));
-    assert!(matches!(
+    assert_eq!(
         capabilities.question_signal,
-        Capability::Unsupported(_)
-    ));
+        Capability::Unsupported(QUESTION_SIGNAL_REASON.to_string())
+    );
 }
 
 #[test]

@@ -11,15 +11,15 @@
 //!   the model family and leaves the model and the cost unset.
 //! - A timeout ends the run; there is no mid-run stop and the headless
 //!   profile runs no stop hook.
-//! - There is no question event: the adapter infers a question from a final
-//!   message that ends in `?` and a run that changed no file.
+//! - There is no question event: the prompt asks the agent to end its final
+//!   message with a `QUESTION:` line, and the adapter reads that line.
 //! - Changed files come from `git status --porcelain=v1 -z`, so ignored files
 //!   and commits the agent made are not seen. The prompt therefore forbids
 //!   commits.
 
 use crate::harness::{
-    build_prompt, Actor, Capability, CommandOutcome, CommandRunner, CommandSpec, Harness,
-    HarnessCapabilities, HarnessError, HarnessOutcome, HarnessResult, HarnessTask, Usage,
+    build_prompt, question_line, Actor, Capability, CommandOutcome, CommandRunner, CommandSpec,
+    Harness, HarnessCapabilities, HarnessError, HarnessOutcome, HarnessResult, HarnessTask, Usage,
 };
 
 /// The harness name recorded in every result.
@@ -258,12 +258,6 @@ pub fn headless_help_is_adequate(help: &str) -> bool {
     collapsed.contains("--json") && collapsed.contains("`-` reads stdin")
 }
 
-/// Whether a run ended with a question and changed no file.
-#[must_use]
-pub fn asks_a_question(final_message: &str, changed_files: &[String]) -> bool {
-    final_message.trim().ends_with('?') && changed_files.is_empty()
-}
-
 impl Harness for DshHarness {
     fn run(
         &self,
@@ -318,12 +312,9 @@ impl Harness for DshHarness {
         };
 
         let changed_files = status_of(runner, &self.config, &task.repository_path)?;
-        let outcome = if asks_a_question(&final_message, &changed_files) {
-            HarnessOutcome::Asked {
-                question: final_message.clone(),
-            }
-        } else {
-            HarnessOutcome::Finished
+        let outcome = match question_line(&final_message) {
+            Some(question) => HarnessOutcome::Asked { question },
+            None => HarnessOutcome::Finished,
         };
 
         Ok(HarnessResult {
@@ -357,7 +348,7 @@ impl Harness for DshHarness {
                 "the headless profile runs no stop hook".to_string(),
             ),
             question_signal: Capability::Unsupported(
-                "no question event; a run is reported as a question when the final message ends with a question mark and no file changed"
+                "prompt-contract: no question event exists; the prompt asks the agent to end with a QUESTION: line and the adapter reads that line"
                     .to_string(),
             ),
         }
@@ -704,32 +695,6 @@ mod tests {
     fn headless_help_is_not_adequate_without_the_stdin_sentence() {
         let help = HELP_FIXTURE.replace("reads stdin", "reads nothing");
         assert!(!headless_help_is_adequate(&help));
-    }
-
-    #[test]
-    fn asks_a_question_only_with_a_trailing_mark_and_no_changed_file() {
-        assert!(asks_a_question("Which one?", &[]));
-        assert!(!asks_a_question("Which one?", &strings(&["a.rs"])));
-        assert!(!asks_a_question("Done.", &[]));
-        assert!(!asks_a_question("Done.", &strings(&["a.rs"])));
-    }
-
-    #[test]
-    fn the_question_fixture_final_message_is_a_question() {
-        let parsed = parse_events(QUESTION_FIXTURE).expect("the fixture parses");
-        let message = parsed
-            .final_message
-            .expect("the fixture has a final message");
-        assert!(asks_a_question(&message, &[]));
-    }
-
-    #[test]
-    fn the_created_file_fixture_final_message_is_not_a_question() {
-        let parsed = parse_events(CREATED_FILE_FIXTURE).expect("the fixture parses");
-        let message = parsed
-            .final_message
-            .expect("the fixture has a final message");
-        assert!(!asks_a_question(&message, &[]));
     }
 
     #[test]

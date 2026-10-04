@@ -150,6 +150,10 @@ impl std::error::Error for HarnessError {}
 pub trait Harness {
     /// Runs one task.
     ///
+    /// A run that ends with no `QUESTION:` line and with an empty
+    /// `changed_files` is [`HarnessOutcome::Finished`] with an empty change
+    /// set; the engine must treat that as failed.
+    ///
     /// # Errors
     ///
     /// Returns [`HarnessError::Rejected`] when the adapter refuses before it
@@ -167,18 +171,38 @@ pub trait Harness {
     fn capabilities(&self, runner: &dyn CommandRunner) -> HarnessCapabilities;
 }
 
-/// The three rules every task prompt carries, in order.
-const RULES: [&str; 3] = [
+/// The rules every task prompt carries, in order.
+const RULES: [&str; 4] = [
     "Edit files only inside the repository.",
     "Never run git commit, git push, git stash or git checkout.",
     "Add no dependency unless the task says so.",
+    "If you need an answer before you can finish, end your final message with one line: QUESTION: <the question>",
 ];
 
-/// Builds the harness prompt: `task_text`, then a blank line, then the three
-/// rules in order.
+/// The marker a final message ends with to carry a question.
+pub const QUESTION_PREFIX: &str = "QUESTION:";
+
+/// Builds the harness prompt: `task_text`, then a blank line, then the rules
+/// in order.
 #[must_use]
 pub fn build_prompt(task_text: &str) -> String {
     format!("{task_text}\n\n{}", RULES.join("\n"))
+}
+
+/// The question text when the last non-blank line of `final_message` carries
+/// [`QUESTION_PREFIX`].
+///
+/// The prefix is case sensitive and the text after it is trimmed. A line
+/// before the last non-blank line is ignored, and empty text after the prefix
+/// gives `None`.
+#[must_use]
+pub fn question_line(final_message: &str) -> Option<String> {
+    let last = final_message
+        .lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())?;
+    let question = last.trim().strip_prefix(QUESTION_PREFIX)?.trim();
+    (!question.is_empty()).then(|| question.to_string())
 }
 
 #[cfg(test)]
@@ -219,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn build_prompt_carries_the_task_and_the_three_rules_in_order() {
+    fn build_prompt_carries_the_task_and_the_rules_in_order() {
         let prompt = build_prompt("do the thing");
         assert_eq!(prompt, format!("do the thing\n\n{}", RULES.join("\n")));
         for rule in RULES {
@@ -230,6 +254,48 @@ mod tests {
     #[test]
     fn build_prompt_is_deterministic() {
         assert_eq!(build_prompt("same"), build_prompt("same"));
+    }
+
+    #[test]
+    fn question_line_reads_only_the_last_non_blank_line() {
+        assert_eq!(
+            question_line("QUESTION: which one?"),
+            Some("which one?".to_string())
+        );
+        assert_eq!(
+            question_line("some text\n\nQUESTION: which one?"),
+            Some("which one?".to_string())
+        );
+        assert_eq!(
+            question_line("some text\nQUESTION: which one?\n\n"),
+            Some("which one?".to_string())
+        );
+    }
+
+    #[test]
+    fn question_line_ignores_a_marker_that_is_not_last() {
+        assert_eq!(question_line("QUESTION: first\nDone."), None);
+    }
+
+    #[test]
+    fn question_line_requires_text_after_the_prefix() {
+        assert_eq!(question_line("QUESTION:"), None);
+        assert_eq!(question_line("QUESTION:   "), None);
+    }
+
+    #[test]
+    fn question_line_is_case_sensitive_and_trims_the_text() {
+        assert_eq!(question_line("question: which one?"), None);
+        assert_eq!(
+            question_line("  QUESTION:   which one?  "),
+            Some("which one?".to_string())
+        );
+    }
+
+    #[test]
+    fn question_line_on_a_message_without_a_marker_is_none() {
+        assert_eq!(question_line(""), None);
+        assert_eq!(question_line("Done."), None);
     }
 
     #[test]
