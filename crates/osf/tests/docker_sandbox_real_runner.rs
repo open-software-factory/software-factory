@@ -187,6 +187,91 @@ fn real_runner_reports_a_program_that_does_not_exist() {
     assert!(error.0.starts_with("cannot run docker"), "{error}");
 }
 
+#[test]
+fn real_runner_writes_stdin_to_the_program() {
+    let _lock = serial();
+    let area = TempArea::new("stdin");
+    let script = area.script(
+        "docker",
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+dir="$(cd "$(dirname "$0")" && pwd)"
+cat > "$dir/stdin.out"
+"#,
+    );
+    let runner = RealDockerRunner::new(script.as_path());
+    let input = vec![b'x'; 300_000];
+    let output = runner
+        .run_with_stdin(&["exec".to_string()], None, Some(input.as_slice()))
+        .expect("the fake runs");
+    assert_eq!(output.status, Some(0));
+    let written = fs::read(area.dir.join("stdin.out")).expect("the input file exists");
+    assert_eq!(written, input);
+}
+
+#[test]
+fn real_runner_does_not_hang_when_the_program_ignores_a_large_stdin() {
+    let _lock = serial();
+    let area = TempArea::new("stdin-ignored");
+    let script = area.script("docker", "#!/usr/bin/env bash\nexit 0\n");
+    let runner = RealDockerRunner::new(script.as_path());
+    let input = vec![b'x'; 5 * 1024 * 1024];
+    let started = std::time::Instant::now();
+    let output = runner
+        .run_with_stdin(&["exec".to_string()], None, Some(input.as_slice()))
+        .expect("the fake runs");
+    assert_eq!(output.status, Some(0));
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "the run took {:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn run_without_stdin_closes_standard_input_at_once() {
+    let _lock = serial();
+    let area = TempArea::new("no-stdin");
+    let script = area.script("docker", "#!/usr/bin/env bash\ncat\n");
+    let runner = RealDockerRunner::new(script.as_path());
+    let output = runner
+        .run(&["exec".to_string()], None)
+        .expect("the fake runs");
+    assert_eq!(output.status, Some(0));
+    assert_eq!(output.stdout, "");
+}
+
+#[test]
+fn real_docker_sandbox_run_redacts_env_values_from_a_failed_exec() {
+    let _lock = serial();
+    let area = TempArea::new("redact");
+    let script = area.script(
+        "docker",
+        r#"#!/usr/bin/env bash
+printf '%s\n' "$@" >&2
+exit 125
+"#,
+    );
+    let runner = RealDockerRunner::new(script.as_path());
+    let sandbox = DockerSandbox::new(runner);
+    let mut command = CommandSpec {
+        program: "run".to_string(),
+        args: vec!["--fast".to_string()],
+        workdir: None,
+        timeout_secs: Some(30),
+        env: std::collections::BTreeMap::new(),
+        stdin: None,
+    };
+    command
+        .env
+        .insert("API_KEY".to_string(), "s3cr3t-value".to_string());
+    let error = sandbox
+        .run(&SandboxId("abc".to_string()), &command)
+        .expect_err("125 fails");
+    assert!(!error.to_string().contains("s3cr3t-value"), "{error}");
+    assert!(error.to_string().contains("<redacted>"), "{error}");
+}
+
 /// Destroys the smoke sandbox on drop, including on a failed assertion.
 struct SandboxGuard<'a> {
     sandbox: &'a DockerSandbox<RealDockerRunner>,
@@ -242,6 +327,8 @@ fn real_docker_runs_a_command_and_times_out() {
         args: vec!["-c".to_string(), script.to_string()],
         workdir: None,
         timeout_secs,
+        env: std::collections::BTreeMap::new(),
+        stdin: None,
     };
 
     let write = guard

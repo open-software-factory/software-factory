@@ -178,6 +178,8 @@ mod tests {
             args: vec!["--fast".to_string()],
             workdir: None,
             timeout_secs: Some(30),
+            env: std::collections::BTreeMap::new(),
+            stdin: None,
         }
     }
 
@@ -333,6 +335,48 @@ mod tests {
             Capability::Unsupported(
                 "a run stops only by its timeout; no caller-initiated stop".to_string()
             )
+        );
+    }
+
+    #[test]
+    fn recorded_run_calls_see_env_and_stdin() {
+        let sandbox = FakeSandbox::new();
+        let id = SandboxId("fake-build".to_string());
+        let mut with_env = command();
+        with_env
+            .env
+            .insert("API_KEY".to_string(), "one".to_string());
+        let mut other_env = command();
+        other_env
+            .env
+            .insert("API_KEY".to_string(), "two".to_string());
+        let mut with_stdin = command();
+        with_stdin.stdin = Some(b"input".to_vec());
+        sandbox.run(&id, &with_env).expect("runs");
+        sandbox.run(&id, &other_env).expect("runs");
+        sandbox.run(&id, &with_stdin).expect("runs");
+        let calls = sandbox.calls();
+        let first = calls.first().cloned();
+        assert_ne!(
+            first,
+            Some(Call::Run {
+                id: id.clone(),
+                command: other_env,
+            })
+        );
+        assert_ne!(
+            first,
+            Some(Call::Run {
+                id: id.clone(),
+                command: with_stdin,
+            })
+        );
+        assert_eq!(
+            first,
+            Some(Call::Run {
+                id: id.clone(),
+                command: with_env,
+            })
         );
     }
 

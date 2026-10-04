@@ -21,6 +21,16 @@ const KEEPALIVE_SECS: &str = "2147483647";
 /// How long `create` waits for the image and the container.
 const CREATE_TIMEOUT: Duration = Duration::from_secs(120);
 
+/// `docker exec` inherits the container's environment; this fixes PATH, HOME and LANG, but Docker cannot unset other variables the image sets with ENV, so the image must hold no secret; the engine passes anything else per command.
+const SANDBOX_ENV: [(&str, &str); 3] = [
+    (
+        "PATH",
+        "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    ),
+    ("HOME", "/tmp"),
+    ("LANG", "C.UTF-8"),
+];
+
 /// The default per-stream output cap in bytes: 1 MiB.
 pub const DEFAULT_OUTPUT_CAP_BYTES: u64 = 1_048_576;
 
@@ -53,11 +63,24 @@ impl std::error::Error for RunnerError {}
 
 /// Runs one `docker` invocation.
 pub trait DockerRunner: Send + Sync {
-    /// Runs `argv`, waiting at most `timeout`.
+    /// Runs `argv`, writing `stdin` to the program's standard input then closing the pipe; with none, standard input is null, and waits at most `timeout`.
     ///
     /// # Errors
     /// Returns a [`RunnerError`] when the program cannot start or a reader panics.
-    fn run(&self, argv: &[String], timeout: Option<Duration>) -> Result<ToolOutput, RunnerError>;
+    fn run_with_stdin(
+        &self,
+        argv: &[String],
+        timeout: Option<Duration>,
+        stdin: Option<&[u8]>,
+    ) -> Result<ToolOutput, RunnerError>;
+
+    /// Runs `argv` with no standard input, waiting at most `timeout`.
+    ///
+    /// # Errors
+    /// Returns a [`RunnerError`] when the program cannot start or a reader panics.
+    fn run(&self, argv: &[String], timeout: Option<Duration>) -> Result<ToolOutput, RunnerError> {
+        self.run_with_stdin(argv, timeout, None)
+    }
 }
 
 /// The [`DockerRunner`] over the real `docker` program.
@@ -91,11 +114,22 @@ impl Default for RealDockerRunner {
 }
 
 impl DockerRunner for RealDockerRunner {
-    fn run(&self, argv: &[String], timeout: Option<Duration>) -> Result<ToolOutput, RunnerError> {
+    // One branch per wait outcome, plus the standard-input writer.
+    #[allow(clippy::too_many_lines)]
+    fn run_with_stdin(
+        &self,
+        argv: &[String],
+        timeout: Option<Duration>,
+        stdin: Option<&[u8]>,
+    ) -> Result<ToolOutput, RunnerError> {
         let mut command = Command::new(&self.program);
         command
             .args(argv)
-            .stdin(Stdio::null())
+            .stdin(if stdin.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         // A timeout must stop the whole tree, or a grandchild can keep a pipe
@@ -105,6 +139,16 @@ impl DockerRunner for RealDockerRunner {
         let mut child = command
             .spawn()
             .map_err(|error| RunnerError(format!("cannot run docker: {error}")))?;
+
+        // A large payload is written on its own thread so it never blocks the readers or the wait; a write error is ignored.
+        let stdin_writer = stdin.and_then(|bytes| {
+            let bytes = bytes.to_vec();
+            child.stdin.take().map(|mut pipe| {
+                std::thread::spawn(move || {
+                    let _ = std::io::Write::write_all(&mut pipe, &bytes);
+                })
+            })
+        });
 
         // Both pipes are read on their own threads before the wait: a run
         // that fills one pipe buffer would otherwise block before it exits.
@@ -125,6 +169,7 @@ impl DockerRunner for RealDockerRunner {
 
         match waited {
             Ok(Some(status)) => {
+                join_writer(stdin_writer);
                 let (stdout, stdout_truncated) = join_reader(stdout_reader)?;
                 let (stderr, stderr_truncated) = join_reader(stderr_reader)?;
                 Ok(ToolOutput {
@@ -141,6 +186,7 @@ impl DockerRunner for RealDockerRunner {
                 let killed = kill_tree(&child);
                 let _ = child.kill();
                 let _ = child.wait();
+                join_writer(stdin_writer);
                 if let Err(error) = killed {
                     return Err(RunnerError(format!(
                         "docker timed out and could not be killed: {error}"
@@ -162,6 +208,7 @@ impl DockerRunner for RealDockerRunner {
                 let killed = kill_tree(&child);
                 let _ = child.kill();
                 let _ = child.wait();
+                join_writer(stdin_writer);
                 let mut text = format!("cannot run docker: {error}");
                 match killed {
                     Ok(()) => {
@@ -173,6 +220,13 @@ impl DockerRunner for RealDockerRunner {
                 Err(RunnerError(text))
             }
         }
+    }
+}
+
+/// Joins the standard-input writer thread, if any.
+fn join_writer(handle: Option<std::thread::JoinHandle<()>>) {
+    if let Some(handle) = handle {
+        let _ = handle.join();
     }
 }
 
@@ -242,6 +296,11 @@ pub fn create_argv(spec: &SandboxSpec) -> Vec<String> {
         "create".to_string(),
         format!("--name={}", spec.name),
         format!("--label=osf.sandbox={}", spec.name),
+    ];
+    for (key, value) in SANDBOX_ENV {
+        argv.push(format!("--env={key}={value}"));
+    }
+    argv.extend([
         "--cap-drop".to_string(),
         "ALL".to_string(),
         "--security-opt".to_string(),
@@ -250,7 +309,7 @@ pub fn create_argv(spec: &SandboxSpec) -> Vec<String> {
         format!("--workdir={}", spec.workdir),
         "--network".to_string(),
         network_name(&spec.network).to_string(),
-    ];
+    ]);
     for mount in &spec.mounts {
         argv.push(format!("--mount={}", mount_spec(mount)));
     }
@@ -289,11 +348,19 @@ pub fn start_argv(id: &str) -> Vec<String> {
 }
 
 /// The `docker exec` argv for `command` in `id`, without the program name.
+///
+/// A local user can see each `--env` value in the process list while the command runs.
 #[must_use]
 pub fn exec_argv(id: &str, command: &CommandSpec) -> Vec<String> {
     let mut argv = vec!["exec".to_string()];
     if let Some(workdir) = &command.workdir {
         argv.push(format!("--workdir={workdir}"));
+    }
+    for (key, value) in &command.env {
+        argv.push(format!("--env={key}={value}"));
+    }
+    if command.stdin.is_some() {
+        argv.push("-i".to_string());
     }
     argv.push("--".to_string());
     argv.push(id.to_string());
@@ -694,7 +761,7 @@ fn validate_mount(mount: &Mount) -> Result<(), SandboxError> {
 /// Checks `command` before any runner call.
 ///
 /// # Errors
-/// Returns [`SandboxError::Rejected`] for an empty program or a relative workdir.
+/// Returns [`SandboxError::Rejected`] for an empty program, a relative workdir, a malformed environment key, or an environment value with a NUL byte.
 pub fn validate_command(command: &CommandSpec) -> Result<(), SandboxError> {
     if command.program.is_empty() {
         return Err(SandboxError::Rejected(
@@ -708,7 +775,42 @@ pub fn validate_command(command: &CommandSpec) -> Result<(), SandboxError> {
             )));
         }
     }
+    for (key, value) in &command.env {
+        if !is_env_key(key) {
+            return Err(SandboxError::Rejected(format!(
+                "an environment variable name is not valid: {key}"
+            )));
+        }
+        if value.contains('\0') {
+            return Err(SandboxError::Rejected(format!(
+                "the environment variable {key} holds a NUL byte"
+            )));
+        }
+    }
     Ok(())
+}
+
+/// Whether `key` matches `[A-Za-z_][A-Za-z0-9_]*`.
+fn is_env_key(key: &str) -> bool {
+    let mut bytes = key.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    if !first.is_ascii_alphabetic() && first != b'_' {
+        return false;
+    }
+    bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+}
+
+/// Replaces every environment value of four or more characters with `<redacted>`; shorter values are not treated as secrets.
+fn redact(text: &str, command: &CommandSpec) -> String {
+    let mut redacted = text.to_string();
+    for value in command.env.values() {
+        if value.chars().count() >= 4 {
+            redacted = redacted.replace(value.as_str(), "<redacted>");
+        }
+    }
+    redacted
 }
 
 /// Reads the server version probe.
@@ -867,16 +969,20 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
         let timeout = command.timeout_secs.map(Duration::from_secs);
         let output = self
             .runner
-            .run(&exec_argv(&id.0, command), timeout)
-            .map_err(|error| SandboxError::Failed(error.0))?;
+            .run_with_stdin(
+                &exec_argv(&id.0, command),
+                timeout,
+                command.stdin.as_deref(),
+            )
+            .map_err(|error| SandboxError::Failed(redact(&error.0, command)))?;
 
         if output.timed_out {
             let kill = self
                 .runner
                 .run(&kill_argv(&id.0), None)
-                .map_err(|error| SandboxError::Failed(error.0))?;
+                .map_err(|error| SandboxError::Failed(redact(&error.0, command)))?;
             if kill.status != Some(0) || kill.timed_out {
-                return Err(SandboxError::Failed(tool_text(&kill)));
+                return Err(SandboxError::Failed(redact(&tool_text(&kill), command)));
             }
             return Ok(RunResult {
                 outcome: RunOutcome::TimedOut {
@@ -891,7 +997,7 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
         }
 
         if is_docker_failure(&output) {
-            return Err(SandboxError::Failed(tool_text(&output)));
+            return Err(SandboxError::Failed(redact(&tool_text(&output), command)));
         }
         if let Some(code) = output.status {
             return Ok(RunResult {
@@ -908,7 +1014,7 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
         if !stderr.is_empty() {
             message = format!("{message}: {stderr}");
         }
-        Err(SandboxError::Failed(message))
+        Err(SandboxError::Failed(redact(&message, command)))
     }
 
     /// Docker 29 `rm --force` of a missing container already exits 0, so that
@@ -939,7 +1045,7 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::VecDeque;
+    use std::collections::{BTreeMap, VecDeque};
     use std::sync::{Mutex, MutexGuard, PoisonError};
 
     /// Locks `mutex`, recovering the value even if a previous holder panicked.
@@ -952,6 +1058,7 @@ mod tests {
     struct Call {
         argv: Vec<String>,
         timeout: Option<Duration>,
+        stdin: Option<Vec<u8>>,
     }
 
     /// A [`DockerRunner`] that records every call and answers in order.
@@ -974,14 +1081,16 @@ mod tests {
     }
 
     impl DockerRunner for ScriptedRunner {
-        fn run(
+        fn run_with_stdin(
             &self,
             argv: &[String],
             timeout: Option<Duration>,
+            stdin: Option<&[u8]>,
         ) -> Result<ToolOutput, RunnerError> {
             lock(&self.calls).push(Call {
                 argv: argv.to_vec(),
                 timeout,
+                stdin: stdin.map(<[u8]>::to_vec),
             });
             lock(&self.results)
                 .pop_front()
@@ -1025,7 +1134,16 @@ mod tests {
             args: vec!["--fast".to_string()],
             workdir: None,
             timeout_secs: Some(30),
+            env: BTreeMap::new(),
+            stdin: None,
         }
+    }
+
+    /// The default command with one environment value set.
+    fn command_with_env(value: &str) -> CommandSpec {
+        let mut command = command();
+        command.env.insert("API_KEY".to_string(), value.to_string());
+        command
     }
 
     fn ok(stdout: &str) -> ToolOutput {
@@ -1097,6 +1215,9 @@ mod tests {
                 "create",
                 "--name=build",
                 "--label=osf.sandbox=build",
+                "--env=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "--env=HOME=/tmp",
+                "--env=LANG=C.UTF-8",
                 "--cap-drop",
                 "ALL",
                 "--security-opt",
@@ -1112,6 +1233,24 @@ mod tests {
                 "sleep",
                 "2147483647",
             ])
+        );
+    }
+
+    #[test]
+    fn create_argv_pins_exactly_the_three_sandbox_env_pairs() {
+        let argv = create_argv(&spec());
+        let envs: Vec<&str> = argv
+            .iter()
+            .map(String::as_str)
+            .filter(|part| part.starts_with("--env="))
+            .collect();
+        assert_eq!(
+            envs,
+            [
+                "--env=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "--env=HOME=/tmp",
+                "--env=LANG=C.UTF-8",
+            ]
         );
     }
 
@@ -1166,6 +1305,58 @@ mod tests {
     }
 
     #[test]
+    fn exec_argv_pins_env_entries_in_map_order() {
+        let mut command = command();
+        command.env.insert("B".to_string(), "2".to_string());
+        command.env.insert("A".to_string(), "1".to_string());
+        assert_eq!(
+            exec_argv("abc", &command),
+            strings(&[
+                "exec",
+                "--env=A=1",
+                "--env=B=2",
+                "--",
+                "abc",
+                "run",
+                "--fast",
+            ])
+        );
+    }
+
+    #[test]
+    fn exec_argv_pins_the_interactive_flag_for_stdin() {
+        let mut command = command();
+        command.stdin = Some(b"input".to_vec());
+        assert_eq!(
+            exec_argv("abc", &command),
+            strings(&["exec", "-i", "--", "abc", "run", "--fast"])
+        );
+    }
+
+    #[test]
+    fn exec_argv_pins_env_stdin_and_workdir_together() {
+        let mut command = command();
+        command.workdir = Some("/work".to_string());
+        command.env.insert("B".to_string(), "2".to_string());
+        command.env.insert("A".to_string(), "1".to_string());
+        command.stdin = Some(b"input".to_vec());
+        assert_eq!(
+            exec_argv("abc", &command),
+            strings(&[
+                "exec",
+                "--workdir=/work",
+                "--env=A=1",
+                "--env=B=2",
+                "-i",
+                "--",
+                "abc",
+                "run",
+                "--fast",
+            ])
+        );
+    }
+
+    #[test]
     fn exec_argv_keeps_dashed_words_after_the_double_dash() {
         let command = CommandSpec {
             program: "--user=0:0".to_string(),
@@ -1176,6 +1367,8 @@ mod tests {
             ],
             workdir: None,
             timeout_secs: None,
+            env: BTreeMap::new(),
+            stdin: None,
         };
         let argv = exec_argv("abc", &command);
         assert_eq!(
@@ -1505,6 +1698,48 @@ mod tests {
     }
 
     #[test]
+    fn validate_command_rejects_bad_env_keys_without_a_call() {
+        for key in ["", "1A", "A B", "A-B", "A=B", "ünï"] {
+            let mut command = command();
+            command.env.insert(key.to_string(), "value".to_string());
+            run_rejected(&command);
+        }
+    }
+
+    #[test]
+    fn validate_command_accepts_good_env_keys() {
+        for key in ["A", "_x", "API_KEY1"] {
+            let mut command = command();
+            command.env.insert(key.to_string(), "value".to_string());
+            validate_command(&command).expect("the key is accepted");
+        }
+    }
+
+    #[test]
+    fn validate_command_rejects_a_nul_env_value_without_a_call() {
+        let mut command = command();
+        command
+            .env
+            .insert("API_KEY".to_string(), "a\0b".to_string());
+        run_rejected(&command);
+    }
+
+    #[test]
+    fn validate_command_names_a_nul_value_by_its_key_only() {
+        let mut command = command();
+        command
+            .env
+            .insert("API_KEY".to_string(), "sec\0ret".to_string());
+        let sandbox = sandbox(Vec::new());
+        let id = SandboxId("abc".to_string());
+        let error = sandbox
+            .run(&id, &command)
+            .expect_err("the value is rejected");
+        assert!(error.to_string().contains("API_KEY"), "{error}");
+        assert!(!error.to_string().contains("sec"), "{error}");
+    }
+
+    #[test]
     fn create_runs_create_then_start_and_returns_the_trimmed_id() {
         let sandbox = sandbox(vec![Ok(ok("abc123\n")), Ok(ok(""))]);
         let id = sandbox.create(&spec()).expect("creates");
@@ -1515,10 +1750,12 @@ mod tests {
                 Call {
                     argv: create_argv(&spec()),
                     timeout: Some(Duration::from_secs(120)),
+                    stdin: None,
                 },
                 Call {
                     argv: start_argv("abc123"),
                     timeout: None,
+                    stdin: None,
                 },
             ]
         );
@@ -1568,14 +1805,17 @@ mod tests {
                 Call {
                     argv: create_argv(&spec()),
                     timeout: Some(Duration::from_secs(120)),
+                    stdin: None,
                 },
                 Call {
                     argv: start_argv("abc"),
                     timeout: None,
+                    stdin: None,
                 },
                 Call {
                     argv: remove_argv("abc"),
                     timeout: None,
+                    stdin: None,
                 },
             ]
         );
@@ -1624,6 +1864,7 @@ mod tests {
             vec![Call {
                 argv: exec_argv("abc", &command()),
                 timeout: Some(Duration::from_secs(30)),
+                stdin: None,
             }]
         );
     }
@@ -1648,6 +1889,7 @@ mod tests {
             vec![Call {
                 argv: exec_argv("abc", &command),
                 timeout: None,
+                stdin: None,
             }]
         );
     }
@@ -1709,10 +1951,12 @@ mod tests {
                 Call {
                     argv: exec_argv("abc", &command()),
                     timeout: Some(Duration::from_secs(30)),
+                    stdin: None,
                 },
                 Call {
                     argv: kill_argv("abc"),
                     timeout: None,
+                    stdin: None,
                 },
             ]
         );
@@ -1773,6 +2017,122 @@ mod tests {
     }
 
     #[test]
+    fn run_gives_the_runner_the_command_stdin_bytes() {
+        let mut command = command();
+        command.stdin = Some(b"the input".to_vec());
+        let sandbox = sandbox(vec![Ok(ok(""))]);
+        let id = SandboxId("abc".to_string());
+        sandbox.run(&id, &command).expect("runs");
+        assert_eq!(
+            sandbox.runner.calls(),
+            vec![Call {
+                argv: exec_argv("abc", &command),
+                timeout: Some(Duration::from_secs(30)),
+                stdin: Some(b"the input".to_vec()),
+            }]
+        );
+    }
+
+    #[test]
+    fn run_gives_the_runner_no_stdin_when_the_command_has_none() {
+        let sandbox = sandbox(vec![Ok(ok(""))]);
+        let id = SandboxId("abc".to_string());
+        sandbox.run(&id, &command()).expect("runs");
+        assert_eq!(
+            sandbox.runner.calls(),
+            vec![Call {
+                argv: exec_argv("abc", &command()),
+                timeout: Some(Duration::from_secs(30)),
+                stdin: None,
+            }]
+        );
+    }
+
+    #[test]
+    fn run_redacts_a_runner_error_that_repeats_an_env_value() {
+        let sandbox = sandbox(vec![Err(RunnerError(
+            "cannot run docker: s3cr3t-value".to_string(),
+        ))]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox
+            .run(&id, &command_with_env("s3cr3t-value"))
+            .expect_err("runner error");
+        assert!(error.to_string().contains("<redacted>"), "{error}");
+        assert!(!error.to_string().contains("s3cr3t-value"), "{error}");
+        assert!(format!("{error:?}").contains("<redacted>"), "{error:?}");
+        assert!(!format!("{error:?}").contains("s3cr3t-value"), "{error:?}");
+    }
+
+    #[test]
+    fn run_redacts_a_failed_exec_stderr_that_repeats_an_env_value() {
+        let sandbox = sandbox(vec![Ok(fail(125, "docker: s3cr3t-value"))]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox
+            .run(&id, &command_with_env("s3cr3t-value"))
+            .expect_err("exec fails");
+        assert!(error.to_string().contains("<redacted>"), "{error}");
+        assert!(!error.to_string().contains("s3cr3t-value"), "{error}");
+        assert!(format!("{error:?}").contains("<redacted>"), "{error:?}");
+        assert!(!format!("{error:?}").contains("s3cr3t-value"), "{error:?}");
+    }
+
+    #[test]
+    fn run_redacts_a_failed_kill_stderr_that_repeats_an_env_value() {
+        let sandbox = sandbox(vec![
+            Ok(timeout_output("")),
+            Ok(fail(1, "kill failed: s3cr3t-value")),
+        ]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox
+            .run(&id, &command_with_env("s3cr3t-value"))
+            .expect_err("kill fails");
+        assert!(error.to_string().contains("<redacted>"), "{error}");
+        assert!(!error.to_string().contains("s3cr3t-value"), "{error}");
+        assert!(format!("{error:?}").contains("<redacted>"), "{error:?}");
+        assert!(!format!("{error:?}").contains("s3cr3t-value"), "{error:?}");
+    }
+
+    #[test]
+    fn run_redacts_a_missing_status_message_that_repeats_an_env_value() {
+        let sandbox = sandbox(vec![Ok(ToolOutput {
+            status: None,
+            stdout: String::new(),
+            stderr: "died with s3cr3t-value".to_string(),
+            timed_out: false,
+            output_cap_bytes: None,
+            stdout_truncated: false,
+            stderr_truncated: false,
+        })]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox
+            .run(&id, &command_with_env("s3cr3t-value"))
+            .expect_err("no status");
+        assert!(error.to_string().contains("<redacted>"), "{error}");
+        assert!(!error.to_string().contains("s3cr3t-value"), "{error}");
+    }
+
+    #[test]
+    fn run_keeps_a_successful_commands_stdout_unchanged() {
+        let sandbox = sandbox(vec![Ok(ok("prints s3cr3t-value"))]);
+        let id = SandboxId("abc".to_string());
+        let result = sandbox
+            .run(&id, &command_with_env("s3cr3t-value"))
+            .expect("runs");
+        assert_eq!(result.stdout, "prints s3cr3t-value");
+    }
+
+    #[test]
+    fn run_does_not_redact_a_three_character_value() {
+        let sandbox = sandbox(vec![Err(RunnerError("boom abc".to_string()))]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox
+            .run(&id, &command_with_env("abc"))
+            .expect_err("runner error");
+        assert!(error.to_string().contains("boom abc"), "{error}");
+        assert!(!error.to_string().contains("<redacted>"), "{error}");
+    }
+
+    #[test]
     fn destroy_removes_the_container() {
         let sandbox = sandbox(vec![Ok(ok(""))]);
         let id = SandboxId("abc".to_string());
@@ -1782,6 +2142,7 @@ mod tests {
             vec![Call {
                 argv: remove_argv("abc"),
                 timeout: None,
+                stdin: None,
             }]
         );
     }
@@ -1840,14 +2201,17 @@ mod tests {
                 Call {
                     argv: version_argv(),
                     timeout: None,
+                    stdin: None,
                 },
                 Call {
                     argv: image_inspect_argv("example/base:1"),
                     timeout: None,
+                    stdin: None,
                 },
                 Call {
                     argv: network_probe_argv(),
                     timeout: None,
+                    stdin: None,
                 },
             ]
         );

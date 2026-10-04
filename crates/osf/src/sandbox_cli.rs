@@ -8,6 +8,7 @@ use crate::sandbox::{
     CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox, SandboxError,
     SandboxId, SandboxSpec,
 };
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 /// The container id the dry-run JSON prints in place of a real one.
@@ -138,6 +139,8 @@ pub fn plan(request: &RunRequest) -> Result<Plan, SandboxError> {
         args: words.cloned().collect(),
         workdir: None,
         timeout_secs: request.timeout_secs,
+        env: BTreeMap::new(),
+        stdin: None,
     };
     validate_command(&command)?;
     Ok(Plan { spec, command })
@@ -497,6 +500,8 @@ mod tests {
                 args: vec!["-c".to_string(), "echo hi".to_string()],
                 workdir: None,
                 timeout_secs: Some(30),
+                env: BTreeMap::new(),
+                stdin: None,
             }
         );
     }
@@ -554,6 +559,9 @@ mod tests {
                     "create",
                     "--name=osf-sandbox-1",
                     "--label=osf.sandbox=osf-sandbox-1",
+                    "--env=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                    "--env=HOME=/tmp",
+                    "--env=LANG=C.UTF-8",
                     "--cap-drop",
                     "ALL",
                     "--security-opt",

@@ -40,6 +40,8 @@ fn command(program: &str) -> CommandSpec {
         args: vec!["--fast".to_string()],
         workdir: None,
         timeout_secs: Some(30),
+        env: std::collections::BTreeMap::new(),
+        stdin: None,
     }
 }
 

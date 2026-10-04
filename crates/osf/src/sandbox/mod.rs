@@ -2,6 +2,7 @@
 
 pub mod fake;
 
+use std::collections::BTreeMap;
 use std::fmt;
 
 /// The provider's own handle for one sandbox.
@@ -36,12 +37,52 @@ pub struct SandboxSpec {
 }
 
 /// One command to run inside a sandbox.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize)]
 pub struct CommandSpec {
     pub program: String,
     pub args: Vec<String>,
     pub workdir: Option<String>,
     pub timeout_secs: Option<u64>,
+    /// The variables for this command only; the engine chooses them and the provider adds none.
+    #[serde(serialize_with = "serialize_env_keys")]
+    pub env: BTreeMap<String, String>,
+    /// The bytes written to the command's standard input, then closed.
+    #[serde(serialize_with = "serialize_stdin_len")]
+    pub stdin: Option<Vec<u8>>,
+}
+
+/// Prints the command without any environment value or standard-input byte.
+impl fmt::Debug for CommandSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let env_keys: Vec<&str> = self.env.keys().map(String::as_str).collect();
+        let stdin_len = self.stdin.as_ref().map(Vec::len);
+        f.debug_struct("CommandSpec")
+            .field("program", &self.program)
+            .field("args", &self.args)
+            .field("workdir", &self.workdir)
+            .field("timeout_secs", &self.timeout_secs)
+            .field("env", &env_keys)
+            .field("stdin", &stdin_len)
+            .finish()
+    }
+}
+
+/// Serializes an environment map as the array of its keys: no value is written.
+fn serialize_env_keys<S>(env: &BTreeMap<String, String>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.collect_seq(env.keys())
+}
+
+/// Serializes standard input as its length, or null when there is none.
+// serde's field serializer requires the reference to the option.
+#[allow(clippy::ref_option)]
+fn serialize_stdin_len<S>(stdin: &Option<Vec<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serde::Serialize::serialize(&stdin.as_ref().map(Vec::len), serializer)
 }
 
 /// How a run ended.
@@ -244,6 +285,50 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&spec()).expect("serializes"),
             r#"{"name":"build","image":"example/base:1","user":"dev","workdir":"/work","network":"isolated","mounts":[{"host_path":"/host/project","sandbox_path":"/work/project","read_only":true}]}"#
+        );
+    }
+
+    #[test]
+    fn command_debug_and_serde_never_show_a_value() {
+        let mut command = CommandSpec {
+            program: "run".to_string(),
+            args: vec!["--fast".to_string()],
+            workdir: None,
+            timeout_secs: Some(30),
+            env: BTreeMap::new(),
+            stdin: None,
+        };
+        command
+            .env
+            .insert("API_KEY".to_string(), "s3cr3t-value".to_string());
+        command.stdin = Some(b"s3cr3t-stdin".to_vec());
+
+        let debug = format!("{command:?}");
+        assert!(debug.contains("API_KEY"), "{debug}");
+        assert!(!debug.contains("s3cr3t-value"), "{debug}");
+        assert!(!debug.contains("s3cr3t-stdin"), "{debug}");
+        assert!(debug.contains("Some(12)"), "{debug}");
+
+        let json = serde_json::to_string(&command).expect("serializes");
+        assert!(json.contains("API_KEY"), "{json}");
+        assert!(!json.contains("s3cr3t-value"), "{json}");
+        assert!(!json.contains("s3cr3t-stdin"), "{json}");
+        assert!(json.contains(r#""stdin":12"#), "{json}");
+    }
+
+    #[test]
+    fn command_serde_pins_an_empty_env_and_no_stdin() {
+        let command = CommandSpec {
+            program: "run".to_string(),
+            args: vec!["--fast".to_string()],
+            workdir: None,
+            timeout_secs: Some(30),
+            env: BTreeMap::new(),
+            stdin: None,
+        };
+        assert_eq!(
+            serde_json::to_string(&command).expect("serializes"),
+            r#"{"program":"run","args":["--fast"],"workdir":null,"timeout_secs":30,"env":[],"stdin":null}"#
         );
     }
 
