@@ -928,44 +928,59 @@ fn universal_pronoun(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         .collect()
 }
 
+/// The byte offsets where a labelled link to an absolute HTTP(S) URL starts.
+fn labelled_link_starts(text: &str) -> Vec<usize> {
+    let mut starts = Vec::new();
+    let mut open: Option<(usize, bool, String)> = None;
+    for (event, range) in Parser::new(text).into_offset_iter() {
+        match event {
+            Event::Start(Tag::Link { dest_url, .. }) => {
+                let safe = url::Url::parse(&dest_url).is_ok_and(|url| {
+                    matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
+                });
+                open = Some((range.start, safe, String::new()));
+            }
+            Event::Text(value) | Event::Code(value) => {
+                if let Some((_, _, label)) = open.as_mut() {
+                    label.push_str(&value);
+                }
+            }
+            Event::End(TagEnd::Link) => {
+                if let Some((start, safe, label)) = open.take() {
+                    let visible = label.trim();
+                    if safe && !visible.is_empty() && url::Url::parse(visible).is_err() {
+                        starts.push(start);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    starts
+}
+
 /// `experts agree`, `studies show`, `widely regarded`, with no source named.
+/// A labelled HTTP(S) link in the same sentence, after the phrase, names one.
 fn weasel_attribution(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(
         &RE,
         r"(?i)\bexperts agree\b|\bstudies show\b|\bwidely regarded\b",
     );
-    let has_labelled_source = Parser::new(&s.text)
-        .fold(
-            (false, false, String::new(), false),
-            |(in_link, safe_target, mut label, found), event| match event {
-                Event::Start(Tag::Link { dest_url, .. }) => {
-                    let safe = url::Url::parse(&dest_url).is_ok_and(|url| {
-                        matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
-                    });
-                    (true, safe, String::new(), found)
-                }
-                Event::Text(value) | Event::Code(value) if in_link => {
-                    label.push_str(&value);
-                    (in_link, safe_target, label, found)
-                }
-                Event::End(TagEnd::Link) if in_link => {
-                    let visible_label = label.trim();
-                    let is_url_label = url::Url::parse(visible_label).is_ok();
-                    let found =
-                        found || (safe_target && !visible_label.is_empty() && !is_url_label);
-                    (false, false, String::new(), found)
-                }
-                _ => (in_link, safe_target, label, found),
-            },
-        )
-        .3;
-    if has_labelled_source {
-        return vec![];
-    }
-    matches(s, re)
+    let phrases = matches(s, re);
+    let ends: Vec<usize> = re.find_iter(&s.text).map(|m| m.end()).collect();
+    let links = labelled_link_starts(&s.text);
+    phrases
         .iter()
-        .map(|m| {
+        .enumerate()
+        .filter(|(i, _)| {
+            // A phrase whose raw position is unknown is never excused.
+            let end = (ends.len() == phrases.len())
+                .then(|| ends.get(*i))
+                .flatten();
+            !end.is_some_and(|end| links.iter().any(|start| start >= end))
+        })
+        .map(|(_, m)| {
             finding(
                 s,
                 "weasel-attribution",

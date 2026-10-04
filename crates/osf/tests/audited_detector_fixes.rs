@@ -114,12 +114,30 @@ fn labelled_references_need_links_except_in_commit_messages() {
 }
 
 #[test]
-fn weasel_claim_is_exempt_only_with_a_safe_labelled_link_in_its_sentence() {
+fn weasel_claim_is_exempt_only_with_a_safe_labelled_link_after_it_in_its_sentence() {
     let linked =
         "Studies show that small changes help [the review data](https://example.org/review).";
-    assert!(!writing_rules(linked, Context::Document).contains(&"weasel-attribution"));
+    let before = writing_rules(linked, Context::Document);
+    assert!(!before.contains(&"weasel-attribution"), "{before:?}");
+    // The same sentence must still be checked by this rule, so the empty result is real.
+    assert!(
+        writing_rules("Studies show that small changes help.", Context::Document)
+            .contains(&"weasel-attribution")
+    );
+
+    let mixed = "Experts agree [the data](https://example.org/a) and studies show this works.";
+    let count = writing_rules(mixed, Context::Document)
+        .iter()
+        .filter(|id| **id == "weasel-attribution")
+        .count();
+    assert_eq!(
+        count, 1,
+        "only the phrase after the link is unsourced: {mixed}"
+    );
 
     for text in [
+        "[The review data](https://example.org/review) says studies show that small changes help.",
+        "[Review data](https://example.org/review) and experts agree small changes help.",
         "Studies show that small changes help, according to the review data.",
         "Studies show that small changes help. [Review data](https://example.org/review).",
         "Studies show that small changes help https://example.org/review.",
@@ -132,6 +150,12 @@ fn weasel_claim_is_exempt_only_with_a_safe_labelled_link_in_its_sentence() {
             "unsupported source syntax excused claim: {text}"
         );
     }
+    let meta = osf::lints::rule_meta("weasel-attribution").expect("rule is documented");
+    assert!(
+        meta.doc.matches("after the phrase").count() >= 2,
+        "the rule text must say the link comes after the phrase: {}",
+        meta.doc
+    );
 }
 
 #[test]

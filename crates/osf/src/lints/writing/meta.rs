@@ -568,8 +568,9 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags `experts agree`, `studies show`, and `widely regarded` unless \
-         the same sentence contains a non-empty Markdown link label to an \
-         absolute HTTP(S) URL.\n\
+         the same sentence has a Markdown link with a non-empty label to an \
+         absolute HTTP(S) URL after the phrase. A link before the phrase, or \
+         in another sentence, does not count.\n\
          ### Why it is bad\n\
          An unnamed source cannot be checked. The reader has no way to \
          judge the claim behind it.\n\
@@ -583,10 +584,12 @@ pub const RULE_META: &[RuleMeta] = &[
          review faster.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
-         document, and a skill. It accepts inline labelled HTTP(S) links in \
-         the same sentence. This is citation syntax only. It does not assess \
-         source quality or support. Reference-style and relative links, bare \
-         URLs, and autolinks do not count.",
+         document, and a skill. It accepts an inline labelled HTTP(S) link in \
+         the same sentence, placed after the phrase. This is citation syntax \
+         only. It does not check that the link supports the claim, or assess \
+         the source. A link before the phrase, a link in another sentence, \
+         reference-style and relative links, bare URLs, and autolinks do not \
+         count.",
         Exception::FixedLevel(Level::Error)
     ),
     rule_meta!(
