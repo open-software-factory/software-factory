@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn plan_refuses_root() {
-        for user in ["root", "0"] {
+        for user in ["root", "0", "00", "000", "+0", "00:1", "0:0", "root:root"] {
             let mut request = request();
             request.user = user.to_string();
             assert!(

@@ -367,8 +367,8 @@ fn is_digest_hex(hex: &str) -> bool {
 /// Checks `spec` before any runner call.
 ///
 /// # Errors
-/// Returns [`SandboxError::Rejected`] for an unpinned image, a root or empty
-/// user, a relative workdir, a malformed name, or a bad mount.
+/// Returns [`SandboxError::Rejected`] for an unpinned image, an empty, root,
+/// zero or malformed user, a relative workdir, a malformed name, or a bad mount.
 pub fn validate_spec(spec: &SandboxSpec) -> Result<(), SandboxError> {
     if !image_is_pinned(&spec.image) {
         return Err(SandboxError::Rejected(format!(
@@ -390,19 +390,82 @@ pub fn validate_spec(spec: &SandboxSpec) -> Result<(), SandboxError> {
     Ok(())
 }
 
-/// Checks one user string: non-empty and not root.
+/// Checks one user string as `name[:group]`, neither part root or zero.
 fn validate_user(user: &str) -> Result<(), SandboxError> {
     if user.is_empty() {
         return Err(SandboxError::Rejected(
             "the user must not be empty".to_string(),
         ));
     }
-    if user == "root" || user == "0" || user.starts_with("root:") || user.starts_with("0:") {
+    let mut parts = user.split(':');
+    let Some(first) = parts.next() else {
+        return Err(SandboxError::Rejected(format!(
+            "each user part must not be empty: {user}"
+        )));
+    };
+    validate_user_part(user, first)?;
+    if let Some(second) = parts.next() {
+        validate_user_part(user, second)?;
+    }
+    if parts.next().is_some() {
+        return Err(SandboxError::Rejected(format!(
+            "the user must hold at most one ':': {user}"
+        )));
+    }
+    Ok(())
+}
+
+/// Checks one user part: a positive number without a leading zero, or a name.
+fn validate_user_part(user: &str, part: &str) -> Result<(), SandboxError> {
+    if part.is_empty() {
+        return Err(SandboxError::Rejected(format!(
+            "each user part must not be empty: {user}"
+        )));
+    }
+    if part.bytes().all(|byte| byte.is_ascii_digit()) {
+        return validate_user_number(user, part);
+    }
+    if !is_user_name(part) {
+        return Err(SandboxError::Rejected(format!(
+            "a user name must be a letter or '_' then letters, digits, '_' and '-': {user}"
+        )));
+    }
+    if part == "root" {
         return Err(SandboxError::Rejected(format!(
             "the user must not be root: {user}"
         )));
     }
     Ok(())
+}
+
+/// Checks a numeric user part: no leading zero, a `u32`, and not zero.
+fn validate_user_number(user: &str, part: &str) -> Result<(), SandboxError> {
+    if part.len() > 1 && part.starts_with('0') {
+        return Err(SandboxError::Rejected(format!(
+            "a user number must not have a leading zero: {user}"
+        )));
+    }
+    match part.parse::<u32>() {
+        Ok(0) => Err(SandboxError::Rejected(format!(
+            "the user must not be root: {user}"
+        ))),
+        Ok(_) => Ok(()),
+        Err(_) => Err(SandboxError::Rejected(format!(
+            "a user number must fit in a u32: {user}"
+        ))),
+    }
+}
+
+/// Whether `part` matches `[A-Za-z_][A-Za-z0-9_-]*` over bytes.
+fn is_user_name(part: &str) -> bool {
+    let mut bytes = part.bytes();
+    let Some(first) = bytes.next() else {
+        return false;
+    };
+    if !first.is_ascii_alphabetic() && first != b'_' {
+        return false;
+    }
+    bytes.all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
 /// Checks one sandbox name: non-empty, then letters, digits, `_`, `.` and `-`.
@@ -974,10 +1037,48 @@ mod tests {
 
     #[test]
     fn validate_spec_rejects_a_root_or_empty_user_without_a_call() {
-        for user in ["", "root", "0", "root:root", "0:0"] {
+        for user in [
+            "",
+            "0",
+            "00",
+            "000",
+            "+0",
+            "00:1",
+            "0:0",
+            "root",
+            "root:root",
+            " 0",
+            "0 ",
+            "1:0",
+            "1:00",
+            "1:root",
+            "dev:",
+            ":dev",
+            ":",
+            "dev:dev:dev",
+            "+1",
+            "-1",
+            "01",
+            "1 ",
+            "d ev",
+            "dev\n",
+            "1.5",
+            "4294967296",
+            "dev.x",
+            "9dev",
+        ] {
             let mut spec = spec();
             spec.user = user.to_string();
             create_rejected(&spec);
+        }
+    }
+
+    #[test]
+    fn validate_spec_accepts_a_safe_user_without_a_call() {
+        for user in ["1", "dev", "dev:dev", "1000:1000", "dev:100", "_svc"] {
+            let mut spec = spec();
+            spec.user = user.to_string();
+            validate_spec(&spec).expect("the user is accepted");
         }
     }
 

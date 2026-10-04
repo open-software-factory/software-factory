@@ -189,6 +189,39 @@ fn a_root_user_is_refused() {
 }
 
 #[test]
+fn a_zero_spelled_user_is_refused() {
+    let repo = TempDir::new("osf-sandbox-cli-zero-repo");
+    let state = TempDir::new("osf-sandbox-cli-zero-state");
+    let repo_arg = repo.to_string_lossy().into_owned();
+    let state_arg = state.to_string_lossy().into_owned();
+    let home = isolated_home("osf-sandbox-cli-zero");
+    for user in ["00", "+0", "00:1"] {
+        let output = run_osf(
+            &repo,
+            &home,
+            &[
+                "sandbox",
+                "run",
+                "--image",
+                "example/base:1",
+                "--repo",
+                &repo_arg,
+                "--state",
+                &state_arg,
+                "--user",
+                user,
+                "--dry-run",
+                "--",
+                "true",
+            ],
+        );
+        assert_eq!(output.status.code(), Some(2), "{user}: {output:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains("user"), "{user}: {stderr}");
+    }
+}
+
+#[test]
 fn a_missing_repo_folder_is_refused_and_named() {
     let repo = TempDir::new("osf-sandbox-cli-missing-repo");
     let state = TempDir::new("osf-sandbox-cli-missing-state");
