@@ -182,6 +182,8 @@ pub struct GitHubTrackerConfig {
     pub owner: String,
     pub project_number: u64,
     pub status_field: String,
+    /// The status whose items the read leaves out on the server.
+    pub skip_status: Option<String>,
     pub options: StateOptions,
 }
 
@@ -193,6 +195,7 @@ impl GitHubTrackerConfig {
             owner: owner.into(),
             project_number,
             status_field: "Status".to_string(),
+            skip_status: Some("Done".to_string()),
             options: StateOptions::standard(),
         }
     }
@@ -253,6 +256,14 @@ impl<R: GhRunner> GitHubTracker<R> {
         let text = self.run_graphql(&argv, &payload)?;
         parse_item_id(&text, project_id)
     }
+
+    /// The project search string that leaves out the skipped status.
+    fn skip_query(&self) -> Option<String> {
+        self.config
+            .skip_status
+            .as_deref()
+            .map(|status| skip_status_query(status, &self.config.status_field))
+    }
 }
 
 impl GitHubTracker<RealGhRunner> {
@@ -266,6 +277,7 @@ impl GitHubTracker<RealGhRunner> {
 impl<R: GhRunner> Tracker for GitHubTracker<R> {
     fn read_ready(&self) -> ReadOutcome<Vec<WorkItem>> {
         let ready_option = self.config.options.ready.clone();
+        let query = self.skip_query();
         let mut cursor: Option<String> = None;
         let mut seen: Vec<String> = Vec::new();
         let mut items: Vec<WorkItem> = Vec::new();
@@ -276,6 +288,7 @@ impl<R: GhRunner> Tracker for GitHubTracker<R> {
                 self.config.project_number,
                 &self.config.status_field,
                 cursor.as_deref(),
+                query.as_deref(),
             );
             let text = match self.runner.run(&argv, Some(&payload.to_string())) {
                 Ok(text) => text,
@@ -441,14 +454,14 @@ pub fn comment_argv(repo: &str, item: &str) -> Vec<String> {
 
 /// The GraphQL query that reads one page of ready items.
 const READ_QUERY: &str = "\
-query($owner: String!, $number: Int!, $field: String!, $cursor: String) {
+query($owner: String!, $number: Int!, $field: String!, $cursor: String, $query: String) {
   repositoryOwner(login: $owner) {
     ... on User { projectV2(number: $number) { ...P } }
     ... on Organization { projectV2(number: $number) { ...P } }
   }
 }
 fragment P on ProjectV2 {
-  items(first: 100, after: $cursor) {
+  items(first: 100, after: $cursor, query: $query) {
     pageInfo { hasNextPage endCursor }
     nodes {
       fieldValueByName(name: $field) {
@@ -497,6 +510,13 @@ mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
   }
 }";
 
+/// The project search string that leaves `status` out of `field`.
+#[must_use]
+pub fn skip_status_query(status: &str, field: &str) -> String {
+    let escaped = status.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("-{}:\"{escaped}\"", field.to_lowercase())
+}
+
 /// Builds the JSON body of one ready-items page request.
 #[must_use]
 pub fn read_ready_payload(
@@ -504,6 +524,7 @@ pub fn read_ready_payload(
     project_number: u64,
     field: &str,
     cursor: Option<&str>,
+    query: Option<&str>,
 ) -> Value {
     json!({
         "query": READ_QUERY,
@@ -512,6 +533,7 @@ pub fn read_ready_payload(
             "number": project_number,
             "field": field,
             "cursor": cursor,
+            "query": query,
         },
     })
 }
@@ -1224,18 +1246,28 @@ mod tests {
 
     #[test]
     fn the_read_payload_pins_its_variables_and_cursor() {
-        let first = read_ready_payload(OWNER, 5, "Status", None);
+        let first = read_ready_payload(OWNER, 5, "Status", None, None);
         assert_eq!(pointer(&first, "/variables/owner"), &json!(OWNER));
         assert_eq!(pointer(&first, "/variables/number"), &json!(5));
         assert_eq!(pointer(&first, "/variables/field"), &json!("Status"));
         assert_eq!(pointer(&first, "/variables/cursor"), &Value::Null);
+        assert_eq!(pointer(&first, "/variables/query"), &Value::Null);
         assert!(pointer(&first, "/query")
             .as_str()
             .expect("a query string")
             .contains("items(first: 100"));
-        let second = read_ready_payload(OWNER, 5, "Status", Some("cursor-2"));
+        assert!(pointer(&first, "/query")
+            .as_str()
+            .expect("a query string")
+            .contains("query: $query"));
+        let second = read_ready_payload(OWNER, 5, "Status", Some("cursor-2"), None);
         assert_eq!(pointer(&second, "/variables/cursor"), &json!("cursor-2"));
         assert_ne!(first, second);
+        let skipped = read_ready_payload(OWNER, 5, "Status", None, Some("-status:\"Done\""));
+        assert_eq!(
+            pointer(&skipped, "/variables/query"),
+            &json!("-status:\"Done\"")
+        );
     }
 
     #[test]
@@ -1620,6 +1652,42 @@ mod tests {
             pointer(&payload(call(&calls, 1)), "/variables/cursor"),
             &json!("cursor-2")
         );
+        for index in 0..2 {
+            assert_eq!(
+                pointer(&payload(call(&calls, index)), "/variables/query"),
+                &json!("-status:\"Done\"")
+            );
+        }
+    }
+
+    #[test]
+    fn read_ready_sends_a_null_query_when_no_status_is_skipped() {
+        let page = items_page(
+            json!([ready_node(issue(
+                42,
+                "First",
+                json!("Body."),
+                blockers(json!([]), false),
+            ))]),
+            false,
+            Value::Null,
+        );
+        let mut config = config();
+        config.skip_status = None;
+        let tracker = GitHubTracker::new(ScriptedRunner::new(vec![Ok(page)]), config);
+        assert!(matches!(tracker.read_ready(), ReadOutcome::Found(_)));
+        let calls = tracker.runner.calls();
+        assert_eq!(
+            pointer(&payload(call(&calls, 0)), "/variables/query"),
+            &Value::Null
+        );
+    }
+
+    #[test]
+    fn skip_status_query_escapes_and_lowercases_the_field() {
+        assert_eq!(skip_status_query("Done", "Status"), "-status:\"Done\"");
+        assert_eq!(skip_status_query("a\"b", "Status"), "-status:\"a\\\"b\"");
+        assert_eq!(skip_status_query("a\\b", "STATUS"), "-status:\"a\\\\b\"");
     }
 
     #[test]
@@ -1642,6 +1710,27 @@ mod tests {
             Status::Other("Backlog".to_string())
         );
         assert_eq!(tracker.runner.calls().len(), 1);
+    }
+
+    #[test]
+    fn read_ready_keeps_a_done_item_that_still_arrives() {
+        let page = items_page(
+            json!([{
+                "fieldValueByName": {"name": "Done"},
+                "content": issue(42, "Already done", json!("Body."), blockers(json!([]), false)),
+            }]),
+            false,
+            Value::Null,
+        );
+        let tracker = tracker(vec![Ok(page)]);
+        let ReadOutcome::Found(items) = tracker.read_ready() else {
+            panic!("a done item that still arrives is returned");
+        };
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items.first().expect("one item").status,
+            Status::Other("Done".to_string())
+        );
     }
 
     #[test]
