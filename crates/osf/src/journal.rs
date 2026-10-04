@@ -98,6 +98,7 @@ pub struct Journal {
     change: Option<Change>,
     last_hash: String,
     index_recorded: bool,
+    index_notes: Vec<String>,
     run_complete: bool,
 }
 
@@ -148,6 +149,7 @@ impl Journal {
             change: None,
             last_hash: genesis_hash(),
             index_recorded: false,
+            index_notes: Vec::new(),
             run_complete: false,
         })
     }
@@ -164,6 +166,11 @@ impl Journal {
     pub fn with_change(mut self, change: Change) -> Self {
         self.change = Some(change);
         self
+    }
+
+    /// The stale index lock reclaims this journal has seen, in order.
+    pub fn index_notes(&self) -> &[String] {
+        &self.index_notes
     }
 
     /// Appends one event with no cost, using `actor` at `timestamp_ms`.
@@ -240,7 +247,9 @@ impl Journal {
         // The first accepted event records the run in its work item's index before any line is written.
         if !self.index_recorded {
             if let Some(work_item) = self.work_item.as_deref() {
-                index::record_run(&self.state_dir, work_item, &self.run)?;
+                if let Some(note) = index::record_run(&self.state_dir, work_item, &self.run)? {
+                    self.index_notes.push(note);
+                }
                 self.index_recorded = true;
             }
         }
@@ -265,6 +274,7 @@ impl Journal {
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
+    use std::time::Duration;
 
     fn actor() -> Actor {
         Actor::system("osf")
@@ -879,6 +889,55 @@ mod tests {
             runs_for_work_item(&dir, &work_item).expect("runs"),
             ["run-a", "run-b"].map(str::to_string)
         );
+    }
+
+    /// Writes `work_item`'s index lock file with an hour-old modified time.
+    fn old_index_lock(dir: &Path, work_item: &str) -> PathBuf {
+        let index = index::index_path(dir, work_item);
+        std::fs::create_dir_all(index.parent().expect("index dir")).expect("index dir");
+        let lock = index.with_file_name(format!(
+            "{}.lock",
+            index.file_name().expect("index name").to_string_lossy()
+        ));
+        std::fs::write(&lock, "").expect("lock file");
+        let modified = std::time::SystemTime::now()
+            .checked_sub(Duration::from_secs(3600))
+            .expect("the age is before now");
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&lock)
+            .expect("open lock file")
+            .set_modified(modified)
+            .expect("set the lock file's modified time");
+        lock
+    }
+
+    /// A stale index lock is reclaimed and named in `index_notes`, not in an event.
+    #[test]
+    fn a_stale_index_lock_is_reclaimed_and_noted() {
+        let dir = TempDir::new("osf-journal-index-reclaim");
+        let work_item = "github:open-software-factory/example#1";
+        let lock = old_index_lock(&dir, work_item);
+        let mut j = Journal::open(&dir, "run-reclaim")
+            .expect("open")
+            .with_work_item(work_item.to_string());
+        j.append(&actor(), 1, verification("scan")).expect("append");
+        let notes = j.index_notes();
+        assert_eq!(notes.len(), 1, "{notes:?}");
+        let note = notes.first().expect("a reclaim note");
+        assert!(note.contains(&lock.display().to_string()), "{note}");
+        assert!(!lock.exists(), "the stale lock file is still present");
+    }
+
+    #[test]
+    fn a_journal_without_a_stale_lock_has_no_index_notes() {
+        let dir = TempDir::new("osf-journal-index-no-notes");
+        let work_item = "github:open-software-factory/example#1";
+        let mut j = Journal::open(&dir, "run-no-notes")
+            .expect("open")
+            .with_work_item(work_item.to_string());
+        j.append(&actor(), 1, verification("scan")).expect("append");
+        assert!(j.index_notes().is_empty());
     }
 
     /// A failed index update refuses the event before any journal line is written.
