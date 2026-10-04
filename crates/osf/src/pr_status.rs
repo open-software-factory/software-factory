@@ -10,7 +10,8 @@ use crate::marker;
 use regex::Regex;
 use serde_json::Value;
 use std::fmt::{self, Write as _};
-use std::process::Command;
+use std::io::Write as _;
+use std::process::{Command, Stdio};
 
 const NAME: &str = "status";
 const SHORT_SHA_LEN: usize = 7;
@@ -731,11 +732,26 @@ pub fn parse_pr_info(text: &str) -> Result<PrInfo, StatusError> {
     })
 }
 
+/// The raw result of one `gh` command that ran: exit success, status, stdout, stderr.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GhOutput {
+    pub success: bool,
+    pub status: String,
+    pub stdout: String,
+    pub stderr: String,
+}
+
 /// What [`apply`] and `osf pr status refresh` need from GitHub: reading a
 /// pull request's description and metadata, its checks, its review state,
 /// and writing a new description back. A trait so a test can supply a fake
 /// instead of shelling out to `gh`.
 pub trait GhClient {
+    /// Runs one `gh` command, writes `stdin` to its standard input when given, and returns the raw result of a command that ran; the error is only for a command that could not start or could not be fed.
+    ///
+    /// # Errors
+    /// Returns an error when `gh` cannot start, or its standard input cannot be written.
+    fn run(&self, args: &[String], stdin: Option<&str>) -> Result<GhOutput, StatusError>;
+
     /// # Errors
     /// Returns an error when `gh` cannot run or exits non-zero.
     fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError>;
@@ -776,6 +792,35 @@ pub struct RealGh;
 
 #[allow(clippy::unused_self)]
 impl GhClient for RealGh {
+    fn run(&self, args: &[String], stdin: Option<&str>) -> Result<GhOutput, StatusError> {
+        let mut command = Command::new("gh");
+        command
+            .args(args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if stdin.is_some() {
+            command.stdin(Stdio::piped());
+        }
+        let mut child = command
+            .spawn()
+            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
+        if let Some(text) = stdin {
+            if let Some(mut pipe) = child.stdin.take() {
+                pipe.write_all(text.as_bytes())
+                    .map_err(|e| StatusError(format!("cannot write to gh: {e}")))?;
+            }
+        }
+        let output = child
+            .wait_with_output()
+            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
+        Ok(GhOutput {
+            success: output.status.success(),
+            status: output.status.to_string(),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        })
+    }
+
     fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
         let output = Command::new("gh")
             .args([

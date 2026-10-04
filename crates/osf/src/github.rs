@@ -10,8 +10,6 @@ use crate::forge::{
 use crate::pr_status::{self, GhClient, RealGh};
 use crate::review;
 use serde_json::Value;
-use std::io::Write as _;
-use std::process::{Command, Stdio};
 
 /// Wraps a [`GhClient`] as a [`Forge`].
 pub struct GitHub<C: GhClient> {
@@ -39,14 +37,14 @@ impl<C: GhClient> Forge for GitHub<C> {
     fn create_branch(&self, branch: &NewBranch) -> Result<Branch, ForgeError> {
         let argv = create_branch_argv(&branch.repo);
         let payload = create_branch_payload(branch);
-        let text = run_gh_json(&argv, &payload)?;
+        let text = run_gh_json(&self.client, &argv, &payload)?;
         parse_branch_response(branch, &text)
     }
 
     fn open_pull_request(&self, request: &NewPullRequest) -> Result<PullRequestId, ForgeError> {
         let argv = open_pull_request_argv(&request.repo);
         let payload = open_pull_request_payload(request);
-        let text = run_gh_json(&argv, &payload)?;
+        let text = run_gh_json(&self.client, &argv, &payload)?;
         parse_opened_pull_request(&request.repo, &text)
     }
 
@@ -135,24 +133,30 @@ impl<C: GhClient> Forge for GitHub<C> {
     }
 
     fn capabilities(&self, pr: &PullRequestId) -> Capabilities {
-        let viewer = read_login(&[
-            "api".to_string(),
-            "user".to_string(),
-            "--jq".to_string(),
-            ".login".to_string(),
-        ]);
-        let author = read_login(&[
-            "pr".to_string(),
-            "view".to_string(),
-            pr.pr.clone(),
-            "--repo".to_string(),
-            pr.repo.clone(),
-            "--json".to_string(),
-            "author".to_string(),
-            "--jq".to_string(),
-            ".author.login".to_string(),
-        ]);
-        let (success, stderr) = read_checks_status(&pr.repo, &pr.pr);
+        let viewer = read_login(
+            &self.client,
+            &[
+                "api".to_string(),
+                "user".to_string(),
+                "--jq".to_string(),
+                ".login".to_string(),
+            ],
+        );
+        let author = read_login(
+            &self.client,
+            &[
+                "pr".to_string(),
+                "view".to_string(),
+                pr.pr.clone(),
+                "--repo".to_string(),
+                pr.repo.clone(),
+                "--json".to_string(),
+                "author".to_string(),
+                "--jq".to_string(),
+                ".author.login".to_string(),
+            ],
+        );
+        let (success, stderr) = read_checks_status(&self.client, &pr.repo, &pr.pr);
         Capabilities {
             verdicts: verdict_capability(author.as_deref(), viewer.as_deref()),
             check_status: check_status_capability(success, &stderr),
@@ -257,30 +261,23 @@ pub fn parse_opened_pull_request(repo: &str, text: &str) -> Result<PullRequestId
 }
 
 /// Runs one command-line POST and returns stdout, or a never-empty failure text.
-fn run_gh_json(argv: &[String], payload: &Value) -> Result<String, ForgeError> {
-    let mut child = Command::new("gh")
-        .args(argv)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| ForgeError::Failed(format!("cannot run gh: {e}")))?;
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin
-            .write_all(payload.to_string().as_bytes())
-            .map_err(|e| ForgeError::Failed(format!("cannot write to gh: {e}")))?;
-    }
-    let output = child
-        .wait_with_output()
-        .map_err(|e| ForgeError::Failed(format!("cannot run gh: {e}")))?;
-    if !output.status.success() {
+fn run_gh_json(
+    client: &dyn GhClient,
+    argv: &[String],
+    payload: &Value,
+) -> Result<String, ForgeError> {
+    let stdin = payload.to_string();
+    let out = client
+        .run(argv, Some(&stdin))
+        .map_err(|e| ForgeError::Failed(e.to_string()))?;
+    if !out.success {
         return Err(ForgeError::Failed(gh_failure_text(
-            &output.status.to_string(),
-            &String::from_utf8_lossy(&output.stdout),
-            &String::from_utf8_lossy(&output.stderr),
+            &out.status,
+            &out.stdout,
+            &out.stderr,
         )));
     }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    Ok(out.stdout)
 }
 
 /// The never-empty failure text for one failed command.
@@ -313,25 +310,24 @@ fn gh_failure_text(status: &str, stdout: &str, stderr: &str) -> String {
 
 /// Runs one read-only command and returns its standard output, or trimmed
 /// standard error on a non-zero exit.
-fn run_read(argv: &[String]) -> Result<String, String> {
-    let output = Command::new("gh")
-        .args(argv)
-        .output()
-        .map_err(|e| format!("cannot run gh: {e}"))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+fn run_read(client: &dyn GhClient, argv: &[String]) -> Result<String, String> {
+    let out = client.run(argv, None).map_err(|e| e.to_string())?;
+    if !out.success {
+        return Err(out.stderr.trim().to_string());
     }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    Ok(out.stdout)
 }
 
 /// One login command's answer, or none when it could not run or failed.
-fn read_login(argv: &[String]) -> Option<String> {
-    run_read(argv).ok().and_then(|text| parse_login(&text))
+fn read_login(client: &dyn GhClient, argv: &[String]) -> Option<String> {
+    run_read(client, argv)
+        .ok()
+        .and_then(|text| parse_login(&text))
 }
 
 /// Whether the check-status command succeeded, and its standard error when
 /// it did not.
-fn read_checks_status(repo: &str, pr: &str) -> (bool, String) {
+fn read_checks_status(client: &dyn GhClient, repo: &str, pr: &str) -> (bool, String) {
     let argv = vec![
         "pr".to_string(),
         "checks".to_string(),
@@ -341,7 +337,7 @@ fn read_checks_status(repo: &str, pr: &str) -> (bool, String) {
         "--json".to_string(),
         "name,state,bucket".to_string(),
     ];
-    match run_read(&argv) {
+    match run_read(client, &argv) {
         Ok(_) => (true, String::new()),
         Err(text) => (false, text),
     }
@@ -447,8 +443,9 @@ fn post_with_fallback(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pr_status::StatusError;
+    use crate::pr_status::{GhOutput, StatusError};
     use std::cell::{Cell, RefCell};
+    use std::collections::VecDeque;
 
     struct FakeGh {
         calls: RefCell<Vec<String>>,
@@ -457,6 +454,8 @@ mod tests {
         checks: String,
         checks_error: Option<String>,
         edited: RefCell<Option<String>>,
+        runs: RefCell<VecDeque<Result<GhOutput, StatusError>>>,
+        run_calls: RefCell<Vec<(Vec<String>, Option<String>)>>,
     }
 
     fn fake(body: &str, checks: &str) -> FakeGh {
@@ -467,11 +466,55 @@ mod tests {
             checks: checks.to_string(),
             checks_error: None,
             edited: RefCell::new(None),
+            runs: RefCell::new(VecDeque::new()),
+            run_calls: RefCell::new(Vec::new()),
         }
+    }
+
+    /// A fake whose `run` answers with `answers`, in order.
+    fn fake_with_runs(answers: Vec<Result<GhOutput, StatusError>>) -> FakeGh {
+        let mut client = fake("", "[]");
+        client.runs = RefCell::new(VecDeque::from(answers));
+        client
+    }
+
+    /// A successful [`GhOutput`] carrying `stdout`.
+    fn gh_ok(stdout: &str) -> GhOutput {
+        GhOutput {
+            success: true,
+            status: "exit status: 0".to_string(),
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        }
+    }
+
+    /// A failed [`GhOutput`] carrying `status`, `stdout` and `stderr`.
+    fn gh_fail(status: &str, stdout: &str, stderr: &str) -> GhOutput {
+        GhOutput {
+            success: false,
+            status: status.to_string(),
+            stdout: stdout.to_string(),
+            stderr: stderr.to_string(),
+        }
+    }
+
+    /// `parts` as the argv Vec the client records.
+    fn argv(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(ToString::to_string).collect()
     }
 
     #[allow(clippy::unused_self)]
     impl GhClient for FakeGh {
+        fn run(&self, args: &[String], stdin: Option<&str>) -> Result<GhOutput, StatusError> {
+            self.run_calls
+                .borrow_mut()
+                .push((args.to_vec(), stdin.map(str::to_string)));
+            self.runs
+                .borrow_mut()
+                .pop_front()
+                .expect("FakeGh ran out of scripted answers")
+        }
+
         fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
             self.calls
                 .borrow_mut()
@@ -996,6 +1039,238 @@ mod tests {
         assert_eq!(
             gh_failure_text("exit status: 1", r#"{"message":"boom"}"#, "boom"),
             "boom"
+        );
+    }
+
+    fn new_branch() -> NewBranch {
+        NewBranch {
+            repo: "open-software-factory/demo".to_string(),
+            name: "topic".to_string(),
+            from_sha: "abc".to_string(),
+        }
+    }
+
+    fn new_pull_request() -> NewPullRequest {
+        NewPullRequest {
+            repo: "open-software-factory/demo".to_string(),
+            head: "topic".to_string(),
+            base: "main".to_string(),
+            title: "Title".to_string(),
+            body: "Body".to_string(),
+        }
+    }
+
+    #[test]
+    fn create_branch_runs_the_api_command_through_the_client() {
+        let branch = new_branch();
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_ok(
+            r#"{"ref":"refs/heads/topic","object":{"sha":"def"}}"#,
+        ))]));
+        let created = github.create_branch(&branch).expect("creates the branch");
+        assert_eq!(
+            created,
+            Branch {
+                name: "topic".to_string(),
+                sha: "def".to_string(),
+            }
+        );
+        let calls = github.client.run_calls.borrow();
+        assert_eq!(calls.len(), 1, "one run call: {calls:?}");
+        let (args, stdin) = calls.first().expect("one run call");
+        assert_eq!(args, &create_branch_argv(&branch.repo));
+        let expected = create_branch_payload(&branch).to_string();
+        assert_eq!(stdin.as_deref(), Some(expected.as_str()));
+    }
+
+    #[test]
+    fn create_branch_reports_the_validation_message() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_fail(
+            "exit status: 1",
+            r#"{"message":"Validation Failed"}"#,
+            "",
+        ))]));
+        let err = github.create_branch(&new_branch()).expect_err("refused");
+        assert_eq!(err, ForgeError::Failed("Validation Failed".to_string()));
+    }
+
+    #[test]
+    fn create_branch_falls_back_to_the_exit_status() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_fail("exit status: 1", "", ""))]));
+        let err = github.create_branch(&new_branch()).expect_err("refused");
+        assert_eq!(err, ForgeError::Failed("exit status: 1".to_string()));
+    }
+
+    #[test]
+    fn create_branch_reports_a_command_that_could_not_start() {
+        let github = GitHub::new(fake_with_runs(vec![Err(StatusError::new(
+            "cannot run gh: no such file",
+        ))]));
+        let err = github.create_branch(&new_branch()).expect_err("cannot run");
+        assert_eq!(
+            err,
+            ForgeError::Failed("cannot run gh: no such file".to_string())
+        );
+    }
+
+    #[test]
+    fn open_pull_request_runs_the_api_command_through_the_client() {
+        let request = new_pull_request();
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_ok(r#"{"number":42}"#))]));
+        let opened = github.open_pull_request(&request).expect("opens");
+        assert_eq!(
+            opened,
+            PullRequestId {
+                repo: "open-software-factory/demo".to_string(),
+                pr: "42".to_string(),
+            }
+        );
+        let calls = github.client.run_calls.borrow();
+        assert_eq!(calls.len(), 1, "one run call: {calls:?}");
+        let (args, stdin) = calls.first().expect("one run call");
+        assert_eq!(args, &open_pull_request_argv(&request.repo));
+        let expected = open_pull_request_payload(&request).to_string();
+        assert_eq!(stdin.as_deref(), Some(expected.as_str()));
+    }
+
+    #[test]
+    fn open_pull_request_reports_the_validation_message() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_fail(
+            "exit status: 1",
+            r#"{"message":"Validation Failed"}"#,
+            "",
+        ))]));
+        let err = github
+            .open_pull_request(&new_pull_request())
+            .expect_err("refused");
+        assert_eq!(err, ForgeError::Failed("Validation Failed".to_string()));
+    }
+
+    #[test]
+    fn open_pull_request_falls_back_to_the_exit_status() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_fail("exit status: 1", "", ""))]));
+        let err = github
+            .open_pull_request(&new_pull_request())
+            .expect_err("refused");
+        assert_eq!(err, ForgeError::Failed("exit status: 1".to_string()));
+    }
+
+    #[test]
+    fn open_pull_request_reports_a_command_that_could_not_start() {
+        let github = GitHub::new(fake_with_runs(vec![Err(StatusError::new(
+            "cannot run gh: no such file",
+        ))]));
+        let err = github
+            .open_pull_request(&new_pull_request())
+            .expect_err("cannot run");
+        assert_eq!(
+            err,
+            ForgeError::Failed("cannot run gh: no such file".to_string())
+        );
+    }
+
+    #[test]
+    fn capabilities_reads_every_source_through_the_client_in_order() {
+        let github = GitHub::new(fake_with_runs(vec![
+            Ok(gh_ok("reviewer\n")),
+            Ok(gh_ok("builder\n")),
+            Ok(gh_ok("[]")),
+        ]));
+        let capabilities = github.capabilities(&pr());
+        assert_eq!(
+            capabilities,
+            Capabilities {
+                verdicts: VerdictCapability::Known(vec![Verdict::Approve, Verdict::RequestChanges]),
+                check_status: ReadCapability::Readable,
+            }
+        );
+        assert_eq!(
+            *github.client.run_calls.borrow(),
+            vec![
+                (argv(&["api", "user", "--jq", ".login"]), None),
+                (
+                    argv(&[
+                        "pr",
+                        "view",
+                        "7",
+                        "--repo",
+                        "open-software-factory/demo",
+                        "--json",
+                        "author",
+                        "--jq",
+                        ".author.login"
+                    ]),
+                    None
+                ),
+                (
+                    argv(&[
+                        "pr",
+                        "checks",
+                        "7",
+                        "--repo",
+                        "open-software-factory/demo",
+                        "--json",
+                        "name,state,bucket"
+                    ]),
+                    None
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn capabilities_reports_an_unreadable_viewer_login() {
+        let github = GitHub::new(fake_with_runs(vec![
+            Ok(gh_fail("exit status: 1", "", "boom")),
+            Ok(gh_ok("builder\n")),
+            Ok(gh_ok("[]")),
+        ]));
+        let capabilities = github.capabilities(&pr());
+        assert_eq!(
+            capabilities.verdicts,
+            VerdictCapability::Unknown("cannot read the viewer login".to_string())
+        );
+        assert_eq!(capabilities.check_status, ReadCapability::Readable);
+    }
+
+    #[test]
+    fn capabilities_reports_an_unreadable_check_status_on_403() {
+        let github = GitHub::new(fake_with_runs(vec![
+            Ok(gh_ok("reviewer\n")),
+            Ok(gh_ok("builder\n")),
+            Ok(gh_fail("exit status: 1", "", "HTTP 403: Forbidden")),
+        ]));
+        let capabilities = github.capabilities(&pr());
+        assert_eq!(
+            capabilities.check_status,
+            ReadCapability::Unreadable("HTTP 403: Forbidden".to_string())
+        );
+    }
+
+    #[test]
+    fn capabilities_reports_an_unknown_check_status_on_another_error() {
+        let github = GitHub::new(fake_with_runs(vec![
+            Ok(gh_ok("reviewer\n")),
+            Ok(gh_ok("builder\n")),
+            Ok(gh_fail("exit status: 1", "", "HTTP 502: Bad Gateway")),
+        ]));
+        let capabilities = github.capabilities(&pr());
+        assert_eq!(
+            capabilities.check_status,
+            ReadCapability::Unknown("HTTP 502: Bad Gateway".to_string())
+        );
+    }
+
+    #[test]
+    fn capabilities_reports_an_unknown_check_status_when_the_command_cannot_start() {
+        let github = GitHub::new(fake_with_runs(vec![
+            Ok(gh_ok("reviewer\n")),
+            Ok(gh_ok("builder\n")),
+            Err(StatusError::new("cannot run gh: no such file")),
+        ]));
+        let capabilities = github.capabilities(&pr());
+        assert_eq!(
+            capabilities.check_status,
+            ReadCapability::Unknown("cannot run gh: no such file".to_string())
         );
     }
 }
