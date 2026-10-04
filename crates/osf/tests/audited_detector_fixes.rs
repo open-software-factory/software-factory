@@ -170,6 +170,49 @@ fn weasel_claim_is_exempt_only_with_a_safe_labelled_link_after_it_in_its_sentenc
     );
 }
 
+fn weasel_count(text: &str) -> usize {
+    writing_rules(text, Context::Document)
+        .iter()
+        .filter(|id| **id == "weasel-attribution")
+        .count()
+}
+
+#[test]
+fn weasel_phrases_are_judged_at_their_own_position_when_code_and_emphasis_mix() {
+    // The phrase in the code span is not prose. The emphasised one has only a link before it.
+    assert_eq!(
+        weasel_count("`experts agree` [x](https://e.com) studies *show* this."),
+        1
+    );
+    // The same sentence with the link after the emphasised phrase excuses it.
+    assert_eq!(
+        weasel_count("`experts agree` studies *show* this [x](https://e.com)."),
+        0
+    );
+    // A link after both prose phrases excuses both, and one between them excuses only the first.
+    assert_eq!(
+        weasel_count("Experts agree and studies *show* this [x](https://e.com)."),
+        0
+    );
+    assert_eq!(
+        weasel_count("Experts agree [x](https://e.com) and studies *show* this."),
+        1
+    );
+}
+
+#[test]
+fn an_image_only_link_is_not_a_labelled_link() {
+    assert_eq!(
+        weasel_count("Experts agree [![chart](c.png)](https://e.com) it works."),
+        1
+    );
+    // Text next to the image is a label.
+    assert_eq!(
+        weasel_count("Experts agree [![chart](c.png) the data](https://e.com) it works."),
+        0
+    );
+}
+
 #[test]
 fn em_dash_rule_leaves_en_dash_ranges_and_double_hyphens_alone() {
     for (text, count) in [

@@ -932,6 +932,7 @@ fn universal_pronoun(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
 fn labelled_link_starts(text: &str) -> Vec<usize> {
     let mut starts = Vec::new();
     let mut open: Option<(usize, bool, String)> = None;
+    let mut image_depth = 0usize;
     for (event, range) in Parser::new(text).into_offset_iter() {
         match event {
             Event::Start(Tag::Link { dest_url, .. }) => {
@@ -940,7 +941,10 @@ fn labelled_link_starts(text: &str) -> Vec<usize> {
                 });
                 open = Some((range.start, safe, String::new()));
             }
-            Event::Text(value) | Event::Code(value) => {
+            Event::Start(Tag::Image { .. }) => image_depth += 1,
+            Event::End(TagEnd::Image) => image_depth = image_depth.saturating_sub(1),
+            // An image's alt text is not a label, so an image-only link has none.
+            Event::Text(value) | Event::Code(value) if image_depth == 0 => {
                 if let Some((_, _, label)) = open.as_mut() {
                     label.push_str(&value);
                 }
@@ -967,29 +971,52 @@ fn weasel_attribution(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         &RE,
         r"(?i)\bexperts agree\b|\bstudies show\b|\bwidely regarded\b",
     );
-    let phrases = matches(s, re);
-    let ends: Vec<usize> = re.find_iter(&s.text).map(|m| m.end()).collect();
+    let (plain, raw_ends) = plain_text_with_raw_ends(&s.text);
     let links = labelled_link_starts(&s.text);
-    phrases
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| {
+    re.find_iter(&plain)
+        .filter(|m| {
             // A phrase whose raw position is unknown is never excused.
-            let end = (ends.len() == phrases.len())
-                .then(|| ends.get(*i))
-                .flatten();
+            let end = m.end().checked_sub(1).and_then(|i| raw_ends.get(i));
             !end.is_some_and(|end| links.iter().any(|start| start >= end))
         })
-        .map(|(_, m)| {
+        .map(|m| {
             finding(
                 s,
                 "weasel-attribution",
                 Level::Error,
                 "name who says this, or cut the claim".to_string(),
-                m,
+                m.as_str(),
             )
         })
         .collect()
+}
+
+/// The visible text of `text` (code spans read as `code`), with, for each of
+/// its bytes, the offset in `text` just after the source of that byte.
+fn plain_text_with_raw_ends(text: &str) -> (String, Vec<usize>) {
+    let mut plain = String::new();
+    let mut ends = Vec::new();
+    for (event, range) in Parser::new(text).into_offset_iter() {
+        match event {
+            Event::Text(value) => {
+                let exact = value.len() == range.len();
+                for i in 0..value.len() {
+                    ends.push(if exact { range.start + i + 1 } else { range.end });
+                }
+                plain.push_str(&value);
+            }
+            Event::Code(_) => {
+                plain.push_str("code");
+                ends.extend([range.end; 4]);
+            }
+            Event::SoftBreak | Event::HardBreak => {
+                plain.push(' ');
+                ends.push(range.end);
+            }
+            _ => {}
+        }
+    }
+    (plain, ends)
 }
 
 /// A short label, a colon, then a lowercase reveal, outside a list item, a

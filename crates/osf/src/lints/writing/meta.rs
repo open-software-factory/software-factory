@@ -568,9 +568,10 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags `experts agree`, `studies show`, and `widely regarded` unless \
-         the same sentence has a Markdown link with a non-empty label to an \
-         absolute HTTP(S) URL after the phrase. A link before the phrase, or \
-         in another sentence, does not count.\n\
+         the same sentence has a Markdown link to an absolute HTTP(S) URL \
+         after the phrase. The link needs a non-empty text label. A link \
+         whose only content is an image has no text label. A link before the \
+         phrase, or in another sentence, does not count.\n\
          ### Why it is bad\n\
          An unnamed source cannot be checked. The reader has no way to \
          judge the claim behind it.\n\
