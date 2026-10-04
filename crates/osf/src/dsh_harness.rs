@@ -11,6 +11,8 @@
 //!   the model family and leaves the model and the cost unset.
 //! - A timeout ends the run; there is no mid-run stop and the headless
 //!   profile runs no stop hook.
+//! - A turn that ends with a reason other than `completed` fails the run,
+//!   even when the exit status is 0.
 //! - There is no question event: the prompt asks the agent to end its final
 //!   message with a `QUESTION:` line, and the adapter reads that line.
 //! - Changed files come from `git status --porcelain=v1 -z`, so ignored files
@@ -161,6 +163,8 @@ pub struct Parsed {
     pub session_id: Option<String>,
     pub final_message: Option<String>,
     pub usage: Option<Usage>,
+    /// The first turn that ended with a reason other than `completed`.
+    pub turn_failure: Option<String>,
 }
 
 /// Parses the newline-delimited JSON events `dsh` prints for one run.
@@ -174,6 +178,7 @@ pub fn parse_events(stdout: &str) -> Result<Parsed, String> {
         session_id: None,
         final_message: None,
         usage: None,
+        turn_failure: None,
     };
     let mut totals: Option<Usage> = None;
     for (index, line) in stdout.lines().enumerate() {
@@ -212,11 +217,37 @@ pub fn parse_events(stdout: &str) -> Result<Parsed, String> {
                     });
                 }
             }
+            Some("status")
+                if object.get("phase").and_then(serde_json::Value::as_str) == Some("turn_end")
+                    && parsed.turn_failure.is_none() =>
+            {
+                parsed.turn_failure = turn_failure_of(object);
+            }
             _ => {}
         }
     }
     parsed.usage = totals;
     Ok(parsed)
+}
+
+/// The failure text of a `turn_end` event whose reason is not `completed`.
+fn turn_failure_of(object: &serde_json::Map<String, serde_json::Value>) -> Option<String> {
+    let reason = object.get("reason")?.as_object()?;
+    let kind = reason.get("kind")?.as_str()?;
+    if kind == "completed" {
+        return None;
+    }
+    if let Some(error) = reason.get("error").and_then(serde_json::Value::as_object) {
+        let code = error.get("code").and_then(serde_json::Value::as_str);
+        let message = error.get("message").and_then(serde_json::Value::as_str);
+        match (code, message) {
+            (Some(code), Some(message)) => return Some(format!("{code}: {message}")),
+            (Some(code), None) => return Some(code.to_string()),
+            (None, Some(message)) => return Some(message.to_string()),
+            (None, None) => {}
+        }
+    }
+    Some(format!("the turn ended with reason {kind}"))
 }
 
 /// The text of a line that is not a JSON object, cut to its first 80 chars.
@@ -340,6 +371,9 @@ impl Harness for DshHarness {
         };
 
         let parsed = parse_events(&stdout).map_err(HarnessError::Failed)?;
+        if let Some(text) = parsed.turn_failure {
+            return Err(HarnessError::Failed(text));
+        }
         let Some(final_message) = parsed.final_message else {
             return Err(HarnessError::Failed(
                 "dsh exited 0 but printed no final event".to_string(),
@@ -576,6 +610,16 @@ mod tests {
     const CREATED_FILE_FIXTURE: &str =
         include_str!("../tests/fixtures/harness/dsh-run-created-file.jsonl");
     const QUESTION_FIXTURE: &str = include_str!("../tests/fixtures/harness/dsh-run-question.jsonl");
+    const QUESTION_CONTRACT_FIXTURE: &str =
+        include_str!("../tests/fixtures/harness/dsh-run-question-contract.jsonl");
+    const QUESTION_MARKER_FIXTURE: &str =
+        include_str!("../tests/fixtures/harness/dsh-run-question-marker.jsonl");
+    const QUESTION_PROSE_QUOTED_FIXTURE: &str =
+        include_str!("../tests/fixtures/harness/dsh-run-question-prose-quoted.jsonl");
+    const QUESTION_PROSE_STATEMENT_FIXTURE: &str =
+        include_str!("../tests/fixtures/harness/dsh-run-question-prose-statement.jsonl");
+    const NO_CREDENTIAL_FIXTURE: &str =
+        include_str!("../tests/fixtures/harness/dsh-run-no-credential.jsonl");
     const VERSION_FIXTURE: &str = include_str!("../tests/fixtures/harness/dsh-version.txt");
     const HELP_FIXTURE: &str = include_str!("../tests/fixtures/harness/dsh-headless-help.txt");
 
@@ -717,6 +761,80 @@ mod tests {
                 total_tokens: 5529,
             })
         );
+    }
+
+    #[test]
+    fn parse_events_reads_a_turn_failure_with_its_code_and_message() {
+        let parsed = parse_events(NO_CREDENTIAL_FIXTURE).expect("the fixture parses");
+        let text = parsed.turn_failure.expect("the turn is a failure");
+        assert!(text.contains("MISSING_CREDENTIAL"), "{text}");
+        assert!(text.contains("no API key"), "{text}");
+    }
+
+    #[test]
+    fn parse_events_finds_no_turn_failure_in_a_completed_run() {
+        for (label, fixture) in [
+            ("created file", CREATED_FILE_FIXTURE),
+            ("question", QUESTION_FIXTURE),
+            ("question contract", QUESTION_CONTRACT_FIXTURE),
+            ("question marker", QUESTION_MARKER_FIXTURE),
+            ("question prose quoted", QUESTION_PROSE_QUOTED_FIXTURE),
+            ("question prose statement", QUESTION_PROSE_STATEMENT_FIXTURE),
+        ] {
+            let parsed = parse_events(fixture).unwrap_or_else(|error| panic!("{label}: {error}"));
+            assert_eq!(parsed.turn_failure, None, "{label} must have no failure");
+        }
+    }
+
+    #[test]
+    fn parse_events_reads_a_non_completed_reason_as_a_failure() {
+        for (line, expected) in [
+            (
+                r#"{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"cancelled"}}"#,
+                "the turn ended with reason cancelled",
+            ),
+            (
+                r#"{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"error","error":{"message":"only message"}}}"#,
+                "only message",
+            ),
+            (
+                r#"{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"error","error":{"code":"ONLY_CODE"}}}"#,
+                "ONLY_CODE",
+            ),
+            (
+                r#"{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"error","error":{}}}"#,
+                "the turn ended with reason error",
+            ),
+        ] {
+            let parsed = parse_events(line).expect("the line parses");
+            assert_eq!(parsed.turn_failure.as_deref(), Some(expected), "{line}");
+        }
+    }
+
+    #[test]
+    fn parse_events_keeps_the_first_turn_failure() {
+        let stdout = concat!(
+            r#"{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"error","error":{"code":"FIRST"}}}"#,
+            "\n",
+            r#"{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":"error","error":{"code":"SECOND"}}}"#,
+            "\n",
+        );
+        let parsed = parse_events(stdout).expect("the lines parse");
+        assert_eq!(parsed.turn_failure.as_deref(), Some("FIRST"));
+    }
+
+    #[test]
+    fn parse_events_ignores_a_turn_end_without_a_string_reason() {
+        let stdout = concat!(
+            r#"{"type":"status","phase":"turn_end","turn":1}"#,
+            "\n",
+            r#"{"type":"status","phase":"turn_end","turn":1,"reason":{}}"#,
+            "\n",
+            r#"{"type":"status","phase":"turn_end","turn":1,"reason":{"kind":7}}"#,
+            "\n",
+        );
+        let parsed = parse_events(stdout).expect("the lines parse");
+        assert_eq!(parsed.turn_failure, None);
     }
 
     #[test]

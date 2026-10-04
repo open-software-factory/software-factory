@@ -19,6 +19,7 @@ const QUESTION_PROSE_QUOTED: &str =
     include_str!("fixtures/harness/dsh-run-question-prose-quoted.jsonl");
 const QUESTION_MARKER: &str = include_str!("fixtures/harness/dsh-run-question-marker.jsonl");
 const QUESTION_CONTRACT: &str = include_str!("fixtures/harness/dsh-run-question-contract.jsonl");
+const NO_CREDENTIAL: &str = include_str!("fixtures/harness/dsh-run-no-credential.jsonl");
 const QUESTION_MARKER_TEXT: &str = "Which colour should `hello.txt` mention, red or blue?";
 const QUESTION_SIGNAL_REASON: &str = "prompt-contract: no question event exists; the prompt asks the agent to end with a QUESTION: line and the adapter reads that line";
 const VERSION: &str = include_str!("fixtures/harness/dsh-version.txt");
@@ -339,6 +340,38 @@ fn exit_zero_with_no_final_event_is_failed() {
     ]);
     let error = harness().run(&runner, &task()).expect_err("the run fails");
     assert!(failed(error).contains("no final event"));
+}
+
+#[test]
+fn a_turn_that_ended_with_an_error_fails_even_at_exit_zero() {
+    let runner = FakeRunner::new(vec![
+        clean(),
+        head(HEAD_BEFORE),
+        branch(BRANCH),
+        ok(NO_CREDENTIAL),
+    ]);
+    let error = harness().run(&runner, &task()).expect_err("the run fails");
+    let text = failed(error);
+    assert!(text.contains("MISSING_CREDENTIAL"), "{text}");
+    assert!(text.contains("no API key"), "{text}");
+    assert_eq!(
+        runner.commands().len(),
+        4,
+        "the status, the head, the branch and the agent only"
+    );
+}
+
+#[test]
+fn a_turn_failure_with_exit_one_still_falls_back_to_stdout() {
+    let output = Ok(CommandOutput {
+        outcome: CommandOutcome::Exited(1),
+        stdout: NO_CREDENTIAL.to_string(),
+        stderr: String::new(),
+    });
+    let runner = FakeRunner::new(vec![clean(), head(HEAD_BEFORE), branch(BRANCH), output]);
+    let error = harness().run(&runner, &task()).expect_err("the run fails");
+    let text = failed(error);
+    assert!(text.contains("MISSING_CREDENTIAL"), "{text}");
 }
 
 #[test]
