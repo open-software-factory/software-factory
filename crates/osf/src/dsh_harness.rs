@@ -9,8 +9,9 @@
 //!
 //! - `dsh` reports no model name and no cost figure, so the adapter records
 //!   the model family and leaves the model and the cost unset.
-//! - A timeout ends the run; there is no mid-run stop and the headless
-//!   profile runs no stop hook.
+//! - A timeout ends the run; there is no mid-run stop. Whether the headless
+//!   profile runs a stop hook that checks messages is read from the profile
+//!   dump, not assumed.
 //! - A turn that ends with a reason other than `completed` fails the run,
 //!   even when the exit status is 0.
 //! - There is no question event: the prompt asks the agent to end its final
@@ -335,6 +336,98 @@ pub fn headless_help_is_adequate(help: &str) -> bool {
     collapsed.contains("--json") && collapsed.contains("`-` reads stdin")
 }
 
+/// The package whose profile row checks messages at the end of a turn.
+pub const MESSAGE_CHECK_PLUGIN: &str = "@open-software-factory/osf-dsh-plugin";
+
+/// How a profile dump names the package that checks messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageCheck {
+    Enabled,
+    Absent,
+    Disabled,
+    Conditional,
+}
+
+/// Reads the message-check plugin row from a `--dump-config` dump.
+#[must_use]
+pub fn message_check_in(dump: &str) -> MessageCheck {
+    let mut state = MessageCheck::Absent;
+    for row in dump_rows(dump) {
+        let Some(name) = row.iter().find_map(|line| row_value(line, "name:")) else {
+            continue;
+        };
+        if unquote(name) != MESSAGE_CHECK_PLUGIN {
+            continue;
+        }
+        let disabled = row.iter().find_map(|line| row_value(line, "disabled:"));
+        let check = match disabled {
+            Some("true") => MessageCheck::Disabled,
+            Some("false") | None => MessageCheck::Enabled,
+            Some(_) => MessageCheck::Conditional,
+        };
+        if preference(check) > preference(state) {
+            state = check;
+        }
+    }
+    state
+}
+
+/// Splits a dump into rows; a row begins at a `- ` line at column 0.
+fn dump_rows(dump: &str) -> Vec<Vec<&str>> {
+    let mut rows = Vec::new();
+    let mut current: Option<Vec<&str>> = None;
+    for line in dump.lines() {
+        if line.starts_with("- ") {
+            if let Some(row) = current.take() {
+                rows.push(row);
+            }
+            current = Some(vec![line]);
+        } else if line.starts_with(char::is_whitespace) {
+            if let Some(row) = current.as_mut() {
+                row.push(line);
+            }
+        } else if let Some(row) = current.take() {
+            rows.push(row);
+        }
+    }
+    if let Some(row) = current.take() {
+        rows.push(row);
+    }
+    rows
+}
+
+/// The value of `key` on a line indented by exactly two spaces, or `None`.
+fn row_value<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    let rest = line.strip_prefix("  ")?;
+    if rest.starts_with(' ') {
+        return None;
+    }
+    Some(rest.strip_prefix(key)?.trim())
+}
+
+/// `value` without one surrounding pair of single or double quotes.
+fn unquote(value: &str) -> &str {
+    for quote in ['\'', '"'] {
+        if let Some(inner) = value
+            .strip_prefix(quote)
+            .and_then(|rest| rest.strip_suffix(quote))
+        {
+            return inner;
+        }
+    }
+    value
+}
+
+/// How strongly a message check state wins when several rows name the plugin.
+fn preference(check: MessageCheck) -> u8 {
+    match check {
+        MessageCheck::Enabled => 3,
+        MessageCheck::Conditional => 2,
+        MessageCheck::Disabled => 1,
+        MessageCheck::Absent => 0,
+    }
+}
+
 impl Harness for DshHarness {
     fn run(
         &self,
@@ -434,9 +527,7 @@ impl Harness for DshHarness {
             stop_mid_run: Capability::Unsupported(
                 "a timeout ends the run; the tool has no mid-run stop".to_string(),
             ),
-            stop_hook_checks_messages: Capability::Unsupported(
-                "the headless profile runs no stop hook".to_string(),
-            ),
+            stop_hook_checks_messages: probe_stop_hook(runner, &self.config, version.succeeded),
             question_signal: Capability::Unsupported(
                 "prompt-contract: no question event exists; the prompt asks the agent to end with a QUESTION: line and the adapter reads that line"
                     .to_string(),
@@ -614,6 +705,50 @@ fn probe_headless(
     }
 }
 
+/// Probes the profile dump for a stop hook that checks messages.
+fn probe_stop_hook(
+    runner: &dyn CommandRunner,
+    config: &DshConfig,
+    version_succeeded: bool,
+) -> Capability {
+    if !version_succeeded {
+        return Capability::Unknown(
+            "the version probe failed, so the stop hook was not probed".to_string(),
+        );
+    }
+    match runner.run(&probe_command(
+        config,
+        &["--profile", "headless", "--dump-config"],
+    )) {
+        Err(error) => Capability::Unknown(error.to_string()),
+        Ok(output) => match &output.outcome {
+            CommandOutcome::TimedOut { limit_secs } => {
+                Capability::Unknown(format!("stop hook probe timed out after {limit_secs}s"))
+            }
+            CommandOutcome::Exited(0) => match message_check_in(&output.stdout) {
+                MessageCheck::Enabled => Capability::Supported,
+                MessageCheck::Absent => Capability::Unsupported(
+                    "the profile lists no plugin that checks messages at the end of a turn"
+                        .to_string(),
+                ),
+                MessageCheck::Disabled => Capability::Unsupported(
+                    "the message check plugin is disabled in the profile".to_string(),
+                ),
+                MessageCheck::Conditional => Capability::Unknown(
+                    "the message check plugin is disabled by an expression the adapter does not evaluate"
+                        .to_string(),
+                ),
+            },
+            CommandOutcome::Exited(code) => Capability::Unknown(failure_text(
+                "stop hook probe",
+                *code,
+                &output.stderr,
+                &output.stdout,
+            )),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -635,6 +770,8 @@ mod tests {
         include_str!("../tests/fixtures/harness/dsh-run-no-credential.jsonl");
     const VERSION_FIXTURE: &str = include_str!("../tests/fixtures/harness/dsh-version.txt");
     const HELP_FIXTURE: &str = include_str!("../tests/fixtures/harness/dsh-headless-help.txt");
+    const DUMP_CONFIG_FIXTURE: &str = include_str!("../tests/fixtures/harness/dsh-dump-config.yml");
+    const ENABLING_ROW: &str = "- id: osf-writing-check\n  name: '@open-software-factory/osf-dsh-plugin'\n  config:\n    command: osf\n";
 
     fn strings(values: &[&str]) -> Vec<String> {
         values.iter().copied().map(String::from).collect()
@@ -1013,6 +1150,74 @@ mod tests {
     fn headless_help_is_not_adequate_without_the_stdin_sentence() {
         let help = HELP_FIXTURE.replace("reads stdin", "reads nothing");
         assert!(!headless_help_is_adequate(&help));
+    }
+
+    /// `DUMP_CONFIG_FIXTURE` with `row` appended after it.
+    fn dump_with(row: &str) -> String {
+        format!("{DUMP_CONFIG_FIXTURE}{row}")
+    }
+
+    #[test]
+    fn message_check_in_of_the_stock_fixture_is_absent() {
+        assert_eq!(message_check_in(DUMP_CONFIG_FIXTURE), MessageCheck::Absent);
+    }
+
+    #[test]
+    fn message_check_in_reads_the_enabling_row_as_enabled() {
+        assert_eq!(
+            message_check_in(&dump_with(ENABLING_ROW)),
+            MessageCheck::Enabled
+        );
+    }
+
+    #[test]
+    fn message_check_in_reads_disabled_conditional_quotes_and_deeper_lines() {
+        let cases = [
+            (
+                "disabled true",
+                "- id: osf-writing-check\n  name: '@open-software-factory/osf-dsh-plugin'\n  disabled: true\n  config:\n    command: osf\n",
+                MessageCheck::Disabled,
+            ),
+            (
+                "conditional expression",
+                "- id: osf-writing-check\n  name: '@open-software-factory/osf-dsh-plugin'\n  disabled: !!js process.platform === 'win32'\n  config:\n    command: osf\n",
+                MessageCheck::Conditional,
+            ),
+            (
+                "disabled false",
+                "- id: osf-writing-check\n  name: '@open-software-factory/osf-dsh-plugin'\n  disabled: false\n  config:\n    command: osf\n",
+                MessageCheck::Enabled,
+            ),
+            (
+                "double quoted name",
+                "- id: osf-writing-check\n  name: \"@open-software-factory/osf-dsh-plugin\"\n  config:\n    command: osf\n",
+                MessageCheck::Enabled,
+            ),
+            (
+                "disabled nested deeper",
+                "- id: osf-writing-check\n  name: '@open-software-factory/osf-dsh-plugin'\n  config:\n    disabled: true\n",
+                MessageCheck::Enabled,
+            ),
+            (
+                "another plugin alone",
+                "- id: claude-code-hooks\n  name: '@deepseek-ai/dsh-hooks-claude-code'\n",
+                MessageCheck::Absent,
+            ),
+        ];
+        for (label, row, expected) in cases {
+            assert_eq!(message_check_in(&dump_with(row)), expected, "{label}");
+        }
+    }
+
+    #[test]
+    fn message_check_in_of_an_empty_dump_is_absent() {
+        assert_eq!(message_check_in(""), MessageCheck::Absent);
+    }
+
+    #[test]
+    fn message_check_in_prefers_an_enabled_row_over_a_disabled_one() {
+        let rows = "- id: first\n  name: '@open-software-factory/osf-dsh-plugin'\n  disabled: true\n- id: second\n  name: '@open-software-factory/osf-dsh-plugin'\n";
+        assert_eq!(message_check_in(&dump_with(rows)), MessageCheck::Enabled);
     }
 
     #[test]

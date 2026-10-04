@@ -24,6 +24,12 @@ const QUESTION_MARKER_TEXT: &str = "Which colour should `hello.txt` mention, red
 const QUESTION_SIGNAL_REASON: &str = "prompt-contract: no question event exists; the prompt asks the agent to end with a QUESTION: line and the adapter reads that line";
 const VERSION: &str = include_str!("fixtures/harness/dsh-version.txt");
 const HELP: &str = include_str!("fixtures/harness/dsh-headless-help.txt");
+const DUMP: &str = include_str!("fixtures/harness/dsh-dump-config.yml");
+const ABSENT_CHECK_REASON: &str =
+    "the profile lists no plugin that checks messages at the end of a turn";
+const VERSION_PROBE_FAILED_REASON: &str =
+    "the version probe failed, so the stop hook was not probed";
+const ENABLING_ROW: &str = "- id: osf-writing-check\n  name: '@open-software-factory/osf-dsh-plugin'\n  config:\n    command: osf\n";
 
 /// A successful command (exited 0, empty stderr); the script holds `Result`s.
 #[allow(clippy::unnecessary_wraps)]
@@ -637,7 +643,7 @@ fn the_result_is_plain_data_for_the_journal() {
 
 #[test]
 fn capability_report_for_a_pinned_installed_harness() {
-    let runner = FakeRunner::new(vec![ok(VERSION), ok(HELP)]);
+    let runner = FakeRunner::new(vec![ok(VERSION), ok(HELP), ok(DUMP)]);
     let capabilities = harness().capabilities(&runner);
     assert_eq!(capabilities.binary_present, Capability::Supported);
     assert_eq!(capabilities.version_pinned, Capability::Supported);
@@ -651,17 +657,17 @@ fn capability_report_for_a_pinned_installed_harness() {
         capabilities.stop_mid_run,
         Capability::Unsupported(_)
     ));
-    assert!(matches!(
+    assert_eq!(
         capabilities.stop_hook_checks_messages,
-        Capability::Unsupported(_)
-    ));
+        Capability::Unsupported(ABSENT_CHECK_REASON.to_string())
+    );
     assert_eq!(
         capabilities.question_signal,
         Capability::Unsupported(QUESTION_SIGNAL_REASON.to_string())
     );
 
     let commands = runner.commands();
-    assert_eq!(commands.len(), 2);
+    assert_eq!(commands.len(), 3);
     assert_eq!(
         commands.first().expect("the version probe"),
         &probe_command(&config(), &["--version"])
@@ -669,6 +675,41 @@ fn capability_report_for_a_pinned_installed_harness() {
     assert_eq!(
         commands.get(1).expect("the help probe"),
         &probe_command(&config(), &["--profile", "headless", "--help"])
+    );
+    assert_eq!(
+        commands.get(2).expect("the dump probe"),
+        &probe_command(&config(), &["--profile", "headless", "--dump-config"])
+    );
+}
+
+#[test]
+fn capability_report_when_the_message_check_plugin_is_present() {
+    let dump = format!("{DUMP}{ENABLING_ROW}");
+    let runner = FakeRunner::new(vec![ok(VERSION), ok(HELP), ok(&dump)]);
+    let capabilities = harness().capabilities(&runner);
+    assert_eq!(
+        capabilities.stop_hook_checks_messages,
+        Capability::Supported
+    );
+}
+
+#[test]
+fn capability_report_when_the_dump_probe_fails() {
+    let runner = FakeRunner::new(vec![ok(VERSION), ok(HELP), exited(1, "dump failed\n")]);
+    let capabilities = harness().capabilities(&runner);
+    assert_eq!(
+        capabilities.stop_hook_checks_messages,
+        Capability::Unknown("dump failed".to_string())
+    );
+}
+
+#[test]
+fn capability_report_when_the_dump_probe_times_out() {
+    let runner = FakeRunner::new(vec![ok(VERSION), ok(HELP), timed_out(30)]);
+    let capabilities = harness().capabilities(&runner);
+    assert_eq!(
+        capabilities.stop_hook_checks_messages,
+        Capability::Unknown("stop hook probe timed out after 30s".to_string())
     );
 }
 
@@ -694,10 +735,10 @@ fn capability_report_when_the_binary_cannot_start() {
         capabilities.stop_mid_run,
         Capability::Unsupported(_)
     ));
-    assert!(matches!(
+    assert_eq!(
         capabilities.stop_hook_checks_messages,
-        Capability::Unsupported(_)
-    ));
+        Capability::Unknown(VERSION_PROBE_FAILED_REASON.to_string())
+    );
     assert_eq!(
         capabilities.question_signal,
         Capability::Unsupported(QUESTION_SIGNAL_REASON.to_string())
@@ -706,7 +747,7 @@ fn capability_report_when_the_binary_cannot_start() {
 
 #[test]
 fn capability_report_when_the_version_differs() {
-    let runner = FakeRunner::new(vec![ok("9.9.9\n"), ok(HELP)]);
+    let runner = FakeRunner::new(vec![ok("9.9.9\n"), ok(HELP), ok(DUMP)]);
     let capabilities = harness().capabilities(&runner);
     assert_eq!(
         capabilities.version_pinned,
@@ -730,6 +771,11 @@ fn capability_report_when_the_version_probe_exits_non_zero() {
         Capability::Unknown("bad".to_string())
     );
     assert!(matches!(capabilities.headless, Capability::Unknown(_)));
+    assert_eq!(
+        capabilities.stop_hook_checks_messages,
+        Capability::Unknown(VERSION_PROBE_FAILED_REASON.to_string())
+    );
+    assert_eq!(runner.commands().len(), 1);
 }
 
 #[test]
@@ -740,23 +786,38 @@ fn capability_report_when_the_version_probe_times_out() {
         capabilities.binary_present,
         Capability::Unknown("version probe timed out after 30s".to_string())
     );
+    assert_eq!(
+        capabilities.stop_hook_checks_messages,
+        Capability::Unknown(VERSION_PROBE_FAILED_REASON.to_string())
+    );
+    assert_eq!(runner.commands().len(), 1);
 }
 
 #[test]
 fn capability_report_when_the_headless_help_lacks_json() {
     let help = HELP.replace("--json", "no-events");
-    let runner = FakeRunner::new(vec![ok(VERSION), ok(&help)]);
+    let runner = FakeRunner::new(vec![ok(VERSION), ok(&help), ok(DUMP)]);
     let capabilities = harness().capabilities(&runner);
     assert!(matches!(capabilities.headless, Capability::Unsupported(_)));
 }
 
 #[test]
 fn capability_report_when_the_help_probe_fails() {
-    let runner = FakeRunner::new(vec![ok(VERSION), exited(1, "no help\n")]);
+    let runner = FakeRunner::new(vec![ok(VERSION), exited(1, "no help\n"), ok(DUMP)]);
     let capabilities = harness().capabilities(&runner);
     assert_eq!(
         capabilities.headless,
         Capability::Unknown("no help".to_string())
+    );
+    assert_eq!(
+        capabilities.stop_hook_checks_messages,
+        Capability::Unsupported(ABSENT_CHECK_REASON.to_string())
+    );
+    let commands = runner.commands();
+    assert_eq!(commands.len(), 3);
+    assert_eq!(
+        commands.get(2).expect("the dump probe"),
+        &probe_command(&config(), &["--profile", "headless", "--dump-config"])
     );
 }
 
