@@ -4,6 +4,7 @@
 
 mod event;
 mod hash;
+mod reader;
 mod schema;
 
 pub use event::{
@@ -14,6 +15,7 @@ pub use event::{
 use hash::genesis_hash;
 pub(crate) use hash::sha256_hex;
 pub use hash::{event_hash, HashInput};
+pub use reader::{read_run, ReadError, RunJournal};
 pub use schema::validate as validate_event;
 
 use std::io::Write as _;
@@ -39,7 +41,7 @@ pub fn state_dir() -> Result<PathBuf, String> {
 
 /// Refuses a run id that is not a safe single path component: an empty id,
 /// one carrying a path separator, or one carrying `..`.
-fn validate_run_id(run: &str) -> Result<(), String> {
+pub(super) fn validate_run_id(run: &str) -> Result<(), String> {
     if run.is_empty() {
         return Err("run id must not be empty".to_string());
     }
@@ -449,10 +451,8 @@ mod tests {
         })
     }
 
-    #[test]
-    fn the_writer_accepts_every_event_type_and_each_line_validates() {
-        let dir = TempDir::new("osf-journal-eight-types");
-        let mut j = Journal::open(&dir, "run-8").expect("open");
+    /// Writes one of each event type through the writer, run-complete last.
+    fn write_eight_events(j: &mut Journal) -> Vec<Event> {
         let mut events = vec![j
             .append_draft(draft(Payload::RunStarted(RunStarted {
                 title: Some("Ship the fix".into()),
@@ -495,8 +495,19 @@ mod tests {
             events.push(j.append_draft(draft(payload)).expect("append"));
         }
         let head = events.last().expect("at least one event").hash.clone();
-        j.append_draft(draft(run_complete(head)))
-            .expect("run-complete");
+        events.push(
+            j.append_draft(draft(run_complete(head)))
+                .expect("run-complete"),
+        );
+        events
+    }
+
+    #[test]
+    fn the_writer_accepts_every_event_type_and_each_line_validates() {
+        let dir = TempDir::new("osf-journal-eight-types");
+        let mut j = Journal::open(&dir, "run-8").expect("open");
+        let events = write_eight_events(&mut j);
+        assert_eq!(events.len(), 8);
         let text = std::fs::read_to_string(dir.join("runs/run-8.jsonl")).expect("file");
         let validator = test_validator();
         let lines: Vec<&str> = text.lines().collect();
@@ -505,6 +516,38 @@ mod tests {
             let value: serde_json::Value = serde_json::from_str(line).expect("line is JSON");
             assert!(validator.is_valid(&value), "{line}");
         }
+    }
+
+    /// Recomputes the chain from the reader's events and a hand-built genesis,
+    /// and validates every written line directly from the schema file.
+    #[test]
+    fn the_reader_reproduces_the_written_chain_and_every_line_validates() {
+        let dir = TempDir::new("osf-journal-replay");
+        let mut j = Journal::open(&dir, "run-replay").expect("open");
+        let written = write_eight_events(&mut j);
+        let journal = super::read_run(&dir, "run-replay").expect("read");
+        assert_eq!(journal.events, written);
+        let validator = test_validator();
+        let text = std::fs::read_to_string(dir.join("runs/run-replay.jsonl")).expect("file");
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), journal.events.len());
+        let mut head = "0".repeat(64);
+        for (line, event) in lines.iter().zip(&journal.events) {
+            let value: serde_json::Value = serde_json::from_str(line).expect("line is JSON");
+            assert!(validator.is_valid(&value), "{line}");
+            assert_eq!(event.prev_hash, head, "{line}");
+            let recomputed = event_hash(&HashInput {
+                prev_hash: &head,
+                payload: &event.payload,
+                work_item: event.work_item.as_deref(),
+                change: event.change.as_ref(),
+                actor: &event.actor,
+                cost: event.cost.as_ref(),
+            });
+            assert_eq!(event.hash, recomputed, "{line}");
+            head = recomputed;
+        }
+        assert_eq!(journal.head_hash, head);
     }
 
     #[test]
