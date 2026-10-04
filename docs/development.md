@@ -301,3 +301,21 @@ A login shell (`bash -l`) resets `PATH` before reading
 `/etc/profile.d/*.sh`. That would otherwise drop `osf`, the cargo
 toolchain, and every coding agent's own binary for that shell, and
 `.devcontainer/profile.d/osf-path.sh` is what puts them back.
+
+## Third-party skills
+
+This repository does not vendor third-party skills. The image build
+installs them for the container user, under `~/.agents/skills`, and
+`.devcontainer/tests/skills-installed.sh` fails the build if one is
+missing or empty. Third-party skills are installed at a pinned commit and
+are not linted by osf; their quality checks are upstream's.
+
+| Skill folders | Source | Commit |
+| --- | --- | --- |
+| `archify`, `archify-review` | [tt-a1i/archify](https://github.com/tt-a1i/archify) | `d5a1333d7447` |
+
+The pins are `ARCHIFY_COMMIT` and `SKILLS_CLI_VERSION` in
+`.devcontainer/Dockerfile`. A change to a pin is a reviewed change.
+[open-software-factory/software-factory#224 (pinned third-party skill
+list)](https://github.com/open-software-factory/software-factory/issues/224)
+is the home of the full list.

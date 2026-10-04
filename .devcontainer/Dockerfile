@@ -75,6 +75,11 @@ ARG CLAUDE_CODE_VERSION=2.1.284
 ARG OPENCODE_VERSION=1.18.31
 ARG OMP_VERSION=18.2.8
 
+# The skills command line tool and the archify skills it installs, each
+# pinned exactly.
+ARG SKILLS_CLI_VERSION=1.7.0
+ARG ARCHIFY_COMMIT=d5a1333d7447
+
 # omp's own bin/cli.js has a "#!/usr/bin/env bun" shebang: omp runs on Bun,
 # not plain Node, unlike every other coding agent in this image.
 ARG BUN_VERSION=1.4.2
@@ -450,6 +455,18 @@ RUN rm -rf /usr/src/factory-build
 WORKDIR ${WORKSPACE_ROOT}
 
 USER dev
+
+# Third-party skills, restored here and never vendored. The pins change only
+# through a reviewed change; the list's home is
+# open-software-factory/software-factory#224. The skills tool does not know
+# dsh or omp, so only opencode, codex and claude-code are named.
+RUN npx -y "skills@${SKILLS_CLI_VERSION}" add "tt-a1i/archify@${ARCHIFY_COMMIT}" \
+      -g --skill '*' --agent opencode codex claude-code --copy -y
+
+# Proves the skills above are installed and not empty. See
+# .devcontainer/tests/skills-installed.sh.
+COPY --chown=dev:dev .devcontainer/tests/skills-installed.sh /tmp/skills-installed-test.sh
+RUN sh /tmp/skills-installed-test.sh && rm -f /tmp/skills-installed-test.sh
 
 # Proves dsh starts, with no credentials, on both profiles the image uses:
 # each must stop at the missing credential and nothing else. See
