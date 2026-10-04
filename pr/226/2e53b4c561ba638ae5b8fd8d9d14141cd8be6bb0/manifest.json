@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "2e53b4c561ba638ae5b8fd8d9d14141cd8be6bb0",
+    "contentHash": "ac5d3e00f448ac7fd598fe0a847ec8d1"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "journal-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d18821415ae008100ac6463281277845",
+      "bytes": 22232,
+      "width": 1763,
+      "height": 532,
+      "animated": false,
+      "path": "journal-containers-light-d18821415ae008100ac6463281277845.svg"
+    },
+    {
+      "id": "journal-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "57d502289d48d8d6cfc7ee5d90337ceb",
+      "bytes": 22480,
+      "width": 1763,
+      "height": 532,
+      "animated": false,
+      "path": "journal-containers-dark-57d502289d48d8d6cfc7ee5d90337ceb.svg"
+    },
+    {
+      "id": "journal-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c6f046f69d6b12d5bccecfd11e221968",
+      "bytes": 11909,
+      "width": 564,
+      "height": 532,
+      "animated": false,
+      "path": "journal-components-light-c6f046f69d6b12d5bccecfd11e221968.svg"
+    },
+    {
+      "id": "journal-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "906467aab17e01bd1d6a5d5de7b5d8f5",
+      "bytes": 12044,
+      "width": 564,
+      "height": 532,
+      "animated": false,
+      "path": "journal-components-dark-906467aab17e01bd1d6a5d5de7b5d8f5.svg"
+    },
+    {
+      "id": "state-layout-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "state-layout",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f81c20ea5e013da71e6b5d1a3da2842a",
+      "bytes": 10468,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "state-layout-light-f81c20ea5e013da71e6b5d1a3da2842a.svg"
+    },
+    {
+      "id": "state-layout-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "state-layout",
+      "mediaType": "image/svg+xml",
+      "contentHash": "98b6fe1d0da81b9023b9d53dbe8b503e",
+      "bytes": 10581,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "state-layout-dark-98b6fe1d0da81b9023b9d53dbe8b503e.svg"
+    },
+    {
+      "id": "append-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "append-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f11328f514512ca5b7f839d951ce0552",
+      "bytes": 13176,
+      "width": 1551,
+      "height": 353,
+      "animated": true,
+      "path": "append-flow-light-f11328f514512ca5b7f839d951ce0552.svg"
+    },
+    {
+      "id": "append-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "append-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7d10f58839c4cd8c6602ae63ed3b3ad9",
+      "bytes": 13323,
+      "width": 1551,
+      "height": 353,
+      "animated": true,
+      "path": "append-flow-dark-7d10f58839c4cd8c6602ae63ed3b3ad9.svg"
+    },
+    {
+      "id": "replay-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "replay-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4e6132d9e920080c34763b27db3852c0",
+      "bytes": 11104,
+      "width": 1216,
+      "height": 319,
+      "animated": true,
+      "path": "replay-flow-light-4e6132d9e920080c34763b27db3852c0.svg"
+    },
+    {
+      "id": "replay-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "replay-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "641bc543f45ff04d094a97263fa4ebbb",
+      "bytes": 11228,
+      "width": 1216,
+      "height": 319,
+      "animated": true,
+      "path": "replay-flow-dark-641bc543f45ff04d094a97263fa4ebbb.svg"
+    }
+  ]
+}
