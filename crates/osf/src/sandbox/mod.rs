@@ -113,7 +113,7 @@ pub struct SandboxCapabilities {
 ///
 /// Destroying a sandbox the provider does not know is `Ok(Destroyed::AlreadyGone)`,
 /// because the goal state is reached.
-pub trait Sandbox {
+pub trait Sandbox: Send + Sync {
     /// Creates a sandbox for `spec`.
     ///
     /// # Errors
@@ -169,6 +169,14 @@ mod tests {
             boxed.capabilities(&spec()).platforms,
             vec!["local".to_string()]
         );
+    }
+
+    fn assert_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn the_seam_is_send_and_sync() {
+        assert_send_sync::<FakeSandbox>();
+        assert_send_sync::<Box<dyn Sandbox>>();
     }
 
     #[test]

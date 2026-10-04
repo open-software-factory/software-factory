@@ -6,7 +6,7 @@ use crate::docker_sandbox::{
 };
 use crate::sandbox::{
     CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox, SandboxError,
-    SandboxSpec,
+    SandboxId, SandboxSpec,
 };
 use std::path::PathBuf;
 
@@ -40,6 +40,69 @@ pub struct Execution {
     pub stderr: String,
     pub exit_code: u8,
     pub message: Option<String>,
+}
+
+/// The sandbox one tracked run created, shared with the signal watcher so a
+/// stop can find it.
+#[derive(Debug, Default)]
+pub struct SandboxTracker {
+    current: std::sync::Mutex<Option<SandboxId>>,
+    stopping: std::sync::atomic::AtomicBool,
+    gate: std::sync::Mutex<()>,
+}
+
+impl SandboxTracker {
+    /// A tracker that has not seen a sandbox yet.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Marks the run as stopped by a signal, so the run loop leaves the removal to the stop.
+    pub fn begin_stop(&self) {
+        self.stopping
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Whether a signal stop has begun.
+    #[must_use]
+    pub fn is_stopping(&self) -> bool {
+        self.stopping.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Holds the removal gate: one removal at a time, or docker reports one already in progress.
+    pub fn gate(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.gate
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Records `id` as the sandbox in use.
+    pub fn set(&self, id: SandboxId) {
+        let mut current = self
+            .current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *current = Some(id);
+    }
+
+    /// Forgets the recorded sandbox.
+    pub fn clear(&self) {
+        let mut current = self
+            .current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *current = None;
+    }
+
+    /// The recorded sandbox, if any.
+    #[must_use]
+    pub fn current(&self) -> Option<SandboxId> {
+        self.current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
 }
 
 /// Builds the sandbox spec and command, then checks both with the adapter's
@@ -102,14 +165,27 @@ pub fn dry_run_json(plan: &Plan) -> String {
 
 /// Runs the plan over `sandbox`: create, run, then always destroy; a provider
 /// error or a failed removal becomes the `osf:` message and its exit code.
+/// Records the created sandbox in `tracker` while it exists.
 #[must_use]
-pub fn execute(sandbox: &dyn Sandbox, plan: &Plan) -> Execution {
+pub fn execute_tracked(sandbox: &dyn Sandbox, plan: &Plan, tracker: &SandboxTracker) -> Execution {
     let id = match sandbox.create(&plan.spec) {
         Ok(id) => id,
         Err(error) => return refused(&error),
     };
+    tracker.set(id.clone());
     let run = sandbox.run(&id, &plan.command);
+    let gate = tracker.gate();
+    if tracker.is_stopping() {
+        return Execution {
+            stdout: String::new(),
+            stderr: String::new(),
+            exit_code: 125,
+            message: Some("stopped by a signal; the stop removes the sandbox".to_string()),
+        };
+    }
     let destroyed = sandbox.destroy(&id);
+    tracker.clear();
+    drop(gate);
     let already_gone = matches!(destroyed, Ok(Destroyed::AlreadyGone));
     let result = match run {
         Ok(result) => result,
@@ -167,6 +243,87 @@ pub fn execute(sandbox: &dyn Sandbox, plan: &Plan) -> Execution {
     }
 }
 
+/// Runs the plan over `sandbox` with a tracker no other caller sees.
+#[must_use]
+pub fn execute(sandbox: &dyn Sandbox, plan: &Plan) -> Execution {
+    execute_tracked(sandbox, plan, &SandboxTracker::new())
+}
+
+/// Stops the sandbox for `signal`: the tracked id, or the container name
+/// `name` when no id was recorded yet.
+#[must_use]
+pub fn stop_for_signal(
+    sandbox: &dyn Sandbox,
+    tracker: &SandboxTracker,
+    name: &str,
+    signal: i32,
+) -> Execution {
+    tracker.begin_stop();
+    let gate = tracker.gate();
+    let target = tracker
+        .current()
+        .unwrap_or_else(|| SandboxId(name.to_string()));
+    let destroyed = sandbox.destroy(&target);
+    tracker.clear();
+    drop(gate);
+    let message = match destroyed {
+        Ok(Destroyed::Removed) => format!("stopped by signal {signal}; the sandbox was removed"),
+        Ok(Destroyed::AlreadyGone) => {
+            format!("stopped by signal {signal}; the sandbox was already gone")
+        }
+        Err(error) => format!("stopped by signal {signal}; the sandbox was not removed: {error}"),
+    };
+    Execution {
+        stdout: String::new(),
+        stderr: String::new(),
+        exit_code: u8::try_from(128 + signal).unwrap_or(125),
+        message: Some(message),
+    }
+}
+
+/// Runs `plan` over `sandbox`, installing the signal watcher so SIGINT or
+/// SIGTERM removes the sandbox before osf exits.
+///
+/// # Errors
+/// Returns the text when the signal handler cannot be installed.
+pub fn run_plan(sandbox: std::sync::Arc<dyn Sandbox>, plan: &Plan) -> Result<Execution, String> {
+    #[cfg(unix)]
+    {
+        crate::stop_signal::install()
+            .map_err(|error| format!("cannot install the signal handler: {error}"))?;
+        let tracker = std::sync::Arc::new(SandboxTracker::new());
+        let watcher_sandbox = std::sync::Arc::clone(&sandbox);
+        let watcher_tracker = std::sync::Arc::clone(&tracker);
+        let name = plan.spec.name.clone();
+        let _ = std::thread::spawn(move || loop {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            if let Some(signal) = crate::stop_signal::take() {
+                let execution = stop_for_signal(
+                    watcher_sandbox.as_ref(),
+                    watcher_tracker.as_ref(),
+                    &name,
+                    signal,
+                );
+                if let Some(message) = &execution.message {
+                    eprintln!("osf: {message}");
+                }
+                std::process::exit(i32::from(execution.exit_code));
+            }
+        });
+        let execution = execute_tracked(sandbox.as_ref(), plan, tracker.as_ref());
+        // The watcher thread removes the sandbox and exits with the signal's code.
+        while tracker.is_stopping() {
+            std::thread::park();
+        }
+        drop(sandbox);
+        Ok(execution)
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(execute(sandbox.as_ref(), plan))
+    }
+}
+
 /// Appends `note` to `message`, joined with `; ` when one already exists.
 fn append_note(message: &mut Option<String>, note: String) {
     match message {
@@ -217,6 +374,7 @@ mod tests {
     use super::*;
     use crate::sandbox::fake::{Call, FakeSandbox, Operation};
     use crate::sandbox::{Destroyed, RunResult, SandboxCapabilities, SandboxId, SandboxSpec};
+    use std::sync::{Arc, Mutex, PoisonError};
 
     /// A double that forgets the id it just created, so destroy sees it gone.
     struct ForgetfulSandbox(FakeSandbox);
@@ -239,6 +397,44 @@ mod tests {
         fn capabilities(&self, spec: &SandboxSpec) -> SandboxCapabilities {
             self.0.capabilities(spec)
         }
+    }
+
+    /// A double that records the tracker's id at the moment `run` is entered.
+    struct TrackingSandbox {
+        inner: FakeSandbox,
+        tracker: Arc<SandboxTracker>,
+        seen: Mutex<Option<SandboxId>>,
+    }
+
+    impl Sandbox for TrackingSandbox {
+        fn create(&self, spec: &SandboxSpec) -> Result<SandboxId, SandboxError> {
+            self.inner.create(spec)
+        }
+
+        fn run(&self, id: &SandboxId, command: &CommandSpec) -> Result<RunResult, SandboxError> {
+            let seen = self.tracker.current();
+            *self.seen.lock().unwrap_or_else(PoisonError::into_inner) = seen;
+            self.inner.run(id, command)
+        }
+
+        fn destroy(&self, id: &SandboxId) -> Result<Destroyed, SandboxError> {
+            self.inner.destroy(id)
+        }
+
+        fn capabilities(&self, spec: &SandboxSpec) -> SandboxCapabilities {
+            self.inner.capabilities(spec)
+        }
+    }
+
+    /// The single `Destroy` call `sandbox` recorded.
+    fn one_destroy(sandbox: &FakeSandbox) -> Call {
+        let mut destroys = sandbox
+            .calls()
+            .into_iter()
+            .filter(|call| matches!(call, Call::Destroy { .. }));
+        let first = destroys.next().expect("one destroy");
+        assert!(destroys.next().is_none(), "exactly one destroy");
+        first
     }
 
     fn request() -> RunRequest {
@@ -357,6 +553,7 @@ mod tests {
                 "create": [
                     "create",
                     "--name=osf-sandbox-1",
+                    "--label=osf.sandbox=osf-sandbox-1",
                     "--cap-drop",
                     "ALL",
                     "--security-opt",
@@ -601,5 +798,124 @@ mod tests {
                  the sandbox was already gone when it was removed"
             )
         );
+    }
+
+    #[test]
+    fn execute_tracked_holds_the_id_while_it_runs_and_clears_it_after() {
+        let tracker = Arc::new(SandboxTracker::new());
+        let sandbox = TrackingSandbox {
+            inner: FakeSandbox::new(),
+            tracker: Arc::clone(&tracker),
+            seen: Mutex::new(None),
+        };
+        let execution = execute_tracked(&sandbox, &plan_of(&request()), tracker.as_ref());
+        assert_eq!(execution.exit_code, 0);
+        assert_eq!(
+            *sandbox.seen.lock().unwrap_or_else(PoisonError::into_inner),
+            Some(SandboxId("fake-osf-sandbox-1".to_string()))
+        );
+        assert_eq!(tracker.current(), None);
+    }
+
+    #[test]
+    fn stop_for_signal_destroys_the_tracked_id_and_reports_removed() {
+        for (signal, code) in [(15_i32, 143_u8), (2_i32, 130_u8)] {
+            let sandbox = FakeSandbox::new();
+            let id = sandbox
+                .create(&plan_of(&request()).spec)
+                .expect("the fake creates");
+            let tracker = SandboxTracker::new();
+            tracker.set(id.clone());
+            let execution = stop_for_signal(&sandbox, &tracker, "fallback", signal);
+            assert_eq!(execution.exit_code, code, "{signal}");
+            let expected = format!("stopped by signal {signal}; the sandbox was removed");
+            assert_eq!(execution.message.as_deref(), Some(expected.as_str()));
+            assert_eq!(execution.stdout, "");
+            assert_eq!(execution.stderr, "");
+            assert_eq!(one_destroy(&sandbox), Call::Destroy { id });
+            assert_eq!(tracker.current(), None);
+        }
+    }
+
+    #[test]
+    fn stop_for_signal_without_an_id_destroys_the_name() {
+        let sandbox = FakeSandbox::new();
+        let tracker = SandboxTracker::new();
+        let execution = stop_for_signal(&sandbox, &tracker, "named-sandbox", 15);
+        assert_eq!(execution.exit_code, 143);
+        assert_eq!(
+            one_destroy(&sandbox),
+            Call::Destroy {
+                id: SandboxId("named-sandbox".to_string()),
+            }
+        );
+        assert!(execution
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("already gone")));
+        assert_eq!(tracker.current(), None);
+    }
+
+    #[test]
+    fn stop_for_signal_reports_an_unknown_id_as_already_gone() {
+        let sandbox = FakeSandbox::new();
+        let tracker = SandboxTracker::new();
+        let id = SandboxId("never-created".to_string());
+        tracker.set(id.clone());
+        let execution = stop_for_signal(&sandbox, &tracker, "fallback", 15);
+        assert_eq!(execution.exit_code, 143);
+        assert_eq!(
+            execution.message.as_deref(),
+            Some("stopped by signal 15; the sandbox was already gone")
+        );
+        assert_eq!(one_destroy(&sandbox), Call::Destroy { id });
+        assert_eq!(tracker.current(), None);
+    }
+
+    #[test]
+    fn stop_for_signal_reports_a_failed_removal_and_keeps_the_signal_code() {
+        let sandbox = FakeSandbox::new().fail(
+            Operation::Destroy,
+            SandboxError::Failed("cannot remove".to_string()),
+        );
+        let tracker = SandboxTracker::new();
+        let id = SandboxId("abc".to_string());
+        tracker.set(id.clone());
+        let execution = stop_for_signal(&sandbox, &tracker, "fallback", 15);
+        assert_eq!(execution.exit_code, 143);
+        assert_eq!(
+            execution.message.as_deref(),
+            Some("stopped by signal 15; the sandbox was not removed: cannot remove")
+        );
+        assert_eq!(one_destroy(&sandbox), Call::Destroy { id });
+        assert_eq!(tracker.current(), None);
+    }
+
+    #[test]
+    fn stop_for_signal_marks_the_tracker_as_stopping() {
+        let sandbox = FakeSandbox::new();
+        let tracker = SandboxTracker::new();
+        assert!(!tracker.is_stopping());
+        let _ = stop_for_signal(&sandbox, &tracker, "named", 15);
+        assert!(tracker.is_stopping());
+    }
+
+    #[test]
+    fn a_run_that_ends_after_a_stop_began_leaves_the_removal_to_the_stop() {
+        let sandbox = FakeSandbox::new();
+        let tracker = SandboxTracker::new();
+        tracker.begin_stop();
+        let execution = execute_tracked(&sandbox, &plan_of(&request()), &tracker);
+        assert_eq!(execution.exit_code, 125);
+        assert!(execution
+            .message
+            .as_deref()
+            .is_some_and(|message| message.contains("stopped by a signal")));
+        let destroys = sandbox
+            .calls()
+            .into_iter()
+            .filter(|call| matches!(call, Call::Destroy { .. }))
+            .count();
+        assert_eq!(destroys, 0);
     }
 }

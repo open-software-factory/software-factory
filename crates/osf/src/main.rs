@@ -190,7 +190,9 @@ enum SandboxAction {
     ///
     /// Exit codes: the command's own status; 2 when osf refuses the image, the
     /// user, or the command before any docker call; 124 when the command times
-    /// out; 125 when docker fails or the sandbox cannot be removed.
+    /// out; 125 when docker fails or the sandbox cannot be removed; and 128
+    /// plus the signal number (130 for SIGINT, 143 for SIGTERM) when osf is
+    /// stopped, after it removes the sandbox.
     Run(SandboxRunArgs),
 }
 
@@ -2354,7 +2356,13 @@ fn sandbox_run_cmd(args: &SandboxRunArgs) -> ExitCode {
         print!("{}", sandbox_cli::dry_run_json(&plan));
         return ExitCode::SUCCESS;
     }
-    let execution = sandbox_cli::execute(&DockerSandbox::real(), &plan);
+    let execution = match sandbox_cli::run_plan(std::sync::Arc::new(DockerSandbox::real()), &plan) {
+        Ok(execution) => execution,
+        Err(text) => {
+            eprintln!("osf: {text}");
+            return ExitCode::from(125);
+        }
+    };
     print!("{}", execution.stdout);
     eprint!("{}", execution.stderr);
     if let Some(message) = &execution.message {

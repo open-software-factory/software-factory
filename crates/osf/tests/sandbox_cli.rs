@@ -75,6 +75,10 @@ fn dry_run_prints_the_pinned_argv_for_both_folders() {
     let value: Value = serde_json::from_slice(&output.stdout).expect("one JSON object");
 
     let create = argv(&value, "create");
+    assert!(
+        create.contains(&"--label=osf.sandbox=osf-sandbox-cli".to_string()),
+        "{create:?}"
+    );
     assert_eq!(network_of(&create), Some("none"), "{create:?}");
     let workspace = mount_for(&create, "/workspace");
     assert_eq!(

@@ -4,8 +4,13 @@ use crate::sandbox::{
     Capability, CommandSpec, Destroyed, RunOutcome, RunResult, Sandbox, SandboxCapabilities,
     SandboxError, SandboxId, SandboxSpec,
 };
-use std::cell::RefCell;
 use std::collections::VecDeque;
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
+/// Locks `mutex`, recovering the value even if a previous holder panicked.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
 
 /// One call the double recorded, in the order it happened.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -27,10 +32,10 @@ pub enum Operation {
 
 /// A [`Sandbox`] that answers from memory and records every call.
 pub struct FakeSandbox {
-    calls: RefCell<Vec<Call>>,
+    calls: Mutex<Vec<Call>>,
     failures: Vec<(Operation, SandboxError)>,
-    run_results: RefCell<VecDeque<RunResult>>,
-    created: RefCell<Vec<SandboxId>>,
+    run_results: Mutex<VecDeque<RunResult>>,
+    created: Mutex<Vec<SandboxId>>,
     /// The answer [`Sandbox::capabilities`] returns.
     pub capabilities: SandboxCapabilities,
 }
@@ -40,10 +45,10 @@ impl FakeSandbox {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            calls: RefCell::new(Vec::new()),
+            calls: Mutex::new(Vec::new()),
             failures: Vec::new(),
-            run_results: RefCell::new(VecDeque::new()),
-            created: RefCell::new(Vec::new()),
+            run_results: Mutex::new(VecDeque::new()),
+            created: Mutex::new(Vec::new()),
             capabilities: SandboxCapabilities {
                 platforms: vec!["local".to_string()],
                 runtime: Capability::Supported,
@@ -67,19 +72,19 @@ impl FakeSandbox {
     /// Queues `result` as the next answer [`Sandbox::run`] returns.
     #[must_use]
     pub fn with_run_result(self, result: RunResult) -> Self {
-        self.run_results.borrow_mut().push_back(result);
+        lock(&self.run_results).push_back(result);
         self
     }
 
     /// Every call recorded so far, in order.
     #[must_use]
     pub fn calls(&self) -> Vec<Call> {
-        self.calls.borrow().clone()
+        lock(&self.calls).clone()
     }
 
     /// Removes `id` from the ids this double remembers; for tests only.
     pub fn forget(&self, id: &SandboxId) {
-        self.created.borrow_mut().retain(|known| known != id);
+        lock(&self.created).retain(|known| known != id);
     }
 
     /// The scripted failure for `operation`, if any.
@@ -99,26 +104,24 @@ impl Default for FakeSandbox {
 
 impl Sandbox for FakeSandbox {
     fn create(&self, spec: &SandboxSpec) -> Result<SandboxId, SandboxError> {
-        self.calls
-            .borrow_mut()
-            .push(Call::Create { spec: spec.clone() });
+        lock(&self.calls).push(Call::Create { spec: spec.clone() });
         if let Some(error) = self.failure(Operation::Create) {
             return Err(error);
         }
         let id = SandboxId(format!("fake-{}", spec.name));
-        self.created.borrow_mut().push(id.clone());
+        lock(&self.created).push(id.clone());
         Ok(id)
     }
 
     fn run(&self, id: &SandboxId, command: &CommandSpec) -> Result<RunResult, SandboxError> {
-        self.calls.borrow_mut().push(Call::Run {
+        lock(&self.calls).push(Call::Run {
             id: id.clone(),
             command: command.clone(),
         });
         if let Some(error) = self.failure(Operation::Run) {
             return Err(error);
         }
-        let scripted = self.run_results.borrow_mut().pop_front();
+        let scripted = lock(&self.run_results).pop_front();
         Ok(scripted.unwrap_or(RunResult {
             outcome: RunOutcome::Exited(0),
             stdout: String::new(),
@@ -130,13 +133,11 @@ impl Sandbox for FakeSandbox {
     }
 
     fn destroy(&self, id: &SandboxId) -> Result<Destroyed, SandboxError> {
-        self.calls
-            .borrow_mut()
-            .push(Call::Destroy { id: id.clone() });
+        lock(&self.calls).push(Call::Destroy { id: id.clone() });
         if let Some(error) = self.failure(Operation::Destroy) {
             return Err(error);
         }
-        let mut created = self.created.borrow_mut();
+        let mut created = lock(&self.created);
         match created.iter().position(|known| known == id) {
             Some(index) => {
                 created.remove(index);
@@ -147,9 +148,7 @@ impl Sandbox for FakeSandbox {
     }
 
     fn capabilities(&self, spec: &SandboxSpec) -> SandboxCapabilities {
-        self.calls
-            .borrow_mut()
-            .push(Call::Capabilities { spec: spec.clone() });
+        lock(&self.calls).push(Call::Capabilities { spec: spec.clone() });
         self.capabilities.clone()
     }
 }

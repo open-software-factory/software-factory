@@ -33,3 +33,6 @@ wait-timeout = "0.2"
 tree-sitter = "=0.25.10"
 tree-sitter-rust = "=0.24.2"
 pulldown-cmark = "0.13.4"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

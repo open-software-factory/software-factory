@@ -52,7 +52,7 @@ impl fmt::Display for RunnerError {
 impl std::error::Error for RunnerError {}
 
 /// Runs one `docker` invocation.
-pub trait DockerRunner {
+pub trait DockerRunner: Send + Sync {
     /// Runs `argv`, waiting at most `timeout`.
     ///
     /// # Errors
@@ -234,11 +234,14 @@ fn kill_tree(child: &Child) -> Result<(), String> {
 }
 
 /// The `docker create` argv for `spec`, without the program name.
+///
+/// No `--rm`: a measured kill then `rm --force` fails with "removal of container ... is already in progress".
 #[must_use]
 pub fn create_argv(spec: &SandboxSpec) -> Vec<String> {
     let mut argv = vec![
         "create".to_string(),
         format!("--name={}", spec.name),
+        format!("--label=osf.sandbox={}", spec.name),
         "--cap-drop".to_string(),
         "ALL".to_string(),
         "--security-opt".to_string(),
@@ -936,8 +939,13 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
     use std::collections::VecDeque;
+    use std::sync::{Mutex, MutexGuard, PoisonError};
+
+    /// Locks `mutex`, recovering the value even if a previous holder panicked.
+    fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+        mutex.lock().unwrap_or_else(PoisonError::into_inner)
+    }
 
     /// One recorded runner call.
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -948,20 +956,20 @@ mod tests {
 
     /// A [`DockerRunner`] that records every call and answers in order.
     struct ScriptedRunner {
-        calls: RefCell<Vec<Call>>,
-        results: RefCell<VecDeque<Result<ToolOutput, RunnerError>>>,
+        calls: Mutex<Vec<Call>>,
+        results: Mutex<VecDeque<Result<ToolOutput, RunnerError>>>,
     }
 
     impl ScriptedRunner {
         fn new(results: Vec<Result<ToolOutput, RunnerError>>) -> Self {
             Self {
-                calls: RefCell::new(Vec::new()),
-                results: RefCell::new(results.into()),
+                calls: Mutex::new(Vec::new()),
+                results: Mutex::new(results.into()),
             }
         }
 
         fn calls(&self) -> Vec<Call> {
-            self.calls.borrow().clone()
+            lock(&self.calls).clone()
         }
     }
 
@@ -971,15 +979,21 @@ mod tests {
             argv: &[String],
             timeout: Option<Duration>,
         ) -> Result<ToolOutput, RunnerError> {
-            self.calls.borrow_mut().push(Call {
+            lock(&self.calls).push(Call {
                 argv: argv.to_vec(),
                 timeout,
             });
-            self.results
-                .borrow_mut()
+            lock(&self.results)
                 .pop_front()
                 .expect("the scripted runner has an answer for every call")
         }
+    }
+
+    fn assert_send_sync<T: Send + Sync>() {}
+
+    #[test]
+    fn the_docker_adapter_is_send_and_sync() {
+        assert_send_sync::<DockerSandbox<RealDockerRunner>>();
     }
 
     /// A workspace-shaped spec with two mounts, one of them read-only.
@@ -1082,6 +1096,7 @@ mod tests {
             strings(&[
                 "create",
                 "--name=build",
+                "--label=osf.sandbox=build",
                 "--cap-drop",
                 "ALL",
                 "--security-opt",

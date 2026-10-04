@@ -28,6 +28,8 @@ pub mod sandbox;
 pub mod sandbox_cli;
 pub mod scan;
 pub mod section;
+#[cfg(unix)]
+pub mod stop_signal;
 #[cfg(test)]
 mod test_support;
 pub mod verify;

@@ -12,7 +12,7 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Held for a whole test: a script that is still open for writing makes a parallel spawn fail with "Text file busy".
 static SPAWN_LOCK: Mutex<()> = Mutex::new(());
@@ -323,4 +323,106 @@ fn osf_sandbox_run_command_runs_and_passes_the_exit_status() {
     assert_eq!(output.status.code(), Some(7), "{output:?}");
     let written = fs::read_to_string(state.dir.join("out.txt")).expect("the host file exists");
     assert_eq!(written, "hello\n");
+}
+
+/// The container ids `docker` prints for `label=osf.sandbox=<name>` under
+/// `listing`, one per line and trimmed.
+fn docker_ids(name: &str, listing: &[&str]) -> String {
+    let output = std::process::Command::new("docker")
+        .args(listing)
+        .arg("--filter")
+        .arg(format!("label=osf.sandbox={name}"))
+        .arg("--format")
+        .arg("{{.ID}}")
+        .output()
+        .expect("docker runs");
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
+}
+
+/// Waits up to `limit` for a running container with the sandbox label.
+fn wait_for_container(name: &str, limit: Duration) -> bool {
+    let started = Instant::now();
+    while docker_ids(name, &["ps"]).is_empty() {
+        if started.elapsed() >= limit {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    true
+}
+
+/// Removes the container by name when it goes out of scope, so a failed
+/// assertion leaves nothing behind.
+struct ContainerGuard {
+    name: String,
+}
+
+impl Drop for ContainerGuard {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("docker")
+            .args(["rm", "--force", "--", &self.name])
+            .status();
+    }
+}
+
+#[test]
+#[ignore = "needs a running docker daemon and OSF_SANDBOX_SMOKE_IMAGE"]
+fn osf_sandbox_run_removes_the_sandbox_when_sent_sigterm() {
+    let Ok(image) = std::env::var("OSF_SANDBOX_SMOKE_IMAGE") else {
+        println!("skipping the docker smoke test: OSF_SANDBOX_SMOKE_IMAGE is unset");
+        return;
+    };
+    let _lock = serial();
+    let repo = TempArea::new("sigterm-repo");
+    let state = TempArea::new("sigterm-state");
+    let mut perms = fs::metadata(&state.dir)
+        .expect("the state folder has metadata")
+        .permissions();
+    perms.set_mode(0o777);
+    fs::set_permissions(&state.dir, perms).expect("the state folder is world-writable");
+    let name = unique_name("osf-sigterm");
+    let _guard = ContainerGuard { name: name.clone() };
+
+    let repo_arg = repo.dir.to_string_lossy().into_owned();
+    let state_arg = state.dir.to_string_lossy().into_owned();
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_osf"))
+        .args([
+            "sandbox",
+            "run",
+            "--image",
+            image.as_str(),
+            "--repo",
+            repo_arg.as_str(),
+            "--state",
+            state_arg.as_str(),
+            "--name",
+            name.as_str(),
+            "--",
+            "sleep",
+            "100",
+        ])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("osf spawns");
+
+    if !wait_for_container(&name, Duration::from_secs(60)) {
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!("the sandbox with label osf.sandbox={name} never appeared");
+    }
+
+    let pid = child.id().to_string();
+    let sent = std::process::Command::new("kill")
+        .args(["-TERM", pid.as_str()])
+        .status()
+        .expect("kill runs");
+    assert!(sent.success(), "SIGTERM was not sent");
+    let output = child.wait_with_output().expect("osf exits");
+    assert_eq!(output.status.code(), Some(143), "{output:?}");
+    let remaining = docker_ids(&name, &["ps", "-a"]);
+    assert!(
+        remaining.is_empty(),
+        "the sandbox is still there: {remaining}"
+    );
 }

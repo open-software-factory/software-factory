@@ -733,6 +733,7 @@ dependencies = [
  "agnix-core",
  "clap",
  "globset",
+ "libc",
  "osf-lint-core",
  "pulldown-cmark",
  "regex",
