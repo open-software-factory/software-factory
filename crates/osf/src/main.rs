@@ -701,9 +701,9 @@ struct VerifyArgs {
 
 #[derive(Subcommand)]
 enum LintKind {
-    /// Check prose for references, names, sentence length, and filler.
+    /// Check prose for references, chat-local phrases, sentence length, and style shapes.
     Writing(WritingArgs),
-    /// Check a skill folder's SKILL.md against eleven structural and safety rules.
+    /// Check a skill folder's SKILL.md and scripts for structural and safety problems.
     Skill(SkillLintArgs),
 }
 
@@ -718,14 +718,23 @@ struct SkillLintArgs {
     #[arg(long)]
     strict: bool,
     /// A first section that is not step-shaped may hold this many paragraphs. Overrides the config file.
-    #[arg(long)]
+    /// For a person running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
     overview_max_paragraphs: Option<usize>,
     /// A first section that is not step-shaped may hold this many words. Overrides the config file.
-    #[arg(long)]
+    /// For a person running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
     overview_max_words: Option<usize>,
-    /// Extra names that need no description, one per line.
-    #[arg(long)]
+    /// Extra names that need no description, one per line. For a person
+    /// running the tool by hand; a gate run does not accept it.
+    #[arg(long, conflicts_with = "gate")]
     known_names: Option<PathBuf>,
+    /// Runs as a gate over a change that has not yet been approved: every
+    /// setting is the compiled default, never the config file or the
+    /// environment, so that change cannot loosen this check by editing its
+    /// own configuration.
+    #[arg(long)]
+    gate: bool,
 }
 
 #[derive(Args)]
@@ -1109,6 +1118,9 @@ fn explain(rule_id: &str) -> ExitCode {
         "{} (class: {}, group: {}, citation: {})\n",
         meta.id, meta.class, meta.group, meta.citation
     );
+    if lints::policy::disabled_by_default(rule_id) {
+        println!("Enforcement: disabled by default following the rule audit. The detector and its purpose are retained for evaluation and future improvement. Every command applies this compiled policy last, so a configuration cannot re-enable the rule.\n");
+    }
     println!("{}", meta.doc);
     ExitCode::SUCCESS
 }
@@ -1502,6 +1514,26 @@ fn check_cmd(args: &CheckArgs, config_flag: Option<&std::path::Path>) -> ExitCod
         excluder: &excluder,
         checkpoint,
     };
+    match args.name {
+        check::CheckName::LintWriting => eprintln!(
+            "osf check writing policy: {}",
+            lints::policy::coverage(&loaded.config.writing.levels)
+        ),
+        check::CheckName::LintSkill => {
+            eprintln!(
+                "osf skill-script-unpinned {}",
+                lints::script_pins::coverage()
+            );
+            eprintln!(
+                "osf check skill policy: {}",
+                lints::policy::coverage(&lints::policy::skill_levels(
+                    &loaded.config.writing.levels,
+                    &loaded.config.skill.levels
+                ))
+            );
+        }
+        _ => {}
+    }
     let findings = match check::run_check(args.name, &opts, &files, args.gate) {
         Ok(f) => f,
         Err(e) => {
@@ -1551,6 +1583,10 @@ fn lint_writing(
         }
     };
     let cfg = &loaded.config.writing;
+    eprintln!(
+        "osf lint writing policy: {}",
+        lints::policy::coverage(&cfg.levels)
+    );
     let known = match lints::load_known_names(&cfg.known_names, args.known_names.as_deref()) {
         Ok(k) => k,
         Err(e) => {
@@ -1621,7 +1657,7 @@ fn skill_flags_overlay(args: &SkillLintArgs) -> Vec<(&'static [&'static str], to
 
 fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -> ExitCode {
     let overlay = skill_flags_overlay(args);
-    let loaded = match config::load(config_flag, &overlay, &[], false) {
+    let loaded = match config::load(config_flag, &overlay, &[], args.gate) {
         Ok(l) => l,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -1630,6 +1666,15 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
     };
     let cfg = &loaded.config.skill;
     let writing_cfg = &loaded.config.writing;
+    let levels = lints::policy::skill_levels(&writing_cfg.levels, &cfg.levels);
+    eprintln!(
+        "osf skill-script-unpinned {}",
+        lints::script_pins::coverage()
+    );
+    eprintln!(
+        "osf lint skill policy: {}",
+        lints::policy::coverage(&levels)
+    );
     let known = match lints::load_known_names(&writing_cfg.known_names, args.known_names.as_deref())
     {
         Ok(k) => k,
@@ -1662,7 +1707,7 @@ fn lint_skill_cmd(args: &SkillLintArgs, config_flag: Option<&std::path::Path>) -
         }
         for (file, raw_findings) in by_file {
             let name = format!("{}/{file}", dir.display());
-            let mut findings = osf_lint_core::apply_level_overrides(raw_findings, &cfg.levels);
+            let mut findings = osf_lint_core::apply_level_overrides(raw_findings, &levels);
             if args.strict {
                 for f in &mut findings {
                     if f.suppressed.is_none() && f.level == lints::Level::Warning {

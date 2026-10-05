@@ -464,7 +464,7 @@ fn check_scan_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
 #[test]
 fn check_lint_skill_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
     let repo = TempRepo::new("check-lint-skill-pre-push-head");
-    let first_person = "---\nname: demo\ndescription: I can check a folder for common problems when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+    let first_person = "---\nname: demo\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
     repo.write("skills/demo/SKILL.md", first_person);
     repo.commit("add a first-person skill description");
     let third_person = "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
@@ -482,8 +482,8 @@ fn check_lint_skill_at_the_pre_push_checkpoint_reads_head_not_the_working_tree()
         ],
     );
     assert!(
-        String::from_utf8_lossy(&out.stdout).contains("skill-first-person"),
-        "the committed, first-person description must still be read at pre-push: {out:?}"
+        String::from_utf8_lossy(&out.stdout).contains("AS-016"),
+        "the committed, duplicate-name frontmatter must still be read at pre-push: {out:?}"
     );
 }
 
@@ -492,7 +492,7 @@ fn check_lint_skill_at_the_pre_push_checkpoint_reads_head_not_the_working_tree()
 #[test]
 fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_fix() {
     let repo = TempRepo::new("check-lint-skill-hook-disk");
-    let first_person = "---\nname: demo\ndescription: I can check a folder for common problems when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+    let first_person = "---\nname: demo\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
     repo.write("skills/demo/SKILL.md", first_person);
     repo.commit("add a first-person skill description");
     let third_person = "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
@@ -509,8 +509,14 @@ fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_fix() {
             "skills/demo/SKILL.md",
         ],
     );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(
-        !String::from_utf8_lossy(&out.stdout).contains("skill-first-person"),
+        stdout.contains("osf check lint-skill: 0 error(s)"),
+        "the check printed no result: {out:?}"
+    );
+    assert!(
+        !stdout.contains("AS-016"),
         "the on-disk fix must be what the hook checkpoint reads: {out:?}"
     );
 }
@@ -570,8 +576,14 @@ fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_script() {
             "skills/demo/SKILL.md",
         ],
     );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(
-        !String::from_utf8_lossy(&out.stdout).contains("skill-script-unpinned"),
+        stdout.contains("osf check lint-skill: 0 error(s)"),
+        "the check printed no result: {out:?}"
+    );
+    assert!(
+        !stdout.contains("skill-script-unpinned"),
         "the on-disk fix must be what the hook checkpoint reads: {out:?}"
     );
 }
@@ -595,4 +607,72 @@ fn an_inherited_osf_checkpoint_env_var_no_longer_changes_what_pre_push_reads() {
         &["check", "scan", "--checkpoint", "pre-push", "notes.md"],
     );
     assert_eq!(out.status.code(), Some(0), "{out:?}");
+}
+
+/// Config cannot turn off a skill fixture's own declared-rule contract.
+#[test]
+fn config_cannot_disable_a_skill_fixture_contract_failure_in_check() {
+    let repo = TempRepo::new("check-skill-fixture-policy-is-fixed");
+    repo.write(
+        "crates/osf/tests/fixtures/skills/demo/SKILL.md",
+        "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n\n<!-- osf-expect-skill\nskill-first-person\n-->\n",
+    );
+    repo.write(
+        "osf.toml",
+        "[skill.levels]\nexpectation-missing = \"off\"\n",
+    );
+    repo.commit("add a declared skill fixture and weaken its contract policy");
+    let home = isolated_home("check-skill-fixture-policy-is-fixed");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "--config",
+            "osf.toml",
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pre-push",
+            "crates/osf/tests/fixtures/skills/demo/SKILL.md",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("expectation-missing"),
+        "{out:?}"
+    );
+}
+
+/// The out-of-fixtures marker warning stays configurable.
+#[test]
+fn check_honors_config_for_a_skill_marker_outside_fixtures_warning() {
+    let repo = TempRepo::new("check-skill-outside-fixtures-warning-configurable");
+    repo.write(
+        "skills/demo/SKILL.md",
+        "---\nname: demo\ndescription: Use this skill when the user wants a quick health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n## Checks\n\n1. Read the folder listing.\n2. Check that a license file exists.\n3. Check that a readme file exists.\n4. Write one line per problem found, with the file path.\n\nStop when every check has run once.\n\n<!-- osf-expect-skill\n-->\n",
+    );
+    repo.write(
+        "osf.toml",
+        "[skill.levels]\nexpectation-outside-fixtures = \"off\"\n",
+    );
+    repo.commit("add an out-of-fixtures marker and configure its warning off");
+    let home = isolated_home("check-skill-outside-fixtures-warning-configurable");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "--config",
+            "osf.toml",
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pre-push",
+            "skills/demo/SKILL.md",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        !String::from_utf8_lossy(&out.stdout).contains("expectation-outside-fixtures"),
+        "{out:?}"
+    );
 }

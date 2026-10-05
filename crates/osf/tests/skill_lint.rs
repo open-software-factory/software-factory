@@ -81,7 +81,7 @@ fn inert_injection_flags_the_escaped_syntax() {
     assert_all_errors(&findings);
 }
 
-/// The three skill rules the manual shape itself fires; none of "Checker",
+/// The two retained detectors the manual shape fires; none of "Checker",
 /// "Design", "Tool", or "Layout" carries any of the writing lint's own
 /// positive evidence for a name (an internal capital, a digit, a domain
 /// suffix, or a repeated multi-word run), so none of them is reported.
@@ -93,7 +93,6 @@ fn manual_shaped_fixture_reads_as_a_manual() {
         vec![
             "skill-descriptive-over-imperative",
             "skill-first-section-is-overview",
-            "skill-reads-as-manual",
         ]
     );
     assert_all_errors(&findings);

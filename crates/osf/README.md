@@ -8,7 +8,7 @@ the rules, because the rules are compiled in.
 
 | Command | What it does |
 |---|---|
-| `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, names used with no description, sentences over 25 words, dashes, arrows, filler, and headings in short texts. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. `--message` marks the text as a reply to a person, where a heading in a short text is an error. |
+| `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, sentences over 25 words, em dashes, semicolons, unsourced attributions, and headings in short texts. It also checks a set of style shapes, such as `not only X, but Y`. A fixed list of audited checks is off on every path, and a config file cannot turn one on. `osf explain <rule>` says whether a rule is off. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. `--message` marks the text as a reply to a person, where a heading in a short text is an error. |
 | `osf hook stop` | Reads a coding agent's Stop event from standard input and lints the final message. Stop is the event an agent sends when it wants to end its turn. The command refuses the stop when the message has errors, and also when it could not check the message at all (bad input, no message in the event, or no known-names list to check against). The agent gets the findings, or the reason it could not be checked, and rewrites. After two refusals in one turn the message goes through. |
 | `osf hook prompt` | Reads a coding agent's prompt-submitted event from standard input and prints context for the new turn: a one-line reminder of the writing shapes a model slips into most, then any style advice the last stop check stored for that session. The advice holds the last turn only, at most twenty lines, and is cleared once printed. |
 | `osf pr status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
@@ -187,7 +187,7 @@ A hooks file for Claude Code, Codex and the dsh bridge:
 ```
 
 The two entries work as a pair. A style finding in a sent message, such as a
-sentence that trails off in `, not X`, cannot be corrected by a follow-up, so
+sentence in the `not only X, but Y` shape, cannot be corrected by a follow-up, so
 the stop check lets the message through and stores the finding. `osf hook
 prompt` prints what was stored when the next prompt arrives, so the agent sees
 it before writing again. Wire only the stop check and that advice is never
@@ -243,8 +243,8 @@ warn_sentence_words = 20    # warning above this
 max_numerals = 2
 short_text_words = 500
 known_names = ["Vale", "Tauri"]
-must_explain_names = ["Linear", "Canny"]  # errors, even under --gate; see below
-filler = ["delve", "leverage"]            # replaces the built-in list
+must_explain_names = ["Linear", "Canny"]  # available to undefined-name checks
+filler = ["delve", "leverage"]            # replaces the list the filler check reads, and that check is off
 chat_local_phrases = ["as discussed"]     # replaces the built-in list
 chat_local_labels = ["phase", "item"]     # "phase 2" and the like
 
@@ -253,13 +253,18 @@ semicolon = "off"
 reference-without-link = "error"
 ```
 
-As of 2026-10-03, `known_names` and `writing.levels` change what `osf lint writing` and
-`osf hook stop` report. The other fields are resolved and shown by
-`osf config show`; wiring them into each rule's own check is later work.
+`writing.levels` raises or lowers the level of a rule that is on. It applies
+in `osf lint writing`, `osf lint skill`, `osf check` and `osf hook stop`. A
+level for an audited rule is ignored. The compiled list of audited rules is
+applied last, so no config file can turn one of them on. The `--gate` flag
+reads the compiled defaults only. `known_names` feeds the undefined-name
+checks, which are off. It changes no finding now. The other fields are
+resolved and shown by `osf config show`. Wiring them into each rule's own
+check is later work.
 
-`must_explain_names` is read from the file even under `--gate`, unlike
-every other setting here: it can only add `undefined-name` errors, never
-remove one, so a change cannot use it to loosen its own gate.
+`must_explain_names` is read from the file under `--gate`, but it changes
+no finding now. Only the `undefined-name` check reads it, and that check is
+off on every path, so no lint run can use the list.
 
 Every environment variable maps to one field:
 

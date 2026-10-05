@@ -76,7 +76,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a line that begins `Co-Authored-By:`.\n\
+              Flags a line that begins `Co-Authored-By:`, matching the field \
+              name without regard to letter case.\n\
               ### Why it is bad\n\
               A co-author trailer from a coding agent names a tool and a session in a \
               commit that becomes part of the project's history forever.\n\

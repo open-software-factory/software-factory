@@ -8,6 +8,8 @@
 //! and the two path rules that decide where a fixture declaration counts.
 
 pub mod agnix;
+pub mod policy;
+pub mod script_pins;
 pub mod skill;
 pub mod writing;
 

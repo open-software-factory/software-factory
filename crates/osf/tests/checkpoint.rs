@@ -506,7 +506,7 @@ fn the_pull_request_checkpoint_s_lint_skill_gate_ignores_the_exclude_list() {
     let base = repo.commit("base");
     repo.write(
         "skills/demo/SKILL.md",
-        "---\nname: demo\ndescription: Checks a folder for problems.\n---\n\n1. Run the check.\n",
+        "---\nname: demo\nname: demo\ndescription: Use when checking a folder.\n---\n\n1. Run the check.\n",
     );
     repo.commit("dirty");
     let home = isolated_home("cp-skill-gate");
