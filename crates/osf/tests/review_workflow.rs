@@ -592,7 +592,7 @@ fn the_codex_job_runs_on_the_host() {
 }
 
 #[test]
-fn the_codex_job_allows_only_its_seven_hosts() {
+fn the_codex_job_allows_only_its_five_hosts() {
     let body = job_body(&workflow_text(), "review-codex");
     let mut hosts = endpoints_of(&body);
     hosts.sort();
@@ -601,18 +601,24 @@ fn the_codex_job_allows_only_its_seven_hosts() {
         "api.github.com:443",
         "codeload.github.com:443",
         "objects.githubusercontent.com:443",
-        "ghcr.io:443",
-        "pkg-containers.githubusercontent.com:443",
         "api.openai.com:443",
     ]
     .iter()
     .map(ToString::to_string)
     .collect();
     expected.sort();
-    assert_eq!(hosts, expected, "the codex job names its seven hosts");
+    assert_eq!(hosts, expected, "the codex job names its five hosts");
     assert!(
         !body.contains("release-assets"),
         "the codex job downloads no release: {body}"
+    );
+    assert!(
+        !body.contains("ghcr.io"),
+        "the codex job runs no container: {body}"
+    );
+    assert!(
+        !body.contains("pkg-containers"),
+        "the codex job runs no container: {body}"
     );
 }
 
@@ -639,6 +645,15 @@ fn the_codex_sandbox_check_is_documented_and_reports_the_reason() {
         step.contains("kernel.apparmor_restrict_unprivileged_userns"),
         "{step}"
     );
+    assert!(step.contains("command -v sysctl"), "{step}");
+    assert!(
+        step.contains("sysctl is not available on this runner"),
+        "the sandbox check reports a missing sysctl: {step}"
+    );
+    assert!(
+        step.contains("is not set on this kernel"),
+        "the sandbox check keeps the not-set reason: {step}"
+    );
     assert!(step.contains("exit 1"), "{step}");
     assert!(
         !step.contains("env:"),
@@ -655,6 +670,25 @@ fn the_codex_sandbox_check_is_documented_and_reports_the_reason() {
     assert!(
         text.contains("Codex starts its read-only sandbox with user namespaces"),
         "the workflow names the sandbox assumption"
+    );
+}
+
+#[test]
+fn the_workflow_header_matches_the_jobs() {
+    let text = workflow_text();
+    let header: Vec<&str> = text.lines().take_while(|line| *line != "on:").collect();
+    let header = header.join("\n");
+    assert!(
+        !header.contains("only its own provider's network host"),
+        "the header describes each reviewer's network list truthfully: {header}"
+    );
+    assert!(
+        !header.contains("alone gets the code host's token"),
+        "the header describes the last job's token truthfully: {header}"
+    );
+    assert!(
+        header.contains("alone mints the verifier"),
+        "the header says the last job alone mints the verifier app's token: {header}"
     );
 }
 

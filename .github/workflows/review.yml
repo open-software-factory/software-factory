@@ -3,10 +3,11 @@ name: review
 # pull_request_target always runs this file from the base branch, so a
 # pull request cannot change the job that judges it.
 #
-# One job builds osf from the base branch, with no secrets. Each reviewer
-# then runs in its own job, with only its own provider's key and only its
-# own provider's network host. The last job collects the saved answers,
-# decides, and posts: it alone gets the code host's token.
+# One job builds osf from the base branch. It holds no provider key, and a
+# read-only token finds the work item. Each reviewer runs in its own job
+# with only its own provider's key and a network list of its provider's
+# host plus the hosts it needs to run. The last job collects the saved
+# answers, decides, and posts: it alone mints the verifier app's token.
 #
 # This check is advisory. It posts a check run and a review, and no branch
 # protection or ruleset requires it. It becomes a required check when the key
@@ -183,8 +184,6 @@ jobs:
             api.github.com:443
             codeload.github.com:443
             objects.githubusercontent.com:443
-            ghcr.io:443
-            pkg-containers.githubusercontent.com:443
             api.openai.com:443
 
       - name: Require the Linux x86_64 runner this job assumes
@@ -275,7 +274,9 @@ jobs:
             echo "osf review: the codex sandbox starts on this runner"
             exit 0
           fi
-          if restrict=$(sysctl -n kernel.apparmor_restrict_unprivileged_userns); then
+          if ! command -v sysctl >/dev/null; then
+            setting="sysctl is not available on this runner"
+          elif restrict=$(sysctl -n kernel.apparmor_restrict_unprivileged_userns); then
             setting="kernel.apparmor_restrict_unprivileged_userns is ${restrict}"
           else
             setting="kernel.apparmor_restrict_unprivileged_userns is not set on this kernel"
