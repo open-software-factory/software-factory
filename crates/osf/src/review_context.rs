@@ -291,11 +291,14 @@ fn visible_lines(body: &str) -> Vec<String> {
         .collect()
 }
 
-/// Whether `line` still holds text once tags, entities and empty task boxes are removed.
+/// Whether `line` still holds text once its list marker, URLs, tags, entities and empty task boxes are removed.
 fn has_text(line: &str) -> bool {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
     let pattern = PATTERN.get_or_init(|| {
-        Regex::new(r"<[A-Za-z/][^>]*>|&[A-Za-z0-9#]+;|\[[ xX]\]").expect("pattern compiles")
+        Regex::new(
+            r"^\s*(?:[-*+]|\d+[.)])\s*|https?://\S*|www\.\S*|<[A-Za-z/][^>]*>|&[A-Za-z0-9#]+;|\[[ xX]\]",
+        )
+        .expect("pattern compiles")
     });
     pattern
         .replace_all(line, "")
@@ -592,6 +595,59 @@ mod tests {
     #[test]
     fn acceptance_section_is_none_for_a_mix_of_empty_shapes() {
         let body = "## Done when\n-\n- [ ]\n<br>\n&nbsp;\n---\n### Details\n";
+        let (section, present) = acceptance_both(body);
+        assert!(section.is_none(), "{section:?}");
+        assert!(present);
+    }
+
+    #[test]
+    fn acceptance_section_is_none_for_an_empty_numbered_item() {
+        for body in [
+            "## Done when\n1.\n",
+            "## Done when\n1)\n",
+            "## Done when\n1. \n2.\n",
+        ] {
+            let (section, present) = acceptance_both(body);
+            assert!(section.is_none(), "{body:?} gave {section:?}");
+            assert!(present, "{body:?} has no heading");
+        }
+    }
+
+    #[test]
+    fn acceptance_section_is_none_for_a_section_holding_only_a_link_or_an_image() {
+        for shape in [
+            "[https://example.com](https://example.com)",
+            "<https://example.com>",
+            "https://example.com",
+            "- [https://example.com](https://example.com)",
+            "![alt text](https://example.com/a.png)",
+            "[![alt text](https://example.com/a.png)](https://example.com)",
+            "[](https://example.com)",
+        ] {
+            let body = format!("## Done when\n{shape}\n");
+            let (section, present) = acceptance_both(&body);
+            assert!(section.is_none(), "{shape:?} gave {section:?}");
+            assert!(present, "{shape:?} has no heading");
+        }
+    }
+
+    #[test]
+    fn acceptance_section_is_not_empty_when_a_link_has_words_or_an_item_has_text() {
+        for body in [
+            "## Done when\n- [the spec](https://example.com)\n",
+            "## Done when\n1. ship it\n",
+            "## Done when\n- 1\n",
+            "## Done when\n1. [https://example.com](https://example.com) ships\n",
+        ] {
+            let (section, present) = acceptance_both(body);
+            assert!(section.is_some(), "{body:?} gave {section:?}");
+            assert!(present, "{body:?} has no heading");
+        }
+    }
+
+    #[test]
+    fn acceptance_section_is_none_for_a_mix_of_empty_numbered_and_link_shapes() {
+        let body = "## Done when\n1.\n1)\n[https://example.com](https://example.com)\n![alt](https://example.com/a.png)\n";
         let (section, present) = acceptance_both(body);
         assert!(section.is_none(), "{section:?}");
         assert!(present);
