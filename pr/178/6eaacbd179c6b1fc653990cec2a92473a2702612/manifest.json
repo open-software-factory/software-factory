@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6eaacbd179c6b1fc653990cec2a92473a2702612",
+    "contentHash": "7cfa13da5b75d82beb5fb9472fc60431"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-system-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-system",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d433ef29f445a834fd3d44310db77830",
+      "bytes": 57759,
+      "width": 2302,
+      "height": 1786,
+      "animated": true,
+      "path": "review-system-light-d433ef29f445a834fd3d44310db77830.svg"
+    },
+    {
+      "id": "review-system-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-system",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d90d71b2ffbde70565aad1808b02c893",
+      "bytes": 58454,
+      "width": 2302,
+      "height": 1786,
+      "animated": true,
+      "path": "review-system-dark-d90d71b2ffbde70565aad1808b02c893.svg"
+    },
+    {
+      "id": "review-core-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-core-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "373d3a35e09711e74f51467d979a4e6b",
+      "bytes": 15887,
+      "width": 436,
+      "height": 874,
+      "animated": false,
+      "path": "review-core-components-light-373d3a35e09711e74f51467d979a4e6b.svg"
+    },
+    {
+      "id": "review-core-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-core-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "748149fdc8476d387165198b26076060",
+      "bytes": 16131,
+      "width": 436,
+      "height": 874,
+      "animated": false,
+      "path": "review-core-components-dark-748149fdc8476d387165198b26076060.svg"
+    },
+    {
+      "id": "agent-roster-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-roster",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7c82677f526c9e364f850fa302cc2fce",
+      "bytes": 13228,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "agent-roster-light-7c82677f526c9e364f850fa302cc2fce.svg"
+    },
+    {
+      "id": "agent-roster-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-roster",
+      "mediaType": "image/svg+xml",
+      "contentHash": "39cd56140cca8d4b57d40d7a97eee108",
+      "bytes": 13389,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "agent-roster-dark-39cd56140cca8d4b57d40d7a97eee108.svg"
+    },
+    {
+      "id": "suppression-change-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "suppression-change",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c2592f0f367e1446f6b2ffc9ed8bfb68",
+      "bytes": 7358,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "suppression-change-light-c2592f0f367e1446f6b2ffc9ed8bfb68.svg"
+    },
+    {
+      "id": "suppression-change-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "suppression-change",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f764a65051db5283011b2ea0746d7929",
+      "bytes": 7427,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "suppression-change-dark-f764a65051db5283011b2ea0746d7929.svg"
+    }
+  ]
+}
