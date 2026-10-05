@@ -22,16 +22,58 @@ pub const DEFAULT_BUILDER: &str = "dsh";
 /// tells that it runs inside the factory container.
 pub const FACTORY_CONTAINER_MARKER: &str = "/opt/factory/bin/osf";
 
-/// Whether `marker` exists.
+/// The file Docker mounts to mark a container.
+pub const DOCKER_MARKER: &str = "/.dockerenv";
+
+/// The facts about the marker path that decide whether to trust it.
+#[cfg(unix)]
+struct MarkerFacts {
+    /// Whether the path is a regular file rather than a symlink.
+    regular_file: bool,
+    /// The user that owns the path.
+    owner_uid: u32,
+    /// The path's permission bits.
+    mode: u32,
+}
+
+/// Whether the marker facts and the Docker marker mean the factory container.
+#[cfg(unix)]
 #[must_use]
-pub fn marker_exists(marker: &Path) -> bool {
-    marker.exists()
+fn marker_trusted(facts: Option<MarkerFacts>, dockerenv_exists: bool) -> bool {
+    let Some(facts) = facts else {
+        return false;
+    };
+    facts.regular_file && facts.owner_uid == 0 && (facts.mode & 0o022) == 0 && dockerenv_exists
+}
+
+/// The marker facts for `path`, or `None` when it cannot be read.
+#[cfg(unix)]
+#[must_use]
+fn facts_of(path: &Path) -> Option<MarkerFacts> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = std::fs::symlink_metadata(path).ok()?;
+    Some(MarkerFacts {
+        regular_file: meta.is_file(),
+        owner_uid: meta.uid(),
+        mode: meta.mode(),
+    })
 }
 
 /// Whether osf runs inside the factory container.
+#[cfg(unix)]
 #[must_use]
 pub fn in_factory_container() -> bool {
-    marker_exists(Path::new(FACTORY_CONTAINER_MARKER))
+    marker_trusted(
+        facts_of(Path::new(FACTORY_CONTAINER_MARKER)),
+        Path::new(DOCKER_MARKER).exists(),
+    )
+}
+
+/// Whether osf runs inside the factory container.
+#[cfg(not(unix))]
+#[must_use]
+pub fn in_factory_container() -> bool {
+    false
 }
 
 /// Where an agent's sessions can be reached from outside the machine.
@@ -895,13 +937,109 @@ mod tests {
         assert_eq!(FACTORY_CONTAINER_MARKER, "/opt/factory/bin/osf");
     }
 
+    #[cfg(unix)]
+    fn root_file(mode: u32) -> MarkerFacts {
+        MarkerFacts {
+            regular_file: true,
+            owner_uid: 0,
+            mode,
+        }
+    }
+
     #[test]
-    fn marker_exists_reports_a_file_that_is_there_and_one_that_is_missing() {
-        let dir = crate::test_support::TempDir::new("osf-agents-marker");
-        let present = dir.join("osf");
-        std::fs::write(&present, "").expect("marker writes");
-        assert!(marker_exists(&present));
-        assert!(!marker_exists(&dir.join("missing")));
+    #[cfg(unix)]
+    fn a_root_owned_regular_file_with_no_group_or_other_write_is_trusted() {
+        assert!(marker_trusted(Some(root_file(0o555)), true));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn the_docker_marker_must_exist_for_the_marker_to_be_trusted() {
+        assert!(!marker_trusted(Some(root_file(0o555)), false));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_marker_owned_by_a_user_other_than_root_is_not_trusted() {
+        assert!(!marker_trusted(
+            Some(MarkerFacts {
+                regular_file: true,
+                owner_uid: 1000,
+                mode: 0o755,
+            }),
+            true
+        ));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_marker_a_group_or_another_user_can_write_is_not_trusted() {
+        assert!(!marker_trusted(Some(root_file(0o775)), true));
+        assert!(!marker_trusted(Some(root_file(0o757)), true));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_marker_only_its_owner_can_write_is_trusted() {
+        assert!(marker_trusted(Some(root_file(0o755)), true));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_path_that_is_not_a_regular_file_is_not_trusted() {
+        assert!(!marker_trusted(
+            Some(MarkerFacts {
+                regular_file: false,
+                owner_uid: 0,
+                mode: 0o555,
+            }),
+            true
+        ));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_marker_whose_facts_cannot_be_read_is_not_trusted() {
+        assert!(!marker_trusted(None, true));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn facts_of_reads_a_regular_file_owned_by_the_current_user() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = crate::test_support::TempDir::new("osf-agents-facts");
+        let file = dir.join("osf");
+        std::fs::write(&file, "").expect("marker writes");
+        let facts = facts_of(&file).expect("facts");
+        assert!(facts.regular_file);
+        let uid = std::fs::metadata(&*dir).expect("dir metadata").uid();
+        assert_eq!(facts.owner_uid, uid);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn facts_of_is_none_for_a_path_that_cannot_be_read() {
+        let dir = crate::test_support::TempDir::new("osf-agents-facts-missing");
+        assert!(facts_of(&dir.join("missing")).is_none());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn facts_of_does_not_follow_a_symlink() {
+        use std::os::unix::fs::symlink;
+        let dir = crate::test_support::TempDir::new("osf-agents-facts-symlink");
+        let file = dir.join("osf");
+        std::fs::write(&file, "").expect("marker writes");
+        let link = dir.join("link");
+        symlink(&file, &link).expect("symlink creates");
+        let facts = facts_of(&link).expect("facts");
+        assert!(!facts.regular_file);
+    }
+
+    #[test]
+    #[cfg(not(unix))]
+    fn in_factory_container_is_false_off_unix() {
+        assert!(!in_factory_container());
     }
 
     #[test]

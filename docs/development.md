@@ -412,16 +412,20 @@ command. An agent with no documented read-only mode has none recorded.
 A reviewer list that names it reports could-not-run with the reason "no
 read-only mode", and the agent never starts. The `claude`, `opencode`
 and `omp` modes give file tools only, with no shell. osf runs codex with
-its own sandbox off only when it finds `/opt/factory/bin/osf`, the file
-the container image installs. The review container is then the wall and
-limits codex with: only the codex key in its environment, a network list
-of the six GitHub hosts and `api.openai.com`, read-only mounts of the
-checkout and the work item, and no container runtime socket. Outside the
-container codex runs with `--sandbox read-only`. So a reviewer's home and
-environment hold no secret beyond that reviewer's own provider key. A
-mode that allowed `git diff` through a shell would also allow `git diff
---output=<file>`, which writes a file. So no mode allows a shell for
-git.
+its own sandbox off only on Linux or macOS, and only when
+`/opt/factory/bin/osf` is a regular file owned by root that no one else
+can write, and `/.dockerenv` exists. The review container is then the
+wall and limits codex with: only the codex key in its environment, a
+network list of the six GitHub hosts and `api.openai.com`, read-only
+mounts of the checkout and the work item, and no container runtime
+socket. Anywhere else, including Windows, codex runs with
+`--sandbox read-only`. A development container passes the same check,
+and its wall can be weaker than the review container's because it can
+mount a writable workspace and personal credentials. So a reviewer's
+home and environment hold no secret beyond that reviewer's own provider
+key. A mode that allowed `git diff` through a shell would also allow
+`git diff --output=<file>`, which writes a file. So no mode allows a
+shell for git.
 
 The workflow's `env` names the codex version the review image carries,
 and the codex job fails when the image's `codex --version` prints
