@@ -100,6 +100,32 @@ esac
     )
 }
 
+/// A fake `docker` whose `exec` outlasts the command timeout and whose `kill` fails.
+fn failed_kill_script() -> String {
+    format!(
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+dir="$(cd "$(dirname "$0")" && pwd)"
+printf '%s\n' "$*" >> "$dir/calls.log"
+case "$1" in
+create) printf '%s\n' '{FAKE_CONTAINER_ID}'; exit 0 ;;
+start) exit 0 ;;
+exec)
+  prev=""
+  last=""
+  for word in "$@"; do prev="$last"; last="$word"; done
+  if [ "$prev" = "id" ] && [ "$last" = "-u" ]; then printf '1000\n'; exit 0; fi
+  sleep 30
+  ;;
+kill) exit 1 ;;
+inspect) printf '%s\n' '{FAKE_CONTAINER_ID}'; exit 0 ;;
+rm) exit 0 ;;
+*) exit 1 ;;
+esac
+"#
+    )
+}
+
 /// A throwaway folder holding the fake program, removed on drop.
 struct TempArea {
     dir: PathBuf,
@@ -520,6 +546,67 @@ exit 125
         .expect_err("125 fails");
     assert!(!error.to_string().contains("s3cr3t-value"), "{error}");
     assert!(error.to_string().contains("<redacted>"), "{error}");
+}
+
+#[test]
+fn osf_sandbox_run_reports_a_failed_kill_after_a_timeout() {
+    let _lock = serial();
+    let area = TempArea::new("failed-kill");
+    let home = TempArea::new("failed-kill-home");
+    let repo = TempArea::new("failed-kill-repo");
+    let state = TempArea::new("failed-kill-state");
+    area.script("docker", &failed_kill_script());
+    let path = {
+        let ambient = std::env::var_os("PATH").unwrap_or_default();
+        std::env::join_paths(
+            std::iter::once(area.dir.clone()).chain(std::env::split_paths(&ambient)),
+        )
+        .expect("PATH joins")
+    };
+    let args = vec![
+        "sandbox".to_string(),
+        "run".to_string(),
+        "--image".to_string(),
+        "example/base:1".to_string(),
+        "--repo".to_string(),
+        repo.dir.to_string_lossy().into_owned(),
+        "--state".to_string(),
+        state.dir.to_string_lossy().into_owned(),
+        "--name".to_string(),
+        "osf-failed-kill".to_string(),
+        "--timeout".to_string(),
+        "1".to_string(),
+        "--".to_string(),
+        "sleep".to_string(),
+        "100".to_string(),
+    ];
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_osf"));
+    command
+        .current_dir(&repo.dir)
+        .env("PATH", path)
+        .env("HOME", &home.dir)
+        .env("USERPROFILE", &home.dir)
+        .args(&args);
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") || key.starts_with("GIT_") {
+            command.env_remove(key);
+        }
+    }
+    let output = command.output().expect("osf runs");
+    assert_eq!(output.status.code(), Some(125), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(&format!(
+            "the kill of the container {FAKE_CONTAINER_ID} after the command timed out failed: the tool exited with status 1"
+        )),
+        "{stderr}"
+    );
+    let log = fs::read_to_string(area.dir.join("calls.log")).expect("the fake logged its calls");
+    assert!(
+        log.lines()
+            .any(|line| line.starts_with(&format!("kill -- {FAKE_CONTAINER_ID}"))),
+        "{log}"
+    );
 }
 
 #[test]

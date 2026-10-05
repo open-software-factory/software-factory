@@ -743,6 +743,11 @@ pub fn tool_text(output: &ToolOutput) -> String {
     }
 }
 
+/// The text for a `docker kill` that failed after the command timed out.
+fn kill_after_timeout_text(id: &str, detail: &str) -> String {
+    format!("the kill of the container {id} after the command timed out failed: {detail}")
+}
+
 /// The exact environment names that would change how the client itself behaves.
 const RESERVED_CLIENT_ENV: [&str; 18] = [
     "PATH",
@@ -965,12 +970,13 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
             .map_err(|error| SandboxError::Failed(redact(&error.0, command)))?;
 
         if output.timed_out {
-            let kill = self
-                .runner
-                .run(&kill_argv(&id.0), None)
-                .map_err(|error| SandboxError::Failed(redact(&error.0, command)))?;
+            let kill = self.runner.run(&kill_argv(&id.0), None).map_err(|error| {
+                let text = kill_after_timeout_text(&id.0, &error.0);
+                SandboxError::Failed(redact(&text, command))
+            })?;
             if kill.status != Some(0) || kill.timed_out {
-                return Err(SandboxError::Failed(redact(&tool_text(&kill), command)));
+                let text = kill_after_timeout_text(&id.0, &tool_text(&kill));
+                return Err(SandboxError::Failed(redact(&text, command)));
             }
             return Ok(RunResult {
                 outcome: RunOutcome::TimedOut { limit_secs },
@@ -2312,7 +2318,61 @@ mod tests {
         let sandbox = sandbox(vec![Ok(timeout_output("")), Ok(fail(1, "boom kill"))]);
         let id = SandboxId("abc".to_string());
         let error = sandbox.run(&id, &command()).expect_err("kill fails");
-        assert_eq!(error, SandboxError::Failed("boom kill".to_string()));
+        assert_eq!(
+            error,
+            SandboxError::Failed(
+                "the kill of the container abc after the command timed out failed: boom kill"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn a_failed_kill_with_empty_output_names_the_kill_and_the_status() {
+        let sandbox = sandbox(vec![Ok(timeout_output("")), Ok(fail(1, ""))]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox.run(&id, &command()).expect_err("kill fails");
+        assert_eq!(
+            error,
+            SandboxError::Failed(
+                "the kill of the container abc after the command timed out failed: the tool exited with status 1"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn a_kill_that_cannot_start_names_the_kill_and_the_runner_error() {
+        let sandbox = sandbox(vec![
+            Ok(timeout_output("")),
+            Err(RunnerError("no docker".to_string())),
+        ]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox.run(&id, &command()).expect_err("kill cannot start");
+        assert_eq!(
+            error,
+            SandboxError::Failed(
+                "the kill of the container abc after the command timed out failed: no docker"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn a_failed_kill_trims_its_stderr_for_the_detail() {
+        let sandbox = sandbox(vec![
+            Ok(timeout_output("")),
+            Ok(fail(1, "  daemon said no\n")),
+        ]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox.run(&id, &command()).expect_err("kill fails");
+        assert_eq!(
+            error,
+            SandboxError::Failed(
+                "the kill of the container abc after the command timed out failed: daemon said no"
+                    .to_string()
+            )
+        );
     }
 
     #[test]
@@ -2637,6 +2697,25 @@ mod tests {
         assert!(!error.to_string().contains("s3cr3t-value"), "{error}");
         assert!(format!("{error:?}").contains("<redacted>"), "{error:?}");
         assert!(!format!("{error:?}").contains("s3cr3t-value"), "{error:?}");
+    }
+
+    #[test]
+    fn run_redacts_the_detail_of_a_failed_kill() {
+        let sandbox = sandbox(vec![
+            Ok(timeout_output("")),
+            Ok(fail(1, "kill said s3cr3t-value")),
+        ]);
+        let id = SandboxId("abc".to_string());
+        let error = sandbox
+            .run(&id, &command_with_env("s3cr3t-value"))
+            .expect_err("kill fails");
+        assert_eq!(
+            error,
+            SandboxError::Failed(
+                "the kill of the container abc after the command timed out failed: kill said <redacted>"
+                    .to_string()
+            )
+        );
     }
 
     #[test]
