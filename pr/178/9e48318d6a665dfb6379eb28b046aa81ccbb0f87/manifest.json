@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "9e48318d6a665dfb6379eb28b046aa81ccbb0f87",
+    "contentHash": "17b81f424681ea0433a0f662467f4224"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-system-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-system",
+      "mediaType": "image/svg+xml",
+      "contentHash": "75188a0e5aa7d3c31e0f0cb6ea29fbaa",
+      "bytes": 48948,
+      "width": 1828,
+      "height": 1216,
+      "animated": false,
+      "path": "review-system-light-75188a0e5aa7d3c31e0f0cb6ea29fbaa.svg"
+    },
+    {
+      "id": "review-system-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-system",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f7bff7e73ea0114a2ffce29becb2c148",
+      "bytes": 49586,
+      "width": 1828,
+      "height": 1216,
+      "animated": false,
+      "path": "review-system-dark-f7bff7e73ea0114a2ffce29becb2c148.svg"
+    },
+    {
+      "id": "review-core-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-core-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "363e7ed068a9d17257ea9e95a28199e6",
+      "bytes": 13535,
+      "width": 436,
+      "height": 646,
+      "animated": false,
+      "path": "review-core-detail-light-363e7ed068a9d17257ea9e95a28199e6.svg"
+    },
+    {
+      "id": "review-core-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-core-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e647d48fd76d7de207b3a3674480ab7b",
+      "bytes": 13757,
+      "width": 436,
+      "height": 646,
+      "animated": false,
+      "path": "review-core-detail-dark-e647d48fd76d7de207b3a3674480ab7b.svg"
+    },
+    {
+      "id": "agent-boundary-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-boundary",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b4d177c802252a657b1d328768c1575a",
+      "bytes": 12400,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "agent-boundary-light-b4d177c802252a657b1d328768c1575a.svg"
+    },
+    {
+      "id": "agent-boundary-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-boundary",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d38874065937a8aca081dacdaa62d544",
+      "bytes": 12558,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "agent-boundary-dark-d38874065937a8aca081dacdaa62d544.svg"
+    }
+  ]
+}
