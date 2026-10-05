@@ -157,6 +157,8 @@ when the pull request text is edited.
 The workflow has one job for each step. A `build` job builds the `osf`
 tool from the base branch only, with no secrets. Each reviewer then runs
 in its own job: `review codex`, `review claude` and `review opencode`.
+The codex reviewer job runs on the runner itself and not in a container.
+The other two reviewer jobs run `osf` in the container.
 A reviewer job gets only its own provider's key. Its network list holds
 only its own provider host and the hosts it needs to run. It saves what
 the reviewer did as an artifact, with `osf review run --reviewer <name>
@@ -318,12 +320,13 @@ pull request could run with the model keys before anyone set up
 
 ### The container image
 
-Each job runs directly on the runner. It logs in to `ghcr.io`
-with its own token first. That login works whether the image behind
-it stays public or turns private later. Every job pulls the same image,
-named once by digest in the `REVIEW_IMAGE` variable at the top of
-`.github/workflows/review.yml`. No job names a moving tag. This is the
-image that the development container workflow builds from the
+Most jobs run directly on the runner and log in to `ghcr.io` with their
+own token first. That login works whether the image behind it stays
+public or turns private later. The codex reviewer job is the one job with
+no container and no registry login. Every job that uses a container pulls
+the same image, named once by digest in the `REVIEW_IMAGE` variable at
+the top of `.github/workflows/review.yml`. No job names a moving tag.
+This is the image that the development container workflow builds from the
 `.devcontainer` folder in this repository. It already carries a pinned
 Rust toolchain, moon, and every reviewer tool the agent list can enable.
 To use a newer image, open a pull request that changes the digest in
@@ -331,15 +334,17 @@ To use a newer image, open a pull request that changes the digest in
 the `devcontainer image` workflow run for the commit you want. The change
 is reviewed like any other workflow change.
 
-Each step that runs `osf` goes through `docker run` against that image.
-Each run gets its own fresh, disposable container. The `build` job mounts
-`base` read-write, and `cargo build` writes its own output there. It
-uploads the `osf` binary as an artifact, and every later job downloads
-that one binary. A reviewer job and the last job mount `base` and `pr`
-read-only. The pull request's tree is only ever data. A third mount,
+Each step that runs `osf` in a container goes through `docker run` against
+that image. The codex reviewer job runs the `osf` binary directly on the
+runner. Each docker run gets its own fresh, disposable container. The
+`build` job mounts `base` read-write, and `cargo build` writes its own
+output there. It uploads the `osf` binary as an artifact, and every later
+job downloads that one binary. A reviewer job that uses a container, and
+the last job, mount `base` and `pr` read-only. The pull request's tree is
+only ever data. A third mount,
 `out`, holds the saved reviewer file, the SARIF file, and the review's
 own journal and state, written through `OSF_STATE_DIR`. A reviewer job
-passes only its own provider's key into its container. The last job
+passes only its own provider's key. The last job
 passes only the verifier's token.
 
 ### Outbound network access
@@ -347,12 +352,13 @@ passes only the verifier's token.
 Every job runs `step-security/harden-runner` as its first step. Its
 policy sets `egress-policy` to `block`, with an explicit list of the
 hosts that job needs. The `build` job names GitHub, the crates.io
-registry and the container registry. A reviewer job names GitHub and the
-container registry. It names one provider host: `api.openai.com` for
-codex, `api.anthropic.com` for claude, and `openrouter.ai` for
-opencode. opencode also reads its model catalogue from
-`models.opencode.ai`, so that host is on its list. The last job names
-GitHub and the container registry.
+registry, the container registry and `release-assets.githubusercontent.com`,
+to download the codex release. The codex job names its six GitHub hosts
+and `api.openai.com`. A container reviewer job names GitHub and the
+container registry. It also names `api.anthropic.com` for claude and
+`openrouter.ai` for opencode. opencode also reads its model
+catalogue from `models.opencode.ai`, so that host is on its list. The
+last job names GitHub and the container registry.
 
 This step-security/harden-runner action needs sudo access on the
 runner's own virtual machine to enforce that policy. A job-level
@@ -416,7 +422,23 @@ reviewer is could-not-run, the reason holds the sandbox's own message, and
 `codex exec` never starts. A default Docker container fails this check with
 `bwrap: No permissions to create new namespace`, because the container's
 default profile blocks the user namespaces that the sandbox needs. A
-container that allows them passes. `agents.rs` holds the check for each
+container that allows them passes. The codex reviewer job no longer uses a
+container. It runs on the host.
+
+The workflow's `env` pins the codex release by version and sha256. It
+also pins the bubblewrap helper of the same release by sha256. The
+sandbox needs that helper next to the codex program. The `build` job
+checks both files. The codex job checks both again before it uses them.
+A workflow step named "Check that the
+codex sandbox starts on this runner" runs the same `codex sandbox -- true`
+command. It fails the job with the reason when the sandbox cannot start.
+Ubuntu 24.04 limits user namespaces under AppArmor. AppArmor is the Linux
+security module that enforces this limit. The setting is
+`kernel.apparmor_restrict_unprivileged_userns`. The workflow never changes
+that setting. The adopter then uses a runner whose policy allows the
+sandbox, or removes codex from the reviewers.
+
+`agents.rs` holds the check for each
 agent as `sandbox_check`, and an agent with file tools only has none.
 `osf` also gives each reviewer a temporary folder inside its own home.
 Codex refuses to set up its sandbox helper when its home sits under the
