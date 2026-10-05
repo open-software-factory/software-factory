@@ -291,6 +291,18 @@ fn visible_lines(body: &str) -> Vec<String> {
         .collect()
 }
 
+/// Whether `line` still holds text once tags, entities and empty task boxes are removed.
+fn has_text(line: &str) -> bool {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
+    let pattern = PATTERN.get_or_init(|| {
+        Regex::new(r"<[A-Za-z/][^>]*>|&[A-Za-z0-9#]+;|\[[ xX]\]").expect("pattern compiles")
+    });
+    pattern
+        .replace_all(line, "")
+        .chars()
+        .any(char::is_alphanumeric)
+}
+
 /// Whether `body` holds an acceptance heading outside a code block.
 fn acceptance_heading_present(body: &str) -> bool {
     visible_lines(body)
@@ -298,22 +310,37 @@ fn acceptance_heading_present(body: &str) -> bool {
         .any(|line| is_acceptance_heading(line))
 }
 
-/// The acceptance heading in `body` and everything under it, up to the next
-/// heading at the same or a shallower level. `None` when there is no such
-/// heading, or when the section holds no text.
+/// The first acceptance section in `body` that holds text, with the heading and
+/// everything under it, up to the next heading at the same or a shallower level.
+/// `None` when there is no such heading, or when every matching section holds no text.
 fn acceptance_section_text(body: &str) -> Option<String> {
     let lines = visible_lines(body);
-    let start = lines.iter().position(|line| is_acceptance_heading(line))?;
-    let level = heading_level(lines.get(start)?)?;
-    let end = lines
+    let mut from = 0;
+    while let Some(start) = lines
         .iter()
         .enumerate()
-        .skip(start + 1)
-        .find(|(_, line)| heading_level(line).is_some_and(|found| found <= level))
-        .map_or(lines.len(), |(i, _)| i);
-    let section = lines.get(start..end)?;
-    let has_text = section.iter().skip(1).any(|line| !line.trim().is_empty());
-    has_text.then(|| section.join("\n"))
+        .skip(from)
+        .find(|(_, line)| is_acceptance_heading(line))
+        .map(|(index, _)| index)
+    {
+        let level = heading_level(lines.get(start)?)?;
+        let end = lines
+            .iter()
+            .enumerate()
+            .skip(start + 1)
+            .find(|(_, line)| heading_level(line).is_some_and(|found| found <= level))
+            .map_or(lines.len(), |(index, _)| index);
+        let section = lines.get(start..end)?;
+        if section
+            .iter()
+            .skip(1)
+            .any(|line| heading_level(line).is_none() && has_text(line))
+        {
+            return Some(section.join("\n"));
+        }
+        from = start + 1;
+    }
+    None
 }
 
 // --- decision records ------------------------------------------------------
@@ -537,6 +564,68 @@ mod tests {
     fn acceptance_section_is_none_when_the_next_heading_follows_at_once() {
         let body = "## Done when\n## Notes\nsome notes\n";
         assert!(acceptance_both(body).0.is_none());
+    }
+
+    #[test]
+    fn acceptance_section_is_none_for_markup_or_an_empty_list_item() {
+        for shape in [
+            "-",
+            "- [ ]",
+            "- [x]",
+            "* ",
+            "---",
+            "<br>",
+            "<br/>",
+            "&nbsp;",
+            "&#8203;",
+            "\u{200b}",
+            "\u{feff}",
+            "### Details",
+        ] {
+            let body = format!("## Done when\n{shape}\n");
+            let (section, present) = acceptance_both(&body);
+            assert!(section.is_none(), "{shape:?} gave {section:?}");
+            assert!(present, "{shape:?} has no heading");
+        }
+    }
+
+    #[test]
+    fn acceptance_section_is_none_for_a_mix_of_empty_shapes() {
+        let body = "## Done when\n-\n- [ ]\n<br>\n&nbsp;\n---\n### Details\n";
+        let (section, present) = acceptance_both(body);
+        assert!(section.is_none(), "{section:?}");
+        assert!(present);
+    }
+
+    #[test]
+    fn acceptance_section_is_not_empty_when_a_shape_holds_text() {
+        for body in [
+            "## Done when\n- [ ] ship it\n",
+            "## Done when\n### Details\n- one\n",
+            "## Done when\n- 1\n",
+        ] {
+            let (section, present) = acceptance_both(body);
+            assert!(section.is_some(), "{body:?} gave {section:?}");
+            assert!(present, "{body:?} has no heading");
+        }
+    }
+
+    #[test]
+    fn a_later_non_empty_acceptance_heading_is_used() {
+        let body = "## Done when\n\n## Acceptance criteria\n- one\n";
+        let section = acceptance_both(body).0.expect("section");
+        assert!(section.contains("- one"), "{section}");
+        let body = "## Acceptance criteria\n<br>\n\n## Done when\n- two\n";
+        let section = acceptance_both(body).0.expect("section");
+        assert!(section.contains("- two"), "{section}");
+    }
+
+    #[test]
+    fn acceptance_section_is_none_when_every_matching_heading_is_empty() {
+        let body = "## Done when\n<br>\n\n## Acceptance criteria\n- [ ]\n";
+        let (section, present) = acceptance_both(body);
+        assert!(section.is_none(), "{section:?}");
+        assert!(present);
     }
 
     #[test]
