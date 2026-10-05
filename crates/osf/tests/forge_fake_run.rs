@@ -76,9 +76,9 @@ fn full_call_list(branch: &Branch) -> Vec<Call> {
             pr: opened(),
             block: "the block".to_string(),
         },
+        Call::Capabilities(opened()),
         Call::PostReview(review_to_post(branch)),
         Call::ReadCheckStatus(opened()),
-        Call::Capabilities(opened()),
     ]
 }
 

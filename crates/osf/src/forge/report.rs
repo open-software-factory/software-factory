@@ -1,10 +1,10 @@
 //! The engine's Report step as provider-neutral run code: open the pull
-//! request, write the status block, post the review, then read the check
-//! status and the capabilities, in that one order.
+//! request, write the status block, read the capabilities, post the review
+//! only when the identity may, then read the check status, in that one order.
 
 use crate::forge::{
     Capabilities, CheckStatus, Forge, ForgeError, NewPullRequest, NewReview, PostedReview,
-    PullRequestId, ReadOutcome, ReviewComment, Verdict,
+    PullRequestId, ReadOutcome, ReviewComment, Verdict, VerdictCapability,
 };
 use std::fmt;
 
@@ -40,6 +40,7 @@ pub struct Report {
 pub enum Step {
     OpenPullRequest,
     WriteStatusBlock,
+    CheckCapabilities,
     PostReview,
 }
 
@@ -48,6 +49,7 @@ impl fmt::Display for Step {
         f.write_str(match self {
             Step::OpenPullRequest => "open pull request",
             Step::WriteStatusBlock => "write status block",
+            Step::CheckCapabilities => "check capabilities",
             Step::PostReview => "post review",
         })
     }
@@ -70,7 +72,13 @@ impl fmt::Display for ReportError {
 
 impl std::error::Error for ReportError {}
 
-/// Runs the Report step against `forge`, in one fixed order.
+/// Runs the Report step against `forge`, in one fixed order: open the pull
+/// request, write the status block, read the capabilities, post the review,
+/// then read the check status.
+///
+/// The post is skipped when the capabilities are [`VerdictCapability::Known`]
+/// and the list omits the draft verdict; [`VerdictCapability::Unknown`] still
+/// posts.
 ///
 /// # Errors
 /// Returns a [`ReportError`] naming the step when the forge refuses it, and
@@ -88,10 +96,23 @@ pub fn report_change(forge: &dyn Forge, request: &ReportRequest) -> Result<Repor
             step: Step::WriteStatusBlock,
             error,
         })?;
+    let capabilities = forge.capabilities(&pull_request);
+    let verdict = request.review.verdict;
+    if let VerdictCapability::Known(allowed) = &capabilities.verdicts {
+        if !allowed.contains(&verdict) {
+            return Err(ReportError {
+                step: Step::CheckCapabilities,
+                error: ForgeError::Rejected(format!(
+                    "the identity may not post a {} verdict",
+                    verdict.as_event()
+                )),
+            });
+        }
+    }
     let review = NewReview {
         pull_request: pull_request.clone(),
         head_sha: request.review.head_sha.clone(),
-        verdict: request.review.verdict,
+        verdict,
         body: request.review.body.clone(),
         comments: request.review.comments.clone(),
     };
@@ -100,7 +121,6 @@ pub fn report_change(forge: &dyn Forge, request: &ReportRequest) -> Result<Repor
         error,
     })?;
     let checks = forge.read_check_status(&pull_request);
-    let capabilities = forge.capabilities(&pull_request);
     Ok(Report {
         pull_request,
         review,
@@ -194,9 +214,9 @@ mod tests {
                     pr: opened(),
                     block: "the block".to_string(),
                 },
+                Call::Capabilities(opened()),
                 Call::PostReview(review_to_post()),
                 Call::ReadCheckStatus(opened()),
-                Call::Capabilities(opened()),
             ]
         );
     }
@@ -269,9 +289,128 @@ mod tests {
                     pr: opened(),
                     block: "the block".to_string(),
                 },
+                Call::Capabilities(opened()),
                 Call::PostReview(review_to_post()),
             ]
         );
+    }
+
+    #[test]
+    fn a_failed_write_status_block_stops_before_the_capabilities() {
+        let forge = FakeForge::new().fail(
+            Operation::WriteStatusBlock,
+            ForgeError::Rejected("refused".to_string()),
+        );
+        report_change(&forge, &request()).expect_err("fails");
+        assert!(
+            !forge
+                .calls()
+                .iter()
+                .any(|call| matches!(call, Call::Capabilities(_))),
+            "the stop happens before the capability report is read"
+        );
+    }
+
+    /// The default capabilities, with the known verdict list replaced.
+    fn capabilities_with_known(verdicts: Vec<Verdict>) -> Capabilities {
+        Capabilities {
+            verdicts: VerdictCapability::Known(verdicts),
+            check_status: ReadCapability::Readable,
+        }
+    }
+
+    #[test]
+    fn a_known_empty_list_stops_at_the_capabilities_step() {
+        let mut forge = FakeForge::new();
+        forge.capabilities = capabilities_with_known(Vec::new());
+        let error = report_change(&forge, &request()).expect_err("stops");
+        assert_eq!(
+            error,
+            ReportError {
+                step: Step::CheckCapabilities,
+                error: ForgeError::Rejected(
+                    "the identity may not post a REQUEST_CHANGES verdict".to_string()
+                ),
+            }
+        );
+        assert_eq!(
+            forge.calls(),
+            vec![
+                Call::OpenPullRequest(request().pull_request),
+                Call::WriteStatusBlock {
+                    pr: opened(),
+                    block: "the block".to_string(),
+                },
+                Call::Capabilities(opened()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_known_list_without_the_draft_verdict_stops_before_the_post() {
+        let mut forge = FakeForge::new();
+        forge.capabilities = capabilities_with_known(vec![Verdict::Approve]);
+        let error = report_change(&forge, &request()).expect_err("stops");
+        assert_eq!(error.step, Step::CheckCapabilities);
+        assert_eq!(
+            error.error,
+            ForgeError::Rejected("the identity may not post a REQUEST_CHANGES verdict".to_string())
+        );
+        let calls = forge.calls();
+        assert!(
+            matches!(calls.last(), Some(Call::Capabilities(_))),
+            "{calls:?}"
+        );
+        assert!(!calls.iter().any(|call| matches!(call, Call::PostReview(_))));
+        assert!(!calls
+            .iter()
+            .any(|call| matches!(call, Call::ReadCheckStatus(_))));
+    }
+
+    #[test]
+    fn a_known_list_with_the_draft_verdict_posts() {
+        let mut forge = FakeForge::new();
+        forge.capabilities = capabilities_with_known(vec![Verdict::Approve]);
+        let mut request = request();
+        request.review.verdict = Verdict::Approve;
+        let report = report_change(&forge, &request).expect("reports");
+        assert_eq!(report.review.verdict, Verdict::Approve);
+        let calls = forge.calls();
+        assert!(calls.iter().any(|call| matches!(call, Call::PostReview(_))));
+        assert!(calls
+            .iter()
+            .any(|call| matches!(call, Call::ReadCheckStatus(_))));
+    }
+
+    #[test]
+    fn an_unknown_capability_still_posts_and_is_returned() {
+        let mut forge = FakeForge::new();
+        forge.capabilities = Capabilities {
+            verdicts: VerdictCapability::Unknown("cannot read the viewer login".to_string()),
+            check_status: ReadCapability::Readable,
+        };
+        let report = report_change(&forge, &request()).expect("reports");
+        assert_eq!(
+            report.capabilities,
+            Capabilities {
+                verdicts: VerdictCapability::Unknown("cannot read the viewer login".to_string()),
+                check_status: ReadCapability::Readable,
+            }
+        );
+        let calls = forge.calls();
+        assert!(calls.iter().any(|call| matches!(call, Call::PostReview(_))));
+    }
+
+    #[test]
+    fn the_capability_report_is_read_exactly_once_per_run() {
+        let forge = FakeForge::new();
+        report_change(&forge, &request()).expect("reports");
+        let reads = forge
+            .calls()
+            .iter()
+            .filter(|call| matches!(call, Call::Capabilities(_)))
+            .count();
+        assert_eq!(reads, 1, "the capability report is read once per run");
     }
 
     #[test]
@@ -355,10 +494,15 @@ mod tests {
     fn step_displays_and_serializes_as_kebab_case() {
         assert_eq!(Step::OpenPullRequest.to_string(), "open pull request");
         assert_eq!(Step::WriteStatusBlock.to_string(), "write status block");
+        assert_eq!(Step::CheckCapabilities.to_string(), "check capabilities");
         assert_eq!(Step::PostReview.to_string(), "post review");
         assert_eq!(
             serde_json::to_string(&Step::WriteStatusBlock).expect("serializes"),
             r#""write-status-block""#
+        );
+        assert_eq!(
+            serde_json::to_string(&Step::CheckCapabilities).expect("serializes"),
+            r#""check-capabilities""#
         );
     }
 
