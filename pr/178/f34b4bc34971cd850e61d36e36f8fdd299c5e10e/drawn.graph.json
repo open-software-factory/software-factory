@@ -1,0 +1,1756 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-05T01:43:10.732Z",
+  "title": "osf review: lens-driven multi-agent PR review",
+  "summary": "Adds a whole review subsystem to osf: a shipped catalogue of 20 review lenses, a roster of coding agents (dsh, omp, opencode, codex, claude) that answer each selected lens, quote verification against the real files, a quorum-based reducer that turns answers into a verdict, and a GitHub Actions workflow that builds osf from the base branch, runs each reviewer in its own job with only its own provider key, and posts the decision. Alongside it, suppression markers gain rule ownership, `osf scan` gains `--no-suppress`, and the changeset risk report gains content-derived trigger signals that select lenses.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "66afde947ac2b20442edd5f5f7dc1de1432255cb",
+      "ref": "66afde947ac2b20442edd5f5f7dc1de1432255cb"
+    },
+    "head": {
+      "sha": "f34b4bc34971cd850e61d36e36f8fdd299c5e10e",
+      "ref": "f34b4bc34971cd850e61d36e36f8fdd299c5e10e"
+    },
+    "pullRequest": {
+      "number": 178,
+      "url": "https://github.com/open-software-factory/software-factory/pull/178"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "ci",
+      "label": "GitHub Actions",
+      "subtitle": "base-branch workflow",
+      "order": 0,
+      "delta": "added",
+      "summary": "The review workflow: one build job, one job per reviewer, and a final job that decides and posts."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The commands a reviewer job and a developer run: review run, review reduce, review work-item, agents list, hooks install --agents, scan."
+    },
+    {
+      "id": "review-core",
+      "label": "Review core",
+      "subtitle": "lenses, roster, reducer",
+      "order": 2,
+      "delta": "added",
+      "summary": "Lens catalogue, reviewer roster, prompt assembly, quote verification and the fixed-rule reducer that decides a verdict."
+    },
+    {
+      "id": "agents",
+      "label": "Coding agents",
+      "subtitle": "external harnesses",
+      "order": 3,
+      "delta": "added",
+      "summary": "The coding-agent CLIs osf drives headless as reviewers, each with its own credential and read-only mode."
+    },
+    {
+      "id": "repo",
+      "label": "Repository under review",
+      "subtitle": "base + head trees",
+      "order": 4,
+      "delta": "unchanged",
+      "summary": "The trusted base tree that supplies configuration, and the pull request's head tree read as data."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "pull_request_target",
+      "summary": "Builds osf from the base branch, fans out one job per reviewer, then reduces and posts. Each reviewer job holds only its own provider key and a network allowlist for its provider's host.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-job",
+      "label": "review build",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "no provider key",
+      "summary": "Checks out the base branch, builds osf in the pinned devcontainer image, downloads and checksums the codex release, and finds the work item with a read-only token.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 40,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-jobs",
+      "label": "reviewer jobs",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "codex, claude, opencode",
+      "summary": "One job per reviewer, each with its own environment holding its own key, its own egress allowlist, and a read-only mount of the pull request tree.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 160,
+          "endLine": 520
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reduce-job",
+      "label": "review job",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "decides and posts",
+      "summary": "Collects every reviewer's saved answers, mints the verifier app token, runs `osf review reduce`, and posts the review. Runs even when a reviewer job failed.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 520,
+          "endLine": 672
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fork-disabled-job",
+      "label": "review-fork-disabled",
+      "kind": "job",
+      "delta": "added",
+      "lane": "ci",
+      "subtitle": "fails loudly",
+      "summary": "A fork's pull request with OSF_REVIEW_FORKS unset fails this check rather than skipping it, so an unconfigured fork review cannot pass.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 640,
+          "endLine": 672
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-review-run",
+      "label": "osf review run",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "--reviewer / --if-enabled",
+      "summary": "Selects the lenses a change earns, runs the roster over each, and either saves one reviewer's run or reduces and journals the whole thing.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1896,
+          "endLine": 2000
+        },
+        {
+          "path": "crates/osf/src/review_run.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-review-reduce",
+      "label": "osf review reduce",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "saved runs to verdict",
+      "summary": "Reads the saved reviewer files, binds each to this pull request, commit and CI run, checks the findings against the files, journals, and posts.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2000,
+          "endLine": 2060
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-review-work-item",
+      "label": "osf review work-item",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "Issue: line or closes",
+      "summary": "Finds the issue a pull request names or closes and saves its text, or the reason it has none, for the reviewer jobs.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2060,
+          "endLine": 2110
+        },
+        {
+          "path": "crates/osf/src/work_item.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-agents-list",
+      "label": "osf agents list",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "table or --json",
+      "summary": "Prints every agent osf can drive with what `[agents]` in osf.toml selects: enabled, builder, reviewer, model, hook settings.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 960,
+          "endLine": 1030
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-hooks-agents",
+      "label": "hooks install --agents",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "writes agent settings",
+      "summary": "Writes each enabled agent's stop and prompt hook settings under a named root, replacing a file already there.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 1030,
+          "endLine": 1060
+        },
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-scan",
+      "label": "osf scan",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "--no-suppress",
+      "summary": "Gains `--no-suppress`, which ignores every osf-disable marker, and now applies suppressions with rule ownership so a marker naming another checker's rule is neither suppressing nor reported unused.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 629,
+          "endLine": 640
+        },
+        {
+          "path": "crates/osf/src/check.rs"
+        },
+        {
+          "path": "crates/osf-lint-core/src/suppress.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lens-catalogue",
+      "label": "lens catalogue",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "20 shipped lenses",
+      "summary": "Loads the shipped lenses, then an organisation folder, then the repository's `.osf/review-lenses/*.toml`, a later file replacing an earlier lens of the same name.",
+      "files": [
+        {
+          "path": "crates/osf/src/lenses.rs"
+        },
+        {
+          "path": "crates/osf/defaults/review-lenses/correctness.toml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lens-selection",
+      "label": "lens selection",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "always / triggered / high tier",
+      "summary": "Picks the lenses a change earns: always-run lenses, high-tier lenses at the high tier, and triggered lenses whose path globs or signals match.",
+      "files": [
+        {
+          "path": "crates/osf/src/lenses.rs",
+          "startLine": 300,
+          "endLine": 400
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-risk",
+      "label": "changeset risk",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "content-derived signals",
+      "summary": "Now reads the diff's own content, not just paths, to earn the signals lenses trigger on: public surface, concurrency, new-file, repeated-logic, high-traffic path.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-roster",
+      "label": "reviewer roster",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "from [agents]",
+      "summary": "Resolves the `[agents]` table against the agent list into the enabled agents, the builder, the reviewers in run order, and each model.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs"
+        },
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "builder-families",
+      "label": "builder families",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "Code-Generator: trailer",
+      "summary": "Reads each commit's own Code-Generator trailer to name the model families that built the change, so a reviewer from one of those families sits the change out.",
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-context",
+      "label": "review context",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "metadata + redaction",
+      "summary": "Assembles the pull request, commits, changed files, work item and decision records into the prompt's metadata, redacting every scan-rule match before it is handed over.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-prompt",
+      "label": "review prompt",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "placeholders + answer format",
+      "summary": "Fills the shipped or repository prompt file's placeholders and appends the fixed answer format osf parses, so no file can break parsing.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_prompt.rs"
+        },
+        {
+          "path": "crates/osf/defaults/review-prompt.md"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "answer-schema",
+      "label": "answer schema",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "jsonschema + fences",
+      "summary": "Validates a reviewer's final message against the review-answer schema, falling back to fenced code blocks from last to first, and checks the lens name and every criterion score.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs"
+        },
+        {
+          "path": "crates/osf/schemas/review-answer.schema.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "quote-verification",
+      "label": "quote verification",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "VerifiedAnswer",
+      "summary": "Checks each finding's quote against the file and line it names, with a two-line tolerance and a minimum length, and is the only way to build a VerifiedAnswer the reducer can score.",
+      "files": [
+        {
+          "path": "crates/osf/src/quotes.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reducer",
+      "label": "reducer",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "quorum + weighted mean",
+      "summary": "Turns verified answers into one verdict per lens by fixed rules: two families with two rounds each, or one family with a critical round; blockers veto; the weighted mean is compared to the threshold.",
+      "files": [
+        {
+          "path": "crates/osf/src/reducer.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "clean-copy",
+      "label": "clean copy",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "no agent settings",
+      "summary": "Copies the change's tracked and untracked files into a temp folder, leaving out every agent's project settings and every symbolic link, so the change cannot configure its reviewer.",
+      "files": [
+        {
+          "path": "crates/osf/src/clean_copy.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "secret-values",
+      "label": "secret values",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "redaction",
+      "summary": "Removes the exact values of the secrets the job holds from reviewer-written text before it is saved, printed or posted.",
+      "files": [
+        {
+          "path": "crates/osf/src/secret_values.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal",
+      "label": "journal",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "ReviewAnswer / ReviewDecision",
+      "summary": "Gains two payload kinds for review answers and the review decision, and drops a review answer's transcript path from the replay hash.",
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-list",
+      "label": "agent list",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "agents",
+      "subtitle": "five agents",
+      "summary": "The one list of agents osf can drive, each with its family, command, hook wiring, session folders, and what running it as a reviewer needs.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-cli",
+      "label": "codex",
+      "kind": "external",
+      "delta": "added",
+      "lane": "agents",
+      "subtitle": "--sandbox read-only",
+      "summary": "Runs headless with `codex exec`, a read-only sandbox, an output schema, and CODEX_API_KEY. Its sandbox is checked before it starts.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 300,
+          "endLine": 360
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude-cli",
+      "label": "claude",
+      "kind": "external",
+      "delta": "added",
+      "lane": "agents",
+      "subtitle": "--restricted, file tools",
+      "summary": "Runs with `claude --print --output-format json`, restricted to Read, Grep and Glob, with the answer under the envelope's structured_output field.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 360,
+          "endLine": 430
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "opencode-cli",
+      "label": "opencode",
+      "kind": "external",
+      "delta": "added",
+      "lane": "agents",
+      "subtitle": "OPENCODE_PERMISSION",
+      "summary": "Runs with `opencode run --format json`, denying edits, tasks, webfetch and bash through an inline permissions config.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 260,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "omp-cli",
+      "label": "omp",
+      "kind": "external",
+      "delta": "added",
+      "lane": "agents",
+      "subtitle": "--tools read,grep,glob",
+      "summary": "Runs with a read-only tool list and switches that turn off project extensions, skills and rules.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 230,
+          "endLine": 260
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-cli",
+      "label": "dsh",
+      "kind": "external",
+      "delta": "added",
+      "lane": "agents",
+      "subtitle": "no read-only mode",
+      "summary": "Listed and hookable, but documents no read-only mode, so it never starts as a reviewer.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 200,
+          "endLine": 230
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "base-tree",
+      "label": "base tree",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "repo",
+      "subtitle": "trusted config root",
+      "summary": "The base branch's checkout: it supplies the lens catalogue, the prompt file, the roster and the threshold, so a pull request cannot weaken its own review.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 100,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "head-tree",
+      "label": "head tree",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "repo",
+      "subtitle": "read as data",
+      "summary": "The pull request's own checkout, mounted read-only and copied into a clean copy before any reviewer starts in it.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 200,
+          "endLine": 230
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "repo",
+      "subtitle": "[agents] and [review]",
+      "summary": "Gains an `[agents]` table selecting enabled agents, builder, reviewers and models, and a `[review]` table for threshold, timeout, cost ceiling, hot paths and prompt file.",
+      "files": [
+        {
+          "path": "osf.toml"
+        },
+        {
+          "path": "crates/osf/src/config.rs"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "workflow-builds-osf",
+      "from": "review-workflow",
+      "to": "build-job",
+      "kind": "call",
+      "delta": "added",
+      "label": "build from base",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 60,
+          "endLine": 90
+        }
+      ]
+    },
+    {
+      "id": "build-finds-work-item",
+      "from": "build-job",
+      "to": "osf-review-work-item",
+      "kind": "call",
+      "delta": "added",
+      "label": "read-only token",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 130,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "workflow-fans-out",
+      "from": "review-workflow",
+      "to": "reviewer-jobs",
+      "kind": "call",
+      "delta": "added",
+      "label": "one job per reviewer",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 160,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "reviewer-jobs-run-osf",
+      "from": "reviewer-jobs",
+      "to": "osf-review-run",
+      "kind": "call",
+      "delta": "added",
+      "label": "--reviewer --if-enabled",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 300,
+          "endLine": 330
+        }
+      ]
+    },
+    {
+      "id": "reviewer-jobs-drive-agents",
+      "from": "reviewer-jobs",
+      "to": "agent-list",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "own key only",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 290,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "reviewer-jobs-save-runs",
+      "from": "reviewer-jobs",
+      "to": "reduce-job",
+      "kind": "data",
+      "delta": "added",
+      "label": "review-run-* artifacts",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 330,
+          "endLine": 345
+        }
+      ]
+    },
+    {
+      "id": "reduce-job-runs-reduce",
+      "from": "reduce-job",
+      "to": "osf-review-reduce",
+      "kind": "call",
+      "delta": "added",
+      "label": "decide and post",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 600,
+          "endLine": 640
+        }
+      ]
+    },
+    {
+      "id": "fork-disabled-guards",
+      "from": "fork-disabled-job",
+      "to": "review-workflow",
+      "kind": "other",
+      "delta": "added",
+      "label": "fails when unset",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 640,
+          "endLine": 672
+        }
+      ]
+    },
+    {
+      "id": "run-loads-catalogue",
+      "from": "osf-review-run",
+      "to": "lens-catalogue",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 230,
+          "endLine": 250
+        }
+      ]
+    },
+    {
+      "id": "run-assesses-risk",
+      "from": "osf-review-run",
+      "to": "changeset-risk",
+      "kind": "call",
+      "delta": "added",
+      "label": "signals + tier",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 240,
+          "endLine": 260
+        }
+      ]
+    },
+    {
+      "id": "risk-selects-lenses",
+      "from": "changeset-risk",
+      "to": "lens-selection",
+      "kind": "data",
+      "delta": "added",
+      "label": "signals",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/lenses.rs",
+          "startLine": 300,
+          "endLine": 340
+        }
+      ]
+    },
+    {
+      "id": "catalogue-feeds-selection",
+      "from": "lens-catalogue",
+      "to": "lens-selection",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/lenses.rs",
+          "startLine": 280,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "run-loads-roster",
+      "from": "osf-review-run",
+      "to": "reviewer-roster",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 250,
+          "endLine": 270
+        }
+      ]
+    },
+    {
+      "id": "roster-reads-agent-list",
+      "from": "reviewer-roster",
+      "to": "agent-list",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs"
+        }
+      ]
+    },
+    {
+      "id": "run-detects-builders",
+      "from": "osf-review-run",
+      "to": "builder-families",
+      "kind": "call",
+      "delta": "added",
+      "label": "skip own family",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 270,
+          "endLine": 290
+        }
+      ]
+    },
+    {
+      "id": "run-builds-context",
+      "from": "osf-review-run",
+      "to": "review-context",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 400,
+          "endLine": 430
+        }
+      ]
+    },
+    {
+      "id": "context-redacts",
+      "from": "review-context",
+      "to": "osf-scan",
+      "kind": "call",
+      "delta": "added",
+      "label": "scan rules redact",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs",
+          "startLine": 430,
+          "endLine": 470
+        }
+      ]
+    },
+    {
+      "id": "run-renders-prompt",
+      "from": "osf-review-run",
+      "to": "review-prompt",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 430,
+          "endLine": 450
+        }
+      ]
+    },
+    {
+      "id": "run-makes-clean-copy",
+      "from": "osf-review-run",
+      "to": "clean-copy",
+      "kind": "call",
+      "delta": "added",
+      "label": "no agent settings",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 380,
+          "endLine": 400
+        }
+      ]
+    },
+    {
+      "id": "clean-copy-reads-head",
+      "from": "clean-copy",
+      "to": "head-tree",
+      "kind": "data",
+      "delta": "added",
+      "label": "tracked + untracked",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/clean_copy.rs",
+          "startLine": 30,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "run-invokes-agent",
+      "from": "osf-review-run",
+      "to": "agent-list",
+      "kind": "call",
+      "delta": "added",
+      "label": "headless, read-only",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 470,
+          "endLine": 500
+        }
+      ]
+    },
+    {
+      "id": "agent-list-drives-codex",
+      "from": "agent-list",
+      "to": "codex-cli",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 300,
+          "endLine": 360
+        }
+      ]
+    },
+    {
+      "id": "agent-list-drives-claude",
+      "from": "agent-list",
+      "to": "claude-cli",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 360,
+          "endLine": 430
+        }
+      ]
+    },
+    {
+      "id": "agent-list-drives-opencode",
+      "from": "agent-list",
+      "to": "opencode-cli",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 260,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "agent-list-drives-omp",
+      "from": "agent-list",
+      "to": "omp-cli",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 230,
+          "endLine": 260
+        }
+      ]
+    },
+    {
+      "id": "agent-list-drives-dsh",
+      "from": "agent-list",
+      "to": "dsh-cli",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 200,
+          "endLine": 230
+        }
+      ]
+    },
+    {
+      "id": "agent-answer-validated",
+      "from": "agent-list",
+      "to": "answer-schema",
+      "kind": "data",
+      "delta": "added",
+      "label": "final message",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 150,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "answer-verified",
+      "from": "answer-schema",
+      "to": "quote-verification",
+      "kind": "data",
+      "delta": "added",
+      "label": "Answer",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/quotes.rs",
+          "startLine": 60,
+          "endLine": 90
+        }
+      ]
+    },
+    {
+      "id": "quotes-read-head",
+      "from": "quote-verification",
+      "to": "head-tree",
+      "kind": "data",
+      "delta": "added",
+      "label": "file + line",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/quotes.rs",
+          "startLine": 90,
+          "endLine": 130
+        }
+      ]
+    },
+    {
+      "id": "verified-to-reducer",
+      "from": "quote-verification",
+      "to": "reducer",
+      "kind": "data",
+      "delta": "added",
+      "label": "VerifiedAnswer",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/reducer.rs",
+          "startLine": 1,
+          "endLine": 40
+        }
+      ]
+    },
+    {
+      "id": "reducer-decides",
+      "from": "reducer",
+      "to": "osf-review-reduce",
+      "kind": "data",
+      "delta": "added",
+      "label": "verdict",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 700,
+          "endLine": 760
+        }
+      ]
+    },
+    {
+      "id": "reduce-journals",
+      "from": "osf-review-reduce",
+      "to": "journal",
+      "kind": "data",
+      "delta": "added",
+      "label": "answers + decision",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/journal.rs",
+          "startLine": 55,
+          "endLine": 110
+        }
+      ]
+    },
+    {
+      "id": "reduce-redacts-secrets",
+      "from": "osf-review-reduce",
+      "to": "secret-values",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 500,
+          "endLine": 530
+        }
+      ]
+    },
+    {
+      "id": "reduce-reads-config",
+      "from": "osf-review-reduce",
+      "to": "base-tree",
+      "kind": "data",
+      "delta": "added",
+      "label": "trusted config root",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 200,
+          "endLine": 230
+        }
+      ]
+    },
+    {
+      "id": "config-reads-osf-toml",
+      "from": "base-tree",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 215,
+          "endLine": 360
+        }
+      ]
+    },
+    {
+      "id": "agents-list-reads-config",
+      "from": "osf-agents-list",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 960,
+          "endLine": 1000
+        }
+      ]
+    },
+    {
+      "id": "hooks-agents-writes",
+      "from": "osf-hooks-agents",
+      "to": "agent-list",
+      "kind": "call",
+      "delta": "added",
+      "label": "hook settings",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 560,
+          "endLine": 590
+        }
+      ]
+    },
+    {
+      "id": "scan-suppresses",
+      "from": "osf-scan",
+      "to": "osf-scan",
+      "kind": "other",
+      "delta": "modified",
+      "label": "rule ownership",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/suppress.rs",
+          "startLine": 280,
+          "endLine": 330
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "review-run-flow",
+      "title": "One reviewer job: prompt to saved answer",
+      "summary": "A reviewer job checks out the base and head trees, runs `osf review run --reviewer`, and saves what that reviewer did. The pull request's tree is read as data; the base tree supplies every setting.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "reviewer-jobs",
+          "label": "reviewer job"
+        },
+        {
+          "node": "osf-review-run",
+          "label": "osf review run"
+        },
+        {
+          "node": "base-tree",
+          "label": "base tree"
+        },
+        {
+          "node": "head-tree",
+          "label": "head tree"
+        },
+        {
+          "node": "agent-list",
+          "label": "agent"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-checkout",
+          "from": "reviewer-jobs",
+          "to": "base-tree",
+          "label": "checkout base, fetch head",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 200,
+              "endLine": 230
+            }
+          ]
+        },
+        {
+          "id": "step-run",
+          "from": "reviewer-jobs",
+          "to": "osf-review-run",
+          "label": "--reviewer codex --if-enabled",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 300,
+              "endLine": 330
+            }
+          ]
+        },
+        {
+          "id": "step-config",
+          "from": "osf-review-run",
+          "to": "base-tree",
+          "label": "lenses, roster, threshold, prompt",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 230,
+              "endLine": 290
+            }
+          ]
+        },
+        {
+          "id": "step-clean-copy",
+          "from": "osf-review-run",
+          "to": "head-tree",
+          "label": "copy tracked + untracked, no agent settings",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/clean_copy.rs",
+              "startLine": 30,
+              "endLine": 60
+            }
+          ]
+        },
+        {
+          "id": "step-prompt",
+          "from": "osf-review-run",
+          "to": "agent-list",
+          "label": "prompt + read-only mode",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 430,
+              "endLine": 500
+            }
+          ]
+        },
+        {
+          "id": "step-answer",
+          "from": "agent-list",
+          "to": "osf-review-run",
+          "label": "final message",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/answer.rs",
+              "startLine": 150,
+              "endLine": 200
+            }
+          ]
+        },
+        {
+          "id": "step-save",
+          "from": "osf-review-run",
+          "to": "reviewer-jobs",
+          "label": "out/codex.json",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 150,
+              "endLine": 200
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "review-reduce-flow",
+      "title": "Reduce: saved answers to a posted verdict",
+      "summary": "The final job collects every reviewer's saved file, binds each to this pull request, commit and CI run, checks the findings against the files, decides by fixed rules, journals, and posts.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "reduce-job",
+          "label": "review job"
+        },
+        {
+          "node": "osf-review-reduce",
+          "label": "osf review reduce"
+        },
+        {
+          "node": "quote-verification",
+          "label": "quote check"
+        },
+        {
+          "node": "reducer",
+          "label": "reducer"
+        },
+        {
+          "node": "journal",
+          "label": "journal"
+        }
+      ],
+      "messages": [
+        {
+          "id": "reduce-collect",
+          "from": "reduce-job",
+          "to": "osf-review-reduce",
+          "label": "review-run-*.json",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 560,
+              "endLine": 600
+            }
+          ]
+        },
+        {
+          "id": "reduce-bind",
+          "from": "osf-review-reduce",
+          "to": "osf-review-reduce",
+          "label": "binding must match repo, PR, base, head, run",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 560,
+              "endLine": 620
+            }
+          ]
+        },
+        {
+          "id": "reduce-verify",
+          "from": "osf-review-reduce",
+          "to": "quote-verification",
+          "label": "each finding's quote",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/quotes.rs",
+              "startLine": 60,
+              "endLine": 90
+            }
+          ]
+        },
+        {
+          "id": "reduce-decide",
+          "from": "quote-verification",
+          "to": "reducer",
+          "label": "VerifiedAnswer",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reducer.rs",
+              "startLine": 1,
+              "endLine": 40
+            }
+          ]
+        },
+        {
+          "id": "reduce-journal",
+          "from": "reducer",
+          "to": "journal",
+          "label": "answers + decision",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/journal.rs",
+              "startLine": 55,
+              "endLine": 110
+            }
+          ]
+        },
+        {
+          "id": "reduce-post",
+          "from": "osf-review-reduce",
+          "to": "reduce-job",
+          "label": "verdict, SARIF, posted review",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 2000,
+              "endLine": 2060
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 88,
+    "additions": 19630,
+    "deletions": 180,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-system",
+      "title": "Review system, end to end",
+      "lens": "architecture",
+      "summary": "The whole review path: the base-branch workflow, the osf CLI commands it runs, the review core that decides, the coding agents that answer, and the two trees they read.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "review-core-internals",
+      "title": "Review core internals",
+      "lens": "architecture",
+      "summary": "Inside the review core: how a lens is selected, how a reviewer's answer is validated and verified, and how the reducer turns verified answers into a verdict.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "lens-catalogue",
+          "lens-selection",
+          "changeset-risk",
+          "reviewer-roster",
+          "builder-families",
+          "review-context",
+          "review-prompt",
+          "answer-schema",
+          "quote-verification",
+          "reducer",
+          "clean-copy",
+          "journal"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "agent-roster",
+          "title": "Agent roster and read-only modes",
+          "lens": "architecture",
+          "summary": "The five agents osf can drive, and the read-only mode each reviewer runs under.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "agent-list",
+              "codex-cli",
+              "claude-cli",
+              "opencode-cli",
+              "omp-cli",
+              "dsh-cli"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "review-run-sequence",
+      "title": "One reviewer job",
+      "lens": "data-flow",
+      "summary": "What a single reviewer job does, from checkout to a saved answer file.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "review-run-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "review-reduce-sequence",
+      "title": "Reduce and post",
+      "lens": "data-flow",
+      "summary": "What the final job does with every reviewer's saved answers.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "review-reduce-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "walk-workflow",
+        "heading": "Base-branch workflow",
+        "body": "review.yml runs from the base branch, so a pull request cannot change the job that judges it.",
+        "stage": {
+          "kind": "view",
+          "view": "review-system"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "review-workflow",
+            "build-job",
+            "reviewer-jobs",
+            "reduce-job",
+            "fork-disabled-job"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-build",
+        "heading": "Build and work item",
+        "body": "One job builds osf from the base branch and finds the work item with a read-only token.",
+        "stage": {
+          "kind": "view",
+          "view": "review-system"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "build-job",
+            "osf-review-work-item",
+            "base-tree"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-run",
+        "heading": "One reviewer, one key",
+        "body": "Each reviewer job holds only its own provider key and runs osf review run for that reviewer.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-run-flow"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "walk-clean",
+        "heading": "A clean copy",
+        "body": "The reviewer starts in a copy of the change with no agent settings and no symlinks.",
+        "stage": {
+          "kind": "view",
+          "view": "review-core-internals"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "clean-copy",
+            "head-tree",
+            "agent-list"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-verify",
+        "heading": "Quotes checked",
+        "body": "Every finding's quote is checked against the file and line it names before it can be scored.",
+        "stage": {
+          "kind": "view",
+          "view": "review-core-internals"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "answer-schema",
+            "quote-verification",
+            "reducer"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-reduce",
+        "heading": "Decide and post",
+        "body": "The final job binds each saved run, reduces to a verdict, journals it, and posts.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-reduce-flow"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}

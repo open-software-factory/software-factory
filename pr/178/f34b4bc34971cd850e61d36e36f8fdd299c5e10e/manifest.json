@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "f34b4bc34971cd850e61d36e36f8fdd299c5e10e",
+    "contentHash": "103b2f08ad954413a20269ad0662e147"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-system-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-system",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1ee8fb0e2e4319b48874cbbc15358513",
+      "bytes": 54901,
+      "width": 2292,
+      "height": 1558,
+      "animated": false,
+      "path": "review-system-light-1ee8fb0e2e4319b48874cbbc15358513.svg"
+    },
+    {
+      "id": "review-system-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-system",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3ed02e311f42f73cd6cbfc5beb5d0c8b",
+      "bytes": 55611,
+      "width": 2292,
+      "height": 1558,
+      "animated": false,
+      "path": "review-system-dark-3ed02e311f42f73cd6cbfc5beb5d0c8b.svg"
+    },
+    {
+      "id": "review-core-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-core-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1d7502f27586d0c3b8fe4a1c1a6b633d",
+      "bytes": 17243,
+      "width": 456,
+      "height": 874,
+      "animated": false,
+      "path": "review-core-internals-light-1d7502f27586d0c3b8fe4a1c1a6b633d.svg"
+    },
+    {
+      "id": "review-core-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-core-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3f421df3a3c709c480eb0c1e1e937704",
+      "bytes": 17510,
+      "width": 456,
+      "height": 874,
+      "animated": false,
+      "path": "review-core-internals-dark-3f421df3a3c709c480eb0c1e1e937704.svg"
+    },
+    {
+      "id": "agent-roster-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-roster",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9a003710e08ebad1f19763b24cb61805",
+      "bytes": 10193,
+      "width": 464,
+      "height": 532,
+      "animated": false,
+      "path": "agent-roster-light-9a003710e08ebad1f19763b24cb61805.svg"
+    },
+    {
+      "id": "agent-roster-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-roster",
+      "mediaType": "image/svg+xml",
+      "contentHash": "884ad390fcae6b926531416585e78fec",
+      "bytes": 10327,
+      "width": 464,
+      "height": 532,
+      "animated": false,
+      "path": "agent-roster-dark-884ad390fcae6b926531416585e78fec.svg"
+    },
+    {
+      "id": "review-run-sequence-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "review-run-sequence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d10f0685eb30a0dacf275cd15b3d6176",
+      "bytes": 14255,
+      "width": 1411,
+      "height": 413,
+      "animated": true,
+      "path": "review-run-sequence-light-d10f0685eb30a0dacf275cd15b3d6176.svg"
+    },
+    {
+      "id": "review-run-sequence-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "review-run-sequence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "52616aa010e209a9a47a0d6cb65fbb52",
+      "bytes": 14389,
+      "width": 1411,
+      "height": 413,
+      "animated": true,
+      "path": "review-run-sequence-dark-52616aa010e209a9a47a0d6cb65fbb52.svg"
+    },
+    {
+      "id": "review-reduce-sequence-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "review-reduce-sequence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cfb264706170853889a0bde525e3b069",
+      "bytes": 13920,
+      "width": 1526,
+      "height": 391,
+      "animated": true,
+      "path": "review-reduce-sequence-light-cfb264706170853889a0bde525e3b069.svg"
+    },
+    {
+      "id": "review-reduce-sequence-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "review-reduce-sequence",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b2e4b232c557f6bd0edfe900539d6804",
+      "bytes": 14065,
+      "width": 1526,
+      "height": 391,
+      "animated": true,
+      "path": "review-reduce-sequence-dark-b2e4b232c557f6bd0edfe900539d6804.svg"
+    }
+  ]
+}
