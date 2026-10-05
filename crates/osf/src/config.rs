@@ -1488,11 +1488,11 @@ mod tests {
         assert!(err.to_string().contains("threshhold"), "{err}");
     }
 
-    /// `[review]` and `[agents]` are this same `osf.toml`, read separately by
-    /// `review_config` and `agents_config`, never by this module's own
-    /// `Config`. A repository that selects reviewers this way must still load
-    /// its `[writing]`, `[scan]`, and `[skill]` settings, the same as one
-    /// with neither table.
+    /// `[review]` and `[agents]` are this same `osf.toml`. The two tables are
+    /// read separately by `review_config` and `agents_config`, and this
+    /// module's own `Config` does not read them. A repository that selects
+    /// reviewers this way must still load its `[writing]`, `[scan]`, and
+    /// `[skill]` settings, the same as one with neither table.
     #[test]
     fn the_review_and_agents_tables_do_not_stop_the_rest_of_the_file_loading() {
         let dir = TempDir::new("osf-config-test-review-alongside-writing");

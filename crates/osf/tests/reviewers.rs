@@ -376,7 +376,7 @@ fn a_large_prompt_to_a_harness_that_ignores_stdin_is_still_killed_at_its_timeout
 /// schema-matching message goes straight to stdout, no envelope. This is
 /// `fake_reviewer`'s default (`answer_pointer` empty), the same shape
 /// `a_valid_answer_from_the_fake_harness_is_answered` already covers; named
-/// separately so it reads as codex's own case, not a coincidence.
+/// separately so it reads as codex's own case.
 #[test]
 fn a_codex_style_plain_answer_needs_no_envelope_pointer() {
     let answer_path = fixture("valid.json");
@@ -401,11 +401,12 @@ fn a_codex_style_plain_answer_needs_no_envelope_pointer() {
 /// until something drains it or closes the pipe. This harness never reads
 /// its own stdin and (with no sleep configured) runs to completion at
 /// once, closing its end of the pipe while the write is still blocked: the
-/// write then fails with a broken-pipe error every time, by the pipe's own
-/// buffering, not by chance of scheduling. That failure alone used to be
-/// treated as could-not-run even though the harness answered correctly;
-/// under real load, the same failure could also happen with a small
-/// prompt, whenever the harness happened to exit before the write started.
+/// write then fails with a broken-pipe error every time. The pipe's own
+/// buffering causes that failure, and scheduling plays no part. That failure
+/// alone used to be treated as could-not-run even though the harness
+/// answered correctly; under real load, the same failure could also happen
+/// with a small prompt, whenever the harness happened to exit before the
+/// write started.
 #[test]
 fn a_harness_that_never_reads_a_large_prompt_and_exits_at_once_is_still_answered() {
     let answer_path = fixture("valid.json");

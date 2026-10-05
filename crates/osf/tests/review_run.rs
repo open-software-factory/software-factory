@@ -605,7 +605,7 @@ fn a_verified_blocker_finding_fails_the_review() {
 
 /// One family alone: the interim policy lets it decide the lens through its
 /// own extra critical round, rather than blocking the review on a second
-/// family nobody has configured.
+/// family that has not been configured.
 #[test]
 fn only_one_family_enabled_passes_under_the_interim_policy() {
     let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
@@ -1329,7 +1329,7 @@ fn hot_paths_in_osf_toml_does_not_fail_the_full_review_run_command() {
 
 /// `--config-root` names the trusted tree: the lens catalogue and the
 /// `[review]` and `[agents]` tables (reviewers, threshold, timeout, cost ceiling) come from
-/// there, never from the repository under review. A pull request that
+/// there. The repository under review cannot change them. A pull request that
 /// lowers its own threshold to zero and swaps in a harmless roster must
 /// still fail, because the base tree's own high threshold and its
 /// blocker-returning roster are what actually run.

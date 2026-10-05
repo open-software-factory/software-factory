@@ -1019,7 +1019,7 @@ mod tests {
     }
 
     #[test]
-    fn with_nothing_selected_every_agent_is_enabled_dsh_builds_and_nobody_reviews() {
+    fn with_nothing_selected_every_agent_is_enabled_dsh_builds_and_no_agent_reviews() {
         let s = resolve(&AgentsConfig::default()).expect("defaults resolve");
         assert_eq!(s.enabled.len(), AGENTS.len());
         assert_eq!(s.builder.name, DEFAULT_BUILDER);

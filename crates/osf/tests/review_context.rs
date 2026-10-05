@@ -245,8 +245,8 @@ fn a_suppression_marker_never_stops_a_secret_from_being_redacted() {
 
 /// A pull request's own `osf.toml` cannot loosen redaction by naming the
 /// `[scan]` table there: this repository's own attempt to turn off
-/// `scan-secret` has no effect, because `redact_secrets` reads `[scan]`
-/// from `config_root`, never from `root`.
+/// `scan-secret` has no effect. `redact_secrets` reads `[scan]` from
+/// `config_root` only, so the `root` copy of `osf.toml` has no say.
 #[test]
 fn a_pull_requests_own_osf_toml_cannot_turn_off_scan_secret() {
     let repo = changed_repo("redact-scan-secret-off-in-pr");
