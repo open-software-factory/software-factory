@@ -431,8 +431,14 @@ fn blank_standalone_title(line: &str) -> String {
     )
 }
 
-/// `body` with code blocks, code spans, HTML comments and block quotes blanked out.
+/// `text` with CRLF and then a lone CR rewritten as LF.
+pub(crate) fn normalize_newlines(text: &str) -> String {
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+/// `body` with code blocks, code spans, HTML comments and block quotes blanked out, reading CRLF and lone CR as line ends.
 pub(crate) fn prose(body: &str) -> String {
+    let body = normalize_newlines(body);
     let mut out = String::with_capacity(body.len());
     let mut fence: Option<(char, usize)> = None;
     let mut in_comment = false;
@@ -783,17 +789,30 @@ mod tests {
     const REPO: &str = "open-software-factory/software-factory";
     const HEAD: &str = "0123456789abcdef0123456789abcdef01234567";
 
+    /// `body` with every LF rewritten as the CRLF a web editor saves.
+    fn crlf(body: &str) -> String {
+        body.replace('\n', "\r\n")
+    }
+
+    /// The candidates for `body` as written and for its CRLF form, which must match.
+    fn candidates_both(body: &str) -> Vec<Reference> {
+        let as_written = candidates(body);
+        let as_crlf = candidates(&crlf(body));
+        assert_eq!(as_written, as_crlf, "{body}");
+        as_written
+    }
+
     #[test]
     fn the_issue_line_names_the_work_item() {
         let body = "Issue: [open-software-factory/software-factory#137 (Build the check)](https://github.com/open-software-factory/software-factory/issues/137)\n\n## What and why\nText.";
-        assert_eq!(candidates(body), vec![(Some(REPO.to_string()), 137)]);
+        assert_eq!(candidates_both(body), vec![(Some(REPO.to_string()), 137)]);
     }
 
     #[test]
     fn an_issue_line_with_a_bare_number_or_a_link_alone_is_read() {
-        assert_eq!(candidates("Issue: #12"), vec![(None, 12)]);
+        assert_eq!(candidates_both("Issue: #12"), vec![(None, 12)]);
         assert_eq!(
-            candidates(
+            candidates_both(
                 "- Issue: https://github.com/open-software-factory/software-factory/issues/9"
             ),
             vec![(
@@ -805,30 +824,30 @@ mod tests {
 
     #[test]
     fn a_closing_keyword_names_the_work_item_when_no_issue_line_does() {
-        assert_eq!(candidates("Closes #44 and more"), vec![(None, 44)]);
+        assert_eq!(candidates_both("Closes #44 and more"), vec![(None, 44)]);
         assert_eq!(
-            candidates("This fixes: open-software-factory/software-factory#5."),
+            candidates_both("This fixes: open-software-factory/software-factory#5."),
             vec![(
                 Some("open-software-factory/software-factory".to_string()),
                 5
             )]
         );
-        assert_eq!(candidates("Resolved #7"), vec![(None, 7)]);
+        assert_eq!(candidates_both("Resolved #7"), vec![(None, 7)]);
     }
 
     #[test]
     fn the_issue_line_comes_before_a_closing_keyword() {
-        let found = candidates("Closes #44\n\nIssue: #12");
+        let found = candidates_both("Closes #44\n\nIssue: #12");
         assert_eq!(found, vec![(None, 12), (None, 44)]);
     }
 
     #[test]
     fn a_number_in_prose_with_no_keyword_names_nothing() {
-        assert!(candidates(
+        assert!(candidates_both(
             "See #5 and also open-software-factory/software-factory#6 for background."
         )
         .is_empty());
-        assert!(candidates("An entity &#123; is not a reference.").is_empty());
+        assert!(candidates_both("An entity &#123; is not a reference.").is_empty());
     }
 
     #[test]
@@ -1020,24 +1039,39 @@ mod tests {
     #[test]
     fn an_issue_line_in_a_fenced_block_is_hidden_and_a_visible_closing_keyword_wins() {
         let body = "```\nIssue: #123\n```\n\nCloses #44";
+        assert_eq!(candidates_both(body), vec![(None, 44)]);
+    }
+
+    #[test]
+    fn a_crlf_fenced_block_hides_an_issue_line_and_the_closing_keyword_wins() {
+        let body = "```\r\nIssue: #1\r\n```\r\nCloses #44";
+        assert_eq!(candidates(body), vec![(None, 44)]);
+    }
+
+    #[test]
+    fn a_lone_carriage_return_is_a_line_ending() {
+        let body = "```\rIssue: #1\r```\rCloses #44";
         assert_eq!(candidates(body), vec![(None, 44)]);
     }
 
     #[test]
     fn a_tilde_fenced_block_hides_an_issue_line() {
         let body = "~~~\nIssue: #123\n~~~";
-        assert!(candidates(body).is_empty());
+        assert!(candidates_both(body).is_empty());
     }
 
     #[test]
     fn a_backtick_line_with_more_backticks_is_an_inline_span_not_a_fence() {
-        assert_eq!(candidates("```x``` note\n\nCloses #44"), vec![(None, 44)]);
+        assert_eq!(
+            candidates_both("```x``` note\n\nCloses #44"),
+            vec![(None, 44)]
+        );
     }
 
     #[test]
     fn a_fence_after_a_bullet_list_marker_hides_an_issue_line() {
         assert_eq!(
-            candidates("- ```\n  Issue: #1\n  ```\nCloses #44"),
+            candidates_both("- ```\n  Issue: #1\n  ```\nCloses #44"),
             vec![(None, 44)]
         );
     }
@@ -1045,7 +1079,7 @@ mod tests {
     #[test]
     fn a_fence_after_a_numbered_list_marker_hides_an_issue_line() {
         assert_eq!(
-            candidates("1. ```\n   Issue: #1\n   ```\nCloses #44"),
+            candidates_both("1. ```\n   Issue: #1\n   ```\nCloses #44"),
             vec![(None, 44)]
         );
     }
@@ -1057,14 +1091,14 @@ mod tests {
             "+ ```\n  Issue: #1\n  ```\nCloses #44",
             "1) ```\n   Issue: #1\n   ```\nCloses #44",
         ] {
-            assert_eq!(candidates(body), vec![(None, 44)], "{body}");
+            assert_eq!(candidates_both(body), vec![(None, 44)], "{body}");
         }
     }
 
     #[test]
     fn a_list_fence_closes_without_indent() {
         assert_eq!(
-            candidates("- ```\n  Issue: #1\n```\nCloses #44"),
+            candidates_both("- ```\n  Issue: #1\n```\nCloses #44"),
             vec![(None, 44)]
         );
     }
@@ -1072,42 +1106,45 @@ mod tests {
     #[test]
     fn a_list_fence_with_an_info_string_hides_an_issue_line() {
         assert_eq!(
-            candidates("- ```text\n  Issue: #1\n  ```\nCloses #44"),
+            candidates_both("- ```text\n  Issue: #1\n  ```\nCloses #44"),
             vec![(None, 44)]
         );
     }
 
     #[test]
     fn inline_backticks_on_a_list_item_are_not_a_fence() {
-        assert_eq!(candidates("- ```x``` note\n\nCloses #44"), vec![(None, 44)]);
+        assert_eq!(
+            candidates_both("- ```x``` note\n\nCloses #44"),
+            vec![(None, 44)]
+        );
     }
 
     #[test]
     fn a_plain_list_item_still_names_the_issue() {
-        assert_eq!(candidates("- Issue: #12"), vec![(None, 12)]);
+        assert_eq!(candidates_both("- Issue: #12"), vec![(None, 12)]);
     }
 
     #[test]
     fn an_unclosed_fenced_block_hides_every_line_after_it() {
         let body = "Closes #44\n\n```\nIssue: #123\nCloses #99";
-        assert_eq!(candidates(body), vec![(None, 44)]);
+        assert_eq!(candidates_both(body), vec![(None, 44)]);
     }
 
     #[test]
     fn an_indented_code_block_hides_an_issue_line() {
         let body = "    Issue: #123\n\nCloses #44";
-        assert_eq!(candidates(body), vec![(None, 44)]);
+        assert_eq!(candidates_both(body), vec![(None, 44)]);
     }
 
     #[test]
     fn an_inline_code_span_hides_a_closing_keyword() {
-        assert!(candidates("Run `Closes #5` now.").is_empty());
+        assert!(candidates_both("Run `Closes #5` now.").is_empty());
     }
 
     #[test]
     fn a_link_title_is_hidden_from_the_closing_keyword_scan() {
         assert_eq!(
-            candidates("[a](https://example.com \"Closes #99\")\n\nCloses #44"),
+            candidates_both("[a](https://example.com \"Closes #99\")\n\nCloses #44"),
             vec![(None, 44)]
         );
     }
@@ -1115,7 +1152,7 @@ mod tests {
     #[test]
     fn a_link_reference_definition_title_is_hidden() {
         assert_eq!(
-            candidates("[x]: https://example.com \"Closes #99\"\n\nCloses #44"),
+            candidates_both("[x]: https://example.com \"Closes #99\"\n\nCloses #44"),
             vec![(None, 44)]
         );
     }
@@ -1123,7 +1160,7 @@ mod tests {
     #[test]
     fn an_image_alt_text_is_hidden() {
         assert_eq!(
-            candidates("![Closes #99](u)\n\nCloses #44"),
+            candidates_both("![Closes #99](u)\n\nCloses #44"),
             vec![(None, 44)]
         );
     }
@@ -1131,20 +1168,20 @@ mod tests {
     #[test]
     fn an_html_attribute_is_hidden() {
         assert_eq!(
-            candidates("<a title=\"Closes #99\">\n\nCloses #44"),
+            candidates_both("<a title=\"Closes #99\">\n\nCloses #44"),
             vec![(None, 44)]
         );
     }
 
     #[test]
     fn visible_link_text_still_names_the_issue() {
-        assert_eq!(candidates("[Closes #5](u)"), vec![(None, 5)]);
+        assert_eq!(candidates_both("[Closes #5](u)"), vec![(None, 5)]);
     }
 
     #[test]
     fn an_autolink_with_a_scheme_is_not_an_html_tag() {
         assert_eq!(
-            candidates(
+            candidates_both(
                 "Closes <https://github.com/open-software-factory/software-factory/issues/7>"
             ),
             vec![(Some(REPO.to_string()), 7)]
@@ -1159,30 +1196,30 @@ mod tests {
             "[x]: https://example.com 'Closes #99'\n\nCloses #44",
             "[x]: https://example.com (Closes #99)\n\nCloses #44",
         ] {
-            assert_eq!(candidates(body), vec![(None, 44)], "{body}");
+            assert_eq!(candidates_both(body), vec![(None, 44)], "{body}");
         }
     }
 
     #[test]
     fn a_reference_definition_title_on_the_next_line_is_hidden() {
         let body = "[x]: https://example.com\n\"Closes #99\"\n\nCloses #44";
-        assert_eq!(candidates(body), vec![(None, 44)]);
+        assert_eq!(candidates_both(body), vec![(None, 44)]);
     }
 
     #[test]
     fn an_html_comment_on_one_line_hides_an_issue_line() {
-        assert!(candidates("<!-- Issue: #123 -->").is_empty());
+        assert!(candidates_both("<!-- Issue: #123 -->").is_empty());
     }
 
     #[test]
     fn an_html_comment_over_several_lines_hides_an_issue_line() {
-        assert!(candidates("<!--\nIssue: #123\n-->").is_empty());
+        assert!(candidates_both("<!--\nIssue: #123\n-->").is_empty());
     }
 
     #[test]
     fn a_block_quote_line_is_ignored() {
-        assert!(candidates("> Issue: #123").is_empty());
-        assert!(candidates("  > Closes #5").is_empty());
+        assert!(candidates_both("> Issue: #123").is_empty());
+        assert!(candidates_both("  > Closes #5").is_empty());
     }
 
     #[test]
@@ -1198,14 +1235,14 @@ mod tests {
             "This cannot close #4",
             "This can't fix #6",
         ] {
-            assert!(candidates(body).is_empty(), "{body}");
+            assert!(candidates_both(body).is_empty(), "{body}");
         }
     }
 
     #[test]
     fn a_negation_only_hides_its_own_sentence() {
         assert_eq!(
-            candidates("This does not fix #77. It closes #44."),
+            candidates_both("This does not fix #77. It closes #44."),
             vec![(None, 44)]
         );
     }
@@ -1213,7 +1250,7 @@ mod tests {
     #[test]
     fn ordinary_prose_still_names_the_issue_line_and_a_closing_keyword() {
         assert_eq!(
-            candidates("## Why\n\nIssue: #12\n\nCloses #44"),
+            candidates_both("## Why\n\nIssue: #12\n\nCloses #44"),
             vec![(None, 12), (None, 44)]
         );
     }
@@ -1231,8 +1268,10 @@ mod tests {
             "> Issue: #123",
             "This does not fix #77",
         ] {
-            let item = find(&source, REPO, body, HEAD).expect("finds");
-            assert_eq!(item, WorkItem::Missing(no_issue_linked(REPO)), "{body}");
+            for fixture in [body.to_string(), crlf(body)] {
+                let item = find(&source, REPO, &fixture, HEAD).expect("finds");
+                assert_eq!(item, WorkItem::Missing(no_issue_linked(REPO)), "{fixture}");
+            }
         }
         assert!(source.asked.borrow().is_empty(), "nothing was fetched");
     }

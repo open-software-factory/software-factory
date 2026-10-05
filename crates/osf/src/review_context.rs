@@ -469,6 +469,25 @@ fn append_redaction_note(mut text: String, count: usize) -> String {
 mod tests {
     use super::*;
 
+    /// `body` with every LF rewritten as the CRLF a web editor saves.
+    fn crlf(body: &str) -> String {
+        body.replace('\n', "\r\n")
+    }
+
+    /// The acceptance section and heading flag for `body`, each checked to match its CRLF form.
+    fn acceptance_both(body: &str) -> (Option<String>, bool) {
+        let as_written = (
+            acceptance_section_text(body),
+            acceptance_heading_present(body),
+        );
+        let as_crlf = (
+            acceptance_section_text(&crlf(body)),
+            acceptance_heading_present(&crlf(body)),
+        );
+        assert_eq!(as_written, as_crlf, "{body}");
+        as_written
+    }
+
     #[test]
     fn heading_level_needs_a_space_after_the_hashes() {
         assert_eq!(heading_level("## Done when"), Some(2));
@@ -486,7 +505,7 @@ mod tests {
     #[test]
     fn acceptance_section_stops_at_the_next_heading_of_the_same_level() {
         let body = "# Title\n\ntext\n\n## Done when\n- one\n- two\n\n## Notes\nmore\n";
-        let section = acceptance_section_text(body).expect("heading found");
+        let section = acceptance_both(body).0.expect("heading found");
         assert!(section.contains("- one"));
         assert!(section.contains("- two"));
         assert!(!section.contains("more"));
@@ -495,42 +514,69 @@ mod tests {
     #[test]
     fn acceptance_section_is_none_with_no_matching_heading() {
         let body = "# Title\n\nno acceptance heading here\n";
-        assert!(acceptance_section_text(body).is_none());
+        assert!(acceptance_both(body).0.is_none());
     }
 
     #[test]
     fn acceptance_section_is_none_when_the_body_ends_with_the_heading() {
-        assert!(acceptance_section_text("# Title\n\n## Done when").is_none());
+        assert!(acceptance_both("# Title\n\n## Done when").0.is_none());
     }
 
     #[test]
     fn acceptance_section_is_none_when_only_blank_lines_follow_the_heading() {
-        assert!(acceptance_section_text("## Done when\n\n\n   \n").is_none());
+        assert!(acceptance_both("## Done when\n\n\n   \n").0.is_none());
     }
 
     #[test]
     fn acceptance_section_is_none_when_only_an_html_comment_follows_the_heading() {
         let body = "## Done when\n<!-- nothing here yet -->\n";
-        assert!(acceptance_section_text(body).is_none());
+        assert!(acceptance_both(body).0.is_none());
     }
 
     #[test]
     fn acceptance_section_is_none_when_the_next_heading_follows_at_once() {
         let body = "## Done when\n## Notes\nsome notes\n";
-        assert!(acceptance_section_text(body).is_none());
+        assert!(acceptance_both(body).0.is_none());
     }
 
     #[test]
     fn a_heading_inside_a_code_fence_is_not_an_acceptance_heading() {
         let body = "```\n## Done when\n- not a section\n```\n";
-        assert!(acceptance_section_text(body).is_none());
-        assert!(!acceptance_heading_present(body));
+        let (section, present) = acceptance_both(body);
+        assert!(section.is_none());
+        assert!(!present);
     }
 
     #[test]
     fn acceptance_section_with_one_list_item_still_works() {
-        let section = acceptance_section_text("## Done when\n- one item\n").expect("section");
+        let section = acceptance_both("## Done when\n- one item\n")
+            .0
+            .expect("section");
         assert!(section.contains("- one item"), "{section}");
+    }
+
+    #[test]
+    fn a_crlf_acceptance_section_is_read_in_full() {
+        let body = "## Done when\r\n- one\r\n- two\r\n\r\n## Notes\r\nmore\r\n";
+        let section = acceptance_section_text(body).expect("section");
+        assert!(section.contains("- one"), "{section}");
+        assert!(section.contains("- two"), "{section}");
+        assert!(!section.contains("more"), "{section}");
+        assert!(!section.contains('\r'), "{section}");
+    }
+
+    #[test]
+    fn an_acceptance_heading_after_a_crlf_fenced_block_is_found() {
+        let body = "```\r\ncode\r\n```\r\n## Done when\r\n- one\r\n";
+        let section = acceptance_section_text(body).expect("section");
+        assert!(section.contains("- one"), "{section}");
+    }
+
+    #[test]
+    fn a_crlf_section_that_holds_a_code_block_is_read() {
+        let body = "## Done when\r\n```\r\ncode\r\n```\r\n- one\r\n";
+        let section = acceptance_section_text(body).expect("section");
+        assert!(section.contains("- one"), "{section}");
     }
 
     #[test]
