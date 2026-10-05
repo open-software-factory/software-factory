@@ -9,9 +9,9 @@ use std::collections::VecDeque;
 use std::fmt;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt as _;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use wait_timeout::ChildExt as _;
 
 /// The command a created container runs until it is removed.
@@ -21,6 +21,9 @@ const KEEPALIVE_SECS: &str = "2147483647";
 
 /// How long `create` waits for the image and the container.
 const CREATE_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// The timeout one command gets when it sets none: 30 minutes.
+pub const DEFAULT_TIMEOUT_SECS: u64 = 1800;
 
 /// The largest accepted process count: 2^22.
 const MAX_PROCESSES: u32 = 4_194_304;
@@ -136,13 +139,15 @@ impl DockerRunner for RealDockerRunner {
             })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        // A timeout must stop the whole tree, or a grandchild can keep a pipe
-        // open and the reader joins would outlive the timeout by far.
+        // A timeout must stop the whole tree, or a grandchild can keep a pipe open.
         #[cfg(unix)]
         command.process_group(0);
         let mut child = command
             .spawn()
             .map_err(|error| RunnerError(format!("cannot run docker: {error}")))?;
+
+        // The deadline starts at the spawn and covers the wait and the readers.
+        let deadline = timeout.map(|limit| Instant::now() + limit);
 
         // A large payload is written on its own thread so it never blocks the readers or the wait; a write error is ignored.
         let stdin_writer = stdin.and_then(|bytes| {
@@ -154,72 +159,101 @@ impl DockerRunner for RealDockerRunner {
             })
         });
 
-        // Both pipes are read on their own threads before the wait: a run
-        // that fills one pipe buffer would otherwise block before it exits.
+        // Both pipes are read on their own threads before the wait: a run that
+        // fills one pipe buffer would otherwise block. Each reader reports over
+        // a channel, so the caller never joins a pipe a grandchild holds open.
         let cap = self.output_cap_bytes;
-        let stdout_reader = child
-            .stdout
-            .take()
-            .map(|mut pipe| std::thread::spawn(move || read_capped(&mut pipe, cap)));
-        let stderr_reader = child
-            .stderr
-            .take()
-            .map(|mut pipe| std::thread::spawn(move || read_capped(&mut pipe, cap)));
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let stdout_reader = child.stdout.take().map(|mut pipe| {
+            let sender = sender.clone();
+            std::thread::spawn(move || {
+                let _ = sender.send((Stream::Stdout, read_capped(&mut pipe, cap)));
+            })
+        });
+        let stderr_reader = child.stderr.take().map(|mut pipe| {
+            let sender = sender.clone();
+            std::thread::spawn(move || {
+                let _ = sender.send((Stream::Stderr, read_capped(&mut pipe, cap)));
+            })
+        });
+        drop(sender);
 
         let waited = match timeout {
             Some(limit) => child.wait_timeout(limit),
             None => child.wait().map(Some),
         };
 
+        let expected = usize::from(stdout_reader.is_some()) + usize::from(stderr_reader.is_some());
+        let mut collected = Collected::default();
+        collect_readers(&mut collected, &receiver, expected, deadline);
+
         match waited {
-            Ok(Some(status)) => {
+            Ok(Some(status)) if collected.reported == expected => {
                 join_writer(stdin_writer);
-                let (stdout, stdout_truncated) = join_reader(stdout_reader)?;
-                let (stderr, stderr_truncated) = join_reader(stderr_reader)?;
                 Ok(ToolOutput {
                     status: status.code(),
-                    stdout,
-                    stderr,
+                    stdout: collected.stdout,
+                    stderr: collected.stderr,
                     timed_out: false,
                     output_cap_bytes: Some(self.output_cap_bytes),
-                    stdout_truncated,
-                    stderr_truncated,
+                    stdout_truncated: collected.stdout_truncated,
+                    stderr_truncated: collected.stderr_truncated,
+                })
+            }
+            Ok(Some(_status)) if timeout.is_none() => {
+                // With no deadline the channel disconnects only when a reader
+                // ended without reporting: it panicked.
+                join_writer(stdin_writer);
+                Err(RunnerError("a reader thread panicked".to_string()))
+            }
+            Ok(Some(_status)) => {
+                // The client exited, but a reader never reached its pipe's end:
+                // a child that kept the pipe open holds the wall clock. Killing
+                // is best effort here, since the client is already reaped.
+                let _ = kill_tree(&child);
+                let _ = child.kill();
+                let _ = child.wait();
+                let grace = Some(Instant::now() + KILL_GRACE);
+                collect_readers(&mut collected, &receiver, expected, grace);
+                Ok(ToolOutput {
+                    status: None,
+                    stdout: collected.stdout,
+                    stderr: collected.stderr,
+                    timed_out: true,
+                    output_cap_bytes: Some(self.output_cap_bytes),
+                    stdout_truncated: collected.stdout_truncated,
+                    stderr_truncated: collected.stderr_truncated,
                 })
             }
             Ok(None) => {
                 let killed = kill_tree(&child);
                 let _ = child.kill();
                 let _ = child.wait();
-                join_writer(stdin_writer);
                 if let Err(error) = killed {
-                    return Err(RunnerError(format!(
-                        "docker timed out and could not be killed: {error}"
-                    )));
+                    return Err(RunnerError(kill_failure(&self.program, &error)));
                 }
-                let (stdout, stdout_truncated) = join_reader(stdout_reader)?;
-                let (stderr, stderr_truncated) = join_reader(stderr_reader)?;
+                let grace = Some(Instant::now() + KILL_GRACE);
+                collect_readers(&mut collected, &receiver, expected, grace);
                 Ok(ToolOutput {
                     status: None,
-                    stdout,
-                    stderr,
+                    stdout: collected.stdout,
+                    stderr: collected.stderr,
                     timed_out: true,
                     output_cap_bytes: Some(self.output_cap_bytes),
-                    stdout_truncated,
-                    stderr_truncated,
+                    stdout_truncated: collected.stdout_truncated,
+                    stderr_truncated: collected.stderr_truncated,
                 })
             }
             Err(error) => {
                 let killed = kill_tree(&child);
                 let _ = child.kill();
                 let _ = child.wait();
-                join_writer(stdin_writer);
                 let mut text = format!("cannot run docker: {error}");
-                match killed {
-                    Ok(()) => {
-                        let _ = join_reader(stdout_reader);
-                        let _ = join_reader(stderr_reader);
-                    }
-                    Err(kill_error) => text = format!("{text}; could not be killed: {kill_error}"),
+                if let Err(kill_error) = killed {
+                    text = format!(
+                        "{text}; could not be killed ({}): {kill_error}",
+                        self.program.to_string_lossy()
+                    );
                 }
                 Err(RunnerError(text))
             }
@@ -234,15 +268,65 @@ fn join_writer(handle: Option<std::thread::JoinHandle<()>>) {
     }
 }
 
-/// Joins one reader thread, turning a panic into a [`RunnerError`].
-fn join_reader(
-    handle: Option<std::thread::JoinHandle<(String, bool)>>,
-) -> Result<(String, bool), RunnerError> {
-    match handle {
-        Some(handle) => handle
-            .join()
-            .map_err(|_| RunnerError("a reader thread panicked".to_string())),
-        None => Ok((String::new(), false)),
+/// The text for a tree kill that failed: the program and the kill error.
+fn kill_failure(program: &Path, error: &str) -> String {
+    format!(
+        "docker timed out and could not be killed ({}): {error}",
+        program.to_string_lossy()
+    )
+}
+
+/// Which standard stream one reader thread covers.
+#[derive(Debug, Clone, Copy)]
+enum Stream {
+    Stdout,
+    Stderr,
+}
+
+/// How long the readers get to drain their pipes after a kill.
+const KILL_GRACE: Duration = Duration::from_secs(2);
+
+/// What both reader threads reported within the deadline.
+#[derive(Default)]
+struct Collected {
+    stdout: String,
+    stdout_truncated: bool,
+    stderr: String,
+    stderr_truncated: bool,
+    /// How many readers reported before the deadline or disconnection.
+    reported: usize,
+}
+
+/// Adds reader results to `collected` until every reader reported or `deadline`
+/// passes; a silent reader leaves its stream empty.
+fn collect_readers(
+    collected: &mut Collected,
+    receiver: &std::sync::mpsc::Receiver<(Stream, (String, bool))>,
+    expected: usize,
+    deadline: Option<Instant>,
+) {
+    while collected.reported < expected {
+        let message = match deadline {
+            Some(deadline) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                receiver.recv_timeout(remaining).ok()
+            }
+            None => receiver.recv().ok(),
+        };
+        let Some((stream, (text, truncated))) = message else {
+            break;
+        };
+        match stream {
+            Stream::Stdout => {
+                collected.stdout = text;
+                collected.stdout_truncated = truncated;
+            }
+            Stream::Stderr => {
+                collected.stderr = text;
+                collected.stderr_truncated = truncated;
+            }
+        }
+        collected.reported += 1;
     }
 }
 
@@ -841,18 +925,32 @@ fn validate_name(name: &str) -> Result<(), SandboxError> {
     Ok(())
 }
 
-/// Checks one mount's paths: non-empty host, absolute sandbox, no comma or newline.
+/// Checks one mount's paths: a non-empty absolute host, an absolute sandbox,
+/// no `..` component, and no comma or newline.
 fn validate_mount(mount: &Mount) -> Result<(), SandboxError> {
     if mount.host_path.is_empty() {
         return Err(SandboxError::Rejected(
             "a mount host path must not be empty".to_string(),
         ));
     }
+    if !mount.host_path.starts_with('/') {
+        return Err(SandboxError::Rejected(format!(
+            "a mount host path must be absolute: {}",
+            mount.host_path
+        )));
+    }
     if !mount.sandbox_path.starts_with('/') {
         return Err(SandboxError::Rejected(format!(
             "a mount sandbox path must be absolute: {}",
             mount.sandbox_path
         )));
+    }
+    for path in [&mount.host_path, &mount.sandbox_path] {
+        if path.split('/').any(|component| component == "..") {
+            return Err(SandboxError::Rejected(format!(
+                "a mount path must not hold a '..' component: {path}"
+            )));
+        }
     }
     for path in [&mount.host_path, &mount.sandbox_path] {
         if path.contains(',') || path.contains('\n') || path.contains('\r') {
@@ -864,10 +962,70 @@ fn validate_mount(mount: &Mount) -> Result<(), SandboxError> {
     Ok(())
 }
 
+/// The index of the repository mount: the one whose sandbox path is the workdir.
+fn repository_mount(spec: &SandboxSpec) -> Option<usize> {
+    spec.mounts
+        .iter()
+        .position(|mount| mount.sandbox_path == spec.workdir)
+}
+
+/// Canonicalizes every mount source, refusing a missing source, a symlink
+/// unless `follow_symlinks` is set, the host root, and a source that is, or
+/// holds, the repository mount's own real source.
+///
+/// # Errors
+/// Returns [`SandboxError::Rejected`] naming the first mount that fails.
+pub fn resolve_mounts(spec: &SandboxSpec) -> Result<SandboxSpec, SandboxError> {
+    let mut resolved = spec.clone();
+    let mut real_paths: Vec<PathBuf> = Vec::with_capacity(spec.mounts.len());
+    for mount in &spec.mounts {
+        let host = Path::new(&mount.host_path);
+        if std::fs::symlink_metadata(host).is_err() {
+            return Err(SandboxError::Rejected(format!(
+                "the mount source does not exist: {}",
+                mount.host_path
+            )));
+        }
+        let real = std::fs::canonicalize(host).map_err(|error| {
+            SandboxError::Rejected(format!(
+                "the mount source cannot be resolved: {}: {error}",
+                mount.host_path
+            ))
+        })?;
+        if real.as_path() != host && !mount.follow_symlinks {
+            return Err(SandboxError::Rejected(format!(
+                "the mount source is, or passes through, a symbolic link: {}",
+                mount.host_path
+            )));
+        }
+        if real.parent().is_none() {
+            return Err(SandboxError::Rejected(
+                "the mount source must not be the root of the host".to_string(),
+            ));
+        }
+        real_paths.push(real);
+    }
+    if let Some(repository) = repository_mount(spec) {
+        if let Some(repository_real) = real_paths.get(repository) {
+            for (index, real) in real_paths.iter().enumerate() {
+                if index != repository && repository_real.starts_with(real) {
+                    return Err(SandboxError::Rejected(
+                        "a mount source must not be the repository or a parent of it".to_string(),
+                    ));
+                }
+            }
+        }
+    }
+    for (mount, real) in resolved.mounts.iter_mut().zip(real_paths) {
+        mount.host_path = real.to_string_lossy().into_owned();
+    }
+    Ok(resolved)
+}
+
 /// Checks `command` before any runner call.
 ///
 /// # Errors
-/// Returns [`SandboxError::Rejected`] for an empty program, a relative workdir, a malformed environment key, or an environment value with a NUL byte.
+/// Returns [`SandboxError::Rejected`] for an empty program, a relative workdir, a zero timeout, a malformed environment key, or an environment value with a NUL byte.
 pub fn validate_command(command: &CommandSpec) -> Result<(), SandboxError> {
     if command.program.is_empty() {
         return Err(SandboxError::Rejected(
@@ -880,6 +1038,11 @@ pub fn validate_command(command: &CommandSpec) -> Result<(), SandboxError> {
                 "the workdir must be absolute: {workdir}"
             )));
         }
+    }
+    if command.timeout_secs == Some(0) {
+        return Err(SandboxError::Rejected(
+            "the timeout must be at least one second".to_string(),
+        ));
     }
     for (key, value) in &command.env {
         if !is_env_key(key) {
@@ -1047,9 +1210,10 @@ impl DockerSandbox<RealDockerRunner> {
 impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
     fn create(&self, spec: &SandboxSpec) -> Result<SandboxId, SandboxError> {
         validate_spec(spec)?;
+        let resolved = resolve_mounts(spec)?;
         let output = self
             .runner
-            .run(&create_argv(spec), Some(CREATE_TIMEOUT))
+            .run(&create_argv(&resolved), Some(CREATE_TIMEOUT))
             .map_err(|error| SandboxError::Failed(error.0))?;
         if output.status != Some(0) || output.timed_out {
             return Err(SandboxError::Failed(tool_text(&output)));
@@ -1073,7 +1237,8 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
 
     fn run(&self, id: &SandboxId, command: &CommandSpec) -> Result<RunResult, SandboxError> {
         validate_command(command)?;
-        let timeout = command.timeout_secs.map(Duration::from_secs);
+        let limit_secs = command.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
+        let timeout = Some(Duration::from_secs(limit_secs));
         let output = self
             .runner
             .run_with_stdin(
@@ -1092,9 +1257,7 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
                 return Err(SandboxError::Failed(redact(&tool_text(&kill), command)));
             }
             return Ok(RunResult {
-                outcome: RunOutcome::TimedOut {
-                    limit_secs: command.timeout_secs.unwrap_or(0),
-                },
+                outcome: RunOutcome::TimedOut { limit_secs },
                 stdout: output.stdout,
                 stderr: output.stderr,
                 output_cap_bytes: output.output_cap_bytes,
@@ -1153,6 +1316,7 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
 mod tests {
     use super::*;
     use std::collections::{BTreeMap, VecDeque};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::{Mutex, MutexGuard, PoisonError};
 
     /// Locks `mutex`, recovering the value even if a previous holder panicked.
@@ -1225,15 +1389,52 @@ mod tests {
                     host_path: "/host/project".to_string(),
                     sandbox_path: "/work/project".to_string(),
                     read_only: false,
+                    follow_symlinks: false,
                 },
                 Mount {
                     host_path: "/host/cache".to_string(),
                     sandbox_path: "/cache".to_string(),
                     read_only: true,
+                    follow_symlinks: false,
                 },
             ],
             limits: Limits::default(),
         }
+    }
+
+    /// A real folder source for a create test: the canonical temp folder.
+    fn real_dir() -> String {
+        let dir = std::env::temp_dir(); // osf: temp-dir allowed, only read as an existing folder
+        std::fs::canonicalize(&dir)
+            .unwrap_or(dir)
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    /// The workspace spec with both mount sources in the real temp folder.
+    fn real_spec() -> SandboxSpec {
+        let dir = real_dir();
+        let mut spec = spec();
+        spec.mounts = vec![
+            Mount {
+                host_path: dir.clone(),
+                sandbox_path: "/work/project".to_string(),
+                read_only: false,
+                follow_symlinks: false,
+            },
+            Mount {
+                host_path: dir,
+                sandbox_path: "/cache".to_string(),
+                read_only: true,
+                follow_symlinks: false,
+            },
+        ];
+        spec
+    }
+
+    /// [`real_spec`] after its mount sources have been canonicalized.
+    fn resolved_real_spec() -> SandboxSpec {
+        resolve_mounts(&real_spec()).expect("the mounts resolve")
     }
 
     fn command() -> CommandSpec {
@@ -1806,31 +2007,55 @@ mod tests {
                 host_path: String::new(),
                 sandbox_path: "/work".to_string(),
                 read_only: false,
+                follow_symlinks: false,
+            },
+            Mount {
+                host_path: "host".to_string(),
+                sandbox_path: "/work".to_string(),
+                read_only: false,
+                follow_symlinks: false,
             },
             Mount {
                 host_path: "/host".to_string(),
                 sandbox_path: "work".to_string(),
                 read_only: false,
+                follow_symlinks: false,
+            },
+            Mount {
+                host_path: "/host/../project".to_string(),
+                sandbox_path: "/work".to_string(),
+                read_only: false,
+                follow_symlinks: false,
+            },
+            Mount {
+                host_path: "/host".to_string(),
+                sandbox_path: "/work/../project".to_string(),
+                read_only: false,
+                follow_symlinks: false,
             },
             Mount {
                 host_path: "/host,a".to_string(),
                 sandbox_path: "/work".to_string(),
                 read_only: false,
+                follow_symlinks: false,
             },
             Mount {
                 host_path: "/host".to_string(),
                 sandbox_path: "/wo,rk".to_string(),
                 read_only: false,
+                follow_symlinks: false,
             },
             Mount {
                 host_path: "/host\nb".to_string(),
                 sandbox_path: "/work".to_string(),
                 read_only: false,
+                follow_symlinks: false,
             },
             Mount {
                 host_path: "/host".to_string(),
                 sandbox_path: "/work\nb".to_string(),
                 read_only: false,
+                follow_symlinks: false,
             },
         ];
         for mount in cases {
@@ -1901,6 +2126,13 @@ mod tests {
     }
 
     #[test]
+    fn validate_command_rejects_a_zero_timeout_without_a_call() {
+        let mut command = command();
+        command.timeout_secs = Some(0);
+        run_rejected(&command);
+    }
+
+    #[test]
     fn validate_command_rejects_bad_env_keys_without_a_call() {
         for key in ["", "1A", "A B", "A-B", "A=B", "ünï"] {
             let mut command = command();
@@ -1947,13 +2179,13 @@ mod tests {
         let created = id64('a');
         let output = format!("{created}\n");
         let sandbox = sandbox(vec![Ok(ok(&output)), Ok(ok(""))]);
-        let id = sandbox.create(&spec()).expect("creates");
+        let id = sandbox.create(&real_spec()).expect("creates");
         assert_eq!(id, SandboxId(created.clone()));
         assert_eq!(
             sandbox.runner.calls(),
             vec![
                 Call {
-                    argv: create_argv(&spec()),
+                    argv: create_argv(&resolved_real_spec()),
                     timeout: Some(Duration::from_secs(120)),
                     stdin: None,
                 },
@@ -1969,7 +2201,7 @@ mod tests {
     #[test]
     fn create_carries_the_tool_text_on_a_nonzero_create() {
         let sandbox = sandbox(vec![Ok(fail(1, "boom create"))]);
-        let error = sandbox.create(&spec()).expect_err("create fails");
+        let error = sandbox.create(&real_spec()).expect_err("create fails");
         assert_eq!(error, SandboxError::Failed("boom create".to_string()));
         assert_eq!(sandbox.runner.calls().len(), 1);
     }
@@ -1977,14 +2209,14 @@ mod tests {
     #[test]
     fn create_reports_a_runner_error() {
         let sandbox = sandbox(vec![Err(RunnerError("cannot run docker".to_string()))]);
-        let error = sandbox.create(&spec()).expect_err("runner error");
+        let error = sandbox.create(&real_spec()).expect_err("runner error");
         assert_eq!(error, SandboxError::Failed("cannot run docker".to_string()));
     }
 
     #[test]
     fn create_reports_a_timed_out_create() {
         let sandbox = sandbox(vec![Ok(timeout_output(""))]);
-        let error = sandbox.create(&spec()).expect_err("timed out");
+        let error = sandbox.create(&real_spec()).expect_err("timed out");
         assert_eq!(
             error,
             SandboxError::Failed("the tool timed out".to_string())
@@ -1994,7 +2226,7 @@ mod tests {
     #[test]
     fn create_rejects_an_empty_container_id() {
         let sandbox = sandbox(vec![Ok(ok("\n"))]);
-        let error = sandbox.create(&spec()).expect_err("no id");
+        let error = sandbox.create(&real_spec()).expect_err("no id");
         assert!(matches!(error, SandboxError::Failed(_)), "{error:?}");
         assert_eq!(sandbox.runner.calls().len(), 1);
     }
@@ -2002,7 +2234,7 @@ mod tests {
     #[test]
     fn create_rejects_a_short_container_id_and_shows_the_output() {
         let sandbox = sandbox(vec![Ok(ok("abc123\n"))]);
-        let error = sandbox.create(&spec()).expect_err("no id");
+        let error = sandbox.create(&real_spec()).expect_err("no id");
         assert_eq!(
             error,
             SandboxError::Failed(
@@ -2017,7 +2249,7 @@ mod tests {
     fn create_cuts_a_long_create_output_to_two_hundred_characters() {
         let long = "x".repeat(250);
         let sandbox = sandbox(vec![Ok(ok(&long))]);
-        let error = sandbox.create(&spec()).expect_err("no id");
+        let error = sandbox.create(&real_spec()).expect_err("no id");
         let expected = format!("\"{}...\"", "x".repeat(200));
         assert!(error.to_string().contains(&expected), "{error}");
         assert!(!error.to_string().contains(&"x".repeat(201)), "{error}");
@@ -2059,13 +2291,13 @@ mod tests {
             Ok(fail(1, "boom start")),
             Ok(ok("")),
         ]);
-        let error = sandbox.create(&spec()).expect_err("start fails");
+        let error = sandbox.create(&real_spec()).expect_err("start fails");
         assert_eq!(error, SandboxError::Failed("boom start".to_string()));
         assert_eq!(
             sandbox.runner.calls(),
             vec![
                 Call {
-                    argv: create_argv(&spec()),
+                    argv: create_argv(&resolved_real_spec()),
                     timeout: Some(Duration::from_secs(120)),
                     stdin: None,
                 },
@@ -2091,7 +2323,7 @@ mod tests {
             Ok(fail(1, "boom start")),
             Ok(fail(1, "boom remove")),
         ]);
-        let error = sandbox.create(&spec()).expect_err("start fails");
+        let error = sandbox.create(&real_spec()).expect_err("start fails");
         assert_eq!(
             error,
             SandboxError::Failed("boom start; boom remove".to_string())
@@ -2141,7 +2373,7 @@ mod tests {
     }
 
     #[test]
-    fn run_without_a_timeout_asks_the_runner_to_wait_forever() {
+    fn run_without_a_timeout_gets_the_default_limit() {
         let mut command = command();
         command.timeout_secs = None;
         let sandbox = sandbox(vec![Ok(ok(""))]);
@@ -2151,10 +2383,20 @@ mod tests {
             sandbox.runner.calls(),
             vec![Call {
                 argv: exec_argv("abc", &command),
-                timeout: None,
+                timeout: Some(Duration::from_secs(1800)),
                 stdin: None,
             }]
         );
+    }
+
+    #[test]
+    fn a_timed_out_run_without_a_timeout_reports_the_default_limit() {
+        let mut command = command();
+        command.timeout_secs = None;
+        let sandbox = sandbox(vec![Ok(timeout_output("")), Ok(ok(""))]);
+        let id = SandboxId("abc".to_string());
+        let result = sandbox.run(&id, &command).expect("runs");
+        assert_eq!(result.outcome, RunOutcome::TimedOut { limit_secs: 1800 });
     }
 
     #[test]
@@ -2907,5 +3149,200 @@ mod tests {
     fn with_output_cap_sets_the_cap() {
         let runner = RealDockerRunner::new("docker").with_output_cap(10);
         assert_eq!(runner.output_cap_bytes, 10);
+    }
+
+    /// The next unique name a [`RealFolder`] takes.
+    static NEXT_FOLDER: AtomicU64 = AtomicU64::new(0);
+
+    /// A unique real folder under the temp directory, removed on drop.
+    struct RealFolder {
+        path: PathBuf,
+    }
+
+    impl RealFolder {
+        fn new(name: &str) -> Self {
+            let counter = NEXT_FOLDER.fetch_add(1, Ordering::SeqCst);
+            let temp = std::env::temp_dir(); // osf: temp-dir allowed, unique per process and counter
+            let base = std::fs::canonicalize(&temp).unwrap_or(temp);
+            let path = base.join(format!(
+                "osf-resolve-{name}-{}-{counter}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&path).expect("the real folder creates");
+            Self { path }
+        }
+
+        fn text(&self) -> String {
+            self.path.to_string_lossy().into_owned()
+        }
+
+        fn join(&self, name: &str) -> PathBuf {
+            self.path.join(name)
+        }
+    }
+
+    impl Drop for RealFolder {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    /// One mount with `follow_symlinks` set by the caller.
+    fn mount(host_path: &str, sandbox_path: &str, follow_symlinks: bool) -> Mount {
+        Mount {
+            host_path: host_path.to_string(),
+            sandbox_path: sandbox_path.to_string(),
+            read_only: false,
+            follow_symlinks,
+        }
+    }
+
+    /// The workspace spec carrying exactly `mounts`.
+    fn mounts_spec(mounts: Vec<Mount>) -> SandboxSpec {
+        let mut spec = spec();
+        spec.mounts = mounts;
+        spec
+    }
+
+    #[test]
+    fn resolve_mounts_rewrites_a_normal_folder_to_its_canonical_form() {
+        let folder = RealFolder::new("normal");
+        let project = folder.join("project");
+        std::fs::create_dir_all(&project).expect("the project creates");
+        let spec = mounts_spec(vec![mount(&project.to_string_lossy(), "/work", false)]);
+        let resolved = resolve_mounts(&spec).expect("the folder resolves");
+        assert_eq!(
+            resolved.mounts.first().map(|mount| mount.host_path.clone()),
+            Some(project.to_string_lossy().into_owned())
+        );
+    }
+
+    #[test]
+    fn resolve_mounts_refuses_a_missing_source() {
+        let folder = RealFolder::new("missing");
+        let missing = folder.join("does-not-exist");
+        let spec = mounts_spec(vec![mount(&missing.to_string_lossy(), "/work", false)]);
+        let error = resolve_mounts(&spec).expect_err("the source is missing");
+        assert!(error.to_string().contains("does not exist"), "{error}");
+    }
+
+    #[test]
+    fn resolve_mounts_refuses_the_host_root() {
+        let spec = mounts_spec(vec![mount("/", "/work", false)]);
+        let error = resolve_mounts(&spec).expect_err("the root is refused");
+        assert!(error.to_string().contains("root of the host"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_mounts_refuses_a_symlink_to_a_folder_unless_following() {
+        let folder = RealFolder::new("symlink");
+        let real = folder.join("real");
+        std::fs::create_dir_all(&real).expect("the real folder creates");
+        let link = folder.join("link");
+        std::os::unix::fs::symlink(&real, &link).expect("the symlink creates");
+
+        let refused = resolve_mounts(&mounts_spec(vec![mount(
+            &link.to_string_lossy(),
+            "/work",
+            false,
+        )]));
+        let error = refused.expect_err("the symlink is refused");
+        assert!(error.to_string().contains("symbolic link"), "{error}");
+
+        let followed = resolve_mounts(&mounts_spec(vec![mount(
+            &link.to_string_lossy(),
+            "/work",
+            true,
+        )]))
+        .expect("following the symlink resolves");
+        assert_eq!(
+            followed.mounts.first().map(|mount| mount.host_path.clone()),
+            Some(real.to_string_lossy().into_owned())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_mounts_refuses_a_symlink_to_the_host_root_even_when_following() {
+        let folder = RealFolder::new("root-link");
+        let link = folder.join("root-link");
+        std::os::unix::fs::symlink("/", &link).expect("the symlink creates");
+
+        let refused = resolve_mounts(&mounts_spec(vec![mount(
+            &link.to_string_lossy(),
+            "/work",
+            false,
+        )]));
+        assert!(refused.is_err(), "the root symlink is refused");
+
+        let followed = resolve_mounts(&mounts_spec(vec![mount(
+            &link.to_string_lossy(),
+            "/work",
+            true,
+        )]));
+        let error = followed.expect_err("the root is still refused");
+        assert!(error.to_string().contains("root of the host"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_mounts_refuses_a_source_under_a_symlinked_parent() {
+        let folder = RealFolder::new("parent-link");
+        let real_parent = folder.join("real-parent");
+        let child = real_parent.join("child");
+        std::fs::create_dir_all(&child).expect("the child creates");
+        let link_parent = folder.join("link-parent");
+        std::os::unix::fs::symlink(&real_parent, &link_parent).expect("the parent link creates");
+        let linked_child = link_parent.join("child");
+
+        let error = resolve_mounts(&mounts_spec(vec![mount(
+            &linked_child.to_string_lossy(),
+            "/work",
+            false,
+        )]))
+        .expect_err("the symlinked parent is refused");
+        assert!(error.to_string().contains("symbolic link"), "{error}");
+    }
+
+    #[test]
+    fn resolve_mounts_refuses_a_mount_that_is_a_parent_of_the_repository() {
+        let folder = RealFolder::new("parent");
+        let repo = folder.join("repo");
+        std::fs::create_dir_all(&repo).expect("the repo creates");
+        let spec = mounts_spec(vec![
+            mount(&folder.text(), "/state", false),
+            mount(&repo.to_string_lossy(), "/work", false),
+        ]);
+        let error = resolve_mounts(&spec).expect_err("the parent is refused");
+        assert!(error.to_string().contains("parent"), "{error}");
+    }
+
+    #[test]
+    fn resolve_mounts_refuses_a_mount_that_is_the_repository() {
+        let folder = RealFolder::new("same");
+        let repo = folder.join("repo");
+        std::fs::create_dir_all(&repo).expect("the repo creates");
+        let source = repo.to_string_lossy();
+        let spec = mounts_spec(vec![
+            mount(&source, "/state", false),
+            mount(&source, "/work", false),
+        ]);
+        let error = resolve_mounts(&spec).expect_err("the repository is refused");
+        assert!(error.to_string().contains("repository"), "{error}");
+    }
+
+    #[test]
+    fn resolve_mounts_accepts_two_sibling_folders() {
+        let folder = RealFolder::new("siblings");
+        let repo = folder.join("repo");
+        let state = folder.join("state");
+        std::fs::create_dir_all(&repo).expect("the repo creates");
+        std::fs::create_dir_all(&state).expect("the state creates");
+        let spec = mounts_spec(vec![
+            mount(&repo.to_string_lossy(), "/work", false),
+            mount(&state.to_string_lossy(), "/state", false),
+        ]);
+        resolve_mounts(&spec).expect("the siblings pass");
     }
 }

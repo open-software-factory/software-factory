@@ -343,6 +343,39 @@ fn a_flag_shaped_image_is_refused_in_dry_run() {
 }
 
 #[test]
+fn a_zero_timeout_is_a_clap_usage_error_and_runs_no_docker() {
+    let repo = TempDir::new("osf-sandbox-cli-timeout-repo");
+    let state = TempDir::new("osf-sandbox-cli-timeout-state");
+    let empty = TempDir::new("osf-sandbox-cli-timeout-path");
+    let repo_arg = repo.to_string_lossy().into_owned();
+    let state_arg = state.to_string_lossy().into_owned();
+    let empty_arg = empty.to_str().expect("utf8 path");
+    let home = isolated_home("osf-sandbox-cli-timeout");
+    let output = run_osf_with_env(
+        &repo,
+        &home,
+        &[("PATH", empty_arg)],
+        &[
+            "sandbox",
+            "run",
+            "--image",
+            "example/base:1",
+            "--repo",
+            &repo_arg,
+            "--state",
+            &state_arg,
+            "--timeout",
+            "0",
+            "--",
+            "true",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("timeout"), "{stderr}");
+}
+
+#[test]
 fn a_dashed_command_stays_after_the_exec_separator() {
     let repo = TempDir::new("osf-sandbox-cli-dashed-repo");
     let state = TempDir::new("osf-sandbox-cli-dashed-state");

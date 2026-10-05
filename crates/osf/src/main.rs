@@ -213,8 +213,8 @@ struct SandboxRunArgs {
     /// The user to run as inside the sandbox.
     #[arg(long, default_value = "dev")]
     user: String,
-    /// How long to let the command run before it is killed, in whole seconds.
-    #[arg(long)]
+    /// How long to let the command run before it is killed, in whole seconds, at least 1; the default is 1800.
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
     timeout: Option<u64>,
     /// The sandbox name. Defaults to a name unique to this process.
     #[arg(long)]

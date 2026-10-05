@@ -19,11 +19,13 @@ fn spec() -> SandboxSpec {
                 host_path: "/host/worktree".to_string(),
                 sandbox_path: "/workspace".to_string(),
                 read_only: false,
+                follow_symlinks: false,
             },
             Mount {
                 host_path: "/host/state".to_string(),
                 sandbox_path: "/state".to_string(),
                 read_only: false,
+                follow_symlinks: false,
             },
         ],
         limits: Limits::default(),

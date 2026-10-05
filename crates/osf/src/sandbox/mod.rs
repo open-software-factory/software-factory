@@ -23,6 +23,8 @@ pub struct Mount {
     pub host_path: String,
     pub sandbox_path: String,
     pub read_only: bool,
+    /// A source that is a symbolic link is refused unless this is true.
+    pub follow_symlinks: bool,
 }
 
 /// The resource limits one sandbox runs under.
@@ -211,6 +213,7 @@ mod tests {
                 host_path: "/host/project".to_string(),
                 sandbox_path: "/work/project".to_string(),
                 read_only: true,
+                follow_symlinks: false,
             }],
             limits: Limits::default(),
         }
@@ -314,7 +317,7 @@ mod tests {
     fn sandbox_spec_serializes_every_field() {
         assert_eq!(
             serde_json::to_string(&spec()).expect("serializes"),
-            r#"{"name":"build","image":"example/base:1","user":"dev","workdir":"/work","network":"isolated","mounts":[{"host_path":"/host/project","sandbox_path":"/work/project","read_only":true}],"limits":{"max_processes":512,"memory":"4g"}}"#
+            r#"{"name":"build","image":"example/base:1","user":"dev","workdir":"/work","network":"isolated","mounts":[{"host_path":"/host/project","sandbox_path":"/work/project","read_only":true,"follow_symlinks":false}],"limits":{"max_processes":512,"memory":"4g"}}"#
         );
     }
 

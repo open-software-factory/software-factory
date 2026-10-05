@@ -40,6 +40,18 @@ const SLEEP_SCRIPT: &str = r"#!/usr/bin/env bash
 sleep 5
 ";
 
+const BACKGROUND_PIPE_SCRIPT: &str = r#"#!/usr/bin/env bash
+dir="$(cd "$(dirname "$0")" && pwd)"
+sleep 60 &
+printf '%s' "$!" > "$dir/child.pid"
+"#;
+
+const SETSID_PIPE_SCRIPT: &str = r#"#!/usr/bin/env bash
+dir="$(cd "$(dirname "$0")" && pwd)"
+setsid sleep 20 &
+printf '%s' "$!" > "$dir/child.pid"
+"#;
+
 const LONG_SCRIPT: &str = r"#!/usr/bin/env bash
 set -euo pipefail
 printf 'a%.0s' {1..100}
@@ -101,6 +113,22 @@ fn unique_name(prefix: &str) -> String {
         .expect("the clock is after the epoch")
         .as_nanos();
     format!("{prefix}-{}-{unique}", std::process::id())
+}
+
+/// Waits up to three seconds for `pid` to stop existing, checked with `kill -0`.
+fn wait_for_process_gone(pid: &str) {
+    let started = Instant::now();
+    while std::process::Command::new("kill")
+        .args(["-0", pid])
+        .status()
+        .is_ok_and(|status| status.success())
+    {
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "the background process {pid} survived the kill"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
 }
 
 #[test]
@@ -285,6 +313,79 @@ fn real_runner_times_out_and_reports_it() {
 }
 
 #[test]
+fn real_runner_keeps_the_output_printed_before_a_timeout() {
+    let _lock = serial();
+    let area = TempArea::new("timeout-partial");
+    let script = area.script(
+        "docker",
+        "#!/usr/bin/env bash\nprintf 'before-the-timeout'\nprintf 'err-before' >&2\nsleep 30\n",
+    );
+    let runner = RealDockerRunner::new(script.as_path());
+
+    let output = runner
+        .run(&["exec".to_string()], Some(Duration::from_secs(1)))
+        .expect("the fake runs");
+    assert!(output.timed_out);
+    assert_eq!(output.stdout, "before-the-timeout");
+    assert_eq!(output.stderr, "err-before");
+}
+
+#[test]
+fn real_runner_times_out_when_a_child_keeps_stdout_open() {
+    let _lock = serial();
+    let area = TempArea::new("timeout-pipe");
+    let script = area.script("docker", BACKGROUND_PIPE_SCRIPT);
+    let runner = RealDockerRunner::new(script.as_path());
+
+    let started = Instant::now();
+    let output = runner
+        .run(&["exec".to_string()], Some(Duration::from_secs(2)))
+        .expect("the fake runs");
+    assert!(output.timed_out);
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "the timeout took {:?}",
+        started.elapsed()
+    );
+    let pid = fs::read_to_string(area.dir.join("child.pid")).expect("the pid file exists");
+    wait_for_process_gone(pid.trim());
+}
+
+#[test]
+fn real_runner_times_out_when_a_setsid_child_keeps_stdout_open() {
+    let _lock = serial();
+    let area = TempArea::new("timeout-setsid");
+    let script = area.script("docker", SETSID_PIPE_SCRIPT);
+    let runner = RealDockerRunner::new(script.as_path());
+
+    let started = Instant::now();
+    let output = runner
+        .run(&["exec".to_string()], Some(Duration::from_secs(2)))
+        .expect("the fake runs");
+    assert!(output.timed_out);
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "the timeout took {:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn real_runner_keeps_a_fast_run_with_a_timeout() {
+    let _lock = serial();
+    let area = TempArea::new("fast-timeout");
+    let script = area.script("docker", OK_SCRIPT);
+    let runner = RealDockerRunner::new(script.as_path());
+
+    let output = runner
+        .run(&["version".to_string()], Some(Duration::from_secs(5)))
+        .expect("the fake runs");
+    assert!(!output.timed_out);
+    assert_eq!(output.status, Some(0));
+    assert_eq!(output.stdout, "the output");
+}
+
+#[test]
 fn real_runner_reports_a_program_that_does_not_exist() {
     let _lock = serial();
     let area = TempArea::new("missing");
@@ -421,6 +522,7 @@ fn real_docker_runs_a_command_and_times_out() {
             host_path: state.dir.to_string_lossy().into_owned(),
             sandbox_path: "/state".to_string(),
             read_only: false,
+            follow_symlinks: false,
         }],
         limits: Limits::default(),
     };
