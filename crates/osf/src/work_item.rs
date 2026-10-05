@@ -664,12 +664,13 @@ pub fn read_saved(text: &str) -> Result<String, String> {
     }
 }
 
-/// Checks that a saved work item belongs to `repository`, `head` and, when
-/// `pr_body` is given, the issue that body names.
+/// Checks that a saved work item belongs to `repository`, `head` and the issue
+/// the pull request body names. A missing body is refused, because a reader of
+/// the rendered Markdown must be able to see the issue the parser picks.
 ///
 /// # Errors
 /// Names the mismatch: a saved item with no number or head, a head or issue
-/// that does not match, or text that is not the saved JSON form.
+/// that does not match, a missing body, or text that is not the saved JSON form.
 pub fn check_binding(
     saved_json: &str,
     repository: &str,
@@ -692,19 +693,22 @@ pub fn check_binding(
             "the saved work item is for commit {saved_head}, not {head}"
         ));
     }
-    if let Some(body) = pr_body {
-        match named_issue(repository, body) {
-            Some(named) if named == number => {}
-            Some(named) => {
-                return Err(format!(
-                    "the saved work item names issue #{number}, but the pull request text names #{named}"
-                ));
-            }
-            None => {
-                return Err(format!(
-                    "the saved work item names issue #{number}, but the pull request text names no issue"
-                ));
-            }
+    let Some(body) = pr_body else {
+        return Err(format!(
+            "the saved work item names issue #{number}, but the pull request has no text to compare it with"
+        ));
+    };
+    match named_issue(repository, body) {
+        Some(named) if named == number => {}
+        Some(named) => {
+            return Err(format!(
+                "the saved work item names issue #{number}, but the pull request text names #{named}"
+            ));
+        }
+        None => {
+            return Err(format!(
+                "the saved work item names issue #{number}, but the pull request text names no issue"
+            ));
         }
     }
     Ok(())
@@ -986,6 +990,25 @@ mod tests {
         }
         .to_json();
         assert!(check_binding(&json, REPO, HEAD, Some("Issue: #137")).is_ok());
+    }
+
+    #[test]
+    fn check_binding_refuses_a_saved_work_item_when_the_pull_request_has_no_text() {
+        let json = WorkItem::Found {
+            reference: format!("{REPO}#137"),
+            number: 137,
+            head: HEAD.to_string(),
+            title: "A title".to_string(),
+            body: "body".to_string(),
+        }
+        .to_json();
+        let e = check_binding(&json, REPO, HEAD, None).expect_err("refused");
+        assert!(e.contains("#137") && e.contains("no text"), "{e}");
+    }
+
+    #[test]
+    fn check_binding_passes_a_missing_work_item_with_no_pull_request_body() {
+        let json = WorkItem::Missing("none linked".to_string()).to_json();
         assert!(check_binding(&json, REPO, HEAD, None).is_ok());
     }
 
