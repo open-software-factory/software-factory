@@ -160,8 +160,175 @@ fn closing_ticks(text: &str, run: usize) -> Option<usize> {
     }
 }
 
+/// The byte range of a destination title in `inner`, quotes included.
+fn title_span(inner: &str) -> Option<(usize, usize)> {
+    let body = inner.trim_end();
+    let end = body.len();
+    let last = body.chars().last()?;
+    let start = match last {
+        '"' | '\'' => body.get(..end - 1)?.rfind(last)?,
+        ')' => {
+            let mut depth = 0usize;
+            let mut open = None;
+            for (at, c) in body.char_indices().rev().skip(1) {
+                match c {
+                    ')' => depth += 1,
+                    '(' if depth == 0 => {
+                        open = Some(at);
+                        break;
+                    }
+                    '(' => depth -= 1,
+                    _ => {}
+                }
+            }
+            open?
+        }
+        _ => return None,
+    };
+    let before = body.get(..start)?;
+    before
+        .chars()
+        .last()
+        .is_some_and(char::is_whitespace)
+        .then_some((start, end))
+}
+
+/// The byte offset of the `)` that closes the `(` at `open`.
+fn matching_paren(text: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, c) in text.get(open..)?.char_indices() {
+        match c {
+            '(' => depth += 1,
+            ')' if depth == 0 => return None,
+            ')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(open + offset);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Blank each image's alt text between `![` and the matching `]`.
+fn blank_image_alt(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(at) = rest.find("![") {
+        let Some(close) = rest.get(at + 2..).and_then(|after| after.find(']')) else {
+            break;
+        };
+        let start = at + 2;
+        let end = start + close;
+        out.push_str(rest.get(..start).unwrap_or(""));
+        out.push_str(&spaces(
+            rest.get(start..end).map_or(0, |s| s.chars().count()),
+        ));
+        rest = rest.get(end..).unwrap_or("");
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Blank a link or image title inside `](...)`, quotes included.
+fn blank_link_title(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(at) = rest.find("](") {
+        let open = at + 1;
+        let Some(close) = matching_paren(rest, open) else {
+            break;
+        };
+        let inner = rest.get(open + 1..close).unwrap_or("");
+        out.push_str(rest.get(..open + 1).unwrap_or(""));
+        match title_span(inner) {
+            Some((start, end)) => {
+                out.push_str(inner.get(..start).unwrap_or(""));
+                out.push_str(&spaces(
+                    inner.get(start..end).map_or(0, |s| s.chars().count()),
+                ));
+                out.push_str(inner.get(end..).unwrap_or(""));
+            }
+            None => out.push_str(inner),
+        }
+        out.push(')');
+        rest = rest.get(close + 1..).unwrap_or("");
+    }
+    out.push_str(rest);
+    out
+}
+
+/// Blank a link reference definition's title on the line, quotes included.
+fn blank_reference_definition(line: &str) -> String {
+    let trimmed = line.trim_start_matches(' ');
+    if line.len() - trimmed.len() > 3 || !trimmed.starts_with('[') {
+        return line.to_string();
+    }
+    let Some(colon) = trimmed.find("]:") else {
+        return line.to_string();
+    };
+    let after = trimmed.get(colon + 2..).unwrap_or("");
+    let Some((start, end)) = title_span(after) else {
+        return line.to_string();
+    };
+    let prefix = line.len() - after.len();
+    format!(
+        "{}{}{}",
+        line.get(..prefix + start).unwrap_or(""),
+        spaces(after.get(start..end).map_or(0, |s| s.chars().count())),
+        after.get(end..).unwrap_or("")
+    )
+}
+
+/// Blank an HTML tag that holds whitespace, up to the next `>` on the line.
+fn blank_html_tag(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    loop {
+        let Some(at) = rest.find('<') else {
+            out.push_str(rest);
+            return out;
+        };
+        let (before, from_lt) = rest.split_at(at);
+        out.push_str(before);
+        let after_lt = from_lt.get(1..).unwrap_or("");
+        let opens_tag = after_lt
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '/');
+        if let (true, Some(end)) = (opens_tag, after_lt.find('>')) {
+            let tag = from_lt.get(..end + 2).unwrap_or(from_lt);
+            if tag.chars().any(char::is_whitespace) {
+                out.push_str(&spaces(tag.chars().count()));
+            } else {
+                out.push_str(tag);
+            }
+            rest = from_lt.get(end + 2..).unwrap_or("");
+        } else {
+            out.push('<');
+            rest = after_lt;
+        }
+    }
+}
+
+/// Blank the hidden parts of links, images, reference titles and HTML tags.
+fn blank_inline(line: &str) -> String {
+    let line = blank_reference_definition(line);
+    let line = blank_image_alt(&line);
+    let line = blank_link_title(&line);
+    blank_html_tag(&line)
+}
+
+/// `line` with code spans, comments, links, images and tags blanked; whether a comment is still open.
+fn inline_prose(line: &str, in_comment: bool) -> (String, bool) {
+    let (text, still) = inline_code(line, in_comment);
+    (blank_inline(&text), still)
+}
+
 /// `line` with inline code spans and HTML comments blanked; whether a comment is still open.
-fn inline_prose(line: &str, mut in_comment: bool) -> (String, bool) {
+fn inline_code(line: &str, mut in_comment: bool) -> (String, bool) {
     let mut out = String::with_capacity(line.len());
     let mut rest = line;
     loop {
@@ -205,16 +372,56 @@ fn inline_prose(line: &str, mut in_comment: bool) -> (String, bool) {
     }
 }
 
+/// Whether `line` is a link reference definition whose destination has no title.
+fn reference_title_missing(line: &str) -> bool {
+    let trimmed = line.trim_start_matches(' ');
+    if line.len() - trimmed.len() > 3 || !trimmed.starts_with('[') {
+        return false;
+    }
+    let Some(colon) = trimmed.find("]:") else {
+        return false;
+    };
+    let after = trimmed.get(colon + 2..).unwrap_or("");
+    !after.trim().is_empty() && title_span(after).is_none()
+}
+
+/// `line` with a title that fills it blanked, for a reference title on the next line.
+fn blank_standalone_title(line: &str) -> String {
+    let trimmed = line.trim();
+    let Some(first) = trimmed.chars().next() else {
+        return line.to_string();
+    };
+    let closed = match first {
+        '"' | '\'' => trimmed.len() > 1 && trimmed.ends_with(first),
+        '(' => trimmed.ends_with(')'),
+        _ => return line.to_string(),
+    };
+    if !closed {
+        return line.to_string();
+    }
+    let start = line.len() - line.trim_start().len();
+    let end = start + trimmed.len();
+    format!(
+        "{}{}{}",
+        line.get(..start).unwrap_or(""),
+        spaces(trimmed.chars().count()),
+        line.get(end..).unwrap_or("")
+    )
+}
+
 /// `body` with code blocks, code spans, HTML comments and block quotes blanked out.
 pub(crate) fn prose(body: &str) -> String {
     let mut out = String::with_capacity(body.len());
     let mut fence: Option<(char, usize)> = None;
     let mut in_comment = false;
+    let mut reference_title_next = false;
     for piece in body.split_inclusive('\n') {
         let (content, newline) = match piece.strip_suffix('\n') {
             Some(content) => (content, "\n"),
             None => (piece, ""),
         };
+        let reference_title_here = reference_title_next;
+        reference_title_next = false;
         if in_comment {
             let (processed, still) = inline_prose(content, true);
             out.push_str(&processed);
@@ -247,7 +454,13 @@ pub(crate) fn prose(body: &str) -> String {
             out.push_str(newline);
             continue;
         }
-        let (processed, still) = inline_prose(content, false);
+        let visible = if reference_title_here {
+            blank_standalone_title(content)
+        } else {
+            content.to_string()
+        };
+        reference_title_next = reference_title_missing(&visible);
+        let (processed, still) = inline_prose(&visible, false);
         out.push_str(&processed);
         out.push_str(newline);
         in_comment = still;
@@ -814,6 +1027,71 @@ mod tests {
     #[test]
     fn an_inline_code_span_hides_a_closing_keyword() {
         assert!(candidates("Run `Closes #5` now.").is_empty());
+    }
+
+    #[test]
+    fn a_link_title_is_hidden_from_the_closing_keyword_scan() {
+        assert_eq!(
+            candidates("[a](https://example.com \"Closes #99\")\n\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn a_link_reference_definition_title_is_hidden() {
+        assert_eq!(
+            candidates("[x]: https://example.com \"Closes #99\"\n\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn an_image_alt_text_is_hidden() {
+        assert_eq!(
+            candidates("![Closes #99](u)\n\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn an_html_attribute_is_hidden() {
+        assert_eq!(
+            candidates("<a title=\"Closes #99\">\n\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn visible_link_text_still_names_the_issue() {
+        assert_eq!(candidates("[Closes #5](u)"), vec![(None, 5)]);
+    }
+
+    #[test]
+    fn an_autolink_with_a_scheme_is_not_an_html_tag() {
+        assert_eq!(
+            candidates(
+                "Closes <https://github.com/open-software-factory/software-factory/issues/7>"
+            ),
+            vec![(Some(REPO.to_string()), 7)]
+        );
+    }
+
+    #[test]
+    fn a_single_quoted_or_parenthesized_title_is_hidden() {
+        for body in [
+            "[a](https://example.com 'Closes #99')\n\nCloses #44",
+            "[a](https://example.com (Closes #99))\n\nCloses #44",
+            "[x]: https://example.com 'Closes #99'\n\nCloses #44",
+            "[x]: https://example.com (Closes #99)\n\nCloses #44",
+        ] {
+            assert_eq!(candidates(body), vec![(None, 44)], "{body}");
+        }
+    }
+
+    #[test]
+    fn a_reference_definition_title_on_the_next_line_is_hidden() {
+        let body = "[x]: https://example.com\n\"Closes #99\"\n\nCloses #44";
+        assert_eq!(candidates(body), vec![(None, 44)]);
     }
 
     #[test]
