@@ -158,6 +158,14 @@ The codex job runs in the review container, and codex runs with its own sandbox 
 
 Prompt injection is still a risk, because a reviewer reads text that an agent or a fork wrote. The sandbox limits what steered text can do. The final job's reducer, in [decision 0016 (the review check)](0016-the-review-check.md), checks that every finding's quoted code exists at the file and line it names, and requires the quorum its interim policy sets. That keeps a fabricated location out. It does not check a finding's claim, so steered text can still attach a false severity or description to a genuine quote. It also does not stop a reviewer returning an all-high-score answer with no findings at all. Prompt injection aimed at silence, rather than at a forged finding, can still pass a review this way.
 
+#### Accepted residual risks
+
+Dated 2026-10-05. The owner's decision that the review container is the wall accepts these two risks.
+
+Inside the review container, codex has a full shell and its own sandbox is off. A child process can read the parent's environment through `/proc`. The provider key can leave only through the text of a finding. The scrub removes the key from each answer in its plain, base64 and hex forms.
+
+The review image installs codex with `npm install -g @openai/codex@0.154.0`. That command has no lockfile and no integrity value. The image digest fixes the bytes that run. The origin of the codex package rests on the registry at the time of the image build.
+
 ### Routine choices
 
 Branch protection requires every review conversation resolved. It will require the review job as well once the review check is required. The check shows that a review ran and passed. Resolved conversations show that a person dealt with each finding.
