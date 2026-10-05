@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "7ae3ff1ec1e3b504d038f95318465f27d3b7c810",
+    "contentHash": "0b91869f6046aa716126f408a8b3651d"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9115ff7bf9596f620aae9c608e036160",
+      "bytes": 44299,
+      "width": 1976,
+      "height": 914,
+      "animated": true,
+      "path": "container-architecture-light-9115ff7bf9596f620aae9c608e036160.svg"
+    },
+    {
+      "id": "container-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "414c6cdeb07e07cf4f743d14b78e26ec",
+      "bytes": 44740,
+      "width": 1976,
+      "height": 914,
+      "animated": true,
+      "path": "container-architecture-dark-414c6cdeb07e07cf4f743d14b78e26ec.svg"
+    },
+    {
+      "id": "hook-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2319c887d249a830862648bf6742ef4f",
+      "bytes": 20396,
+      "width": 1756,
+      "height": 532,
+      "animated": false,
+      "path": "hook-wiring-light-2319c887d249a830862648bf6742ef4f.svg"
+    },
+    {
+      "id": "hook-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fefc5f7755a36fc5b3e22f2baee88d36",
+      "bytes": 20611,
+      "width": 1756,
+      "height": 532,
+      "animated": false,
+      "path": "hook-wiring-dark-fefc5f7755a36fc5b3e22f2baee88d36.svg"
+    },
+    {
+      "id": "build-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bde8e7ef068daee8789d8ee21dfa5370",
+      "bytes": 25989,
+      "width": 1362,
+      "height": 780,
+      "animated": true,
+      "path": "build-pipeline-light-bde8e7ef068daee8789d8ee21dfa5370.svg"
+    },
+    {
+      "id": "build-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5dd819fa7d11b73fbb66ed92c0312859",
+      "bytes": 26261,
+      "width": 1362,
+      "height": 780,
+      "animated": true,
+      "path": "build-pipeline-dark-5dd819fa7d11b73fbb66ed92c0312859.svg"
+    }
+  ]
+}
