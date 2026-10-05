@@ -67,7 +67,7 @@ The event schema is the first contract written, before any component, and it liv
 
 ## The work item lifecycle in this slice
 
-The states are [decision 0005](decisions/0005-the-factory-domain-model.md)'s. This slice uses the ones the job reaches. Verifying is not a state. It is a step that the journal records when the agent's change exists and the verifier runner starts. The projections and the console show it.
+The states are [decision 0005](decisions/0005-the-factory-domain-model.md)'s. This slice uses the ones the job reaches. Verifying is not a state. It is a step. The journal records the step, and the projections and the console show it. No forge field holds the step. The step starts when the agent's change exists and the verifier runner starts.
 
 | State | Entered when |
 |---|---|

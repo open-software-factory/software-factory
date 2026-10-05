@@ -1,8 +1,8 @@
 # 0019: What ready means, and the two levels of status
 
-Status: accepted
+Status: accepted. Amended 2026-10-05 to say where the Step is recorded.
 
-Date: 2026-09-26
+Date: 2026-09-26, amended 2026-10-05: Verifying stays a Step, and the Step is recorded in the journal, not in a native field on the project board. The journal records the step, and the projections and the console show it. No forge field holds the step. The Status list is unchanged.
 
 ## Context
 
@@ -26,7 +26,7 @@ This record settles six things:
 - what a work item's type requires before it is ready
 - who checks that
 - how an item moves from Draft to Ready
-- how status splits into a coarse field and a finer one
+- how status splits into a coarse Status and a finer Step
 - how a triage agent keeps items moving
 - how the factory measures its own work
 
@@ -78,8 +78,8 @@ This record settles six things:
 | Option | What it meant | Outcome |
 |---|---|---|
 | One flat list of states, as decision 0005 has it | Every state an item can be in, agent steps included, sits in one field. | Set aside. An adopter would have to map agent steps that change often onto its own tracker. |
-| Agent steps as labels | A label carries what an agent is doing inside In progress or In review. | Set aside. A label is weaker than a field for reporting and ordering; a tracker adapter may still fall back to a label where a second field is missing. |
-| Two native fields: a coarse Status the factory acts on, and a finer Step only agents set | Status holds Draft, Proposed ready, Ready, In progress, In review, Done, plus Blocked, Paused and Failed. Step holds values such as implementing, verifying, awaiting second opinion and fixing review findings, and only applies inside In progress and In review. | Taken. |
+| Agent steps as labels | A label carries what an agent is doing inside In progress or In review. | Set aside. A label is weaker than a field for reporting and ordering. The journal holds the step, so no label or field is needed. |
+| A coarse Status field the factory acts on, and a finer Step only agents set, recorded in the journal | Status holds Draft, Proposed ready, Ready, In progress, In review, Done, plus Blocked, Paused and Failed. Step holds values such as implementing, verifying, awaiting second opinion and fixing review findings, and only applies inside In progress and In review. The journal records the step, and the projections and the console show it. No forge field holds the step. | Taken. |
 
 **Whether an item is dispatchable, and how Blocked works.**
 
@@ -139,11 +139,11 @@ For a low-risk Task, Chore or Bug, sign-off is one action from a batch list. Tha
 
 Ready means the item is broken down into pieces an agent can pick up. The tracker itself is the queue, so a Ready item can still wait on its dependencies. An edit to the spec after Ready moves the item back to Proposed ready.
 
-### Two native status fields
+### Status on the board, Step in the journal
 
 Status is the coarse state the factory acts on. Its values are Draft, Proposed ready, Ready, In progress, In review, Done, Blocked, Paused and Failed.
 
-Step is a finer field that only agents set. It only applies inside In progress and In review, with values such as implementing, verifying, awaiting second opinion and fixing review findings.
+Step is a finer value that only agents set. It only applies inside In progress and In review, with values such as implementing, verifying, awaiting second opinion and fixing review findings. The journal records the step, and the projections and the console show it. No forge field holds the step. The project board has no Step field.
 
 Whether an item can be dispatched is never stored, only derived. An item is dispatchable when Status is Ready and every blocked-by item is closed.
 
@@ -204,8 +204,8 @@ stateDiagram-v2
 
 ## Consequences
 
-- Decision 0005 is amended. Its one flat list of lifecycle states is replaced, from Draft to Ready, by the two fields and the path this record sets. Its amendment note points here.
-- Every tracker adapter needs a second status-like field, or a fallback label where one is missing. An adopter's `osf.toml` gains the mapping from its own statuses to the coarse states.
+- Decision 0005 is amended. Its one flat list of lifecycle states is replaced, from Draft to Ready, by the Status field, the Step in the journal and the path this record sets. Its amendment note points here.
+- No tracker adapter needs a second status-like field, because no forge field holds the step. An adopter's `osf.toml` gains the mapping from its own statuses to the coarse states.
 - The per-type table and its trigger list become something to maintain. A trigger that misfires either asks for an irrelevant section or misses a needed one.
 - Waivers can accumulate. An expiry on each one, and a count per item, keep that visible rather than silent.
 - A batch sign-off list could invite rubber-stamping if it ever hid the lint and review result. The list must keep showing both, beside each item.
