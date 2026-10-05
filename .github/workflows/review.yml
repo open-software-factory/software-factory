@@ -29,10 +29,8 @@ env:
   # want, and have the change reviewed like any workflow change. This image
   # was built from commit e40b471d55747c7ab88a2ea92e3e080c51631317.
   REVIEW_IMAGE: ghcr.io/open-software-factory/devcontainer@sha256:bb1d03e038d6c6290d9ab3cd5f82fe44276938cde4ddd3137bc56b01405ebd68
-  # The one place the codex release and its bubblewrap helper are named. A change is reviewed like any workflow change.
+  # The version of codex the review image carries, which the codex job checks.
   CODEX_VERSION: "0.154.0"
-  CODEX_SHA256: "d7e18b2597ae8f242f5f31ee9e90deef48dbc9edd634d9868fb6435d08c07f02"
-  CODEX_BWRAP_SHA256: "1e6a0f2802c4199f81e1d3d9a962d64dc274693d8391f02d1f4ab457e57c4c38"
 
 concurrency:
   group: review-${{ github.event.pull_request.number }}
@@ -68,7 +66,6 @@ jobs:
             objects.githubusercontent.com:443
             ghcr.io:443
             pkg-containers.githubusercontent.com:443
-            release-assets.githubusercontent.com:443
             index.crates.io:443
             static.crates.io:443
             crates.io:443
@@ -105,34 +102,6 @@ jobs:
         with:
           name: osf-binary
           path: base/target/release/osf
-          if-no-files-found: error
-
-      # The codex reviewer job runs the release on the host, so the build job downloads and checks them.
-      - name: Download the codex release and its helper and check them
-        run: |
-          set -euo pipefail
-          mkdir -p codex-release
-          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-            --output codex-release/codex.tar.gz \
-            "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-x86_64-unknown-linux-musl.tar.gz"
-          echo "${CODEX_SHA256}  codex-release/codex.tar.gz" | sha256sum --check --strict -
-          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-            --output codex-release/bwrap.tar.gz \
-            "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/bwrap-x86_64-unknown-linux-musl.tar.gz"
-          echo "${CODEX_BWRAP_SHA256}  codex-release/bwrap.tar.gz" | sha256sum --check --strict -
-
-      - name: Keep the codex release for the codex reviewer job
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: codex-release
-          path: codex-release/codex.tar.gz
-          if-no-files-found: error
-
-      - name: Keep the codex sandbox helper for the codex reviewer job
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: codex-bwrap
-          path: codex-release/bwrap.tar.gz
           if-no-files-found: error
 
       # The work item is the issue the pull request names on its Issue line,
@@ -174,6 +143,7 @@ jobs:
     environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
     permissions:
       contents: read
+      packages: read
     steps:
       - name: Restrict this job's outbound network access
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
@@ -184,14 +154,18 @@ jobs:
             api.github.com:443
             codeload.github.com:443
             objects.githubusercontent.com:443
+            ghcr.io:443
+            pkg-containers.githubusercontent.com:443
             api.openai.com:443
 
-      - name: Require the Linux x86_64 runner this job assumes
+      - name: Require the Linux runner with Docker this workflow assumes
+        if: runner.os != 'Linux'
         run: |
-          if [ "${RUNNER_OS}" != "Linux" ] || [ "$(uname -m)" != "x86_64" ]; then
-            echo "osf review: OSF_REVIEW_RUNS_ON must name a Linux x86_64 runner; this job runs the codex release on the host" >&2
-            exit 1
-          fi
+          echo "osf review: OSF_REVIEW_RUNS_ON must name a Linux runner; every step after this one assumes docker run and Unix paths such as /base and /pr" >&2
+          exit 1
+
+      - name: Log in to ghcr.io to pull the devcontainer image
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Check out the base branch, which holds the trusted configuration
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -230,84 +204,41 @@ jobs:
           name: work-item
           path: work-item
 
-      - name: Fetch the codex release that the build job checked
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: codex-release
-          path: codex-release
-
-      - name: Fetch the codex sandbox helper that the build job checked
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: codex-bwrap
-          path: codex-bwrap
-
-      - name: Check and install the codex release
+      - name: Check that the review image carries the pinned codex
         run: |
           set -euo pipefail
-          echo "${CODEX_SHA256}  codex-release/codex.tar.gz" | sha256sum --check --strict -
-          echo "${CODEX_BWRAP_SHA256}  codex-bwrap/bwrap.tar.gz" | sha256sum --check --strict -
-          mkdir -p "$RUNNER_TEMP/codex-bin"
-          tar -xzf codex-release/codex.tar.gz -C "$RUNNER_TEMP/codex-bin"
-          mv "$RUNNER_TEMP/codex-bin/codex-x86_64-unknown-linux-musl" "$RUNNER_TEMP/codex-bin/codex"
-          chmod +x "$RUNNER_TEMP/codex-bin/codex"
-          mkdir -p "$RUNNER_TEMP/bwrap"
-          tar -xzf codex-bwrap/bwrap.tar.gz -C "$RUNNER_TEMP/bwrap"
-          mkdir -p "$RUNNER_TEMP/codex-bin/codex-resources"
-          mv "$RUNNER_TEMP/bwrap/bwrap-x86_64-unknown-linux-musl" "$RUNNER_TEMP/codex-bin/codex-resources/bwrap"
-          chmod +x "$RUNNER_TEMP/codex-bin/codex-resources/bwrap"
-          echo "$RUNNER_TEMP/codex-bin" >> "$GITHUB_PATH"
-          version=$("$RUNNER_TEMP/codex-bin/codex" --version)
+          version=$(docker run --rm ${{ env.REVIEW_IMAGE }} codex --version)
           if [ "$version" != "codex-cli ${CODEX_VERSION}" ]; then
             echo "osf review: codex --version printed ${version}, expected codex-cli ${CODEX_VERSION}" >&2
             exit 1
           fi
 
-      # Codex starts its read-only sandbox with user namespaces. Ubuntu 24.04
-      # limits them under AppArmor. This step fails with the reason.
-      # It does not change any kernel or AppArmor setting.
-      - name: Check that the codex sandbox starts on this runner
-        run: |
-          home="$RUNNER_TEMP/codex-check-home"
-          mkdir -p "$home"
-          if output=$(env -i PATH="$PATH" HOME="$home" codex sandbox -- true 2>&1); then
-            echo "osf review: the codex sandbox starts on this runner"
-            exit 0
-          fi
-          if ! command -v sysctl >/dev/null; then
-            setting="sysctl is not available on this runner"
-          elif restrict=$(sysctl -n kernel.apparmor_restrict_unprivileged_userns); then
-            setting="kernel.apparmor_restrict_unprivileged_userns is ${restrict}"
-          else
-            setting="kernel.apparmor_restrict_unprivileged_userns is not set on this kernel"
-          fi
-          {
-            echo "osf review: the codex sandbox cannot start on this runner, so codex does not review."
-            echo "codex said: ${output}"
-            echo "${setting}."
-            echo "The sandbox needs user namespaces. Ubuntu 24.04 limits them under AppArmor when that setting is 1."
-            echo "This workflow does not change that setting. Use a runner whose policy lets codex create user namespaces, or remove codex from the reviewers in osf.toml."
-          } >&2
-          exit 1
-
       - name: Run this reviewer, reading the pull request's tree as data
-        working-directory: pr
         env:
           # `codex exec` signs in with CODEX_API_KEY; it does not read OPENAI_API_KEY.
           CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: >-
-          "$GITHUB_WORKSPACE/bin/osf" review run
+          docker run --rm
+          -v "${{ github.workspace }}/bin:/osf-bin:ro"
+          -v "${{ github.workspace }}/base:/base:ro"
+          -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/work-item:/work-item:ro"
+          -v "${{ github.workspace }}/out:/out"
+          -w /pr
+          -e CODEX_API_KEY
+          ${{ env.REVIEW_IMAGE }}
+          /osf-bin/osf review run
           --reviewer codex
           --if-enabled
           --base ${{ github.event.pull_request.base.sha }}
-          --config-root "$GITHUB_WORKSPACE/base"
-          --pull-request "$GITHUB_WORKSPACE/out/pull-request.json"
+          --config-root /base
+          --pull-request /out/pull-request.json
           --repository ${{ github.repository }}
           --pull-request-number ${{ github.event.pull_request.number }}
           --head ${{ github.event.pull_request.head.sha }}
           --ci-run-id ${{ github.run_id }}
-          --work-item "$GITHUB_WORKSPACE/work-item/work-item.json"
-          --out "$GITHUB_WORKSPACE/out/codex.json"
+          --work-item /work-item/work-item.json
+          --out /out/codex.json
 
       - name: Keep this reviewer's saved answers
         if: always()
@@ -529,7 +460,7 @@ jobs:
     name: review
     # The last job: it collects every reviewer's saved answers, checks the
     # findings against the pull request's files, decides, and posts. It
-    # holds no provider key. It alone mints the code host's token. It runs
+    # holds no provider key. It alone mints the verifier app's token. It runs
     # even when a reviewer job failed: a reviewer with no saved answers
     # counts as could-not-run, which never passes.
     needs: [build, review-codex, review-claude, review-opencode]

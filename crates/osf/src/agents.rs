@@ -43,8 +43,7 @@ pub enum SchemaArg {
     Inline,
 }
 
-/// The documented settings that hold an agent to read-only tools: no file
-/// writes and no commands that change anything.
+/// The documented settings an agent's review runs with: read-only tools, or its own sandbox off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadOnly {
     /// Arguments added after the agent's command.
@@ -405,9 +404,9 @@ pub const AGENTS: &[Agent] = &[
                 ],
                 env: &[],
             },
-            // `codex exec --help`: `--sandbox read-only`, which limits file writes and commands.
+            // `codex exec --help`: the container the reviewer job runs in is the wall, so codex's own sandbox is off.
             read_only: Some(ReadOnly {
-                args: &["--sandbox", "read-only"],
+                args: &["--dangerously-bypass-approvals-and-sandbox"],
                 env: &[],
             }),
             schema_flag: Some("--output-schema"),
@@ -417,8 +416,7 @@ pub const AGENTS: &[Agent] = &[
             // `CODEX_API_KEY` is the variable `codex exec` reads; it does not read `OPENAI_API_KEY`.
             credential_env: &["CODEX_API_KEY"],
             login_paths: &[".codex/auth.json"],
-            // `codex sandbox --help` runs a command under the same Linux sandbox, and exits non-zero when the sandbox cannot start.
-            sandbox_check: &["codex", "sandbox", "--", "true"],
+            sandbox_check: &[],
         }),
     },
     // claude keeps transcripts under `projects`, one folder per working
@@ -832,9 +830,9 @@ mod tests {
     }
 
     #[test]
-    fn codex_runs_in_its_read_only_sandbox() {
+    fn codex_runs_with_its_sandbox_off_inside_the_container() {
         let mode = read_only_of("codex").expect("codex documents a read-only mode");
-        assert_eq!(mode.args, &["--sandbox", "read-only"]);
+        assert_eq!(mode.args, &["--dangerously-bypass-approvals-and-sandbox"]);
         assert!(mode.env.is_empty());
     }
 
@@ -931,7 +929,7 @@ mod tests {
     }
 
     #[test]
-    fn codex_has_a_sandbox_check_and_a_check_always_starts_the_agents_own_program() {
+    fn codex_has_no_sandbox_check_and_a_check_always_starts_the_agents_own_program() {
         let check_of = |name: &str| {
             AGENTS
                 .iter()
@@ -940,7 +938,7 @@ mod tests {
                 .map(|r| r.sandbox_check)
                 .expect("agent reviews")
         };
-        assert_eq!(check_of("codex"), &["codex", "sandbox", "--", "true"]);
+        assert!(check_of("codex").is_empty());
         for agent in AGENTS {
             let Some(review) = &agent.review else {
                 continue;

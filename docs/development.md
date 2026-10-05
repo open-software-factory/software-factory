@@ -157,8 +157,7 @@ when the pull request text is edited.
 The workflow has one job for each step. A `build` job builds the `osf`
 tool from the base branch only, with no secrets. Each reviewer then runs
 in its own job: `review codex`, `review claude` and `review opencode`.
-The codex reviewer job runs on the runner itself and not in a container.
-The other two reviewer jobs run `osf` in the container.
+All three reviewer jobs run `osf` in the container.
 A reviewer job gets only its own provider's key. Its network list holds
 only its own provider host and the hosts it needs to run. It saves what
 the reviewer did as an artifact, with `osf review run --reviewer <name>
@@ -324,8 +323,7 @@ pull request could run with the model keys before anyone set up
 
 Most jobs run directly on the runner and log in to `ghcr.io` with their
 own token first. That login works whether the image behind it stays
-public or turns private later. The codex reviewer job is the one job with
-no container and no registry login. Every job that uses a container pulls
+public or turns private later. Every job that uses a container pulls
 the same image, named once by digest in the `REVIEW_IMAGE` variable at
 the top of `.github/workflows/review.yml`. No job names a moving tag.
 This is the image that the development container workflow builds from the
@@ -337,12 +335,11 @@ the `devcontainer image` workflow run for the commit you want. The change
 is reviewed like any other workflow change.
 
 Each step that runs `osf` in a container goes through `docker run` against
-that image. The codex reviewer job runs the `osf` binary directly on the
-runner. Each docker run gets its own fresh, disposable container. The
+that image. Each docker run gets its own fresh, disposable container. The
 `build` job mounts `base` read-write, and `cargo build` writes its own
 output there. It uploads the `osf` binary as an artifact, and every later
-job downloads that one binary. A reviewer job that uses a container, and
-the last job, mount `base` and `pr` read-only. The pull request's tree is
+job downloads that one binary. A reviewer job, and the last job, mount
+`base` and `pr` read-only. The pull request's tree is
 only ever data. A third mount,
 `out`, holds the saved reviewer file, the SARIF file, and the review's
 own journal and state, written through `OSF_STATE_DIR`. A reviewer job
@@ -357,12 +354,9 @@ hosts that job needs. The `build` job names four GitHub hosts:
 `github.com`, `api.github.com`, `codeload.github.com` and
 `objects.githubusercontent.com`. It names `ghcr.io` and
 `pkg-containers.githubusercontent.com` for the container registry. It
-names `release-assets.githubusercontent.com`, to download the codex
-release. It names `index.crates.io`, `static.crates.io` and `crates.io`
-for the crates.io registry. The codex job names four GitHub hosts,
-`github.com`, `api.github.com`, `codeload.github.com` and
-`objects.githubusercontent.com`, and `api.openai.com`. A container
-reviewer job names GitHub and the container registry. It also names
+names `index.crates.io`, `static.crates.io` and `crates.io`
+for the crates.io registry. A reviewer job names GitHub and the
+container registry, and also `api.openai.com` for codex,
 `api.anthropic.com` for claude and `openrouter.ai` for opencode.
 opencode also reads its model catalogue from `models.opencode.ai`, so
 that host is on its list. The last job names GitHub and the container
@@ -406,7 +400,7 @@ family.
 
 | Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
 |---|---|---|---|---|
-| `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--sandbox read-only`, from `codex exec --help` |
+| `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--dangerously-bypass-approvals-and-sandbox`, from `codex exec --help`; the review container is the wall, not codex's own sandbox |
 | `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
 | `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
 | `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
@@ -417,40 +411,23 @@ settings of each agent as data, and `osf` adds them to the agent's
 command. An agent with no documented read-only mode has none recorded.
 A reviewer list that names it reports could-not-run with the reason "no
 read-only mode", and the agent never starts. The `claude`, `opencode`
-and `omp` modes give file tools only, with no shell. The `codex` sandbox
-stops file writes and changes. Its shell can still read any file the
-reviewer's user can read. So a reviewer's home and environment hold no
-secret beyond that reviewer's own provider key. A mode that allowed `git diff` through a shell
-would also allow `git diff --output=<file>`, which writes a file. So no
-mode allows a shell for git.
+and `omp` modes give file tools only, with no shell. Codex runs with
+its own sandbox off. The review container limits it: only the codex key
+in its environment, a network list of the six GitHub hosts and
+`api.openai.com`, read-only mounts of the checkout and the work item,
+and no container runtime socket. So a reviewer's home and environment
+hold no secret beyond that reviewer's own provider key. A mode that
+allowed `git diff` through a shell would also allow `git diff
+--output=<file>`, which writes a file. So no mode allows a shell for
+git.
 
-Before codex reviews, `osf` runs `codex sandbox -- true`. That command starts
-the same Linux sandbox around a harmless command. When it fails, the codex
-reviewer is could-not-run, the reason holds the sandbox's own message, and
-`codex exec` never starts. A default Docker container fails this check with
-`bwrap: No permissions to create new namespace`, because the container's
-default profile blocks the user namespaces that the sandbox needs. A
-container that allows them passes. The codex reviewer job no longer uses a
-container. It runs on the host.
-
-The workflow's `env` pins the codex release by version and sha256. It
-also pins the bubblewrap helper of the same release by sha256. The
-sandbox needs that helper next to the codex program. The `build` job
-checks both files. The codex job checks both again before it uses them.
-A workflow step named "Check that the
-codex sandbox starts on this runner" runs the same `codex sandbox -- true`
-command. It fails the job with the reason when the sandbox cannot start.
-Ubuntu 24.04 limits user namespaces under AppArmor. AppArmor is the Linux
-security module that enforces this limit. The setting is
-`kernel.apparmor_restrict_unprivileged_userns`. The workflow never changes
-that setting. The adopter then uses a runner whose policy allows the
-sandbox, or removes codex from the reviewers.
+The workflow's `env` names the codex version the review image carries,
+and the codex job fails when the image's `codex --version` prints
+another version.
 
 `agents.rs` holds the check for each
-agent as `sandbox_check`, and an agent with file tools only has none.
+agent as `sandbox_check`, and no agent carries one now.
 `osf` also gives each reviewer a temporary folder inside its own home.
-Codex refuses to set up its sandbox helper when its home sits under the
-temporary folder it sees.
 
 Codex, Claude and DeepSeek Harness each run one family. opencode and omp
 run models from any family. The model they run decides their family.

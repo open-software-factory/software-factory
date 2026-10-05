@@ -3,10 +3,8 @@
 
 use std::path::PathBuf;
 
-/// The codex release this workflow names, and the sha256 of it and its helper.
+/// The codex version this workflow names.
 const CODEX_VERSION: &str = "0.154.0";
-const CODEX_SHA256: &str = "d7e18b2597ae8f242f5f31ee9e90deef48dbc9edd634d9868fb6435d08c07f02";
-const CODEX_BWRAP_SHA256: &str = "1e6a0f2802c4199f81e1d3d9a962d64dc274693d8391f02d1f4ab457e57c4c38";
 
 fn workflow_text() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/review.yml");
@@ -236,8 +234,8 @@ fn every_job_that_runs_a_container_runs_the_pinned_image() {
         .filter(|(_, body)| body.lines().any(starts_a_container))
         .collect();
     assert!(
-        running.len() >= 4,
-        "the build job, the claude and opencode reviewer jobs and the last job: {:?}",
+        running.len() >= 5,
+        "the build job, the codex, claude and opencode reviewer jobs and the last job: {:?}",
         running.iter().map(|(id, _)| id).collect::<Vec<_>>()
     );
     for (id, body) in &running {
@@ -463,136 +461,85 @@ fn the_codex_release_is_pinned_in_one_place() {
         "the top-level env pins the codex version"
     );
     assert!(
-        text.contains(&format!("CODEX_SHA256: \"{CODEX_SHA256}\"")),
-        "the top-level env pins the codex sha256"
+        !text.contains("CODEX_SHA256") && !text.contains("CODEX_BWRAP_SHA256"),
+        "the workflow pins no codex release hash"
     );
     assert!(
-        text.contains(&format!("CODEX_BWRAP_SHA256: \"{CODEX_BWRAP_SHA256}\"")),
-        "the top-level env pins the bubblewrap helper sha256"
+        !text.contains("rust-v${CODEX_VERSION}"),
+        "the workflow downloads no codex release"
     );
-    assert!(
-        text.contains("rust-v${CODEX_VERSION}"),
-        "the download URL uses the pinned version"
-    );
-    let mut release_hashes = 0;
-    let mut helper_hashes = 0;
     let mut image_digests = 0;
     for line in text.lines() {
         for hex in hex64_runs(line) {
-            if hex.as_str() == CODEX_SHA256 {
-                release_hashes += 1;
-            } else if hex.as_str() == CODEX_BWRAP_SHA256 {
-                helper_hashes += 1;
-            } else if line.contains("@sha256:") {
-                image_digests += 1;
-            } else {
-                panic!("unexpected 64-hex value {hex} in {line}");
-            }
+            assert!(
+                line.contains("@sha256:"),
+                "the only 64-hex value is the review image digest, found {hex} in {line}"
+            );
+            image_digests += 1;
         }
     }
-    assert_eq!(release_hashes, 1, "the codex release is pinned once");
-    assert_eq!(helper_hashes, 1, "the bubblewrap helper is pinned once");
-    assert_eq!(
-        image_digests, 1,
-        "the image digest is the one other 64-hex value"
-    );
+    assert_eq!(image_digests, 1, "the image digest is the one 64-hex value");
 }
 
 #[test]
-fn the_build_job_downloads_and_keeps_the_codex_release() {
+fn the_build_job_downloads_no_codex_release() {
     let build = job_body(&workflow_text(), "build");
-    assert!(
-        build.contains("release-assets.githubusercontent.com:443"),
-        "the release download redirects to that host: {build}"
-    );
-    assert!(build.contains("rust-v${CODEX_VERSION}"), "{build}");
-    assert!(
-        build.contains("bwrap-x86_64-unknown-linux-musl.tar.gz"),
-        "the build job downloads the sandbox helper: {build}"
-    );
-    assert!(build.contains("sha256sum --check"), "{build}");
-    assert!(
-        build.contains(
-            "echo \"${CODEX_BWRAP_SHA256}  codex-release/bwrap.tar.gz\" | sha256sum --check --strict -"
-        ),
-        "the build job checks the helper sha256: {build}"
-    );
-    assert!(
-        build.contains("codex-release/bwrap.tar.gz"),
-        "the build job checks the helper: {build}"
-    );
-    assert!(
-        build.contains("name: codex-release\n          path: codex-release/codex.tar.gz"),
-        "the build job keeps the codex release as an artifact"
-    );
-    assert!(
-        build.contains("name: codex-bwrap\n          path: codex-release/bwrap.tar.gz"),
-        "the build job keeps the sandbox helper as an artifact"
-    );
-}
-
-#[test]
-fn the_codex_job_checks_the_release_hash_before_it_extracts() {
-    let body = job_body(&workflow_text(), "review-codex");
-    let checks: Vec<usize> = body
-        .match_indices("sha256sum --check")
-        .map(|(at, _)| at)
-        .collect();
-    assert_eq!(
-        checks.len(),
-        2,
-        "the codex job checks both release files: {body}"
-    );
-    let extracted = body
-        .find("tar ")
-        .expect("the codex job extracts the release");
-    for check in checks {
+    for forbidden in [
+        "release-assets",
+        "openai/codex/releases",
+        "codex-release",
+        "codex-bwrap",
+        "bwrap",
+    ] {
         assert!(
-            check < extracted,
-            "the codex job checks every hash before it extracts: {body}"
+            !build.contains(forbidden),
+            "the build job downloads no codex release: found `{forbidden}` in {build}"
         );
     }
-    assert!(
-        body.contains("codex-resources/bwrap"),
-        "the codex job installs the sandbox helper next to codex: {body}"
-    );
-    assert!(
-        body.contains(
-            "echo \"${CODEX_BWRAP_SHA256}  codex-bwrap/bwrap.tar.gz\" | sha256sum --check --strict -"
-        ),
-        "the codex job checks the helper sha256: {body}"
-    );
-    assert!(
-        body.contains("name: codex-bwrap\n          path: codex-bwrap"),
-        "the codex job downloads the sandbox helper artifact: {body}"
-    );
 }
 
 #[test]
-fn the_codex_job_runs_on_the_host() {
+fn the_codex_job_runs_in_the_review_container() {
     let body = job_body(&workflow_text(), "review-codex");
     assert!(
-        !body.contains("docker"),
-        "the codex job runs no container: {body}"
+        body.contains("docker run --rm") && body.contains("${{ env.REVIEW_IMAGE }}"),
+        "the codex job starts the review image: {body}"
     );
     assert!(
-        !body.contains("packages:"),
-        "the codex job needs no package permission: {body}"
+        body.contains("docker login ghcr.io"),
+        "the codex job logs in to the registry: {body}"
     );
     assert_eq!(
         permissions_of(&body),
-        vec!["contents: read".to_string()],
-        "the codex job holds only contents: read"
+        vec!["contents: read".to_string(), "packages: read".to_string()],
+        "the codex job holds contents: read and packages: read"
     );
     assert_eq!(
         provider_secrets(&body),
         vec!["OPENAI_API_KEY".to_string()],
         "the codex job reads exactly one provider secret"
     );
+    let envs: Vec<&str> = body
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("-e "))
+        .map(str::trim)
+        .collect();
+    assert_eq!(
+        envs,
+        vec!["CODEX_API_KEY"],
+        "the container gets exactly one -e line"
+    );
+    for mount in ["/pr:/pr:ro", "/base:/base:ro", "/work-item:/work-item:ro"] {
+        assert!(body.contains(mount), "the codex job mounts {mount}: {body}");
+    }
+    assert!(
+        !body.contains("docker.sock"),
+        "the codex job mounts no container runtime socket: {body}"
+    );
 }
 
 #[test]
-fn the_codex_job_allows_only_its_five_hosts() {
+fn the_codex_job_allows_exactly_its_seven_hosts() {
     let body = job_body(&workflow_text(), "review-codex");
     let mut hosts = endpoints_of(&body);
     hosts.sort();
@@ -601,75 +548,116 @@ fn the_codex_job_allows_only_its_five_hosts() {
         "api.github.com:443",
         "codeload.github.com:443",
         "objects.githubusercontent.com:443",
+        "ghcr.io:443",
+        "pkg-containers.githubusercontent.com:443",
         "api.openai.com:443",
     ]
     .iter()
     .map(ToString::to_string)
     .collect();
     expected.sort();
-    assert_eq!(hosts, expected, "the codex job names its five hosts");
+    assert_eq!(hosts, expected, "the codex job names its seven hosts");
     assert!(
         !body.contains("release-assets"),
         "the codex job downloads no release: {body}"
     );
-    assert!(
-        !body.contains("ghcr.io"),
-        "the codex job runs no container: {body}"
+}
+
+#[test]
+fn the_codex_helper_and_the_sandbox_check_are_gone() {
+    let text = workflow_text();
+    for forbidden in [
+        "bwrap",
+        "codex sandbox",
+        "apparmor_restrict_unprivileged_userns",
+        "Check that the codex sandbox starts",
+        "codex-resources",
+        "CODEX_BWRAP",
+    ] {
+        assert!(
+            !text.contains(forbidden),
+            "the workflow holds no `{forbidden}`"
+        );
+    }
+}
+
+#[test]
+fn the_codex_job_uses_no_privileged_setting() {
+    let body = job_body(&workflow_text(), "review-codex");
+    for forbidden in [
+        "sudo",
+        "sysctl",
+        "--privileged",
+        "--cap-add",
+        "--security-opt",
+        "--device",
+        "docker.sock",
+    ] {
+        assert!(
+            !body.contains(forbidden),
+            "the codex job holds no `{forbidden}`: {body}"
+        );
+    }
+}
+
+#[test]
+fn the_codex_command_runs_with_the_bypass_flag() {
+    let codex = osf::agents::AGENTS
+        .iter()
+        .find(|a| a.name == "codex")
+        .expect("codex is in the agent list");
+    let review = codex.review.as_ref().expect("codex reviews");
+    let mode = review
+        .read_only
+        .as_ref()
+        .expect("codex documents a read-only mode");
+    assert_eq!(
+        mode.args,
+        &["--dangerously-bypass-approvals-and-sandbox"],
+        "codex runs with its own sandbox off"
     );
     assert!(
-        !body.contains("pkg-containers"),
-        "the codex job runs no container: {body}"
+        !mode.args.contains(&"--sandbox"),
+        "the bypass flag conflicts with --sandbox"
+    );
+    assert!(
+        review.sandbox_check.is_empty(),
+        "codex has no sandbox check"
     );
 }
 
 #[test]
-fn the_codex_sandbox_check_is_documented_and_reports_the_reason() {
+fn the_codex_job_checks_the_image_carries_the_pinned_codex() {
+    let body = job_body(&workflow_text(), "review-codex");
+    assert!(
+        body.contains("name: Check that the review image carries the pinned codex"),
+        "the codex job names the version check step: {body}"
+    );
+    assert!(
+        body.contains("docker run --rm ${{ env.REVIEW_IMAGE }} codex --version"),
+        "the codex job asks the image for its codex version: {body}"
+    );
+    assert!(
+        body.contains("codex-cli ${CODEX_VERSION}"),
+        "the codex job compares against the pinned version: {body}"
+    );
+    assert!(
+        body.contains("exit 1"),
+        "the codex job fails on a version mismatch: {body}"
+    );
+}
+
+#[test]
+fn the_last_job_mints_the_verifier_apps_token() {
     let text = workflow_text();
-    let body = job_body(&text, "review-codex");
-    let name = "name: Check that the codex sandbox starts on this runner";
-    let check = body.find(name).expect("the codex job checks the sandbox");
-    let reviewer = body
-        .find("name: Run this reviewer")
-        .expect("the codex job runs the reviewer");
+    let last = job_body(&text, "review");
     assert!(
-        check < reviewer,
-        "the sandbox check comes before the reviewer"
-    );
-    let rest = &body[check..];
-    let end = rest
-        .find("\n      - name: ")
-        .map_or(body.len(), |off| check + off);
-    let step = &body[check..end];
-    assert!(step.contains("codex sandbox -- true"), "{step}");
-    assert!(
-        step.contains("kernel.apparmor_restrict_unprivileged_userns"),
-        "{step}"
-    );
-    assert!(step.contains("command -v sysctl"), "{step}");
-    assert!(
-        step.contains("sysctl is not available on this runner"),
-        "the sandbox check reports a missing sysctl: {step}"
+        last.contains("alone mints the verifier app's token"),
+        "the last job's comment names the verifier app's token: {last}"
     );
     assert!(
-        step.contains("is not set on this kernel"),
-        "the sandbox check keeps the not-set reason: {step}"
-    );
-    assert!(step.contains("exit 1"), "{step}");
-    assert!(
-        !step.contains("env:"),
-        "the sandbox check holds no env: {step}"
-    );
-    assert!(
-        !step.contains("secrets."),
-        "the sandbox check holds no secret: {step}"
-    );
-    assert!(
-        text.contains("It does not change any kernel or AppArmor setting"),
-        "the workflow documents the sandbox check"
-    );
-    assert!(
-        text.contains("Codex starts its read-only sandbox with user namespaces"),
-        "the workflow names the sandbox assumption"
+        !text.contains("alone mints the code host's token"),
+        "no line says the last job mints the code host's token"
     );
 }
 

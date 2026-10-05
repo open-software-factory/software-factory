@@ -612,9 +612,9 @@ fn a_sandbox_check_that_never_finishes_is_could_not_run() {
     }
 }
 
-/// The codex reviewer carries the check that the agent list gives it.
+/// No reviewer carries a sandbox check now.
 #[test]
-fn the_codex_reviewer_carries_a_sandbox_check_and_the_others_carry_none() {
+fn no_reviewer_carries_a_sandbox_check_now() {
     let root = TempDir::new("osf-reviewers-roster-check");
     std::fs::write(
         root.join("osf.toml"),
@@ -629,7 +629,7 @@ fn the_codex_reviewer_carries_a_sandbox_check_and_the_others_carry_none() {
             .map(|r| r.sandbox_check.clone())
             .expect("reviewer is in the roster")
     };
-    assert_eq!(check("codex"), ["codex", "sandbox", "--", "true"]);
+    assert!(check("codex").is_empty());
     assert!(check("claude").is_empty());
 }
 
