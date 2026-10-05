@@ -19,7 +19,7 @@ A backlog can only be drained by agents when each item says when it is done. Thi
 
 [The automated SDLC vision](../../vision/automated-spdlc-sdlc-vision.md) says spec quality limits throughput. It lists thirteen quality dimensions a spec may need.
 
-[Decision 0005](0005-the-factory-domain-model.md) lists one flat set of lifecycle states for a work item. The factory's own project board uses a live Status field. It holds Backlog, Ready, In progress, Verifying, In review, Blocked, Paused, Failed and Done. No second field says what an agent is doing inside a state. [open-software-factory/software-factory#100 (deriving ready)](https://github.com/open-software-factory/software-factory/issues/100) already argues that the factory should derive "ready" instead of a person setting it by hand. Nothing existing gave a two-level status design or a mapping an adopter could use for its own statuses.
+[Decision 0005](0005-the-factory-domain-model.md) lists one flat set of lifecycle states for a work item. On 2026-09-26, the factory's own project board used a live Status field. It held Backlog, Ready, In progress, Verifying, In review, Blocked, Paused, Failed and Done. No second field said what an agent was doing inside a state. [open-software-factory/software-factory#100 (deriving ready)](https://github.com/open-software-factory/software-factory/issues/100) already argues that the factory should derive "ready" instead of a person setting it by hand. Nothing existing gave a two-level status design or a mapping an adopter could use for its own statuses.
 
 This record settles six things:
 
