@@ -316,66 +316,29 @@ mod tests {
         assert_eq!(ha, hb);
     }
 
-    fn verification_with_duration(check: &str, duration_ms: u64) -> Payload {
-        match verification(check) {
-            Payload::Verification(v) => Payload::Verification(Verification { duration_ms, ..v }),
-            other => other,
-        }
-    }
-
     /// `checkpoint.rs` builds a run id from the checkpoint label, the
     /// wall-clock start time and the process id, so two runs of the same
-    /// unchanged checkpoint never share one: decision 0005 requires their
-    /// head hashes to still match, which the run id being left out of
-    /// [`event_hash`] is what makes possible. A different task duration
-    /// each run, as a real rerun always has, must not break the match
-    /// either.
+    /// unchanged checkpoint never share one: the run id being left out of
+    /// [`event_hash`] is what lets identical events still hash alike.
     #[test]
-    fn two_runs_with_different_run_ids_and_durations_have_the_same_head_hash() {
+    fn two_runs_with_different_run_ids_have_the_same_head_hash() {
         let a_dir = TempDir::new("osf-journal-run-id-a");
         let b_dir = TempDir::new("osf-journal-run-id-b");
         let mut a = Journal::open(&a_dir, "pre-push-1000-111").expect("open");
         let mut b = Journal::open(&b_dir, "pre-push-2000-222").expect("open");
-        a.append(&actor(), 1, verification_with_duration("scan", 12))
-            .expect("append");
+        a.append(&actor(), 1, verification("scan")).expect("append");
         let ha = a
-            .append(&actor(), 2, verification_with_duration("fmt", 34))
+            .append(&actor(), 2, verification("fmt"))
             .expect("append")
             .hash;
-        b.append(&actor(), 900, verification_with_duration("scan", 56))
+        b.append(&actor(), 900, verification("scan"))
             .expect("append");
         let hb = b
-            .append(&actor(), 901, verification_with_duration("fmt", 78))
+            .append(&actor(), 901, verification("fmt"))
             .expect("append")
             .hash;
         assert_eq!(ha, hb);
     }
-
-    /// A first run misses the cache and a repeat run hits it, with the same decisions: decision 0005 requires the same head hash.
-    #[test]
-    fn a_cache_miss_and_a_cache_hit_have_the_same_head_hash() {
-        let with_cache = |cache: &str| match verification("scan") {
-            Payload::Verification(v) => Payload::Verification(Verification {
-                cache: Some(cache.into()),
-                ..v
-            }),
-            other => other,
-        };
-        let a_dir = TempDir::new("osf-journal-cache-miss");
-        let b_dir = TempDir::new("osf-journal-cache-hit");
-        let mut a = Journal::open(&a_dir, "run-1").expect("open");
-        let mut b = Journal::open(&b_dir, "run-2").expect("open");
-        let ha = a
-            .append(&actor(), 1, with_cache("miss"))
-            .expect("append")
-            .hash;
-        let hb = b
-            .append(&actor(), 2, with_cache("hit"))
-            .expect("append")
-            .hash;
-        assert_eq!(ha, hb);
-    }
-
     /// The same event at a different wall-clock time hashes the same, since
     /// decision 0005 excludes `timestamp_ms` from the digest.
     #[test]

@@ -127,6 +127,9 @@ impl std::error::Error for ReadError {}
 /// writer cannot reach, such as a sink or the pull request, to detect such a
 /// rewrite.
 ///
+/// A replay gets new hashes because it is a new run with its own durations
+/// and cache outcomes.
+///
 /// # Errors
 /// Returns [`ReadError::InvalidRunId`] when `run` is not a safe single path
 /// component, [`ReadError::NotFound`] when the file is missing,
@@ -519,6 +522,59 @@ mod tests {
             matches!(error, ReadError::ChainBroken { line: 3, .. }),
             "{error:?}"
         );
+    }
+
+    #[test]
+    fn a_changed_duration_alone_breaks_the_chain_at_its_line() {
+        let dir = TempDir::new("osf-reader-duration");
+        write_all_eight(&dir, "run-duration");
+        let mut lines = journal_lines(&dir, "run-duration");
+        let tampered = edit_event(lines.get(1).expect("the verification line"), |event| {
+            if let Payload::Verification(verification) = &mut event.payload {
+                verification.duration_ms = 999;
+            }
+        });
+        *lines.get_mut(1).expect("the verification line") = tampered;
+        write_lines(&dir, "run-duration", &lines);
+        let error = read_run(&dir, "run-duration").expect_err("changed duration");
+        assert!(
+            matches!(error, ReadError::ChainBroken { line: 2, .. }),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn a_changed_cache_alone_breaks_the_chain_at_its_line() {
+        let dir = TempDir::new("osf-reader-cache");
+        write_all_eight(&dir, "run-cache");
+        let mut lines = journal_lines(&dir, "run-cache");
+        let tampered = edit_event(lines.get(1).expect("the verification line"), |event| {
+            if let Payload::Verification(verification) = &mut event.payload {
+                verification.cache = Some("hit".into());
+            }
+        });
+        *lines.get_mut(1).expect("the verification line") = tampered;
+        write_lines(&dir, "run-cache", &lines);
+        let error = read_run(&dir, "run-cache").expect_err("changed cache");
+        assert!(
+            matches!(error, ReadError::ChainBroken { line: 2, .. }),
+            "{error:?}"
+        );
+    }
+
+    #[test]
+    fn a_changed_timestamp_alone_does_not_break_the_chain() {
+        let dir = TempDir::new("osf-reader-time-ok");
+        write_all_eight(&dir, "run-time-ok");
+        let before = read_run(&dir, "run-time-ok").expect("read before");
+        let mut lines = journal_lines(&dir, "run-time-ok");
+        let edited = edit_event(lines.get(1).expect("the verification line"), |event| {
+            event.timestamp_ms = 999_999;
+        });
+        *lines.get_mut(1).expect("the verification line") = edited;
+        write_lines(&dir, "run-time-ok", &lines);
+        let after = read_run(&dir, "run-time-ok").expect("a changed timestamp is not a break");
+        assert_eq!(after.head_hash, before.head_hash);
     }
 
     #[test]

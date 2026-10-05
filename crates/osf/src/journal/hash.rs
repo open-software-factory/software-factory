@@ -20,9 +20,8 @@
 //! Inside `actor`, `cost` and `change` the same rule applies. Fields keep
 //! declaration order and `None` fields are left out.
 //!
-//! Before hashing, a verification's `duration_ms` is written as 0 and its
-//! `cache` is left out. Every other field of every event type is hashed as
-//! it is, including `cost`.
+//! Every field of every event type is hashed as it is, including
+//! `duration_ms`, `cache` and `cost`.
 //!
 //! `timestamp_ms`, `run`, `schema_version` and `hash` are not hashed.
 //!
@@ -41,7 +40,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fmt::Write as _;
 
-use super::event::{Actor, Change, Cost, Payload, Verification};
+use super::event::{Actor, Change, Cost, Payload};
 
 /// The all-zero hash a run's first event chains from.
 pub(crate) fn genesis_hash() -> String {
@@ -66,21 +65,6 @@ fn to_hex(bytes: &[u8]) -> String {
     out
 }
 
-/// `payload` with every value decision 0005 excludes from the replay hash
-/// neutralised.
-fn replay_payload(payload: &Payload) -> Payload {
-    match payload {
-        // A verification's duration varies run to run even when every decision is identical, so it is zeroed here.
-        // A first run misses the cache and a repeat run hits it with identical decisions, so the cache field is dropped.
-        Payload::Verification(v) => Payload::Verification(Verification {
-            duration_ms: 0,
-            cache: None,
-            ..v.clone()
-        }),
-        other => other.clone(),
-    }
-}
-
 /// The replay-relevant parts of an event: everything the digest covers.
 pub struct HashInput<'a> {
     pub prev_hash: &'a str,
@@ -101,9 +85,8 @@ fn canonical_json(input: &HashInput) -> String {
         actor: &'a Actor,
         cost: Option<&'a Cost>,
     }
-    let neutral = replay_payload(input.payload);
     let canonical = Canonical {
-        payload: &neutral,
+        payload: input.payload,
         work_item: input.work_item,
         change: input.change,
         actor: input.actor,
@@ -135,7 +118,7 @@ pub fn event_hash(input: &HashInput) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::journal::{Attention, CheckResult, EvidenceGrade, RunStarted};
+    use crate::journal::{Attention, CheckResult, EvidenceGrade, RunStarted, Verification};
 
     fn actor() -> Actor {
         Actor::system("osf")
@@ -209,12 +192,30 @@ mod tests {
     }
 
     #[test]
-    fn a_verification_s_duration_and_cache_do_not_change_the_hash() {
+    fn a_changed_duration_alone_changes_the_hash() {
+        let short = verification(12, "miss");
+        let long = verification(999, "miss");
+        assert_ne!(
+            digest(&short, None, None, None),
+            digest(&long, None, None, None)
+        );
+    }
+
+    #[test]
+    fn a_changed_cache_alone_changes_the_hash() {
         let miss = verification(12, "miss");
-        let hit = verification(999, "hit");
-        assert_eq!(
+        let hit = verification(12, "hit");
+        assert_ne!(
             digest(&miss, None, None, None),
             digest(&hit, None, None, None)
+        );
+        let mut no_cache = verification(12, "miss");
+        if let Payload::Verification(v) = &mut no_cache {
+            v.cache = None;
+        }
+        assert_ne!(
+            digest(&no_cache, None, None, None),
+            digest(&miss, None, None, None)
         );
     }
 
@@ -280,11 +281,11 @@ mod tests {
         };
         assert_eq!(
             canonical_json(&input),
-            r#"{"payload":{"event_type":"verification","payload":{"check":"osf:lint","checkpoint":"pre-commit","result":"passed","duration_ms":0,"findings":0,"grade":"observed"}},"work_item":"github:open-software-factory/example#1","change":{"branch":"main","commit":"abc123"},"actor":{"kind":"system","name":"osf"},"cost":{"usd_micros":7}}"#
+            r#"{"payload":{"event_type":"verification","payload":{"check":"osf:lint","checkpoint":"pre-commit","result":"passed","duration_ms":12,"cache":"miss","findings":0,"grade":"observed"}},"work_item":"github:open-software-factory/example#1","change":{"branch":"main","commit":"abc123"},"actor":{"kind":"system","name":"osf"},"cost":{"usd_micros":7}}"#
         );
         assert_eq!(
             event_hash(&input),
-            "eabc2b9e564c162e57ea7a1fcc631c0b970e8c6797f64c6b2388fc7e9b7c00ed"
+            "2229bc1dfe606c1d0a8b25a7a38079ed42b58fa9b7d30a6c471dd8af9359867f"
         );
     }
 }
