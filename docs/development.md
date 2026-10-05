@@ -164,8 +164,10 @@ only its own provider host and the hosts it needs to run. It saves what
 the reviewer did as an artifact, with `osf review run --reviewer <name>
 --out <file>`. The last job, named `review`, downloads every saved
 file and runs `osf review reduce <files>`. It checks the findings,
-decides, and posts. It alone gets the code host's token. A reviewer whose
-job left no file counts as could-not-run, and could-not-run never passes.
+decides, and posts. It alone mints the verifier app's token. The `build`
+job holds a read-only token, which it uses to find the work item. A
+reviewer whose job left no file counts as could-not-run, and
+could-not-run never passes.
 
 Each reviewer asks for two rounds for each lens. A reviewer that answered
 also runs one more round, the critical round, and saves it marked as
@@ -351,14 +353,20 @@ passes only the verifier's token.
 
 Every job runs `step-security/harden-runner` as its first step. Its
 policy sets `egress-policy` to `block`, with an explicit list of the
-hosts that job needs. The `build` job names GitHub, the crates.io
-registry, the container registry and `release-assets.githubusercontent.com`,
-to download the codex release. The codex job names its six GitHub hosts
-and `api.openai.com`. A container reviewer job names GitHub and the
-container registry. It also names `api.anthropic.com` for claude and
-`openrouter.ai` for opencode. opencode also reads its model
-catalogue from `models.opencode.ai`, so that host is on its list. The
-last job names GitHub and the container registry.
+hosts that job needs. The `build` job names four GitHub hosts:
+`github.com`, `api.github.com`, `codeload.github.com` and
+`objects.githubusercontent.com`. It names `ghcr.io` and
+`pkg-containers.githubusercontent.com` for the container registry. It
+names `release-assets.githubusercontent.com`, to download the codex
+release. It names `index.crates.io`, `static.crates.io` and `crates.io`
+for the crates.io registry. The codex job names four GitHub hosts,
+`github.com`, `api.github.com`, `codeload.github.com` and
+`objects.githubusercontent.com`, and `api.openai.com`. A container
+reviewer job names GitHub and the container registry. It also names
+`api.anthropic.com` for claude and `openrouter.ai` for opencode.
+opencode also reads its model catalogue from `models.opencode.ai`, so
+that host is on its list. The last job names GitHub and the container
+registry.
 
 This step-security/harden-runner action needs sudo access on the
 runner's own virtual machine to enforce that policy. A job-level
