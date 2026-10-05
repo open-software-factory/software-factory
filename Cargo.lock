@@ -986,6 +986,7 @@ dependencies = [
  "globset",
  "jsonschema",
  "osf-lint-core",
+ "pulldown-cmark",
  "regex",
  "serde",
  "serde_json",

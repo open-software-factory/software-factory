@@ -10,7 +10,9 @@
 //! saves a reason instead of a body. The spec and acceptance lens then reports
 //! could-not-run with that reason.
 
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use regex::Regex;
+use std::fmt::Write as _;
 use std::process::Command;
 use std::sync::OnceLock;
 
@@ -109,389 +111,136 @@ fn references(text: &str) -> Vec<Reference> {
     found
 }
 
-/// `n` spaces, to blank a hidden region while keeping the line structure.
-fn spaces(n: usize) -> String {
-    " ".repeat(n)
-}
-
-/// Whether `line` starts an indented code block.
-fn is_indented_code(line: &str) -> bool {
-    line.starts_with('\t') || line.starts_with("    ")
-}
-
-/// `trimmed` with one leading list marker and the spaces after it removed.
-fn strip_list_marker(trimmed: &str) -> &str {
-    let marker_len = match trimmed.chars().next() {
-        Some('-' | '*' | '+') => 1,
-        Some(c) if c.is_ascii_digit() => {
-            let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
-            match trimmed.chars().nth(digits) {
-                Some('.' | ')') => digits + 1,
-                _ => return trimmed,
-            }
-        }
-        _ => return trimmed,
-    };
-    let after = trimmed.get(marker_len..).unwrap_or("");
-    let content = after.trim_start_matches([' ', '\t']);
-    if content.len() < after.len() {
-        content
-    } else {
-        trimmed
-    }
-}
-
-/// The fence a line opens with, such as three backticks or three tildes.
-/// A backtick run opens a fence only when no backtick follows it on the line.
-fn fence_marker(trimmed: &str) -> Option<(char, usize)> {
-    let marker = trimmed.chars().next()?;
-    if marker != '`' && marker != '~' {
-        return None;
-    }
-    let len = trimmed.chars().take_while(|c| *c == marker).count();
-    if len < 3 {
-        return None;
-    }
-    let after = trimmed.get(len..).unwrap_or("");
-    if marker == '`' && after.contains('`') {
-        return None;
-    }
-    Some((marker, len))
-}
-
-/// Whether `trimmed` closes a fence opened with `marker` repeated `len` times.
-fn closes_fence(trimmed: &str, marker: char, len: usize) -> bool {
-    let run = trimmed.chars().take_while(|c| *c == marker).count();
-    run >= len && trimmed.chars().skip(run).all(|c| c == ' ' || c == '\t')
-}
-
-/// The byte offset of the next backtick run of exactly `run` in `text`.
-fn closing_ticks(text: &str, run: usize) -> Option<usize> {
-    let mut base = 0;
-    let mut search = text;
-    loop {
-        let at = search.find('`')?;
-        let (_, from_tick) = search.split_at(at);
-        let len = from_tick.chars().take_while(|c| *c == '`').count();
-        if len == run {
-            return Some(base + at);
-        }
-        let (_, after_run) = from_tick.split_at(len);
-        base += at + len;
-        search = after_run;
-    }
-}
-
-/// The byte range of a destination title in `inner`, quotes included.
-fn title_span(inner: &str) -> Option<(usize, usize)> {
-    let body = inner.trim_end();
-    let end = body.len();
-    let last = body.chars().last()?;
-    let start = match last {
-        '"' | '\'' => body.get(..end - 1)?.rfind(last)?,
-        ')' => {
-            let mut depth = 0usize;
-            let mut open = None;
-            for (at, c) in body.char_indices().rev().skip(1) {
-                match c {
-                    ')' => depth += 1,
-                    '(' if depth == 0 => {
-                        open = Some(at);
-                        break;
-                    }
-                    '(' => depth -= 1,
-                    _ => {}
-                }
-            }
-            open?
-        }
-        _ => return None,
-    };
-    let before = body.get(..start)?;
-    before
-        .chars()
-        .last()
-        .is_some_and(char::is_whitespace)
-        .then_some((start, end))
-}
-
-/// The byte offset of the `)` that closes the `(` at `open`.
-fn matching_paren(text: &str, open: usize) -> Option<usize> {
-    let mut depth = 0usize;
-    for (offset, c) in text.get(open..)?.char_indices() {
-        match c {
-            '(' => depth += 1,
-            ')' if depth == 0 => return None,
-            ')' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(open + offset);
-                }
-            }
-            _ => {}
-        }
-    }
-    None
-}
-
-/// Blank each image's alt text between `![` and the matching `]`.
-fn blank_image_alt(line: &str) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut rest = line;
-    while let Some(at) = rest.find("![") {
-        let Some(close) = rest.get(at + 2..).and_then(|after| after.find(']')) else {
-            break;
-        };
-        let start = at + 2;
-        let end = start + close;
-        out.push_str(rest.get(..start).unwrap_or(""));
-        out.push_str(&spaces(
-            rest.get(start..end).map_or(0, |s| s.chars().count()),
-        ));
-        rest = rest.get(end..).unwrap_or("");
-    }
-    out.push_str(rest);
-    out
-}
-
-/// Blank a link or image title inside `](...)`, quotes included.
-fn blank_link_title(line: &str) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut rest = line;
-    while let Some(at) = rest.find("](") {
-        let open = at + 1;
-        let Some(close) = matching_paren(rest, open) else {
-            break;
-        };
-        let inner = rest.get(open + 1..close).unwrap_or("");
-        out.push_str(rest.get(..open + 1).unwrap_or(""));
-        match title_span(inner) {
-            Some((start, end)) => {
-                out.push_str(inner.get(..start).unwrap_or(""));
-                out.push_str(&spaces(
-                    inner.get(start..end).map_or(0, |s| s.chars().count()),
-                ));
-                out.push_str(inner.get(end..).unwrap_or(""));
-            }
-            None => out.push_str(inner),
-        }
-        out.push(')');
-        rest = rest.get(close + 1..).unwrap_or("");
-    }
-    out.push_str(rest);
-    out
-}
-
-/// Blank a link reference definition's title on the line, quotes included.
-fn blank_reference_definition(line: &str) -> String {
-    let trimmed = line.trim_start_matches(' ');
-    if line.len() - trimmed.len() > 3 || !trimmed.starts_with('[') {
-        return line.to_string();
-    }
-    let Some(colon) = trimmed.find("]:") else {
-        return line.to_string();
-    };
-    let after = trimmed.get(colon + 2..).unwrap_or("");
-    let Some((start, end)) = title_span(after) else {
-        return line.to_string();
-    };
-    let prefix = line.len() - after.len();
-    format!(
-        "{}{}{}",
-        line.get(..prefix + start).unwrap_or(""),
-        spaces(after.get(start..end).map_or(0, |s| s.chars().count())),
-        after.get(end..).unwrap_or("")
+/// Whether `tag` opens a region whose text a reader does not see.
+fn hidden_start(tag: &Tag) -> bool {
+    matches!(
+        tag,
+        Tag::CodeBlock(_) | Tag::HtmlBlock | Tag::BlockQuote(_) | Tag::Image { .. }
     )
 }
 
-/// Blank an HTML tag that holds whitespace, up to the next `>` on the line.
-fn blank_html_tag(line: &str) -> String {
-    let mut out = String::with_capacity(line.len());
-    let mut rest = line;
-    loop {
-        let Some(at) = rest.find('<') else {
-            out.push_str(rest);
-            return out;
-        };
-        let (before, from_lt) = rest.split_at(at);
-        out.push_str(before);
-        let after_lt = from_lt.get(1..).unwrap_or("");
-        let opens_tag = after_lt
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_ascii_alphabetic() || c == '/');
-        if let (true, Some(end)) = (opens_tag, after_lt.find('>')) {
-            let tag = from_lt.get(..end + 2).unwrap_or(from_lt);
-            if tag.chars().any(char::is_whitespace) {
-                out.push_str(&spaces(tag.chars().count()));
-            } else {
-                out.push_str(tag);
-            }
-            rest = from_lt.get(end + 2..).unwrap_or("");
-        } else {
-            out.push('<');
-            rest = after_lt;
-        }
-    }
-}
-
-/// Blank the hidden parts of links, images, reference titles and HTML tags.
-fn blank_inline(line: &str) -> String {
-    let line = blank_reference_definition(line);
-    let line = blank_image_alt(&line);
-    let line = blank_link_title(&line);
-    blank_html_tag(&line)
-}
-
-/// `line` with code spans, comments, links, images and tags blanked; whether a comment is still open.
-fn inline_prose(line: &str, in_comment: bool) -> (String, bool) {
-    let (text, still) = inline_code(line, in_comment);
-    (blank_inline(&text), still)
-}
-
-/// `line` with inline code spans and HTML comments blanked; whether a comment is still open.
-fn inline_code(line: &str, mut in_comment: bool) -> (String, bool) {
-    let mut out = String::with_capacity(line.len());
-    let mut rest = line;
-    loop {
-        if in_comment {
-            if let Some((before, after)) = rest.split_once("-->") {
-                out.push_str(&spaces(before.chars().count() + 3));
-                rest = after;
-                in_comment = false;
-                continue;
-            }
-            out.push_str(&spaces(rest.chars().count()));
-            return (out, true);
-        }
-        let comment_at = rest.find("<!--");
-        let tick_at = rest.find('`');
-        if let Some(at) = comment_at.filter(|at| tick_at.is_none_or(|tick| *at < tick)) {
-            let (before, after) = rest.split_at(at);
-            out.push_str(before);
-            out.push_str("    ");
-            rest = after.strip_prefix("<!--").unwrap_or(after);
-            in_comment = true;
-            continue;
-        }
-        if let Some(tick) = tick_at {
-            let (before, from_tick) = rest.split_at(tick);
-            let run = from_tick.chars().take_while(|c| *c == '`').count();
-            let after_open = from_tick.strip_prefix(&"`".repeat(run)).unwrap_or("");
-            out.push_str(before);
-            if let Some(close) = closing_ticks(after_open, run) {
-                out.push_str(&spaces(2 * run + close));
-                rest = after_open.get(close + run..).unwrap_or("");
-            } else {
-                // Unmatched backticks are literal text.
-                out.push_str(&"`".repeat(run));
-                rest = after_open;
-            }
-            continue;
-        }
-        out.push_str(rest);
-        return (out, false);
-    }
-}
-
-/// Whether `line` is a link reference definition whose destination has no title.
-fn reference_title_missing(line: &str) -> bool {
-    let trimmed = line.trim_start_matches(' ');
-    if line.len() - trimmed.len() > 3 || !trimmed.starts_with('[') {
-        return false;
-    }
-    let Some(colon) = trimmed.find("]:") else {
-        return false;
-    };
-    let after = trimmed.get(colon + 2..).unwrap_or("");
-    !after.trim().is_empty() && title_span(after).is_none()
-}
-
-/// `line` with a title that fills it blanked, for a reference title on the next line.
-fn blank_standalone_title(line: &str) -> String {
-    let trimmed = line.trim();
-    let Some(first) = trimmed.chars().next() else {
-        return line.to_string();
-    };
-    let closed = match first {
-        '"' | '\'' => trimmed.len() > 1 && trimmed.ends_with(first),
-        '(' => trimmed.ends_with(')'),
-        _ => return line.to_string(),
-    };
-    if !closed {
-        return line.to_string();
-    }
-    let start = line.len() - line.trim_start().len();
-    let end = start + trimmed.len();
-    format!(
-        "{}{}{}",
-        line.get(..start).unwrap_or(""),
-        spaces(trimmed.chars().count()),
-        line.get(end..).unwrap_or("")
+/// Whether `tag` closes a region whose text a reader does not see.
+fn hidden_end(tag: TagEnd) -> bool {
+    matches!(
+        tag,
+        TagEnd::CodeBlock | TagEnd::HtmlBlock | TagEnd::BlockQuote(_) | TagEnd::Image
     )
 }
 
-/// `text` with CRLF and then a lone CR rewritten as LF.
+/// Whether `tag` is a block-level tag that starts an output line.
+fn block_start(tag: &Tag) -> bool {
+    matches!(
+        tag,
+        Tag::Paragraph
+            | Tag::Heading { .. }
+            | Tag::List(_)
+            | Tag::Item
+            | Tag::Table(_)
+            | Tag::TableHead
+            | Tag::TableRow
+            | Tag::TableCell
+            | Tag::FootnoteDefinition(_)
+    )
+}
+
+/// Whether `tag` is a block-level tag that ends an output line.
+fn block_end(tag: TagEnd) -> bool {
+    matches!(
+        tag,
+        TagEnd::Paragraph
+            | TagEnd::Heading(_)
+            | TagEnd::List(_)
+            | TagEnd::Item
+            | TagEnd::Table
+            | TagEnd::TableHead
+            | TagEnd::TableRow
+            | TagEnd::TableCell
+            | TagEnd::FootnoteDefinition
+    )
+}
+
+/// Pushes a newline unless `out` is empty or already ends with one.
+fn end_line(out: &mut String) {
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+}
+
+/// `text` with one leading byte order mark, CRLF and then a lone CR rewritten as LF.
 pub(crate) fn normalize_newlines(text: &str) -> String {
+    let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     text.replace("\r\n", "\n").replace('\r', "\n")
 }
 
-/// `body` with code blocks, code spans, HTML comments and block quotes blanked out, reading CRLF and lone CR as line ends.
+/// One open list, with the number the next ordered item gets.
+enum ListKind {
+    Unordered,
+    Ordered(u64),
+}
+
+/// The text a reader of the rendered Markdown sees in `body`.
 pub(crate) fn prose(body: &str) -> String {
     let body = normalize_newlines(body);
+    let options = Options::ENABLE_TABLES
+        | Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_TASKLISTS
+        | Options::ENABLE_FOOTNOTES;
     let mut out = String::with_capacity(body.len());
-    let mut fence: Option<(char, usize)> = None;
-    let mut in_comment = false;
-    let mut reference_title_next = false;
-    for piece in body.split_inclusive('\n') {
-        let (content, newline) = match piece.strip_suffix('\n') {
-            Some(content) => (content, "\n"),
-            None => (piece, ""),
-        };
-        let reference_title_here = reference_title_next;
-        reference_title_next = false;
-        if in_comment {
-            let (processed, still) = inline_prose(content, true);
-            out.push_str(&processed);
-            out.push_str(newline);
-            in_comment = still;
-            continue;
-        }
-        if let Some((marker, len)) = fence {
-            if closes_fence(content.trim_start_matches([' ', '\t']), marker, len) {
-                fence = None;
+    let mut hidden = 0usize;
+    let mut lists: Vec<ListKind> = Vec::new();
+    let mut marker_just_written = false;
+    for event in Parser::new_ext(&body, options) {
+        match event {
+            Event::Start(Tag::Heading { level, .. }) if hidden == 0 => {
+                end_line(&mut out);
+                out.push_str(&"#".repeat(level as usize));
+                out.push(' ');
             }
-            out.push_str(&spaces(content.chars().count()));
-            out.push_str(newline);
-            continue;
+            Event::Start(Tag::List(start)) if hidden == 0 => {
+                lists.push(match start {
+                    Some(next) => ListKind::Ordered(next),
+                    None => ListKind::Unordered,
+                });
+            }
+            Event::Start(Tag::Item) if hidden == 0 => {
+                end_line(&mut out);
+                out.push_str(&"  ".repeat(lists.len().saturating_sub(1)));
+                match lists.last_mut() {
+                    Some(ListKind::Ordered(next)) => {
+                        let _ = write!(out, "{next}. ");
+                        *next += 1;
+                    }
+                    _ => out.push_str("- "),
+                }
+                marker_just_written = true;
+            }
+            Event::TaskListMarker(checked) if hidden == 0 => {
+                out.push_str(if checked { "[x] " } else { "[ ] " });
+                marker_just_written = false;
+            }
+            Event::Start(tag) if hidden_start(&tag) => hidden += 1,
+            Event::Start(tag) if hidden == 0 && block_start(&tag) => {
+                if !marker_just_written {
+                    end_line(&mut out);
+                }
+            }
+            Event::End(tag) if hidden_end(tag) => hidden = hidden.saturating_sub(1),
+            Event::End(TagEnd::List(_)) if hidden == 0 => {
+                lists.pop();
+            }
+            Event::End(TagEnd::Item) if hidden == 0 => {
+                marker_just_written = false;
+                end_line(&mut out);
+            }
+            Event::End(TagEnd::Heading(_)) if hidden == 0 => end_line(&mut out),
+            Event::End(tag) if hidden == 0 && block_end(tag) => end_line(&mut out),
+            Event::Text(text) if hidden == 0 => {
+                out.push_str(&text);
+                marker_just_written = false;
+            }
+            Event::SoftBreak | Event::HardBreak if hidden == 0 => out.push('\n'),
+            _ => {}
         }
-        let trimmed = content.trim_start_matches([' ', '\t']);
-        if is_indented_code(content) {
-            out.push_str(&spaces(content.chars().count()));
-            out.push_str(newline);
-            continue;
-        }
-        if let Some(marker) = fence_marker(strip_list_marker(trimmed)) {
-            fence = Some(marker);
-            out.push_str(&spaces(content.chars().count()));
-            out.push_str(newline);
-            continue;
-        }
-        if trimmed.starts_with('>') {
-            out.push_str(&spaces(content.chars().count()));
-            out.push_str(newline);
-            continue;
-        }
-        let visible = if reference_title_here {
-            blank_standalone_title(content)
-        } else {
-            content.to_string()
-        };
-        reference_title_next = reference_title_missing(&visible);
-        let (processed, still) = inline_prose(&visible, false);
-        out.push_str(&processed);
-        out.push_str(newline);
-        in_comment = still;
     }
     out
 }
@@ -1078,6 +827,13 @@ mod tests {
     }
 
     #[test]
+    fn a_byte_order_mark_before_an_issue_line_is_stripped() {
+        let body = "\u{feff}Issue: #44\nCloses #1";
+        assert_eq!(candidates(body), vec![(None, 44), (None, 1)]);
+        assert_eq!(candidates(&crlf(body)), vec![(None, 44), (None, 1)]);
+    }
+
+    #[test]
     fn a_tilde_fenced_block_hides_an_issue_line() {
         let body = "~~~\nIssue: #123\n~~~";
         assert!(candidates_both(body).is_empty());
@@ -1119,11 +875,8 @@ mod tests {
     }
 
     #[test]
-    fn a_list_fence_closes_without_indent() {
-        assert_eq!(
-            candidates_both("- ```\n  Issue: #1\n```\nCloses #44"),
-            vec![(None, 44)]
-        );
+    fn an_unindented_fence_line_ends_the_list_item_and_opens_a_new_fence() {
+        assert!(candidates_both("- ```\n  Issue: #1\n```\nCloses #44").is_empty());
     }
 
     #[test]
@@ -1173,9 +926,25 @@ mod tests {
     }
 
     #[test]
+    fn a_link_title_with_an_escaped_quote_is_hidden() {
+        assert_eq!(
+            candidates_both("[a](u \"x \\\" Closes #99\")\n\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
     fn a_link_reference_definition_title_is_hidden() {
         assert_eq!(
             candidates_both("[x]: https://example.com \"Closes #99\"\n\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn a_reference_definition_with_the_url_on_the_next_line_is_hidden() {
+        assert_eq!(
+            candidates_both("[x]:\nhttps://e.com \"Closes #99\"\n\nCloses #44"),
             vec![(None, 44)]
         );
     }
@@ -1189,9 +958,36 @@ mod tests {
     }
 
     #[test]
+    fn image_alt_text_holding_a_bracket_is_hidden() {
+        assert_eq!(
+            candidates_both("![a [b] Closes #99](u)\n\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn a_line_break_inside_image_alt_text_leaves_the_visible_line_whole() {
+        let rendered = prose("Before ![a\nb](u) after\n");
+        let lines: Vec<&str> = rendered.lines().filter(|line| !line.is_empty()).collect();
+        assert_eq!(lines.len(), 1, "{rendered:?}");
+        assert!(
+            rendered.contains("Before") && rendered.contains("after"),
+            "{rendered:?}"
+        );
+    }
+
+    #[test]
     fn an_html_attribute_is_hidden() {
         assert_eq!(
             candidates_both("<a title=\"Closes #99\">\n\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn an_html_tag_with_attributes_on_a_later_line_is_hidden() {
+        assert_eq!(
+            candidates_both("<a\ntitle=\"Closes #99\">\n\nCloses #44"),
             vec![(None, 44)]
         );
     }
@@ -1276,6 +1072,48 @@ mod tests {
             candidates_both("## Why\n\nIssue: #12\n\nCloses #44"),
             vec![(None, 12), (None, 44)]
         );
+    }
+
+    #[test]
+    fn prose_keeps_headings_and_link_text_and_drops_hidden_parts() {
+        let body = "# Title\n\n[Visible](https://e.com \"Closes #99\")\n\nSee `code` here\n\n> quote\n\n```\nhidden\n```\n";
+        let rendered = prose(body);
+        let lines: Vec<&str> = rendered.lines().collect();
+        assert_eq!(lines, vec!["# Title", "Visible", "See  here"]);
+    }
+
+    #[test]
+    fn prose_keeps_bullet_and_numbered_list_markers() {
+        let rendered = prose("- one\n- two\n\n1. first\n2. second\n");
+        let lines: Vec<&str> = rendered.lines().filter(|line| !line.is_empty()).collect();
+        assert_eq!(lines, vec!["- one", "- two", "1. first", "2. second"]);
+    }
+
+    #[test]
+    fn prose_keeps_a_loose_list_item_on_one_line() {
+        let rendered = prose("- one\n\n- two\n");
+        let lines: Vec<&str> = rendered.lines().filter(|line| !line.is_empty()).collect();
+        assert_eq!(lines, vec!["- one", "- two"]);
+    }
+
+    #[test]
+    fn prose_indents_a_nested_list_item() {
+        let rendered = prose("- a\n  - b\n");
+        let lines: Vec<&str> = rendered.lines().filter(|line| !line.is_empty()).collect();
+        assert_eq!(lines, vec!["- a", "  - b"]);
+    }
+
+    #[test]
+    fn prose_keeps_a_task_box_before_the_text() {
+        let rendered = prose("- [ ] ship it\n- [x] done\n");
+        let lines: Vec<&str> = rendered.lines().filter(|line| !line.is_empty()).collect();
+        assert_eq!(lines, vec!["- [ ] ship it", "- [x] done"]);
+    }
+
+    #[test]
+    fn an_empty_list_item_writes_only_its_marker() {
+        let rendered = prose("-\n");
+        assert_eq!(rendered.trim(), "-");
     }
 
     #[test]
