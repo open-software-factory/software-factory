@@ -34,3 +34,4 @@ wait-timeout = "0.2"
 tree-sitter = "=0.25.10"
 tree-sitter-rust = "=0.24.2"
 pulldown-cmark = "0.13.4"
+fs4 = { version = "=1.1.0", default-features = false, features = ["sync"] }

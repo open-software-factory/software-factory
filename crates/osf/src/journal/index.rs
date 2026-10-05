@@ -3,27 +3,21 @@
 //! item's run ids in the order they were recorded.
 
 use serde::{Deserialize, Serialize};
+use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant};
 
 use super::{sha256_hex, validate_run_id};
-
-#[cfg(test)]
-use std::cell::RefCell;
 
 /// How long a writer waits for another writer to release the lock file.
 const LOCK_WAIT: Duration = Duration::from_secs(10);
 
-/// How old a lock file must be before a writer reclaims it.
-const LOCK_STALE_AFTER: Duration = Duration::from_secs(60);
-
 /// How long a writer sleeps between attempts to take the lock file.
 const LOCK_RETRY: Duration = Duration::from_millis(5);
 
-#[cfg(test)]
-thread_local! {
-    /// Runs in `reclaim_stale_lock` just before the lock is renamed aside.
-    static BEFORE_RENAME: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
+/// The open lock file; the kernel releases the lock on drop, or when the process dies.
+struct IndexLock {
+    _file: File,
 }
 
 /// The index file's body: the work item id and its run ids in order.
@@ -120,147 +114,36 @@ fn lock_path(path: &Path) -> PathBuf {
     path.with_file_name(format!("{name}.lock"))
 }
 
-/// The age of the lock file `lock`, or `None` when it has vanished.
-fn lock_age(lock: &Path) -> Result<Option<Duration>, String> {
-    let metadata = match std::fs::metadata(lock) {
-        Ok(metadata) => metadata,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(format!("cannot read the lock file {}: {e}", lock.display())),
-    };
-    let modified = match metadata.modified() {
-        Ok(modified) => modified,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => {
-            return Err(format!(
-                "cannot read the modified time of the lock file {}: {e}",
-                lock.display()
-            ));
-        }
-    };
-    Ok(Some(
-        SystemTime::now()
-            .duration_since(modified)
-            .unwrap_or(Duration::ZERO),
-    ))
-}
-
-/// The note for a reclaimed lock `lock`, built from `stale_after`'s seconds.
-fn reclaim_note(lock: &Path, stale_after: Duration) -> String {
-    format!(
-        "removed a stale lock file {} older than {} s",
-        lock.display(),
-        stale_after.as_secs()
-    )
-}
-
-/// Moves the lock aside; `true` when this call reclaimed a lock still older
-/// than `stale_after`, `false` when another writer took it in between.
-fn reclaim_stale_lock(lock: &Path, stale_after: Duration) -> Result<bool, String> {
-    let name = lock
-        .file_name()
-        .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
-    let nanos = SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |since| since.as_nanos());
-    let stale = lock.with_file_name(format!("{name}.stale.{}.{nanos}", std::process::id()));
-    #[cfg(test)]
-    {
-        let hook = BEFORE_RENAME.with(|slot| slot.borrow_mut().take());
-        if let Some(run) = hook {
-            run();
-        }
-    }
-    match std::fs::rename(lock, &stale) {
-        Ok(()) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(e) => {
-            return Err(format!(
-                "cannot move the stale lock file {} aside: {e}",
-                lock.display()
-            ));
-        }
-    }
-    match lock_age(&stale)? {
-        None => return Ok(false),
-        Some(age) if age <= stale_after => {
-            if let Err(e) = std::fs::rename(&stale, lock) {
-                return Err(format!(
-                    "cannot restore the lock file {} from {}: {e}",
-                    lock.display(),
-                    stale.display()
-                ));
-            }
-            return Ok(false);
-        }
-        Some(_) => {}
-    }
-    match std::fs::remove_file(&stale) {
-        Ok(()) => {}
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => {
-            return Err(format!(
-                "cannot remove the stale lock file {}: {e}",
-                stale.display()
-            ));
-        }
-    }
-    Ok(true)
-}
-
-/// Takes the lock file for `path`, waiting up to `wait` and reclaiming a lock
-/// older than `stale_after`. Returns the lock path and a reclaim note.
-fn take_lock(
-    path: &Path,
-    wait: Duration,
-    stale_after: Duration,
-) -> Result<(PathBuf, Option<String>), String> {
+/// Takes the lock file beside `path`, waiting up to `wait` for it.
+fn take_lock(path: &Path, wait: Duration) -> Result<IndexLock, String> {
     let lock = lock_path(path);
+    // Never delete the lock file: a second writer could then lock a new file while the first holds the old one.
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&lock)
+        .map_err(|e| format!("cannot open the lock file {}: {e}", lock.display()))?;
     let deadline = Instant::now() + wait;
-    let mut note = None;
     loop {
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&lock)
-        {
-            Ok(_) => return Ok((lock, note)),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-                let Some(age) = lock_age(&lock)? else {
-                    continue;
-                };
-                if age > stale_after {
-                    let Some(age) = lock_age(&lock)? else {
-                        continue;
-                    };
-                    if age > stale_after {
-                        if reclaim_stale_lock(&lock, stale_after)? {
-                            note = Some(reclaim_note(&lock, stale_after));
-                        }
-                        continue;
-                    }
-                }
+        match fs4::FileExt::try_lock(&file) {
+            Ok(()) => return Ok(IndexLock { _file: file }),
+            Err(fs4::TryLockError::WouldBlock) => {
                 if Instant::now() >= deadline {
                     return Err(format!(
-                        "cannot take the lock file {}: another writer holds it, or a stale lock file is present and can be removed by hand",
-                        lock.display()
+                        "cannot take the lock file {}: another writer has held it for more than {} s",
+                        lock.display(),
+                        wait.as_secs()
                     ));
                 }
                 std::thread::sleep(LOCK_RETRY);
             }
-            Err(e) => {
-                return Err(format!(
-                    "cannot create the lock file {}: {e}",
-                    lock.display()
-                ));
+            Err(fs4::TryLockError::Error(e)) => {
+                return Err(format!("cannot lock the file {}: {e}", lock.display()));
             }
         }
     }
-}
-
-/// Releases the lock file `lock` taken by [`take_lock`].
-fn release_lock(lock: &Path) -> Result<(), String> {
-    std::fs::remove_file(lock)
-        .map_err(|e| format!("cannot remove the lock file {}: {e}", lock.display()))
 }
 
 /// The read, append and write for `record_run`, run while the lock is held.
@@ -285,25 +168,24 @@ fn record_run_locked(path: &Path, work_item: &str, run: &str) -> Result<(), Stri
 /// Appends `run` to the index for `work_item`, creating the file when it does
 /// not exist yet. Recording a run already listed is a no-op. An index that
 /// cannot be read, is malformed, or names another work item is refused, never
-/// silently replaced. The returned `Option` is `Some(note)` naming the stale
-/// lock file the writer reclaimed, and `None` for an ordinary append.
+/// silently replaced.
 ///
 /// # Errors
 /// Returns an error when `work_item` is empty, when `run` is not a safe
-/// single path component, or when the index cannot be read or written.
-pub fn record_run(state_dir: &Path, work_item: &str, run: &str) -> Result<Option<String>, String> {
-    record_run_within(state_dir, work_item, run, LOCK_WAIT, LOCK_STALE_AFTER)
+/// single path component, when the lock cannot be taken, or when the index
+/// cannot be read or written.
+pub fn record_run(state_dir: &Path, work_item: &str, run: &str) -> Result<(), String> {
+    record_run_within(state_dir, work_item, run, LOCK_WAIT)
 }
 
-/// [`record_run`] with injectable lock limits, so a test can reclaim or wait
-/// out a lock without the real constants.
+/// [`record_run`] with an injectable lock wait, so a test can wait out a
+/// lock without the real constant.
 fn record_run_within(
     state_dir: &Path,
     work_item: &str,
     run: &str,
     wait: Duration,
-    stale_after: Duration,
-) -> Result<Option<String>, String> {
+) -> Result<(), String> {
     if work_item.is_empty() {
         return Err("work item id must not be empty".to_string());
     }
@@ -312,14 +194,8 @@ fn record_run_within(
     let path = dir.join(index_file_name(work_item));
     std::fs::create_dir_all(&dir)
         .map_err(|e| format!("cannot create the index directory {}: {e}", dir.display()))?;
-    let (lock, note) = take_lock(&path, wait, stale_after)?;
-    let work = record_run_locked(&path, work_item, run);
-    match (work, release_lock(&lock)) {
-        (Ok(()), Ok(())) => Ok(note),
-        (Ok(()), Err(release)) => Err(release),
-        (Err(work), Ok(())) => Err(work),
-        (Err(work), Err(release)) => Err(format!("{work}; {release}")),
-    }
+    let _lock = take_lock(&path, wait)?;
+    record_run_locked(&path, work_item, run)
 }
 
 /// The run ids recorded for `work_item`, in recorded order. A missing index
@@ -343,6 +219,8 @@ pub fn runs_for_work_item(state_dir: &Path, work_item: &str) -> Result<Vec<Strin
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
+    use std::io::{BufRead as _, Read as _, Write as _};
+    use std::process::{Child, Command, Stdio};
 
     const ITEM: &str = "github:open-software-factory/example#1";
 
@@ -354,22 +232,68 @@ mod tests {
         path
     }
 
-    /// Writes `work_item`'s lock file with its modified time `age` in the past.
-    fn old_lock_file(dir: &Path, work_item: &str, age: Duration) -> PathBuf {
-        let index = index_path(dir, work_item);
-        std::fs::create_dir_all(index.parent().expect("index dir")).expect("index dir");
-        let lock = lock_path(&index);
-        std::fs::write(&lock, "").expect("lock file");
-        let modified = std::time::SystemTime::now()
-            .checked_sub(age)
-            .expect("the age is before now");
-        std::fs::OpenOptions::new()
-            .write(true)
-            .open(&lock)
-            .expect("open lock file")
-            .set_modified(modified)
-            .expect("set the lock file's modified time");
-        lock
+    /// The child body for the cross-process lock tests: it returns at once
+    /// unless the parent sets `OSF_TEST_LOCK_FILE`.
+    #[test]
+    fn lock_holder_child() {
+        let Ok(path) = std::env::var("OSF_TEST_LOCK_FILE") else {
+            return;
+        };
+        let target = Path::new(&path);
+        let _lock = take_lock(target, Duration::from_secs(10)).expect("the child takes the lock");
+        println!("locked");
+        std::io::stdout().flush().expect("flush the child's stdout");
+        match std::env::var("OSF_TEST_LOCK_MODE").as_deref() {
+            Ok("hold") => {
+                let mut input = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut input)
+                    .expect("read the child's stdin to its end");
+            }
+            Ok("exit") => std::process::exit(0),
+            other => panic!("unexpected lock mode: {other:?}"),
+        }
+    }
+
+    /// Spawns this test binary as a child that takes `index_path`'s lock, and
+    /// waits until the child prints that it holds the lock.
+    fn spawn_lock_holder(index_path: &Path, mode: &str) -> Child {
+        let exe = std::env::current_exe().expect("the test binary path");
+        let filter = "journal::index::tests::lock_holder_child";
+        let mut child = Command::new(exe)
+            .args([filter, "--exact", "--nocapture", "--test-threads=1"])
+            .env("OSF_TEST_LOCK_FILE", index_path)
+            .env("OSF_TEST_LOCK_MODE", mode)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("spawn the lock holder");
+        let stdout = child.stdout.take().expect("the lock holder's stdout");
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let read = reader
+                .read_line(&mut line)
+                .expect("read the lock holder's stdout");
+            if read == 0 {
+                child.kill().expect("stop the lock holder");
+                child.wait().expect("wait for the lock holder");
+                panic!("the lock holder exited before printing 'locked'");
+            }
+            // The test harness writes its own name before the child's line.
+            if line.split_whitespace().last() == Some("locked") {
+                break;
+            }
+        }
+        // Keep the pipe open until the child exits, so its final output does not hit a closed pipe.
+        std::thread::spawn(move || {
+            let mut rest = String::new();
+            reader
+                .read_to_string(&mut rest)
+                .expect("drain the lock holder's stdout");
+        });
+        child
     }
 
     #[test]
@@ -485,11 +409,15 @@ mod tests {
         let dir = TempDir::new("osf-index-temp");
         record_run(&dir, ITEM, "run-1").expect("record");
         record_run(&dir, ITEM, "run-2").expect("record");
-        let entries: Vec<PathBuf> = std::fs::read_dir(dir.join("index"))
+        let mut entries: Vec<PathBuf> = std::fs::read_dir(dir.join("index"))
             .expect("index dir")
             .map(|entry| entry.expect("entry").path())
             .collect();
-        assert_eq!(entries, [index_path(&dir, ITEM)]);
+        entries.sort();
+        let path = index_path(&dir, ITEM);
+        let mut expected = vec![lock_path(&path), path];
+        expected.sort();
+        assert_eq!(entries, expected);
     }
 
     #[test]
@@ -553,175 +481,68 @@ mod tests {
     }
 
     #[test]
-    fn two_live_writers_still_serialize() {
-        let dir = TempDir::new("osf-index-live-writers");
-        let notes = std::sync::Mutex::new(Vec::new());
-        std::thread::scope(|scope| {
-            for n in 0..32 {
-                let dir = &dir;
-                let notes = &notes;
-                scope.spawn(move || {
-                    let note = record_run(dir, ITEM, &format!("run-{n}")).expect("record");
-                    notes.lock().expect("lock notes").push(note);
-                });
-            }
-        });
-        let notes = notes.into_inner().expect("lock notes");
-        assert!(notes.iter().all(Option::is_none), "{notes:?}");
-        let mut runs = runs_for_work_item(&dir, ITEM).expect("runs");
-        assert_eq!(runs.len(), 32);
-        runs.sort();
-        let mut expected: Vec<String> = (0..32).map(|n| format!("run-{n}")).collect();
-        expected.sort();
-        assert_eq!(runs, expected);
-    }
-
-    #[test]
-    fn a_lock_file_older_than_the_stale_age_is_reclaimed() {
-        let dir = TempDir::new("osf-index-stale-reclaimed");
-        let lock = old_lock_file(&dir, ITEM, Duration::from_secs(3600));
+    fn a_lock_held_by_another_process_makes_the_writer_wait_and_fail() {
+        let dir = TempDir::new("osf-index-other-process");
+        let path = index_path(&dir, ITEM);
+        std::fs::create_dir_all(path.parent().expect("index dir")).expect("index dir");
+        let mut child = spawn_lock_holder(&path, "hold");
+        let wait = Duration::from_millis(200);
         let started = Instant::now();
-        let note = record_run(&dir, ITEM, "run-1")
-            .expect("record")
-            .expect("a reclaim note");
-        assert!(note.contains("stale"), "{note}");
-        assert!(note.contains(&lock.display().to_string()), "{note}");
-        assert!(started.elapsed() < LOCK_WAIT, "{note}");
+        let err = record_run_within(&dir, ITEM, "run-1", wait)
+            .expect_err("another process holds the lock");
+        assert!(
+            err.contains(&lock_path(&path).display().to_string()),
+            "{err}"
+        );
+        assert!(started.elapsed() >= wait, "{err}");
+        assert!(
+            !path.exists(),
+            "the index file was written under a held lock"
+        );
+        drop(child.stdin.take());
+        child.wait().expect("wait for the lock holder");
+        record_run_within(&dir, ITEM, "run-1", Duration::from_secs(1))
+            .expect("record after the lock was released");
         assert_eq!(
             runs_for_work_item(&dir, ITEM).expect("runs"),
             ["run-1"].map(str::to_string)
         );
-        assert!(!lock.exists(), "the stale lock file is still present");
     }
 
     #[test]
-    fn two_writers_racing_for_one_stale_lock_reclaim_it_once() {
-        for attempt in 0..20 {
-            let dir = TempDir::new(&format!("osf-index-race-{attempt}"));
-            let lock = old_lock_file(&dir, ITEM, Duration::from_secs(3600));
-            let barrier = std::sync::Barrier::new(2);
-            let results = std::thread::scope(|scope| {
-                let barrier = &barrier;
-                let dir = &dir;
-                let first = scope.spawn(move || {
-                    barrier.wait();
-                    record_run(dir, ITEM, "run-a")
-                });
-                let second = scope.spawn(move || {
-                    barrier.wait();
-                    record_run(dir, ITEM, "run-b")
-                });
-                [
-                    first.join().expect("the first writer did not panic"),
-                    second.join().expect("the second writer did not panic"),
-                ]
-            });
-            assert!(results.iter().all(Result::is_ok), "{results:?}");
-            let notes: Vec<Option<String>> = results
-                .into_iter()
-                .map(|result| result.expect("both writers recorded"))
-                .collect();
-            let reclaimed: Vec<&String> = notes.iter().flatten().collect();
-            assert_eq!(reclaimed.len(), 1, "{notes:?}");
-            let note = reclaimed.first().expect("one reclaim note");
-            assert!(note.contains(&lock.display().to_string()), "{note}");
-            let mut runs = runs_for_work_item(&dir, ITEM).expect("runs");
-            runs.sort();
-            assert_eq!(runs, ["run-a", "run-b"].map(str::to_string));
-            assert!(!lock.exists(), "the stale lock file is still present");
-            let stale: Vec<String> = std::fs::read_dir(dir.join("index"))
-                .expect("index dir")
-                .map(|entry| {
-                    entry
-                        .expect("entry")
-                        .file_name()
-                        .to_string_lossy()
-                        .into_owned()
-                })
-                .filter(|name| name.contains(".stale."))
-                .collect();
-            assert!(stale.is_empty(), "{stale:?}");
+    fn a_holder_that_exits_without_unlocking_releases_the_lock() {
+        let dir = TempDir::new("osf-index-holder-exit");
+        let path = index_path(&dir, ITEM);
+        std::fs::create_dir_all(path.parent().expect("index dir")).expect("index dir");
+        let mut child = spawn_lock_holder(&path, "exit");
+        let status = child.wait().expect("wait for the lock holder");
+        assert!(status.success(), "{status:?}");
+        record_run_within(&dir, ITEM, "run-1", Duration::ZERO)
+            .expect("record after the holder died");
+        assert_eq!(
+            runs_for_work_item(&dir, ITEM).expect("runs"),
+            ["run-1"].map(str::to_string)
+        );
+    }
+
+    #[test]
+    fn no_stale_lock_logic_remains() {
+        let index_src = include_str!("index.rs");
+        let journal_src = include_str!("../journal.rs");
+        for needle in [
+            concat!(".lock", ".stale"),
+            concat!("LOCK_", "STALE"),
+            concat!("reclaim_", "stale_lock"),
+            concat!("BEFORE_", "RENAME"),
+            concat!("index_", "notes"),
+        ] {
+            assert!(!index_src.contains(needle), "{needle} is in index.rs");
+            assert!(!journal_src.contains(needle), "{needle} is in journal.rs");
         }
     }
 
     #[test]
-    fn a_lock_taken_between_the_staleness_check_and_the_rename_is_restored() {
-        let dir = TempDir::new("osf-index-fresh-race");
-        let lock = old_lock_file(&dir, ITEM, Duration::from_secs(3600));
-        let hook_lock = lock.clone();
-        let hook_index = index_path(&dir, ITEM);
-        let handle = std::rc::Rc::new(RefCell::new(None));
-        let hook_handle = std::rc::Rc::clone(&handle);
-        BEFORE_RENAME.with(move |slot| {
-            *slot.borrow_mut() = Some(Box::new(move || {
-                std::fs::remove_file(&hook_lock).expect("remove the stale lock");
-                std::fs::write(&hook_lock, "writer-b").expect("write the fresh lock");
-                let thread = std::thread::spawn(move || -> Result<(), String> {
-                    std::thread::sleep(Duration::from_millis(300));
-                    assert!(hook_lock.exists(), "writer B's lock file was moved aside");
-                    let contents = std::fs::read_to_string(&hook_lock)
-                        .map_err(|e| format!("cannot read writer B's lock file: {e}"))?;
-                    assert_eq!(contents, "writer-b", "writer B's lock content changed");
-                    record_run_locked(&hook_index, ITEM, "run-b")?;
-                    release_lock(&hook_lock)
-                });
-                *hook_handle.borrow_mut() = Some(thread);
-            }));
-        });
-        let outcome = record_run(&dir, ITEM, "run-a").expect("writer A records");
-        assert!(outcome.is_none(), "writer A reclaimed a lock it never took");
-        let thread = handle.borrow_mut().take().expect("writer B's thread");
-        thread
-            .join()
-            .expect("writer B did not panic")
-            .expect("writer B records");
-        let mut runs = runs_for_work_item(&dir, ITEM).expect("runs");
-        runs.sort();
-        assert_eq!(runs, ["run-a", "run-b"].map(str::to_string));
-        assert!(!lock.exists(), "the lock file is still present");
-        let stale: Vec<String> = std::fs::read_dir(dir.join("index"))
-            .expect("index dir")
-            .map(|entry| {
-                entry
-                    .expect("entry")
-                    .file_name()
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .filter(|name| name.contains(".stale."))
-            .collect();
-        assert!(stale.is_empty(), "{stale:?}");
-    }
-
-    #[test]
-    fn a_lock_file_just_under_the_stale_age_is_not_reclaimed() {
-        let dir = TempDir::new("osf-index-stale-under");
-        let lock = old_lock_file(&dir, ITEM, Duration::from_secs(3));
-        let err = record_run_within(
-            &dir,
-            ITEM,
-            "run-1",
-            Duration::from_millis(100),
-            Duration::from_secs(3600),
-        )
-        .expect_err("a lock younger than the stale age");
-        assert!(err.contains(&lock.display().to_string()), "{err}");
-        assert!(lock.exists(), "a fresh lock file was removed");
-    }
-
-    #[test]
-    fn a_fresh_lock_file_makes_the_writer_wait_and_fail() {
-        let dir = TempDir::new("osf-index-fresh-lock");
-        let index = index_path(&dir, ITEM);
-        std::fs::create_dir_all(index.parent().expect("index dir")).expect("index dir");
-        let lock = lock_path(&index);
-        std::fs::write(&lock, "").expect("fresh lock");
-        let wait = Duration::from_millis(100);
-        let started = Instant::now();
-        let err = record_run_within(&dir, ITEM, "run-1", wait, LOCK_STALE_AFTER)
-            .expect_err("a fresh lock");
-        assert!(err.contains(&lock.display().to_string()), "{err}");
-        assert!(lock.exists(), "the fresh lock file was removed");
-        assert!(started.elapsed() >= wait, "{err}");
+    fn the_lock_wait_is_ten_seconds() {
+        assert_eq!(LOCK_WAIT, Duration::from_secs(10));
     }
 }
