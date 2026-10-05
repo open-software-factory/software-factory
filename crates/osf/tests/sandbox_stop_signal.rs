@@ -36,7 +36,13 @@ printf '%s\n' "$*" >> "$dir/calls.log"
 case "$1" in
 create) printf '{CREATE_ID}\n'; exit 0 ;;
 start) exit 0 ;;
-exec) {exec_body} ;;
+exec)
+  prev=
+  last=
+  for word in "$@"; do prev="$last"; last="$word"; done
+  if [ "$prev" = "id" ] && [ "$last" = "-u" ]; then printf '1000\n'; exit 0; fi
+  {exec_body}
+  ;;
 inspect) printf '{CREATE_ID}\n'; exit 0 ;;
 rm) exit 0 ;;
 *) exit 1 ;;

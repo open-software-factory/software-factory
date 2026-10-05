@@ -8,7 +8,7 @@ use osf::docker_sandbox::{
     DockerRunner, DockerSandbox, RealDockerRunner, DEFAULT_OUTPUT_CAP_BYTES,
 };
 use osf::sandbox::{
-    CommandSpec, Limits, Mount, Network, RunOutcome, Sandbox, SandboxId, SandboxSpec,
+    CommandSpec, Limits, Mount, Network, RunOutcome, Sandbox, SandboxError, SandboxId, SandboxSpec,
 };
 use std::collections::BTreeMap;
 use std::fs;
@@ -71,6 +71,34 @@ export LC_ALL=C
 head -c 5242880 /dev/zero | tr '\0' x >&2
 printf '\nFINAL-EVENT\n' >&2
 ";
+
+/// The 64-character lowercase hexadecimal id the fake `create` prints.
+const FAKE_CONTAINER_ID: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+/// A fake `docker` that answers create, start, exec, inspect and rm and logs every call.
+fn user_check_script(uid: &str) -> String {
+    format!(
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+dir="$(cd "$(dirname "$0")" && pwd)"
+printf '%s\n' "$*" >> "$dir/calls.log"
+case "$1" in
+create) printf '%s\n' '{FAKE_CONTAINER_ID}'; exit 0 ;;
+start) exit 0 ;;
+exec)
+  prev=""
+  last=""
+  for word in "$@"; do prev="$last"; last="$word"; done
+  if [ "$prev" = "id" ] && [ "$last" = "-u" ]; then printf '%s\n' '{uid}'; exit 0; fi
+  exit 0
+  ;;
+inspect) printf '%s\n' '{FAKE_CONTAINER_ID}'; exit 0 ;;
+rm) exit 0 ;;
+*) exit 1 ;;
+esac
+"#
+    )
+}
 
 /// A throwaway folder holding the fake program, removed on drop.
 struct TempArea {
@@ -552,6 +580,51 @@ printf '%s' "$SPECIAL" > "$dir/value"
     assert_eq!(output.status, Some(0));
     let seen_value = fs::read_to_string(area.dir.join("value")).expect("the value was written");
     assert_eq!(seen_value, value);
+}
+
+#[test]
+fn real_docker_sandbox_create_rejects_a_user_that_maps_to_uid_zero() {
+    let _lock = serial();
+    let area = TempArea::new("user-check-root");
+    let script = area.script("docker", &user_check_script("0"));
+    let runner = RealDockerRunner::new(script.as_path());
+    let sandbox = DockerSandbox::new(runner);
+    let source = fs::canonicalize(&area.dir).expect("the mount source resolves");
+    let spec = SandboxSpec {
+        name: unique_name("osf-user-check"),
+        image: "example/base:1".to_string(),
+        user: "dev".to_string(),
+        workdir: "/workspace".to_string(),
+        network: Network::Isolated,
+        mounts: vec![Mount {
+            host_path: source.to_string_lossy().into_owned(),
+            sandbox_path: "/workspace".to_string(),
+            read_only: false,
+            follow_symlinks: false,
+        }],
+        limits: Limits::default(),
+    };
+
+    let error = sandbox.create(&spec).expect_err("uid 0 is refused");
+    assert_eq!(
+        error,
+        SandboxError::Rejected(
+            "the sandbox user resolves to uid 0 (root); the image maps the user dev to the root user"
+                .to_string()
+        )
+    );
+
+    let log = fs::read_to_string(area.dir.join("calls.log")).expect("the fake logged its calls");
+    let lines: Vec<&str> = log.lines().collect();
+    let check = lines
+        .iter()
+        .position(|entry| entry.ends_with("id -u"))
+        .expect("the user check ran");
+    let remove = lines
+        .iter()
+        .position(|entry| entry.starts_with("rm "))
+        .expect("the container was removed");
+    assert!(check < remove, "{log}");
 }
 
 /// Destroys the smoke sandbox on drop, including on a failed assertion.

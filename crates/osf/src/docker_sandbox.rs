@@ -470,14 +470,22 @@ fn is_container_id(text: &str) -> bool {
             .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
 }
 
-/// The create output for a failure: trimmed, cut to 200 characters, then debug-formatted.
-fn shown_create_output(stdout: &str) -> String {
-    let trimmed = stdout.trim();
+/// Trims `text`, cuts it to 200 characters, then debug-formats it.
+fn shown_text(text: &str) -> String {
+    let trimmed = text.trim();
     let mut shown: String = trimmed.chars().take(200).collect();
     if trimmed.chars().count() > 200 {
         shown.push_str("...");
     }
     format!("{shown:?}")
+}
+
+/// The uid from a decimal-digit answer, or none when it is not one.
+fn parse_uid(text: &str) -> Option<u32> {
+    if text.is_empty() || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    text.parse::<u32>().ok()
 }
 
 /// The network a sandbox gets: no driver for [`Network::Isolated`], the
@@ -813,6 +821,57 @@ impl<R: DockerRunner> DockerSandbox<R> {
         Err(SandboxError::Failed(tool_text(&output)))
     }
 
+    /// Removes `id` after a failed create step, folding a removal failure into `error`.
+    fn remove_after_failed_step(&self, id: &str, error: &SandboxError) -> SandboxError {
+        let mut message = error.to_string();
+        if let Err(removal_error) = self.remove_container(id) {
+            message = format!("{message}; {removal_error}");
+        }
+        match error {
+            SandboxError::Rejected(_) => SandboxError::Rejected(message),
+            SandboxError::Failed(_) => SandboxError::Failed(message),
+        }
+    }
+
+    /// Runs `id -u` in `id` and refuses uid 0 or any answer it cannot read.
+    fn check_user(&self, id: &SandboxId, spec: &SandboxSpec) -> Result<(), SandboxError> {
+        let command = CommandSpec {
+            program: "id".to_string(),
+            args: vec!["-u".to_string()],
+            workdir: None,
+            timeout_secs: Some(30),
+            env: BTreeMap::new(),
+            stdin: None,
+        };
+        let result = self.run(id, &command).map_err(|error| {
+            SandboxError::Failed(format!("the sandbox user check failed: {error}"))
+        })?;
+        match result.outcome {
+            RunOutcome::Exited(0) => {
+                let uid = result.stdout.trim();
+                match parse_uid(uid) {
+                    Some(0) => Err(SandboxError::Rejected(format!(
+                        "the sandbox user resolves to uid 0 (root); the image maps the user {} to the root user",
+                        spec.user
+                    ))),
+                    Some(_) => Ok(()),
+                    None => Err(SandboxError::Failed(format!(
+                        "the sandbox user check failed: {}",
+                        shown_text(uid)
+                    ))),
+                }
+            }
+            RunOutcome::Exited(code) => Err(SandboxError::Failed(format!(
+                "the sandbox user check failed: exit status {code}; stdout {}; stderr {}",
+                shown_text(&result.stdout),
+                shown_text(&result.stderr)
+            ))),
+            RunOutcome::TimedOut { limit_secs } => Err(SandboxError::Failed(format!(
+                "the sandbox user check failed: the check timed out after {limit_secs} seconds"
+            ))),
+        }
+    }
+
     /// Removes the container `id`, or reports why it remains.
     fn remove_container(&self, id: &str) -> Result<Destroyed, SandboxError> {
         let output = self
@@ -876,18 +935,18 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
         let Some(container_id) = parse_container_id(&output.stdout) else {
             return Err(SandboxError::Failed(format!(
                 "the create call did not return one container id; its output was: {}",
-                shown_create_output(&output.stdout)
+                shown_text(&output.stdout)
             )));
         };
         let id = container_id.to_string();
         if let Err(start_error) = self.start_container(&id) {
-            let mut message = start_error.to_string();
-            if let Err(removal_error) = self.remove_container(&id) {
-                message = format!("{message}; {removal_error}");
-            }
-            return Err(SandboxError::Failed(message));
+            return Err(self.remove_after_failed_step(&id, &start_error));
         }
-        Ok(SandboxId(id))
+        let sandbox_id = SandboxId(id);
+        if let Err(check_error) = self.check_user(&sandbox_id, spec) {
+            return Err(self.remove_after_failed_step(&sandbox_id.0, &check_error));
+        }
+        Ok(sandbox_id)
     }
 
     fn run(&self, id: &SandboxId, command: &CommandSpec) -> Result<RunResult, SandboxError> {
@@ -1116,6 +1175,28 @@ mod tests {
         let mut command = command();
         command.env.insert("API_KEY".to_string(), value.to_string());
         command
+    }
+
+    /// The `id -u` command `create` runs to check the sandbox user.
+    fn user_check_command() -> CommandSpec {
+        CommandSpec {
+            program: "id".to_string(),
+            args: vec!["-u".to_string()],
+            workdir: None,
+            timeout_secs: Some(30),
+            env: BTreeMap::new(),
+            stdin: None,
+        }
+    }
+
+    /// The `id -u` call `create` records after a successful start.
+    fn user_check_call(id: &str) -> Call {
+        Call {
+            argv: exec_argv(id, &user_check_command()),
+            timeout: Some(Duration::from_secs(30)),
+            stdin: None,
+            env: BTreeMap::new(),
+        }
     }
 
     fn ok(stdout: &str) -> ToolOutput {
@@ -1730,7 +1811,7 @@ mod tests {
     fn create_runs_create_then_start_and_returns_the_trimmed_id() {
         let created = id64('a');
         let output = format!("{created}\n");
-        let sandbox = sandbox(vec![Ok(ok(&output)), Ok(ok(""))]);
+        let sandbox = sandbox(vec![Ok(ok(&output)), Ok(ok("")), Ok(ok("1000\n"))]);
         let id = sandbox.create(&real_spec()).expect("creates");
         assert_eq!(id, SandboxId(created.clone()));
         assert_eq!(
@@ -1748,6 +1829,194 @@ mod tests {
                     stdin: None,
                     env: BTreeMap::new(),
                 },
+                user_check_call(&created),
+            ]
+        );
+    }
+
+    #[test]
+    fn create_rejects_a_uid_zero_check_and_removes_the_container() {
+        let created = id64('e');
+        let sandbox = sandbox(vec![
+            Ok(ok(&created)),
+            Ok(ok("")),
+            Ok(ok("0\n")),
+            Ok(ok("")),
+        ]);
+        let error = sandbox.create(&real_spec()).expect_err("uid 0 is refused");
+        assert_eq!(
+            error,
+            SandboxError::Rejected(
+                "the sandbox user resolves to uid 0 (root); the image maps the user dev to the root user"
+                    .to_string()
+            )
+        );
+        let mut expected = vec![
+            Call {
+                argv: create_argv(&resolved_real_spec()),
+                timeout: Some(Duration::from_secs(120)),
+                stdin: None,
+                env: BTreeMap::new(),
+            },
+            Call {
+                argv: start_argv(&created),
+                timeout: None,
+                stdin: None,
+                env: BTreeMap::new(),
+            },
+            user_check_call(&created),
+        ];
+        expected.push(Call {
+            argv: remove_argv(&created),
+            timeout: None,
+            stdin: None,
+            env: BTreeMap::new(),
+        });
+        assert_eq!(sandbox.runner.calls(), expected);
+    }
+
+    #[test]
+    fn a_uid_zero_check_rejection_appends_a_failed_removal() {
+        let created = id64('f');
+        let sandbox = sandbox(vec![
+            Ok(ok(&created)),
+            Ok(ok("")),
+            Ok(ok("00")),
+            Ok(fail(1, "boom remove")),
+        ]);
+        let error = sandbox.create(&real_spec()).expect_err("uid 0 is refused");
+        assert_eq!(
+            error,
+            SandboxError::Rejected(
+                "the sandbox user resolves to uid 0 (root); the image maps the user dev to the root user; boom remove"
+                    .to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn create_accepts_a_padded_uid_check() {
+        let created = id64('1');
+        let sandbox = sandbox(vec![Ok(ok(&created)), Ok(ok("")), Ok(ok(" 1000 \n"))]);
+        let id = sandbox.create(&real_spec()).expect("the padded uid passes");
+        assert_eq!(id, SandboxId(created));
+    }
+
+    #[test]
+    fn create_refuses_a_zero_uid_check_spelled_with_zeros() {
+        for uid in ["0", "00", "000", "0\n"] {
+            let created = id64('2');
+            let sandbox = sandbox(vec![Ok(ok(&created)), Ok(ok("")), Ok(ok(uid)), Ok(ok(""))]);
+            let error = sandbox
+                .create(&real_spec())
+                .expect_err("a zero uid is refused");
+            assert_eq!(
+                error,
+                SandboxError::Rejected(
+                    "the sandbox user resolves to uid 0 (root); the image maps the user dev to the root user"
+                        .to_string()
+                ),
+                "{uid:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn create_refuses_a_uid_check_that_is_not_a_number() {
+        for uid in ["+0", "-1", "abc", "", "1000\n1001"] {
+            let created = id64('3');
+            let sandbox = sandbox(vec![Ok(ok(&created)), Ok(ok("")), Ok(ok(uid)), Ok(ok(""))]);
+            let error = sandbox
+                .create(&real_spec())
+                .expect_err("a non-number is refused");
+            assert_eq!(
+                error,
+                SandboxError::Failed(format!(
+                    "the sandbox user check failed: {}",
+                    shown_text(uid.trim())
+                )),
+                "{uid:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn create_reports_a_nonzero_user_check_and_removes_the_container() {
+        let created = id64('4');
+        let sandbox = sandbox(vec![
+            Ok(ok(&created)),
+            Ok(ok("")),
+            Ok(fail(126, "no id")),
+            Ok(ok("")),
+        ]);
+        let error = sandbox
+            .create(&real_spec())
+            .expect_err("a non-zero check fails");
+        assert_eq!(
+            error,
+            SandboxError::Failed(
+                "the sandbox user check failed: exit status 126; stdout \"\"; stderr \"no id\""
+                    .to_string()
+            )
+        );
+        assert_eq!(
+            sandbox.runner.calls().last().map(|call| call.argv.clone()),
+            Some(remove_argv(&created))
+        );
+    }
+
+    #[test]
+    fn create_reports_a_runner_error_from_the_user_check_and_removes_the_container() {
+        let created = id64('5');
+        let sandbox = sandbox(vec![
+            Ok(ok(&created)),
+            Ok(ok("")),
+            Err(RunnerError("cannot run docker".to_string())),
+            Ok(ok("")),
+        ]);
+        let error = sandbox
+            .create(&real_spec())
+            .expect_err("a runner error fails");
+        assert_eq!(
+            error,
+            SandboxError::Failed("the sandbox user check failed: cannot run docker".to_string())
+        );
+        assert_eq!(
+            sandbox.runner.calls().last().map(|call| call.argv.clone()),
+            Some(remove_argv(&created))
+        );
+    }
+
+    #[test]
+    fn create_reports_a_timed_out_user_check_and_kills_then_removes() {
+        let created = id64('6');
+        let sandbox = sandbox(vec![
+            Ok(ok(&created)),
+            Ok(ok("")),
+            Ok(timeout_output("")),
+            Ok(ok("")),
+            Ok(ok("")),
+        ]);
+        let error = sandbox.create(&real_spec()).expect_err("a timeout fails");
+        assert_eq!(
+            error,
+            SandboxError::Failed(
+                "the sandbox user check failed: the check timed out after 30 seconds".to_string()
+            )
+        );
+        assert_eq!(
+            sandbox
+                .runner
+                .calls()
+                .iter()
+                .map(|call| call.argv.first().cloned())
+                .collect::<Vec<_>>(),
+            vec![
+                Some("create".to_string()),
+                Some("start".to_string()),
+                Some("exec".to_string()),
+                Some("kill".to_string()),
+                Some("rm".to_string()),
             ]
         );
     }
@@ -1834,6 +2103,16 @@ mod tests {
             format!(" {id}"),
         ] {
             assert_eq!(parse_container_id(&bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn parse_uid_accepts_only_decimal_digits() {
+        assert_eq!(parse_uid("0"), Some(0));
+        assert_eq!(parse_uid("00"), Some(0));
+        assert_eq!(parse_uid("1000"), Some(1000));
+        for bad in ["", "+0", "-1", "abc", "1000\n1001", "1 000", "4294967296"] {
+            assert_eq!(parse_uid(bad), None, "{bad:?}");
         }
     }
 
