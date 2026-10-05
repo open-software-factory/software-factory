@@ -25,6 +25,16 @@ pub fn no_issue_linked(repository: &str) -> String {
     format!("no issue is linked: add an Issue line that names the issue this pull request is for, or close one with a closing keyword such as Closes {repository}#N. Link one so the spec and acceptance lens can run")
 }
 
+/// The reason saved when a pull request in `repository` names more than one issue.
+#[must_use]
+pub fn more_than_one_issue(repository: &str, numbers: &[u64]) -> String {
+    let named: Vec<String> = numbers.iter().map(|number| format!("#{number}")).collect();
+    format!(
+        "the pull request text names more than one issue in {repository}: {}. Name one issue and remove the others",
+        named.join(", ")
+    )
+}
+
 /// What the code host holds for an issue number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Fetched {
@@ -276,9 +286,21 @@ fn negated_before(before: &str) -> bool {
     })
 }
 
+/// `text` without the zero-width characters a reader does not see.
+fn without_zero_width(text: &str) -> String {
+    text.chars()
+        .filter(|c| {
+            !matches!(
+                c,
+                '\u{200b}' | '\u{200c}' | '\u{200d}' | '\u{2060}' | '\u{feff}'
+            )
+        })
+        .collect()
+}
+
 /// The issues `body` names in prose, in order: first on its `Issue:` lines, then after a closing keyword.
 fn candidates(body: &str) -> Vec<Reference> {
-    let text = prose(body);
+    let text = without_zero_width(&prose(body));
     let mut found: Vec<Reference> = Vec::new();
     let mut add = |items: Vec<Reference>| {
         for item in items {
@@ -308,16 +330,34 @@ fn candidates(body: &str) -> Vec<Reference> {
     found
 }
 
-/// The first candidate in `repository`.
+/// The distinct issue numbers in `repository` among `all`, in order.
+fn own_issues(repository: &str, all: &[Reference]) -> Vec<u64> {
+    let mut found = Vec::new();
+    for (repo, number) in all {
+        let own = match repo {
+            Some(named) => named.eq_ignore_ascii_case(repository),
+            None => true,
+        };
+        if own && !found.contains(number) {
+            found.push(*number);
+        }
+    }
+    found
+}
+
+/// The only issue in `repository` among `all`, or `None` for none or many.
 fn own_issue(repository: &str, all: &[Reference]) -> Option<u64> {
-    all.iter().find_map(|(repo, number)| match repo {
-        Some(named) if !named.eq_ignore_ascii_case(repository) => None,
-        _ => Some(*number),
-    })
+    let mut issues = own_issues(repository, all);
+    if issues.len() == 1 {
+        issues.pop()
+    } else {
+        None
+    }
 }
 
 /// The issue number the body of a pull request names for `repository`: the
-/// first prose candidate in that repository, or `None` when it names none there.
+/// only prose candidate in that repository, or `None` when it names none
+/// there or names more than one.
 #[must_use]
 pub fn named_issue(repository: &str, pr_body: &str) -> Option<u64> {
     own_issue(repository, &candidates(pr_body))
@@ -335,8 +375,12 @@ pub fn find(
     pr_body: &str,
     head: &str,
 ) -> Result<WorkItem, String> {
-    let Some(number) = named_issue(repository, pr_body) else {
-        let all = candidates(pr_body);
+    let all = candidates(pr_body);
+    let issues = own_issues(repository, &all);
+    if issues.len() > 1 {
+        return Ok(WorkItem::Missing(more_than_one_issue(repository, &issues)));
+    }
+    let Some(number) = issues.first().copied() else {
         return Ok(WorkItem::Missing(match all.first() {
             Some((Some(other), n)) => format!(
                 "the only issue linked is {other}#{n}, which is in another repository, and only an issue in {repository} is read. Link an issue in {repository}"
@@ -447,9 +491,14 @@ pub fn check_binding(
             "the saved work item names issue #{number}, but the pull request has no text to compare it with"
         ));
     };
-    match named_issue(repository, body) {
-        Some(named) if named == number => {}
-        Some(named) => {
+    let all = candidates(body);
+    let issues = own_issues(repository, &all);
+    if issues.len() > 1 {
+        return Err(more_than_one_issue(repository, &issues));
+    }
+    match issues.first() {
+        Some(&named) if named == number => {}
+        Some(&named) => {
             return Err(format!(
                 "the saved work item names issue #{number}, but the pull request text names #{named}"
             ));
@@ -1135,5 +1184,122 @@ mod tests {
             }
         }
         assert!(source.asked.borrow().is_empty(), "nothing was fetched");
+    }
+
+    #[test]
+    fn find_refuses_when_the_body_names_two_issues() {
+        let source = Fake::issue("unused");
+        let item = find(&source, REPO, "Closes #1\nFixes #2", HEAD).expect("finds");
+        assert_eq!(item, WorkItem::Missing(more_than_one_issue(REPO, &[1, 2])));
+        assert!(source.asked.borrow().is_empty(), "nothing was fetched");
+    }
+
+    #[test]
+    fn find_refuses_when_the_issue_line_and_a_closing_keyword_disagree() {
+        let source = Fake::issue("unused");
+        let item = find(&source, REPO, "Issue: #12\n\nCloses #44", HEAD).expect("finds");
+        assert_eq!(
+            item,
+            WorkItem::Missing(more_than_one_issue(REPO, &[12, 44]))
+        );
+        assert!(source.asked.borrow().is_empty(), "nothing was fetched");
+    }
+
+    #[test]
+    fn find_resolves_an_issue_named_twice() {
+        for body in [
+            "Issue: #12\n\nCloses #12".to_string(),
+            format!("Issue: {REPO}#12\n\nCloses #12"),
+        ] {
+            let source = Fake::issue("body");
+            let WorkItem::Found { number, .. } = find(&source, REPO, &body, HEAD).expect("finds")
+            else {
+                panic!("expected Found");
+            };
+            assert_eq!(number, 12, "{body}");
+            assert_eq!(
+                *source.asked.borrow(),
+                vec![(REPO.to_string(), 12)],
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_zero_width_character_before_the_issue_line_shows_every_issue() {
+        for zero_width in ['\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}'] {
+            let source = Fake::issue("unused");
+            let body = format!("{zero_width}Issue: #44\n\nCloses #99");
+            let item = find(&source, REPO, &body, HEAD).expect("finds");
+            assert_eq!(
+                item,
+                WorkItem::Missing(more_than_one_issue(REPO, &[44, 99])),
+                "{body:?}"
+            );
+            assert!(source.asked.borrow().is_empty(), "nothing was fetched");
+        }
+    }
+
+    #[test]
+    fn a_zero_width_character_before_the_issue_line_does_not_hide_a_duplicate() {
+        for zero_width in ['\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}'] {
+            let source = Fake::issue("body");
+            let body = format!("{zero_width}Issue: #44\n\nCloses #44");
+            let WorkItem::Found { number, .. } = find(&source, REPO, &body, HEAD).expect("finds")
+            else {
+                panic!("expected Found");
+            };
+            assert_eq!(number, 44, "{body:?}");
+        }
+    }
+
+    #[test]
+    fn a_zero_width_character_before_an_issue_line_alone_is_read() {
+        for zero_width in ['\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}'] {
+            let source = Fake::issue("body");
+            let body = format!("{zero_width}Issue: #44");
+            let WorkItem::Found { number, .. } = find(&source, REPO, &body, HEAD).expect("finds")
+            else {
+                panic!("expected Found");
+            };
+            assert_eq!(number, 44, "{body:?}");
+        }
+    }
+
+    #[test]
+    fn one_own_issue_and_a_foreign_issue_resolve_to_the_own_one() {
+        for body in [
+            "Closes #44\n\nCloses open-software-factory/other-repo#9",
+            "Closes open-software-factory/other-repo#9\n\nCloses #44",
+        ] {
+            let source = Fake::issue("body");
+            let WorkItem::Found { number, .. } = find(&source, REPO, body, HEAD).expect("finds")
+            else {
+                panic!("expected Found");
+            };
+            assert_eq!(number, 44, "{body}");
+        }
+    }
+
+    #[test]
+    fn check_binding_refuses_when_the_body_names_more_than_one_issue() {
+        let json = WorkItem::Found {
+            reference: format!("{REPO}#12"),
+            number: 12,
+            head: HEAD.to_string(),
+            title: "A title".to_string(),
+            body: "body".to_string(),
+        }
+        .to_json();
+        let e = check_binding(&json, REPO, HEAD, Some("Issue: #12\n\nCloses #44"))
+            .expect_err("refused");
+        assert!(e.contains("12") && e.contains("44"), "{e}");
+        assert!(!e.contains("names no issue"), "{e}");
+    }
+
+    #[test]
+    fn named_issue_is_none_when_the_body_names_two_distinct_issues() {
+        assert_eq!(named_issue(REPO, "Closes #1\nFixes #2"), None);
+        assert_eq!(named_issue(REPO, "Issue: #12\n\nCloses #12"), Some(12));
     }
 }
