@@ -1,4 +1,12 @@
 //! Provider-neutral sandbox interface: the seam between the factory and a sandbox provider.
+//!
+//! Known limits, accepted by the owner for this slice: the repository and the state folder stay
+//! mounted read-write for the agent. A setting planted in `.git/config` from inside the sandbox
+//! therefore runs on the host's next `git status`, and the agent can rewrite the journal under the
+//! state folder, so the host treats both as untrusted.
+//!
+//! The owner decided that an agent inside the factory's own isolated environment runs with its own
+//! sandbox off, because that environment is the wall. This sandbox provider is that wall.
 
 pub mod fake;
 pub mod validate;
