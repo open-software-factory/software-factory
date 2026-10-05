@@ -225,6 +225,10 @@ The work item comes from the pull request's own link. The `build` job runs
 `osf review work-item` with the job's read-only token. The command reads the
 pull request's body from the event. It takes the issue that the `Issue:`
 line names, or else the first issue the body closes with a closing keyword.
+A pull request whose visible text names two different issues in this
+repository is refused as a work item, and the reason names both numbers,
+in the shape
+`the pull request text names more than one issue in <repository>: #12, #34`.
 It reads that issue from this repository through the code host's API. It
 saves the issue's text, or the reason there is none, as the `work-item`
 artifact, and each reviewer job receives that file read-only. The saved work
