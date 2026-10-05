@@ -119,6 +119,28 @@ fn is_indented_code(line: &str) -> bool {
     line.starts_with('\t') || line.starts_with("    ")
 }
 
+/// `trimmed` with one leading list marker and the spaces after it removed.
+fn strip_list_marker(trimmed: &str) -> &str {
+    let marker_len = match trimmed.chars().next() {
+        Some('-' | '*' | '+') => 1,
+        Some(c) if c.is_ascii_digit() => {
+            let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+            match trimmed.chars().nth(digits) {
+                Some('.' | ')') => digits + 1,
+                _ => return trimmed,
+            }
+        }
+        _ => return trimmed,
+    };
+    let after = trimmed.get(marker_len..).unwrap_or("");
+    let content = after.trim_start_matches([' ', '\t']);
+    if content.len() < after.len() {
+        content
+    } else {
+        trimmed
+    }
+}
+
 /// The fence a line opens with, such as three backticks or three tildes.
 /// A backtick run opens a fence only when no backtick follows it on the line.
 fn fence_marker(trimmed: &str) -> Option<(char, usize)> {
@@ -443,7 +465,7 @@ pub(crate) fn prose(body: &str) -> String {
             out.push_str(newline);
             continue;
         }
-        if let Some(marker) = fence_marker(trimmed) {
+        if let Some(marker) = fence_marker(strip_list_marker(trimmed)) {
             fence = Some(marker);
             out.push_str(&spaces(content.chars().count()));
             out.push_str(newline);
@@ -1010,6 +1032,59 @@ mod tests {
     #[test]
     fn a_backtick_line_with_more_backticks_is_an_inline_span_not_a_fence() {
         assert_eq!(candidates("```x``` note\n\nCloses #44"), vec![(None, 44)]);
+    }
+
+    #[test]
+    fn a_fence_after_a_bullet_list_marker_hides_an_issue_line() {
+        assert_eq!(
+            candidates("- ```\n  Issue: #1\n  ```\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn a_fence_after_a_numbered_list_marker_hides_an_issue_line() {
+        assert_eq!(
+            candidates("1. ```\n   Issue: #1\n   ```\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn every_list_marker_form_opens_a_fence() {
+        for body in [
+            "* ```\n  Issue: #1\n  ```\nCloses #44",
+            "+ ```\n  Issue: #1\n  ```\nCloses #44",
+            "1) ```\n   Issue: #1\n   ```\nCloses #44",
+        ] {
+            assert_eq!(candidates(body), vec![(None, 44)], "{body}");
+        }
+    }
+
+    #[test]
+    fn a_list_fence_closes_without_indent() {
+        assert_eq!(
+            candidates("- ```\n  Issue: #1\n```\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn a_list_fence_with_an_info_string_hides_an_issue_line() {
+        assert_eq!(
+            candidates("- ```text\n  Issue: #1\n  ```\nCloses #44"),
+            vec![(None, 44)]
+        );
+    }
+
+    #[test]
+    fn inline_backticks_on_a_list_item_are_not_a_fence() {
+        assert_eq!(candidates("- ```x``` note\n\nCloses #44"), vec![(None, 44)]);
+    }
+
+    #[test]
+    fn a_plain_list_item_still_names_the_issue() {
+        assert_eq!(candidates("- Issue: #12"), vec![(None, 12)]);
     }
 
     #[test]
