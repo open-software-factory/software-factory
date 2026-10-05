@@ -6,7 +6,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 use super::event::{Event, Payload, SCHEMA_VERSION};
-use super::hash::{event_hash, genesis_hash, HashInput};
+use super::hash::{event_hash, genesis_hash, HashInput, ReplayDigest};
 use super::{validate_event, validate_run_id};
 
 /// A run's events read back in order, with the hash at the head of its chain.
@@ -16,6 +16,8 @@ pub struct RunJournal {
     pub events: Vec<Event>,
     /// The last event's hash, or the genesis hash for an empty journal.
     pub head_hash: String,
+    /// The replay digest over every event's decision fields.
+    pub replay_digest: String,
     /// True when the last event is a run-complete event.
     pub complete: bool,
 }
@@ -127,8 +129,9 @@ impl std::error::Error for ReadError {}
 /// writer cannot reach, such as a sink or the pull request, to detect such a
 /// rewrite.
 ///
-/// A replay gets new hashes because it is a new run with its own durations
-/// and cache outcomes.
+/// A replay gets a new chain head, because it is a new run with its own
+/// durations and cache outcomes. The replay digest is what two replays of the
+/// same decisions share, while the chain head proves the journal is intact.
 ///
 /// # Errors
 /// Returns [`ReadError::InvalidRunId`] when `run` is not a safe single path
@@ -160,6 +163,7 @@ fn read_text(text: &str, run: &str) -> Result<RunJournal, ReadError> {
         return Ok(RunJournal {
             events: Vec::new(),
             head_hash: genesis_hash(),
+            replay_digest: ReplayDigest::new().finish(),
             complete: false,
         });
     }
@@ -168,6 +172,7 @@ fn read_text(text: &str, run: &str) -> Result<RunJournal, ReadError> {
     let last = lines.len().saturating_sub(1);
     let mut events = Vec::with_capacity(lines.len());
     let mut head = genesis_hash();
+    let mut replay = ReplayDigest::new();
     let mut complete = false;
     for (index, line) in lines.iter().enumerate() {
         let number = index + 1;
@@ -183,11 +188,13 @@ fn read_text(text: &str, run: &str) -> Result<RunJournal, ReadError> {
         let event = check_line(line, number, run, &head)?;
         head.clone_from(&event.hash);
         complete = matches!(&event.payload, Payload::RunComplete(_));
+        replay.update(&event);
         events.push(event);
     }
     Ok(RunJournal {
         events,
         head_hash: head,
+        replay_digest: replay.finish(),
         complete,
     })
 }
@@ -503,6 +510,76 @@ mod tests {
         let b = read_run(&b_dir, "run-b").expect("read b");
         assert_eq!(a.head_hash, b.head_hash);
         assert_eq!(a.events.len(), b.events.len());
+    }
+
+    /// A verification payload with the given timing, cache outcome and verdict.
+    fn verification_with(duration_ms: u64, cache: &str, result: CheckResult) -> Payload {
+        let mut payload = verification();
+        if let Payload::Verification(inner) = &mut payload {
+            inner.duration_ms = duration_ms;
+            inner.cache = Some(cache.to_string());
+            inner.result = result;
+        }
+        payload
+    }
+
+    /// Writes one run with four events, naming its own head in run-complete.
+    fn write_matched_run(
+        dir: &Path,
+        run: &str,
+        duration_ms: u64,
+        cache: &str,
+        result: CheckResult,
+    ) {
+        let mut journal = Journal::open(dir, run)
+            .expect("open")
+            .with_work_item("github:open-software-factory/example#1".to_string());
+        journal
+            .append(&actor(), 1, run_started())
+            .expect("run-started");
+        journal
+            .append(&actor(), 2, verification_with(duration_ms, cache, result))
+            .expect("verification");
+        let head = journal.append(&actor(), 3, review()).expect("review").hash;
+        journal
+            .append(&actor(), 4, run_complete(head))
+            .expect("run-complete");
+    }
+
+    #[test]
+    fn two_runs_identical_except_timings_and_cache_share_a_replay_digest_and_differ_in_chain_head()
+    {
+        let a_dir = TempDir::new("osf-reader-replay-a");
+        let b_dir = TempDir::new("osf-reader-replay-b");
+        write_matched_run(&a_dir, "run-a", 12, "miss", CheckResult::Passed);
+        write_matched_run(&b_dir, "run-b", 900, "hit", CheckResult::Passed);
+        let a = read_run(&a_dir, "run-a").expect("read a");
+        let b = read_run(&b_dir, "run-b").expect("read b");
+        assert_eq!(a.replay_digest, b.replay_digest);
+        assert_ne!(a.head_hash, b.head_hash);
+        assert_eq!(a.events.len(), b.events.len());
+    }
+
+    #[test]
+    fn a_changed_verdict_changes_the_replay_digest() {
+        let a_dir = TempDir::new("osf-reader-verdict-a");
+        let b_dir = TempDir::new("osf-reader-verdict-b");
+        write_matched_run(&a_dir, "run-a", 12, "miss", CheckResult::Passed);
+        write_matched_run(&b_dir, "run-b", 12, "miss", CheckResult::Failed);
+        let a = read_run(&a_dir, "run-a").expect("read a");
+        let b = read_run(&b_dir, "run-b").expect("read b");
+        assert_ne!(a.replay_digest, b.replay_digest);
+    }
+
+    #[test]
+    fn a_read_run_reports_the_replay_digest_of_an_empty_journal() {
+        let dir = TempDir::new("osf-reader-empty-digest");
+        write_lines(&dir, "run-empty-digest", &[]);
+        let journal = read_run(&dir, "run-empty-digest").expect("read empty");
+        assert_eq!(
+            journal.replay_digest,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     #[test]

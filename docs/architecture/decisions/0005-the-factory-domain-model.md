@@ -2,7 +2,7 @@
 
 Status: accepted. Amended by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md) to add the checkpoint-complete and gap event types.
 
-Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below. Amended 2026-10-05 to add the `system` actor kind.
+Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below. Amended 2026-10-05 to add the `system` actor kind. Amended 2026-10-05 to say the replay digest, not the chain hash, proves a replay.
 
 ## Context
 
@@ -62,7 +62,7 @@ A finding that names a file and a line is written in SARIF, the static-analysis 
 
 ### Runs are replayable
 
-A run's event journal is hash-chained: each event carries the hash of the one before, with wall-clock time excluded. Two runs with identical inputs and identical decisions produce an identical head hash, which is how a replay proves it replayed.
+A run's event journal is hash-chained: each event carries the hash of the one before, with wall-clock time excluded. The chain hash proves the journal is intact. A second hash, the replay digest, covers the decision fields only: the event type, the work item, the actor, the inputs, the results and the verdicts. It leaves out timestamps, durations, cache outcomes, cost and run ids. Two runs with identical inputs and identical decisions produce an identical replay digest, which is how a replay proves it replayed.
 
 ## Consequences
 
