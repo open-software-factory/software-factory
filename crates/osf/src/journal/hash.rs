@@ -44,12 +44,15 @@
 //! `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
 //!
 //! A decision line is compact UTF-8 JSON: one object with exactly the keys
-//! `actor`, `change`, `payload` and `work_item`, in that order. `change` and
-//! `work_item` are written as `null` when absent. Every JSON object in the
-//! line has its keys in byte order (sorted). The `serde_json` `preserve_order`
-//! feature is on in this workspace, so the code sorts each object explicitly
-//! with a small recursive function that rebuilds it with its keys inserted in
-//! sorted order, rather than relying on the map type.
+//! `actor`, `change`, `payload` and `work_item`, in that order. `change` is
+//! written as an object with only the `commit` (the branch name is a label
+//! chosen by whoever starts the run, so a replay on a renamed branch shares
+//! the digest), and as `null` when absent; `work_item` is written as `null`
+//! when absent. Every JSON object in the line has its keys in byte order
+//! (sorted). The `serde_json` `preserve_order` feature is on in this
+//! workspace, so the code sorts each object explicitly with a small recursive
+//! function that rebuilds it with its keys inserted in sorted order, rather
+//! than relying on the map type.
 //!
 //! `payload` is the tagged payload `{"event_type": ..., "payload": {...}}`
 //! with these fields removed from the inner object: for verification
@@ -57,9 +60,10 @@
 //! for run-complete `head_hash` and `transcript_hash`. A field that is `None`
 //! is left out, as in the chain.
 //!
-//! `timestamp_ms`, `cost`, `run`, `schema_version`, `prev_hash` and `hash`
-//! are never in the line: they hold timings, cache outcomes, cost, run ids,
-//! the chain head or transcripts, none of which is a decision.
+//! `timestamp_ms`, `cost`, `run`, `schema_version`, `prev_hash`, `hash` and
+//! the branch name are never in the line: they hold timings, cache outcomes,
+//! cost, run ids, the chain head, transcripts or the label chosen by whoever
+//! starts the run, none of which is a decision.
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -190,7 +194,12 @@ fn decision_line(event: &Event) -> String {
         "change".to_string(),
         match &event.change {
             Some(change) => {
-                serde_json::to_value(change).expect("a change always serialises to JSON")
+                let mut commit = serde_json::Map::new();
+                commit.insert(
+                    "commit".to_string(),
+                    serde_json::Value::String(change.commit.clone()),
+                );
+                serde_json::Value::Object(commit)
             }
             None => serde_json::Value::Null,
         },
@@ -502,8 +511,8 @@ mod tests {
         let lines: Vec<String> = events.iter().map(decision_line).collect();
         let expected = [
             r#"{"actor":{"kind":"system","name":"osf"},"change":null,"payload":{"event_type":"run-started","payload":{"repository":"github:open-software-factory/example","title":"Ship the fix"}},"work_item":"github:open-software-factory/example#1"}"#.to_string(),
-            r#"{"actor":{"kind":"system","name":"osf"},"change":{"branch":"main","commit":"abc123"},"payload":{"event_type":"verification","payload":{"check":"osf:lint","checkpoint":"pre-commit","findings":0,"grade":"observed","result":"passed"}},"work_item":"github:open-software-factory/example#1"}"#.to_string(),
-            r#"{"actor":{"kind":"system","name":"osf"},"change":{"branch":"main","commit":"abc123"},"payload":{"event_type":"run-complete","payload":{"grade":"derived","outcome":"completed","summary":"all checks passed"}},"work_item":"github:open-software-factory/example#1"}"#.to_string(),
+            r#"{"actor":{"kind":"system","name":"osf"},"change":{"commit":"abc123"},"payload":{"event_type":"verification","payload":{"check":"osf:lint","checkpoint":"pre-commit","findings":0,"grade":"observed","result":"passed"}},"work_item":"github:open-software-factory/example#1"}"#.to_string(),
+            r#"{"actor":{"kind":"system","name":"osf"},"change":{"commit":"abc123"},"payload":{"event_type":"run-complete","payload":{"grade":"derived","outcome":"completed","summary":"all checks passed"}},"work_item":"github:open-software-factory/example#1"}"#.to_string(),
         ];
         assert_eq!(lines, expected);
         let mut replay = ReplayDigest::new();
@@ -513,8 +522,29 @@ mod tests {
         // The digest was computed with sha256sum outside Rust over the three lines each followed by a newline.
         assert_eq!(
             replay.finish(),
-            "c13dcbaaf1a99e7f40f9ecb0f1195dfb5566c45a3360133a134586241be31681"
+            "5a89bc420aeb3a8b4e3adbae902235b03159430f9a84ef55d6bfa0654a921aa3"
         );
+    }
+
+    #[test]
+    fn a_renamed_branch_with_the_same_commit_keeps_the_replay_digest() {
+        let events = fixed_run();
+        let original = events.get(1).expect("the verification event").clone();
+        let baseline = one_event_digest(&original);
+
+        let mut renamed = original.clone();
+        renamed.change = Some(Change {
+            branch: "renamed".into(),
+            commit: "abc123".into(),
+        });
+        assert_eq!(one_event_digest(&renamed), baseline);
+
+        let mut recommitted = original.clone();
+        recommitted.change = Some(Change {
+            branch: "main".into(),
+            commit: "def456".into(),
+        });
+        assert_ne!(one_event_digest(&recommitted), baseline);
     }
 
     #[test]
