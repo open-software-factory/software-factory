@@ -37,6 +37,7 @@ case "$1" in
 create) printf '{CREATE_ID}\n'; exit 0 ;;
 start) exit 0 ;;
 exec) {exec_body} ;;
+inspect) printf '{CREATE_ID}\n'; exit 0 ;;
 rm) exit 0 ;;
 *) exit 1 ;;
 esac

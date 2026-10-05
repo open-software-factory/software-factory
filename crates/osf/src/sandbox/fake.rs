@@ -1,5 +1,6 @@
 //! An in-memory [`Sandbox`] test double: it records every call as plain data and does no I/O.
 
+use crate::sandbox::validate::{validate_command, validate_spec};
 use crate::sandbox::{
     Capability, CommandSpec, Destroyed, RunOutcome, RunResult, Sandbox, SandboxCapabilities,
     SandboxError, SandboxId, SandboxSpec,
@@ -104,6 +105,7 @@ impl Default for FakeSandbox {
 
 impl Sandbox for FakeSandbox {
     fn create(&self, spec: &SandboxSpec) -> Result<SandboxId, SandboxError> {
+        validate_spec(spec)?;
         lock(&self.calls).push(Call::Create { spec: spec.clone() });
         if let Some(error) = self.failure(Operation::Create) {
             return Err(error);
@@ -114,6 +116,7 @@ impl Sandbox for FakeSandbox {
     }
 
     fn run(&self, id: &SandboxId, command: &CommandSpec) -> Result<RunResult, SandboxError> {
+        validate_command(command)?;
         lock(&self.calls).push(Call::Run {
             id: id.clone(),
             command: command.clone(),
@@ -193,6 +196,61 @@ mod tests {
             stdout_truncated: false,
             stderr_truncated: false,
         }
+    }
+
+    fn create_rejected(bad: &SandboxSpec) {
+        let sandbox = FakeSandbox::new();
+        let error = sandbox.create(bad).expect_err("the spec is rejected");
+        assert!(matches!(error, SandboxError::Rejected(_)), "{error:?}");
+        assert!(
+            sandbox.calls().is_empty(),
+            "a rejected create is not recorded"
+        );
+    }
+
+    fn run_rejected(command: &CommandSpec) {
+        let sandbox = FakeSandbox::new();
+        let id = SandboxId("fake-build".to_string());
+        let error = sandbox
+            .run(&id, command)
+            .expect_err("the command is rejected");
+        assert!(matches!(error, SandboxError::Rejected(_)), "{error:?}");
+        assert!(sandbox.calls().is_empty(), "a rejected run is not recorded");
+    }
+
+    #[test]
+    fn create_rejects_a_bad_image_without_recording() {
+        let mut bad = spec();
+        bad.image = "example/base:latest".to_string();
+        create_rejected(&bad);
+    }
+
+    #[test]
+    fn create_rejects_a_root_user_without_recording() {
+        let mut bad = spec();
+        bad.user = "root".to_string();
+        create_rejected(&bad);
+    }
+
+    #[test]
+    fn create_rejects_a_zero_process_limit_without_recording() {
+        let mut bad = spec();
+        bad.limits.max_processes = 0;
+        create_rejected(&bad);
+    }
+
+    #[test]
+    fn run_rejects_a_zero_timeout_without_recording() {
+        let mut bad = command();
+        bad.timeout_secs = Some(0);
+        run_rejected(&bad);
+    }
+
+    #[test]
+    fn run_rejects_a_bad_env_key_without_recording() {
+        let mut bad = command();
+        bad.env.insert("1BAD".to_string(), "value".to_string());
+        run_rejected(&bad);
     }
 
     #[test]

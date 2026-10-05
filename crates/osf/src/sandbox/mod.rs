@@ -1,6 +1,7 @@
 //! Provider-neutral sandbox interface: the seam between the factory and a sandbox provider.
 
 pub mod fake;
+pub mod validate;
 
 use std::collections::BTreeMap;
 use std::fmt;

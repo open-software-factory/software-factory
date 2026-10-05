@@ -2,7 +2,7 @@
 //! dry run, and execute the plan over the [`Sandbox`] seam.
 
 use crate::docker_sandbox::{
-    create_argv, exec_argv, remove_argv, start_argv, validate_command, validate_spec,
+    create_argv, exec_argv, inspect_argv, remove_argv, start_argv, validate_command, validate_spec,
 };
 use crate::sandbox::{
     CommandSpec, Destroyed, Limits, Mount, Network, RunOutcome, RunResult, Sandbox, SandboxError,
@@ -149,8 +149,8 @@ pub fn plan(request: &RunRequest) -> Result<Plan, SandboxError> {
     Ok(Plan { spec, command })
 }
 
-/// The dry-run JSON: the exact `create`, `start`, `exec` and `remove` argv,
-/// with [`DRY_RUN_ID`] standing in for the container id.
+/// The dry-run JSON: the exact `create`, `start`, `exec`, `inspect` and
+/// `remove` argv, with [`DRY_RUN_ID`] standing in for the container id.
 ///
 /// # Panics
 /// Never in practice: the value holds only strings and arrays, so
@@ -161,6 +161,7 @@ pub fn dry_run_json(plan: &Plan) -> String {
         "create": create_argv(&plan.spec),
         "start": start_argv(DRY_RUN_ID),
         "exec": exec_argv(DRY_RUN_ID, &plan.command),
+        "inspect": inspect_argv(DRY_RUN_ID),
         "remove": remove_argv(DRY_RUN_ID),
     });
     let mut text =
@@ -594,6 +595,7 @@ mod tests {
                 ],
                 "start": ["start", "--", "<id>"],
                 "exec": ["exec", "--", "<id>", "sh", "-c", "echo hi"],
+                "inspect": ["inspect", "--type", "container", "--format", "{{.Id}}", "--", "<id>"],
                 "remove": ["rm", "--force", "--", "<id>"],
             })
         );

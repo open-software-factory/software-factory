@@ -99,6 +99,18 @@ fn dry_run_prints_the_pinned_argv_for_both_folders() {
         "{exec:?}"
     );
     assert_eq!(argv(&value, "start"), vec!["start", "--", "<id>"]);
+    assert_eq!(
+        argv(&value, "inspect"),
+        vec![
+            "inspect",
+            "--type",
+            "container",
+            "--format",
+            "{{.Id}}",
+            "--",
+            "<id>"
+        ]
+    );
     assert_eq!(argv(&value, "remove"), vec!["rm", "--force", "--", "<id>"]);
 }
 
