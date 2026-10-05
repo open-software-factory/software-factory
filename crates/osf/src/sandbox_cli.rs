@@ -43,13 +43,13 @@ pub struct Execution {
     pub message: Option<String>,
 }
 
-/// The sandbox one tracked run created, shared with the signal watcher so a
-/// stop can find it.
+/// The sandbox one tracked run created, shared with the signal watcher so a stop can find it.
 #[derive(Debug, Default)]
 pub struct SandboxTracker {
     current: std::sync::Mutex<Option<SandboxId>>,
     stopping: std::sync::atomic::AtomicBool,
     gate: std::sync::Mutex<()>,
+    create_gate: std::sync::Mutex<()>,
 }
 
 impl SandboxTracker {
@@ -74,6 +74,13 @@ impl SandboxTracker {
     /// Holds the removal gate: one removal at a time, or docker reports one already in progress.
     pub fn gate(&self) -> std::sync::MutexGuard<'_, ()> {
         self.gate
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Holds the create gate: a stop waits for a create in flight to finish.
+    pub fn creating(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.create_gate
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
@@ -170,25 +177,29 @@ pub fn dry_run_json(plan: &Plan) -> String {
     text
 }
 
-/// Runs the plan over `sandbox`: create, run, then always destroy; a provider
-/// error or a failed removal becomes the `osf:` message and its exit code.
-/// Records the created sandbox in `tracker` while it exists.
+/// Runs the plan over `sandbox`: create, run, then always destroy; a stop owns the removal.
 #[must_use]
 pub fn execute_tracked(sandbox: &dyn Sandbox, plan: &Plan, tracker: &SandboxTracker) -> Execution {
+    let create_guard = tracker.creating();
+    if tracker.is_stopping() {
+        return stopped_by_signal();
+    }
     let id = match sandbox.create(&plan.spec) {
         Ok(id) => id,
-        Err(error) => return refused(&error),
+        Err(error) => {
+            drop(create_guard);
+            return refused(&error);
+        }
     };
     tracker.set(id.clone());
+    drop(create_guard);
+    if tracker.is_stopping() {
+        return stopped_by_signal();
+    }
     let run = sandbox.run(&id, &plan.command);
     let gate = tracker.gate();
     if tracker.is_stopping() {
-        return Execution {
-            stdout: String::new(),
-            stderr: String::new(),
-            exit_code: 125,
-            message: Some("stopped by a signal; the stop removes the sandbox".to_string()),
-        };
+        return stopped_by_signal();
     }
     let destroyed = sandbox.destroy(&id);
     tracker.clear();
@@ -256,8 +267,7 @@ pub fn execute(sandbox: &dyn Sandbox, plan: &Plan) -> Execution {
     execute_tracked(sandbox, plan, &SandboxTracker::new())
 }
 
-/// Stops the sandbox for `signal`: the tracked id, or the container name
-/// `name` when no id was recorded yet.
+/// Stops the sandbox for `signal`: waits for a create, then removes the id or `name`.
 #[must_use]
 pub fn stop_for_signal(
     sandbox: &dyn Sandbox,
@@ -266,6 +276,7 @@ pub fn stop_for_signal(
     signal: i32,
 ) -> Execution {
     tracker.begin_stop();
+    let creating = tracker.creating();
     let gate = tracker.gate();
     let target = tracker
         .current()
@@ -273,6 +284,7 @@ pub fn stop_for_signal(
     let destroyed = sandbox.destroy(&target);
     tracker.clear();
     drop(gate);
+    drop(creating);
     let message = match destroyed {
         Ok(Destroyed::Removed) => format!("stopped by signal {signal}; the sandbox was removed"),
         Ok(Destroyed::AlreadyGone) => {
@@ -375,6 +387,16 @@ fn refused(error: &SandboxError) -> Execution {
     }
 }
 
+/// The run loop's stop execution: 125, and the stop removes the sandbox.
+fn stopped_by_signal() -> Execution {
+    Execution {
+        stdout: String::new(),
+        stderr: String::new(),
+        exit_code: 125,
+        message: Some("stopped by a signal; the stop removes the sandbox".to_string()),
+    }
+}
+
 /// An exit status outside `0..=255` becomes 125.
 fn clamp(code: i32) -> u8 {
     u8::try_from(code).unwrap_or(125)
@@ -385,7 +407,9 @@ mod tests {
     use super::*;
     use crate::sandbox::fake::{Call, FakeSandbox, Operation};
     use crate::sandbox::{Destroyed, RunResult, SandboxCapabilities, SandboxId, SandboxSpec};
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex, PoisonError};
+    use std::time::Duration;
 
     /// A double that forgets the id it just created, so destroy sees it gone.
     struct ForgetfulSandbox(FakeSandbox);
@@ -948,6 +972,38 @@ mod tests {
     }
 
     #[test]
+    fn stop_for_signal_waits_for_a_create_in_flight() {
+        let sandbox = Arc::new(FakeSandbox::new());
+        let tracker = Arc::new(SandboxTracker::new());
+        let finished = Arc::new(AtomicBool::new(false));
+        let guard = tracker.creating();
+        let stop_sandbox = Arc::clone(&sandbox);
+        let stop_tracker = Arc::clone(&tracker);
+        let done = Arc::clone(&finished);
+        std::thread::scope(|scope| {
+            scope.spawn(move || {
+                let _ =
+                    stop_for_signal(stop_sandbox.as_ref(), stop_tracker.as_ref(), "fallback", 15);
+                done.store(true, Ordering::SeqCst);
+            });
+            std::thread::sleep(Duration::from_millis(100));
+            assert!(
+                !finished.load(Ordering::SeqCst),
+                "the stop waits for the create"
+            );
+            drop(guard);
+        });
+        assert!(finished.load(Ordering::SeqCst), "the stop finishes");
+        assert_eq!(
+            one_destroy(&sandbox),
+            Call::Destroy {
+                id: SandboxId("fallback".to_string()),
+            }
+        );
+        assert_eq!(tracker.current(), None);
+    }
+
+    #[test]
     fn a_run_that_ends_after_a_stop_began_leaves_the_removal_to_the_stop() {
         let sandbox = FakeSandbox::new();
         let tracker = SandboxTracker::new();
@@ -958,11 +1014,9 @@ mod tests {
             .message
             .as_deref()
             .is_some_and(|message| message.contains("stopped by a signal")));
-        let destroys = sandbox
-            .calls()
-            .into_iter()
-            .filter(|call| matches!(call, Call::Destroy { .. }))
-            .count();
-        assert_eq!(destroys, 0);
+        assert!(
+            sandbox.calls().is_empty(),
+            "a stop before create makes no call"
+        );
     }
 }

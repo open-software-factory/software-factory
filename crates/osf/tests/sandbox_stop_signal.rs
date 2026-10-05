@@ -25,16 +25,20 @@ fn serial() -> MutexGuard<'static, ()> {
 /// The 64-character lowercase hexadecimal id the fake `create` prints.
 const CREATE_ID: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-/// Writes the fake `docker` script in `dir`, with `exec_body` for its `exec`
-/// branch. Every call appends its argv to `calls.log` next to the script.
-fn fake_docker(dir: &Path, exec_body: &str) {
+/// Writes the fake `docker` script: `create_body` runs in `create`, `exec_body` in `exec`.
+fn fake_docker(dir: &Path, create_body: &str, exec_body: &str) {
     let path = dir.join("docker");
     let body = format!(
         r#"#!/bin/sh
 dir="$(cd "$(dirname "$0")" && pwd)"
 printf '%s\n' "$*" >> "$dir/calls.log"
 case "$1" in
-create) printf '{CREATE_ID}\n'; exit 0 ;;
+create)
+  {create_body}
+  : > "$dir/created"
+  printf 'create-done\n' >> "$dir/calls.log"
+  printf '{CREATE_ID}\n'
+  exit 0 ;;
 start) exit 0 ;;
 exec)
   prev=
@@ -43,7 +47,10 @@ exec)
   if [ "$prev" = "id" ] && [ "$last" = "-u" ]; then printf '1000\n'; exit 0; fi
   {exec_body}
   ;;
-inspect) printf '{CREATE_ID}\n'; exit 0 ;;
+inspect)
+  if [ ! -f "$dir/created" ]; then printf 'Error: No such container: x\n' >&2; exit 1; fi
+  printf '{CREATE_ID}\n'
+  exit 0 ;;
 rm) exit 0 ;;
 *) exit 1 ;;
 esac
@@ -133,7 +140,7 @@ fn stopped_run(name: &str, signal: &str) -> (String, std::process::Output) {
     let repo = TempDir::new(&format!("{name}-repo"));
     let state = TempDir::new(&format!("{name}-state"));
     let marker = area.join("exec-started");
-    fake_docker(&area, "touch \"$dir/exec-started\"; sleep 5; exit 0");
+    fake_docker(&area, "", "touch \"$dir/exec-started\"; sleep 5; exit 0");
     let args = run_args(&repo, &state, name);
     let child = osf_command(&repo, &home, &area, &args)
         .spawn()
@@ -174,13 +181,60 @@ fn a_sigint_removes_the_sandbox_and_exits_130() {
 }
 
 #[test]
+fn a_sigterm_during_create_waits_for_the_create_then_removes_the_sandbox() {
+    let _lock = serial();
+    let area = TempDir::new("osf-signal-create");
+    let home = isolated_home("osf-signal-create");
+    let repo = TempDir::new("osf-signal-create-repo");
+    let state = TempDir::new("osf-signal-create-state");
+    let started = area.join("create-started");
+    fake_docker(&area, "touch \"$dir/create-started\"; sleep 2", "");
+    let args = run_args(&repo, &state, "osf-signal-create");
+    let child = osf_command(&repo, &home, &area, &args)
+        .spawn()
+        .expect("osf spawns");
+    wait_for(&started, Duration::from_secs(10));
+    send_signal(&child, "-TERM");
+    let output = child.wait_with_output().expect("osf exits");
+    assert_eq!(output.status.code(), Some(143), "{output:?}");
+    let log = fs::read_to_string(area.join("calls.log")).expect("the fake logged its calls");
+    let lines: Vec<&str> = log.lines().collect();
+    let create_done = lines
+        .iter()
+        .position(|line| *line == "create-done")
+        .expect("the create finished");
+    let remove_line = format!("rm --force -- {CREATE_ID}");
+    let removed = lines
+        .iter()
+        .position(|line| *line == remove_line.as_str())
+        .expect("the sandbox is removed");
+    assert!(removed > create_done, "{log}");
+    // The create-time user check is the only exec; the requested command must not run.
+    let execs: Vec<&str> = lines
+        .iter()
+        .copied()
+        .filter(|line| line.starts_with("exec"))
+        .collect();
+    assert_eq!(
+        execs.len(),
+        1,
+        "only the create-time user check runs: {log}"
+    );
+    assert!(
+        execs.first().is_some_and(|line| line.ends_with("id -u")),
+        "{log}"
+    );
+    assert!(area.join("created").exists(), "the sandbox was created");
+}
+
+#[test]
 fn a_normal_run_removes_the_sandbox_once_and_exits_zero() {
     let _lock = serial();
     let area = TempDir::new("osf-signal-normal");
     let home = isolated_home("osf-signal-normal");
     let repo = TempDir::new("osf-signal-normal-repo");
     let state = TempDir::new("osf-signal-normal-state");
-    fake_docker(&area, "exit 0");
+    fake_docker(&area, "", "exit 0");
     let args = run_args(&repo, &state, "osf-signal-normal");
     let output = osf_command(&repo, &home, &area, &args)
         .output()
