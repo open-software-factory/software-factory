@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "a73c257e679990bfd4f67331e4428319beb51b4b",
+    "contentHash": "266460ec701ebcb5eaaa4d73e5e3d8a8"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "journal-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "126ba2457a767d3f1fd90974ab10f9d1",
+      "bytes": 26871,
+      "width": 1780,
+      "height": 646,
+      "animated": false,
+      "path": "journal-containers-light-126ba2457a767d3f1fd90974ab10f9d1.svg"
+    },
+    {
+      "id": "journal-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a236595d25161155983c9286d023f56e",
+      "bytes": 27174,
+      "width": 1780,
+      "height": 646,
+      "animated": false,
+      "path": "journal-containers-dark-a236595d25161155983c9286d023f56e.svg"
+    },
+    {
+      "id": "journal-writer-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-writer-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "040dab9f3e4c78c01b84d219ff947f07",
+      "bytes": 13819,
+      "width": 950,
+      "height": 532,
+      "animated": false,
+      "path": "journal-writer-components-light-040dab9f3e4c78c01b84d219ff947f07.svg"
+    },
+    {
+      "id": "journal-writer-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-writer-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "85a4b65bb8f3145273fb092d55677a17",
+      "bytes": 13977,
+      "width": 950,
+      "height": 532,
+      "animated": false,
+      "path": "journal-writer-components-dark-85a4b65bb8f3145273fb092d55677a17.svg"
+    },
+    {
+      "id": "journal-reader-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-reader-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2b67f0431c5639f53d8936b4550f2426",
+      "bytes": 8791,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "journal-reader-components-light-2b67f0431c5639f53d8936b4550f2426.svg"
+    },
+    {
+      "id": "journal-reader-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-reader-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fcfd7cf68295fba160b6d90de33ea70b",
+      "bytes": 8882,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "journal-reader-components-dark-fcfd7cf68295fba160b6d90de33ea70b.svg"
+    },
+    {
+      "id": "append-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "append-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "66f8f93f5bae06be80ee9f4797028761",
+      "bytes": 14878,
+      "width": 1551,
+      "height": 445,
+      "animated": true,
+      "path": "append-flow-view-light-66f8f93f5bae06be80ee9f4797028761.svg"
+    },
+    {
+      "id": "append-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "append-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ad3fc8a035c262407f2b7a0798c17b17",
+      "bytes": 15025,
+      "width": 1551,
+      "height": 445,
+      "animated": true,
+      "path": "append-flow-view-dark-ad3fc8a035c262407f2b7a0798c17b17.svg"
+    },
+    {
+      "id": "replay-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "replay-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c8cf7adc9166e41485d7b7f3da51968a",
+      "bytes": 11865,
+      "width": 1100,
+      "height": 357,
+      "animated": true,
+      "path": "replay-flow-view-light-c8cf7adc9166e41485d7b7f3da51968a.svg"
+    },
+    {
+      "id": "replay-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "replay-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "df8ee1c5192a21c829a68f3375ca8487",
+      "bytes": 11989,
+      "width": 1100,
+      "height": 357,
+      "animated": true,
+      "path": "replay-flow-view-dark-df8ee1c5192a21c829a68f3375ca8487.svg"
+    }
+  ]
+}
