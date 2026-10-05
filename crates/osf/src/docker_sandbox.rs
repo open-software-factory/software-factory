@@ -6,7 +6,7 @@ use crate::sandbox::{
     Capability, CommandSpec, Destroyed, Mount, Network, RunOutcome, RunResult, Sandbox,
     SandboxCapabilities, SandboxError, SandboxId, SandboxSpec,
 };
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::fmt;
 #[cfg(unix)]
 use std::os::unix::process::CommandExt as _;
@@ -68,7 +68,7 @@ impl std::error::Error for RunnerError {}
 
 /// Runs one `docker` invocation.
 pub trait DockerRunner: Send + Sync {
-    /// Runs `argv`, writing `stdin` to the program's standard input then closing the pipe; with none, standard input is null, and waits at most `timeout`.
+    /// Runs `argv`, writing `stdin` to the program's standard input then closing the pipe; with none, standard input is null, and waits at most `timeout`. `env` is applied to the child process only, so its values never reach the argv.
     ///
     /// # Errors
     /// Returns a [`RunnerError`] when the program cannot start or a reader panics.
@@ -77,14 +77,15 @@ pub trait DockerRunner: Send + Sync {
         argv: &[String],
         timeout: Option<Duration>,
         stdin: Option<&[u8]>,
+        env: &BTreeMap<String, String>,
     ) -> Result<ToolOutput, RunnerError>;
 
-    /// Runs `argv` with no standard input, waiting at most `timeout`.
+    /// Runs `argv` with no standard input and no extra environment, waiting at most `timeout`.
     ///
     /// # Errors
     /// Returns a [`RunnerError`] when the program cannot start or a reader panics.
     fn run(&self, argv: &[String], timeout: Option<Duration>) -> Result<ToolOutput, RunnerError> {
-        self.run_with_stdin(argv, timeout, None)
+        self.run_with_stdin(argv, timeout, None, &BTreeMap::new())
     }
 }
 
@@ -126,10 +127,12 @@ impl DockerRunner for RealDockerRunner {
         argv: &[String],
         timeout: Option<Duration>,
         stdin: Option<&[u8]>,
+        env: &BTreeMap<String, String>,
     ) -> Result<ToolOutput, RunnerError> {
         let mut command = Command::new(&self.program);
         command
             .args(argv)
+            .envs(env)
             .stdin(if stdin.is_some() {
                 Stdio::piped()
             } else {
@@ -506,15 +509,17 @@ pub fn start_argv(id: &str) -> Vec<String> {
 
 /// The `docker exec` argv for `command` in `id`, without the program name.
 ///
-/// A local user can see each `--env` value in the process list while the command runs.
+/// Each environment entry contributes its name only; the values travel in the
+/// environment of the client process, never in this argv.
 #[must_use]
 pub fn exec_argv(id: &str, command: &CommandSpec) -> Vec<String> {
     let mut argv = vec!["exec".to_string()];
     if let Some(workdir) = &command.workdir {
         argv.push(format!("--workdir={workdir}"));
     }
-    for (key, value) in &command.env {
-        argv.push(format!("--env={key}={value}"));
+    for key in command.env.keys() {
+        argv.push("--env".to_string());
+        argv.push(key.clone());
     }
     if command.stdin.is_some() {
         argv.push("-i".to_string());
@@ -730,6 +735,60 @@ pub fn tool_text(output: &ToolOutput) -> String {
     }
 }
 
+/// The exact environment names that would change how the client itself behaves.
+const RESERVED_CLIENT_ENV: [&str; 18] = [
+    "PATH",
+    "HOME",
+    "USERPROFILE",
+    "APPDATA",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "SYSTEMROOT",
+    "SHELL",
+    "USER",
+    "LOGNAME",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "NO_PROXY",
+    "ALL_PROXY",
+    "SSL_CERT_FILE",
+    "SSL_CERT_DIR",
+    "KUBECONFIG",
+];
+
+/// The environment-name prefixes that would change how the client itself behaves.
+const RESERVED_CLIENT_ENV_PREFIXES: [&str; 7] = [
+    "DOCKER_",
+    "LD_",
+    "DYLD_",
+    "XDG_",
+    "BUILDKIT_",
+    "COMPOSE_",
+    "CONTAINER_",
+];
+
+/// Refuses an environment key that would hijack the client process itself.
+///
+/// # Errors
+/// Returns [`SandboxError::Rejected`] naming the key, never its value.
+fn check_client_env(command: &CommandSpec) -> Result<(), SandboxError> {
+    for key in command.env.keys() {
+        let upper = key.to_ascii_uppercase();
+        let named = RESERVED_CLIENT_ENV.contains(&upper.as_str());
+        let prefixed = RESERVED_CLIENT_ENV_PREFIXES
+            .iter()
+            .copied()
+            .any(|prefix| upper.starts_with(prefix));
+        if named || prefixed {
+            return Err(SandboxError::Rejected(format!(
+                "the environment variable name is reserved for the client process: {key}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// The Docker [`Sandbox`] over `R`.
 pub struct DockerSandbox<R: DockerRunner> {
     runner: R,
@@ -833,6 +892,7 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
 
     fn run(&self, id: &SandboxId, command: &CommandSpec) -> Result<RunResult, SandboxError> {
         validate_command(command)?;
+        check_client_env(command)?;
         let limit_secs = command.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS);
         let timeout = Some(Duration::from_secs(limit_secs));
         let output = self
@@ -841,6 +901,7 @@ impl<R: DockerRunner> Sandbox for DockerSandbox<R> {
                 &exec_argv(&id.0, command),
                 timeout,
                 command.stdin.as_deref(),
+                &command.env,
             )
             .map_err(|error| SandboxError::Failed(redact(&error.0, command)))?;
 
@@ -929,6 +990,7 @@ mod tests {
         argv: Vec<String>,
         timeout: Option<Duration>,
         stdin: Option<Vec<u8>>,
+        env: BTreeMap<String, String>,
     }
 
     /// A [`DockerRunner`] that records every call and answers in order.
@@ -956,11 +1018,13 @@ mod tests {
             argv: &[String],
             timeout: Option<Duration>,
             stdin: Option<&[u8]>,
+            env: &BTreeMap<String, String>,
         ) -> Result<ToolOutput, RunnerError> {
             lock(&self.calls).push(Call {
                 argv: argv.to_vec(),
                 timeout,
                 stdin: stdin.map(<[u8]>::to_vec),
+                env: env.clone(),
             });
             lock(&self.results)
                 .pop_front()
@@ -1262,21 +1326,23 @@ mod tests {
     }
 
     #[test]
-    fn exec_argv_pins_env_entries_in_map_order() {
+    fn exec_argv_pins_the_env_names_in_map_order_without_a_value() {
         let mut command = command();
-        command.env.insert("B".to_string(), "2".to_string());
-        command.env.insert("A".to_string(), "1".to_string());
+        command
+            .env
+            .insert("OTHER".to_string(), "another-secret".to_string());
+        command
+            .env
+            .insert("API_KEY".to_string(), "s3cr3t-value".to_string());
+        let argv = exec_argv("abc", &command);
         assert_eq!(
-            exec_argv("abc", &command),
-            strings(&[
-                "exec",
-                "--env=A=1",
-                "--env=B=2",
-                "--",
-                "abc",
-                "run",
-                "--fast",
-            ])
+            argv,
+            strings(&["exec", "--env", "API_KEY", "--env", "OTHER", "--", "abc", "run", "--fast",])
+        );
+        assert!(
+            argv.iter()
+                .all(|word| !word.contains("s3cr3t-value") && !word.contains("another-secret")),
+            "{argv:?}"
         );
     }
 
@@ -1291,25 +1357,37 @@ mod tests {
     }
 
     #[test]
-    fn exec_argv_pins_env_stdin_and_workdir_together() {
+    fn exec_argv_pins_env_stdin_and_workdir_together_without_a_value() {
         let mut command = command();
         command.workdir = Some("/work".to_string());
-        command.env.insert("B".to_string(), "2".to_string());
-        command.env.insert("A".to_string(), "1".to_string());
+        command
+            .env
+            .insert("OTHER".to_string(), "another-secret".to_string());
+        command
+            .env
+            .insert("API_KEY".to_string(), "s3cr3t-value".to_string());
         command.stdin = Some(b"input".to_vec());
+        let argv = exec_argv("abc", &command);
         assert_eq!(
-            exec_argv("abc", &command),
+            argv,
             strings(&[
                 "exec",
                 "--workdir=/work",
-                "--env=A=1",
-                "--env=B=2",
+                "--env",
+                "API_KEY",
+                "--env",
+                "OTHER",
                 "-i",
                 "--",
                 "abc",
                 "run",
                 "--fast",
             ])
+        );
+        assert!(
+            argv.iter()
+                .all(|word| !word.contains("s3cr3t-value") && !word.contains("another-secret")),
+            "{argv:?}"
         );
     }
 
@@ -1662,11 +1740,13 @@ mod tests {
                     argv: create_argv(&resolved_real_spec()),
                     timeout: Some(Duration::from_secs(120)),
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
                 Call {
                     argv: start_argv(&created),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
             ]
         );
@@ -1774,16 +1854,19 @@ mod tests {
                     argv: create_argv(&resolved_real_spec()),
                     timeout: Some(Duration::from_secs(120)),
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
                 Call {
                     argv: start_argv(&created),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
                 Call {
                     argv: remove_argv(&created),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
             ]
         );
@@ -1834,6 +1917,7 @@ mod tests {
                 argv: exec_argv("abc", &command()),
                 timeout: Some(Duration::from_secs(30)),
                 stdin: None,
+                env: BTreeMap::new(),
             }]
         );
     }
@@ -1859,6 +1943,7 @@ mod tests {
                 argv: exec_argv("abc", &command),
                 timeout: Some(Duration::from_secs(1800)),
                 stdin: None,
+                env: BTreeMap::new(),
             }]
         );
     }
@@ -1931,11 +2016,13 @@ mod tests {
                     argv: exec_argv("abc", &command()),
                     timeout: Some(Duration::from_secs(30)),
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
                 Call {
                     argv: kill_argv("abc"),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
             ]
         );
@@ -2008,6 +2095,7 @@ mod tests {
                 argv: exec_argv("abc", &command),
                 timeout: Some(Duration::from_secs(30)),
                 stdin: Some(b"the input".to_vec()),
+                env: BTreeMap::new(),
             }]
         );
     }
@@ -2023,8 +2111,209 @@ mod tests {
                 argv: exec_argv("abc", &command()),
                 timeout: Some(Duration::from_secs(30)),
                 stdin: None,
+                env: BTreeMap::new(),
             }]
         );
+    }
+
+    #[test]
+    fn run_passes_env_values_to_the_runner_and_keeps_them_out_of_argv() {
+        let mut command = command();
+        command
+            .env
+            .insert("API_KEY".to_string(), "s3cr3t-value".to_string());
+        command
+            .env
+            .insert("OTHER".to_string(), "another-secret".to_string());
+        let sandbox = sandbox(vec![Ok(timeout_output("")), Ok(ok(""))]);
+        let id = SandboxId("abc".to_string());
+        let result = sandbox.run(&id, &command).expect("runs");
+        assert_eq!(result.outcome, RunOutcome::TimedOut { limit_secs: 30 });
+        let calls = sandbox.runner.calls();
+        assert_eq!(calls.len(), 2, "the exec and the kill");
+        let exec = calls.first().expect("the exec call");
+        assert_eq!(exec.argv, exec_argv("abc", &command));
+        assert_eq!(exec.env, command.env);
+        for call in &calls {
+            assert!(
+                call.argv
+                    .iter()
+                    .all(|word| !word.contains("s3cr3t-value") && !word.contains("another-secret")),
+                "{:?}",
+                call.argv
+            );
+        }
+    }
+
+    #[test]
+    fn run_rejects_a_reserved_client_env_name_without_a_call() {
+        for key in [
+            "PATH",
+            "HOME",
+            "USERPROFILE",
+            "APPDATA",
+            "TEMP",
+            "TMP",
+            "TMPDIR",
+            "SYSTEMROOT",
+            "SHELL",
+            "USER",
+            "LOGNAME",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "NO_PROXY",
+            "ALL_PROXY",
+            "SSL_CERT_FILE",
+            "SSL_CERT_DIR",
+            "KUBECONFIG",
+        ] {
+            for spelled in [key.to_string(), key.to_ascii_lowercase()] {
+                let mut command = command_with_env("s3cr3t-value");
+                command
+                    .env
+                    .insert(spelled.clone(), "s3cr3t-value".to_string());
+                let sandbox = sandbox(Vec::new());
+                let id = SandboxId("abc".to_string());
+                let error = sandbox.run(&id, &command).expect_err("reserved");
+                assert!(
+                    matches!(error, SandboxError::Rejected(_)),
+                    "{spelled}: {error:?}"
+                );
+                assert!(error.to_string().contains(&spelled), "{spelled}: {error}");
+                assert!(
+                    !error.to_string().contains("s3cr3t-value"),
+                    "{spelled}: {error}"
+                );
+                assert!(
+                    sandbox.runner.calls().is_empty(),
+                    "{spelled} reached the runner"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn run_rejects_a_reserved_client_env_prefix_without_a_call() {
+        for key in [
+            "DOCKER_HOST",
+            "LD_PRELOAD",
+            "DYLD_X",
+            "XDG_RUNTIME_DIR",
+            "BUILDKIT_X",
+            "COMPOSE_X",
+            "CONTAINER_X",
+        ] {
+            for spelled in [key.to_string(), key.to_ascii_lowercase()] {
+                let mut command = command_with_env("s3cr3t-value");
+                command
+                    .env
+                    .insert(spelled.clone(), "s3cr3t-value".to_string());
+                let sandbox = sandbox(Vec::new());
+                let id = SandboxId("abc".to_string());
+                let error = sandbox.run(&id, &command).expect_err("reserved");
+                assert!(
+                    matches!(error, SandboxError::Rejected(_)),
+                    "{spelled}: {error:?}"
+                );
+                assert!(error.to_string().contains(&spelled), "{spelled}: {error}");
+                assert!(
+                    !error.to_string().contains("s3cr3t-value"),
+                    "{spelled}: {error}"
+                );
+                assert!(
+                    sandbox.runner.calls().is_empty(),
+                    "{spelled} reached the runner"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn run_accepts_ordinary_env_names() {
+        for key in [
+            "API_KEY",
+            "TOKEN",
+            "MY_PATH",
+            "HOMEPAGE",
+            "PATHS_X",
+            "GIT_AUTHOR_NAME",
+        ] {
+            let mut command = command();
+            command
+                .env
+                .insert(key.to_string(), "s3cr3t-value".to_string());
+            let sandbox = sandbox(vec![Ok(ok(""))]);
+            let id = SandboxId("abc".to_string());
+            sandbox.run(&id, &command).expect("the key is accepted");
+            assert_eq!(sandbox.runner.calls().len(), 1, "{key}");
+        }
+    }
+
+    #[test]
+    fn run_never_shows_an_env_value_in_debug_json_or_an_error() {
+        let mut command = command();
+        command
+            .env
+            .insert("API_KEY".to_string(), "s3cr3t-value".to_string());
+        command
+            .env
+            .insert("OTHER".to_string(), "another-secret".to_string());
+        let id = SandboxId("abc".to_string());
+
+        let mut bad_program = command.clone();
+        bad_program.program = String::new();
+        let mut reserved = command.clone();
+        reserved
+            .env
+            .insert("PATH".to_string(), "s3cr3t-value".to_string());
+
+        let errors = [
+            sandbox(Vec::new())
+                .run(&id, &bad_program)
+                .expect_err("empty program"),
+            sandbox(Vec::new())
+                .run(&id, &reserved)
+                .expect_err("reserved"),
+            sandbox(vec![Err(RunnerError(
+                "cannot run docker: s3cr3t-value".to_string(),
+            ))])
+            .run(&id, &command)
+            .expect_err("runner error"),
+            sandbox(vec![Ok(fail(125, "boom s3cr3t-value"))])
+                .run(&id, &command)
+                .expect_err("exec fails"),
+            sandbox(vec![
+                Ok(timeout_output("")),
+                Ok(fail(1, "boom another-secret")),
+            ])
+            .run(&id, &command)
+            .expect_err("kill fails"),
+            sandbox(vec![Ok(ToolOutput {
+                status: None,
+                stdout: String::new(),
+                stderr: "died with s3cr3t-value".to_string(),
+                timed_out: false,
+                output_cap_bytes: None,
+                stdout_truncated: false,
+                stderr_truncated: false,
+            })])
+            .run(&id, &command)
+            .expect_err("no status"),
+        ];
+
+        let mut texts = vec![
+            format!("{command:?}"),
+            serde_json::to_string(&command).expect("serializes"),
+        ];
+        for error in &errors {
+            texts.push(error.to_string());
+            texts.push(format!("{error:?}"));
+        }
+        for text in &texts {
+            for value in ["s3cr3t-value", "another-secret"] {
+                assert!(!text.contains(value), "{value} leaked: {text}");
+            }
+        }
     }
 
     #[test]
@@ -2139,11 +2428,13 @@ mod tests {
                     argv: inspect_argv("abc"),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
                 Call {
                     argv: remove_argv("abc"),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
             ]
         );
@@ -2166,6 +2457,7 @@ mod tests {
                 argv: inspect_argv("abc"),
                 timeout: None,
                 stdin: None,
+                env: BTreeMap::new(),
             }]
         );
     }
@@ -2243,16 +2535,19 @@ mod tests {
                     argv: version_argv(),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
                 Call {
                     argv: image_inspect_argv("example/base:1"),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
                 Call {
                     argv: network_probe_argv(),
                     timeout: None,
                     stdin: None,
+                    env: BTreeMap::new(),
                 },
             ]
         );

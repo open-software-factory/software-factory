@@ -620,6 +620,27 @@ mod tests {
     }
 
     #[test]
+    fn dry_run_exec_names_env_variables_without_their_values() {
+        let mut plan = plan_of(&request());
+        plan.command
+            .env
+            .insert("API_KEY".to_string(), "s3cr3t-value".to_string());
+        plan.command
+            .env
+            .insert("OTHER".to_string(), "another-secret".to_string());
+        let text = dry_run_json(&plan);
+        assert!(!text.contains("s3cr3t-value"), "{text}");
+        assert!(!text.contains("another-secret"), "{text}");
+        let value: serde_json::Value = serde_json::from_str(&text).expect("parses");
+        assert_eq!(
+            value.get("exec"),
+            Some(&serde_json::json!([
+                "exec", "--env", "API_KEY", "--env", "OTHER", "--", "<id>", "sh", "-c", "echo hi",
+            ]))
+        );
+    }
+
+    #[test]
     fn execute_passes_the_exit_status_and_both_streams_through() {
         let sandbox =
             FakeSandbox::new().with_run_result(result(RunOutcome::Exited(0), "out", "err"));

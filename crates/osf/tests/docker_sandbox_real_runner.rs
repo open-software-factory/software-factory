@@ -10,6 +10,7 @@ use osf::docker_sandbox::{
 use osf::sandbox::{
     CommandSpec, Limits, Mount, Network, RunOutcome, Sandbox, SandboxId, SandboxSpec,
 };
+use std::collections::BTreeMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
@@ -412,7 +413,12 @@ cat > "$dir/stdin.out"
     let runner = RealDockerRunner::new(script.as_path());
     let input = vec![b'x'; 300_000];
     let output = runner
-        .run_with_stdin(&["exec".to_string()], None, Some(input.as_slice()))
+        .run_with_stdin(
+            &["exec".to_string()],
+            None,
+            Some(input.as_slice()),
+            &BTreeMap::new(),
+        )
         .expect("the fake runs");
     assert_eq!(output.status, Some(0));
     let written = fs::read(area.dir.join("stdin.out")).expect("the input file exists");
@@ -428,7 +434,12 @@ fn real_runner_does_not_hang_when_the_program_ignores_a_large_stdin() {
     let input = vec![b'x'; 5 * 1024 * 1024];
     let started = std::time::Instant::now();
     let output = runner
-        .run_with_stdin(&["exec".to_string()], None, Some(input.as_slice()))
+        .run_with_stdin(
+            &["exec".to_string()],
+            None,
+            Some(input.as_slice()),
+            &BTreeMap::new(),
+        )
         .expect("the fake runs");
     assert_eq!(output.status, Some(0));
     assert!(
@@ -459,6 +470,7 @@ fn real_docker_sandbox_run_redacts_env_values_from_a_failed_exec() {
         "docker",
         r#"#!/usr/bin/env bash
 printf '%s\n' "$@" >&2
+printf '%s\n' "$API_KEY" >&2
 exit 125
 "#,
     );
@@ -480,6 +492,66 @@ exit 125
         .expect_err("125 fails");
     assert!(!error.to_string().contains("s3cr3t-value"), "{error}");
     assert!(error.to_string().contains("<redacted>"), "{error}");
+}
+
+#[test]
+fn real_runner_passes_env_values_to_the_child_and_not_the_argv() {
+    let _lock = serial();
+    let area = TempArea::new("env");
+    let script = area.script(
+        "docker",
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+dir="$(cd "$(dirname "$0")" && pwd)"
+printf '%s\n' "$@" > "$dir/argv"
+printf '%s' "$API_KEY" > "$dir/value"
+"#,
+    );
+    let runner = RealDockerRunner::new(script.as_path());
+    let mut env = BTreeMap::new();
+    env.insert("API_KEY".to_string(), "s3cr3t-value".to_string());
+    let argv = vec![
+        "exec".to_string(),
+        "--env".to_string(),
+        "API_KEY".to_string(),
+        "--".to_string(),
+        "abc".to_string(),
+    ];
+
+    let output = runner
+        .run_with_stdin(&argv, None, None, &env)
+        .expect("the fake runs");
+    assert_eq!(output.status, Some(0));
+    let seen_argv = fs::read_to_string(area.dir.join("argv")).expect("argv was written");
+    assert_eq!(seen_argv, "exec\n--env\nAPI_KEY\n--\nabc\n");
+    assert!(!seen_argv.contains("s3cr3t-value"), "{seen_argv}");
+    let seen_value = fs::read_to_string(area.dir.join("value")).expect("the value was written");
+    assert_eq!(seen_value, "s3cr3t-value");
+}
+
+#[test]
+fn real_runner_preserves_an_env_value_with_special_characters() {
+    let _lock = serial();
+    let area = TempArea::new("env-special");
+    let script = area.script(
+        "docker",
+        r#"#!/usr/bin/env bash
+set -euo pipefail
+dir="$(cd "$(dirname "$0")" && pwd)"
+printf '%s' "$SPECIAL" > "$dir/value"
+"#,
+    );
+    let runner = RealDockerRunner::new(script.as_path());
+    let value = "spaces and 'quotes' and \"double\" and = and\na newline";
+    let mut env = BTreeMap::new();
+    env.insert("SPECIAL".to_string(), value.to_string());
+
+    let output = runner
+        .run_with_stdin(&["exec".to_string()], None, None, &env)
+        .expect("the fake runs");
+    assert_eq!(output.status, Some(0));
+    let seen_value = fs::read_to_string(area.dir.join("value")).expect("the value was written");
+    assert_eq!(seen_value, value);
 }
 
 /// Destroys the smoke sandbox on drop, including on a failed assertion.
