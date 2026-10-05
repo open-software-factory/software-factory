@@ -2076,13 +2076,13 @@ fn the_prompt_carries_metadata_and_no_diff() {
 #[test]
 #[cfg(unix)]
 fn each_agent_starts_with_its_read_only_settings() {
+    let codex_args = if std::path::Path::new("/opt/factory/bin/osf").exists() {
+        "--dangerously-bypass-approvals-and-sandbox\n"
+    } else {
+        "--sandbox\nread-only\n"
+    };
     let cases: [(&str, &str, &str, &str); 3] = [
-        (
-            "codex",
-            "valid.json",
-            "--dangerously-bypass-approvals-and-sandbox\n",
-            "",
-        ),
+        ("codex", "valid.json", codex_args, ""),
         (
             "claude",
             "claude-envelope.json",

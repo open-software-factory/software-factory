@@ -601,28 +601,36 @@ fn the_codex_job_uses_no_privileged_setting() {
 }
 
 #[test]
-fn the_codex_command_runs_with_the_bypass_flag() {
+fn the_codex_command_runs_with_the_bypass_flag_only_inside_the_container() {
     let codex = osf::agents::AGENTS
         .iter()
         .find(|a| a.name == "codex")
         .expect("codex is in the agent list");
     let review = codex.review.as_ref().expect("codex reviews");
-    let mode = review
+    let in_container = review
+        .in_container
+        .as_ref()
+        .expect("codex documents an in-container mode");
+    assert_eq!(
+        in_container.args,
+        &["--dangerously-bypass-approvals-and-sandbox"],
+        "inside the container codex runs with its own sandbox off"
+    );
+    let outside = review
         .read_only
         .as_ref()
         .expect("codex documents a read-only mode");
+    assert_eq!(outside.args, &["--sandbox", "read-only"]);
+    assert!(
+        !outside
+            .args
+            .contains(&"--dangerously-bypass-approvals-and-sandbox"),
+        "the bypass flag is only for the container"
+    );
     assert_eq!(
-        mode.args,
-        &["--dangerously-bypass-approvals-and-sandbox"],
-        "codex runs with its own sandbox off"
-    );
-    assert!(
-        !mode.args.contains(&"--sandbox"),
-        "the bypass flag conflicts with --sandbox"
-    );
-    assert!(
-        review.sandbox_check.is_empty(),
-        "codex has no sandbox check"
+        review.sandbox_check,
+        &["codex", "sandbox", "--", "true"],
+        "outside the container osf checks the sandbox first"
     );
 }
 

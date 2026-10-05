@@ -400,7 +400,7 @@ family.
 
 | Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
 |---|---|---|---|---|
-| `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--dangerously-bypass-approvals-and-sandbox`, from `codex exec --help`; the review container is the wall, not codex's own sandbox |
+| `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--sandbox read-only` outside the container, and `--dangerously-bypass-approvals-and-sandbox` inside it; both from `codex exec --help` |
 | `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
 | `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
 | `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
@@ -411,13 +411,15 @@ settings of each agent as data, and `osf` adds them to the agent's
 command. An agent with no documented read-only mode has none recorded.
 A reviewer list that names it reports could-not-run with the reason "no
 read-only mode", and the agent never starts. The `claude`, `opencode`
-and `omp` modes give file tools only, with no shell. Codex runs with
-its own sandbox off. The review container limits it: only the codex key
-in its environment, a network list of the six GitHub hosts and
-`api.openai.com`, read-only mounts of the checkout and the work item,
-and no container runtime socket. So a reviewer's home and environment
-hold no secret beyond that reviewer's own provider key. A mode that
-allowed `git diff` through a shell would also allow `git diff
+and `omp` modes give file tools only, with no shell. osf runs codex with
+its own sandbox off only when it finds `/opt/factory/bin/osf`, the file
+the container image installs. The review container is then the wall and
+limits codex with: only the codex key in its environment, a network list
+of the six GitHub hosts and `api.openai.com`, read-only mounts of the
+checkout and the work item, and no container runtime socket. Outside the
+container codex runs with `--sandbox read-only`. So a reviewer's home and
+environment hold no secret beyond that reviewer's own provider key. A
+mode that allowed `git diff` through a shell would also allow `git diff
 --output=<file>`, which writes a file. So no mode allows a shell for
 git.
 
@@ -426,7 +428,9 @@ and the codex job fails when the image's `codex --version` prints
 another version.
 
 `agents.rs` holds the check for each
-agent as `sandbox_check`, and no agent carries one now.
+agent as `sandbox_check`. Codex carries one, and `osf` runs it before
+codex reviews outside the container. Inside the container the check is
+empty.
 `osf` also gives each reviewer a temporary folder inside its own home.
 
 Codex, Claude and DeepSeek Harness each run one family. opencode and omp

@@ -18,6 +18,22 @@ use std::path::{Path, PathBuf};
 /// The agent a repository builds with when `[agents]` names none.
 pub const DEFAULT_BUILDER: &str = "dsh";
 
+/// The file the container image installs osf to. Its presence is how osf
+/// tells that it runs inside the factory container.
+pub const FACTORY_CONTAINER_MARKER: &str = "/opt/factory/bin/osf";
+
+/// Whether `marker` exists.
+#[must_use]
+pub fn marker_exists(marker: &Path) -> bool {
+    marker.exists()
+}
+
+/// Whether osf runs inside the factory container.
+#[must_use]
+pub fn in_factory_container() -> bool {
+    marker_exists(Path::new(FACTORY_CONTAINER_MARKER))
+}
+
 /// Where an agent's sessions can be reached from outside the machine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sessions {
@@ -43,7 +59,7 @@ pub enum SchemaArg {
     Inline,
 }
 
-/// The documented settings an agent's review runs with: read-only tools, or its own sandbox off.
+/// The documented settings that hold an agent to read-only tools, or its sandbox.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReadOnly {
     /// Arguments added after the agent's command.
@@ -87,6 +103,8 @@ pub struct Review {
     /// How the agent is held to read-only tools. `None` when the agent
     /// documents no such mode: it then never starts as a reviewer.
     pub read_only: Option<ReadOnly>,
+    /// The settings used instead of `read_only` when osf runs inside the factory container.
+    pub in_container: Option<ReadOnly>,
     /// The flag that introduces the answer schema, when the agent can be
     /// asked to validate its own output against one.
     pub schema_flag: Option<&'static str>,
@@ -105,8 +123,9 @@ pub struct Review {
     pub login_paths: &'static [&'static str],
     /// A command, program first, that starts the agent's read-only sandbox
     /// around a harmless command. It exits 0 only when the sandbox works where
-    /// osf runs. Empty when the read-only mode is a set of tools with no
-    /// sandbox to start. A reviewer whose check fails never starts.
+    /// osf runs. Used only outside the factory container, where the agent's
+    /// own sandbox is on. Empty when the read-only mode has no sandbox to
+    /// start. A reviewer whose check fails never starts.
     pub sandbox_check: &'static [&'static str],
 }
 
@@ -284,6 +303,7 @@ pub const AGENTS: &[Agent] = &[
             },
             // `dsh --help` and `dsh --profile headless --help` document no read-only or permission mode.
             read_only: None,
+            in_container: None,
             schema_flag: None,
             schema_as: SchemaArg::Path,
             answer_pointer: "",
@@ -320,6 +340,7 @@ pub const AGENTS: &[Agent] = &[
                 args: &["--tools", "read,grep,glob"],
                 env: &[],
             }),
+            in_container: None,
             schema_flag: None,
             schema_as: SchemaArg::Path,
             answer_pointer: "",
@@ -366,6 +387,7 @@ pub const AGENTS: &[Agent] = &[
                     r#"{"edit":"deny","task":"deny","webfetch":"deny","bash":"deny","external_directory":{"{review_dir}/**":"allow"}}"#,
                 )],
             }),
+            in_container: None,
             schema_flag: None,
             schema_as: SchemaArg::Path,
             answer_pointer: "",
@@ -404,8 +426,13 @@ pub const AGENTS: &[Agent] = &[
                 ],
                 env: &[],
             },
-            // `codex exec --help`: the container the reviewer job runs in is the wall, so codex's own sandbox is off.
+            // `codex exec --help`: `--sandbox read-only`, which limits file writes and commands.
             read_only: Some(ReadOnly {
+                args: &["--sandbox", "read-only"],
+                env: &[],
+            }),
+            // `codex exec --help`: the container is the wall, so codex's own sandbox is off.
+            in_container: Some(ReadOnly {
                 args: &["--dangerously-bypass-approvals-and-sandbox"],
                 env: &[],
             }),
@@ -416,7 +443,8 @@ pub const AGENTS: &[Agent] = &[
             // `CODEX_API_KEY` is the variable `codex exec` reads; it does not read `OPENAI_API_KEY`.
             credential_env: &["CODEX_API_KEY"],
             login_paths: &[".codex/auth.json"],
-            sandbox_check: &[],
+            // `codex sandbox --help` runs a command under the same Linux sandbox, and exits non-zero when the sandbox cannot start.
+            sandbox_check: &["codex", "sandbox", "--", "true"],
         }),
     },
     // claude keeps transcripts under `projects`, one folder per working
@@ -457,6 +485,7 @@ pub const AGENTS: &[Agent] = &[
                 ],
                 env: &[],
             }),
+            in_container: None,
             schema_flag: Some("--json-schema"),
             schema_as: SchemaArg::Inline,
             answer_pointer: "/structured_output",
@@ -829,11 +858,50 @@ mod tests {
             .and_then(|r| r.read_only)
     }
 
+    fn in_container_of(name: &str) -> Option<ReadOnly> {
+        AGENTS
+            .iter()
+            .find(|a| a.name == name)
+            .and_then(|a| a.review.as_ref())
+            .and_then(|r| r.in_container)
+    }
+
+    #[test]
+    fn codex_runs_in_its_read_only_sandbox_outside_the_container() {
+        let mode = read_only_of("codex").expect("codex documents a read-only mode");
+        assert_eq!(mode.args, &["--sandbox", "read-only"]);
+        assert!(mode.env.is_empty());
+    }
+
     #[test]
     fn codex_runs_with_its_sandbox_off_inside_the_container() {
-        let mode = read_only_of("codex").expect("codex documents a read-only mode");
+        let mode = in_container_of("codex").expect("codex documents an in-container mode");
         assert_eq!(mode.args, &["--dangerously-bypass-approvals-and-sandbox"]);
         assert!(mode.env.is_empty());
+    }
+
+    #[test]
+    fn only_codex_has_an_in_container_mode() {
+        let names: Vec<&str> = AGENTS
+            .iter()
+            .filter(|a| a.review.as_ref().is_some_and(|r| r.in_container.is_some()))
+            .map(|a| a.name)
+            .collect();
+        assert_eq!(names, vec!["codex"]);
+    }
+
+    #[test]
+    fn the_container_marker_is_the_installed_osf() {
+        assert_eq!(FACTORY_CONTAINER_MARKER, "/opt/factory/bin/osf");
+    }
+
+    #[test]
+    fn marker_exists_reports_a_file_that_is_there_and_one_that_is_missing() {
+        let dir = crate::test_support::TempDir::new("osf-agents-marker");
+        let present = dir.join("osf");
+        std::fs::write(&present, "").expect("marker writes");
+        assert!(marker_exists(&present));
+        assert!(!marker_exists(&dir.join("missing")));
     }
 
     #[test]
@@ -929,7 +997,7 @@ mod tests {
     }
 
     #[test]
-    fn codex_has_no_sandbox_check_and_a_check_always_starts_the_agents_own_program() {
+    fn codex_has_a_sandbox_check_and_a_check_always_starts_the_agents_own_program() {
         let check_of = |name: &str| {
             AGENTS
                 .iter()
@@ -938,7 +1006,7 @@ mod tests {
                 .map(|r| r.sandbox_check)
                 .expect("agent reviews")
         };
-        assert!(check_of("codex").is_empty());
+        assert_eq!(check_of("codex"), &["codex", "sandbox", "--", "true"]);
         for agent in AGENTS {
             let Some(review) = &agent.review else {
                 continue;

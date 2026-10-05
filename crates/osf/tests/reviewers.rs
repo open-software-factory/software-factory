@@ -7,7 +7,9 @@ mod common;
 
 use common::TempDir;
 use osf::lenses::{Criterion, Lens, Runs, SeverityGuide, Trigger};
-use osf::reviewers::{roster, run_one, Outcome, ReadOnly, Reviewer, SchemaArg, Switches};
+use osf::reviewers::{
+    roster, roster_in, run_one, Outcome, ReadOnly, Reviewer, SchemaArg, Switches,
+};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -612,16 +614,16 @@ fn a_sandbox_check_that_never_finishes_is_could_not_run() {
     }
 }
 
-/// No reviewer carries a sandbox check now.
+/// Outside the factory container codex carries a sandbox check, and claude none.
 #[test]
-fn no_reviewer_carries_a_sandbox_check_now() {
+fn the_codex_reviewer_carries_a_sandbox_check_outside_the_container() {
     let root = TempDir::new("osf-reviewers-roster-check");
     std::fs::write(
         root.join("osf.toml"),
         "[agents]\nreviewers = [\"codex\", \"claude\"]\n",
     )
     .expect("osf.toml writes");
-    let reviewers = roster(&root).expect("roster loads");
+    let reviewers = roster_in(&root, false).expect("roster loads");
     let check = |name: &str| {
         reviewers
             .iter()
@@ -629,8 +631,25 @@ fn no_reviewer_carries_a_sandbox_check_now() {
             .map(|r| r.sandbox_check.clone())
             .expect("reviewer is in the roster")
     };
-    assert!(check("codex").is_empty());
+    assert_eq!(check("codex"), vec!["codex", "sandbox", "--", "true"]);
     assert!(check("claude").is_empty());
+}
+
+/// Inside the factory container codex's own sandbox is off, so it carries no
+/// check and runs with the bypass flag.
+#[test]
+fn the_codex_reviewer_inside_the_container_has_no_sandbox_check() {
+    let root = TempDir::new("osf-reviewers-roster-in-container");
+    std::fs::write(root.join("osf.toml"), "[agents]\nreviewers = [\"codex\"]\n")
+        .expect("osf.toml writes");
+    let reviewers = roster_in(&root, true).expect("roster loads");
+    let codex = reviewers.first().expect("codex is in the roster");
+    assert!(codex.sandbox_check.is_empty());
+    let read_only = codex.read_only.as_ref().expect("codex has a mode");
+    assert_eq!(
+        read_only.args,
+        &["--dangerously-bypass-approvals-and-sandbox"]
+    );
 }
 
 /// A reviewer's temporary folder is inside its own home, so that an agent that

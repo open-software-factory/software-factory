@@ -94,20 +94,33 @@ impl Reviewer {
         self.family_error.is_none() && builder_families.contains(&self.family)
     }
 
-    /// `agent` as a reviewer running `model`; `None` when `agent` never reviews.
-    fn from_agent(agent: &Agent, model: Option<&str>) -> Option<Self> {
+    /// `agent` as a reviewer running `model`, with `in_container`'s
+    /// container mode when osf runs inside the factory container; `None` when
+    /// `agent` never reviews.
+    fn from_agent(agent: &Agent, model: Option<&str>, in_container: bool) -> Option<Self> {
         let review = agent.review.as_ref()?;
         let owned = |items: &[&str]| items.iter().map(ToString::to_string).collect();
         let (family, family_error) = match agent.family_for(model) {
             Ok(family) => (family.to_string(), None),
             Err(reason) => (crate::builder::UNKNOWN.to_string(), Some(reason)),
         };
+        let container_mode = if in_container {
+            review.in_container
+        } else {
+            None
+        };
+        let read_only = container_mode.or(review.read_only);
+        let sandbox_check: &[&str] = if container_mode.is_some() {
+            &[]
+        } else {
+            review.sandbox_check
+        };
         Some(Reviewer {
             name: agent.name.to_string(),
             family,
             family_error,
             command: owned(agent.command),
-            read_only: review.read_only,
+            read_only,
             clean_copy: review.clean_copy,
             schema_flag: review.schema_flag.map(str::to_string),
             schema_as: review.schema_as,
@@ -116,7 +129,7 @@ impl Reviewer {
             model_flag: review.model_flag.map(str::to_string),
             credential_env: owned(review.credential_env),
             login_paths: owned(review.login_paths),
-            sandbox_check: owned(review.sandbox_check),
+            sandbox_check: owned(sandbox_check),
             review_dir: None,
         })
     }
@@ -134,19 +147,31 @@ pub enum Outcome {
 }
 
 /// The reviewers `<root>/osf.toml` selects under `[agents]`, in the order it
-/// names them. None when it names none.
+/// names them, with the container mode chosen by
+/// [`agents::in_factory_container`]. None when it names none.
 ///
 /// # Errors
 /// Returns an error when `<root>/osf.toml` is not valid TOML, or its
 /// `[agents]` table does not match the shape [`agents::resolve`] accepts.
 pub fn roster(root: &Path) -> Result<Vec<Reviewer>, String> {
+    roster_in(root, agents::in_factory_container())
+}
+
+/// [`roster`] with the container detection given rather than read from the
+/// machine.
+///
+/// # Errors
+/// Returns an error when `<root>/osf.toml` is not valid TOML, or its
+/// `[agents]` table does not match the shape [`agents::resolve`] accepts.
+pub fn roster_in(root: &Path, in_container: bool) -> Result<Vec<Reviewer>, String> {
     let selection = agents::selection(root)?;
     Ok(selection
         .reviewers
         .iter()
-        .filter_map(|agent| Reviewer::from_agent(agent, selection.model(agent)))
+        .filter_map(|agent| Reviewer::from_agent(agent, selection.model(agent), in_container))
         .collect())
 }
+
 /// Variable names every reviewer's child needs purely to run its own
 /// program and find its own files, carried over from `osf`'s own
 /// environment when present: never a credential, so the same names are safe
@@ -1045,6 +1070,42 @@ mod tests {
     fn with_no_agents_table_there_is_no_reviewer() {
         let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
         assert!(r.is_empty());
+    }
+
+    fn agent(name: &str) -> &'static Agent {
+        agents::AGENTS
+            .iter()
+            .find(|a| a.name == name)
+            .expect("agent is in the list")
+    }
+
+    #[test]
+    fn the_codex_reviewer_inside_the_container_runs_with_its_own_sandbox_off() {
+        let r = Reviewer::from_agent(agent("codex"), None, true).expect("codex reviews");
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        assert!(args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
+        assert!(!args.contains(&"--sandbox".to_string()));
+        assert!(r.sandbox_check.is_empty());
+    }
+
+    #[test]
+    fn the_codex_reviewer_outside_the_container_runs_in_its_read_only_sandbox() {
+        let r = Reviewer::from_agent(agent("codex"), None, false).expect("codex reviews");
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let pair = args
+            .windows(2)
+            .any(|w| matches!(w, [a, b] if a == "--sandbox" && b == "read-only"));
+        assert!(pair, "{args:?}");
+        assert!(!args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
+        assert_eq!(r.sandbox_check, vec!["codex", "sandbox", "--", "true"]);
+    }
+
+    #[test]
+    fn an_agent_without_an_in_container_mode_is_the_same_in_and_out_of_the_container() {
+        let inside = Reviewer::from_agent(agent("claude"), None, true).expect("claude reviews");
+        let outside = Reviewer::from_agent(agent("claude"), None, false).expect("claude reviews");
+        assert_eq!(inside.read_only, outside.read_only);
+        assert_eq!(inside.sandbox_check, outside.sandbox_check);
     }
 
     #[test]
