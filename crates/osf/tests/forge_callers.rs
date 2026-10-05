@@ -2,6 +2,7 @@
 //! a forge interface: `review post`, `pr status apply`, and `pr status
 //! refresh`. A fake `gh` shell script sits first on `PATH`; nothing here
 //! reaches the network or a real `gh`.
+//! Added coverage: update call list, failed-edit text, too-long advisory, empty stderr.
 
 mod common;
 
@@ -57,6 +58,10 @@ if [ "$1" = "pr" ] && [ "$2" = "checks" ]; then
 fi
 
 if [ "$1" = "pr" ] && [ "$2" = "edit" ]; then
+  if [ -f "$dir/edit-fail" ]; then
+    cat "$dir/edit-fail" >&2
+    exit 1
+  fi
   prev=""
   for arg in "$@"; do
     if [ "$prev" = "--body-file" ]; then
@@ -173,6 +178,10 @@ impl FakeGh {
         fs::write(self.dir.join("view-body-fail"), stderr).expect("body failure fixture writes");
     }
 
+    fn fail_edit(&self, stderr: &str) {
+        fs::write(self.dir.join("edit-fail"), stderr).expect("edit failure fixture writes");
+    }
+
     fn fail_first_api(&self, stderr: &str) {
         fs::write(self.dir.join("api-fail"), stderr).expect("api failure fixture writes");
     }
@@ -240,6 +249,24 @@ fn review_post(fake: &FakeGh, home: &Path, extra: &[&str]) -> Output {
         "7",
         findings.to_str().expect("a utf-8 path"),
         summary.to_str().expect("a utf-8 path"),
+    ];
+    args.extend_from_slice(extra);
+    fake.run_osf(&fake.dir, home, &args)
+}
+
+/// The same as [`review_post`], but writes `summary` instead of the shared one.
+fn review_post_with_summary(fake: &FakeGh, home: &Path, summary: &str, extra: &[&str]) -> Output {
+    let findings = fake.dir.join("findings.json");
+    let summary_path = fake.dir.join("summary.md");
+    fs::write(&findings, FINDINGS_JSON).expect("findings fixture writes");
+    fs::write(&summary_path, summary).expect("summary fixture writes");
+    let mut args = vec![
+        "review",
+        "post",
+        "open-software-factory/demo",
+        "7",
+        findings.to_str().expect("a utf-8 path"),
+        summary_path.to_str().expect("a utf-8 path"),
     ];
     args.extend_from_slice(extra);
     fake.run_osf(&fake.dir, home, &args)
@@ -546,4 +573,198 @@ fn status_refresh_leaves_an_unchanged_block_alone() {
         .filter(|line| line.starts_with("pr edit"))
         .count();
     assert_eq!(edits, 1);
+}
+
+#[test]
+fn status_refresh_pins_the_gh_call_list_on_an_update() {
+    let (repo, _head) = refresh_repo("refresh-call-list");
+    let fake = FakeGh::new("refresh-call-list", "PR body.\n");
+    fake.set_checks(PASSING_CHECKS);
+    let home = isolated_home("forge-refresh-call-list");
+    let output = run_refresh(&repo, &fake, &home);
+    assert_ok(&output);
+    assert_eq!(stdout_text(&output), "osf pr status refresh: updated\n");
+    assert_eq!(stderr_text(&output), "");
+    let calls = fake.calls();
+    let mut lines = calls.lines();
+    assert_eq!(
+        lines.next(),
+        Some("pr view 7 --repo open-software-factory/demo --json body,baseRefName,headRefName")
+    );
+    assert_eq!(
+        lines.next(),
+        Some("pr checks 7 --repo open-software-factory/demo --json name,state,bucket")
+    );
+    assert_eq!(
+        lines.next(),
+        Some("pr view 7 --repo open-software-factory/demo --json reviewDecision,reviews,comments")
+    );
+    // The write step reads the description itself, one extra view on an update.
+    assert_eq!(
+        lines.next(),
+        Some("pr view 7 --repo open-software-factory/demo --json body -q .body")
+    );
+    let edit = lines.next().expect("an edit call followed the view");
+    assert!(
+        edit.starts_with("pr edit 7 --repo open-software-factory/demo --body-file "),
+        "{edit}"
+    );
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn status_apply_a_failed_edit_reports_the_gh_text() {
+    let fake = FakeGh::new("status-apply-edit-fail", APPLY_BODY);
+    let block = apply_fixture(&fake);
+    fake.fail_edit("gh: Validation Failed (HTTP 422)\n");
+    let home = isolated_home("forge-status-apply-edit-fail");
+    let output = fake.run_osf(&fake.dir, &home, &apply_args(&block, &[]));
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(stdout_text(&output), "");
+    assert_eq!(
+        stderr_text(&output),
+        "osf: gh pr edit failed for open-software-factory/demo#7: gh: Validation Failed (HTTP 422)\n"
+    );
+    let calls = fake.calls();
+    let mut lines = calls.lines();
+    assert_eq!(
+        lines.next(),
+        Some("pr view 7 --repo open-software-factory/demo --json body -q .body")
+    );
+    let edit = lines.next().expect("an edit call followed the view");
+    assert!(
+        edit.starts_with("pr edit 7 --repo open-software-factory/demo --body-file "),
+        "{edit}"
+    );
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn status_refresh_a_failed_edit_reports_the_gh_text() {
+    let (repo, _head) = refresh_repo("refresh-edit-fail");
+    let fake = FakeGh::new("refresh-edit-fail", "PR body.\n");
+    fake.set_checks(PASSING_CHECKS);
+    fake.fail_edit("gh: Validation Failed (HTTP 422)\n");
+    let home = isolated_home("forge-refresh-edit-fail");
+    let output = run_refresh(&repo, &fake, &home);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(stdout_text(&output), "");
+    assert_eq!(
+        stderr_text(&output),
+        "osf: gh pr edit failed for open-software-factory/demo#7: gh: Validation Failed (HTTP 422)\n"
+    );
+    let calls = fake.calls();
+    let mut lines = calls.lines();
+    assert_eq!(
+        lines.next(),
+        Some("pr view 7 --repo open-software-factory/demo --json body,baseRefName,headRefName")
+    );
+    assert_eq!(
+        lines.next(),
+        Some("pr checks 7 --repo open-software-factory/demo --json name,state,bucket")
+    );
+    assert_eq!(
+        lines.next(),
+        Some("pr view 7 --repo open-software-factory/demo --json reviewDecision,reviews,comments")
+    );
+    assert_eq!(
+        lines.next(),
+        Some("pr view 7 --repo open-software-factory/demo --json body -q .body")
+    );
+    let edit = lines.next().expect("an edit call followed the view");
+    assert!(
+        edit.starts_with("pr edit 7 --repo open-software-factory/demo --body-file "),
+        "{edit}"
+    );
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn review_post_reports_a_rejected_review_when_the_advisory_body_is_too_long() {
+    let fake = FakeGh::new("review-post-advisory-too-long", "");
+    fake.fail_first_api("gh: Review cannot be requested on your own pull request (HTTP 422)\n");
+    let home = isolated_home("forge-review-advisory-too-long");
+    // This summary fits the review body limit; the advisory prefix pushes the body over it.
+    let summary = "x".repeat(1900);
+    let output = review_post_with_summary(&fake, &home, &summary, &[]);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(stdout_text(&output), "");
+    assert_eq!(
+        stderr_text(&output),
+        "osf: the advisory body is 2117 characters, limit is 2000. Shorten the summary.\n"
+    );
+    assert_eq!(
+        fake.calls(),
+        concat!(
+            "pr view 7 --repo open-software-factory/demo --json headRefOid\n",
+            "api -X POST repos/open-software-factory/demo/pulls/7/reviews --input -\n",
+        )
+    );
+}
+
+#[test]
+fn review_post_reports_a_failure_with_empty_stderr() {
+    let fake = FakeGh::new("review-post-empty-stderr", "");
+    fake.fail_first_api("");
+    let home = isolated_home("forge-review-empty-stderr");
+    let output = review_post(&fake, &home, &[]);
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(stdout_text(&output), "");
+    assert_eq!(stderr_text(&output), "osf: \n");
+    assert_eq!(
+        fake.calls(),
+        concat!(
+            "pr view 7 --repo open-software-factory/demo --json headRefOid\n",
+            "api -X POST repos/open-software-factory/demo/pulls/7/reviews --input -\n",
+        )
+    );
+}
+
+#[test]
+fn status_refresh_fails_on_an_empty_checks_error() {
+    let (repo, _head) = refresh_repo("refresh-empty-checks-error");
+    let fake = FakeGh::new("refresh-empty-checks-error", "PR body.\n");
+    fake.fail_checks("");
+    let home = isolated_home("forge-refresh-empty-checks-error");
+    let output = run_refresh(&repo, &fake, &home);
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(stdout_text(&output), "");
+    assert_eq!(
+        stderr_text(&output),
+        "osf: gh pr checks failed for open-software-factory/demo#7: \n"
+    );
+    assert_eq!(
+        fake.calls(),
+        concat!(
+            "pr view 7 --repo open-software-factory/demo --json body,baseRefName,headRefName\n",
+            "pr checks 7 --repo open-software-factory/demo --json name,state,bucket\n",
+        )
+    );
+}
+
+#[test]
+fn status_apply_a_failed_edit_with_empty_stderr() {
+    let fake = FakeGh::new("status-apply-edit-empty-stderr", APPLY_BODY);
+    let block = apply_fixture(&fake);
+    fake.fail_edit("");
+    let home = isolated_home("forge-status-apply-edit-empty-stderr");
+    let output = fake.run_osf(&fake.dir, &home, &apply_args(&block, &[]));
+    assert_eq!(output.status.code(), Some(2));
+    assert_eq!(stdout_text(&output), "");
+    assert_eq!(
+        stderr_text(&output),
+        "osf: gh pr edit failed for open-software-factory/demo#7: \n"
+    );
+    let calls = fake.calls();
+    let mut lines = calls.lines();
+    assert_eq!(
+        lines.next(),
+        Some("pr view 7 --repo open-software-factory/demo --json body -q .body")
+    );
+    let edit = lines.next().expect("an edit call followed the view");
+    assert!(
+        edit.starts_with("pr edit 7 --repo open-software-factory/demo --body-file "),
+        "{edit}"
+    );
+    assert_eq!(lines.next(), None);
 }
