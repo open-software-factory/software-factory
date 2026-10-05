@@ -406,7 +406,10 @@ family.
 | `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
 | `omp` | from its model | none: it takes no model flag | its own login | `--tools read,grep,glob`, from `omp --help` |
 
-Each reviewer runs read-only. `agents.rs` records the exact flags or
+A reviewer runs in a read-only mode, and codex inside the review
+container is the one exception: its own sandbox is off there and
+the container limits it, as described below.
+`agents.rs` records the exact flags or
 settings of each agent as data, and `osf` adds them to the agent's
 command. An agent with no documented read-only mode has none recorded.
 A reviewer list that names it reports could-not-run with the reason "no
