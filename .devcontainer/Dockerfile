@@ -75,10 +75,9 @@ ARG CLAUDE_CODE_VERSION=2.1.284
 ARG OPENCODE_VERSION=1.18.31
 ARG OMP_VERSION=18.2.8
 
-# The skills command line tool and the archify skills it installs, each
-# pinned exactly.
+# The skills tool version and the full archify commit, each pinned exactly.
 ARG SKILLS_CLI_VERSION=1.7.0
-ARG ARCHIFY_COMMIT=d5a1333d7447
+ARG ARCHIFY_COMMIT=d5a1333d7447c866a765adac7d4d062f2f02e4d2
 
 # omp's own bin/cli.js has a "#!/usr/bin/env bun" shebang: omp runs on Bun,
 # not plain Node, unlike every other coding agent in this image.
@@ -456,12 +455,15 @@ WORKDIR ${WORKSPACE_ROOT}
 
 USER dev
 
-# Third-party skills, restored here and never vendored. The pins change only
-# through a reviewed change; the list's home is
-# open-software-factory/software-factory#224. The skills tool does not know
-# dsh or omp, so only opencode, codex and claude-code are named.
-RUN npx -y "skills@${SKILLS_CLI_VERSION}" add "tt-a1i/archify@${ARCHIFY_COMMIT}" \
-      -g --skill '*' --agent opencode codex claude-code --copy -y
+# Third-party skills, never vendored; list home: open-software-factory/software-factory#224.
+# The tree URL pins the commit and names each skill by path, so discovery cannot drop one.
+# The skills tool does not know dsh or omp, so only opencode, codex and claude-code are named.
+RUN npx -y "skills@${SKILLS_CLI_VERSION}" add \
+      "https://github.com/tt-a1i/archify/tree/${ARCHIFY_COMMIT}/archify" \
+      -g --agent opencode codex claude-code --copy -y && \
+    npx -y "skills@${SKILLS_CLI_VERSION}" add \
+      "https://github.com/tt-a1i/archify/tree/${ARCHIFY_COMMIT}/.agents/skills/archify-review" \
+      -g --agent opencode codex claude-code --copy -y
 
 # Proves the skills above are installed and not empty. See
 # .devcontainer/tests/skills-installed.sh.

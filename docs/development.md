@@ -309,12 +309,13 @@ toolchain, and every coding agent's own binary for that shell, and
 This repository does not vendor third-party skills. The image build
 installs them for the container user, under `~/.agents/skills`, and
 `.devcontainer/tests/skills-installed.sh` fails the build if one is
-missing or empty. Third-party skills are installed at a pinned commit and
-are not linted by osf; their quality checks are upstream's.
+missing or empty. Third-party skills are installed at the full pinned
+commit, each skill named by its path, and are not linted by osf; their
+quality checks are upstream's.
 
 | Skill folders | Source | Commit |
 | --- | --- | --- |
-| `archify`, `archify-review` | [tt-a1i/archify](https://github.com/tt-a1i/archify) | `d5a1333d7447` |
+| `archify`, `archify-review` | [tt-a1i/archify](https://github.com/tt-a1i/archify) | `d5a1333d7447c866a765adac7d4d062f2f02e4d2` |
 
 The pins are `ARCHIFY_COMMIT` and `SKILLS_CLI_VERSION` in
 `.devcontainer/Dockerfile`. A change to a pin is a reviewed change.

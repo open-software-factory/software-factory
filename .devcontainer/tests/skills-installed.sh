@@ -7,6 +7,8 @@ set -eu
 TOTAL=0
 FAILURES=0
 
+LOCK="$HOME/.agents/.skill-lock.json"
+
 pass() {
   TOTAL=$((TOTAL + 1))
   echo "ok - $1"
@@ -19,10 +21,26 @@ fail() {
 }
 
 for skill in archify archify-review; do
-  if [ -s "$HOME/.agents/skills/$skill/SKILL.md" ]; then
+  if [ -d "$HOME/.agents/skills/$skill" ] && [ -s "$HOME/.agents/skills/$skill/SKILL.md" ]; then
     pass "$skill is installed and not empty"
   else
     fail "$skill is installed and not empty"
+  fi
+
+  listed="no"
+  ref=""
+  if [ -f "$LOCK" ]; then
+    # The entry key is the exact skill name, so archify cannot match archify-review.
+    if grep -q "\"$skill\"[[:space:]]*:[[:space:]]*{" "$LOCK"; then
+      listed="yes"
+      ref=$(sed -n "/\"$skill\"[[:space:]]*:[[:space:]]*{/,/^[[:space:]]*}/p" "$LOCK" \
+            | sed -n 's/.*"ref"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    fi
+  fi
+  if [ "$listed" = "yes" ] && printf '%s\n' "$ref" | grep -q '^[0-9a-f]\{40\}$'; then
+    pass "$skill is listed in the lock file with a full commit ref"
+  else
+    fail "$skill is listed in the lock file with a full commit ref"
   fi
 done
 
