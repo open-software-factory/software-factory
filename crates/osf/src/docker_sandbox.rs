@@ -610,9 +610,80 @@ fn repository_mount(spec: &SandboxSpec) -> Option<usize> {
         .position(|mount| mount.sandbox_path == spec.workdir)
 }
 
+/// The host paths no mount source may be, or lie under.
+const FORBIDDEN_MOUNT_PATHS: [&str; 3] = ["/run", "/var/run", "/proc"];
+
+/// Refuses a mount source that is, or lies under, one of
+/// [`FORBIDDEN_MOUNT_PATHS`], testing both the path as given and its
+/// canonicalized form so a symlink is caught by its real path.
+///
+/// # Errors
+/// Returns [`SandboxError::Rejected`] naming the host path.
+fn check_mount_not_system_path(
+    given: &Path,
+    real: &Path,
+    host_path: &str,
+) -> Result<(), SandboxError> {
+    let forbidden = FORBIDDEN_MOUNT_PATHS
+        .iter()
+        .copied()
+        .any(|prefix| given.starts_with(prefix) || real.starts_with(prefix));
+    if forbidden {
+        return Err(SandboxError::Rejected(format!(
+            "the mount source must not be, or lie under, /run, /var/run or /proc: {host_path}"
+        )));
+    }
+    Ok(())
+}
+
+/// Refuses a mount source that is a Unix socket or holds one at its top
+/// level; the check reads one level only, so a socket deeper is accepted.
+///
+/// # Errors
+/// Returns [`SandboxError::Rejected`] naming the host path, and fails closed
+/// when the source cannot be read.
+#[cfg(unix)]
+fn check_mount_has_no_socket(real: &Path, host_path: &str) -> Result<(), SandboxError> {
+    use std::os::unix::fs::FileTypeExt as _;
+    let cannot_read = |error: std::io::Error| {
+        SandboxError::Rejected(format!(
+            "the mount source cannot be read: {host_path}: {error}"
+        ))
+    };
+    let metadata = std::fs::metadata(real).map_err(cannot_read)?;
+    if metadata.file_type().is_socket() {
+        return Err(SandboxError::Rejected(format!(
+            "the mount source is a socket: {host_path}"
+        )));
+    }
+    if !metadata.is_dir() {
+        return Ok(());
+    }
+    for entry in std::fs::read_dir(real).map_err(cannot_read)? {
+        let entry = entry.map_err(cannot_read)?;
+        if entry.file_type().map_err(cannot_read)?.is_socket() {
+            return Err(SandboxError::Rejected(format!(
+                "the mount source holds a socket at its top level: {host_path}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// The non-Unix stub: sockets do not exist there, so the check passes.
+///
+/// # Errors
+/// Never.
+#[cfg(not(unix))]
+fn check_mount_has_no_socket(_real: &Path, _host_path: &str) -> Result<(), SandboxError> {
+    Ok(())
+}
+
 /// Canonicalizes every mount source, refusing a missing source, a symlink
-/// unless `follow_symlinks` is set, the host root, and a source that is, or
-/// holds, the repository mount's own real source.
+/// unless `follow_symlinks` is set, the host root, a source that is or lies
+/// under `/run`, `/var/run` or `/proc`, a source that is or holds a top-level
+/// socket, and a source that is, or holds, the repository mount's own real
+/// source.
 ///
 /// # Errors
 /// Returns [`SandboxError::Rejected`] naming the first mount that fails.
@@ -644,6 +715,8 @@ pub fn resolve_mounts(spec: &SandboxSpec) -> Result<SandboxSpec, SandboxError> {
                 "the mount source must not be the root of the host".to_string(),
             ));
         }
+        check_mount_not_system_path(host, &real, &mount.host_path)?;
+        check_mount_has_no_socket(&real, &mount.host_path)?;
         real_paths.push(real);
     }
     if let Some(repository) = repository_mount(spec) {
@@ -1130,13 +1203,20 @@ mod tests {
         }
     }
 
-    /// A real folder source for a create test: the canonical temp folder.
+    thread_local! {
+        // A fresh, empty folder per test thread, removed when the thread ends.
+        static REAL_DIR: crate::test_support::TempDir =
+            crate::test_support::TempDir::new("osf-docker-sandbox-real");
+    }
+
+    /// A real folder source for a create test: a fresh, empty folder per test thread.
     fn real_dir() -> String {
-        let dir = std::env::temp_dir(); // osf: temp-dir allowed, only read as an existing folder
-        std::fs::canonicalize(&dir)
-            .unwrap_or(dir)
-            .to_string_lossy()
-            .into_owned()
+        REAL_DIR.with(|dir| {
+            std::fs::canonicalize(dir.as_ref())
+                .expect("the temp folder canonicalizes")
+                .to_string_lossy()
+                .into_owned()
+        })
     }
 
     /// The workspace spec with both mount sources in the real temp folder.
@@ -3492,6 +3572,130 @@ mod tests {
         )]))
         .expect_err("the symlinked parent is refused");
         assert!(error.to_string().contains("symbolic link"), "{error}");
+    }
+
+    /// The canonical path text of `path`, for a mount source and its message.
+    fn canonical_text(path: &Path) -> String {
+        std::fs::canonicalize(path)
+            .expect("the path canonicalizes")
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_mounts_refuses_a_socket_at_the_top_level_of_a_folder() {
+        let folder = crate::test_support::TempDir::new("osf-resolve-socket-folder");
+        let text = canonical_text(folder.as_ref());
+        let listener = std::os::unix::net::UnixListener::bind(folder.join("socket"))
+            .expect("the socket binds");
+        let spec = mounts_spec(vec![mount(&text, "/work", false)]);
+        let error = resolve_mounts(&spec).expect_err("the top-level socket is refused");
+        assert_eq!(
+            error.to_string(),
+            format!("the mount source holds a socket at its top level: {text}")
+        );
+        drop(listener);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_mounts_accepts_a_socket_below_the_top_level() {
+        let folder = crate::test_support::TempDir::new("osf-resolve-socket-subfolder");
+        let text = canonical_text(folder.as_ref());
+        let sub = folder.join("sub");
+        std::fs::create_dir_all(&sub).expect("the subfolder creates");
+        let listener =
+            std::os::unix::net::UnixListener::bind(sub.join("socket")).expect("the socket binds");
+        let spec = mounts_spec(vec![mount(&text, "/work", false)]);
+        resolve_mounts(&spec).expect("a socket below the top level passes");
+        drop(listener);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_mounts_refuses_a_source_that_is_a_socket() {
+        let folder = crate::test_support::TempDir::new("osf-resolve-socket-itself");
+        let socket = folder.join("socket");
+        let listener = std::os::unix::net::UnixListener::bind(&socket).expect("the socket binds");
+        let text = canonical_text(&socket);
+        let spec = mounts_spec(vec![mount(&text, "/work", false)]);
+        let error = resolve_mounts(&spec).expect_err("the socket is refused");
+        assert_eq!(
+            error.to_string(),
+            format!("the mount source is a socket: {text}")
+        );
+        drop(listener);
+    }
+
+    #[test]
+    fn resolve_mounts_accepts_ordinary_files_and_a_plain_subfolder() {
+        let folder = RealFolder::new("ordinary");
+        std::fs::write(folder.join("file.txt"), "data").expect("the file writes");
+        std::fs::create_dir_all(folder.join("sub")).expect("the subfolder creates");
+        let spec = mounts_spec(vec![mount(&folder.text(), "/work", false)]);
+        resolve_mounts(&spec).expect("ordinary contents pass");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn resolve_mounts_refuses_a_linux_system_path() {
+        for path in ["/run", "/proc", "/var/run", "/proc/self"] {
+            if !Path::new(path).exists() {
+                continue;
+            }
+            let spec = mounts_spec(vec![mount(path, "/work", true)]);
+            let error = resolve_mounts(&spec).expect_err(path);
+            assert!(
+                error.to_string().contains(
+                    "the mount source must not be, or lie under, /run, /var/run or /proc"
+                ),
+                "{path}: {error}"
+            );
+            assert!(error.to_string().contains(path), "{path}: {error}");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn resolve_mounts_refuses_a_symlink_that_resolves_to_proc() {
+        let folder = RealFolder::new("proc-link");
+        let link = folder.join("link");
+        std::os::unix::fs::symlink("/proc", &link).expect("the symlink creates");
+        let spec = mounts_spec(vec![mount(&link.to_string_lossy(), "/work", true)]);
+        let error = resolve_mounts(&spec).expect_err("the real path is refused");
+        assert!(
+            error
+                .to_string()
+                .contains("the mount source must not be, or lie under, /run, /var/run or /proc"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn resolve_mounts_accepts_a_folder_whose_name_starts_like_a_forbidden_path() {
+        let folder = RealFolder::new("whole-component");
+        let runner = folder.join("runner-xyz");
+        std::fs::create_dir_all(&runner).expect("the folder creates");
+        let spec = mounts_spec(vec![mount(&runner.to_string_lossy(), "/work", false)]);
+        resolve_mounts(&spec).expect("a name starting with the same letters passes");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_mounts_socket_error_names_only_the_host_path() {
+        let folder = crate::test_support::TempDir::new("osf-resolve-socket-error");
+        let text = canonical_text(folder.as_ref());
+        let listener = std::os::unix::net::UnixListener::bind(folder.join("hidden.sock"))
+            .expect("the socket binds");
+        let spec = mounts_spec(vec![mount(&text, "/work", false)]);
+        let error = resolve_mounts(&spec).expect_err("the socket is refused");
+        assert_eq!(
+            error.to_string(),
+            format!("the mount source holds a socket at its top level: {text}")
+        );
+        assert!(!error.to_string().contains("hidden.sock"), "{error}");
+        drop(listener);
     }
 
     #[test]
