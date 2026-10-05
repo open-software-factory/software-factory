@@ -8,6 +8,9 @@ use std::time::{Duration, Instant, SystemTime};
 
 use super::{sha256_hex, validate_run_id};
 
+#[cfg(test)]
+use std::cell::RefCell;
+
 /// How long a writer waits for another writer to release the lock file.
 const LOCK_WAIT: Duration = Duration::from_secs(10);
 
@@ -16,6 +19,12 @@ const LOCK_STALE_AFTER: Duration = Duration::from_secs(60);
 
 /// How long a writer sleeps between attempts to take the lock file.
 const LOCK_RETRY: Duration = Duration::from_millis(5);
+
+#[cfg(test)]
+thread_local! {
+    /// Runs in `reclaim_stale_lock` just before the lock is renamed aside.
+    static BEFORE_RENAME: RefCell<Option<Box<dyn FnOnce()>>> = const { RefCell::new(None) };
+}
 
 /// The index file's body: the work item id and its run ids in order.
 #[derive(Debug, Deserialize, Serialize)]
@@ -144,8 +153,9 @@ fn reclaim_note(lock: &Path, stale_after: Duration) -> String {
     )
 }
 
-/// Moves the stale `lock` aside, then removes it; `true` when this call won.
-fn reclaim_stale_lock(lock: &Path) -> Result<bool, String> {
+/// Moves the lock aside; `true` when this call reclaimed a lock still older
+/// than `stale_after`, `false` when another writer took it in between.
+fn reclaim_stale_lock(lock: &Path, stale_after: Duration) -> Result<bool, String> {
     let name = lock
         .file_name()
         .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
@@ -153,6 +163,13 @@ fn reclaim_stale_lock(lock: &Path) -> Result<bool, String> {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |since| since.as_nanos());
     let stale = lock.with_file_name(format!("{name}.stale.{}.{nanos}", std::process::id()));
+    #[cfg(test)]
+    {
+        let hook = BEFORE_RENAME.with(|slot| slot.borrow_mut().take());
+        if let Some(run) = hook {
+            run();
+        }
+    }
     match std::fs::rename(lock, &stale) {
         Ok(()) => {}
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
@@ -162,6 +179,20 @@ fn reclaim_stale_lock(lock: &Path) -> Result<bool, String> {
                 lock.display()
             ));
         }
+    }
+    match lock_age(&stale)? {
+        None => return Ok(false),
+        Some(age) if age <= stale_after => {
+            if let Err(e) = std::fs::rename(&stale, lock) {
+                return Err(format!(
+                    "cannot restore the lock file {} from {}: {e}",
+                    lock.display(),
+                    stale.display()
+                ));
+            }
+            return Ok(false);
+        }
+        Some(_) => {}
     }
     match std::fs::remove_file(&stale) {
         Ok(()) => {}
@@ -202,7 +233,7 @@ fn take_lock(
                         continue;
                     };
                     if age > stale_after {
-                        if reclaim_stale_lock(&lock)? {
+                        if reclaim_stale_lock(&lock, stale_after)? {
                             note = Some(reclaim_note(&lock, stale_after));
                         }
                         continue;
@@ -611,6 +642,55 @@ mod tests {
                 .collect();
             assert!(stale.is_empty(), "{stale:?}");
         }
+    }
+
+    #[test]
+    fn a_lock_taken_between_the_staleness_check_and_the_rename_is_restored() {
+        let dir = TempDir::new("osf-index-fresh-race");
+        let lock = old_lock_file(&dir, ITEM, Duration::from_secs(3600));
+        let hook_lock = lock.clone();
+        let hook_index = index_path(&dir, ITEM);
+        let handle = std::rc::Rc::new(RefCell::new(None));
+        let hook_handle = std::rc::Rc::clone(&handle);
+        BEFORE_RENAME.with(move |slot| {
+            *slot.borrow_mut() = Some(Box::new(move || {
+                std::fs::remove_file(&hook_lock).expect("remove the stale lock");
+                std::fs::write(&hook_lock, "writer-b").expect("write the fresh lock");
+                let thread = std::thread::spawn(move || -> Result<(), String> {
+                    std::thread::sleep(Duration::from_millis(300));
+                    assert!(hook_lock.exists(), "writer B's lock file was moved aside");
+                    let contents = std::fs::read_to_string(&hook_lock)
+                        .map_err(|e| format!("cannot read writer B's lock file: {e}"))?;
+                    assert_eq!(contents, "writer-b", "writer B's lock content changed");
+                    record_run_locked(&hook_index, ITEM, "run-b")?;
+                    release_lock(&hook_lock)
+                });
+                *hook_handle.borrow_mut() = Some(thread);
+            }));
+        });
+        let outcome = record_run(&dir, ITEM, "run-a").expect("writer A records");
+        assert!(outcome.is_none(), "writer A reclaimed a lock it never took");
+        let thread = handle.borrow_mut().take().expect("writer B's thread");
+        thread
+            .join()
+            .expect("writer B did not panic")
+            .expect("writer B records");
+        let mut runs = runs_for_work_item(&dir, ITEM).expect("runs");
+        runs.sort();
+        assert_eq!(runs, ["run-a", "run-b"].map(str::to_string));
+        assert!(!lock.exists(), "the lock file is still present");
+        let stale: Vec<String> = std::fs::read_dir(dir.join("index"))
+            .expect("index dir")
+            .map(|entry| {
+                entry
+                    .expect("entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .filter(|name| name.contains(".stale."))
+            .collect();
+        assert!(stale.is_empty(), "{stale:?}");
     }
 
     #[test]
