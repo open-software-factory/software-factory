@@ -3330,9 +3330,8 @@ fn journal_review_answers(home: &Path) -> Vec<serde_json::Value> {
     answers
 }
 
-/// Five lenses with a concurrency of two overlap, but never more than two at
-/// once. Only a lens's first invocation sleeps, so the wall-clock bound is
-/// about the lens-level waves, not the three attempts each lens makes.
+/// Five lenses at a concurrency of two overlap, but never more than two at
+/// once, shown by the fake's own nanosecond-timestamped start and end lines.
 #[test]
 #[cfg(unix)]
 fn lenses_overlap_in_time_and_the_concurrency_limit_holds() {
@@ -3363,34 +3362,59 @@ fn lenses_overlap_in_time_and_the_concurrency_limit_holds() {
         &lenses,
     );
     let home = common::isolated_home("review-run-parallel-overlap");
-    let started = std::time::Instant::now();
     let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
     );
-    let elapsed = started.elapsed();
     assert!(
         output.status.success(),
         "stdout: {}\nstderr: {}",
         stdout_of(&output),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(
-        elapsed < std::time::Duration::from_secs(5),
-        "five lenses at a concurrency of two took {elapsed:?}, not clearly below five one-second sleeps"
-    );
     let text = std::fs::read_to_string(&log).expect("the fake log reads");
+    let mut intervals: std::collections::BTreeMap<&str, (Option<u128>, Option<u128>)> =
+        std::collections::BTreeMap::new();
     let mut events: Vec<(u128, i32)> = Vec::new();
     for line in text.lines() {
         let mut fields = line.split_whitespace();
-        let (Some(kind), Some(_lens), Some(at)) = (fields.next(), fields.next(), fields.next())
+        let (Some(kind), Some(lens), Some(at)) = (fields.next(), fields.next(), fields.next())
         else {
             panic!("a start or end line needs three fields: {line}");
         };
         let at: u128 = at.parse().expect("a nanosecond timestamp");
-        events.push((at, if kind == "start" { 1 } else { -1 }));
+        let interval = intervals.entry(lens).or_insert((None, None));
+        match kind {
+            "start" => {
+                interval.0 = Some(at);
+                events.push((at, 1));
+            }
+            "end" => {
+                interval.1 = Some(at);
+                events.push((at, -1));
+            }
+            other => panic!("expected a start or end line, got {other}: {line}"),
+        }
     }
+    assert_eq!(intervals.len(), 5, "one interval per lens: {text}");
+    let spans: Vec<(&str, u128, u128)> = intervals
+        .into_iter()
+        .map(|(lens, (start, end))| {
+            (
+                lens,
+                start.unwrap_or_else(|| panic!("lens {lens} has no start: {text}")),
+                end.unwrap_or_else(|| panic!("lens {lens} has no end: {text}")),
+            )
+        })
+        .collect();
+    let overlaps = spans.iter().enumerate().any(|(i, (a, a_start, a_end))| {
+        spans
+            .iter()
+            .skip(i + 1)
+            .any(|(b, b_start, b_end)| a != b && a_start < b_end && b_start < a_end)
+    });
+    assert!(overlaps, "at least two lenses must overlap in time: {text}");
     events.sort_unstable();
     let mut running = 0i32;
     let mut most = 0i32;
