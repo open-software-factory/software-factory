@@ -70,20 +70,24 @@ while [ "$i" -lt "$count" ]; do
   agent="$(printf '%s' "$rows" | jq -r ".[$i].name")"
   hooks="$(printf '%s' "$rows" | jq -r ".[$i].hooks")"
   enabled="$(printf '%s' "$rows" | jq -r ".[$i].enabled")"
-  path="$HOME/$hooks"
-  # The image carries the dsh patch in its factory profile.
+  paths="$HOME/$hooks"
+  # The image carries the dsh patch in both its factory and headless profiles.
   case "$hooks" in
-    .dsh/cordis.patch.yml) path="$HOME/.dsh/profiles/factory/cordis.patch.yml" ;;
+    .dsh/cordis.patch.yml)
+      paths="$HOME/.dsh/profiles/factory/cordis.patch.yml $HOME/.dsh/profiles/headless/cordis.patch.yml"
+      ;;
   esac
-  if [ "$enabled" = "true" ]; then
-    check_enabled_hook "$agent" "$path"
-  else
-    if [ -e "$path" ]; then
-      fail "$agent: disabled agent has no hook file at $path"
+  for path in $paths; do
+    if [ "$enabled" = "true" ]; then
+      check_enabled_hook "$agent" "$path"
     else
-      pass "$agent: disabled agent has no hook file"
+      if [ -e "$path" ]; then
+        fail "$agent: disabled agent has no hook file at $path"
+      else
+        pass "$agent: disabled agent has no hook file"
+      fi
     fi
-  fi
+  done
   i=$((i + 1))
 done
 

@@ -402,32 +402,46 @@ RUN rustup component add rustfmt clippy && \
 # write bits; nothing here needs to be executable-only or unreadable.
 RUN find /usr/local/cargo /usr/local/rustup -perm /022 -exec chmod go-w {} +
 
-# dsh's "factory" profile: the writing-check plugin registered, from
-# integrations/dsh's own profile-patch.example.yml. dsh has no
-# system-wide config path (see the [agents] table of osf.toml and
+# dsh's "factory" and "headless" profiles: the writing-check plugin
+# registered in both, from integrations/dsh's own profile-patch.example.yml.
+# dsh has no system-wide config path (see the [agents] table of osf.toml and
 # crates/osf/src/agents.rs). The same chown-then-chown-back order as the
-# install block below applies here: mkdir -p creates .dsh itself as root,
-# so dev needs it back before only the factory profile directory is locked
-# root-owned and read-only. Run `dsh --profile factory` to boot it. The
-# profile also registers the Claude-format hooks bridge, pointed at this
-# repository's own .claude/hooks.json (see the profile's own comments for
-# why that file is not under this root-owned directory).
+# install block below applies here: mkdir -p creates .dsh itself as root, so
+# dev needs it back before only the two profile directories are locked
+# root-owned and read-only. dsh creates the "headless" profile itself on its
+# first run with an empty cordis.patch.yml, so installing it here gives that
+# profile the plugin too. Run `dsh --profile factory` or
+# `dsh --profile headless` to boot one. Each profile also registers the
+# Claude-format hooks bridge, pointed at this repository's own
+# .claude/hooks.json (see the profile's own comments for why that file is not
+# under this root-owned directory).
 #
-# dsh 0.2 needs the profile's own package.json and the plugin under its node_modules.
-# It also rewrites an empty cordis.yml in the profile on every start, so only that file is dev-owned.
-RUN mkdir -p "${DEV_HOME}/.dsh/profiles/factory/node_modules/@open-software-factory/osf-dsh-plugin"
-COPY .devcontainer/hooks/dsh/profile.package.json ${DEV_HOME}/.dsh/profiles/factory/package.json
-COPY .devcontainer/hooks/dsh/cordis.patch.yml ${DEV_HOME}/.dsh/profiles/factory/cordis.patch.yml
-RUN cd /usr/src/factory-build/integrations/dsh && \
-    P="${DEV_HOME}/.dsh/profiles/factory/node_modules/@open-software-factory/osf-dsh-plugin" && \
-    cp package.json cordis.patch.yml "${P}/" && \
-    mkdir "${P}/dist" && \
-    cp -r dist/src "${P}/dist/src" && \
-    chown -R dev:dev "${DEV_HOME}/.dsh" && \
-    chown -R root:root "${DEV_HOME}/.dsh/profiles/factory" && \
-    find "${DEV_HOME}/.dsh/profiles/factory" -type d -exec chmod 0555 {} + && \
-    find "${DEV_HOME}/.dsh/profiles/factory" -type f -exec chmod 0444 {} + && \
-    install -o dev -g dev -m 0644 /dev/null "${DEV_HOME}/.dsh/profiles/factory/cordis.yml"
+# dsh 0.2 needs each profile's own package.json and the plugin under its
+# node_modules. It also rewrites an empty cordis.yml in the profile on every
+# start, so only that file is dev-owned.
+COPY .devcontainer/hooks/dsh/profile.package.json .devcontainer/hooks/dsh/cordis.patch.yml /opt/dsh-profile/
+RUN set -eu; \
+    for profile in factory headless; do \
+      P="${DEV_HOME}/.dsh/profiles/${profile}"; \
+      mkdir -p "${P}/node_modules/@open-software-factory/osf-dsh-plugin"; \
+      cp /opt/dsh-profile/profile.package.json "${P}/package.json"; \
+      cp /opt/dsh-profile/cordis.patch.yml "${P}/cordis.patch.yml"; \
+      cp /usr/src/factory-build/integrations/dsh/package.json \
+        /usr/src/factory-build/integrations/dsh/cordis.patch.yml \
+        "${P}/node_modules/@open-software-factory/osf-dsh-plugin/"; \
+      mkdir "${P}/node_modules/@open-software-factory/osf-dsh-plugin/dist"; \
+      cp -r /usr/src/factory-build/integrations/dsh/dist/src \
+        "${P}/node_modules/@open-software-factory/osf-dsh-plugin/dist/src"; \
+    done; \
+    chown -R dev:dev "${DEV_HOME}/.dsh"; \
+    for profile in factory headless; do \
+      P="${DEV_HOME}/.dsh/profiles/${profile}"; \
+      chown -R root:root "${P}"; \
+      find "${P}" -type d -exec chmod 0555 {} +; \
+      find "${P}" -type f -exec chmod 0444 {} +; \
+      install -o dev -g dev -m 0644 /dev/null "${P}/cordis.yml"; \
+    done; \
+    rm -rf /opt/dsh-profile
 
 # The hook files from osf.toml, written by `osf hooks install --agents`.
 COPY osf.toml /tmp/osf-hooks/osf.toml
@@ -441,7 +455,7 @@ RUN set -eu; \
       case "$line" in \
         "osf hooks install: wrote "*) \
           file="${line#osf hooks install: wrote }"; \
-          # The factory profile carries the dsh plugin, because dsh loads this global file in every profile.
+          # Both dsh profiles carry the plugin, so this global file must not be left behind.
           case "$file" in \
             */.dsh/cordis.patch.yml) rm -f "$file"; continue ;; \
           esac; \

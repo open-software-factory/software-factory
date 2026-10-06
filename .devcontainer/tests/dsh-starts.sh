@@ -41,6 +41,14 @@ check_profile() {
   else
     pass "$profile loads every plugin"
   fi
+  # The osf stop-hook plugin must be in the profile's dumped config.
+  dump_status=0
+  dump=$(dsh --profile "$profile" --dump-config 2>&1) || dump_status=$?
+  if [ "$dump_status" -eq 0 ] && echo "$dump" | grep -q '@open-software-factory/osf-dsh-plugin'; then
+    pass "$profile names the osf plugin in --dump-config"
+  else
+    fail "$profile names the osf plugin in --dump-config"
+  fi
 }
 
 check_profile headless
