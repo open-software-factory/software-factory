@@ -289,7 +289,8 @@ pub struct ReviewConfig {
     pub timeout_seconds: u64,
     /// How long the whole reviewer run may take, measured from the first lens start.
     pub total_timeout_seconds: u64,
-    /// An optional ceiling on what one review run may spend.
+    /// An optional ceiling on what one review run may spend. No reviewer
+    /// reports spend yet, so only a ceiling of 0 stops lenses.
     pub cost_ceiling: Option<f64>,
     /// Model-name prefixes that extend the shipped builder-family table (see
     /// [`crate::builder`]), tried before it so a repository can name a model

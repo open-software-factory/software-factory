@@ -1070,7 +1070,9 @@ fn judge_lens(
         }
         match lens_run {
             Some(run) if run.context_error.is_some() => {
-                context_error = context_error.or_else(|| run.context_error.clone());
+                let reason = run.context_error.clone().unwrap_or_default();
+                judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
+                context_error = context_error.or(Some(reason));
             }
             Some(run) if run.attempts.len() > MAX_ATTEMPTS => judged.push(Judged::missing(
                 reviewer,
@@ -1088,7 +1090,7 @@ fn judge_lens(
         }
     }
     if let Some(reason) = context_error {
-        return (LensVerdict::CouldNotRun(reason), Vec::new(), false);
+        return (LensVerdict::CouldNotRun(reason), judged, false);
     }
     for (_, attempts) in ran {
         judged.extend(attempts);

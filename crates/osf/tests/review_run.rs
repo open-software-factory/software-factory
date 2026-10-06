@@ -174,6 +174,23 @@ fn review_repo_with_active_lenses(name: &str, osf_toml: &str, active: &[&str]) -
     repo
 }
 
+/// [`review_repo_with_active_lenses`], with the one active lens's file text
+/// given, so it can declare a context input this repository does not provide.
+#[cfg(unix)]
+fn review_repo_with_lens(name: &str, osf_toml: &str, lens: &str, lens_toml: &str) -> TempRepo {
+    let repo = TempRepo::new(name);
+    write_active_lenses_to(&repo.dir, &[]);
+    repo.write(&format!(".osf/review-lenses/{lens}.toml"), lens_toml);
+    repo.write("osf.toml", osf_toml);
+    repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
+    repo.write("README.md", "base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("README.md", "base\nplus a change to review\n");
+    repo.commit("a small change to review");
+    repo
+}
+
 /// [`review_repo_with`], with each of `links` committed in the base commit as a
 /// symbolic link named by the first item and pointing at the second.
 #[cfg(unix)]
@@ -3822,6 +3839,46 @@ fn a_zero_cost_ceiling_stops_every_lens_before_it_starts() {
             "{reason}"
         );
     }
+}
+
+/// A lens whose context cannot be built still gets exactly one could-not-run
+/// journal event, naming the input the context needed.
+#[test]
+#[cfg(unix)]
+fn a_lens_whose_context_cannot_be_built_still_gets_a_could_not_run_event() {
+    let fakes = Fakes::new("", &[("opencode", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo_with_lens(
+        "context-cannot-build",
+        &fakes.osf_toml_with_qwen_opencode(),
+        "spec-and-acceptance",
+        include_str!("../defaults/review-lenses/spec-and-acceptance.toml"),
+    );
+    let home = common::isolated_home("review-run-context-cannot-build");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let answers = journal_review_answers(&home);
+    let for_lens: Vec<&serde_json::Value> = answers
+        .iter()
+        .filter(|answer| answer["lens"] == "spec-and-acceptance")
+        .collect();
+    assert_eq!(for_lens.len(), 1, "one event for the lens: {answers:?}");
+    let event = for_lens.first().expect("one event for the lens");
+    assert_eq!(event["result"], "could-not-run", "{answers:?}");
+    let reason = event["reason"].as_str().unwrap_or_default();
+    assert!(
+        reason.contains("no work item file was given"),
+        "the reason names the missing work item: {reason}"
+    );
 }
 
 /// Every attempt of every lens carries its lens name into the journal.
