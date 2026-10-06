@@ -2,7 +2,7 @@
 
 Status: accepted. Amended by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md) to add the checkpoint-complete and gap event types.
 
-Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below. Amended 2026-10-05 to add the `system` actor kind. Amended 2026-10-05 to say the replay digest, not the chain hash, proves a replay.
+Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below. Amended 2026-10-05 to add the `system` actor kind. Amended 2026-10-05 to say the replay digest, not the chain hash, proves a replay. Amended 2026-10-07 to name the review-answer and review-decision event types.
 
 ## Context
 
@@ -45,7 +45,7 @@ A state change is an event. The entity tables in this record are projections of 
 | Field | Holds |
 |---|---|
 | schema version | The envelope version, required. |
-| event type | One of: run started, verification, review, finding, state change, run complete, attention, checkpoint-complete, gap. The checkpoint-complete and gap types are added by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md). |
+| event type | One of: run started, verification, review, review-answer, review-decision, finding, state change, run complete, attention, checkpoint-complete, gap. The checkpoint-complete and gap types are added by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md). A review event is the summary of one review round. A review-answer event is one reviewer's outcome for one lens (its scores and kept and dropped finding counts). A review-decision event is the verdict for the whole review (each lens's outcome, the weighted score, the threshold). The review run writes each review-answer first and then one review-decision. |
 | run, work item, change | Identifiers, provider-qualified. |
 | actor | The actor kind: harness, person or `system`. A harness names a model and a model family. |
 | timestamp | Wall-clock time, excluded from the run hash below. |
