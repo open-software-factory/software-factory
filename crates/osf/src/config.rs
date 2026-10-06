@@ -219,8 +219,14 @@ pub struct ScanConfig {
 /// The pass threshold `review_config` reports when `[review]` names none.
 pub const DEFAULT_REVIEW_THRESHOLD: f64 = 0.7;
 
+/// How many reviewer lenses may run at once when `[review]` names none.
+pub const DEFAULT_REVIEW_CONCURRENCY: usize = 8;
+
 /// The per-reviewer timeout, in seconds, `review_config` reports when `[review]` names none.
-pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 300;
+pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 1800;
+
+/// The whole reviewer run's timeout, in seconds, `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_TOTAL_TIMEOUT_SECS: u64 = 2700;
 
 /// The `[agents]` section of a repository's own `osf.toml`: which of the
 /// agents in [`crate::agents::AGENTS`] it uses. Every field left out takes
@@ -262,8 +268,9 @@ pub fn agents_config(root: &Path) -> Result<AgentsConfig, ConfigError> {
 }
 
 /// The `[review]` section of a repository's own `osf.toml`: the pass
-/// threshold, the per-reviewer timeout, and an optional per-run cost
-/// ceiling. The reviewers themselves come from `[agents]`.
+/// threshold, the lens concurrency, the per-reviewer and whole-run
+/// timeouts, and an optional per-run cost ceiling. The reviewers themselves
+/// come from `[agents]`.
 ///
 /// Kept out of the layered [`Config`]/[`Layered`] system deliberately: a
 /// fractional `threshold` cannot honour `Config`'s `Eq` derive the way
@@ -273,8 +280,12 @@ pub fn agents_config(root: &Path) -> Result<AgentsConfig, ConfigError> {
 pub struct ReviewConfig {
     /// The weighted lens score a review must clear to pass.
     pub threshold: f64,
+    /// How many reviewer lenses may run at once.
+    pub concurrency: usize,
     /// How long one reviewer call may run before it is killed and counted could-not-run.
     pub timeout_seconds: u64,
+    /// How long the whole reviewer run may take, measured from the first lens start.
+    pub total_timeout_seconds: u64,
     /// An optional ceiling on what one review run may spend.
     pub cost_ceiling: Option<f64>,
     /// Model-name prefixes that extend the shipped builder-family table (see
@@ -296,7 +307,9 @@ impl Default for ReviewConfig {
     fn default() -> Self {
         ReviewConfig {
             threshold: DEFAULT_REVIEW_THRESHOLD,
+            concurrency: DEFAULT_REVIEW_CONCURRENCY,
             timeout_seconds: DEFAULT_REVIEW_TIMEOUT_SECS,
+            total_timeout_seconds: DEFAULT_REVIEW_TOTAL_TIMEOUT_SECS,
             cost_ceiling: None,
             builder_family_aliases: Vec::new(),
             hot_paths: Vec::new(),
@@ -339,6 +352,24 @@ pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
             "{}: [review]: threshold must be a number from 0 to 1, found {}",
             path.display(),
             config.threshold
+        )));
+    }
+    if config.concurrency == 0 {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: concurrency must be a whole number greater than zero, found 0",
+            path.display()
+        )));
+    }
+    if config.timeout_seconds == 0 {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: timeout_seconds must be a whole number greater than zero, found 0",
+            path.display()
+        )));
+    }
+    if config.total_timeout_seconds == 0 {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: total_timeout_seconds must be a whole number greater than zero, found 0",
+            path.display()
         )));
     }
     if let Some(ceiling) = config.cost_ceiling {
@@ -1425,11 +1456,18 @@ mod tests {
     }
 
     #[test]
-    fn review_config_defaults_the_timeout_to_three_hundred_seconds() {
-        let dir = TempDir::new("osf-config-test-review-timeout-default");
+    fn review_config_defaults_every_timing() {
+        let dir = TempDir::new("osf-config-test-review-timing-default");
         let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert_eq!(loaded.concurrency, DEFAULT_REVIEW_CONCURRENCY);
+        assert_eq!(loaded.concurrency, 8);
         assert_eq!(loaded.timeout_seconds, DEFAULT_REVIEW_TIMEOUT_SECS);
-        assert_eq!(loaded.timeout_seconds, 300);
+        assert_eq!(loaded.timeout_seconds, 1800);
+        assert_eq!(
+            loaded.total_timeout_seconds,
+            DEFAULT_REVIEW_TOTAL_TIMEOUT_SECS
+        );
+        assert_eq!(loaded.total_timeout_seconds, 2700);
     }
 
     #[test]
@@ -1439,6 +1477,19 @@ mod tests {
             .expect("osf.toml writes");
         let loaded = review_config(&dir).expect("review config loads");
         assert_eq!(loaded.timeout_seconds, 45);
+    }
+
+    #[test]
+    fn review_config_reads_a_configured_concurrency_and_total_timeout() {
+        let dir = TempDir::new("osf-config-test-review-timing-configured");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nconcurrency = 3\ntotal_timeout_seconds = 600\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert_eq!(loaded.concurrency, 3);
+        assert_eq!(loaded.total_timeout_seconds, 600);
     }
 
     #[test]
@@ -1508,6 +1559,36 @@ mod tests {
             .expect("osf.toml writes");
         let err = review_config(&dir).expect_err("a string threshold is refused");
         assert!(err.to_string().contains("threshold"), "{err}");
+    }
+
+    #[test]
+    fn a_zero_review_timing_is_refused_naming_the_setting() {
+        for key in ["concurrency", "timeout_seconds", "total_timeout_seconds"] {
+            let dir = TempDir::new(&format!("osf-config-test-review-zero-{key}"));
+            std::fs::write(dir.join("osf.toml"), format!("[review]\n{key} = 0\n"))
+                .expect("osf.toml writes");
+            let err = review_config(&dir).expect_err("a zero timing is refused");
+            let message = err.to_string();
+            assert!(message.contains(key), "{message}");
+            assert!(message.contains("greater than zero"), "{message}");
+        }
+    }
+
+    #[test]
+    fn a_wrongly_typed_review_timing_is_refused_naming_the_setting() {
+        for key in ["concurrency", "timeout_seconds", "total_timeout_seconds"] {
+            for (label, value) in [
+                ("string", "\"many\""),
+                ("negative", "-1"),
+                ("fraction", "1.5"),
+            ] {
+                let dir = TempDir::new(&format!("osf-config-test-review-type-{key}-{label}"));
+                std::fs::write(dir.join("osf.toml"), format!("[review]\n{key} = {value}\n"))
+                    .expect("osf.toml writes");
+                let err = review_config(&dir).expect_err("a wrong type is refused");
+                assert!(err.to_string().contains(key), "{label} {key}: {err}");
+            }
+        }
     }
 
     #[test]
