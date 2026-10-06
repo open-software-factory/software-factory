@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "4c14b8210c3c9aec9476c3d648f30a8d62a48bca",
+    "contentHash": "8cdf12e5ddfb0f05c3ceb2474ebc3245"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ac440ac460bbc5f916c66797b4b961b3",
+      "bytes": 28786,
+      "width": 1738,
+      "height": 770,
+      "animated": false,
+      "path": "container-view-light-ac440ac460bbc5f916c66797b4b961b3.svg"
+    },
+    {
+      "id": "container-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d86482ac2780e5ef43b17bb8c1d74deb",
+      "bytes": 29076,
+      "width": 1738,
+      "height": 770,
+      "animated": false,
+      "path": "container-view-dark-d86482ac2780e5ef43b17bb8c1d74deb.svg"
+    },
+    {
+      "id": "hook-wiring-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hook-wiring-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a5515602231757429fbaf76b28dc0189",
+      "bytes": 11698,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "hook-wiring-view-light-a5515602231757429fbaf76b28dc0189.svg"
+    },
+    {
+      "id": "hook-wiring-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hook-wiring-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "07989393fb8e33586c71e16e1e2b0302",
+      "bytes": 11810,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "hook-wiring-view-dark-07989393fb8e33586c71e16e1e2b0302.svg"
+    },
+    {
+      "id": "build-tests-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-tests-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "056143ee2277a8d5184aad13e577a64f",
+      "bytes": 10878,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "build-tests-view-light-056143ee2277a8d5184aad13e577a64f.svg"
+    },
+    {
+      "id": "build-tests-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-tests-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "02c1ce9e0803486836fb60cc2e10301f",
+      "bytes": 11002,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "build-tests-view-dark-02c1ce9e0803486836fb60cc2e10301f.svg"
+    },
+    {
+      "id": "build-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "build-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0d9fa7fea012b5c319782bd3c9a29652",
+      "bytes": 19759,
+      "width": 2586,
+      "height": 521,
+      "animated": true,
+      "path": "build-flow-view-light-0d9fa7fea012b5c319782bd3c9a29652.svg"
+    },
+    {
+      "id": "build-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "build-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "af91a5c5c1252d0411b1bb82aff4efe0",
+      "bytes": 19926,
+      "width": 2586,
+      "height": 521,
+      "animated": true,
+      "path": "build-flow-view-dark-af91a5c5c1252d0411b1bb82aff4efe0.svg"
+    },
+    {
+      "id": "commit-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "commit-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "433aee26e3ab36f2fe5dd7c14530461f",
+      "bytes": 13659,
+      "width": 1641,
+      "height": 391,
+      "animated": true,
+      "path": "commit-flow-view-light-433aee26e3ab36f2fe5dd7c14530461f.svg"
+    },
+    {
+      "id": "commit-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "commit-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c148a6ec1095b1b8f3165cad8c0b7e31",
+      "bytes": 13793,
+      "width": 1641,
+      "height": 391,
+      "animated": true,
+      "path": "commit-flow-view-dark-c148a6ec1095b1b8f3165cad8c0b7e31.svg"
+    }
+  ]
+}

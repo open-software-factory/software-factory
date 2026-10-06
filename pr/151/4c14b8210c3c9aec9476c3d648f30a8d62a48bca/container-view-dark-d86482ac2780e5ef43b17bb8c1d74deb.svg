@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1738 770" width="1738" height="770" role="img" aria-label="Container view: image build and runtime" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Container view: image build and runtime</title>
+<desc>The whole change at container granularity: what the image build produces, and what runs against it once the container is up.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1738" height="770" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1738" height="770" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="710" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">DEVELOPER HOST · VS CODE / DOCKER CLI</text>
+<rect class="lanebox" x="440" y="44" width="404" height="710" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">DEVCONTAINER IMAGE · BUILT FROM .DEVCONTAINER/DO…</text>
+<rect class="lanebox" x="894" y="44" width="404" height="710" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="910" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">CONTAINER RUNTIME · USER DEV, /WORKSPACE BIND MO…</text>
+<rect class="lanebox" x="1318" y="44" width="404" height="710" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="1334" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">EXTERNAL SERVICES · RELEASE HOSTS AND REGISTRIES</text></g>
+<g><path class="edge edge-modified" d="M404,245 L417,245 C424.18,245 430,250.82 430,258 L430,338 C430,345.18 435.82,351 443,351 L456,351" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-added faded" d="M828,334 L851,334 C863.7,334 874,344.3 874,357 L874,366 C874,383.67 888.33,398 906,398 L1264,398 C1282.78,398 1298,413.22 1298,432 L1298,457 C1298,466.94 1306.06,475 1316,475 L1334,475" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5" opacity="0.45"/>
+<path class="edge edge-modified" d="M828,345.33 L856,345.33 C871.46,345.33 884,357.87 884,373.33 L884,376.67 C884,393.97 898.03,408 915.33,408 L1313,408 C1315.76,408 1318,410.24 1318,413 C1318,415.76 1320.24,418 1323,418 L1603,418 C1610.18,418 1616,423.82 1616,431 L1616,444" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-added" d="M828,356.67 L861,356.67 C879.23,356.67 894,371.44 894,389.67 L894,482 C894,500.78 909.22,516 928,516 L1274,516 C1292.78,516 1308,531.22 1308,550 L1308,576 C1308,583.18 1313.82,589 1321,589 L1334,589" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M828,368 L870,368 C888.78,368 904,383.22 904,402 L904,498 C904,516.78 919.22,532 938,532 L1320,532 C1324.42,532 1328,535.58 1328,540 C1328,544.42 1331.58,548 1336,548 L1611,548 C1613.76,548 1616,550.24 1616,553 L1616,558" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M590,382 L590,444" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-added" d="M650,382 L650,410 C650,425.46 637.46,438 622,438 L480,438 C461.22,438 446,453.22 446,472 L446,584 C446,586.76 448.24,589 451,589 L456,589" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="glow" stroke="#3fb950" d="M642,620 L642,672" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M642,620 L642,672" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="2.25"/>
+<path class="edge edge-added" d="M650,382 L650,385 C650,386.66 651.34,388 653,388 L710,388 C725.46,388 738,400.54 738,416 L738,444" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M218,144 L218,206" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-added" d="M404,229 L409,229 C411.76,229 414,231.24 414,234 L414,251.5 C414,263.93 424.07,274 436.5,274 L830,274 C848.78,274 864,289.22 864,308 L864,336 C864,348.7 874.3,359 887,359 L910,359" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="glow" stroke="#d29922" d="M1144,154 L1144,206" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-modified hero" d="M1144,154 L1144,206" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="2.25"/>
+<path class="edge edge-added" d="M1282,123 L1285,123 C1286.66,123 1288,124.34 1288,126 L1288,280 C1288,298.78 1272.78,314 1254,314 L1003,314 C1001.34,314 1000,315.34 1000,317 L1000,320" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M1148,268 L1148,320" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-added" d="M910,107 L868,107 C849.22,107 834,122.22 834,141 L834,253.33 C834,272.11 849.22,287.33 868,287.33 L1167.67,287.33 C1176.69,287.33 1184,294.65 1184,303.67 L1184,320" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M910,139 L882,139 C866.54,139 854,151.54 854,167 L854,690 C854,697.18 848.18,703 841,703 L828,703" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M910,123 L877,123 C858.77,123 844,137.77 844,156 L844,310 C844,328.23 858.77,343 877,343 L910,343" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/></g>
+<g><g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="32" y="92" width="372" height="52" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="46" y="105" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="54" cy="118" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="59" cy="118" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="64" cy="118" r="1.8"/></g>
+<text class="ntitle" x="82" y="123" font-size="13" font-weight="600" fill="#e6edf3">Developer</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="32" y="206" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M52,233 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,241 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="57" cy="233" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="62" cy="241" r="2.2"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#e6edf3">devcontainer.json</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">workspaceMount + remoteEnv</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="198" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="363.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="456" y="320" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M476,347 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,355 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="481" cy="347" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="486" cy="355" r="2.2"/></g>
+<text class="ntitle" x="506" y="347" font-size="13" font-weight="600" fill="#e6edf3">Dockerfile</text>
+<text class="nsub" x="506" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">+493 / -29</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="312" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="787.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="456" y="444" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="470" y="462" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M483,468 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476.5,471.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M483,475 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="471" font-size="11.5" font-weight="600" fill="#e6edf3">osf binary</text>
+<text class="nsub" x="506" y="489" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">/opt/factory/bin/os…</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="648" y="444" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="662" y="462" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M669,475 l4,4 l8,-8" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="471" font-size="11.5" font-weight="600" fill="#e6edf3">Build-time tests</text>
+<text class="nsub" x="698" y="489" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">9 scripts under .de…</text>
+<g class="bdg bdg-added"><rect x="780.45" y="436" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="800.73" y="447" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="456" y="558" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="470" y="576" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="483" cy="589" r="6.5"/>
+<path class="glyph-stroke" d="M483,585.5 V589 H486" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="585" font-size="13" font-weight="600" fill="#e6edf3">pnpm integration build</text>
+<text class="nsub" x="506" y="603" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">pnpm --filter dsh,omp,opencode run build</text>
+<g class="bdg bdg-added"><rect x="780.45" y="550" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="800.73" y="561" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="456" y="672" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="470" y="690" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M476,699 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,707 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="481" cy="699" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="486" cy="707" r="2.2"/></g>
+<text class="ntitle" x="506" y="699" font-size="13" font-weight="600" fill="#e6edf3">Agent hook wiring</text>
+<text class="nsub" x="506" y="717" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">/etc/codex, /etc/claude-code, /etc/opencode, ~/.dsh</text>
+<g class="bdg bdg-added"><rect x="780.45" y="664" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="800.73" y="675" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="910" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="924" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="930" y="117" width="14" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M930,121 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="960" y="119" font-size="11.5" font-weight="600" fill="#e6edf3">Coding agents</text>
+<text class="nsub" x="960" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">codex, claude, open…</text>
+<g class="bdg bdg-added"><rect x="1042.45" y="84" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="1062.73" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="1102" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="1116" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><text class="glyph" x="1129" y="127.5" text-anchor="middle" fill="#9198a1" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="1152" y="119" font-size="11.5" font-weight="600" fill="#e6edf3">git wrapper</text>
+<text class="nsub" x="1152" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">/opt/factory/bin/git</text>
+<g class="bdg bdg-modified"><rect x="1208.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1241.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="910" y="206" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="924" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M930,233 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M930,241 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="935" cy="233" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="940" cy="241" r="2.2"/></g>
+<text class="ntitle" x="960" y="233" font-size="13" font-weight="600" fill="#e6edf3">git hooks</text>
+<text class="nsub" x="960" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">/opt/factory/githooks</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="910" y="320" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="924" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><ellipse class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="937" cy="346.5" rx="6.5" ry="2.6"/>
+<path class="glyph-stroke" d="M930.5,346.5 v9 a6.5,2.6 0 0 0 13 0 v-9" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="960" y="347" font-size="10.5" font-weight="600" fill="#e6edf3">/workspace bind mount</text>
+<text class="nsub" x="960" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">OSF_WORKSPACE_ROOT</text>
+<g class="bdg bdg-added"><rect x="1042.45" y="312" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="1062.73" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1102" y="320" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1116" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1122.5" y="344.5" width="13" height="13" rx="3" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="1129" cy="351" r="2"/></g>
+<text class="ntitle" x="1152" y="347" font-size="11.5" font-weight="600" fill="#e6edf3">osf hook</text>
+<text class="nsub" x="1152" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">prompt and stop eve…</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1334" y="444" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1348" y="462" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1353" y="469" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1353,471 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1384" y="471" font-size="11.5" font-weight="600" fill="#e6edf3">Release hosts</text>
+<text class="nsub" x="1384" y="489" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">GitHub releases, no…</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1526" y="444" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1540" y="462" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1545" y="469" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1545,471 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1576" y="471" font-size="11.5" font-weight="600" fill="#e6edf3">npm registry</text>
+<text class="nsub" x="1576" y="489" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">registry.npmjs.org</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="1334" y="558" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="1348" y="576" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1353" y="583" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1353,585 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1384" y="585" font-size="11.5" font-weight="600" fill="#e6edf3">NVIDIA skill repos</text>
+<text class="nsub" x="1384" y="603" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">skillspector, Skill…</text>
+<g class="bdg bdg-added"><rect x="1466.45" y="550" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="1486.73" y="561" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="1526" y="558" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="1540" y="576" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1545" y="583" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1545,585 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1576" y="585" font-size="11.5" font-weight="600" fill="#e6edf3">archify skills</text>
+<text class="nsub" x="1576" y="603" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">tt-a1i/archify @ pi…</text>
+<g class="bdg bdg-added"><rect x="1658.45" y="550" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="1678.73" y="561" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g></g>
+<g><g><rect class="lpill" x="397.38" y="290.5" width="65.24" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="430" y="301.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">builds from</text></g>
+<g><rect class="lpill" x="1018.09" y="390.5" width="133.82" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="1085" y="401.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">pinned tarballs + SHA-256</text></g>
+<g><rect class="lpill" x="1161.91" y="400.5" width="111.13" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="1217.48" y="411.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">npm install -g, npm ci</text></g>
+<g><rect class="lpill" x="1039.77" y="508.5" width="122.47" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="1101" y="519.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">uv tool install @ commit</text></g>
+<g><rect class="lpill" x="1172.24" y="524.5" width="105.67" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="1225.07" y="535.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">skills add @ commit</text></g>
+<g><rect class="lpill" x="536.11" y="405.5" width="107.78" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="590" y="416.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">cargo build --release</text></g>
+<g><rect class="lpill" x="375.33" y="518" width="141.34" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="446" y="529" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">pnpm install --frozen-lockfile</text></g>
+<g><rect class="lpill" x="585.59" y="638.5" width="112.83" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="642" y="649.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">dist/ copied into place</text></g>
+<g><rect class="lpill" x="702.57" y="408.5" width="70.86" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="738" y="419.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">sh &lt;test&gt;.sh</text></g>
+<g><rect class="lpill" x="168.86" y="167.5" width="98.28" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="218" y="178.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">opens in container</text></g>
+<g><rect class="lpill" x="600.34" y="266.5" width="65.82" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="633.25" y="277.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">bind mount</text></g>
+<g><rect class="lpill" x="1047.43" y="172.5" width="193.15" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="1144" y="183.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">-c core.hooksPath=/opt/factory/githooks</text></g>
+<g><rect class="lpill" x="1246.77" y="179" width="142.46" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="1318" y="190" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">OSF_WORKSPACE_ROOT</text></g>
+<g><rect class="lpill" x="1102.85" y="288.33" width="70.3" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1138" y="299.33" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">osf &lt;check&gt;</text></g>
+<g><rect class="lpill" x="964.22" y="279.83" width="107.23" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="1017.83" y="290.83" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">prompt / stop events</text></g>
+<g><rect class="lpill" x="791.99" y="523" width="124.02" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="854" y="534" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">reads root-owned config</text></g>
+<g><rect class="lpill" x="713.88" y="285" width="140.24" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="784" y="296" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">edits files under /workspace</text></g></g>
+</svg>
