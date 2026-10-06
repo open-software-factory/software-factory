@@ -4,11 +4,14 @@
 //! runs, instead of shelling out to it.
 
 pub mod agents;
+pub mod answer;
 pub mod assets;
+pub mod builder;
 pub mod changeset_risk;
 pub mod changeset_tests;
 pub mod check;
 pub mod checkpoint;
+pub mod clean_copy;
 pub mod config;
 pub mod docker_sandbox;
 pub mod exclude;
@@ -17,19 +20,29 @@ pub use git::{scrub_git_env, scrub_git_env_for_dir};
 pub mod githooks;
 pub mod hook;
 pub mod journal;
+pub mod lenses;
 pub mod lints;
 pub mod marker;
 pub mod moon;
 pub mod pr_status;
 pub mod pr_tree;
+pub mod process;
+pub mod quotes;
+pub mod reducer;
 pub mod repository;
 pub mod review;
+pub mod review_context;
+pub mod review_prompt;
+pub mod review_run;
+pub mod reviewers;
 pub mod sandbox;
 pub mod sandbox_cli;
 pub mod scan;
+pub mod secret_values;
 pub mod section;
 #[cfg(unix)]
 pub mod stop_signal;
 #[cfg(test)]
 mod test_support;
 pub mod verify;
+pub mod work_item;
