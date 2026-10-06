@@ -30,6 +30,13 @@
 //! keys are sorted by byte order. A review decision's `lenses` is an array of
 //! two-element arrays.
 //!
+//! A decimal number, such as a review score or threshold held in an `f64`
+//! field, is written by `serde_json` as the shortest text that reads back to
+//! the same value. A whole-number value keeps its trailing `.0`: 1.0 is
+//! written `1.0` and 0.0 is written `0.0`, never `1` or `0`. A value such as
+//! 0.75 is written `0.75`. Integer fields (`u32`, `u64`) are written with no
+//! decimal point.
+//!
 //! See the tests `a_fixed_attention_event_has_a_known_hash` and
 //! `a_fixed_verification_event_has_a_known_hash` for pinned examples. The
 //! first one hashes this canonical JSON:
@@ -722,6 +729,46 @@ mod tests {
             one_event_digest(&event),
             "d076669e4c7878b24a0f68b243d763fdb69f10906172e2038a24258dddf9e58b"
         );
+    }
+
+    #[test]
+    fn a_whole_number_score_keeps_its_trailing_zero_in_the_canonical_bytes() {
+        let actor = Actor::system("osf");
+        let prev_hash = genesis_hash();
+        let mut payload = review_decision_payload();
+        if let Payload::ReviewDecision(decision) = &mut payload {
+            decision.score = Some(1.0);
+            decision.threshold = Some(0.0);
+        }
+        let input = HashInput {
+            prev_hash: prev_hash.as_str(),
+            payload: &payload,
+            work_item: None,
+            change: None,
+            actor: &actor,
+            cost: None,
+        };
+        let canonical = canonical_json(&input);
+        assert!(canonical.contains(r#""score":1.0,"threshold":0.0,"#));
+        assert_eq!(
+            canonical,
+            r#"{"payload":{"event_type":"review-decision","payload":{"verdict":"pass","lenses":[["correctness","pass"],["security","pass"]],"score":1.0,"threshold":0.0,"builder_families":["family-b"],"grade":"reported"}},"work_item":null,"change":null,"actor":{"kind":"system","name":"osf"},"cost":null}"#
+        );
+
+        let mut answer = review_answer_payload();
+        if let Payload::ReviewAnswer(answer) = &mut answer {
+            answer.scores.clear();
+            answer.scores.insert("accuracy".to_string(), 1.0);
+        }
+        let answer_input = HashInput {
+            prev_hash: prev_hash.as_str(),
+            payload: &answer,
+            work_item: None,
+            change: None,
+            actor: &actor,
+            cost: None,
+        };
+        assert!(canonical_json(&answer_input).contains(r#""scores":{"accuracy":1.0}"#));
     }
 
     #[test]
