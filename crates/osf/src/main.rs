@@ -2280,9 +2280,9 @@ fn review_run_summary(outcome: &review_run::RunOutcome) -> String {
 }
 
 /// `--post-to`'s whole job: build the findings and the summary from
-/// `outcome`, then post through the same [`post_plan`] `osf review post`
-/// uses. Returns whether the post landed: a caller that cannot post has no
-/// review evidence on the pull request, whatever the run's own verdict was.
+/// `outcome`, then post through the forge. Returns whether the post landed:
+/// a caller that cannot post has no review evidence on the pull request,
+/// whatever the run's own verdict was.
 fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
     let (repo, pr) = match parse_post_to(post_to) {
         Ok(parsed) => parsed,
@@ -2301,48 +2301,51 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
             return false;
         }
     };
-    let head_sha = match review::fetch_head_sha(&repo, pr) {
+    let github = github_adapter();
+    let head_sha = match github.head_commit(&repo, pr) {
         Ok(sha) => sha,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
             return false;
         }
     };
-    match post_plan(&repo, pr, &plan, &head_sha) {
-        review::Outcome::Reviewed {
+    let pull_request = forge::PullRequestId {
+        repo: repo.clone(),
+        pr: pr.to_string(),
+    };
+    match post_plan(&github, &pull_request, &plan, &head_sha) {
+        Ok(forge::PostedReview {
             verdict,
-            n_inline,
+            advisory: false,
+            inline,
             id,
             state,
             url,
-        } => {
+        }) => {
             println!("posted review {id}: {state}, {url}");
             println!(
-                "osf review run --post-to: {} with {n_inline} inline comment(s) on {repo}#{pr}",
+                "osf review run --post-to: {} with {inline} inline comment(s) on {repo}#{pr}",
                 verdict.as_event()
             );
             true
         }
-        review::Outcome::FallbackComment {
+        Ok(forge::PostedReview {
             verdict,
-            n_inline,
+            advisory: true,
+            inline,
             id,
             state,
             url,
-        } => {
+        }) => {
             println!("posted comment {id}: {state}, {url}");
             println!(
-                "osf review run --post-to: COMMENT (advisory {}) with {n_inline} inline \
+                "osf review run --post-to: COMMENT (advisory {}) with {inline} inline \
                  comment(s) on {repo}#{pr}",
                 verdict.as_event()
             );
             true
         }
-        review::Outcome::Rejected(e) => {
-            eprintln!("osf review run --post-to: {e}");
-            false
-        }
-        review::Outcome::PostFailed(e) => {
+        Err(e) => {
             eprintln!("osf review run --post-to: {e}");
             false
         }
