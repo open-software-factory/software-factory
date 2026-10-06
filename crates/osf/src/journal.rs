@@ -10,8 +10,9 @@ mod schema;
 
 pub use event::{
     Actor, ActorKind, Attention, BlockedCause, Change, CheckResult, CheckpointComplete, Cost,
-    Event, EventDraft, EvidenceGrade, Finding, Payload, Review, RunComplete, RunOutcome,
-    RunStarted, Severity, StateChange, Verification, WorkItemState, SCHEMA_VERSION,
+    Event, EventDraft, EvidenceGrade, Finding, Payload, Review, ReviewAnswer, ReviewDecision,
+    RunComplete, RunOutcome, RunStarted, Severity, StateChange, Verification, WorkItemState,
+    SCHEMA_VERSION,
 };
 use hash::genesis_hash;
 pub(crate) use hash::sha256_hex;

@@ -31,7 +31,9 @@
         "state-change",
         "run-complete",
         "attention",
-        "checkpoint-complete"
+        "checkpoint-complete",
+        "review-answer",
+        "review-decision"
       ]
     },
     "payload": { "type": "object" },
@@ -94,6 +96,20 @@
         "required": ["event_type"]
       },
       "then": { "properties": { "payload": { "$ref": "#/$defs/checkpoint_complete" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "review-answer" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/review_answer" } } }
+    },
+    {
+      "if": {
+        "properties": { "event_type": { "const": "review-decision" } },
+        "required": ["event_type"]
+      },
+      "then": { "properties": { "payload": { "$ref": "#/$defs/review_decision" } } }
     }
   ],
   "$defs": {
@@ -329,6 +345,62 @@
           "propertyNames": { "minLength": 1 },
           "additionalProperties": { "$ref": "#/$defs/check_result" }
         }
+      }
+    },
+    "review_answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lens",
+        "reviewer",
+        "family",
+        "result",
+        "scores",
+        "findings_kept",
+        "findings_dropped",
+        "grade",
+        "round"
+      ],
+      "properties": {
+        "lens": { "$ref": "#/$defs/identifier" },
+        "reviewer": { "$ref": "#/$defs/identifier" },
+        "family": { "$ref": "#/$defs/identifier" },
+        "model": { "$ref": "#/$defs/identifier" },
+        "result": { "$ref": "#/$defs/identifier" },
+        "scores": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "findings_kept": { "$ref": "#/$defs/u32" },
+        "findings_dropped": { "$ref": "#/$defs/u32" },
+        "transcript": { "$ref": "#/$defs/identifier" },
+        "reason": { "$ref": "#/$defs/text" },
+        "grade": { "$ref": "#/$defs/evidence_grade" },
+        "round": { "$ref": "#/$defs/u32" }
+      }
+    },
+    "review_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "lenses", "builder_families", "grade"],
+      "properties": {
+        "verdict": { "$ref": "#/$defs/identifier" },
+        "lenses": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/identifier" },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "score": { "type": "number" },
+        "threshold": { "type": "number" },
+        "builder_families": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/identifier" }
+        },
+        "grade": { "$ref": "#/$defs/evidence_grade" }
       }
     }
   }

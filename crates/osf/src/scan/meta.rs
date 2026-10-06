@@ -35,9 +35,9 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Bad: a link to an agent's session page, pasted into a discussion.\n\
               Good: no session link in the text at all.\n\
               ### Coverage\n\
-              Hosted session links for: claude code, codex, opencode. Agents whose \
-              sessions live only on disk leave a path rather than a link: dsh, pi, omp, \
-              copilot. Those are covered by `scan-agent-state-path`. A host this list \
+              Hosted session links for: claude, codex, opencode. Agents whose \
+              sessions live only on disk leave a path rather than a link: dsh, omp. \
+              Those are covered by `scan-agent-state-path`. A host this list \
               does not name is not checked unless it is added in the configuration.",
         exception: None,
     },
@@ -65,8 +65,8 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
               Good: an agent's committed configuration file, such as its hooks file, which \
               is repository content and is not flagged.\n\
               ### Coverage\n\
-              The state directories and session places of: dsh, pi, omp, opencode, codex, \
-              claude code, copilot. A configuration file under the same directory is not \
+              The state directories and session places of: dsh, omp, opencode, codex, \
+              claude. A configuration file under the same directory is not \
               flagged.",
         exception: None,
     },
@@ -155,6 +155,52 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
         exception: None,
     },
     RuleMeta {
+        id: "scan-secret",
+        class: Class::Security,
+        group: Group::Comprehension,
+        citation: "house",
+        doc: "### What it does\n\
+              Flags text shaped like a real secret: a cloud access key id (`AKIA`/`ASIA`), a \
+              forge token (`ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`, `glpat-`), a \
+              provider key (`sk-`, `sk-ant-`) or a Slack token (`xox`), a PEM private-key \
+              block, or an assignment of a quoted literal to an upper-snake-case name ending \
+              in `KEY`, `TOKEN`, `SECRET` or `PASSWORD`. Never records the matched text: only \
+              the file and the line number are, since printing either would leak the very \
+              thing this rule protects.\n\
+              ### Why it is bad\n\
+              A real secret committed to a repository, or sent to a reviewer's prompt, keeps \
+              working until it is rotated, whoever can read the text.\n\
+              ### Class\n\
+              security: a real risk to whatever the secret protects; no opinion is involved \
+              in flagging it.\n\
+              ### Citation\n\
+              house\n\
+              ### Example\n\
+              Bad: a line matching one of the token shapes above (not shown here, for the \
+              same reason a finding never shows it).\n\
+              Good: a secret read from the environment or a secret manager at run time, never \
+              written into the repository.\n\
+              ### Coverage\n\
+              The listed token shapes and the KEY/TOKEN/SECRET/PASSWORD assignment shape, on \
+              this repository's own tracked files, its commit messages, and any text a caller \
+              passes through `scan_text`, such as a reviewer's assembled prompt. A lower-case \
+              or mixed-case name such as `cache_key` is not flagged, and neither is a bare \
+              word that merely ends in one of these strings, such as `MONKEY`. An assigned value \
+              that is a lowercase slug (only lowercase letters, digits, hyphens, underscores \
+              and dots, every part a word or a short label) is a name, not a secret, so a \
+              browser storage key such as `od-factory-float` is not flagged, but only when the \
+              assigned name ends in `KEY` and has no `_`-separated word `API`, `PRIVATE`, \
+              `SECRET`, `ACCESS`, `AUTH`, `PASSWORD`, `PASSWD`, `PASS` or `TOKEN`, so \
+              `STORAGE_KEY` is covered and `API_KEY` or `DATABASE_PASSWORD` is not. A slug \
+              assigned to any other name stays flagged. A value that is a \
+              variable or expression reference, such as `${NAME}`, `$NAME` or \
+              `${{ secrets.X }}`, is not flagged either. A long random string, a slug with a \
+              random-looking part, and every known token prefix stay flagged. A secret shape \
+              this list does not name is not caught; an adopter's own known shapes belong in \
+              `[scan] denylist`.",
+        exception: None,
+    },
+    RuleMeta {
         id: "scan-denied-name",
         class: Class::Security,
         group: Group::Comprehension,
@@ -186,4 +232,10 @@ pub const SCAN_RULE_META: &[RuleMeta] = &[
 #[must_use]
 pub fn rule_meta(id: &str) -> Option<&'static RuleMeta> {
     SCAN_RULE_META.iter().find(|r| r.id == id)
+}
+
+/// Every scan rule's id, for the suppression engine's known-rules list.
+#[must_use]
+pub fn rule_ids() -> Vec<&'static str> {
+    SCAN_RULE_META.iter().map(|r| r.id).collect()
 }

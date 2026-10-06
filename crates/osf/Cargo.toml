@@ -12,6 +12,10 @@ rust-version = "1.85"
 name = "osf"
 path = "src/main.rs"
 
+[features]
+# Builds the tests that start a real coding agent, which needs its command on PATH.
+real-agents = []
+
 [lints]
 workspace = true
 
@@ -19,10 +23,10 @@ workspace = true
 osf-lint-core = { path = "../osf-lint-core" }
 clap = { version = "4.5", features = ["derive"] }
 globset = "=0.4.20"
+jsonschema = { version = "=0.30.0", default-features = false }
 regex = "1.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-jsonschema = { version = "=0.58.5", default-features = false }
 semver = "=1.0.28"
 shlex = "=2.0.1"
 sha2 = "0.10"
@@ -33,5 +37,5 @@ agnix-core = "=0.54.0"
 wait-timeout = "0.2"
 tree-sitter = "=0.25.10"
 tree-sitter-rust = "=0.24.2"
-pulldown-cmark = "0.13.4"
+pulldown-cmark = { version = "=0.13.4", default-features = false }
 fs4 = { version = "=1.1.0", default-features = false, features = ["sync"] }

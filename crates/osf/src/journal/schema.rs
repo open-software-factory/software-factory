@@ -28,8 +28,8 @@ pub fn validate(event: &serde_json::Value) -> Result<(), Vec<String>> {
     let reasons: Vec<String> = validator()
         .iter_errors(event)
         .map(|error| {
-            let path = error.instance_path();
-            let label = if path.is_empty() {
+            let path = &error.instance_path;
+            let label = if path.as_str().is_empty() {
                 "(root)"
             } else {
                 path.as_str()
@@ -251,5 +251,106 @@ mod tests {
                 "{work_item}: {reasons:?}"
             );
         }
+    }
+
+    /// A hand-built valid review-answer event, never through the writer's types.
+    fn valid_review_answer() -> serde_json::Value {
+        let mut event = valid_event();
+        set(&mut event, "event_type", serde_json::json!("review-answer"));
+        set(
+            &mut event,
+            "payload",
+            serde_json::json!({
+                "lens": "correctness",
+                "reviewer": "reviewer-a",
+                "family": "family-a",
+                "model": "model-a",
+                "result": "answered",
+                "scores": { "accuracy": 0.75, "clarity": 0.5 },
+                "findings_kept": 1,
+                "findings_dropped": 0,
+                "transcript": "runs/review-1/a.log",
+                "reason": "looked at the diff",
+                "grade": "reported",
+                "round": 1
+            }),
+        );
+        event
+    }
+
+    /// A hand-built valid review-decision event, never through the writer's types.
+    fn valid_review_decision() -> serde_json::Value {
+        let mut event = valid_event();
+        set(
+            &mut event,
+            "event_type",
+            serde_json::json!("review-decision"),
+        );
+        set(
+            &mut event,
+            "payload",
+            serde_json::json!({
+                "verdict": "pass",
+                "lenses": [["correctness", "pass"], ["security", "pass"]],
+                "score": 0.75,
+                "threshold": 0.7,
+                "builder_families": ["family-b"],
+                "grade": "reported"
+            }),
+        );
+        event
+    }
+
+    /// Removes `key` from `event`'s payload, which is always an object.
+    fn remove_from_payload(event: &mut serde_json::Value, key: &str) {
+        event
+            .get_mut("payload")
+            .and_then(serde_json::Value::as_object_mut)
+            .expect("payload is an object")
+            .remove(key);
+    }
+
+    #[test]
+    fn a_valid_review_answer_passes() {
+        assert_eq!(validate(&valid_review_answer()), Ok(()));
+    }
+
+    #[test]
+    fn a_review_answer_missing_a_required_field_is_refused() {
+        let mut event = valid_review_answer();
+        remove_from_payload(&mut event, "lens");
+        let reasons = validate(&event).expect_err("a review answer needs its lens");
+        assert!(reasons.iter().any(|r| r.contains("lens")), "{reasons:?}");
+    }
+
+    #[test]
+    fn a_review_answer_may_omit_its_optional_fields() {
+        let mut event = valid_review_answer();
+        for key in ["model", "transcript", "reason"] {
+            remove_from_payload(&mut event, key);
+        }
+        assert_eq!(validate(&event), Ok(()));
+    }
+
+    #[test]
+    fn a_valid_review_decision_passes() {
+        assert_eq!(validate(&valid_review_decision()), Ok(()));
+    }
+
+    #[test]
+    fn a_review_decision_missing_a_required_field_is_refused() {
+        let mut event = valid_review_decision();
+        remove_from_payload(&mut event, "verdict");
+        let reasons = validate(&event).expect_err("a review decision needs its verdict");
+        assert!(reasons.iter().any(|r| r.contains("verdict")), "{reasons:?}");
+    }
+
+    #[test]
+    fn a_review_decision_may_omit_its_optional_fields() {
+        let mut event = valid_review_decision();
+        for key in ["score", "threshold"] {
+            remove_from_payload(&mut event, key);
+        }
+        assert_eq!(validate(&event), Ok(()));
     }
 }

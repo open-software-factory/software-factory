@@ -175,6 +175,8 @@ pub enum Payload {
     RunComplete(RunComplete),
     Attention(Attention),
     CheckpointComplete(CheckpointComplete),
+    ReviewAnswer(ReviewAnswer),
+    ReviewDecision(ReviewDecision),
 }
 
 /// A run beginning against a work item.
@@ -294,6 +296,39 @@ pub struct CheckpointComplete {
     pub slots: std::collections::BTreeMap<String, CheckResult>,
 }
 
+/// One reviewer's outcome for one lens: its own scores and findings.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ReviewAnswer {
+    pub lens: String,
+    pub reviewer: String,
+    pub family: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    pub result: String,
+    pub scores: std::collections::BTreeMap<String, f64>,
+    pub findings_kept: u32,
+    pub findings_dropped: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transcript: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    pub grade: String,
+    pub round: u32,
+}
+
+/// The whole review's verdict, each lens's outcome and the weighted score.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ReviewDecision {
+    pub verdict: String,
+    pub lenses: Vec<(String, String)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub threshold: Option<f64>,
+    pub builder_families: Vec<String>,
+    pub grade: String,
+}
+
 /// The parts of a new event a caller supplies; the journal fills in the
 /// run, the previous hash and the hash it computes.
 #[derive(Clone, Debug, PartialEq)]
@@ -343,6 +378,42 @@ mod tests {
         );
         let back: Payload = serde_json::from_str(&json).expect("payload round-trips");
         assert_eq!(&back, payload, "{json}");
+    }
+
+    /// The review-answer payload used by the round-trip test.
+    fn review_answer() -> Payload {
+        Payload::ReviewAnswer(ReviewAnswer {
+            lens: "correctness".into(),
+            reviewer: "reviewer-a".into(),
+            family: "family-a".into(),
+            model: Some("model-a".into()),
+            result: "answered".into(),
+            scores: std::collections::BTreeMap::from([
+                ("accuracy".to_string(), 0.75),
+                ("clarity".to_string(), 0.5),
+            ]),
+            findings_kept: 1,
+            findings_dropped: 0,
+            transcript: Some("runs/review-1/a.log".into()),
+            reason: None,
+            grade: "reported".into(),
+            round: 1,
+        })
+    }
+
+    /// The review-decision payload used by the round-trip test.
+    fn review_decision() -> Payload {
+        Payload::ReviewDecision(ReviewDecision {
+            verdict: "pass".into(),
+            lenses: vec![
+                ("correctness".into(), "pass".into()),
+                ("security".into(), "pass".into()),
+            ],
+            score: Some(0.75),
+            threshold: Some(0.7),
+            builder_families: vec!["family-b".into()],
+            grade: "reported".into(),
+        })
     }
 
     #[test]
@@ -411,6 +482,8 @@ mod tests {
                     slots: std::collections::BTreeMap::new(),
                 }),
             ),
+            ("review-answer", review_answer()),
+            ("review-decision", review_decision()),
         ];
         for (name, payload) in &cases {
             round_trip(name, payload);

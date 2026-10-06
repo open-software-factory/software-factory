@@ -21,12 +21,14 @@
 //! declaration order and `None` fields are left out.
 //!
 //! Every field of every event type is hashed as it is, including
-//! `duration_ms`, `cache` and `cost`.
+//! `duration_ms`, `cache`, `cost` and a review answer's `transcript`.
 //!
 //! `timestamp_ms`, `run`, `schema_version` and `hash` are not hashed.
 //!
 //! The checkpoint-complete `slots` map is a `BTreeMap`. Its keys are sorted
-//! by byte order.
+//! by byte order. A review answer's `scores` map is a `BTreeMap` too, so its
+//! keys are sorted by byte order. A review decision's `lenses` is an array of
+//! two-element arrays.
 //!
 //! See the tests `a_fixed_attention_event_has_a_known_hash` and
 //! `a_fixed_verification_event_has_a_known_hash` for pinned examples. The
@@ -57,8 +59,10 @@
 //! `payload` is the tagged payload `{"event_type": ..., "payload": {...}}`
 //! with these fields removed from the inner object: for verification
 //! `duration_ms` and `cache`; for run-started `retry_of` and `transcript`;
-//! for run-complete `head_hash` and `transcript_hash`. A field that is `None`
-//! is left out, as in the chain.
+//! for run-complete `head_hash` and `transcript_hash`; for review-answer
+//! `transcript`. The chain hash covers a review answer's `transcript`; only
+//! the replay line drops it. A field that is `None` is left out, as in the
+//! chain.
 //!
 //! `timestamp_ms`, `cost`, `run`, `schema_version`, `prev_hash`, `hash` and
 //! the branch name are never in the line: they hold timings, cache outcomes,
@@ -223,7 +227,13 @@ fn excluded_payload_keys(payload: &Payload) -> &'static [&'static str] {
         Payload::Verification(_) => &["duration_ms", "cache"],
         Payload::RunStarted(_) => &["retry_of", "transcript"],
         Payload::RunComplete(_) => &["head_hash", "transcript_hash"],
-        _ => &[],
+        Payload::ReviewAnswer(_) => &["transcript"],
+        Payload::ReviewDecision(_)
+        | Payload::Review(_)
+        | Payload::Finding(_)
+        | Payload::StateChange(_)
+        | Payload::Attention(_)
+        | Payload::CheckpointComplete(_) => &[],
     }
 }
 
@@ -250,8 +260,8 @@ fn sort_json_keys(value: serde_json::Value) -> serde_json::Value {
 mod tests {
     use super::*;
     use crate::journal::{
-        Attention, CheckResult, EvidenceGrade, RunComplete, RunOutcome, RunStarted, Verification,
-        SCHEMA_VERSION,
+        Attention, CheckResult, EvidenceGrade, ReviewAnswer, ReviewDecision, RunComplete,
+        RunOutcome, RunStarted, Verification, SCHEMA_VERSION,
     };
 
     fn actor() -> Actor {
@@ -596,5 +606,169 @@ mod tests {
             commit: "def456".into(),
         });
         assert_ne!(one_event_digest(&recommitted), baseline);
+    }
+
+    /// The pinned review-answer payload.
+    fn review_answer_payload() -> Payload {
+        Payload::ReviewAnswer(ReviewAnswer {
+            lens: "correctness".into(),
+            reviewer: "reviewer-a".into(),
+            family: "family-a".into(),
+            model: Some("model-a".into()),
+            result: "answered".into(),
+            scores: std::collections::BTreeMap::from([
+                ("accuracy".to_string(), 0.75),
+                ("clarity".to_string(), 0.5),
+            ]),
+            findings_kept: 1,
+            findings_dropped: 0,
+            transcript: Some("runs/review-1/a.log".into()),
+            reason: None,
+            grade: "reported".into(),
+            round: 1,
+        })
+    }
+
+    /// The pinned review-decision payload.
+    fn review_decision_payload() -> Payload {
+        Payload::ReviewDecision(ReviewDecision {
+            verdict: "pass".into(),
+            lenses: vec![
+                ("correctness".into(), "pass".into()),
+                ("security".into(), "pass".into()),
+            ],
+            score: Some(0.75),
+            threshold: Some(0.7),
+            builder_families: vec!["family-b".into()],
+            grade: "reported".into(),
+        })
+    }
+
+    /// An event holding `payload`, with no work item, change or cost.
+    fn event_with(payload: Payload) -> Event {
+        Event {
+            schema_version: SCHEMA_VERSION,
+            run: "run-1".into(),
+            work_item: None,
+            change: None,
+            actor: Actor::system("osf"),
+            timestamp_ms: 1,
+            cost: None,
+            payload,
+            prev_hash: genesis_hash(),
+            hash: String::new(),
+        }
+    }
+
+    #[test]
+    fn a_fixed_review_answer_has_a_known_chain_hash_and_replay_digest() {
+        let actor = Actor::system("osf");
+        let prev_hash = genesis_hash();
+        let payload = review_answer_payload();
+        let input = HashInput {
+            prev_hash: prev_hash.as_str(),
+            payload: &payload,
+            work_item: None,
+            change: None,
+            actor: &actor,
+            cost: None,
+        };
+        assert_eq!(
+            canonical_json(&input),
+            r#"{"payload":{"event_type":"review-answer","payload":{"lens":"correctness","reviewer":"reviewer-a","family":"family-a","model":"model-a","result":"answered","scores":{"accuracy":0.75,"clarity":0.5},"findings_kept":1,"findings_dropped":0,"transcript":"runs/review-1/a.log","grade":"reported","round":1}},"work_item":null,"change":null,"actor":{"kind":"system","name":"osf"},"cost":null}"#
+        );
+        assert_eq!(
+            event_hash(&input),
+            "f0c9bf58af314b81b50e2389b8a926a2a1150c81986ef0db37273deaba19e919"
+        );
+        let event = event_with(payload);
+        assert_eq!(
+            decision_line(&event),
+            r#"{"actor":{"kind":"system","name":"osf"},"change":null,"payload":{"event_type":"review-answer","payload":{"family":"family-a","findings_dropped":0,"findings_kept":1,"grade":"reported","lens":"correctness","model":"model-a","result":"answered","reviewer":"reviewer-a","round":1,"scores":{"accuracy":0.75,"clarity":0.5}}},"work_item":null}"#
+        );
+        assert_eq!(
+            one_event_digest(&event),
+            "a1e3550a6ad2bffc903d94417d13595908d1852738103c38fb2923721d4086be"
+        );
+    }
+
+    #[test]
+    fn a_fixed_review_decision_has_a_known_chain_hash_and_replay_digest() {
+        let actor = Actor::system("osf");
+        let prev_hash = genesis_hash();
+        let payload = review_decision_payload();
+        let input = HashInput {
+            prev_hash: prev_hash.as_str(),
+            payload: &payload,
+            work_item: None,
+            change: None,
+            actor: &actor,
+            cost: None,
+        };
+        assert_eq!(
+            canonical_json(&input),
+            r#"{"payload":{"event_type":"review-decision","payload":{"verdict":"pass","lenses":[["correctness","pass"],["security","pass"]],"score":0.75,"threshold":0.7,"builder_families":["family-b"],"grade":"reported"}},"work_item":null,"change":null,"actor":{"kind":"system","name":"osf"},"cost":null}"#
+        );
+        assert_eq!(
+            event_hash(&input),
+            "5022dc139ef5998af61f633e1cd379b061da1ef6a53486e1815b3205b6189bbf"
+        );
+        let event = event_with(payload);
+        assert_eq!(
+            decision_line(&event),
+            r#"{"actor":{"kind":"system","name":"osf"},"change":null,"payload":{"event_type":"review-decision","payload":{"builder_families":["family-b"],"grade":"reported","lenses":[["correctness","pass"],["security","pass"]],"score":0.75,"threshold":0.7,"verdict":"pass"}},"work_item":null}"#
+        );
+        assert_eq!(
+            one_event_digest(&event),
+            "d076669e4c7878b24a0f68b243d763fdb69f10906172e2038a24258dddf9e58b"
+        );
+    }
+
+    #[test]
+    fn a_review_answer_transcript_does_not_change_the_replay_digest() {
+        let original = event_with(review_answer_payload());
+        let baseline = one_event_digest(&original);
+
+        let mut absent = original.clone();
+        if let Payload::ReviewAnswer(answer) = &mut absent.payload {
+            answer.transcript = None;
+        }
+        assert_eq!(one_event_digest(&absent), baseline);
+
+        let mut moved = original.clone();
+        if let Payload::ReviewAnswer(answer) = &mut moved.payload {
+            answer.transcript = Some("runs/review-2/b.log".into());
+        }
+        assert_eq!(one_event_digest(&moved), baseline);
+
+        let mut changed = original.clone();
+        if let Payload::ReviewAnswer(answer) = &mut changed.payload {
+            answer.findings_kept = 2;
+        }
+        assert_ne!(one_event_digest(&changed), baseline);
+    }
+
+    #[test]
+    fn a_review_decision_verdict_score_and_builder_families_change_the_replay_digest() {
+        let original = event_with(review_decision_payload());
+        let baseline = one_event_digest(&original);
+
+        let mut verdict = original.clone();
+        if let Payload::ReviewDecision(decision) = &mut verdict.payload {
+            decision.verdict = "fail".into();
+        }
+        assert_ne!(one_event_digest(&verdict), baseline);
+
+        let mut score = original.clone();
+        if let Payload::ReviewDecision(decision) = &mut score.payload {
+            decision.score = Some(0.5);
+        }
+        assert_ne!(one_event_digest(&score), baseline);
+
+        let mut families = original.clone();
+        if let Payload::ReviewDecision(decision) = &mut families.payload {
+            decision.builder_families = vec!["family-c".into()];
+        }
+        assert_ne!(one_event_digest(&families), baseline);
     }
 }
