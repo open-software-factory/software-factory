@@ -262,6 +262,12 @@ The result-file readers detect a file by content. The formats they read are JUni
 
 A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it, and a policy never merges on reported evidence alone.
 
+A reviewer runs its lenses in parallel under a concurrency limit. One
+time limit bounds a lens, and another bounds the whole run. A lens that
+hits a limit stops, and the reviewer records it as could-not-run. A
+could-not-run lens never passes, and the reducer that decides the review
+stays the same.
+
 ## The scheduled checkpoint
 
 A scheduled check is a moon task tagged for the scheduled checkpoint, with a cadence tag such as daily or weekly. It runs in the generated scheduled workflow, writes its verification event, and its findings become issues with the native fields set. The engine's own loop, one issue to one pull request, picks those issues up under the selection policy. So a documentation-drift check finds the drift and raises the issue, and the engine fixes it as ordinary work. Checks stay deterministic and every model-driven change goes through the same pull-request checkpoint as any other change.
