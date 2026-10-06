@@ -23,7 +23,7 @@ const BANNED: [&str; 9] = [
 ];
 
 /// The provider-side files, each with why it may hold a banned word.
-const ALLOWED: [(&str, &str); 7] = [
+const ALLOWED: [(&str, &str); 9] = [
     ("docker_sandbox.rs", "the sandbox provider adapter itself"),
     (
         "sandbox_cli.rs",
@@ -42,6 +42,14 @@ const ALLOWED: [(&str, &str); 7] = [
     (
         "lints/writing/names.rs",
         "an allowed-name list holding a product name, unrelated to the seam",
+    ),
+    (
+        "agents.rs",
+        "the agent list names each harness's container settings; it is not the sandbox seam",
+    ),
+    (
+        "reviewers.rs",
+        "the reviewer roster reads the factory-container flag; it is not the sandbox seam",
     ),
 ];
 
