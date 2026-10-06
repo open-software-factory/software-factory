@@ -408,6 +408,21 @@ fn could_not_run_lens(lens: &Lens, reason: String) -> LensRun {
     }
 }
 
+/// Runs `body`, turning a panic into a could-not-run record so one lens never stops the run.
+fn contain_panic(lens: &Lens, body: impl FnOnce() -> LensRun) -> LensRun {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)) {
+        Ok(run) => run,
+        Err(payload) => {
+            let message = payload
+                .downcast_ref::<&str>()
+                .map(|text| (*text).to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "no message".to_string());
+            could_not_run_lens(lens, format!("lens '{}' panicked: {message}", lens.name))
+        }
+    }
+}
+
 /// The reason a lens never started because the whole run's limit ran out.
 fn total_ran_out_before_lens(seconds: u64) -> String {
     format!("the total limit (total_timeout_seconds = {seconds}s) ran out before this lens started")
@@ -442,6 +457,41 @@ fn lens_records(lenses: &[&Lens], context_error: Option<&str>) -> Vec<LensRun> {
             context_error: context_error.map(ToString::to_string),
             attempts: Vec::new(),
         })
+        .collect()
+}
+
+/// Runs `count` pieces of work over `workers` threads, keeping their results in index order.
+fn run_pool(
+    count: usize,
+    workers: usize,
+    work: &(dyn Fn(usize) -> LensRun + Sync),
+) -> Vec<LensRun> {
+    let queue = Mutex::new(VecDeque::from_iter(0..count));
+    let results: Mutex<Vec<Option<LensRun>>> = Mutex::new((0..count).map(|_| None).collect());
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| loop {
+                let index = queue
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .pop_front();
+                let Some(index) = index else { break };
+                let run = work(index);
+                if let Some(slot) = results
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .get_mut(index)
+                {
+                    *slot = Some(run);
+                }
+            });
+        }
+    });
+    results
+        .into_inner()
+        .unwrap_or_else(PoisonError::into_inner)
+        .into_iter()
+        .map(|run| run.expect("every item is taken from the queue once"))
         .collect()
 }
 
@@ -494,48 +544,26 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
     let deadline = Instant::now() + setup.total;
     let count = lenses.len();
     let workers = setup.concurrency.min(count);
-    let queue = Mutex::new(VecDeque::from_iter(0..count));
-    let results: Mutex<Vec<Option<LensRun>>> = Mutex::new((0..count).map(|_| None).collect());
     // No reviewer reports cost yet, so nothing adds to this counter.
     let spent = Mutex::new(0.0_f64);
-    std::thread::scope(|scope| {
-        for _ in 0..workers {
-            scope.spawn(|| loop {
-                let index = queue
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .pop_front();
-                let Some(index) = index else { break };
-                let Some(lens) = lenses.get(index).copied() else {
-                    break;
-                };
-                let run = match setup.cost_ceiling {
-                    Some(ceiling) => {
-                        let spent = *spent.lock().unwrap_or_else(PoisonError::into_inner);
-                        if spent >= ceiling {
-                            could_not_run_lens(lens, cost_ceiling_reached(ceiling))
-                        } else {
-                            run_lens(req, setup, reviewer, lens, &sources, &change, deadline)
-                        }
-                    }
-                    None => run_lens(req, setup, reviewer, lens, &sources, &change, deadline),
-                };
-                if let Some(slot) = results
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .get_mut(index)
-                {
-                    *slot = Some(run);
+    let lenses = run_pool(count, workers, &|index| {
+        let lens = *lenses.get(index).expect("index comes from the pool");
+        match setup.cost_ceiling {
+            Some(ceiling) => {
+                let spent = *spent.lock().unwrap_or_else(PoisonError::into_inner);
+                if spent >= ceiling {
+                    could_not_run_lens(lens, cost_ceiling_reached(ceiling))
+                } else {
+                    contain_panic(lens, || {
+                        run_lens(req, setup, reviewer, lens, &sources, &change, deadline)
+                    })
                 }
-            });
+            }
+            None => contain_panic(lens, || {
+                run_lens(req, setup, reviewer, lens, &sources, &change, deadline)
+            }),
         }
     });
-    let lenses = results
-        .into_inner()
-        .unwrap_or_else(PoisonError::into_inner)
-        .into_iter()
-        .map(|run| run.expect("every selected lens is taken from the queue once"))
-        .collect();
     ReviewerRun {
         reviewer: reviewer.name.clone(),
         lenses,
@@ -1250,6 +1278,7 @@ fn now_millis() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lenses::{Runs, SeverityGuide, Trigger};
 
     fn judged(reason: Option<&str>, notes: &[&str]) -> Judged {
         Judged {
@@ -1487,5 +1516,110 @@ mod tests {
         std::fs::write(&path, "not json").expect("writes");
         let e = ReviewerRun::load(&path).expect_err("refused");
         assert!(e.contains("bad.json"), "{e}");
+    }
+
+    fn test_lens(name: &str) -> Lens {
+        Lens {
+            name: name.to_string(),
+            summary: "a lens these tests build by hand".to_string(),
+            criteria: Vec::new(),
+            severity_guide: SeverityGuide {
+                blocker: "loses data".to_string(),
+                major: "a wrong behaviour a user can hit".to_string(),
+                minor: "a small nit".to_string(),
+            },
+            weight: 1.0,
+            runs: Runs::Always,
+            trigger: Trigger::default(),
+            context: Vec::new(),
+        }
+    }
+
+    fn answered(lens: &Lens) -> LensRun {
+        LensRun {
+            lens: lens.name.clone(),
+            context_error: None,
+            attempts: vec![Attempt {
+                result: "answered".to_string(),
+                reason: None,
+                notes: Vec::new(),
+                round: 1,
+                critical: false,
+                answer: None,
+            }],
+        }
+    }
+
+    #[test]
+    fn a_panicking_lens_is_recorded_as_could_not_run_naming_the_panic() {
+        let lens = test_lens("correctness");
+
+        let run = contain_panic(&lens, || panic!("fake command blew up"));
+        assert_eq!(run.attempts.len(), 1);
+        assert_eq!(run.context_error, None);
+        let attempt = run.attempts.first().expect("one attempt");
+        assert_eq!(attempt.result, "could-not-run");
+        assert!(attempt.answer.is_none());
+        let reason = attempt.reason.as_deref().expect("a reason");
+        assert!(reason.contains("fake command blew up"), "{reason}");
+        assert!(reason.contains("correctness"), "{reason}");
+
+        let run = contain_panic(&lens, || {
+            std::panic::panic_any(String::from("owned message"));
+        });
+        assert_eq!(run.context_error, None);
+        let attempt = run.attempts.first().expect("one attempt");
+        assert_eq!(attempt.result, "could-not-run");
+        let reason = attempt.reason.as_deref().expect("a reason");
+        assert!(reason.contains("owned message"), "{reason}");
+
+        let run = contain_panic(&lens, || answered(&lens));
+        assert_eq!(run.attempts.len(), 1);
+        assert_eq!(run.context_error, None);
+        let attempt = run.attempts.first().expect("one attempt");
+        assert_eq!(attempt.result, "answered");
+        assert_eq!(attempt.reason, None);
+    }
+
+    #[test]
+    fn one_panicking_lens_does_not_stop_the_pool() {
+        let lenses = [test_lens("first"), test_lens("second"), test_lens("third")];
+        let work = |index: usize| {
+            let lens = lenses.get(index).expect("index comes from the pool");
+            contain_panic(lens, || {
+                assert!(index != 1, "fake command blew up");
+                answered(lens)
+            })
+        };
+
+        for workers in [2, 1] {
+            let runs = run_pool(3, workers, &work);
+            assert_eq!(runs.len(), 3, "workers = {workers}");
+            let first = runs.first().expect("first");
+            assert_eq!(first.lens, "first");
+            assert_eq!(
+                first.attempts.first().map(|a| a.result.as_str()),
+                Some("answered")
+            );
+            let second = runs.get(1).expect("second");
+            assert_eq!(second.lens, "second");
+            assert_eq!(
+                second.attempts.first().map(|a| a.result.as_str()),
+                Some("could-not-run")
+            );
+            let reason = second
+                .attempts
+                .first()
+                .and_then(|a| a.reason.as_deref())
+                .expect("a reason");
+            assert!(reason.contains("fake command blew up"), "{reason}");
+            assert!(reason.contains("second"), "{reason}");
+            let third = runs.get(2).expect("third");
+            assert_eq!(third.lens, "third");
+            assert_eq!(
+                third.attempts.first().map(|a| a.result.as_str()),
+                Some("answered")
+            );
+        }
     }
 }
