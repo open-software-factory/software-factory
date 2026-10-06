@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "dd4a629699608019b3ce55322ce230fb0aaeba91",
+    "contentHash": "33d006a321bfc05547f1c3b1ed8c255b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ad1321d0f602773414e314eb9d242c9d",
+      "bytes": 40004,
+      "width": 1958,
+      "height": 830,
+      "animated": false,
+      "path": "container-view-light-ad1321d0f602773414e314eb9d242c9d.svg"
+    },
+    {
+      "id": "container-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "92a35f7b07fa7148fdb8d7eabfa076b8",
+      "bytes": 40451,
+      "width": 1958,
+      "height": 830,
+      "animated": false,
+      "path": "container-view-dark-92a35f7b07fa7148fdb8d7eabfa076b8.svg"
+    },
+    {
+      "id": "agent-hook-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b660b46a21dbb2665528e91568217757",
+      "bytes": 14504,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "agent-hook-wiring-light-b660b46a21dbb2665528e91568217757.svg"
+    },
+    {
+      "id": "agent-hook-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bdb5e42ff9f9a4e67401bd4fe56af13c",
+      "bytes": 14670,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "agent-hook-wiring-dark-bdb5e42ff9f9a4e67401bd4fe56af13c.svg"
+    },
+    {
+      "id": "integration-build-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "integration-build",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e8bf8726896be533dc3489de44ebabc8",
+      "bytes": 16444,
+      "width": 1728,
+      "height": 428,
+      "animated": false,
+      "path": "integration-build-light-e8bf8726896be533dc3489de44ebabc8.svg"
+    },
+    {
+      "id": "integration-build-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "integration-build",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0014ed16c32a3535e2a6fb3f400a7c41",
+      "bytes": 16602,
+      "width": 1728,
+      "height": 428,
+      "animated": false,
+      "path": "integration-build-dark-0014ed16c32a3535e2a6fb3f400a7c41.svg"
+    },
+    {
+      "id": "commit-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "commit-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "be32c9d25b45f6ff334c68172034f45c",
+      "bytes": 10016,
+      "width": 957,
+      "height": 353,
+      "animated": true,
+      "path": "commit-flow-view-light-be32c9d25b45f6ff334c68172034f45c.svg"
+    },
+    {
+      "id": "commit-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "commit-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5e7ad876bd9c1ec94805bbe550e92bc2",
+      "bytes": 10084,
+      "width": 957,
+      "height": 353,
+      "animated": true,
+      "path": "commit-flow-view-dark-5e7ad876bd9c1ec94805bbe550e92bc2.svg"
+    }
+  ]
+}
