@@ -1,4 +1,2 @@
 #!/bin/sh
-# git push gives this hook the remote name and URL as arguments and the
-# ref updates on stdin; osf verify --stage pre-push needs neither.
-exec /opt/factory/bin/osf verify --stage pre-push
+exec /opt/factory/bin/osf verify --checkpoint pre-push

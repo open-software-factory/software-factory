@@ -8,13 +8,15 @@ the rules, because the rules are compiled in.
 
 | Command | What it does |
 |---|---|
-| `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, names used with no description, sentences over 25 words, dashes, arrows, filler, and headings in short texts. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. `--message` marks the text as a reply to a person, where a heading in a short text is an error. |
+| `osf lint writing [files]` | Checks prose for references without a repository or a label, phrases that only make sense inside one conversation, sentences over 25 words, em dashes, semicolons, unsourced attributions, and headings in short texts. It also checks a set of style shapes, such as `not only X, but Y`. A fixed list of audited checks is off on every path, and a config file cannot turn one on. `osf explain <rule>` says whether a rule is off. Reads standard input when no file is given. Exit code 1 when an error is found. `--json` prints one finding per line. `--strict` treats warnings as errors. `--message` marks the text as a reply to a person, where a heading in a short text is an error. |
 | `osf hook stop` | Reads a coding agent's Stop event from standard input and lints the final message. Stop is the event an agent sends when it wants to end its turn. The command refuses the stop when the message has errors, and also when it could not check the message at all (bad input, no message in the event, or no known-names list to check against). The agent gets the findings, or the reason it could not be checked, and rewrites. After two refusals in one turn the message goes through. |
 | `osf hook prompt` | Reads a coding agent's prompt-submitted event from standard input and prints context for the new turn: a one-line reminder of the writing shapes a model slips into most, then any style advice the last stop check stored for that session. The advice holds the last turn only, at most twenty lines, and is cleared once printed. |
 | `osf pr status render` / `apply` / `refresh` | Builds, applies, or refreshes the status block at the top of a pull request description. See "The status block" below. |
 | `osf pr tree render [--base <ref>] [--head <ref>]` | Prints the collapsed file table for the `osf:tree` block, with count chips and log-scale size bars. See "The file table" below. |
 | `osf changeset tests --base <ref> --head <ref>` | Prints the Rust test summary on its own, without a pull request. See "The Rust test summary" below. |
 | `osf pr section write --pr <number> --name <name> --file <path> [--head <sha>]` | Replaces the block named `<name>` in a pull request description with the file's content, or appends it when the markers are not there yet. The start marker records the head commit, from `--head` or from the pull request. A block with an older marker is replaced in place. Reads and writes the description through `gh`. |
+| `osf agents list [--json]` | Lists the agents osf can drive, with what `[agents]` in `osf.toml` selects: whether each is enabled, the default builder, the reviewers, and each model. See "The agent list" below. `--json` prints one JSON array. |
+| `osf hooks install --agents --root <dir>` | Writes the stop and prompt hook settings of every enabled agent under `<dir>`, replacing a file already there. Plain `osf hooks install` writes the git hooks instead. |
 | `osf assets publish --branch <branch> --path <prefix> --dir <folder>` | Pushes every file in `<folder>` to `<prefix>` on `<branch>`, in a temporary clone, creating the branch as an orphan the first time. Prints the raw content web address for what landed. Retries when a push loses a race with another run. |
 
 ## The status block
@@ -142,31 +144,30 @@ request branch itself.
 The same command works for every agent that has a stop hook. Put the binary on
 the path, then:
 
-Agents are listed in the order this project supports them. Each is a coding
-agent with a command line of its own.
+These are the agents in `crates/osf/src/agents.rs`, the one list of agents osf
+can drive. `osf hooks install --agents --root <dir>` writes each enabled
+agent's settings from that list.
 
 | Agent | Where the hook goes | Can it be refused? |
 |---|---|---|
 | dsh | the `@deepseek-ai/dsh-hooks-claude-code` bridge, pointed at the same hooks file | no: the bridge's stop event carries a session id and an empty transcript path, and no message text at all |
-| pi | an extension on `agent_end`, which receives the turn's messages, answering with `pi.sendUserMessage` | yes, by sending the findings as the next message |
 | omp | a hook from `integrations/omp`, installed at `~/.omp/agent/hooks/`, on `session_stop` | yes: that hook returns `{"decision":"block","reason":...}`, so pass `--answer decision-json` |
 | opencode2 | a plugin from `integrations/opencode`, added with `opencode2 plugin add`, on the `event` hook | no: that hook returns nothing, so the plugin reports the findings only |
 | Codex | `~/.codex/hooks.json`, same shape as Claude Code's `hooks` object. Hooks need trust before they run. | yes, by exit code |
 | Claude Code | `hooks.Stop` in `~/.claude/settings.json` or `.claude/settings.json` | yes, by exit code |
-| GitHub Copilot CLI | `~/.copilot/hooks/*.json` with an `agentStop` entry | yes, by a JSON decision on standard output |
 
 ### The agents do not agree on key names
 
 There is no shared schema for a stop event, and an event names neither its
 agent nor its format. Claude Code, Codex and the dsh bridge write
-`session_id`. Copilot CLI writes `sessionId`. The plugin interface of
+`session_id`. An adapter may write `sessionId`. The plugin interface of
 opencode2 writes `sessionID`. The command reads every spelling, so no wiring
 needs to translate.
 
 Two refusals are also on offer and they are not interchangeable. An agent
 reading the exit code ignores standard output, and an agent reading standard
-output treats exit code 2 as the check crashing. The command guesses from the
-key spelling, which is right for every agent above. An adapter that builds the
+output treats exit code 2 (the code that means refuse) as the check crashing. The command guesses from the
+key spelling, which is right for Claude Code, Codex, the dsh bridge, Copilot CLI and opencode2. An adapter that builds the
 event itself should not rely on the guess: pass `--answer exit-code` or
 `--answer decision-json` and the guess is skipped.
 
@@ -186,7 +187,7 @@ A hooks file for Claude Code, Codex and the dsh bridge:
 ```
 
 The two entries work as a pair. A style finding in a sent message, such as a
-sentence that trails off in `, not X`, cannot be corrected by a follow-up, so
+sentence in the `not only X, but Y` shape, cannot be corrected by a follow-up, so
 the stop check lets the message through and stores the finding. `osf hook
 prompt` prints what was stored when the next prompt arrives, so the agent sees
 it before writing again. Wire only the stop check and that advice is never
@@ -195,6 +196,27 @@ delivered.
 `--known-names` points at a file, one name per line, of project names that need
 no description on first use. Everyday names such as GitHub or Rust are built in.
 
+## The agent list
+
+`crates/osf/src/agents.rs` is the one list of agents osf can drive: dsh, omp
+(which covers pi), opencode, codex, and claude. Each entry holds the agent's
+name, model family, command, hook wiring, session folders, and the login
+files a reviewer needs. A repository selects from it in `osf.toml`:
+
+```toml
+[agents]
+enabled = ["dsh", "codex", "claude"]  # default: every agent in the list
+builder = "dsh"                       # default: dsh
+reviewers = ["codex", "claude"]       # in run order; default: none
+
+[agents.models]                       # an agent left out uses its own default
+claude = "claude-sonnet-5"
+```
+
+A name the list does not hold is an error, and so is a builder or reviewer
+that is not enabled, and a model for an agent that takes none. A reviewer
+runs headless in a fresh home that holds only its own login files and its
+own credential variables.
 ## Configuration
 
 The writing lint's limits and word lists come from four layers, a later one
@@ -221,8 +243,8 @@ warn_sentence_words = 20    # warning above this
 max_numerals = 2
 short_text_words = 500
 known_names = ["Vale", "Tauri"]
-must_explain_names = ["Linear", "Canny"]  # errors, even under --gate; see below
-filler = ["delve", "leverage"]            # replaces the built-in list
+must_explain_names = ["Linear", "Canny"]  # available to undefined-name checks
+filler = ["delve", "leverage"]            # replaces the list the filler check reads, and that check is off
 chat_local_phrases = ["as discussed"]     # replaces the built-in list
 chat_local_labels = ["phase", "item"]     # "phase 2" and the like
 
@@ -231,13 +253,18 @@ semicolon = "off"
 reference-without-link = "error"
 ```
 
-Today, `known_names` and `writing.levels` change what `osf lint writing` and
-`osf hook stop` report. The other fields are resolved and shown by
-`osf config show`; wiring them into each rule's own check is later work.
+`writing.levels` raises or lowers the level of a rule that is on. It applies
+in `osf lint writing`, `osf lint skill`, `osf check` and `osf hook stop`. A
+level for an audited rule is ignored. The compiled list of audited rules is
+applied last, so no config file can turn one of them on. The `--gate` flag
+reads the compiled defaults only. `known_names` feeds the undefined-name
+checks, which are off. It changes no finding now. The other fields are
+resolved and shown by `osf config show`. Wiring them into each rule's own
+check is later work.
 
-`must_explain_names` is read from the file even under `--gate`, unlike
-every other setting here: it can only add `undefined-name` errors, never
-remove one, so a change cannot use it to loosen its own gate.
+`must_explain_names` is read from the file under `--gate`, but it changes
+no finding now. Only the `undefined-name` check reads it, and that check is
+off on every path, so no lint run can use the list.
 
 Every environment variable maps to one field:
 

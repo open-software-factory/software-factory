@@ -21,11 +21,13 @@
 //! ships its own dsh plugin rather than relying on that bridge.
 
 use crate::config::WritingConfig;
+use crate::journal::CheckResult;
 use crate::lints::{self, Remediation};
 use serde_json::Value;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 
 const MAX_LINES_IN_REASON: usize = 30;
 
@@ -39,10 +41,8 @@ const MAX_ADVICE_LINES: usize = 20;
 /// first message of a session too.
 pub const STANDING_REMINDER: &str =
     "osf writing-lint reminder for this reply. State the point and stop. \
-    Do not end a sentence with a `, not X` or `, never X` tail. \
     Write a reference as owner/repo#N (what it is). \
-    Name a thing by what it is rather than by its place in a list. \
-    No sweeps such as `nobody` or `everyone`.";
+    Name a thing by what it is rather than by its place in a list.";
 
 /// Every spelling of the session key, most common first.
 const SESSION_KEYS: &[&str] = &["session_id", "sessionId", "sessionID"];
@@ -164,7 +164,8 @@ fn stop_with_input(
             return refuse_could_not_run(answer, &session, &prompt, max_bounces, &e);
         }
     };
-    let findings = checked_findings(&text, &known, cfg);
+    let checked = checked_findings(&text, &known, cfg);
+    let findings = checked.findings;
 
     let advise: Vec<&lints::Finding> = findings
         .iter()
@@ -177,6 +178,13 @@ fn stop_with_input(
     let counter = counter_path(&session, &prompt);
     let Some((blocking, verb, instruction)) = blocking_set(&findings) else {
         let _ = std::fs::remove_file(&counter);
+        if !checked.dropped.is_empty() {
+            eprintln!(
+                "osf hook writing policy: dropped {} finding(s) from audited rules: {}",
+                checked.dropped.len(),
+                audited_rule_names(&checked.dropped)
+            );
+        }
         return ExitCode::SUCCESS;
     };
 
@@ -252,20 +260,40 @@ fn refuse_could_not_run(
     refuse(answer, &reason)
 }
 
-/// Lints `text` as a transcript, and applies the config's level overrides,
+/// What a stop check found, and the rule of every finding the audited
+/// policy dropped.
+struct Checked {
+    findings: Vec<lints::Finding>,
+    dropped: Vec<&'static str>,
+}
+
+/// The distinct rule names in `dropped`, in a stable order.
+fn audited_rule_names(dropped: &[&'static str]) -> String {
+    let mut names = dropped.to_vec();
+    names.sort_unstable();
+    names.dedup();
+    names.join(", ")
+}
+
+/// Lints `text` as a transcript, and applies the config's level overrides.
+/// The approved disabled defaults cannot be re-enabled in a stop check,
 /// dropping every suppressed finding. The stop check runs on every turn
 /// end, so it stays on the fast tier only.
-fn checked_findings(
-    text: &str,
-    known: &lints::KnownNames,
-    cfg: &WritingConfig,
-) -> Vec<lints::Finding> {
+fn checked_findings(text: &str, known: &lints::KnownNames, cfg: &WritingConfig) -> Checked {
     let findings =
         lints::writing::lint_writing(text, known, cfg, lints::Context::Transcript, true, false);
-    osf_lint_core::apply_level_overrides(findings, &cfg.levels)
+    let dropped = findings
+        .iter()
+        .filter(|f| f.suppressed.is_none() && lints::policy::disabled_by_default(f.rule))
+        .map(|f| f.rule)
+        .collect();
+    let mut levels = cfg.levels.clone();
+    lints::policy::enforce(&mut levels);
+    let findings = osf_lint_core::apply_level_overrides(findings, &levels)
         .into_iter()
         .filter(|f| f.suppressed.is_none())
-        .collect()
+        .collect();
+    Checked { findings, dropped }
 }
 
 /// The findings that block the stop, the opening line, and the
@@ -368,6 +396,209 @@ fn take_advice(session: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
+/// The keys a `PostToolUse` event's `tool_input` names the written path
+/// under, checked in this order.
+const WRITTEN_PATH_KEYS: &[&str] = &["file_path", "path", "notebook_path"];
+
+/// Runs the hook checkpoint on the file a `PostToolUse` event names, and
+/// refuses the tool call through [`refuse`] on an error finding.
+pub fn post_tool(timeout: Duration, answer: Option<Answer>) -> ExitCode {
+    let mut raw = String::new();
+    let read = std::io::stdin().read_to_string(&mut raw).map(|_| raw);
+    post_tool_with_input(read, timeout, answer)
+}
+
+/// Says the hook checkpoint itself could not run, as `refuse_could_not_run`
+/// does for `stop` in this same file. A finding worth blocking and a check
+/// that could not run at all must not read the same either way, so this
+/// never claims a pass.
+fn refuse_post_tool_could_not_run(answer: Answer, detail: &str) -> ExitCode {
+    refuse(
+        answer,
+        &format!(
+            "osf hook post-tool: the hook checkpoint could not run, so the write is refused \
+             rather than treated as a pass: {detail}"
+        ),
+    )
+}
+
+/// The body of [`post_tool`], taking the standard input read as a
+/// parameter so every path can be driven by a test.
+fn post_tool_with_input(
+    raw: std::io::Result<String>,
+    timeout: Duration,
+    answer: Option<Answer>,
+) -> ExitCode {
+    let raw = match raw {
+        Ok(r) => r,
+        Err(e) => {
+            return refuse_post_tool_could_not_run(
+                answer.unwrap_or(Answer::ExitCode),
+                &format!("cannot read standard input: {e}"),
+            );
+        }
+    };
+    let event: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            return refuse_post_tool_could_not_run(
+                answer.unwrap_or(Answer::ExitCode),
+                &format!("input is not JSON: {e}"),
+            );
+        }
+    };
+    let Some(raw_path) = written_path(&event) else {
+        return ExitCode::SUCCESS;
+    };
+    let answer = answer.unwrap_or_else(|| answer_for(&event));
+    let absolute_path = absolute_written_path(&raw_path);
+    let anchor = written_file_parent(&absolute_path);
+    let root = match crate::checkpoint::detect_adoption(&anchor) {
+        crate::checkpoint::Adoption::Adopted(root) => root,
+        crate::checkpoint::Adoption::NotAdopted(path, reason) => {
+            eprintln!(
+                "osf hook post-tool: not adopted at {}: {reason}",
+                path.display()
+            );
+            return ExitCode::SUCCESS;
+        }
+        crate::checkpoint::Adoption::AdoptedButBroken(root, missing) => {
+            return refuse_post_tool_could_not_run(
+                answer,
+                &format!(
+                    "osf.toml at {} asks for osf, but {missing} is missing",
+                    root.display()
+                ),
+            );
+        }
+        crate::checkpoint::Adoption::CouldNotRun(reason) => {
+            return refuse_post_tool_could_not_run(answer, &reason);
+        }
+    };
+    let Some(rel) = repo_relative(&root, &absolute_path) else {
+        eprintln!(
+            "osf hook post-tool: {raw_path} is outside the repository root {}; nothing to check",
+            root.display()
+        );
+        return ExitCode::SUCCESS;
+    };
+    let state_dir = match crate::journal::state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            return refuse_post_tool_could_not_run(answer, &e);
+        }
+    };
+    let req = crate::checkpoint::Request {
+        root: &root,
+        checkpoint: crate::checkpoint::Checkpoint::Hook,
+        base: None,
+        files: Some(vec![rel]),
+        timeout: Some(timeout),
+        remote: None,
+    };
+    let summary = crate::checkpoint::run(&req, &state_dir);
+    if let Some(err) = &summary.journal_error {
+        eprintln!("osf hook post-tool: {err}");
+    }
+    match summary.result {
+        CheckResult::Skipped => {
+            eprintln!(
+                "osf hook post-tool: skipped (hook time limit {}s)",
+                timeout.as_secs()
+            );
+            ExitCode::SUCCESS
+        }
+        CheckResult::Failed | CheckResult::CouldNotRun => {
+            let mut lines = vec![format!(
+                "osf hook post-tool: the written file did not pass the hook checkpoint in {}",
+                root.display()
+            )];
+            // The journal error, if any, was already printed above; do not
+            // let the refusal body repeat the same line.
+            lines.extend(
+                summary
+                    .error_findings
+                    .iter()
+                    .filter(|f| Some(f.as_str()) != summary.journal_error.as_deref())
+                    .cloned(),
+            );
+            refuse(answer, &lines.join("\n"))
+        }
+        CheckResult::Passed | CheckResult::NothingToCheck => ExitCode::SUCCESS,
+    }
+}
+
+/// The written path an event names, from the first of [`WRITTEN_PATH_KEYS`]
+/// its `tool_input` carries.
+fn written_path(event: &Value) -> Option<String> {
+    let input = event.get("tool_input")?;
+    WRITTEN_PATH_KEYS
+        .iter()
+        .find_map(|k| input.get(k).and_then(Value::as_str).map(str::to_string))
+}
+
+/// `raw` resolved once to an absolute, lexically normalised path, against
+/// the current directory when it is not already absolute. Both the
+/// adoption anchor and the repository-relative path are derived from this
+/// one value, so they can never disagree on where the file actually is.
+fn absolute_written_path(raw: &str) -> PathBuf {
+    let normalized = raw.replace('\\', "/");
+    let candidate = PathBuf::from(&normalized);
+    let absolute = if candidate.is_absolute() {
+        candidate
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join(&candidate)
+    };
+    lexically_normalize(&absolute)
+}
+
+/// The written path's own parent directory: the adoption anchor is the repository holding the file, not the process's working directory.
+fn written_file_parent(absolute: &Path) -> PathBuf {
+    absolute
+        .parent()
+        .map_or_else(|| absolute.to_path_buf(), Path::to_path_buf)
+}
+
+/// `absolute` made repository-relative to `root`, with forward slashes.
+/// `None` when it leaves `root` entirely: a path outside the repository
+/// the adoption check found must never read back as one inside it.
+///
+/// Canonicalisation runs first, and decides the answer whenever both sides
+/// resolve: a path that is lexically inside `root` but is actually a
+/// symlink to somewhere else must fail this check, not pass it on the
+/// strength of its own un-followed name. The lexical check only runs as a
+/// fallback, for a path that does not exist yet — such as a file about to
+/// be created — where canonicalisation has nothing to resolve.
+fn repo_relative(root: &Path, absolute: &Path) -> Option<String> {
+    if let (Ok(root_canon), Ok(candidate_canon)) =
+        (std::fs::canonicalize(root), std::fs::canonicalize(absolute))
+    {
+        let rel = candidate_canon.strip_prefix(&root_canon).ok()?;
+        return Some(rel.to_string_lossy().replace('\\', "/"));
+    }
+    let rel = absolute.strip_prefix(root).ok()?;
+    Some(rel.to_string_lossy().replace('\\', "/"))
+}
+
+/// `path`'s `.` and `..` components collapsed left to right, without
+/// touching the filesystem: a containment check must work even when
+/// nothing exists at `path` yet, such as a rejected `../outside.md`.
+fn lexically_normalize(path: &Path) -> PathBuf {
+    let mut out: Vec<std::path::Component> = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    out.into_iter().collect()
+}
+
 fn string_at(v: &Value, keys: &[&str]) -> Option<String> {
     keys.iter()
         .find_map(|k| v.get(k).and_then(Value::as_str).map(str::to_string))
@@ -420,7 +651,8 @@ fn safe_id(s: &str) -> String {
 }
 
 fn counter_path(session: &str, prompt: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("osf-stop");
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, shared across hook invocations
+    let dir = base.join("osf-stop");
     let _ = std::fs::create_dir_all(&dir);
     dir.join(format!("{}-{}", safe_id(session), safe_id(prompt)))
 }
@@ -439,7 +671,8 @@ fn write_counter(p: &Path, n: u32) {
 /// Where an `advise` finding waits for the next turn's prompt hook,
 /// keyed by session id, under the system temporary directory.
 fn advice_path(session: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join("osf-advice");
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, shared across hook invocations
+    let dir = base.join("osf-advice");
     let _ = std::fs::create_dir_all(&dir);
     dir.join(format!("{}.txt", safe_id(session)))
 }
@@ -469,6 +702,58 @@ fn store_advice(session: &str, findings: &[&lints::Finding]) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
+
+    /// A session id no other test or run shares, so a leftover or parallel
+    /// run never meets this test's counter or advice file.
+    fn unique(name: &str) -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock is after the epoch")
+            .as_nanos();
+        format!("{name}-{}-{nanos}", std::process::id())
+    }
+
+    /// The fallback `unknown` key is shared by design, so its tests take turns.
+    static UNKNOWN_SESSION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// A path lexically inside the repository that is actually a symlink to
+    /// somewhere else must not be accepted as repository-relative: the
+    /// canonical check, which follows the symlink, must run and must be the
+    /// one that decides, not a lexical prefix match that never looks.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_escaping_the_repository_is_not_repo_relative() {
+        let root = TempDir::new("osf-repo-relative-symlink-root");
+        let outside = TempDir::new("osf-repo-relative-symlink-outside");
+        let target = outside.join("secret.md");
+        std::fs::write(&target, "outside content\n").expect("outside file writes");
+        let link = root.join("link.md");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink creates");
+        assert!(repo_relative(&root, &link).is_none());
+    }
+
+    /// An ordinary file inside the repository, no symlink involved, is
+    /// still repository-relative once canonicalisation runs first.
+    #[test]
+    fn a_plain_file_inside_the_repository_is_still_repo_relative() {
+        let root = TempDir::new("osf-repo-relative-plain-root");
+        let path = root.join("notes.md");
+        std::fs::write(&path, "content\n").expect("file writes");
+        assert_eq!(repo_relative(&root, &path).as_deref(), Some("notes.md"));
+    }
+
+    /// A path that does not exist yet falls back to the lexical check,
+    /// since canonicalisation has nothing on disk to resolve.
+    #[test]
+    fn a_path_that_does_not_exist_yet_falls_back_to_the_lexical_check() {
+        let root = TempDir::new("osf-repo-relative-missing-root");
+        let path = root.join("not-written-yet.md");
+        assert_eq!(
+            repo_relative(&root, &path).as_deref(),
+            Some("not-written-yet.md")
+        );
+    }
 
     #[test]
     fn reads_claude_transcript_shape() {
@@ -611,7 +896,80 @@ mod tests {
         f
     }
 
-    /// Change 3: an advise finding must not block the stop hook.
+    #[test]
+    fn audited_detectors_do_not_block_but_retained_reference_checks_do() {
+        let known = lints::load_known_names(&[], None).expect("names load");
+        let cfg = WritingConfig::default();
+        let checked = checked_findings("Input -> output.", &known, &cfg);
+        assert!(
+            checked.findings.is_empty(),
+            "disabled arrow enforced: {:?}",
+            checked.findings
+        );
+        assert_eq!(checked.dropped, vec!["arrow"], "the drop was not recorded");
+        let checked = checked_findings("Fixed in #125 today.", &known, &cfg);
+        assert!(
+            checked.findings.iter().any(|f| f.rule == "bare-reference"),
+            "retained rule lost: {:?}",
+            checked.findings
+        );
+        assert!(checked.dropped.is_empty(), "nothing was dropped here");
+        assert!(blocking_set(&checked.findings).is_some());
+    }
+
+    #[test]
+    fn a_config_override_cannot_reenable_an_audited_detector_in_the_stop_check() {
+        let known = lints::load_known_names(&[], None).expect("names load");
+        let mut cfg = WritingConfig::default();
+        cfg.levels
+            .insert("arrow".to_string(), osf_lint_core::LevelSetting::Error);
+        cfg.levels.insert(
+            "bare-reference".to_string(),
+            osf_lint_core::LevelSetting::Warning,
+        );
+        let checked = checked_findings("Input -> output. Fixed in #125 today.", &known, &cfg);
+        assert!(
+            checked.findings.iter().all(|f| f.rule != "arrow"),
+            "audit policy reenabled by config: {:?}",
+            checked.findings
+        );
+        let kept = checked
+            .findings
+            .iter()
+            .find(|f| f.rule == "bare-reference")
+            .expect("a kept rule must still report");
+        assert_eq!(
+            kept.level,
+            lints::Level::Warning,
+            "the config's level for a kept rule must apply"
+        );
+    }
+
+    #[test]
+    fn the_standing_reminder_gives_the_concrete_writing_instructions() {
+        for phrase in [
+            "Write a reference as owner/repo#N (what it is).",
+            "Name a thing by what it is rather than by its place in a list.",
+        ] {
+            assert!(
+                STANDING_REMINDER.contains(phrase),
+                "reminder lost: {phrase}"
+            );
+        }
+        // Advice for a rule that is off can never be checked, so it stays out.
+        for phrase in ["`, not X`", "nobody", "everyone"] {
+            assert!(
+                !STANDING_REMINDER.contains(phrase),
+                "the reminder names a disabled rule's shape: {phrase}"
+            );
+        }
+        assert!(
+            !STANDING_REMINDER.contains("disabled"),
+            "the reminder must tell the writer what to do, not what is off: {STANDING_REMINDER}"
+        );
+    }
+
+    /// An advise finding must not block the stop hook.
     #[test]
     fn an_advise_only_batch_does_not_block() {
         let findings = vec![
@@ -656,10 +1014,10 @@ mod tests {
         );
     }
 
-    /// Change 3: an advise finding's advice survives to `osf hook prompt`.
+    /// An advise finding's advice survives to `osf hook prompt`.
     #[test]
     fn advice_survives_to_the_next_prompt() {
-        let session = "test-session-advice-survives";
+        let session = &unique("test-session-advice-survives");
         let _ = std::fs::remove_file(advice_path(session));
         let finding = finding_with(Remediation::Advise);
         store_advice(session, &[&finding]);
@@ -675,7 +1033,7 @@ mod tests {
     /// kilobytes of advice. Each turn now replaces the last turn's lines.
     #[test]
     fn advice_holds_the_last_turn_only() {
-        let session = "test-session-advice-last-turn";
+        let session = &unique("test-session-advice-last-turn");
         let _ = std::fs::remove_file(advice_path(session));
         let mut first = finding_with(Remediation::Advise);
         first.excerpt = "first-turn".to_string();
@@ -690,7 +1048,7 @@ mod tests {
 
     #[test]
     fn advice_is_capped_and_deduplicated() {
-        let session = "test-session-advice-cap";
+        let session = &unique("test-session-advice-cap");
         let _ = std::fs::remove_file(advice_path(session));
         let same = finding_with(Remediation::Advise);
         let mut distinct: Vec<lints::Finding> = Vec::new();
@@ -722,7 +1080,7 @@ mod tests {
     fn the_standing_reminder_is_one_line_and_leads_the_prompt_text() {
         assert_eq!(STANDING_REMINDER.lines().count(), 1);
         assert!(STANDING_REMINDER.len() < 400, "{}", STANDING_REMINDER.len());
-        let session = "test-session-reminder-order";
+        let session = &unique("test-session-reminder-order");
         let _ = std::fs::remove_file(advice_path(session));
         assert_eq!(prompt_text(session), STANDING_REMINDER);
         let finding = finding_with(Remediation::Advise);
@@ -751,6 +1109,9 @@ mod tests {
     /// `stop` can fail to run at all.
     #[test]
     fn a_standard_input_read_failure_refuses_rather_than_passes() {
+        let _turn = UNKNOWN_SESSION
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = std::fs::remove_file(counter_path("unknown", ""));
         let err = std::io::Error::other("device is busy");
         let code = stop_with_input(Err(err), None, 2, &WritingConfig::default(), None);
@@ -759,6 +1120,9 @@ mod tests {
 
     #[test]
     fn input_that_is_not_json_refuses_rather_than_passes() {
+        let _turn = UNKNOWN_SESSION
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = std::fs::remove_file(counter_path("unknown", ""));
         let code = stop_with_input(
             Ok("not json at all".to_string()),
@@ -772,7 +1136,7 @@ mod tests {
 
     #[test]
     fn an_event_with_no_assistant_message_refuses_rather_than_passes() {
-        let session = "test-session-no-assistant-message";
+        let session = &unique("test-session-no-assistant-message");
         let _ = std::fs::remove_file(counter_path(session, ""));
         let raw = serde_json::json!({ "session_id": session }).to_string();
         let code = stop_with_input(Ok(raw), None, 2, &WritingConfig::default(), None);
@@ -781,7 +1145,7 @@ mod tests {
 
     #[test]
     fn an_unreadable_known_names_file_refuses_rather_than_passes() {
-        let session = "test-session-unreadable-known-names";
+        let session = &unique("test-session-unreadable-known-names");
         let _ = std::fs::remove_file(counter_path(session, ""));
         let raw = serde_json::json!({
             "session_id": session,
@@ -800,7 +1164,7 @@ mod tests {
     /// than hanging the turn forever.
     #[test]
     fn a_could_not_run_refusal_is_let_through_after_max_bounces() {
-        let session = "test-session-could-not-run-bounce-limit";
+        let session = &unique("test-session-could-not-run-bounce-limit");
         let counter = counter_path(session, "");
         let _ = std::fs::remove_file(&counter);
         let raw = serde_json::json!({

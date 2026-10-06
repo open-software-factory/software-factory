@@ -12,7 +12,7 @@ This survey covers DESIGN.md 5.4.2, a requirement document section that requires
 ## 2. Local / on-device STT
 
 - **whisper.cpp**, a C++ implementation of OpenAI's Whisper speech-recognition model, can run via Rust as a Tauri sidecar or an in-process binding. It uses the whisper-rs crate, a Rust binding for whisper.cpp. Several shipped Tauri 2.x apps do this already, including Whisperi, Whisper Desktop, and MumbleFlow. The approach is mature. It needs no separate runtime install, since it static-links whisper.cpp. Model footprint varies by size. The `tiny` and `base` models run about 75 to 150 MB. The `small` model runs about 500 MB. `base.en` is the realistic default for a snappy console, since it runs near-real-time on CPU and faster still with GPU, Metal, or DirectML acceleration. First-token latency after audio capture runs roughly 200 ms to 1 s, depending on model size and hardware. This is good enough for dictation. It is borderline for a fluid open-mic assistant.
-- **Transformers.js**, a JavaScript library that runs machine-learning models, including Whisper, in the browser, can pair with **WebGPU**, a browser API for GPU-accelerated compute. Together they run Whisper inference directly inside the webview, without a Rust sidecar. WebGPU gives a 5 to 10x speedup over WASM for Whisper inference. Chrome and Edge from version 113 onward support WebGPU, which covers WebView2. This approach still needs a model download of several hundred MB on first run. WebGPU support inside WKWebView is far less proven than inside WebView2. In practice, treat this option as Windows-only today.
+- **Transformers.js**, a JavaScript library that runs machine-learning models, including Whisper, in the browser, can pair with **WebGPU**, a browser API for GPU-accelerated compute. Together they run Whisper inference directly inside the webview, without a Rust sidecar. WebGPU gives a 5 to 10x speedup over WASM for Whisper inference. Chrome and Edge from version 113 onward support WebGPU, which covers WebView2. This approach still needs a model download of several hundred MB on first run. WebGPU support inside WKWebView is far less proven than inside WebView2. In practice, treat this option as Windows-only as of September 2026.
 - Both local paths are genuinely private, since no audio crosses the network, and both work offline. This is a real advantage for an ops console. The cost is engineering and packaging effort, including model bundling, model download, and GPU driver variance. Local paths are also slower to first word than cloud streaming STT.
 
 ## 3. Cloud streaming STT
@@ -20,7 +20,7 @@ This survey covers DESIGN.md 5.4.2, a requirement document section that requires
 - **Deepgram Nova-3** is a cloud streaming speech-to-text model from Deepgram, a cloud speech-to-text vendor. It returns partial transcripts in well under 300 ms. Pairing Nova-3 with Flux, an end-of-turn detection add-on, keeps that detection under 300 ms too. This makes it the current latency leader for conversational use. Batch pricing runs about $0.0043 per minute. Streaming is metered separately, at roughly a few cents per hour of active use.
 - **AssemblyAI Universal-3 Pro** is a competing cloud speech-to-text model, from vendor AssemblyAI. It runs about 760 ms time-to-final on mixed audio. Streaming costs about $0.45 per hour. It has strong keyterm-prompting support, useful for injecting our domain vocabulary such as work item ids and gate names.
 - **OpenAI's gpt-realtime and whisper-class models** stream at about $0.017 per minute, or roughly $1 per hour. This is convenient if the console already runs an agent stack based on OpenAI. It adds a second network dependency and a second vendor.
-- **Azure and Google STT** sit in a comparable latency and cost band to the options above. Azure is the same backend that Windows' own Voice Typing, the built-in OS dictation feature, already uses.
+- **Azure and Google STT** sit in a comparable latency and cost band to the other options in this list. Azure is the same backend that Windows' own Voice Typing, the built-in OS dictation feature, already uses.
 - Privacy trade-off is the deciding factor for this product. Everything typed near a work item can include stack traces, secrets, or internal hostnames. Sending that audio to a third party by default conflicts with the console's job of handling sensitive code. This only works with an explicit opt-in, a redaction step, or a deployment where the enterprise already sends code to its LLM vendor.
 
 ## 4. OS-level dictation as a fallback, without integration
@@ -41,7 +41,7 @@ This survey covers DESIGN.md 5.4.2, a requirement document section that requires
 | Option | Latency | Privacy | Cost | Tauri compatibility | Effort |
 |---|---|---|---|---|---|
 | Web Speech API (cloud mode) | Low to medium | Audio leaves device (Google/Apple) | Free | Windows: good. macOS: works, needs Info.plist + OS consent dialog. Linux: unsupported | Very low |
-| Web Speech API (on-device, Chrome 139+) | Low | Fully local | Free | Windows/WebView2 only today. About 60 MB language pack | Low |
+| Web Speech API (on-device, Chrome 139+) | Low | Fully local | Free | Windows/WebView2 only as of September 2026. About 60 MB language pack | Low |
 | whisper.cpp via Tauri sidecar/Rust | Medium, 200 ms to 1 s | Fully local | Free (compute only) | All desktop platforms uniformly | Medium to high |
 | Transformers.js + WebGPU (in-webview) | Medium, GPU-dependent | Fully local | Free | Solid on WebView2. Unproven on WKWebView | Medium |
 | Cloud streaming STT (Deepgram/AssemblyAI/OpenAI) | Very low, sub-300 ms to 1 s | Audio leaves device to vendor | About $0.005 to $0.02/min | Platform-agnostic (network call) | Low to medium |
@@ -49,7 +49,7 @@ This survey covers DESIGN.md 5.4.2, a requirement document section that requires
 
 ## Recommendation
 
-- **TextInput mic, the default on Tauri desktop,** uses Web Speech API in on-device or local mode where available. This covers Windows/WebView2 with Chrome 139 or newer. It automatically falls back to whisper.cpp via sidecar when on-device Web Speech is not available. That covers macOS WKWebView today, and older WebView2 runtimes. This keeps the default fully local, which suits a console that may show secrets. It also avoids forcing a Rust sidecar dependency on Windows, the one platform where the browser API already handles this.
+- **TextInput mic, the default on Tauri desktop,** uses Web Speech API in on-device or local mode where available. This covers Windows/WebView2 with Chrome 139 or newer. It automatically falls back to whisper.cpp via sidecar when on-device Web Speech is not available. That covers macOS WKWebView as of September 2026, and older WebView2 runtimes. This keeps the default fully local, which suits a console that may show secrets. It also avoids forcing a Rust sidecar dependency on Windows, the one platform where the browser API already handles this.
 - **Fallback chain**, in order:
 
   1. Web Speech API on-device.

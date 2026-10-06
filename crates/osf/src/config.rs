@@ -70,8 +70,9 @@ pub struct WritingConfig {
     pub chat_local_labels: Vec<String>,
     /// Names that need no description on first use, on top of the built-in ones.
     pub known_names: Vec<String>,
-    /// Names this repository has decided are worth explaining on first use,
-    /// read even under `--gate`; see [`gate_loaded`] for why that is safe.
+    /// Names this repository has decided are worth explaining on first use.
+    /// The field is read under `--gate`, but `undefined-name` is disabled by
+    /// the compiled gate policy, so these names do not currently add gate errors.
     pub must_explain_names: Vec<String>,
     /// Per-rule level overrides, keyed by rule id.
     pub levels: BTreeMap<String, LevelSetting>,
@@ -150,7 +151,7 @@ impl Default for WritingConfig {
             chat_local_labels: strings(DEFAULT_CHAT_LOCAL_LABELS),
             known_names: Vec::new(),
             must_explain_names: Vec::new(),
-            levels: BTreeMap::new(),
+            levels: crate::lints::policy::off_levels(crate::lints::policy::DISABLED_WRITING),
         }
     }
 }
@@ -193,7 +194,7 @@ impl Default for SkillConfig {
             overview_max_words: 120,
             trigger_phrases: strings(DEFAULT_TRIGGER_PHRASES),
             manual_min_steps: 3,
-            levels: BTreeMap::new(),
+            levels: crate::lints::policy::off_levels(crate::lints::policy::DISABLED_SKILL),
         }
     }
 }
@@ -213,6 +214,142 @@ pub struct ScanConfig {
     pub session_links: Vec<String>,
     /// Per-rule level overrides, keyed by rule id.
     pub levels: BTreeMap<String, LevelSetting>,
+}
+
+/// The pass threshold `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_THRESHOLD: f64 = 0.7;
+
+/// The per-reviewer timeout, in seconds, `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 300;
+
+/// The `[agents]` section of a repository's own `osf.toml`: which of the
+/// agents in [`crate::agents::AGENTS`] it uses. Every field left out takes
+/// its default from that list; [`crate::agents::resolve`] checks the rest.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct AgentsConfig {
+    /// The agents in use. Left out, every agent in the list.
+    pub enabled: Option<Vec<String>>,
+    /// The agent that builds by default. Left out, the list's default builder.
+    pub builder: Option<String>,
+    /// The agents that review, in the order they run. Left out, none.
+    pub reviewers: Vec<String>,
+    /// The model each named agent runs with, keyed by agent name. An agent
+    /// left out uses its own default model.
+    pub models: BTreeMap<String, String>,
+}
+
+/// Reads the `[agents]` table of `<root>/osf.toml`, or
+/// [`AgentsConfig::default`] when the file, or the table, is absent.
+///
+/// # Errors
+/// Returns an error when the file is not valid TOML, or its `[agents]`
+/// table does not match [`AgentsConfig`]'s shape.
+pub fn agents_config(root: &Path) -> Result<AgentsConfig, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(AgentsConfig::default());
+    };
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    let Some(agents) = value.get("agents") else {
+        return Ok(AgentsConfig::default());
+    };
+    agents
+        .clone()
+        .try_into()
+        .map_err(|e| ConfigError::new(format!("{}: [agents]: {e}", path.display())))
+}
+
+/// The `[review]` section of a repository's own `osf.toml`: the pass
+/// threshold, the per-reviewer timeout, and an optional per-run cost
+/// ceiling. The reviewers themselves come from `[agents]`.
+///
+/// Kept out of the layered [`Config`]/[`Layered`] system deliberately: a
+/// fractional `threshold` cannot honour `Config`'s `Eq` derive the way
+/// every other field does.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct ReviewConfig {
+    /// The weighted lens score a review must clear to pass.
+    pub threshold: f64,
+    /// How long one reviewer call may run before it is killed and counted could-not-run.
+    pub timeout_seconds: u64,
+    /// An optional ceiling on what one review run may spend.
+    pub cost_ceiling: Option<f64>,
+    /// Model-name prefixes that extend the shipped builder-family table (see
+    /// [`crate::builder`]), tried before it so a repository can name a model
+    /// the shipped table does not know.
+    pub builder_family_aliases: Vec<BuilderFamilyAlias>,
+    /// Glob patterns naming high-traffic paths, read by [`crate::changeset_risk::assess`]
+    /// to earn the "high-traffic path" signal. Kept here, not only in
+    /// `changeset_risk.rs`'s own raw-TOML read, so this field's own `deny_unknown_fields`
+    /// does not reject the key `changeset_risk.rs` already reads.
+    #[serde(default)]
+    pub hot_paths: Vec<String>,
+    /// A file, relative to the trusted config root, that replaces the
+    /// prompt osf ships. Left out, the shipped prompt is used.
+    pub prompt_file: Option<String>,
+}
+
+impl Default for ReviewConfig {
+    fn default() -> Self {
+        ReviewConfig {
+            threshold: DEFAULT_REVIEW_THRESHOLD,
+            timeout_seconds: DEFAULT_REVIEW_TIMEOUT_SECS,
+            cost_ceiling: None,
+            builder_family_aliases: Vec::new(),
+            hot_paths: Vec::new(),
+            prompt_file: None,
+        }
+    }
+}
+
+/// One model-name prefix, matched case-insensitively against the first word
+/// of a `Code-Generator:` trailer's model name, and the family it maps to.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BuilderFamilyAlias {
+    pub prefix: String,
+    pub family: String,
+}
+
+/// Reads the `[review]` table of `<root>/osf.toml`, or
+/// [`ReviewConfig::default`] when the file, or the table, is absent.
+///
+/// # Errors
+/// Returns an error when the file is not valid TOML, or its `[review]`
+/// table does not match [`ReviewConfig`]'s shape.
+pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(ReviewConfig::default());
+    };
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    let Some(review) = value.get("review") else {
+        return Ok(ReviewConfig::default());
+    };
+    let config: ReviewConfig = review
+        .clone()
+        .try_into()
+        .map_err(|e| ConfigError::new(format!("{}: [review]: {e}", path.display())))?;
+    if !(config.threshold.is_finite() && (0.0..=1.0).contains(&config.threshold)) {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: threshold must be a number from 0 to 1, found {}",
+            path.display(),
+            config.threshold
+        )));
+    }
+    if let Some(ceiling) = config.cost_ceiling {
+        if !ceiling.is_finite() || ceiling < 0.0 {
+            return Err(ConfigError::new(format!(
+                "{}: [review]: cost_ceiling must be a finite number that is not negative, found {ceiling}",
+                path.display()
+            )));
+        }
+    }
+    Ok(config)
 }
 
 /// One field the environment can set, and how to parse it into a TOML value.
@@ -379,10 +516,10 @@ pub fn resolve_path(flag: Option<&Path>) -> Option<PathBuf> {
 /// an error: running outside a repository, or without `git` installed,
 /// must fall through to the next layer rather than fail.
 fn repo_config_path() -> Option<PathBuf> {
-    let output = std::process::Command::new("git")
-        .args(["rev-parse", "--show-toplevel"])
-        .output()
-        .ok()?;
+    let mut command = std::process::Command::new("git");
+    command.args(["rev-parse", "--show-toplevel"]);
+    crate::git::scrub_git_env(&mut command);
+    let output = command.output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -453,9 +590,17 @@ pub fn load(
     let mut file = None;
     if let Some(p) = &path {
         if let Some(text) = osf_lint_core::read_config_file(p, explicit)? {
-            let value: toml::Value = toml::from_str(&text).map_err(|e| {
+            let mut value: toml::Value = toml::from_str(&text).map_err(|e| {
                 ConfigError::new(format!("config {} is not valid: {e}", p.display()))
             })?;
+            // `[review]` and `[agents]` are this same file's own tables, read
+            // separately by `review_config` and `agents_config`. Drop them
+            // here so their presence never trips this struct's
+            // `deny_unknown_fields`.
+            if let Some(table) = value.as_table_mut() {
+                table.remove("review");
+                table.remove("agents");
+            }
             layered.merge_document(&value, Layer::File);
             file = Some(p.clone());
         }
@@ -469,6 +614,7 @@ pub fn load(
 
     let (mut config, mut tree, mut sources): (Config, toml::Value, BTreeMap<String, Layer>) =
         layered.finish()?;
+    enforce_audited_policy(&mut config, &mut tree, &mut sources);
     if !extra_exclude.is_empty() {
         config.exclude.extend(extra_exclude.iter().cloned());
         set_exclude_tree(&mut tree, &config.exclude);
@@ -480,6 +626,45 @@ pub fn load(
         sources,
         file,
     })
+}
+
+/// Applies the compiled Off list last, in the config and in the tree that
+/// `osf config show` prints. Every consumer reads its levels from here.
+fn enforce_audited_policy(
+    config: &mut Config,
+    tree: &mut toml::Value,
+    sources: &mut BTreeMap<String, Layer>,
+) {
+    config
+        .writing
+        .levels
+        .extend(crate::lints::policy::off_levels(
+            crate::lints::policy::DISABLED_WRITING,
+        ));
+    config.skill.levels.extend(crate::lints::policy::off_levels(
+        crate::lints::policy::DISABLED_SKILL,
+    ));
+    let sections = [
+        ("writing", crate::lints::policy::DISABLED_WRITING),
+        ("skill", crate::lints::policy::DISABLED_SKILL),
+    ];
+    for (section, ids) in sections {
+        let Some(table) = tree.get_mut(section).and_then(toml::Value::as_table_mut) else {
+            continue;
+        };
+        let levels = table
+            .entry("levels")
+            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+        let Some(levels) = levels.as_table_mut() else {
+            continue;
+        };
+        for id in ids {
+            levels.insert(id.to_string(), toml::Value::String("off".to_string()));
+            if let Some(layer) = sources.get_mut(&format!("{section}.levels.{id}")) {
+                *layer = Layer::Default;
+            }
+        }
+    }
 }
 
 /// The config a gate run always gets: the compiled defaults, with nothing
@@ -494,19 +679,10 @@ pub fn load(
 /// a field added to [`Config`] or [`WritingConfig`] later is safe here with
 /// no extra code: it was never merged in, so it never needs resetting.
 ///
-/// `must_explain_names` is the one field exempt from that. Every other
-/// field can only loosen the gate: turning a rule off, widening the
-/// exclude list, or growing the known-name list all shrink what the gate
-/// reports. `must_explain_names` cannot: its compiled default is empty, so
-/// it starts at the least strict setting already, and every name the
-/// repository's own file adds to it can only turn on one more
-/// `undefined-name` error, never turn one off. Reading it here from a file
-/// this change could itself have edited is therefore safe: a change that
-/// deletes an entry only pulls that name back down to the same empty floor
-/// every other repository already gates on, and a change that adds one can
-/// only make its own gate run stricter than that floor, never looser. Do
-/// not read any other field this way; every other field in this struct can
-/// remove a finding, which this reasoning does not cover.
+/// `must_explain_names` is the one field exempt from that. It is read for
+/// config parity, but the compiled gate policy sets `undefined-name` to
+/// `off`, so these names do not currently add gate errors. If the gate
+/// policy changes, revisit this exception before relying on it for gating.
 ///
 /// # Errors
 /// Returns an error if the compiled defaults themselves fail to serialise
@@ -527,8 +703,8 @@ fn gate_loaded() -> Result<Loaded, ConfigError> {
 
 /// Reads `writing.must_explain_names` from `resolve_path`'s file (never
 /// from `--config`, since `flag` is always `None` here), or returns an
-/// empty list when no such file exists. See [`gate_loaded`] for why this
-/// one field is read under `--gate` when nothing else in the file is.
+/// empty list when no such file exists. The gate currently reads this field
+/// for config parity; its `undefined-name` rule remains disabled by policy.
 fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
     let Some(path) = resolve_path(None) else {
         return Ok(Vec::new());
@@ -555,18 +731,62 @@ fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::{unique_temp_path, TempDir};
     use std::sync::Mutex;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    /// Every environment variable the config layer reads: `OSF_CONFIG` plus
+    /// every `ENV_FIELDS` name. A config unit test must never see a
+    /// caller's own environment (this repository's own CI checkpoint job
+    /// sets `OSF_CONFIG` and `OSF_DENYLIST` on `cargo test`, which a moon
+    /// task inherits) — cleared before a test's own `vars` are applied, and
+    /// restored to whatever ambient value each one held, not merely
+    /// deleted, since one test's explicit `("OSF_CONFIG", ...)` must not
+    /// permanently erase a value another test (or the caller) had set.
+    fn config_env_names() -> Vec<&'static str> {
+        std::iter::once(ENV_VAR)
+            .chain(ENV_FIELDS.iter().map(|f| f.var))
+            .collect()
+    }
+
+    /// Removes every name `config_env_names` returns, returning each one's
+    /// prior value (`None` when it was unset) so the caller can restore it.
+    fn clear_config_env() -> Vec<(&'static str, Option<String>)> {
+        let ambient: Vec<(&'static str, Option<String>)> = config_env_names()
+            .into_iter()
+            .map(|k| (k, std::env::var(k).ok()))
+            .collect();
+        for (k, _) in &ambient {
+            // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
+            unsafe { std::env::remove_var(k) };
+        }
+        ambient
+    }
+
+    /// Puts back what `clear_config_env` captured: re-sets a name that had
+    /// a value, leaves one that did not have one still unset.
+    fn restore_config_env(ambient: Vec<(&'static str, Option<String>)>) {
+        for (k, v) in ambient {
+            match v {
+                // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
+                Some(v) => unsafe { std::env::set_var(k, v) },
+                // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
+                None => unsafe { std::env::remove_var(k) },
+            }
+        }
+    }
+
     /// Runs `f` while holding the process-wide environment lock, setting
     /// `vars` first when any are given. Every test in this module goes
-    /// through here, because `OSF_WRITING_*` is process-global state and
-    /// two tests must never touch it at the same time.
+    /// through here, because `OSF_WRITING_*` and the rest of the config
+    /// environment are process-global state and two tests must never touch
+    /// them at the same time.
     fn serial<T>(vars: &[(&str, &str)], f: impl FnOnce() -> T) -> T {
         let guard = ENV_LOCK
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ambient = clear_config_env();
         for (k, v) in vars {
             // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
             unsafe { std::env::set_var(k, v) };
@@ -576,6 +796,7 @@ mod tests {
             // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
             unsafe { std::env::remove_var(k) };
         }
+        restore_config_env(ambient);
         drop(guard);
         result
     }
@@ -584,7 +805,7 @@ mod tests {
     /// test for "no config file" is not fooled by a real file this
     /// machine happens to have at `~/.osf/config.toml`.
     fn empty_home() -> String {
-        let dir = std::env::temp_dir().join(format!("osf-config-test-home-{}", std::process::id()));
+        let dir = unique_temp_path("osf-config-test-home");
         std::fs::create_dir_all(&dir).expect("empty home dir creates");
         dir.to_string_lossy().into_owned()
     }
@@ -601,6 +822,7 @@ mod tests {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let original = std::env::current_dir().expect("the current directory reads");
         std::env::set_current_dir(dir).expect("chdir into the test directory");
+        let ambient = clear_config_env();
         for (k, v) in vars {
             // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
             unsafe { std::env::set_var(k, v) };
@@ -610,40 +832,25 @@ mod tests {
             // SAFETY: serialised by `ENV_LOCK`; no other thread touches the environment here.
             unsafe { std::env::remove_var(k) };
         }
+        restore_config_env(ambient);
         std::env::set_current_dir(original).expect("chdir back to the original directory");
         drop(guard);
         result
     }
 
-    /// A fresh, empty directory that is not inside any git repository, so
-    /// a test for "no repository" is not fooled by this worktree's own
-    /// `osf.toml`, or by the machine happening to run the test suite
-    /// somewhere under a repository of its own.
-    fn outside_any_repo(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(name);
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
-        dir
-    }
-
     /// Runs `git init --quiet` in `dir`, so `git rev-parse --show-toplevel`
     /// resolves to `dir` from anywhere under it.
     fn init_repo(dir: &Path) {
-        let status = std::process::Command::new("git")
-            // A container or a machine may set core.hooksPath system-wide;
-            // this repository is throwaway and must never run real hooks.
-            .env("GIT_CONFIG_NOSYSTEM", "1")
-            .arg("init")
-            .arg("--quiet")
-            .arg(dir)
-            .status()
-            .expect("git init runs");
+        let mut command = std::process::Command::new("git");
+        command.arg("init").arg("--quiet").arg(dir);
+        crate::git::scrub_git_env(&mut command);
+        let status = command.status().expect("git init runs");
         assert!(status.success(), "git init failed for {}", dir.display());
     }
 
     #[test]
     fn defaults_round_trip() {
-        let dir = outside_any_repo("osf-config-test-defaults");
+        let dir = TempDir::new("osf-config-test-defaults");
         let home = empty_home();
         let loaded = serial_in_dir(&dir, &[("HOME", &home), ("USERPROFILE", &home)], || {
             load(None, &[], &[], false)
@@ -656,8 +863,7 @@ mod tests {
 
     #[test]
     fn a_partial_file_keeps_the_other_defaults() {
-        let dir = std::env::temp_dir().join("osf-config-test-partial");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-partial");
         let path = dir.join("config.toml");
         std::fs::write(
             &path,
@@ -684,8 +890,7 @@ mod tests {
 
     #[test]
     fn an_unknown_key_is_refused_with_the_valid_keys_named() {
-        let dir = std::env::temp_dir().join("osf-config-test-unknown");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-unknown");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentance_words = 30\n").expect("file writes");
         let err = serial(&[], || load(Some(&path), &[], &[], false))
@@ -697,8 +902,7 @@ mod tests {
 
     #[test]
     fn an_environment_variable_overrides_the_file() {
-        let dir = std::env::temp_dir().join("osf-config-test-env");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-env");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentence_words = 30\n").expect("file writes");
         let loaded = serial(&[("OSF_WRITING_MAX_SENTENCE_WORDS", "40")], || {
@@ -735,8 +939,7 @@ mod tests {
 
     #[test]
     fn a_flag_not_passed_leaves_the_file_value_alone() {
-        let dir = std::env::temp_dir().join("osf-config-test-no-flag");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-no-flag");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmax_sentence_words = 30\n").expect("file writes");
         let loaded =
@@ -763,8 +966,7 @@ mod tests {
             "\n",
             "[writing.levels]\n",
         );
-        let dir = std::env::temp_dir().join("osf-config-test-every-key");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-every-key");
         let path = dir.join("config.toml");
         std::fs::write(&path, text).expect("the file writes");
         let loaded =
@@ -776,7 +978,7 @@ mod tests {
         assert_eq!(w.short_text_words, 500);
         assert!(w.known_names.contains(&"Vale".to_string()));
         assert!(w.known_names.contains(&"Postgres".to_string()));
-        assert!(w.levels.is_empty());
+        assert_eq!(w.levels, WritingConfig::default().levels);
     }
 
     #[test]
@@ -791,8 +993,7 @@ mod tests {
 
     #[test]
     fn a_file_exclude_list_replaces_the_compiled_default() {
-        let dir = std::env::temp_dir().join("osf-config-test-exclude-file");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-exclude-file");
         let path = dir.join("config.toml");
         std::fs::write(&path, "exclude = [\"vendor/**\"]\n").expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], false)).expect("file loads");
@@ -820,8 +1021,7 @@ mod tests {
 
     #[test]
     fn gate_ignores_a_file_exclude_list() {
-        let dir = std::env::temp_dir().join("osf-config-test-gate-file");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-file");
         let path = dir.join("config.toml");
         std::fs::write(&path, "exclude = [\"vendor/**\"]\n").expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
@@ -855,13 +1055,11 @@ mod tests {
         assert_eq!(loaded.config.exclude, DEFAULT_EXCLUDE);
     }
 
-    /// Unlike every other field, `must_explain_names` is read from the
-    /// file at `OSF_CONFIG` even under `--gate`: see `gate_loaded` for why
-    /// growing this one list can only add errors, never remove one.
+    /// `must_explain_names` is read from `OSF_CONFIG` under `--gate`, while
+    /// the compiled gate policy keeps `undefined-name` disabled.
     #[test]
     fn gate_reads_must_explain_names_from_the_configured_file() {
-        let dir = std::env::temp_dir().join("osf-config-test-gate-must-explain");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-must-explain");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmust_explain_names = [\"Widgetly\"]\n")
             .expect("file writes");
@@ -880,9 +1078,8 @@ mod tests {
     /// so this worktree's own `osf.toml` cannot answer in the flag's place.
     #[test]
     fn gate_ignores_the_config_flag_for_must_explain_names() {
-        let outside = outside_any_repo("osf-config-test-gate-must-explain-flag-outside");
-        let dir = std::env::temp_dir().join("osf-config-test-gate-must-explain-flag");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let outside = TempDir::new("osf-config-test-gate-must-explain-flag-outside");
+        let dir = TempDir::new("osf-config-test-gate-must-explain-flag");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nmust_explain_names = [\"Widgetly\"]\n")
             .expect("file writes");
@@ -898,7 +1095,7 @@ mod tests {
     /// reads nothing rather than erroring.
     #[test]
     fn gate_must_explain_names_is_empty_with_no_file() {
-        let outside = outside_any_repo("osf-config-test-gate-must-explain-empty-outside");
+        let outside = TempDir::new("osf-config-test-gate-must-explain-empty-outside");
         let home = empty_home();
         let loaded = serial_in_dir(&outside, &[("HOME", &home), ("USERPROFILE", &home)], || {
             load(None, &[], &[], true)
@@ -913,7 +1110,7 @@ mod tests {
     /// pointed `OSF_CONFIG` at it by hand.
     #[test]
     fn the_repository_root_file_is_found_from_a_subdirectory() {
-        let dir = outside_any_repo("osf-config-test-repo-root-subdir");
+        let dir = TempDir::new("osf-config-test-repo-root-subdir");
         init_repo(&dir);
         std::fs::write(
             dir.join("osf.toml"),
@@ -939,7 +1136,7 @@ mod tests {
     /// home file, here also absent.
     #[test]
     fn outside_a_repository_the_layer_is_skipped_without_error() {
-        let dir = outside_any_repo("osf-config-test-repo-root-outside");
+        let dir = TempDir::new("osf-config-test-repo-root-outside");
         let home = empty_home();
 
         let loaded = serial_in_dir(&dir, &[("HOME", &home), ("USERPROFILE", &home)], || {
@@ -953,7 +1150,7 @@ mod tests {
     /// `OSF_CONFIG` still wins over a repository's own `osf.toml`.
     #[test]
     fn the_environment_variable_still_wins_over_the_repository_root_file() {
-        let dir = outside_any_repo("osf-config-test-repo-root-env-wins");
+        let dir = TempDir::new("osf-config-test-repo-root-env-wins");
         init_repo(&dir);
         std::fs::write(
             dir.join("osf.toml"),
@@ -979,7 +1176,7 @@ mod tests {
     /// gate run.
     #[test]
     fn the_flag_still_wins_over_the_repository_root_file() {
-        let dir = outside_any_repo("osf-config-test-repo-root-flag-wins");
+        let dir = TempDir::new("osf-config-test-repo-root-flag-wins");
         init_repo(&dir);
         std::fs::write(
             dir.join("osf.toml"),
@@ -1006,7 +1203,7 @@ mod tests {
     /// back to the compiled default.
     #[test]
     fn the_gate_still_gets_the_repository_root_file() {
-        let dir = outside_any_repo("osf-config-test-repo-root-gate");
+        let dir = TempDir::new("osf-config-test-repo-root-gate");
         init_repo(&dir);
         std::fs::write(
             dir.join("osf.toml"),
@@ -1027,13 +1224,12 @@ mod tests {
     /// turns `bare-reference` off must not reach a gate run.
     #[test]
     fn gate_ignores_a_file_level_override() {
-        let dir = std::env::temp_dir().join("osf-config-test-gate-levels");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-levels");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing.levels]\nbare-reference = \"off\"\n").expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
         assert!(
-            loaded.config.writing.levels.is_empty(),
+            !loaded.config.writing.levels.contains_key("bare-reference"),
             "{:?}",
             loaded.config.writing.levels
         );
@@ -1043,8 +1239,7 @@ mod tests {
     /// compiled defaults too, the same as `exclude` already did.
     #[test]
     fn gate_ignores_known_names_and_word_lists_from_a_file() {
-        let dir = std::env::temp_dir().join("osf-config-test-gate-lists");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-lists");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[writing]\nknown_names = [\"Vale\"]\nfiller = []\n")
             .expect("file writes");
@@ -1087,10 +1282,10 @@ mod tests {
     /// default other than its own zero value, without anyone updating
     /// this test to know about it.
     ///
-    /// `must_explain_names` is carved out of the final comparison on
-    /// purpose: it is the one field [`gate_loaded`] deliberately still
-    /// reads from the file, so this test also proves that carve-out reads
-    /// exactly the file's value and nothing the environment or a flag set.
+    /// `must_explain_names` is carved out of the final comparison because
+    /// [`gate_loaded`] reads it from the file. This proves that carve-out
+    /// reads exactly the file's value and nothing the environment or a flag
+    /// set; the compiled gate policy still disables `undefined-name`.
     #[test]
     fn gate_config_matches_compiled_defaults_even_from_a_maximally_poisoned_source() {
         let defaults_tree =
@@ -1122,8 +1317,7 @@ mod tests {
         }
         let text = toml::to_string(&poisoned).expect("poisoned tree renders as TOML");
 
-        let dir = std::env::temp_dir().join("osf-config-test-gate-poison");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-gate-poison");
         let path = dir.join("config.toml");
         std::fs::write(&path, &text).expect("poisoned file writes");
         let path_str = path.to_string_lossy().into_owned();
@@ -1167,8 +1361,7 @@ mod tests {
 
     #[test]
     fn the_skill_section_layers_the_same_way_as_writing() {
-        let dir = std::env::temp_dir().join("osf-config-test-skill-section");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-skill-section");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[skill]\noverview_max_paragraphs = 1\n").expect("file writes");
         let loaded = serial(&[("OSF_SKILL_OVERVIEW_MAX_WORDS", "40")], || {
@@ -1190,12 +1383,201 @@ mod tests {
 
     #[test]
     fn an_unknown_skill_key_is_refused() {
-        let dir = std::env::temp_dir().join("osf-config-test-skill-unknown");
-        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        let dir = TempDir::new("osf-config-test-skill-unknown");
         let path = dir.join("config.toml");
         std::fs::write(&path, "[skill]\noverview_max_paragraph = 1\n").expect("file writes");
         let err = serial(&[], || load(Some(&path), &[], &[], false))
             .expect_err("an unknown key is refused");
         assert!(err.to_string().contains("overview_max_paragraph"));
+    }
+
+    #[test]
+    fn review_config_defaults_when_osf_toml_is_absent() {
+        let dir = TempDir::new("osf-config-test-review-defaults");
+        let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+        assert_eq!(loaded.cost_ceiling, None);
+    }
+
+    #[test]
+    fn review_config_reads_threshold_and_cost_ceiling() {
+        let dir = TempDir::new("osf-config-test-review-fields");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nthreshold = 0.85\ncost_ceiling = 2.5\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert!((loaded.threshold - 0.85).abs() < f64::EPSILON);
+        assert_eq!(loaded.cost_ceiling, Some(2.5));
+    }
+
+    #[test]
+    fn review_config_reads_hot_paths() {
+        let dir = TempDir::new("osf-config-test-review-hot-paths");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nhot_paths = [\"src/payments/**\"]\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("[review] hot_paths must not be an unknown field");
+        assert_eq!(loaded.hot_paths, vec!["src/payments/**".to_string()]);
+    }
+
+    #[test]
+    fn review_config_defaults_the_timeout_to_three_hundred_seconds() {
+        let dir = TempDir::new("osf-config-test-review-timeout-default");
+        let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert_eq!(loaded.timeout_seconds, DEFAULT_REVIEW_TIMEOUT_SECS);
+        assert_eq!(loaded.timeout_seconds, 300);
+    }
+
+    #[test]
+    fn review_config_reads_a_configured_timeout() {
+        let dir = TempDir::new("osf-config-test-review-timeout-configured");
+        std::fs::write(dir.join("osf.toml"), "[review]\ntimeout_seconds = 45\n")
+            .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert_eq!(loaded.timeout_seconds, 45);
+    }
+
+    #[test]
+    fn review_config_with_no_review_table_still_gives_the_defaults() {
+        let dir = TempDir::new("osf-config-test-review-no-table");
+        std::fs::write(dir.join("osf.toml"), "[writing]\nmax_sentence_words = 30\n")
+            .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn a_threshold_that_is_not_a_number_from_zero_to_one_is_refused() {
+        for (label, value) in [
+            ("nan", "nan"),
+            ("inf", "inf"),
+            ("neg-inf", "-inf"),
+            ("negative", "-0.1"),
+            ("above-one", "1.5"),
+        ] {
+            let dir = TempDir::new(&format!("osf-config-test-review-threshold-{label}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\nthreshold = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            let err = review_config(&dir).expect_err("a bad threshold is refused");
+            assert!(
+                err.to_string()
+                    .contains("threshold must be a number from 0 to 1"),
+                "{label}: {err}"
+            );
+        }
+        for value in ["0.0", "0.7", "1.0"] {
+            let dir = TempDir::new(&format!("osf-config-test-review-threshold-ok-{value}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\nthreshold = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            assert!(review_config(&dir).is_ok(), "{value}");
+        }
+    }
+
+    #[test]
+    fn a_cost_ceiling_that_is_not_finite_or_is_negative_is_refused() {
+        for (label, value) in [("nan", "nan"), ("inf", "inf"), ("negative", "-2.0")] {
+            let dir = TempDir::new(&format!("osf-config-test-review-ceiling-{label}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\ncost_ceiling = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            let err = review_config(&dir).expect_err("a bad ceiling is refused");
+            assert!(
+                err.to_string()
+                    .contains("cost_ceiling must be a finite number"),
+                "{label}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_malformed_review_table_is_refused_naming_the_field() {
+        let dir = TempDir::new("osf-config-test-review-malformed-type");
+        std::fs::write(dir.join("osf.toml"), "[review]\nthreshold = \"high\"\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("a string threshold is refused");
+        assert!(err.to_string().contains("threshold"), "{err}");
+    }
+
+    #[test]
+    fn an_unknown_review_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-review-unknown-field");
+        std::fs::write(dir.join("osf.toml"), "[review]\nthreshhold = 0.9\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("threshhold"), "{err}");
+    }
+
+    /// `[review]` and `[agents]` are this same `osf.toml`. The two tables are
+    /// read separately by `review_config` and `agents_config`, and this
+    /// module's own `Config` does not read them. A repository that selects
+    /// reviewers this way must still load its `[writing]`, `[scan]`, and
+    /// `[skill]` settings, the same as one with neither table.
+    #[test]
+    fn the_review_and_agents_tables_do_not_stop_the_rest_of_the_file_loading() {
+        let dir = TempDir::new("osf-config-test-review-alongside-writing");
+        let path = dir.join("osf.toml");
+        std::fs::write(
+            &path,
+            "[writing]\nmax_sentence_words = 30\n\n\
+             [review]\n\n\
+             [agents]\n\
+             reviewers = [\"codex\"]\n",
+        )
+        .expect("osf.toml writes");
+        let loaded =
+            serial(&[], || load(Some(&path), &[], &[], false)).expect("file with [review] loads");
+        assert_eq!(loaded.config.writing.max_sentence_words, 30);
+    }
+
+    #[test]
+    fn agents_config_defaults_when_osf_toml_is_absent_or_has_no_agents_table() {
+        let dir = TempDir::new("osf-config-test-agents-defaults");
+        let loaded = agents_config(&dir).expect("defaults load with no osf.toml");
+        assert!(loaded.enabled.is_none() && loaded.builder.is_none());
+        assert!(loaded.reviewers.is_empty() && loaded.models.is_empty());
+        std::fs::write(dir.join("osf.toml"), "[writing]\nmax_numerals = 3\n").expect("writes");
+        assert!(agents_config(&dir).expect("loads").reviewers.is_empty());
+    }
+
+    #[test]
+    fn agents_config_reads_every_field() {
+        let dir = TempDir::new("osf-config-test-agents-fields");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[agents]\nenabled = [\"dsh\", \"codex\"]\nbuilder = \"dsh\"\nreviewers = [\"codex\"]\n\n[agents.models]\ncodex = \"o4-mini\"\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = agents_config(&dir).expect("agents config loads");
+        assert_eq!(
+            loaded.enabled,
+            Some(vec!["dsh".to_string(), "codex".to_string()])
+        );
+        assert_eq!(loaded.builder.as_deref(), Some("dsh"));
+        assert_eq!(loaded.reviewers, vec!["codex".to_string()]);
+        assert_eq!(
+            loaded.models.get("codex").map(String::as_str),
+            Some("o4-mini")
+        );
+    }
+
+    #[test]
+    fn an_unknown_agents_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-agents-unknown-field");
+        std::fs::write(dir.join("osf.toml"), "[agents]\nreviewer = [\"codex\"]\n")
+            .expect("osf.toml writes");
+        let err = agents_config(&dir).expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("reviewer"), "{err}");
     }
 }

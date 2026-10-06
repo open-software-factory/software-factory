@@ -68,27 +68,29 @@ tasks:
   scan:
     command: osf scan --format json
     inputs: ['**/*']
-    tags: [osf:hook, osf:pre-commit, osf:pre-push, osf:pull-request, osf:slot:secrets]
+    tags: [osf-hook, osf-pre-commit, osf-pre-push, osf-pull-request, osf-slot-secrets]
   lint-writing:
     command: osf lint writing
     inputs: ['**/*.md']
-    tags: [osf:hook, osf:pre-commit, osf:pre-push, osf:pull-request, osf:slot:writing]
+    tags: [osf-hook, osf-pre-push, osf-pull-request, osf-slot-writing]
   fmt:
     command: cargo fmt --all --check
     inputs: ['**/*.rs']
-    tags: [osf:pre-commit, osf:pull-request, osf:slot:format]
+    tags: [osf-pre-commit, osf-pull-request, osf-slot-format]
   clippy:
     command: cargo clippy --workspace --all-targets -- -D warnings
     inputs: ['**/*.rs', 'Cargo.toml', 'Cargo.lock']
-    tags: [osf:pre-push, osf:pull-request, osf:slot:lint]
+    tags: [osf-pre-push, osf-pull-request, osf-slot-lint]
   test:
     command: cargo test --workspace
     inputs: ['**/*.rs', 'Cargo.toml', 'Cargo.lock']
     deps: [clippy]
-    tags: [osf:pre-push, osf:pull-request, osf:slot:unit-tests]
+    tags: [osf-pre-push, osf-pull-request, osf-slot-unit-tests]
 ```
 
-The pre-commit checkpoint runs the tasks tagged `osf:pre-commit` on the affected files. The `inputs` line is what makes an unaffected task free. A change to one Markdown file leaves the Rust tasks untouched. The slot tag says which slot the task fills, so the aggregation knows the slot is covered.
+Tags use a hyphen, because moon's target syntax gives the colon a meaning.
+
+The pre-commit checkpoint runs the tasks tagged `osf-pre-commit` on the affected files. The `inputs` line is what makes an unaffected task free. A change to one Markdown file leaves the Rust tasks untouched. The slot tag says which slot the task fills, so the aggregation knows the slot is covered.
 
 The pull-request checkpoint has one more piece. The adopter's existing CI jobs fill slots without becoming moon tasks. The check recogniser reads their workflow and project files and judges each slot. The aggregation runs after every workflow on the commit finishes. It reads each job's conclusion and result files, adds the moon results, and posts the one required check.
 
@@ -98,7 +100,7 @@ Every event reaches the local journal first. A buffer flushes on push and on a t
 
 ### The harness hook checkpoint
 
-The hook checkpoint fires after a tool call that wrote a file and at the end of a turn. It runs every tagged check on the touched files, so the agent fixes its edits at once. A check that cannot finish inside the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
+The hook checkpoint fires after a tool call that wrote a file and at the end of a turn. It runs every tagged check on the touched files, so the agent fixes its edits at once. At this checkpoint every check reads a touched file as it is on disk, because the hook checks what the agent just wrote, and every other checkpoint keeps its own current source. A check that cannot finish inside the hook's time reports skipped with a reason, and the pre-commit checkpoint runs it in full.
 
 The event to refuse a tool call, such as a commit that skips hooks, is a separate concern. It stays with [open-software-factory/software-factory#97 (enforcement points: pre-tool-use, pre-commit, pre-change, workflow start)](https://github.com/open-software-factory/software-factory/issues/97).
 
@@ -232,7 +234,7 @@ The tool renders a small set of files from the TOML defaults and the repository'
 | Generated file | Holds |
 | --- | --- |
 | `.osf/moon.yml` | The factory's moon project with its tagged tasks. |
-| `.osf/hooks/pre-commit`, `.osf/hooks/pre-push` | The git hooks. The sandbox points git's hooks path here. |
+| Local git hooks | Not generated into the repository: osf owns them outside it, written by `osf hooks install`. Inside the development container, the container forces its own hooks path instead. |
 | The factory's pull-request workflow | Runs the tasks tagged for the pull-request checkpoint and uploads their results. |
 | The aggregation workflow | Runs after every workflow on the commit finishes and posts the one required check. |
 | The scheduled workflow | Runs the tasks tagged for each cadence. |
@@ -254,7 +256,7 @@ Each check still writes its own verification event. When the aggregation finishe
 | unit-tests | this repository's Unit Tests job | pass | 412 tests, 0 failed | observed |
 | architecture-tests | empty, warning | skipped | | |
 | contract-tests | slot attestation, 2026-09-22 | pass | | reported |
-| review | second-opinion review, round 2 | 1 thread open | 1 | reported |
+| review | second-opinion review, second round | 1 thread open | 1 | reported |
 
 The result-file readers detect a file by content. The formats they read are JUnit XML, TRX, xUnit XML, Cobertura, LCOV, JaCoCo, SARIF and CTRF. JUnit XML is the test-result format most runners can write. TRX is the .NET test-result format. xUnit XML is the result format of the xUnit test framework for .NET. The coverage formats are Cobertura, LCOV and JaCoCo. JaCoCo is the Java coverage tool's own format. CTRF is a common test-report format in JSON. A glob in `osf.toml` narrows the scan. A job with a known conclusion and no readable file still counts as passed or failed.
 

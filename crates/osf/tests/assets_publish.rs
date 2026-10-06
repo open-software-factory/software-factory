@@ -1,9 +1,26 @@
 //! End-to-end cases for `osf assets publish`, against a local bare
 //! repository standing in for GitHub. Nothing here reaches the network.
 
+mod common;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// Two remotes made from one name never share a folder, in this process or another.
+#[test]
+fn two_remotes_with_one_name_get_different_folders() {
+    let first = BareRemote::new("same-name");
+    let second = BareRemote::new("same-name");
+    assert_ne!(first.dir, second.dir);
+    assert!(first.dir.is_dir(), "making the second removed the first");
+    let name = first.dir.file_name().expect("a folder name");
+    assert!(
+        name.to_string_lossy()
+            .contains(&std::process::id().to_string()),
+        "{name:?} has no process id"
+    );
+}
 
 /// A local bare repository, removed when it goes out of scope.
 struct BareRemote {
@@ -12,8 +29,7 @@ struct BareRemote {
 
 impl BareRemote {
     fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("osf-assets-publish-remote-{name}"));
-        let _ = fs::remove_dir_all(&dir);
+        let dir = common::unique_dir(&format!("osf-assets-publish-remote-{name}"));
         let output = Command::new("git")
             .args(["init", "--quiet", "--bare"])
             .arg(&dir)
@@ -77,7 +93,8 @@ struct SourceDir {
 
 impl SourceDir {
     fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("osf-assets-publish-source-{name}"));
+        let base = std::env::temp_dir(); // osf: temp-dir allowed, unique per test name
+        let dir = base.join(format!("osf-assets-publish-source-{name}"));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("source dir creates");
         SourceDir { dir }

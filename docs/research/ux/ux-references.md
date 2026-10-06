@@ -118,9 +118,7 @@ Reference:
 
 - https://argo-workflows.readthedocs.io/
 
-## 6. Linear
-
-Linear is an issue tracker for software teams.
+## 6. Linear, an issue tracker for software teams
 
 Why it matters: it shows how dense professional interaction design can avoid visual clutter.
 
