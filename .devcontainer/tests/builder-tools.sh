@@ -46,6 +46,25 @@ assert_ok "bun --version" bun --version
 assert_ok "skillspector --help" skillspector --help
 assert_ok "skillevaluator --help" skillevaluator --help
 
+# moon must come from its one install, /usr/local/bin, not a second copy.
+moon_path=""
+if command -v moon >/dev/null 2>&1; then
+  moon_path="$(command -v moon)"
+fi
+if [ "$moon_path" = "/usr/local/bin/moon" ]; then
+  pass "command -v moon prints /usr/local/bin/moon"
+else
+  fail "command -v moon prints /usr/local/bin/moon (got: $moon_path)"
+fi
+
+# Exactly one executable file named moon exists across both binary folders.
+moon_count="$(find /usr/local/bin /opt/factory/bin -name moon -type f | wc -l)"
+if [ "$moon_count" -eq 1 ]; then
+  pass "exactly one moon file exists in /usr/local/bin and /opt/factory/bin"
+else
+  fail "exactly one moon file exists in /usr/local/bin and /opt/factory/bin (found $moon_count)"
+fi
+
 # A login shell resets PATH before sourcing /etc/profile.d/*.sh (see
 # .devcontainer/profile.d/osf-path.sh). Every tool above must still be on
 # PATH from a login shell, since a harness or a human may well start one.

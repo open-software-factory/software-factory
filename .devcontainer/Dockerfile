@@ -53,11 +53,11 @@ ARG UV_SHA256_ARM64=030b69227b40af8c1981b7301793dc66e71ed3c796ea8688209dd268bd91
 
 # SkillSpector and SkillEvaluator, the two NVIDIA skill-checking tools
 # open-software-factory/software-factory#196 needs on PATH for
-# `osf lint skill`. Pinned to a commit, not a tag, per that issue.
+# `osf lint skill`. Pinned to a full 40-character commit, not a tag, per that issue.
 ARG SKILLSPECTOR_VERSION=2.12.0
-ARG SKILLSPECTOR_COMMIT=2226747
+ARG SKILLSPECTOR_COMMIT=2226747e4ca97198bb82faf5085b8a75f2e1dc02
 ARG SKILLEVALUATOR_VERSION=0.4.0
-ARG SKILLEVALUATOR_COMMIT=0da4646
+ARG SKILLEVALUATOR_COMMIT=0da4646f9354664017706ba6c9d42bfbc38cbaa2
 
 # The coding agents this project supports, every one of them usable as a
 # builder or a reviewer (see the [agents] table of osf.toml, selected from
@@ -187,8 +187,11 @@ RUN set -eu; \
 ENV UV_TOOL_DIR=/opt/factory/uv-tools
 ENV UV_TOOL_BIN_DIR=/usr/local/bin
 ENV UV_PYTHON_INSTALL_DIR=/opt/factory/uv-python
-RUN uv tool install "git+https://github.com/NVIDIA/skillspector.git@${SKILLSPECTOR_COMMIT}" && \
-    uv tool install "git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_COMMIT}" && \
+# uv hard-links from this cache across a mount, so copy into the tool env.
+RUN --mount=type=cache,target=/root/.cache \
+    printf '%s\n%s\n' "${SKILLSPECTOR_COMMIT}" "${SKILLEVALUATOR_COMMIT}" | grep -Eqx '[0-9a-f]{40}' && \
+    UV_LINK_MODE=copy uv tool install "git+https://github.com/NVIDIA/skillspector.git@${SKILLSPECTOR_COMMIT}" && \
+    UV_LINK_MODE=copy uv tool install "git+https://github.com/NVIDIA/SkillEvaluator.git@${SKILLEVALUATOR_COMMIT}" && \
     chown -R root:root /opt/factory/uv-tools /opt/factory/uv-python && \
     chmod -R a+rX /opt/factory/uv-tools /opt/factory/uv-python && \
     skillspector --help >/dev/null && \
@@ -220,7 +223,8 @@ ENV COREPACK_HOME=/usr/local/share/corepack
 
 # pnpm, enabled and pinned through corepack rather than installed loose, so
 # the version in use always matches PNPM_VERSION above.
-RUN corepack enable && \
+RUN --mount=type=cache,target=/root/.cache \
+    corepack enable && \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
     chmod -R a+rX "${COREPACK_HOME}" && \
     pnpm --version
@@ -247,7 +251,9 @@ RUN set -eu; \
 # writable files for some packages, so the write bits are stripped after
 # the install. Every one of them is usable as a builder or a reviewer; see
 # the [agents] table of osf.toml and crates/osf/src/agents.rs.
-RUN npm install -g \
+RUN --mount=type=cache,target=/root/.npm \
+    --mount=type=cache,target=/root/.cache \
+    npm install -g \
       @openai/codex@${CODEX_VERSION} \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
       opencode-ai@${OPENCODE_VERSION} \
@@ -261,7 +267,8 @@ RUN npm install -g \
 
 # dsh from its own lockfile. To update: edit .devcontainer/dsh/package.json, regenerate the lockfile, rebuild.
 COPY .devcontainer/dsh/package.json .devcontainer/dsh/package-lock.json /opt/dsh/
-RUN cd /opt/dsh && \
+RUN --mount=type=cache,target=/root/.npm \
+    cd /opt/dsh && \
     npm ci --no-audit --no-fund && \
     chown -R root:root /opt/dsh && \
     chmod -R go-w /opt/dsh && \
@@ -274,7 +281,9 @@ RUN cd /opt/dsh && \
 WORKDIR /usr/src/osf-build
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
-RUN cargo build --release --bin osf
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    cargo build --release --bin osf
 
 # Install the binary root-owned and read-only for every user. The
 # container user, created below, owns neither the file nor its directory,
@@ -292,29 +301,10 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps ./apps
 COPY packages ./packages
 COPY integrations ./integrations
-RUN pnpm install --frozen-lockfile && \
+RUN --mount=type=cache,target=/root/.local/share/pnpm \
+    --mount=type=cache,target=/root/.cache \
+    pnpm install --frozen-lockfile && \
     pnpm --filter ./integrations/dsh --filter ./integrations/omp --filter ./integrations/opencode run build
-
-# moon runs every factory check; pinned by version and checksum, matched to
-# the build's processor architecture the same way git-town is above. The
-# release ships a tar.xz holding the binary alongside its docs, not a
-# bare binary, so this extracts the one file it needs.
-ARG MOON_VERSION=2.5.5
-ARG MOON_SHA256_AMD64=f397057a22c88ff9e4b28a4a2fbf01d99f4d9a4f35e5a42634255a9f509ccbd6
-ARG MOON_SHA256_ARM64=39d55e88774677181d1af3566c4ccd2994cd2d9d8199fcf30dc2d6defc05ac78
-RUN set -eu; \
-    case "${TARGETARCH}" in \
-      amd64) MOON_ARCH=x86_64-unknown-linux-gnu; MOON_SHA256=${MOON_SHA256_AMD64} ;; \
-      arm64) MOON_ARCH=aarch64-unknown-linux-gnu; MOON_SHA256=${MOON_SHA256_ARM64} ;; \
-      *) echo "moon: unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL -o /tmp/moon.tar.xz \
-      "https://github.com/moonrepo/moon/releases/download/v${MOON_VERSION}/moon_cli-${MOON_ARCH}.tar.xz"; \
-    echo "${MOON_SHA256}  /tmp/moon.tar.xz" | sha256sum -c -; \
-    tar -xJf /tmp/moon.tar.xz -C /tmp "moon_cli-${MOON_ARCH}/moon"; \
-    install -o root -g root -m 0555 "/tmp/moon_cli-${MOON_ARCH}/moon" /opt/factory/bin/moon; \
-    rm -rf /tmp/moon.tar.xz "/tmp/moon_cli-${MOON_ARCH}"; \
-    /opt/factory/bin/moon --version
 
 # Root-owned git hooks. Each file only calls osf; see docs/development.md
 # for what each check does and how to run it by hand.
@@ -560,3 +550,12 @@ RUN sh /tmp/git-hooks-test/git-hooks.sh /tmp/git-hooks-test/githooks && rm -rf /
 # See .devcontainer/tests/toolchain-readonly.sh.
 COPY --chown=dev:dev .devcontainer/tests/toolchain-readonly.sh /tmp/toolchain-readonly-test.sh
 RUN sh /tmp/toolchain-readonly-test.sh && rm -f /tmp/toolchain-readonly-test.sh
+
+# The dsh test above leaves session state under the dev home; drop it.
+RUN cd "${DEV_HOME}/.dsh" && rm -rf sessions storages .anonymous-user-id
+
+# Proves no root cache or dsh session state reached a layer.
+USER root
+COPY .devcontainer/tests/image-clean.sh /tmp/image-clean-test.sh
+RUN sh /tmp/image-clean-test.sh && rm -f /tmp/image-clean-test.sh
+USER dev
