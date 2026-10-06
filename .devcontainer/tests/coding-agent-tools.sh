@@ -2,8 +2,9 @@
 # Exercises each coding agent's --version, run as the dev user (see the
 # Dockerfile), so a tool missing from dev's PATH fails the build instead
 # of shipping quietly. Every one of these agents can act as a builder or
-# a reviewer; see .devcontainer/agents.json. Run by hand, inside a
-# container, with: sh .devcontainer/tests/coding-agent-tools.sh
+# a reviewer; see the [agents] table of osf.toml and crates/osf/src/agents.rs.
+# Run by hand, inside a container, with:
+# sh .devcontainer/tests/coding-agent-tools.sh
 set -eu
 
 TOTAL=0

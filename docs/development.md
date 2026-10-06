@@ -72,32 +72,38 @@ is found only minutes later, after a push.
 
 The container installs five coding agents: `dsh`, `omp`, `opencode`,
 `codex`, and Claude Code. Every one of them can act as a builder or a
-reviewer. `.devcontainer/agents.json` is the one list of them. It also
-names the default builder agent, read from the `OSF_DEFAULT_BUILDER`
+reviewer. `crates/osf/src/agents.rs` is the one list of them, selected
+by the `[agents]` table of `osf.toml`. It also names the default builder
+agent, read from the `OSF_DEFAULT_BUILDER`
 environment variable, set to `dsh` today.
 
 Each agent's own hook settings call `osf hook`, root-owned and read-only
 so the agent itself cannot edit its own wiring:
 
-| Agent | Hook wiring | Path |
-|---|---|---|
-| Claude Code | managed settings | `/etc/claude-code/managed-settings.json` |
-| Codex | a managed hooks directory, forced by a requirements file | `/etc/codex/` |
-| dsh | a profile named `factory`, built from `integrations/dsh` | `~/.dsh/profiles/factory` |
-| opencode | a plugin named in system-level config | `/etc/opencode/opencode.json` |
-| omp | a global hook under the agent's own hooks directory | `~/.omp/agent/hooks/osf-stop` |
+| Agent | Hook file |
+|---|---|
+| Claude Code | `~/.claude/settings.json` |
+| Codex | `/etc/codex/` (managed hooks directory, forced by a requirements file; it stays hand-written because the requirements file refuses any other hook source) |
+| dsh | `~/.dsh/profiles/factory` |
+| opencode | `~/.config/opencode/opencode.json` |
+| omp | `~/.omp/agent/hooks/osf-stop/index.js` |
+
+dsh loads `~/.dsh/cordis.patch.yml` in every profile, so the image deletes
+the file the installer writes there and keeps the plugin in the factory
+profile only.
+
+`osf hooks install --agents` writes each file at image build from the
+`[agents]` table of osf.toml. An agent that osf.toml does not select gets
+no file there. Each written file is root-owned and read-only inside a
+sticky directory, so dev cannot delete or replace it.
 
 `osf hook` only answers two events: `stop`, at the end of a turn, and
 `prompt`, when a new one starts. Not every agent's own hook system has an
 event for both. Codex has no turn-end event at all, so only `prompt` is
-wired for it. The `gap` field on an entry in `agents.json` records a
-shortfall like this one.
+wired for it.
 
-dsh and omp have no system-wide configuration path of their own. This
-image carves one directory, root-owned and read-only, out of each
-agent's normal, otherwise writable home directory. It already carves the
-Rust toolchain out of an otherwise writable `CARGO_HOME` the same way.
-Run `dsh --profile factory` to boot dsh with its hooks wired. omp and
+dsh and omp have no system-wide configuration path of their own. Run
+`dsh --profile factory` to boot dsh with its hooks wired. omp and
 opencode read their hooks and plugin automatically.
 
 ## Run the same checks by hand
@@ -785,7 +791,8 @@ for that reason alone.
 `.devcontainer/tests/coding-agent-tools.sh` and
 `.devcontainer/tests/builder-tools.sh` run each tool's version check
 during `docker build`. `.devcontainer/tests/agent-hooks.sh` checks the
-hook wiring itself: every path in `.devcontainer/agents.json` is
+hook wiring itself: every enabled agent's hook file, from the `[agents]`
+table of `osf.toml` selected from `crates/osf/src/agents.rs`, is
 root-owned and read-only, and `osf hook` answers a sample payload for
 each event it supports.
 

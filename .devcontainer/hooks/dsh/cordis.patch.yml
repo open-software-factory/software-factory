@@ -14,9 +14,9 @@
 # configPath relative to its own launch directory, never relative to this
 # profile, so that file cannot live under the root-owned profile above; it
 # is a tracked file in this repository instead, like any other project
-# file, and dev can edit it. See .devcontainer/agents.json's "gap" field
-# for this agent. Both plugins run: dsh gives the end-of-turn event to
-# every listener in turn, and neither stops the chain.
+# file, and dev can edit it. See the [agents] table of osf.toml and
+# crates/osf/src/agents.rs for this agent. Both plugins run: dsh gives the
+# end-of-turn event to every listener in turn, and neither stops the chain.
 - insert:
     - id: osf-writing-check
       name: '@open-software-factory/osf-dsh-plugin'

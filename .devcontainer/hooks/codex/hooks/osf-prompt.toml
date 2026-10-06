@@ -1,8 +1,4 @@
-# A managed hook definition under /etc/codex/hooks (see
-# /etc/codex/config.toml's hooks.managed_dir). Codex's HookEventName enum
-# has no turn-end event that matches osf hook stop; see
-# .devcontainer/agents.json for that gap. user_prompt_submit is the one
-# osf hook event Codex's hook system can reach.
+# Codex has no turn-end event that matches osf hook stop; user_prompt_submit is the one osf hook event Codex can reach.
 [[hook]]
 event = "user_prompt_submit"
 command = ["osf", "hook", "prompt"]

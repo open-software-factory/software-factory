@@ -60,10 +60,10 @@ ARG SKILLEVALUATOR_VERSION=0.4.0
 ARG SKILLEVALUATOR_COMMIT=0da4646
 
 # The coding agents this project supports, every one of them usable as a
-# builder or a reviewer (see .devcontainer/agents.json for the one list of
-# them, their hook wiring, and the default builder). Each is pinned to one
-# exact npm version so a rebuild in a month installs the same tool a
-# reviewer just tested against.
+# builder or a reviewer (see the [agents] table of osf.toml, selected from
+# crates/osf/src/agents.rs, for the one list of them, their hook wiring,
+# and the default builder). Each is pinned to one exact npm version so a
+# rebuild in a month installs the same tool a reviewer just tested against.
 ARG CODEX_VERSION=0.154.0
 ARG CLAUDE_CODE_VERSION=2.1.284
 # opencode's upstream npm package is opencode-ai; @opencode/cli is a
@@ -243,7 +243,8 @@ RUN set -eu; \
 # The coding agents, installed as global npm packages into this same Node
 # install. That install is already root-owned and already on PATH, so no
 # separate prefix or lock-down step is needed for these either. Every one
-# of them is usable as a builder or a reviewer; see .devcontainer/agents.json.
+# of them is usable as a builder or a reviewer; see the [agents] table of
+# osf.toml and crates/osf/src/agents.rs.
 RUN npm install -g \
       @openai/codex@${CODEX_VERSION} \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
@@ -336,25 +337,15 @@ RUN chown root:root /opt/factory/bin/git && chmod 0555 /opt/factory/bin/git
 
 # Every coding agent's own hook settings, root-owned and read-only, each
 # calling osf hook for the one or two events osf hook supports (stop and
-# prompt; osf hook has no pre-tool-use event, so none is wired to one). See
-# .devcontainer/agents.json for the one list this follows, and its "gap"
-# fields for where an agent's own hook system falls short of osf hook's
-# two events.
-
-# Claude Code: managed settings. /etc/claude-code/managed-settings.json is
-# confirmed, from the installed claude binary's own strings, as the real
-# system-level settings file Claude Code reads.
-RUN mkdir -p /etc/claude-code
-COPY .devcontainer/hooks/claude-code/managed-settings.json /etc/claude-code/managed-settings.json
-RUN chown -R root:root /etc/claude-code && \
-    chmod 0555 /etc/claude-code && \
-    chmod 0444 /etc/claude-code/managed-settings.json
+# prompt; osf hook has no pre-tool-use event, so none is wired to one). The
+# hook files come from `osf hooks install --agents` and the [agents] table
+# of osf.toml, selected from crates/osf/src/agents.rs.
 
 # Codex: its requirements file plus its managed hooks directory, both
 # confirmed, from the installed codex binary's own strings, as real
 # system-level paths ("/etc/codex/config.toml", "/etc/codex/requirements.toml").
-# Codex's HookEventName enum has no turn-end event, so only user_prompt_submit
-# is wired; see .devcontainer/agents.json's "gap" field for codex.
+# Codex's HookEventName enum has no turn-end event, so only the prompt
+# event is wired for it.
 RUN mkdir -p /etc/codex/hooks
 COPY .devcontainer/hooks/codex/config.toml /etc/codex/config.toml
 COPY .devcontainer/hooks/codex/requirements.toml /etc/codex/requirements.toml
@@ -363,21 +354,6 @@ RUN chown -R root:root /etc/codex && \
     chmod 0555 /etc/codex /etc/codex/hooks && \
     chmod 0444 /etc/codex/config.toml /etc/codex/requirements.toml /etc/codex/hooks/osf-prompt.toml
 
-# opencode: its system-level config. /etc/opencode is confirmed, from the
-# installed opencode binary's own strings, as a real config search path,
-# the same way ~/.config/opencode is. The plugin path named inside points
-# at the build above.
-RUN mkdir -p /opt/factory/opencode-plugin && \
-    cp -r /usr/src/factory-build/integrations/opencode/dist /opt/factory/opencode-plugin/dist && \
-    chown -R root:root /opt/factory/opencode-plugin && \
-    find /opt/factory/opencode-plugin -type d -exec chmod 0555 {} + && \
-    find /opt/factory/opencode-plugin -type f -exec chmod 0444 {} +
-RUN mkdir -p /etc/opencode
-COPY .devcontainer/hooks/opencode/opencode.json /etc/opencode/opencode.json
-RUN chown -R root:root /etc/opencode && \
-    chmod 0555 /etc/opencode && \
-    chmod 0444 /etc/opencode/opencode.json
-
 ENV PATH="/opt/factory/bin:${PATH}"
 
 # Read by the git wrapper (.devcontainer/git-wrapper) to decide whether a
@@ -385,10 +361,10 @@ ENV PATH="/opt/factory/bin:${PATH}"
 # for a container started with a different bind mount.
 ENV OSF_WORKSPACE_ROOT="${WORKSPACE_ROOT}"
 
-# The one setting that names the default builder agent; see
-# .devcontainer/agents.json for the full list and docs/development.md for
-# how to use it. No script in this image chooses a builder by name: every
-# one reads this instead.
+# The one setting that names the default builder agent; see the [agents]
+# table of osf.toml, selected from crates/osf/src/agents.rs, for the full
+# list, and docs/development.md for how to use it. No script in this image
+# chooses a builder by name: every one reads this instead.
 ENV OSF_DEFAULT_BUILDER=dsh
 
 # Every login shell resets PATH before reading /etc/profile.d/*.sh (see
@@ -426,31 +402,16 @@ RUN rustup component add rustfmt clippy && \
 # write bits; nothing here needs to be executable-only or unreadable.
 RUN find /usr/local/cargo /usr/local/rustup -perm /022 -exec chmod go-w {} +
 
-# omp's hook: a global extension loaded from a directory under the
-# container user's own home (omp has no system-level hooks location; see
-# .devcontainer/agents.json). mkdir -p creates .omp itself here, as root,
-# so it starts out root-owned all the way down; chown dev back onto the
-# whole tree first, then root only the one hook directory omp must never
-# write to, so sessions and every other omp state under .omp stays
-# writable the way useradd leaves the rest of the home directory.
-RUN mkdir -p "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
-    cp /usr/src/factory-build/integrations/omp/dist/src/osf-stop.js "${DEV_HOME}/.omp/agent/hooks/osf-stop/index.js" && \
-    cp /usr/src/factory-build/integrations/omp/dist/src/check.js "${DEV_HOME}/.omp/agent/hooks/osf-stop/check.js" && \
-    chown -R dev:dev "${DEV_HOME}/.omp" && \
-    chown -R root:root "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
-    chmod 0555 "${DEV_HOME}/.omp/agent/hooks/osf-stop" && \
-    chmod 0444 "${DEV_HOME}/.omp/agent/hooks/osf-stop/index.js" "${DEV_HOME}/.omp/agent/hooks/osf-stop/check.js"
-
 # dsh's "factory" profile: the writing-check plugin registered, from
 # integrations/dsh's own profile-patch.example.yml. dsh has no
-# system-wide config path (see .devcontainer/agents.json). The same
-# chown-then-chown-back order as omp's hook above applies here: mkdir -p
-# creates .dsh itself as root, so dev needs it back before only the
-# factory profile directory is locked root-owned and read-only. Run
-# `dsh --profile factory` to boot it. The profile also registers the
-# Claude-format hooks bridge, pointed at this repository's own
-# .claude/hooks.json (see the profile's own comments for why that file
-# is not under this root-owned directory).
+# system-wide config path (see the [agents] table of osf.toml and
+# crates/osf/src/agents.rs). The same chown-then-chown-back order as the
+# install block below applies here: mkdir -p creates .dsh itself as root,
+# so dev needs it back before only the factory profile directory is locked
+# root-owned and read-only. Run `dsh --profile factory` to boot it. The
+# profile also registers the Claude-format hooks bridge, pointed at this
+# repository's own .claude/hooks.json (see the profile's own comments for
+# why that file is not under this root-owned directory).
 #
 # dsh 0.2 needs the profile's own package.json and the plugin under its node_modules.
 # It also rewrites an empty cordis.yml in the profile on every start, so only that file is dev-owned.
@@ -467,6 +428,46 @@ RUN cd /usr/src/factory-build/integrations/dsh && \
     find "${DEV_HOME}/.dsh/profiles/factory" -type d -exec chmod 0555 {} + && \
     find "${DEV_HOME}/.dsh/profiles/factory" -type f -exec chmod 0444 {} + && \
     install -o dev -g dev -m 0644 /dev/null "${DEV_HOME}/.dsh/profiles/factory/cordis.yml"
+
+# The hook files from osf.toml, written by `osf hooks install --agents`.
+COPY osf.toml /tmp/osf-hooks/osf.toml
+RUN set -eu; \
+    stamp=/tmp/osf-hooks.stamp; \
+    touch "$stamp"; \
+    output="$(cd /tmp/osf-hooks && osf hooks install --agents --root "${DEV_HOME}")"; \
+    printf '%s\n' "$output"; \
+    find "${DEV_HOME}" -type d -newer "$stamp" -exec chown dev:dev {} +; \
+    printf '%s\n' "$output" | while IFS= read -r line; do \
+      case "$line" in \
+        "osf hooks install: wrote "*) \
+          file="${line#osf hooks install: wrote }"; \
+          # The factory profile carries the dsh plugin, because dsh loads this global file in every profile.
+          case "$file" in \
+            */.dsh/cordis.patch.yml) rm -f "$file"; continue ;; \
+          esac; \
+          chown root:root "$file"; \
+          chmod 0444 "$file"; \
+          dir="$(dirname "$file")"; \
+          chown root:root "$dir"; \
+          chmod 1777 "$dir" ;; \
+      esac; \
+    done; \
+    rm -rf /tmp/osf-hooks "$stamp"
+
+# The omp and opencode hook files name their npm packages; install the
+# built packages under the home's node_modules, where node resolves them.
+RUN set -eu; \
+    for pair in omp:osf-omp-hook opencode:osf-opencode-plugin; do \
+      src="${pair%%:*}"; \
+      name="${pair#*:}"; \
+      target="${DEV_HOME}/node_modules/@open-software-factory/${name}"; \
+      mkdir -p "$target"; \
+      cp "/usr/src/factory-build/integrations/${src}/package.json" "$target/package.json"; \
+      cp -r "/usr/src/factory-build/integrations/${src}/dist" "$target/dist"; \
+    done; \
+    chown -R root:root "${DEV_HOME}/node_modules"; \
+    find "${DEV_HOME}/node_modules" -type d -exec chmod 0555 {} +; \
+    find "${DEV_HOME}/node_modules" -type f -exec chmod 0444 {} +
 
 # The node_modules build tree for the three plugins above is no longer
 # needed once their dist/ output is copied out.
@@ -507,14 +508,14 @@ RUN sh /tmp/coding-agent-tools-test.sh && rm -f /tmp/coding-agent-tools-test.sh
 COPY --chown=dev:dev .devcontainer/tests/builder-tools.sh /tmp/builder-tools-test.sh
 RUN sh /tmp/builder-tools-test.sh && rm -f /tmp/builder-tools-test.sh
 
-# Proves the hook wiring itself: every agent's hook file is root-owned and
-# read-only, and osf hook answers a sample payload for each event it
-# supports. See .devcontainer/tests/agent-hooks.sh. Copied under the same
-# relative layout as the real repository, since the script finds
-# agents.json next to its own directory rather than by an absolute path.
-COPY --chown=dev:dev .devcontainer/agents.json /tmp/agent-hooks-test/agents.json
+# Proves the hook wiring itself: every enabled agent's hook file is
+# root-owned and read-only, and osf hook answers a sample payload for each
+# event it supports. See .devcontainer/tests/agent-hooks.sh. The script
+# reads the [agents] table from the osf.toml copied beside it, and runs
+# from that folder.
+COPY --chown=dev:dev osf.toml /tmp/agent-hooks-test/osf.toml
 COPY --chown=dev:dev .devcontainer/tests/agent-hooks.sh /tmp/agent-hooks-test/tests/agent-hooks.sh
-RUN sh /tmp/agent-hooks-test/tests/agent-hooks.sh && rm -rf /tmp/agent-hooks-test
+RUN cd /tmp/agent-hooks-test && sh tests/agent-hooks.sh && rm -rf /tmp/agent-hooks-test
 
 # Proves the git hooks: executable, every osf flag they use exists in the
 # installed osf, and each runs in a scratch repository. The copy of the
