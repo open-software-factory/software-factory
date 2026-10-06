@@ -180,17 +180,23 @@ A reviewer runs its selected lenses on a fixed pool of threads. It starts
 a lens when a thread is free, up to the configured number at once. Each
 lens runs in its own read-only copy of the change. The `[review]` table
 sets the pool size and the time limits. `concurrency` is how many lenses
-run at once, and its default is 8. `timeout_seconds` is the most one
-reviewer attempt may take, and its default is 1800 seconds. `osf` stops a
+run at once, and its default is 8. `timeout_seconds` is the most the
+attempts for one lens may take, a retry included, and its default is 1800
+seconds. `osf` gives a retry only the time left under both time limits,
+the lens limit and the whole-run limit. `osf` records a retry with no
+time left as could-not-run, and the reason names the limit. `osf` stops a
 lens that goes past that limit and records it as could-not-run, and the
 reason names `timeout_seconds`. `total_timeout_seconds` is the most the
 whole reviewer run may take, counted from the first lens start, and its
 default is 2700 seconds. When it runs out, `osf` stops every running lens
 and records every waiting lens as could-not-run, and the reason names
-`total_timeout_seconds`. `osf` checks the cost ceiling before it starts
-each lens. No reviewer reports spend yet, so only a ceiling of 0 stops
-lenses today. A failure on one lens, including a provider rate limit,
-does not stop the other lenses. The journal holds a complete event for
+`total_timeout_seconds`. `osf` refuses a `timeout_seconds` or
+`total_timeout_seconds` above 86400 seconds (24 hours) and names the
+setting. `osf` checks the cost ceiling before it starts each lens. No
+reviewer reports spend yet, so only a ceiling of 0 stops lenses today. A
+failure on one lens, including a provider rate limit, does not stop the
+other lenses. A panic in one lens is recorded as could-not-run for that
+lens, and the other lenses finish. The journal holds a complete event for
 each lens and attempt, and each event names the lens. The order of events
 does not matter.
 

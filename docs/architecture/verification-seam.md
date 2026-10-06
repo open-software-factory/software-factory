@@ -263,10 +263,10 @@ The result-file readers detect a file by content. The formats they read are JUni
 A review is a check with the evidence grade reported. The code host's setting that requires every review thread to be resolved enforces it, and a policy never merges on reported evidence alone.
 
 A reviewer runs its lenses in parallel under a concurrency limit. One
-time limit bounds a lens, and another bounds the whole run. A lens that
-hits a limit stops, and the reviewer records it as could-not-run. A
-could-not-run lens never passes, and the reducer that decides the review
-stays the same.
+time limit bounds all the attempts for a lens, including a retry, and
+another bounds the whole run. A lens that hits a limit stops, and the
+reviewer records it as could-not-run. A could-not-run lens never passes,
+and the reducer that decides the review stays the same.
 
 ## The scheduled checkpoint
 
