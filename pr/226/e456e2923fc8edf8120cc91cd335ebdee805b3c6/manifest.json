@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "e456e2923fc8edf8120cc91cd335ebdee805b3c6",
+    "contentHash": "e3acc6ed1a73e106e8caaba8bede491f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "journal-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8dca56ab5413c06862d1030d3355665b",
+      "bytes": 28262,
+      "width": 1780,
+      "height": 656,
+      "animated": false,
+      "path": "journal-architecture-light-8dca56ab5413c06862d1030d3355665b.svg"
+    },
+    {
+      "id": "journal-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b2b36652d6afd8d07e1064b5ee38b887",
+      "bytes": 28600,
+      "width": 1780,
+      "height": 656,
+      "animated": false,
+      "path": "journal-architecture-dark-b2b36652d6afd8d07e1064b5ee38b887.svg"
+    },
+    {
+      "id": "writer-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writer-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "63bfead5b37a670925aa6e5e12f78e17",
+      "bytes": 15664,
+      "width": 952,
+      "height": 532,
+      "animated": false,
+      "path": "writer-internals-light-63bfead5b37a670925aa6e5e12f78e17.svg"
+    },
+    {
+      "id": "writer-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writer-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "44550b91cce6e64c321c8350517adc86",
+      "bytes": 15844,
+      "width": 952,
+      "height": 532,
+      "animated": false,
+      "path": "writer-internals-dark-44550b91cce6e64c321c8350517adc86.svg"
+    },
+    {
+      "id": "reader-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reader-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c5bc248e836a987891ffddadeb955aa6",
+      "bytes": 12434,
+      "width": 1294,
+      "height": 418,
+      "animated": false,
+      "path": "reader-internals-light-c5bc248e836a987891ffddadeb955aa6.svg"
+    },
+    {
+      "id": "reader-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reader-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e37843fac58427df0684a8905cb0071a",
+      "bytes": 12570,
+      "width": 1294,
+      "height": 418,
+      "animated": false,
+      "path": "reader-internals-dark-e37843fac58427df0684a8905cb0071a.svg"
+    },
+    {
+      "id": "append-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "append-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "76c27b31fc11810a27e271132326b20d",
+      "bytes": 14119,
+      "width": 1581,
+      "height": 407,
+      "animated": true,
+      "path": "append-flow-light-76c27b31fc11810a27e271132326b20d.svg"
+    },
+    {
+      "id": "append-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "append-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1a032fee15ff8610189c3490192c981d",
+      "bytes": 14266,
+      "width": 1581,
+      "height": 407,
+      "animated": true,
+      "path": "append-flow-dark-1a032fee15ff8610189c3490192c981d.svg"
+    },
+    {
+      "id": "read-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "read-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "23ded800541d470210b76529ff124c1f",
+      "bytes": 11900,
+      "width": 1192,
+      "height": 369,
+      "animated": true,
+      "path": "read-flow-light-23ded800541d470210b76529ff124c1f.svg"
+    },
+    {
+      "id": "read-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "read-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "15659dfc39021fd7c96e73ff249d56d3",
+      "bytes": 12013,
+      "width": 1192,
+      "height": 369,
+      "animated": true,
+      "path": "read-flow-dark-15659dfc39021fd7c96e73ff249d56d3.svg"
+    }
+  ]
+}
