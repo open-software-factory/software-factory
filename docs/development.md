@@ -666,34 +666,53 @@ content.
 ## The git wrapper, and its limit
 
 `/opt/factory/bin` comes before the real git on the container's path, and
-holds a wrapper called `git`. It refuses `git commit --no-verify`,
-`git commit -n`, and `git push --no-verify`, and prints why. Git allows
-its own options before the subcommand. One example is `git -c
-user.email=x commit ...`. The wrapper looks past those options to find
-the real subcommand. It does not only look at the first word.
+holds a wrapper called `git`. The wrapper raises the bar on known
+argument spellings. It is not a guard. The check that runs on the pull
+request is the authority, per decision 0003
+(docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
+Git allows its own
+options before the subcommand. One example is `git -c user.email=x
+commit ...`. The wrapper looks past those options to find the real
+subcommand. It does not only look at the first word.
 
 `git push -n` is short for `--dry-run`, an unrelated and harmless option,
 so the wrapper leaves it alone.
 
-The wrapper also refuses a caller-chosen hooks path, by any of the three
-routes git offers for it, on any git call:
+The wrapper refuses these spellings of a skipped check:
+
+- The full `--no-verify` and its shorter accepted forms, such as
+  `--no-v` and `--no-verif`, on `git commit`, `git merge`, and
+  `git push`.
+- A short `-n` on `git commit` and `git merge`, alone or in a bundle. One
+  example is `-nm`. The wrapper reads a bundle from left to right. It
+  stops at a flag that takes a value, because the rest is that value. So
+  `-mn` is a message value and is not refused.
+
+The wrapper also refuses a caller-chosen hooks path or repository. It
+checks every route it knows, on any git call:
 
 - `-c core.hooksPath=...`, in any capitalisation of the key. Git treats a
   config key's letters as case-insensitive, and so does this check.
 - `--config-env core.hooksPath=SOME_VAR` or
   `--config-env=core.hooksPath=SOME_VAR`, which sets a config value from
   an environment variable instead of a literal.
+- `--git-dir` and `--work-tree`, with a value or with `=`. Each points
+  git at a repository the caller chose.
+- `--no-hooks`, `--skip-hooks`, `--hooks-path`, and `--hooks-path=...`.
+  Each names a hooks path or skips the hooks.
+- The `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_COMMON_DIR` environment
+  variables.
 - The git config environment overrides: `GIT_CONFIG_COUNT`,
   `GIT_CONFIG_KEY_*`, `GIT_CONFIG_VALUE_*`, `GIT_CONFIG_PARAMETERS`,
   `GIT_CONFIG_GLOBAL`, and `GIT_CONFIG_SYSTEM`. The wrapper refuses all
-  of them, before it looks at the command line. There is one exception.
+  of them, before it looks at the command line. One exception applies.
   `GIT_CONFIG_COUNT` is allowed when it carries only the pair
   `core.fsmonitor=false`, which the build tool moon needs to turn the
   file-system monitor off. Any other key or value, or a count that does
   not match the pairs, is refused. Unset the others and run the command
   by hand instead.
 
-The same three keys are also refused for `-c` and `--config-env`, for the
+The same keys are also refused for `-c` and `--config-env`, for the
 reason they always were. Each one was tested by hand in this container,
 and each ran an arbitrary command as part of an ordinary `git commit`:
 
@@ -704,8 +723,8 @@ and each ran an arbitrary command as part of an ordinary `git commit`:
 - `core.editor` runs as a command when `git commit` opens an editor.
   That happens whenever `-m` is left off.
 
-Two settings from the same family were also tested. The wrapper leaves
-both alone, because neither one applies here:
+These settings from the same family were also tested. The wrapper leaves
+them alone, because neither one applies here:
 
 - `core.pager` was tried against both `git commit` and `git push`,
   including with `--paginate` forced on. It is not a route into either
@@ -714,28 +733,26 @@ both alone, because neither one applies here:
   Git only runs it for an interactive rebase. This wrapper does not
   police that command.
 
-`--git-dir` and `--work-tree` were also checked. Pointing them at a
-different folder does not change what the wrapper decides. It still adds
-`-c core.hooksPath=/opt/factory/githooks` whenever the call's own working
-directory is under the workspace, and that setting still wins regardless
-of `--git-dir`/`--work-tree`. So on their own, these two options do not
-open a way past the hooks. A shell in the container can already do what
-it likes to a folder it owns, with no need for those two options.
+The `GIT_DIR` variable has one exception. Git exports `GIT_DIR` to a hook
+when a commit runs in a linked worktree. The wrapper allows `GIT_DIR`
+only when it names the same folder git finds from the current folder. It
+refuses a discovery failure and a different folder. `GIT_WORK_TREE` and
+`GIT_COMMON_DIR` have no exception.
 
 Every other `-c` value, such as `user.email`, still works. Setting one
 for a single command is still a normal, allowed thing to do.
 
-State this plainly: the wrapper is a speed bump and seals nothing. One thing
-defeats it, and the wrapper cannot stop it. Calling the real binary at
-its full path, `/usr/bin/git`, skips the wrapper completely.
+State this plainly: the wrapper raises the bar on known spellings and
+seals nothing. One thing defeats it, and the wrapper cannot stop it.
+Calling the real binary at its full path, `/usr/bin/git`, skips the
+wrapper completely.
 
-The wrapper only saves the time between a forgotten check and the same
-problem being caught on the pull request. That check, not this wrapper,
-is the real boundary. Even that check only reaches as far as the
-credential used to push. An agent that holds a push credential can
-still push straight past every check in this file. Taking that
-credential away from the agent is separate work. This wrapper does not
-do it.
+The pull-request check is the authority, per decision 0003
+(docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
+The wrapper does not replace it. Even that check only reaches as far as the credential used to
+push. An agent that holds a push credential can still push straight past
+every check in this file. Taking that credential away from the agent is
+separate work. This wrapper does not do it.
 
 ## Testing the hooks themselves
 

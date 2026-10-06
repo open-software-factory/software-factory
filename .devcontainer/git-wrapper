@@ -1,25 +1,17 @@
 #!/bin/sh
-# Honest git wrapper.
+# Git wrapper: raises the bar on known argument spellings.
 #
-# This is a speed bump, not a seal. It refuses --no-verify and -n on
-# "git commit", --no-verify on "git push", and every known route to a
-# caller-chosen hooks path, then explains why. It also refuses a "-c"
-# that sets core.hooksPath, core.fsmonitor, or core.editor, because each
-# of those can run an arbitrary command as part of a commit, checked and
-# confirmed in docs/development.md. The git config environment overrides
-# are refused too, with one exception: GIT_CONFIG_COUNT carrying only the
-# pair core.fsmonitor=false, which the build tool moon needs. It does
-# nothing else that git's own settings cannot already do without it.
+# This is not a guard. It catches some spellings of a skipped hook and
+# some routes to a hooks path the caller chose. One thing defeats it:
+# calling the real git binary at its full path, /usr/bin/git.
 #
-# One thing defeats this wrapper, and it cannot stop it: calling the real
-# git binary at its full path, /usr/bin/git.
+# The authority is the check that runs on the pull request, per decision
+# 0003 (docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
+# A contributor does not control that check.
 #
 # git push also takes a short flag -n, but there it means --dry-run, a
 # different and harmless option, so this wrapper does not block it.
 #
-# The real authority is the check that runs on a pull request, which a
-# contributor does not control. This wrapper only saves the two minutes
-# between a forgotten check and that pull-request check catching it.
 # See docs/development.md.
 
 REAL_GIT="/usr/bin/git"
@@ -62,14 +54,24 @@ refuse_config() {
   exit 1
 }
 
+refuse_repo_option() {
+  opt="$1"
+  echo "git: refused. '$opt' is a route this wrapper blocks." >&2
+  echo "It can point git at a repository or hooks path the caller chose." >&2
+  echo "Run the command without it. See docs/development.md." >&2
+  exit 1
+}
+
 refuse_env() {
   name="$1"
   echo "git: refused. The environment variable '$name' is set." >&2
-  echo "This wrapper blocks the git config environment overrides" >&2
-  echo "(GIT_CONFIG_COUNT, GIT_CONFIG_KEY_*, GIT_CONFIG_VALUE_*," >&2
-  echo "GIT_CONFIG_PARAMETERS, GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM)." >&2
-  echo "One exception is allowed: GIT_CONFIG_COUNT carrying only" >&2
-  echo "core.fsmonitor=false, which the build tool moon needs." >&2
+  echo "This wrapper blocks these git environment overrides:" >&2
+  echo "GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR, GIT_CONFIG_COUNT," >&2
+  echo "GIT_CONFIG_KEY_*, GIT_CONFIG_VALUE_*, GIT_CONFIG_PARAMETERS," >&2
+  echo "GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM." >&2
+  echo "GIT_CONFIG_COUNT may carry only core.fsmonitor=false, which" >&2
+  echo "the build tool moon needs. GIT_DIR may name the repository's" >&2
+  echo "own git directory, which git exports to hooks." >&2
   echo "Unset it and run the command again. See docs/development.md." >&2
   exit 1
 }
@@ -162,6 +164,64 @@ check_config_env_overrides() {
   fi
 }
 
+# True when a short-flag bundle carries "n" before a value-taking flag.
+bundle_has_n() {
+  rest="$1"
+  while [ -n "$rest" ]; do
+    case "$rest" in
+      n*) return 0 ;;
+      m* | F* | c* | C* | t* | u* | S*) return 1 ;;
+      *) rest="${rest#?}" ;;
+    esac
+  done
+  return 1
+}
+
+# Refuses a git environment override that moves the repository.
+check_repo_env_overrides() {
+  [ -n "${GIT_WORK_TREE+x}" ] && refuse_env GIT_WORK_TREE
+  [ -n "${GIT_COMMON_DIR+x}" ] && refuse_env GIT_COMMON_DIR
+  [ -n "${GIT_DIR+x}" ] || return 0
+  found=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR \
+    "$REAL_GIT" rev-parse --absolute-git-dir 2>/dev/null) || refuse_env GIT_DIR
+  here=$(cd "$GIT_DIR" 2>/dev/null && pwd -P) || refuse_env GIT_DIR
+  [ "$found" = "$here" ] || refuse_env GIT_DIR
+}
+
+# Refuses a git option that names a repository or a hooks path.
+check_repo_options() {
+  for arg in "$@"; do
+    case "$arg" in
+      --git-dir | --git-dir=* | --work-tree | --work-tree=*)
+        refuse_repo_option "$arg" ;;
+      --no-hooks | --skip-hooks | --hooks-path | --hooks-path=*)
+        refuse_repo_option "$arg" ;;
+    esac
+  done
+}
+
+# Refuses every --no-verify spelling of length six or more, before a "--".
+check_no_verify() {
+  for arg in "$@"; do
+    [ "$arg" = "--" ] && break
+    case "$arg" in
+      --no-v | --no-ve | --no-ver | --no-veri | --no-verif | --no-verify)
+        refuse "$arg" ;;
+    esac
+  done
+}
+
+# Refuses a short-flag bundle with "n" on commit and merge, before a "--".
+check_short_n() {
+  for arg in "$@"; do
+    [ "$arg" = "--" ] && break
+    case "$arg" in
+      --* | -) continue ;;
+      -*) bundle_has_n "${arg#-}" && refuse "$arg" ;;
+    esac
+  done
+}
+
 # Git accepts its own options before the subcommand (commit, push, and so
 # on). This finds the subcommand by skipping those options, some of
 # which take a value and some of which do not. It shifts its own copy of
@@ -194,13 +254,13 @@ find_subcommand() {
         fi
         shift 2
         ;;
-      --git-dir | --work-tree | --namespace)
+      --namespace)
         if [ "$#" -lt 2 ]; then
           refuse_option "$1"
         fi
         shift 2
         ;;
-      --git-dir=* | --work-tree=* | --namespace=* | --exec-path=*)
+      --namespace=* | --exec-path=*)
         shift
         ;;
       --exec-path | --html-path | --version | --help | --no-pager | --paginate | -p | -P | --bare | --literal-pathspecs)
@@ -254,24 +314,19 @@ in_workspace() {
 }
 
 check_config_env_overrides
+check_repo_env_overrides
+check_repo_options "$@"
 
 SUB=""
 find_subcommand "$@"
 
 case "$SUB" in
-  commit)
-    for arg in "$@"; do
-      case "$arg" in
-        --no-verify | -n) refuse "$arg" ;;
-      esac
-    done
+  commit | merge)
+    check_no_verify "$@"
+    check_short_n "$@"
     ;;
   push)
-    for arg in "$@"; do
-      case "$arg" in
-        --no-verify) refuse "$arg" ;;
-      esac
-    done
+    check_no_verify "$@"
     ;;
 esac
 
