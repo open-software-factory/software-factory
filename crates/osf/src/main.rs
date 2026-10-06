@@ -1,11 +1,13 @@
 use osf::pr_status::GhClient;
 use osf::{
-    assets, changeset_risk, changeset_tests, check, checkpoint, config, exclude, forge, git,
-    githooks, github, hook, journal, lints, pr_status, pr_tree, review, scan, section, verify,
+    agents, answer, assets, changeset_risk, changeset_tests, check, checkpoint, config, exclude,
+    forge, git, githooks, github, hook, journal, lints, pr_status, pr_tree, reducer, review,
+    review_run, reviewers, scan, section, verify,
 };
 
 use clap::parser::ValueSource;
 use clap::{ArgMatches, Args, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum};
+use std::fmt::Write as _;
 use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -129,11 +131,30 @@ enum Command {
         #[command(subcommand)]
         action: AssetsAction,
     },
+    /// Show the agents osf can drive and which this repository uses.
+    Agents {
+        #[command(subcommand)]
+        action: AgentsAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum AgentsAction {
+    /// List every agent, with what `[agents]` in `osf.toml` selects.
+    List(AgentsListArgs),
+}
+
+#[derive(Args)]
+struct AgentsListArgs {
+    /// Print one JSON array instead of a table.
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Subcommand)]
 enum HooksAction {
-    /// Write osf's own hook scripts and point this repository at them.
+    /// Write osf's own hook scripts and point this repository at them, or
+    /// with `--agents`, write each enabled agent's hook settings.
     Install(HooksInstallArgs),
 }
 
@@ -143,6 +164,13 @@ struct HooksInstallArgs {
     /// instead of installing anything. Exits non-zero when they do not.
     #[arg(long)]
     check: bool,
+    /// Write the stop and prompt hook settings of every enabled agent under
+    /// `--root`, replacing a file already there, instead of the git hooks.
+    #[arg(long, requires = "root", conflicts_with = "check")]
+    agents: bool,
+    /// The folder the agents' settings go under, such as a home directory.
+    #[arg(long, requires = "agents")]
+    root: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -383,6 +411,177 @@ enum ReviewAction {
     /// a fallback comment when the reviewer and the author share one
     /// GitHub identity.
     Post(ReviewPostArgs),
+    /// Review a change through its selected lenses, and journal each
+    /// answer and the decision. With `--reviewer`, run that one reviewer
+    /// only and save what it did to `--out`.
+    Run(ReviewRunArgs),
+    /// Decide a review from the files `review run --reviewer` saved, one
+    /// per reviewer: check the findings against the files, journal, and
+    /// post.
+    Reduce(ReviewReduceArgs),
+    /// Find the work item a pull request is for, the issue on its `Issue:`
+    /// line or one it closes, and save its text for the reviewer jobs.
+    WorkItem(ReviewWorkItemArgs),
+}
+
+#[derive(Args)]
+struct ReviewWorkItemArgs {
+    /// A JSON file holding the pull request's `number`, `title` and `body`.
+    #[arg(long = "pull-request")]
+    pull_request: PathBuf,
+    /// The repository the pull request lives in, as `owner/repo`. Falls back
+    /// to the `GITHUB_REPOSITORY` environment variable.
+    #[arg(long)]
+    repository: Option<String>,
+    /// The pull request's head commit, recorded with the work item.
+    #[arg(long)]
+    head: String,
+    /// Where to save the work item, as JSON. A pull request that links no
+    /// readable issue saves the reason instead, and the command still exits 0.
+    #[arg(long)]
+    out: PathBuf,
+}
+
+/// What a saved reviewer run is bound to, so `review reduce` takes only the
+/// runs made for this pull request, these commits and this CI run.
+#[derive(Args)]
+struct ReviewBindingArgs {
+    /// The repository, as `owner/repo`. Falls back to the `GITHUB_REPOSITORY`
+    /// environment variable.
+    #[arg(long)]
+    repository: Option<String>,
+    /// The pull request's number.
+    #[arg(long = "pull-request-number")]
+    pull_request_number: Option<u64>,
+    /// The pull request's head commit. It must be the commit checked out.
+    #[arg(long)]
+    head: Option<String>,
+    /// The CI run's id. Falls back to the `GITHUB_RUN_ID` environment variable.
+    #[arg(long = "ci-run-id")]
+    ci_run_id: Option<String>,
+}
+
+impl ReviewBindingArgs {
+    /// The binding for the checkout at `root` reviewed against `base`.
+    /// `event_number` is the pull request number read from the event file,
+    /// which must agree with `--pull-request-number` when both are given.
+    fn binding(
+        &self,
+        root: &Path,
+        base: &str,
+        event_number: Option<u64>,
+    ) -> Result<review_run::Binding, String> {
+        if let (Some(flag), Some(event)) = (self.pull_request_number, event_number) {
+            if flag != event {
+                return Err(format!(
+                    "--pull-request-number {flag} differs from the pull request file's {event}"
+                ));
+            }
+        }
+        let repository = self
+            .repository
+            .clone()
+            .or_else(|| std::env::var("GITHUB_REPOSITORY").ok());
+        let run_id = self
+            .ci_run_id
+            .clone()
+            .or_else(|| std::env::var("GITHUB_RUN_ID").ok());
+        review_run::Binding::for_checkout(
+            root,
+            base,
+            repository.as_deref(),
+            self.pull_request_number.or(event_number),
+            self.head.as_deref(),
+            run_id.as_deref(),
+        )
+    }
+}
+
+#[derive(Args)]
+struct ReviewReduceArgs {
+    /// The saved reviewer files.
+    files: Vec<PathBuf>,
+    #[command(flatten)]
+    binding: ReviewBindingArgs,
+    /// What to diff the change against. Falls back to the `OSF_BASE`
+    /// environment variable when omitted.
+    #[arg(long)]
+    base: Option<String>,
+    /// Write the kept findings as SARIF to this path.
+    #[arg(long = "sarif-out")]
+    sarif_out: Option<PathBuf>,
+    /// Where the lens catalogue, the prompt file and the `[review]` table
+    /// of `osf.toml` are read from. Point this at a base tree.
+    #[arg(long = "config-root")]
+    config_root: Option<PathBuf>,
+    /// Post the kept findings to a pull request as one review. Named
+    /// `owner/repo#N`. A failed post makes the run could-not-run.
+    #[arg(long = "post-to")]
+    post_to: Option<String>,
+    /// Never fail on the review's own verdict.
+    #[arg(long = "warn-only")]
+    warn_only: bool,
+    /// A family that built this change, repeatable. Overrides detection.
+    #[arg(long = "builder-family")]
+    builder_family: Vec<String>,
+}
+
+#[derive(Args)]
+struct ReviewRunArgs {
+    /// What to diff the change against. Falls back to the `OSF_BASE`
+    /// environment variable, the checkpoint runner's own base, when omitted.
+    #[arg(long)]
+    base: Option<String>,
+    /// A file holding the work item body, for a lens that needs one.
+    #[arg(long = "work-item")]
+    work_item: Option<PathBuf>,
+    /// Write the kept findings as SARIF to this path.
+    #[arg(long = "sarif-out")]
+    sarif_out: Option<PathBuf>,
+    /// Runs only when `[agents]` selects at least one reviewer. With
+    /// none selected, prints one line and exits 0 without opening the
+    /// journal, so the moon review task skips cleanly on a checkout with no
+    /// reviewer configured instead of failing its checkpoint.
+    #[arg(long = "if-enabled")]
+    if_enabled: bool,
+    /// Where the lens catalogue and the `[review]` table of `osf.toml` are
+    /// read from, instead of the repository under review. Point this at a
+    /// base tree so a pull request cannot weaken its own review by editing
+    /// a lens or lowering the threshold. Defaults to the repository under
+    /// review, as before this flag existed.
+    #[arg(long = "config-root")]
+    config_root: Option<PathBuf>,
+    /// Post the kept findings to a pull request as one review, reusing `osf
+    /// review post`'s own posting machinery. Named `owner/repo#N`. A failed
+    /// post makes the run could-not-run: the branch-protection gate must
+    /// never see a clean exit code with no review evidence behind it.
+    #[arg(long = "post-to")]
+    post_to: Option<String>,
+    /// Never fail on the review's own verdict: still prints the verdict and
+    /// writes SARIF, but always exits 0. For a checkpoint that only warns,
+    /// such as pre-push, where the exit code cannot be trusted to gate
+    /// anything.
+    #[arg(long = "warn-only")]
+    warn_only: bool,
+    /// A family that built this change, repeatable. Overrides detection
+    /// from the reviewed range's own `Code-Generator:` trailers entirely; a
+    /// roster entry from a named family is left out of every lens the same
+    /// way a detected one would be.
+    #[arg(long = "builder-family")]
+    builder_family: Vec<String>,
+    /// Run only this reviewer, one of the roster's, and save what it did
+    /// to `--out`. Nothing is journaled or posted: `review reduce` does that.
+    #[arg(long, requires = "out")]
+    reviewer: Option<String>,
+    /// Where `--reviewer` saves what the reviewer did.
+    #[arg(long, requires = "reviewer")]
+    out: Option<PathBuf>,
+    /// A JSON file holding the pull request's `number`, `title` and `body`.
+    #[arg(long = "pull-request")]
+    pull_request: Option<PathBuf>,
+    /// What `--out` binds the saved run to. Needed with `--reviewer`.
+    #[command(flatten)]
+    binding: ReviewBindingArgs,
 }
 
 #[derive(Args)]
@@ -430,6 +629,10 @@ struct ScanArgs {
     /// own configuration.
     #[arg(long)]
     gate: bool,
+    /// Ignore every osf-disable marker and report everything. Continuous
+    /// integration uses this.
+    #[arg(long)]
+    no_suppress: bool,
 }
 
 #[derive(Args)]
@@ -693,46 +896,164 @@ fn main() -> ExitCode {
         Command::Review {
             action: ReviewAction::Post(args),
         } => review_post_cmd(args),
+        Command::Review {
+            action: ReviewAction::Run(args),
+        } => review_run_cmd(args),
+        Command::Review {
+            action: ReviewAction::Reduce(args),
+        } => review_reduce_cmd(args),
+        Command::Review {
+            action: ReviewAction::WorkItem(args),
+        } => review_work_item_cmd(args),
         Command::Hooks {
             action: HooksAction::Install(args),
         } => hooks_install_cmd(args),
-        Command::Pr {
-            action:
-                PrAction::Section {
-                    action: SectionAction::Write(args),
-                },
-        } => pr_section_write_cmd(args),
-        Command::Pr {
-            action:
-                PrAction::Status {
-                    action: StatusAction::Render(args),
-                },
-        } => pr_status_render_cmd(args),
-        Command::Pr {
-            action:
-                PrAction::Status {
-                    action: StatusAction::Apply(args),
-                },
-        } => pr_status_apply_cmd(args),
-        Command::Pr {
-            action:
-                PrAction::Status {
-                    action: StatusAction::Refresh(args),
-                },
-        } => pr_status_refresh_cmd(args),
-        Command::Pr {
-            action: PrAction::Tree {
-                action: TreeAction::Render(args),
-            },
-        } => pr_tree_render_cmd(args),
+        Command::Pr { action } => pr_cmd(action),
         Command::Assets {
             action: AssetsAction::Publish(args),
         } => assets_publish_cmd(args),
+        Command::Agents {
+            action: AgentsAction::List(args),
+        } => agents_list_cmd(args),
+    }
+}
+
+fn pr_cmd(action: &PrAction) -> ExitCode {
+    match action {
+        PrAction::Section {
+            action: SectionAction::Write(args),
+        } => pr_section_write_cmd(args),
+        PrAction::Status {
+            action: StatusAction::Render(args),
+        } => pr_status_render_cmd(args),
+        PrAction::Status {
+            action: StatusAction::Apply(args),
+        } => pr_status_apply_cmd(args),
+        PrAction::Status {
+            action: StatusAction::Refresh(args),
+        } => pr_status_refresh_cmd(args),
+        PrAction::Tree {
+            action: TreeAction::Render(args),
+        } => pr_tree_render_cmd(args),
+    }
+}
+
+/// One agent's row in `osf agents list`.
+#[derive(serde::Serialize)]
+struct AgentRow {
+    name: &'static str,
+    family: &'static str,
+    enabled: bool,
+    builder: bool,
+    reviewer: bool,
+    model: Option<String>,
+    command: &'static [&'static str],
+    hooks: &'static str,
+}
+
+fn agents_list_cmd(args: &AgentsListArgs) -> ExitCode {
+    let selection = match agents::selection(Path::new(".")) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("osf agents list: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let rows: Vec<AgentRow> = agents::AGENTS
+        .iter()
+        .map(|a| {
+            let is = |list: &[&agents::Agent]| list.iter().any(|x| x.name == a.name);
+            AgentRow {
+                name: a.name,
+                family: a
+                    .family_for(selection.model(a))
+                    .unwrap_or(osf::builder::UNKNOWN),
+                enabled: is(&selection.enabled),
+                builder: selection.builder.name == a.name,
+                reviewer: is(&selection.reviewers),
+                model: selection.model(a).map(str::to_string),
+                command: a.command,
+                hooks: a.hooks.file(),
+            }
+        })
+        .collect();
+    if args.json {
+        match serde_json::to_string(&rows) {
+            Ok(text) => println!("{text}"),
+            Err(e) => {
+                eprintln!("osf agents list: {e}");
+                return ExitCode::from(2);
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+    let yes = |on: bool| if on { "yes" } else { "no" }.to_string();
+    let mut table: Vec<Vec<String>> = vec![[
+        "agent",
+        "family",
+        "enabled",
+        "builder",
+        "reviewer",
+        "model",
+        "hook settings",
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect()];
+    for row in &rows {
+        table.push(vec![
+            row.name.to_string(),
+            row.family.to_string(),
+            yes(row.enabled),
+            yes(row.builder),
+            yes(row.reviewer),
+            row.model.clone().unwrap_or_else(|| "-".to_string()),
+            row.hooks.to_string(),
+        ]);
+    }
+    let mut widths = vec![0; 7];
+    for line in &table {
+        for (width, cell) in widths.iter_mut().zip(line) {
+            *width = (*width).max(cell.len());
+        }
+    }
+    for line in &table {
+        let cells: Vec<String> = line
+            .iter()
+            .zip(&widths)
+            .map(|(cell, width)| format!("{cell:<width$}"))
+            .collect();
+        println!("{}", cells.join("  ").trim_end());
+    }
+    ExitCode::SUCCESS
+}
+fn hooks_install_agents_cmd(root: &Path) -> ExitCode {
+    let selection = match agents::selection(Path::new(".")) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("osf hooks install: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    match agents::write_hooks(root, &selection.enabled) {
+        Ok(paths) => {
+            for path in paths {
+                println!("osf hooks install: wrote {}", path.display());
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("osf hooks install: {e}");
+            ExitCode::from(2)
+        }
     }
 }
 
 fn hooks_install_cmd(args: &HooksInstallArgs) -> ExitCode {
     let dir = Path::new(".");
+    if let Some(root) = args.root.as_deref().filter(|_| args.agents) {
+        return hooks_install_agents_cmd(root);
+    }
     if args.check {
         return hooks_check_cmd(dir);
     }
@@ -1472,7 +1793,7 @@ fn scan_cmd(args: &ScanArgs, config_flag: Option<&std::path::Path>) -> ExitCode 
             }
         }
     } else {
-        match scan::scan_paths(dir, &args.paths, &rules, &excluder) {
+        match scan::scan_paths(dir, &args.paths, &rules, &excluder, args.no_suppress) {
             Ok(outcome) => {
                 tally.excluded = outcome.excluded;
                 outcome.files
@@ -1617,6 +1938,452 @@ fn verify_cmd(args: &VerifyArgs) -> ExitCode {
     ExitCode::from(checkpoint::exit_code(&summary, checkpoint))
 }
 
+/// `osf review run`'s own exit code, ignoring `--warn-only`: 0 pass, 1 fail,
+/// 2 could-not-run or misconfigured. Kept separate from [`review_run_cmd`]
+/// so `--warn-only` has one place to override the result, rather than a
+/// forced zero threaded through every early return below.
+fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
+    let root = Path::new(".");
+    let config_root = args
+        .config_root
+        .clone()
+        .unwrap_or_else(|| root.to_path_buf());
+    if args.if_enabled {
+        let roster = match reviewers::roster(&config_root) {
+            Ok(roster) => roster,
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                return 2;
+            }
+        };
+        let selected = match &args.reviewer {
+            Some(name) => roster.iter().any(|r| &r.name == name),
+            None => !roster.is_empty(),
+        };
+        if !selected {
+            return review_slot_off(args);
+        }
+    }
+    let Some(base) = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok()) else {
+        eprintln!("osf review run: a base is required: pass --base or set OSF_BASE");
+        return 2;
+    };
+    let pull_request = match args.pull_request.as_deref().map(load_pull_request) {
+        Some(Ok(pr)) => Some(pr),
+        Some(Err(e)) => {
+            eprintln!("osf review run: {e}");
+            return 2;
+        }
+        None => None,
+    };
+    let binding = if args.reviewer.is_some() {
+        match args
+            .binding
+            .binding(root, &base, pull_request.as_ref().map(|pr| pr.number))
+        {
+            Ok(binding) => Some(binding),
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                return 2;
+            }
+        }
+    } else {
+        None
+    };
+    let req = review_run::Request {
+        root,
+        config_root: &config_root,
+        base: &base,
+        work_item: args.work_item.as_deref(),
+        pull_request: pull_request.as_ref(),
+        builder_family_overrides: &args.builder_family,
+        binding: binding.as_ref(),
+    };
+    if let (Some(name), Some(out)) = (&args.reviewer, &args.out) {
+        return match review_run::run_reviewer(&req, name).and_then(|run| run.save(out)) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                2
+            }
+        };
+    }
+    let state_dir = match journal::state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return 2;
+        }
+    };
+    match review_run::run(&req, &state_dir) {
+        Ok(outcome) => finish_review(&outcome, args.sarif_out.as_deref(), args.post_to.as_deref()),
+        Err(e) => {
+            eprintln!("osf review run: {e}");
+            2
+        }
+    }
+}
+
+/// The `--if-enabled` exit when nothing is selected: one line, an empty
+/// SARIF file or an empty reviewer file when asked for, and exit 0.
+fn review_slot_off(args: &ReviewRunArgs) -> u8 {
+    if let (Some(name), Some(out)) = (&args.reviewer, &args.out) {
+        println!("review: slot off, reviewer {name} is not selected");
+        let empty = review_run::ReviewerRun {
+            reviewer: name.clone(),
+            lenses: Vec::new(),
+            binding: None,
+        };
+        return match empty.save(out) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("osf review run: {e}");
+                2
+            }
+        };
+    }
+    println!("review: slot off, no reviewer enabled");
+    if let Some(path) = &args.sarif_out {
+        if write_sarif_out(path, &[]).is_err() {
+            return 2;
+        }
+    }
+    0
+}
+
+/// The pull request's number, title and body, from the JSON file at `path`.
+fn load_pull_request(path: &Path) -> Result<osf::review_context::PullRequest, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Prints `outcome`, writes SARIF and posts as asked, and returns the exit
+/// code: 0 pass, 1 fail, 2 could-not-run. A journal that could not record
+/// what happened, or a post that never reached the pull request, leaves no
+/// evidence behind the verdict: the run counts as could-not-run rather than
+/// reporting a verdict nothing backs up.
+fn finish_review(
+    outcome: &review_run::RunOutcome,
+    sarif_out: Option<&Path>,
+    post_to: Option<&str>,
+) -> u8 {
+    for line in &outcome.lines {
+        println!("{line}");
+    }
+    for note in &outcome.notes {
+        println!("note: {note}");
+    }
+    if let Some(err) = &outcome.journal_error {
+        eprintln!("osf review run: {err}");
+    }
+    if let Some(path) = sarif_out {
+        let sarif_files = review_sarif_files(&outcome.findings);
+        if write_sarif_out(path, &sarif_files).is_err() {
+            return 2;
+        }
+    }
+    let posted = post_to.is_none_or(|post_to| post_run_outcome(outcome, post_to));
+    if outcome.journal_error.is_some() || !posted {
+        return 2;
+    }
+    match outcome.verdict {
+        reducer::Verdict::Pass => 0,
+        reducer::Verdict::Fail => 1,
+        reducer::Verdict::CouldNotRun => 2,
+    }
+}
+
+/// `osf review reduce`'s own exit code, ignoring `--warn-only`; the same
+/// codes as [`review_run_exit_code`].
+fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
+    let root = Path::new(".");
+    let config_root = args
+        .config_root
+        .clone()
+        .unwrap_or_else(|| root.to_path_buf());
+    let Some(base) = args.base.clone().or_else(|| std::env::var("OSF_BASE").ok()) else {
+        eprintln!("osf review reduce: a base is required: pass --base or set OSF_BASE");
+        return 2;
+    };
+    let mut runs = Vec::with_capacity(args.files.len());
+    for file in &args.files {
+        let name = file
+            .file_stem()
+            .and_then(std::ffi::OsStr::to_str)
+            .unwrap_or_default()
+            .to_string();
+        match review_run::ReviewerRun::load(file) {
+            Ok(run) => runs.push(review_run::SavedRun { name, run }),
+            Err(e) => {
+                eprintln!("osf review reduce: {e}");
+                return 2;
+            }
+        }
+    }
+    let state_dir = match journal::state_dir() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return 2;
+        }
+    };
+    let binding = match args.binding.binding(root, &base, None) {
+        Ok(binding) => binding,
+        Err(e) => {
+            eprintln!("osf review reduce: {e}");
+            return 2;
+        }
+    };
+    let req = review_run::Request {
+        root,
+        config_root: &config_root,
+        base: &base,
+        work_item: None,
+        pull_request: None,
+        builder_family_overrides: &args.builder_family,
+        binding: Some(&binding),
+    };
+    match review_run::reduce_saved(&req, &runs, &state_dir) {
+        Ok(outcome) => finish_review(&outcome, args.sarif_out.as_deref(), args.post_to.as_deref()),
+        Err(e) => {
+            eprintln!("osf review reduce: {e}");
+            2
+        }
+    }
+}
+
+/// `osf review work-item`: saves the pull request's work item, or the reason
+/// it has none. Exits 2 only when the inputs are bad or the code host fails.
+fn review_work_item_cmd(args: &ReviewWorkItemArgs) -> ExitCode {
+    let Some(repository) = args
+        .repository
+        .clone()
+        .or_else(|| std::env::var("GITHUB_REPOSITORY").ok())
+    else {
+        eprintln!("osf review work-item: a repository is required: pass --repository or set GITHUB_REPOSITORY");
+        return ExitCode::from(2);
+    };
+    let pull_request = match load_pull_request(&args.pull_request) {
+        Ok(pr) => pr,
+        Err(e) => {
+            eprintln!("osf review work-item: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let item = match osf::work_item::find(
+        &osf::work_item::GhIssues,
+        &repository,
+        pull_request.body.as_deref().unwrap_or_default(),
+        &args.head,
+    ) {
+        Ok(item) => item,
+        Err(e) => {
+            eprintln!("osf review work-item: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    if let Err(e) = std::fs::write(&args.out, item.to_json()) {
+        eprintln!("osf review work-item: {}: {e}", args.out.display());
+        return ExitCode::from(2);
+    }
+    match &item {
+        osf::work_item::WorkItem::Found { reference, .. } => {
+            println!("work item: {reference}");
+        }
+        osf::work_item::WorkItem::Missing(reason) => println!("work item: none, {reason}"),
+    }
+    ExitCode::SUCCESS
+}
+
+fn review_reduce_cmd(args: &ReviewReduceArgs) -> ExitCode {
+    let code = review_reduce_exit_code(args);
+    ExitCode::from(if args.warn_only { 0 } else { code })
+}
+
+fn review_run_cmd(args: &ReviewRunArgs) -> ExitCode {
+    let code = review_run_exit_code(args);
+    ExitCode::from(if args.warn_only { 0 } else { code })
+}
+
+/// Splits `--post-to`'s `owner/repo#N` into the repository and the pull
+/// request number.
+///
+/// # Errors
+/// Names the reason when there is no `#`, the number after it does not
+/// parse, or the repository half is empty.
+fn parse_post_to(raw: &str) -> Result<(String, u64), String> {
+    let (repo, number) = raw
+        .rsplit_once('#')
+        .ok_or_else(|| format!("{raw:?} is not owner/repo#N"))?;
+    if repo.is_empty() {
+        return Err(format!("{raw:?} names no repository before '#'"));
+    }
+    let pr = number
+        .parse::<u64>()
+        .map_err(|e| format!("{raw:?}: the pull request number: {e}"))?;
+    Ok((repo.to_string(), pr))
+}
+
+/// `finding`'s severity, as `osf review post` and the review answer schema
+/// both spell it.
+fn severity_str(severity: answer::Severity) -> &'static str {
+    match severity {
+        answer::Severity::Blocker => "blocker",
+        answer::Severity::Major => "major",
+        answer::Severity::Minor => "minor",
+    }
+}
+
+/// `finding`'s action, as `osf review post`'s own block list spells it.
+fn action_str(action: answer::Action) -> &'static str {
+    match action {
+        answer::Action::MustFix => "must-fix",
+        answer::Action::ShouldFix => "should-fix",
+        answer::Action::MaybeFix => "maybe-fix",
+        answer::Action::Justify => "justify",
+        answer::Action::Defer => "defer",
+        answer::Action::Dismiss => "dismiss",
+    }
+}
+
+/// A run's kept findings, as `review::Finding`s `osf review post`'s own
+/// planning already knows how to turn into inline comments. Each finding's
+/// id is its lens name and its place within that lens, one-based, since a
+/// review run names no id of its own.
+fn review_findings_for_post(findings: &[review_run::KeptFinding]) -> Vec<review::Finding> {
+    let mut per_lens: std::collections::BTreeMap<&str, u32> = std::collections::BTreeMap::new();
+    findings
+        .iter()
+        .map(|kept| {
+            let n = per_lens.entry(kept.lens.as_str()).or_insert(0);
+            *n += 1;
+            review::Finding {
+                id: format!("{}-{n}", kept.lens),
+                path: kept.finding.path.clone(),
+                line: Some(kept.finding.line),
+                severity: severity_str(kept.finding.severity).to_string(),
+                action: action_str(kept.finding.action).to_string(),
+                body: kept.finding.body.clone(),
+            }
+        })
+        .collect()
+}
+
+/// The review's summary body for a posted review: one line per lens, then
+/// the run's own verdict line, exactly as printed to standard output.
+fn review_run_summary(outcome: &review_run::RunOutcome) -> String {
+    let mut summary = format!("osf review run\n\n{}", outcome.lines.join("\n"));
+    for note in &outcome.notes {
+        let _ = write!(summary, "\nnote: {note}");
+    }
+    summary
+}
+
+/// `--post-to`'s whole job: build the findings and the summary from
+/// `outcome`, then post through the same [`post_plan`] `osf review post`
+/// uses. Returns whether the post landed: a caller that cannot post has no
+/// review evidence on the pull request, whatever the run's own verdict was.
+fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
+    let (repo, pr) = match parse_post_to(post_to) {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            return false;
+        }
+    };
+    let findings = review_findings_for_post(&outcome.findings);
+    let summary = review_run_summary(outcome);
+    let block_on = resolve_block_on(None);
+    let plan = match review::plan_review(&findings, &summary, &block_on) {
+        Ok(plan) => plan,
+        Err(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            return false;
+        }
+    };
+    let head_sha = match review::fetch_head_sha(&repo, pr) {
+        Ok(sha) => sha,
+        Err(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            return false;
+        }
+    };
+    match post_plan(&repo, pr, &plan, &head_sha) {
+        review::Outcome::Reviewed {
+            verdict,
+            n_inline,
+            id,
+            state,
+            url,
+        } => {
+            println!("posted review {id}: {state}, {url}");
+            println!(
+                "osf review run --post-to: {} with {n_inline} inline comment(s) on {repo}#{pr}",
+                verdict.as_event()
+            );
+            true
+        }
+        review::Outcome::FallbackComment {
+            verdict,
+            n_inline,
+            id,
+            state,
+            url,
+        } => {
+            println!("posted comment {id}: {state}, {url}");
+            println!(
+                "osf review run --post-to: COMMENT (advisory {}) with {n_inline} inline \
+                 comment(s) on {repo}#{pr}",
+                verdict.as_event()
+            );
+            true
+        }
+        review::Outcome::Rejected(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            false
+        }
+        review::Outcome::PostFailed(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            false
+        }
+    }
+}
+
+/// A review run's kept findings, grouped by file, as SARIF-ready findings.
+/// A lens name is a fixed, bounded vocabulary, exactly the case
+/// `osf_lint_core::intern` exists for, so it stands in as the rule id.
+fn review_sarif_files(findings: &[review_run::KeptFinding]) -> Vec<(String, Vec<lints::Finding>)> {
+    let mut by_path: Vec<(String, Vec<lints::Finding>)> = Vec::new();
+    for kept in findings {
+        let rule = osf_lint_core::intern(&kept.lens);
+        let level = match kept.finding.severity {
+            answer::Severity::Blocker => lints::Level::Error,
+            answer::Severity::Major => lints::Level::Warning,
+            answer::Severity::Minor => lints::Level::Info,
+        };
+        let line = usize::try_from(kept.finding.line).unwrap_or(usize::MAX);
+        let finding = lints::Finding {
+            rule,
+            level,
+            line,
+            message: kept.finding.body.clone(),
+            excerpt: kept.finding.quote.clone(),
+            source: rule,
+            evidence: lints::Evidence::Statistical,
+            remediation: lints::Remediation::default(),
+            suppressed: None,
+        };
+        match by_path
+            .iter_mut()
+            .find(|(path, _)| *path == kept.finding.path)
+        {
+            Some((_, list)) => list.push(finding),
+            None => by_path.push((kept.finding.path.clone(), vec![finding])),
+        }
+    }
+    by_path
+}
+
 fn changeset_risk_cmd(args: &RiskArgs) -> ExitCode {
     let format = args.format.unwrap_or(Format::Human);
     if format == Format::Sarif {
@@ -1624,7 +2391,7 @@ fn changeset_risk_cmd(args: &RiskArgs) -> ExitCode {
         return ExitCode::from(2);
     }
     let dir = Path::new(".");
-    let report = match changeset_risk::assess(dir, &args.base) {
+    let report = match changeset_risk::assess(dir, dir, &args.base) {
         Ok(r) => r,
         Err(e) => {
             eprintln!("osf changeset risk: {e}");
@@ -1990,7 +2757,7 @@ fn pr_status_refresh_run(
         ExitCode::from(2)
     })?;
     let base = pr_status_refresh_base(args.base.as_ref(), &pr_info.base_ref)?;
-    let report = changeset_risk::assess(Path::new("."), &base).map_err(|e| {
+    let report = changeset_risk::assess(Path::new("."), Path::new("."), &base).map_err(|e| {
         eprintln!("osf changeset risk: {e}");
         ExitCode::from(2)
     })?;

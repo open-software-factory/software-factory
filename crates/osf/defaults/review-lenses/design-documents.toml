@@ -1,0 +1,21 @@
+name = "design-documents"
+summary = "Whether a change that a decision record covers still matches what that record decided."
+weight = 0.6
+runs = "triggered"
+context = ["diff", "decision-records"]
+
+[trigger]
+paths = ["docs/architecture/**"]
+
+[[criteria]]
+id = "matches-the-decision"
+question = "Does the change match the option the linked decision record says was taken?"
+
+[[criteria]]
+id = "record-kept-current"
+question = "When the change supersedes a decision, is the record updated or marked superseded?"
+
+[severity_guide]
+blocker = "The change contradicts an accepted decision record with no update to the record."
+major = "The change drifts from the record in a way a reader would find confusing."
+minor = "A small gap between the record's wording and the change, with no real disagreement."

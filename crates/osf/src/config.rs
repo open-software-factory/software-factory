@@ -216,6 +216,142 @@ pub struct ScanConfig {
     pub levels: BTreeMap<String, LevelSetting>,
 }
 
+/// The pass threshold `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_THRESHOLD: f64 = 0.7;
+
+/// The per-reviewer timeout, in seconds, `review_config` reports when `[review]` names none.
+pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 300;
+
+/// The `[agents]` section of a repository's own `osf.toml`: which of the
+/// agents in [`crate::agents::AGENTS`] it uses. Every field left out takes
+/// its default from that list; [`crate::agents::resolve`] checks the rest.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct AgentsConfig {
+    /// The agents in use. Left out, every agent in the list.
+    pub enabled: Option<Vec<String>>,
+    /// The agent that builds by default. Left out, the list's default builder.
+    pub builder: Option<String>,
+    /// The agents that review, in the order they run. Left out, none.
+    pub reviewers: Vec<String>,
+    /// The model each named agent runs with, keyed by agent name. An agent
+    /// left out uses its own default model.
+    pub models: BTreeMap<String, String>,
+}
+
+/// Reads the `[agents]` table of `<root>/osf.toml`, or
+/// [`AgentsConfig::default`] when the file, or the table, is absent.
+///
+/// # Errors
+/// Returns an error when the file is not valid TOML, or its `[agents]`
+/// table does not match [`AgentsConfig`]'s shape.
+pub fn agents_config(root: &Path) -> Result<AgentsConfig, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(AgentsConfig::default());
+    };
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    let Some(agents) = value.get("agents") else {
+        return Ok(AgentsConfig::default());
+    };
+    agents
+        .clone()
+        .try_into()
+        .map_err(|e| ConfigError::new(format!("{}: [agents]: {e}", path.display())))
+}
+
+/// The `[review]` section of a repository's own `osf.toml`: the pass
+/// threshold, the per-reviewer timeout, and an optional per-run cost
+/// ceiling. The reviewers themselves come from `[agents]`.
+///
+/// Kept out of the layered [`Config`]/[`Layered`] system deliberately: a
+/// fractional `threshold` cannot honour `Config`'s `Eq` derive the way
+/// every other field does.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct ReviewConfig {
+    /// The weighted lens score a review must clear to pass.
+    pub threshold: f64,
+    /// How long one reviewer call may run before it is killed and counted could-not-run.
+    pub timeout_seconds: u64,
+    /// An optional ceiling on what one review run may spend.
+    pub cost_ceiling: Option<f64>,
+    /// Model-name prefixes that extend the shipped builder-family table (see
+    /// [`crate::builder`]), tried before it so a repository can name a model
+    /// the shipped table does not know.
+    pub builder_family_aliases: Vec<BuilderFamilyAlias>,
+    /// Glob patterns naming high-traffic paths, read by [`crate::changeset_risk::assess`]
+    /// to earn the "high-traffic path" signal. Kept here, not only in
+    /// `changeset_risk.rs`'s own raw-TOML read, so this field's own `deny_unknown_fields`
+    /// does not reject the key `changeset_risk.rs` already reads.
+    #[serde(default)]
+    pub hot_paths: Vec<String>,
+    /// A file, relative to the trusted config root, that replaces the
+    /// prompt osf ships. Left out, the shipped prompt is used.
+    pub prompt_file: Option<String>,
+}
+
+impl Default for ReviewConfig {
+    fn default() -> Self {
+        ReviewConfig {
+            threshold: DEFAULT_REVIEW_THRESHOLD,
+            timeout_seconds: DEFAULT_REVIEW_TIMEOUT_SECS,
+            cost_ceiling: None,
+            builder_family_aliases: Vec::new(),
+            hot_paths: Vec::new(),
+            prompt_file: None,
+        }
+    }
+}
+
+/// One model-name prefix, matched case-insensitively against the first word
+/// of a `Code-Generator:` trailer's model name, and the family it maps to.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BuilderFamilyAlias {
+    pub prefix: String,
+    pub family: String,
+}
+
+/// Reads the `[review]` table of `<root>/osf.toml`, or
+/// [`ReviewConfig::default`] when the file, or the table, is absent.
+///
+/// # Errors
+/// Returns an error when the file is not valid TOML, or its `[review]`
+/// table does not match [`ReviewConfig`]'s shape.
+pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return Ok(ReviewConfig::default());
+    };
+    let value: toml::Value =
+        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    let Some(review) = value.get("review") else {
+        return Ok(ReviewConfig::default());
+    };
+    let config: ReviewConfig = review
+        .clone()
+        .try_into()
+        .map_err(|e| ConfigError::new(format!("{}: [review]: {e}", path.display())))?;
+    if !(config.threshold.is_finite() && (0.0..=1.0).contains(&config.threshold)) {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: threshold must be a number from 0 to 1, found {}",
+            path.display(),
+            config.threshold
+        )));
+    }
+    if let Some(ceiling) = config.cost_ceiling {
+        if !ceiling.is_finite() || ceiling < 0.0 {
+            return Err(ConfigError::new(format!(
+                "{}: [review]: cost_ceiling must be a finite number that is not negative, found {ceiling}",
+                path.display()
+            )));
+        }
+    }
+    Ok(config)
+}
+
 /// One field the environment can set, and how to parse it into a TOML value.
 struct EnvField {
     var: &'static str,
@@ -454,9 +590,17 @@ pub fn load(
     let mut file = None;
     if let Some(p) = &path {
         if let Some(text) = osf_lint_core::read_config_file(p, explicit)? {
-            let value: toml::Value = toml::from_str(&text).map_err(|e| {
+            let mut value: toml::Value = toml::from_str(&text).map_err(|e| {
                 ConfigError::new(format!("config {} is not valid: {e}", p.display()))
             })?;
+            // `[review]` and `[agents]` are this same file's own tables, read
+            // separately by `review_config` and `agents_config`. Drop them
+            // here so their presence never trips this struct's
+            // `deny_unknown_fields`.
+            if let Some(table) = value.as_table_mut() {
+                table.remove("review");
+                table.remove("agents");
+            }
             layered.merge_document(&value, Layer::File);
             file = Some(p.clone());
         }
@@ -1245,5 +1389,195 @@ mod tests {
         let err = serial(&[], || load(Some(&path), &[], &[], false))
             .expect_err("an unknown key is refused");
         assert!(err.to_string().contains("overview_max_paragraph"));
+    }
+
+    #[test]
+    fn review_config_defaults_when_osf_toml_is_absent() {
+        let dir = TempDir::new("osf-config-test-review-defaults");
+        let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+        assert_eq!(loaded.cost_ceiling, None);
+    }
+
+    #[test]
+    fn review_config_reads_threshold_and_cost_ceiling() {
+        let dir = TempDir::new("osf-config-test-review-fields");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nthreshold = 0.85\ncost_ceiling = 2.5\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert!((loaded.threshold - 0.85).abs() < f64::EPSILON);
+        assert_eq!(loaded.cost_ceiling, Some(2.5));
+    }
+
+    #[test]
+    fn review_config_reads_hot_paths() {
+        let dir = TempDir::new("osf-config-test-review-hot-paths");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[review]\nhot_paths = [\"src/payments/**\"]\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("[review] hot_paths must not be an unknown field");
+        assert_eq!(loaded.hot_paths, vec!["src/payments/**".to_string()]);
+    }
+
+    #[test]
+    fn review_config_defaults_the_timeout_to_three_hundred_seconds() {
+        let dir = TempDir::new("osf-config-test-review-timeout-default");
+        let loaded = review_config(&dir).expect("defaults load with no osf.toml");
+        assert_eq!(loaded.timeout_seconds, DEFAULT_REVIEW_TIMEOUT_SECS);
+        assert_eq!(loaded.timeout_seconds, 300);
+    }
+
+    #[test]
+    fn review_config_reads_a_configured_timeout() {
+        let dir = TempDir::new("osf-config-test-review-timeout-configured");
+        std::fs::write(dir.join("osf.toml"), "[review]\ntimeout_seconds = 45\n")
+            .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert_eq!(loaded.timeout_seconds, 45);
+    }
+
+    #[test]
+    fn review_config_with_no_review_table_still_gives_the_defaults() {
+        let dir = TempDir::new("osf-config-test-review-no-table");
+        std::fs::write(dir.join("osf.toml"), "[writing]\nmax_sentence_words = 30\n")
+            .expect("osf.toml writes");
+        let loaded = review_config(&dir).expect("review config loads");
+        assert!((loaded.threshold - DEFAULT_REVIEW_THRESHOLD).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn a_threshold_that_is_not_a_number_from_zero_to_one_is_refused() {
+        for (label, value) in [
+            ("nan", "nan"),
+            ("inf", "inf"),
+            ("neg-inf", "-inf"),
+            ("negative", "-0.1"),
+            ("above-one", "1.5"),
+        ] {
+            let dir = TempDir::new(&format!("osf-config-test-review-threshold-{label}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\nthreshold = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            let err = review_config(&dir).expect_err("a bad threshold is refused");
+            assert!(
+                err.to_string()
+                    .contains("threshold must be a number from 0 to 1"),
+                "{label}: {err}"
+            );
+        }
+        for value in ["0.0", "0.7", "1.0"] {
+            let dir = TempDir::new(&format!("osf-config-test-review-threshold-ok-{value}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\nthreshold = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            assert!(review_config(&dir).is_ok(), "{value}");
+        }
+    }
+
+    #[test]
+    fn a_cost_ceiling_that_is_not_finite_or_is_negative_is_refused() {
+        for (label, value) in [("nan", "nan"), ("inf", "inf"), ("negative", "-2.0")] {
+            let dir = TempDir::new(&format!("osf-config-test-review-ceiling-{label}"));
+            std::fs::write(
+                dir.join("osf.toml"),
+                format!("[review]\ncost_ceiling = {value}\n"),
+            )
+            .expect("osf.toml writes");
+            let err = review_config(&dir).expect_err("a bad ceiling is refused");
+            assert!(
+                err.to_string()
+                    .contains("cost_ceiling must be a finite number"),
+                "{label}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_malformed_review_table_is_refused_naming_the_field() {
+        let dir = TempDir::new("osf-config-test-review-malformed-type");
+        std::fs::write(dir.join("osf.toml"), "[review]\nthreshold = \"high\"\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("a string threshold is refused");
+        assert!(err.to_string().contains("threshold"), "{err}");
+    }
+
+    #[test]
+    fn an_unknown_review_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-review-unknown-field");
+        std::fs::write(dir.join("osf.toml"), "[review]\nthreshhold = 0.9\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("threshhold"), "{err}");
+    }
+
+    /// `[review]` and `[agents]` are this same `osf.toml`. The two tables are
+    /// read separately by `review_config` and `agents_config`, and this
+    /// module's own `Config` does not read them. A repository that selects
+    /// reviewers this way must still load its `[writing]`, `[scan]`, and
+    /// `[skill]` settings, the same as one with neither table.
+    #[test]
+    fn the_review_and_agents_tables_do_not_stop_the_rest_of_the_file_loading() {
+        let dir = TempDir::new("osf-config-test-review-alongside-writing");
+        let path = dir.join("osf.toml");
+        std::fs::write(
+            &path,
+            "[writing]\nmax_sentence_words = 30\n\n\
+             [review]\n\n\
+             [agents]\n\
+             reviewers = [\"codex\"]\n",
+        )
+        .expect("osf.toml writes");
+        let loaded =
+            serial(&[], || load(Some(&path), &[], &[], false)).expect("file with [review] loads");
+        assert_eq!(loaded.config.writing.max_sentence_words, 30);
+    }
+
+    #[test]
+    fn agents_config_defaults_when_osf_toml_is_absent_or_has_no_agents_table() {
+        let dir = TempDir::new("osf-config-test-agents-defaults");
+        let loaded = agents_config(&dir).expect("defaults load with no osf.toml");
+        assert!(loaded.enabled.is_none() && loaded.builder.is_none());
+        assert!(loaded.reviewers.is_empty() && loaded.models.is_empty());
+        std::fs::write(dir.join("osf.toml"), "[writing]\nmax_numerals = 3\n").expect("writes");
+        assert!(agents_config(&dir).expect("loads").reviewers.is_empty());
+    }
+
+    #[test]
+    fn agents_config_reads_every_field() {
+        let dir = TempDir::new("osf-config-test-agents-fields");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "[agents]\nenabled = [\"dsh\", \"codex\"]\nbuilder = \"dsh\"\nreviewers = [\"codex\"]\n\n[agents.models]\ncodex = \"o4-mini\"\n",
+        )
+        .expect("osf.toml writes");
+        let loaded = agents_config(&dir).expect("agents config loads");
+        assert_eq!(
+            loaded.enabled,
+            Some(vec!["dsh".to_string(), "codex".to_string()])
+        );
+        assert_eq!(loaded.builder.as_deref(), Some("dsh"));
+        assert_eq!(loaded.reviewers, vec!["codex".to_string()]);
+        assert_eq!(
+            loaded.models.get("codex").map(String::as_str),
+            Some("o4-mini")
+        );
+    }
+
+    #[test]
+    fn an_unknown_agents_field_is_refused() {
+        let dir = TempDir::new("osf-config-test-agents-unknown-field");
+        std::fs::write(dir.join("osf.toml"), "[agents]\nreviewer = [\"codex\"]\n")
+            .expect("osf.toml writes");
+        let err = agents_config(&dir).expect_err("an unknown key is refused");
+        assert!(err.to_string().contains("reviewer"), "{err}");
     }
 }
