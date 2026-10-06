@@ -3613,6 +3613,59 @@ fn a_short_total_limit_stops_running_lenses_and_records_the_waiting_ones() {
     }
 }
 
+/// The retry after an invalid answer shares the one time budget the attempt
+/// was given, so it cannot add a whole second sleep past the total limit.
+#[test]
+#[cfg(unix)]
+fn a_retry_cannot_run_past_the_total_limit() {
+    let lenses = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
+    let body = "cat >/dev/null\nsleep 5\nprintf 'junk'\n";
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body.to_string()))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-retry-total-limit",
+        &format!(
+            "[review]\nconcurrency = 6\ntimeout_seconds = 30\ntotal_timeout_seconds = 6\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-retry-total-limit");
+    let started = std::time::Instant::now();
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_millis(8500),
+        "a retry must not add a second five-second sleep past the six-second total limit: {elapsed:?}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let answers = journal_review_answers(&home);
+    assert!(
+        !answers
+            .iter()
+            .any(|answer| answer["result"] == "invalid"),
+        "an invalid first answer whose retry is cut by the limit is could-not-run, not invalid: {answers:?}"
+    );
+    assert!(
+        answers.iter().any(|answer| {
+            answer["result"] == "could-not-run"
+                && answer["reason"]
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("total_timeout_seconds = 6s"))
+        }),
+        "the retry cut by the total limit is could-not-run naming it: {answers:?}"
+    );
+}
+
 /// A provider failure on one lens is that lens's own failure: the others
 /// still answer.
 #[test]
