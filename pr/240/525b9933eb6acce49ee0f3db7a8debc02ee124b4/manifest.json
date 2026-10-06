@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "525b9933eb6acce49ee0f3db7a8debc02ee124b4",
+    "contentHash": "b8cc097270c5868efe32256be97ac2f4"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "ci-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0cf0e16ec66f975fb91bda30458d8093",
+      "bytes": 6638,
+      "width": 446,
+      "height": 418,
+      "animated": false,
+      "path": "ci-pipeline-light-0cf0e16ec66f975fb91bda30458d8093.svg"
+    },
+    {
+      "id": "ci-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a235161bb808f0f411da7d31e790bc0b",
+      "bytes": 6684,
+      "width": 446,
+      "height": 418,
+      "animated": false,
+      "path": "ci-pipeline-dark-a235161bb808f0f411da7d31e790bc0b.svg"
+    },
+    {
+      "id": "crate-test-map-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "crate-test-map",
+      "mediaType": "image/svg+xml",
+      "contentHash": "85cfffa25e09c6b8e352f3a05d35f16b",
+      "bytes": 14666,
+      "width": 900,
+      "height": 760,
+      "animated": false,
+      "path": "crate-test-map-light-85cfffa25e09c6b8e352f3a05d35f16b.svg"
+    },
+    {
+      "id": "crate-test-map-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "crate-test-map",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b6912d49b580b951ae4d6084294a36e9",
+      "bytes": 14812,
+      "width": 900,
+      "height": 760,
+      "animated": false,
+      "path": "crate-test-map-dark-b6912d49b580b951ae4d6084294a36e9.svg"
+    }
+  ]
+}

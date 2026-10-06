@@ -1,0 +1,710 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-06T13:27:41.164Z",
+  "title": "Pin Rust 1.99.0 in CI and tighten empty-collection assertions",
+  "summary": "The CI workflow stops adding clippy/rustfmt to whatever toolchain the dev container happens to ship and instead installs a pinned Rust 1.99.0 with those components, then makes it the default. Alongside that, the test suites across osf-lint-core and osf replace `assert!(x.is_empty())` with `assert_eq!(x, Vec::<T>::new())` so a failure prints the offending contents instead of a bare boolean. No production logic changes: the lint rules, config loader, reviewer roster, work-item parser and moon report parser behave exactly as before.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4a8d2ac459f9d84c2b6403ee113315c991facee7",
+      "ref": "4a8d2ac459f9d84c2b6403ee113315c991facee7"
+    },
+    "head": {
+      "sha": "525b9933eb6acce49ee0f3db7a8debc02ee124b4",
+      "ref": "525b9933eb6acce49ee0f3db7a8debc02ee124b4"
+    },
+    "pullRequest": {
+      "number": 240,
+      "url": "https://github.com/open-software-factory/software-factory/pull/240"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "ci",
+      "label": "CI pipeline",
+      "subtitle": "GitHub Actions",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The build job that detects a Cargo.toml, installs the toolchain and runs the checks."
+    },
+    {
+      "id": "crates",
+      "label": "osf crates",
+      "subtitle": "Rust workspace",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "The library and binary crates whose behaviour the tests exercise."
+    },
+    {
+      "id": "tests",
+      "label": "Test suites",
+      "subtitle": "unit + integration",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The assertion sites touched by this change, all inside #[cfg(test)] modules or tests/ directories."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "build job",
+      "summary": "The workflow that detects a root Cargo.toml, installs the Rust toolchain, caches the build and runs the checks. The toolchain step changed from adding components to the ambient toolchain to installing a pinned one.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 168,
+          "endLine": 180
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rustup",
+      "label": "rustup",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "toolchain installer",
+      "summary": "Installs the pinned 1.99.0 toolchain with the minimal profile plus clippy and rustfmt, then sets it as the default.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 171,
+          "endLine": 176
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-build",
+      "label": "cargo build / test",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "build + check steps",
+      "summary": "The downstream steps that compile the workspace and run the test suites against whichever toolchain is default.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 178
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-lint-core",
+      "label": "osf-lint-core",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "lint-core",
+      "subtitle": "expectation matching",
+      "summary": "The crate that compares expected findings against actual findings and reports missing and unexpected entries.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "lint rules + config",
+      "summary": "The main crate: writing lints, config loading, reviewer roster, work-item reference parsing and moon report parsing.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs"
+        },
+        {
+          "path": "crates/osf/src/work_item.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-lints",
+      "label": "writing lints",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "lints/writing/mod.rs",
+      "summary": "The prose rules that flag bare references, undefined names, bold sentences and similar writing problems.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-loader",
+      "label": "config loader",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "config.rs",
+      "summary": "Loads osf.toml from the repository, home directory or an explicit path and merges it with defaults.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-roster",
+      "label": "reviewer roster",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "reviewers.rs",
+      "summary": "Builds the reviewer list from the agents table and decides each reviewer's sandbox check.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-item-parser",
+      "label": "work-item parser",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "work_item.rs",
+      "summary": "Extracts issue references from prose while ignoring fenced blocks, inline code, HTML comments and block quotes.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "moon-parser",
+      "label": "moon parser",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "moon.rs",
+      "summary": "Parses moon task reports and query responses into task outcomes and slots.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-table",
+      "label": "agents table",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "agents.rs",
+      "summary": "The static table of supported agents, their families, commands, state directories and session paths.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "changeset-risk",
+      "label": "changeset risk",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "crates",
+      "group": "osf",
+      "subtitle": "changeset_risk.rs",
+      "summary": "Derives risk signals from a changeset's diffs.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unit-tests",
+      "label": "unit tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "subtitle": "#[cfg(test)] modules",
+      "summary": "The in-crate test modules whose empty-collection assertions were rewritten to compare against an explicit empty Vec.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs",
+          "startLine": 190,
+          "endLine": 310
+        },
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 196,
+          "endLine": 790
+        },
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645,
+          "endLine": 1110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "integration-tests",
+      "label": "integration tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "subtitle": "crates/osf/tests",
+      "summary": "The integration test files that exercise the reviewer roster and scan rules end to end.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 632,
+          "endLine": 648
+        },
+        {
+          "path": "crates/osf/tests/scan_rules.rs",
+          "startLine": 143,
+          "endLine": 490
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "ci-installs-toolchain",
+      "from": "ci-workflow",
+      "to": "rustup",
+      "kind": "call",
+      "delta": "modified",
+      "label": "install 1.99.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The workflow now installs a pinned toolchain with clippy and rustfmt instead of adding components to whatever Rust the container ships.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 171,
+          "endLine": 176
+        }
+      ]
+    },
+    {
+      "id": "rustup-defaults-toolchain",
+      "from": "rustup",
+      "to": "cargo-build",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "default 1.99.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Setting the pinned toolchain as default is what makes the later build and test steps use it.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 175,
+          "endLine": 176
+        }
+      ]
+    },
+    {
+      "id": "ci-runs-build",
+      "from": "ci-workflow",
+      "to": "cargo-build",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The build and check steps run after the toolchain is in place.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 178
+        }
+      ]
+    },
+    {
+      "id": "build-tests-osf",
+      "from": "cargo-build",
+      "to": "unit-tests",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The build step compiles and runs the unit test modules.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645
+        }
+      ]
+    },
+    {
+      "id": "build-tests-integration",
+      "from": "cargo-build",
+      "to": "integration-tests",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The build step also runs the integration test binaries.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan_rules.rs",
+          "startLine": 143
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-exercise-lint-core",
+      "from": "unit-tests",
+      "to": "osf-lint-core",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The expectation tests call check and check_skill and assert on the resulting mismatch.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs",
+          "startLine": 190,
+          "endLine": 310
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-exercise-writing",
+      "from": "unit-tests",
+      "to": "writing-lints",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The writing tests call rules_of and assert on the returned rule ids.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 196,
+          "endLine": 790
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-exercise-config",
+      "from": "unit-tests",
+      "to": "config-loader",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The config tests load osf.toml and assert on the merged writing settings.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1088,
+          "endLine": 1560
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-exercise-work-item",
+      "from": "unit-tests",
+      "to": "work-item-parser",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The work-item tests call candidates_both and assert on the extracted references.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645,
+          "endLine": 1110
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-exercise-moon",
+      "from": "unit-tests",
+      "to": "moon-parser",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The moon tests parse a captured report and an empty query and assert on the resulting lists.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 710,
+          "endLine": 925
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-exercise-agents",
+      "from": "unit-tests",
+      "to": "agents-table",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The agent tests walk the static table and assert on names, families and modes.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 757,
+          "endLine": 925
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-exercise-risk",
+      "from": "unit-tests",
+      "to": "changeset-risk",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The risk tests feed diffs to signals_for and assert on the resulting signals.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 704
+        }
+      ]
+    },
+    {
+      "id": "integration-tests-exercise-reviewers",
+      "from": "integration-tests",
+      "to": "reviewer-roster",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reviewer integration tests build a roster from a temporary osf.toml and assert on sandbox checks.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 632,
+          "endLine": 648
+        }
+      ]
+    },
+    {
+      "id": "integration-tests-exercise-scan",
+      "from": "integration-tests",
+      "to": "writing-lints",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The scan-rule integration tests build Rules and scan text, asserting on the rule ids found.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan_rules.rs",
+          "startLine": 143,
+          "endLine": 490
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "ci-toolchain-install",
+      "title": "CI installs the pinned toolchain",
+      "summary": "What happens when the build job runs: the workflow detects a Cargo.toml, installs Rust 1.99.0 with clippy and rustfmt, makes it default, and only then builds and tests.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "ci-workflow",
+          "label": "ci.yml"
+        },
+        {
+          "node": "rustup",
+          "label": "rustup"
+        },
+        {
+          "node": "cargo-build",
+          "label": "cargo build / test"
+        },
+        {
+          "node": "unit-tests",
+          "label": "unit tests"
+        }
+      ],
+      "messages": [
+        {
+          "id": "detect-cargo",
+          "from": "ci-workflow",
+          "to": "ci-workflow",
+          "label": "detect root Cargo.toml",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 168
+            }
+          ]
+        },
+        {
+          "id": "install-pinned",
+          "from": "ci-workflow",
+          "to": "rustup",
+          "label": "toolchain install 1.99.0 --profile minimal --component clippy,rustfmt",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 171,
+              "endLine": 174
+            }
+          ]
+        },
+        {
+          "id": "set-default",
+          "from": "ci-workflow",
+          "to": "rustup",
+          "label": "rustup default 1.99.0",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 175
+            }
+          ]
+        },
+        {
+          "id": "build-and-test",
+          "from": "ci-workflow",
+          "to": "cargo-build",
+          "label": "cargo build / cargo test",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 178
+            }
+          ]
+        },
+        {
+          "id": "run-unit-tests",
+          "from": "cargo-build",
+          "to": "unit-tests",
+          "label": "run test binaries",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/work_item.rs",
+              "startLine": 645
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 11,
+    "additions": 110,
+    "deletions": 59,
+    "chips": [
+      {
+        "label": "Toolchain",
+        "value": "pinned 1.99.0",
+        "tone": "hero"
+      },
+      {
+        "label": "Assertion rewrites",
+        "value": "~30 sites",
+        "tone": "modified"
+      },
+      {
+        "label": "Production logic",
+        "value": "unchanged",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "ci-pipeline",
+      "title": "CI pipeline",
+      "lens": "architecture",
+      "summary": "The build job and the toolchain it now pins.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "ci"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "crate-test-map",
+      "title": "Crates and their test suites",
+      "lens": "architecture",
+      "summary": "Which test suites exercise which crate, and where the assertion rewrites landed.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "crates",
+          "tests"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
