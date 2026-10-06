@@ -712,6 +712,13 @@ checks every route it knows, on any git call:
   not match the pairs, is refused. Unset the others and run the command
   by hand instead.
 
+The wrapper also refuses an alias, because an alias hides the real
+command from the first lookup. A `-c alias.*` or `--config-env alias.*`
+setting is refused on the command line. An alias written in a config
+file is expanded before the checks run, and the same refusals apply to
+its expansion. An alias that starts with `!` is refused, because it
+runs a shell command.
+
 The same keys are also refused for `-c` and `--config-env`, for the
 reason they always were. Each one was tested by hand in this container,
 and each ran an arbitrary command as part of an ordinary `git commit`:
@@ -753,6 +760,12 @@ The wrapper does not replace it. Even that check only reaches as far as the cred
 push. An agent that holds a push credential can still push straight past
 every check in this file. Taking that credential away from the agent is
 separate work. This wrapper does not do it.
+
+Known limit: a worktree outside the workspace. A commit in a git
+worktree added outside the workspace root runs no hooks. This is on
+purpose. The forced hooks path covers only the workspace root, so osf's
+own scratch repositories keep working. The pull request check stays the
+authority.
 
 ## Testing the hooks themselves
 

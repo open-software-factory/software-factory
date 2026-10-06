@@ -171,6 +171,63 @@ assert_refused "an extra config pair past the count is refused" \
 assert_refused "a non-numeric GIT_CONFIG_COUNT is refused" \
   env GIT_CONFIG_COUNT=x git status
 
+# --- Refusals: an alias can hide a command from the first lookup. ---
+# An alias key is refused wherever it is set for one call.
+assert_refused "-c alias.x='commit -n' is refused" git -c alias.x='commit -n' x --allow-empty -q -m t
+assert_refused "-c alias.x=status is refused (any alias key)" git -c alias.x=status x
+assert_refused "-c ALIAS.x=status is refused (any case)" git -c ALIAS.x=status x
+assert_refused "--config-env alias.x=... is refused" git --config-env alias.x=SOME_VAR status
+assert_refused "--config-env=alias.x=... is refused" git --config-env=alias.x=SOME_VAR status
+
+# An alias in a config file is expanded, and the same rules apply.
+git config alias.q 'commit -n'
+assert_refused "a repo alias for a skipped commit is refused" git q --allow-empty -q -m t
+assert_ok "unset alias.q" git config --unset alias.q
+
+git config alias.lv 'commit --no-verify'
+assert_refused "a repo alias with the long flag is refused" git lv --allow-empty -q -m t
+assert_ok "unset alias.lv" git config --unset alias.lv
+
+git config alias.qt "commit '-n'"
+assert_refused "a repo alias with a quoted flag is refused" git qt --allow-empty -q -m t
+assert_ok "unset alias.qt" git config --unset alias.qt
+
+git config alias.sh '!/usr/bin/git commit -n'
+assert_refused "a repo alias that runs a shell is refused" git sh --allow-empty -q -m t
+git config alias.echo '!echo hi'
+assert_refused "a repo alias that runs any shell command is refused" git echo
+assert_ok "unset alias.sh" git config --unset alias.sh
+assert_ok "unset alias.echo" git config --unset alias.echo
+
+git config alias.a1 'a2'
+git config alias.a2 'commit --no-verify'
+assert_refused "a repo alias chain is refused" git a1 --allow-empty -q -m t
+assert_ok "unset alias.a1" git config --unset alias.a1
+assert_ok "unset alias.a2" git config --unset alias.a2
+
+git config alias.l1 'l2'
+git config alias.l2 'l1'
+assert_refused "a repo alias loop is refused" git l1 --allow-empty -q -m t
+assert_ok "unset alias.l1" git config --unset alias.l1
+assert_ok "unset alias.l2" git config --unset alias.l2
+
+git config alias.cn 'commit'
+assert_refused "a repo alias for commit applies the rules to the flags" git cn -n --allow-empty -q -m t
+assert_ok "unset alias.cn" git config --unset alias.cn
+
+git config alias.cc '-C /tmp status'
+assert_refused "a repo alias that moves the target with -C is refused" git cc
+assert_ok "unset alias.cc" git config --unset alias.cc
+
+# The pass-throughs an alias still reaches are allowed.
+git config alias.st 'status'
+assert_ok "a repo alias for status is allowed" git st
+assert_ok "unset alias.st" git config --unset alias.st
+
+git config alias.ci 'commit -q'
+assert_ok "a repo alias for an allowed commit is allowed" git ci --allow-empty -m t
+assert_ok "unset alias.ci" git config --unset alias.ci
+
 # --- Still fails closed for an option this wrapper does not know. ---
 assert_refused "an unrecognized option is refused" git --totally-bogus-option status
 

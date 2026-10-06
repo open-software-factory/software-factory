@@ -9,6 +9,11 @@
 # 0003 (docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
 # A contributor does not control that check.
 #
+# Known limit: a git worktree added outside the workspace root is not
+# covered by the forced hooks path, so a commit there runs no hooks.
+# This is deliberate, because osf's own scratch repositories live
+# outside the workspace.
+#
 # git push also takes a short flag -n, but there it means --dry-run, a
 # different and harmless option, so this wrapper does not block it.
 #
@@ -48,9 +53,17 @@ refuse_config() {
   key="$1"
   source="$2"
   echo "git: refused. '$source' sets '$key', which this wrapper does not allow." >&2
-  echo "This wrapper blocks core.hooksPath, core.fsmonitor, and core.editor" >&2
-  echo "here, because each can run an arbitrary command as part of a commit." >&2
+  echo "This wrapper blocks core.hooksPath, core.fsmonitor, core.editor," >&2
+  echo "and alias.* here. Each can skip a check or run an arbitrary command." >&2
   echo "Other config values, such as user.email, are not blocked. See docs/development.md." >&2
+  exit 1
+}
+
+refuse_alias() {
+  why="$1"
+  echo "git: refused. An alias hides the real command from this wrapper's check: $why." >&2
+  echo "The wrapper expands a repository alias before it applies its rules." >&2
+  echo "Run the command without the alias. See docs/development.md." >&2
   exit 1
 }
 
@@ -85,7 +98,7 @@ check_config_value() {
   key_lc=$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')
   source="$2"
   case "$key_lc" in
-    core.hookspath | core.fsmonitor | core.editor)
+    core.hookspath | core.fsmonitor | core.editor | alias.*)
       refuse_config "$key" "$source"
       ;;
   esac
@@ -313,27 +326,68 @@ in_workspace() {
   esac
 }
 
+# Applies the subcommand rules to the arguments it is given.
+apply_rules() {
+  case "$SUB" in
+    commit | merge)
+      check_no_verify "$@"
+      check_short_n "$@"
+      ;;
+    push)
+      check_no_verify "$@"
+      ;;
+  esac
+}
+
+# Expands a repository alias, then applies the rules to the result.
+resolve_aliases() {
+  rounds=0
+  while [ "$rounds" -lt 10 ]; do
+    [ -n "$SUB" ] || return 0
+    rounds=$((rounds + 1))
+    expansion=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR \
+      "$REAL_GIT" -C "$TARGET_DIR" config --get "alias.$SUB")
+    status=$?
+    case "$status" in
+      0) : ;;
+      1) return 0 ;;
+      *) refuse_alias "git cannot read 'alias.$SUB'" ;;
+    esac
+    case "$expansion" in
+      '!'*) refuse_alias "'alias.$SUB' runs a shell command" ;;
+    esac
+    exp=$(printf '%s' "$expansion" | tr -d "\"'\\\\")
+    set -f
+    for word in $exp; do
+      if [ "$word" = "-C" ]; then
+        set +f
+        refuse_alias "'alias.$SUB' moves the target directory with -C"
+      fi
+    done
+    set -- $exp "$@"
+    find_subcommand $exp
+    set +f
+    check_repo_options "$@"
+    apply_rules "$@"
+  done
+  refuse_alias "the alias chain for '$SUB' does not end"
+}
+
 check_config_env_overrides
 check_repo_env_overrides
 check_repo_options "$@"
 
 SUB=""
 find_subcommand "$@"
+apply_rules "$@"
 
-case "$SUB" in
-  commit | merge)
-    check_no_verify "$@"
-    check_short_n "$@"
-    ;;
-  push)
-    check_no_verify "$@"
-    ;;
-esac
+# The alias lookup needs the directory the original arguments name.
+TARGET_DIR=$(resolve_target_dir "$@")
+resolve_aliases "$@"
 
 # Forces the container's hooks for every repository under the workspace
 # mount; a repository outside it, such as a test's own scratch repository
 # under /tmp, is left alone, so osf's own tests keep working unchanged.
-TARGET_DIR=$(resolve_target_dir "$@")
 if in_workspace "$TARGET_DIR"; then
   exec "$REAL_GIT" -c "core.hooksPath=$HOOKS_DIR" "$@"
 fi
