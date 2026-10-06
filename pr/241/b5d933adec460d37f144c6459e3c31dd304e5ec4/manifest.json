@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "b5d933adec460d37f144c6459e3c31dd304e5ec4",
+    "contentHash": "6b1d8d868855b7e1dd737f0126c5620a"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-workflow-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-workflow-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b57f06b2943fd8e87fddfb62ed242593",
+      "bytes": 21867,
+      "width": 1818,
+      "height": 532,
+      "animated": false,
+      "path": "review-workflow-containers-light-b57f06b2943fd8e87fddfb62ed242593.svg"
+    },
+    {
+      "id": "review-workflow-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-workflow-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "87228cb0bb4be1a3c77b83dcb0750906",
+      "bytes": 22096,
+      "width": 1818,
+      "height": 532,
+      "animated": false,
+      "path": "review-workflow-containers-dark-87228cb0bb4be1a3c77b83dcb0750906.svg"
+    },
+    {
+      "id": "build-job-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-job-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8e0206dbf81a26066efc6009189b5756",
+      "bytes": 16011,
+      "width": 1284,
+      "height": 438,
+      "animated": false,
+      "path": "build-job-components-light-8e0206dbf81a26066efc6009189b5756.svg"
+    },
+    {
+      "id": "build-job-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-job-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1afb81f2737a782f9da9f25b0fe5686d",
+      "bytes": 16172,
+      "width": 1284,
+      "height": 438,
+      "animated": false,
+      "path": "build-job-components-dark-1afb81f2737a782f9da9f25b0fe5686d.svg"
+    },
+    {
+      "id": "workflow-contract-tests-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workflow-contract-tests-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d6a1ae0ae21683c51072d36c3319bc24",
+      "bytes": 9782,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "workflow-contract-tests-view-light-d6a1ae0ae21683c51072d36c3319bc24.svg"
+    },
+    {
+      "id": "workflow-contract-tests-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workflow-contract-tests-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "29cfd3b38448097a759fc3b6dd6ccfb8",
+      "bytes": 9874,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "workflow-contract-tests-view-dark-29cfd3b38448097a759fc3b6dd6ccfb8.svg"
+    },
+    {
+      "id": "build-and-run-osf-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "build-and-run-osf-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "867bf35f45d1ddb389c0c3a1db788441",
+      "bytes": 15093,
+      "width": 1696,
+      "height": 413,
+      "animated": true,
+      "path": "build-and-run-osf-flow-light-867bf35f45d1ddb389c0c3a1db788441.svg"
+    },
+    {
+      "id": "build-and-run-osf-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "build-and-run-osf-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5e241a4df0511929acc25a85b55ded11",
+      "bytes": 15252,
+      "width": 1696,
+      "height": 413,
+      "animated": true,
+      "path": "build-and-run-osf-flow-dark-5e241a4df0511929acc25a85b55ded11.svg"
+    }
+  ]
+}
