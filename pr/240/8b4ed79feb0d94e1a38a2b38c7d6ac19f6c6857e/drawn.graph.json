@@ -1,0 +1,705 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-06T13:02:29.168Z",
+  "title": "Pin the Rust toolchain and tighten empty-collection assertions",
+  "summary": "This change adds a rust-toolchain.toml pinning the workspace to Rust 1.99.0 with clippy and rustfmt, and rewrites a broad set of test assertions across the osf and osf-lint-core crates from `assert!(x.is_empty())` to `assert_eq!(x, Vec::<T>::new())`. The production code paths are untouched: the diff is a toolchain pin plus assertion-style churn in the writing lints, work-item reference scanner, config loader, reviewer roster, moon report parser, agent registry and changeset-risk tests.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4a8d2ac459f9d84c2b6403ee113315c991facee7",
+      "ref": "4a8d2ac459f9d84c2b6403ee113315c991facee7"
+    },
+    "head": {
+      "sha": "8b4ed79feb0d94e1a38a2b38c7d6ac19f6c6857e",
+      "ref": "8b4ed79feb0d94e1a38a2b38c7d6ac19f6c6857e"
+    },
+    "pullRequest": {
+      "number": 240,
+      "url": "https://github.com/open-software-factory/software-factory/pull/240"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "toolchain",
+      "label": "Toolchain",
+      "subtitle": "rustup / cargo",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The new rust-toolchain.toml that every cargo invocation in the workspace now resolves through."
+    },
+    {
+      "id": "crates",
+      "label": "Workspace crates",
+      "subtitle": "osf, osf-lint-core",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "The library and binary crates whose production code is untouched by this change."
+    },
+    {
+      "id": "tests",
+      "label": "Test suites",
+      "subtitle": "unit + integration",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The unit-test modules and integration tests whose empty-collection assertions were rewritten."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "rust-toolchain",
+      "label": "rust-toolchain.toml",
+      "kind": "config",
+      "delta": "added",
+      "lane": "toolchain",
+      "subtitle": "channel 1.99.0, minimal, clippy + rustfmt",
+      "summary": "New workspace-level toolchain pin. Every cargo, clippy and rustfmt invocation in the repository now resolves to Rust 1.99.0 with the minimal profile and the clippy and rustfmt components, instead of whatever toolchain the developer or CI happened to have active.",
+      "files": [
+        {
+          "path": "rust-toolchain.toml",
+          "startLine": 1,
+          "endLine": 4
+        }
+      ],
+      "badges": [
+        "new file"
+      ]
+    },
+    {
+      "id": "cargo",
+      "label": "cargo / rustup",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "build, test, clippy, fmt",
+      "summary": "The build driver that reads rust-toolchain.toml before compiling anything. Unchanged itself, but its resolved compiler version is now fixed by the new pin.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "crates",
+      "subtitle": "lint engine, config, reviewers, work items",
+      "summary": "The main crate. Its production modules — writing lints, work-item reference scanning, config loading, reviewer roster, moon report parsing, agent registry, changeset risk — are not modified; only their test modules changed.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs"
+        },
+        {
+          "path": "crates/osf/src/work_item.rs"
+        },
+        {
+          "path": "crates/osf/src/config.rs"
+        },
+        {
+          "path": "crates/osf/src/reviewers.rs"
+        },
+        {
+          "path": "crates/osf/src/moon.rs"
+        },
+        {
+          "path": "crates/osf/src/agents.rs"
+        },
+        {
+          "path": "crates/osf/src/changeset_risk.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-core",
+      "label": "osf-lint-core",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "crates",
+      "subtitle": "expectation checking",
+      "summary": "The shared lint-core crate. Its expectation checker is untouched; only the test module's empty-vector assertions were rewritten.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-tests",
+      "label": "writing lint tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "osf-unit",
+      "subtitle": "rules_of(...) empty-result assertions",
+      "summary": "The largest cluster of rewrites. Every `assert!(rules_of(...).is_empty())` became `assert_eq!(rules_of(...), Vec::<&str>::new())`, covering bare references, chat-local references, capitalised-word heuristics, contractions, bold sentences and processor-architecture names.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 196,
+          "endLine": 790
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-item-tests",
+      "label": "work-item reference tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "osf-unit",
+      "subtitle": "candidates_both(...) empty-result assertions",
+      "summary": "Rewrites in the reference-candidate tests: prose numbers, HTML entities, tilde fences, unindented fences, inline code spans, HTML comments and block quotes now assert equality against an empty Vec<Reference>.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645,
+          "endLine": 1110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-tests",
+      "label": "config loader tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "osf-unit",
+      "subtitle": "must_explain_names / known_names / reviewers",
+      "summary": "Rewrites in the config tests, asserting empty writing-name lists and an empty reviewer list via equality against Vec::<String>::new().",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1088,
+          "endLine": 1565
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-tests",
+      "label": "reviewer roster tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "osf-unit",
+      "subtitle": "roster and sandbox_check",
+      "summary": "Unit and integration rewrites around the reviewer roster: an empty roster and an empty sandbox_check are now compared against typed empty vectors.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 1069,
+          "endLine": 1090
+        },
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 632,
+          "endLine": 647
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "moon-tests",
+      "label": "moon report tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "osf-unit",
+      "subtitle": "parse_report / parse_query_tasks",
+      "summary": "Two rewrites: a non-empty task list is asserted with assert_ne! against an empty Vec<TaskOutcome>, and an empty query result with assert_eq! against an empty Vec<TaskSlot>.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 710,
+          "endLine": 922
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-tests",
+      "label": "agent registry tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "osf-unit",
+      "subtitle": "name and env emptiness",
+      "summary": "Rewrites in the agent registry tests: an empty name becomes assert_ne!(a.name, \"\") and empty env lists become equality against &[].",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 757,
+          "endLine": 925
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "risk-tests",
+      "label": "changeset risk tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "osf-unit",
+      "subtitle": "signals_for empty result",
+      "summary": "A single rewrite: an empty risk-signal list is now compared against Vec::<String>::new().",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 704
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "expectation-tests",
+      "label": "expectation checker tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "lint-core-unit",
+      "subtitle": "missing / unexpected emptiness",
+      "summary": "Rewrites in osf-lint-core: empty missing and unexpected lists from the expectation checker are now compared against typed empty vectors.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs",
+          "startLine": 190,
+          "endLine": 311
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-rules-tests",
+      "label": "scan rules integration tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "group": "osf-integration",
+      "subtitle": "rule_ids(...) empty-result assertions",
+      "summary": "Integration rewrites: plain text, repository-relative paths, missing-owner rules, denylist misses and normal commit messages now assert equality against an empty Vec<&str> of rule ids.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan_rules.rs",
+          "startLine": 143,
+          "endLine": 490
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cargo-reads-toolchain",
+      "from": "cargo",
+      "to": "rust-toolchain",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "resolves channel 1.99.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one genuinely new runtime relationship: cargo and rustup now read the workspace toolchain pin before building, so the compiler version is fixed for every crate in the workspace.",
+      "files": [
+        {
+          "path": "rust-toolchain.toml",
+          "startLine": 1,
+          "endLine": 4
+        }
+      ]
+    },
+    {
+      "id": "toolchain-pins-osf",
+      "from": "rust-toolchain",
+      "to": "osf-crate",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "compiles under 1.99.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pin applies to the osf crate's build and test runs, which is the reason the assertion rewrites land in the same change.",
+      "files": [
+        {
+          "path": "rust-toolchain.toml",
+          "startLine": 1,
+          "endLine": 4
+        }
+      ]
+    },
+    {
+      "id": "toolchain-pins-lint-core",
+      "from": "rust-toolchain",
+      "to": "lint-core",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "compiles under 1.99.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pin equally applies to osf-lint-core, whose test module was rewritten in the same style.",
+      "files": [
+        {
+          "path": "rust-toolchain.toml",
+          "startLine": 1,
+          "endLine": 4
+        }
+      ]
+    },
+    {
+      "id": "writing-tests-cover-osf",
+      "from": "writing-tests",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "modified",
+      "label": "rules_of(...)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The writing lint tests exercise the osf crate's rule engine; only the assertion form changed, not the calls.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 196,
+          "endLine": 790
+        }
+      ]
+    },
+    {
+      "id": "work-item-tests-cover-osf",
+      "from": "work-item-tests",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "modified",
+      "label": "candidates_both(...)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reference-candidate tests call into the osf work-item scanner; the empty-result assertions were rewritten.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645,
+          "endLine": 1110
+        }
+      ]
+    },
+    {
+      "id": "config-tests-cover-osf",
+      "from": "config-tests",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "modified",
+      "label": "load(...)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The config tests drive the osf config loader and assert on empty writing-name and reviewer lists.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1088,
+          "endLine": 1565
+        }
+      ]
+    },
+    {
+      "id": "reviewer-tests-cover-osf",
+      "from": "reviewer-tests",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "modified",
+      "label": "roster(...)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reviewer tests build a roster and assert on empty sandbox checks.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 1069,
+          "endLine": 1090
+        }
+      ]
+    },
+    {
+      "id": "moon-tests-cover-osf",
+      "from": "moon-tests",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "modified",
+      "label": "parse_report / parse_query_tasks",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The moon tests parse captured reports and assert on empty and non-empty task lists.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 710,
+          "endLine": 922
+        }
+      ]
+    },
+    {
+      "id": "agent-tests-cover-osf",
+      "from": "agent-tests",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "modified",
+      "label": "AGENTS table",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The agent tests walk the static agent registry and assert on empty names and env lists.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 757,
+          "endLine": 925
+        }
+      ]
+    },
+    {
+      "id": "risk-tests-cover-osf",
+      "from": "risk-tests",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "modified",
+      "label": "signals_for(...)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The changeset-risk test asserts an empty signal list for a prose-only diff.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 704
+        }
+      ]
+    },
+    {
+      "id": "expectation-tests-cover-lint-core",
+      "from": "expectation-tests",
+      "to": "lint-core",
+      "kind": "call",
+      "delta": "modified",
+      "label": "check(...)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The expectation tests call the lint-core checker and assert on empty missing and unexpected lists.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs",
+          "startLine": 190,
+          "endLine": 311
+        }
+      ]
+    },
+    {
+      "id": "scan-rules-tests-cover-osf",
+      "from": "scan-rules-tests",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "modified",
+      "label": "scan_text(...)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration tests build rules from a temp repository and assert on empty rule-id lists.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan_rules.rs",
+          "startLine": 143,
+          "endLine": 490
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "toolchain-resolution",
+      "title": "Toolchain resolution before a test run",
+      "summary": "What happens when a developer or CI runs the test suite after this change: cargo resolves the pinned toolchain first, then the rewritten assertions run against the unchanged production code.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "cargo",
+          "label": "cargo / rustup"
+        },
+        {
+          "node": "rust-toolchain",
+          "label": "rust-toolchain.toml"
+        },
+        {
+          "node": "osf-crate",
+          "label": "osf"
+        },
+        {
+          "node": "writing-tests",
+          "label": "writing lint tests"
+        }
+      ],
+      "messages": [
+        {
+          "id": "resolve-channel",
+          "from": "cargo",
+          "to": "rust-toolchain",
+          "label": "read channel = 1.99.0",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "New step: before this change cargo used the ambient toolchain; now the workspace pin decides.",
+          "files": [
+            {
+              "path": "rust-toolchain.toml",
+              "startLine": 1,
+              "endLine": 4
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "ToolchainRequest",
+              "shape": "{ channel: String, profile: String, components: String[] }",
+              "sample": {
+                "channel": "1.99.0",
+                "profile": "minimal",
+                "components": [
+                  "clippy",
+                  "rustfmt"
+                ]
+              },
+              "source": {
+                "path": "rust-toolchain.toml",
+                "startLine": 1,
+                "endLine": 4
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "toolchain-selected",
+          "from": "rust-toolchain",
+          "to": "cargo",
+          "label": "1.99.0 + clippy + rustfmt",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "rust-toolchain.toml",
+              "startLine": 1,
+              "endLine": 4
+            }
+          ]
+        },
+        {
+          "id": "build-osf",
+          "from": "cargo",
+          "to": "osf-crate",
+          "label": "cargo test -p osf",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/mod.rs"
+            }
+          ]
+        },
+        {
+          "id": "run-writing-tests",
+          "from": "osf-crate",
+          "to": "writing-tests",
+          "label": "run test module",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/mod.rs",
+              "startLine": 196,
+              "endLine": 790
+            }
+          ]
+        },
+        {
+          "id": "assert-empty",
+          "from": "writing-tests",
+          "to": "writing-tests",
+          "label": "assert_eq!(rules_of(...), Vec::<&str>::new())",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "The rewritten assertion form: an empty result is now compared against a typed empty vector rather than checked with is_empty().",
+          "files": [
+            {
+              "path": "crates/osf/src/lints/writing/mod.rs",
+              "startLine": 196,
+              "endLine": 790
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 11,
+    "additions": 108,
+    "deletions": 57,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workspace-architecture",
+      "title": "Workspace architecture",
+      "lens": "architecture",
+      "summary": "The toolchain pin sits above the two workspace crates, and the rewritten test suites hang off the crates they exercise.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "test-suites",
+      "title": "Test suites touched",
+      "lens": "architecture",
+      "summary": "The eleven test modules and integration files whose empty-collection assertions were rewritten, grouped by crate.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "tests"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "toolchain-flow",
+      "title": "Toolchain resolution flow",
+      "lens": "data-flow",
+      "summary": "How a test run now resolves its compiler version through the new pin before the rewritten assertions execute.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "toolchain-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

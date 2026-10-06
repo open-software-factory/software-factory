@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "8b4ed79feb0d94e1a38a2b38c7d6ac19f6c6857e",
+    "contentHash": "15138f819dff87bea966a79705a0f6ce"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "workspace-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workspace-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4d33a9f2ed22eec5d57113fa3dced94d",
+      "bytes": 23045,
+      "width": 1423,
+      "height": 760,
+      "animated": false,
+      "path": "workspace-architecture-light-4d33a9f2ed22eec5d57113fa3dced94d.svg"
+    },
+    {
+      "id": "workspace-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workspace-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f21e0c1b65cf6749a9f09bf82c93fecd",
+      "bytes": 23322,
+      "width": 1423,
+      "height": 760,
+      "animated": false,
+      "path": "workspace-architecture-dark-f21e0c1b65cf6749a9f09bf82c93fecd.svg"
+    },
+    {
+      "id": "test-suites-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "test-suites",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7b8400a94c73ed0f5af132c4f2cbf486",
+      "bytes": 11782,
+      "width": 436,
+      "height": 760,
+      "animated": false,
+      "path": "test-suites-light-7b8400a94c73ed0f5af132c4f2cbf486.svg"
+    },
+    {
+      "id": "test-suites-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "test-suites",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bcb68709d24a6e27e941e861fa4f65e3",
+      "bytes": 11990,
+      "width": 436,
+      "height": 760,
+      "animated": false,
+      "path": "test-suites-dark-bcb68709d24a6e27e941e861fa4f65e3.svg"
+    },
+    {
+      "id": "toolchain-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "toolchain-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f7699544ecec9b4a59b979d3e9957e0c",
+      "bytes": 11783,
+      "width": 1631,
+      "height": 357,
+      "animated": true,
+      "path": "toolchain-flow-light-f7699544ecec9b4a59b979d3e9957e0c.svg"
+    },
+    {
+      "id": "toolchain-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "toolchain-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7c5f021ecfaa33b3a3fc786afcb8a560",
+      "bytes": 11898,
+      "width": 1631,
+      "height": 357,
+      "animated": true,
+      "path": "toolchain-flow-dark-7c5f021ecfaa33b3a3fc786afcb8a560.svg"
+    }
+  ]
+}
