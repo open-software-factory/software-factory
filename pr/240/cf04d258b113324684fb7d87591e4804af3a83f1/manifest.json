@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-pinned-toolchain-and-assert-style",
+    "headSha": "cf04d258b113324684fb7d87591e4804af3a83f1",
+    "contentHash": "f4fd9954a5a7e2d1733ba19f4d3f8e66"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "view-ci-toolchain-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-ci-toolchain",
+      "mediaType": "image/svg+xml",
+      "contentHash": "51a346ee402aa980cb022747d0e660b3",
+      "bytes": 13833,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "view-ci-toolchain-light-51a346ee402aa980cb022747d0e660b3.svg"
+    },
+    {
+      "id": "view-ci-toolchain-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-ci-toolchain",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d1d80751e3a59fd3b7e6dc76e18d26cc",
+      "bytes": 13972,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "view-ci-toolchain-dark-d1d80751e3a59fd3b7e6dc76e18d26cc.svg"
+    },
+    {
+      "id": "view-osf-test-surface-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-osf-test-surface",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1cc8350f01e68edac2b71c0d4ee539d5",
+      "bytes": 18667,
+      "width": 900,
+      "height": 646,
+      "animated": false,
+      "path": "view-osf-test-surface-light-1cc8350f01e68edac2b71c0d4ee539d5.svg"
+    },
+    {
+      "id": "view-osf-test-surface-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-osf-test-surface",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a073987b3f556dd0e4f81ffbc743e86b",
+      "bytes": 18898,
+      "width": 900,
+      "height": 646,
+      "animated": false,
+      "path": "view-osf-test-surface-dark-a073987b3f556dd0e4f81ffbc743e86b.svg"
+    },
+    {
+      "id": "view-ci-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "view-ci-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "75f75d61bf81bc1ec1a9bf90521a84de",
+      "bytes": 15759,
+      "width": 1526,
+      "height": 451,
+      "animated": true,
+      "path": "view-ci-flow-light-75f75d61bf81bc1ec1a9bf90521a84de.svg"
+    },
+    {
+      "id": "view-ci-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "view-ci-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2462111c528f9fa553ddd65359042418",
+      "bytes": 15920,
+      "width": 1526,
+      "height": 451,
+      "animated": true,
+      "path": "view-ci-flow-dark-2462111c528f9fa553ddd65359042418.svg"
+    }
+  ]
+}

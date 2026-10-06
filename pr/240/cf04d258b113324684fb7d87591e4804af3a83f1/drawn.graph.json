@@ -1,0 +1,870 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-pinned-toolchain-and-assert-style",
+  "generatedAt": "2026-10-06T13:43:58.617Z",
+  "title": "Pin Rust 1.99.0 in CI and normalise empty-collection assertions",
+  "summary": "Two unrelated but small changes travel together. CI now installs and selects a pinned Rust 1.99.0 toolchain (with clippy and rustfmt) in both the build and lint jobs, because the dev container image still ships an older Rust. Across the osf crates, `assert!(x.is_empty())` is rewritten as `assert_eq!(x, Vec::<T>::new())` in unit and integration tests, so a failure prints the offending contents instead of a bare boolean. No production logic changes: the lint rules, config loader, reviewer roster, work-item reference scanner and moon report parser behave exactly as before.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4a8d2ac459f9d84c2b6403ee113315c991facee7",
+      "ref": "4a8d2ac459f9d84c2b6403ee113315c991facee7"
+    },
+    "head": {
+      "sha": "cf04d258b113324684fb7d87591e4804af3a83f1",
+      "ref": "cf04d258b113324684fb7d87591e4804af3a83f1"
+    },
+    "pullRequest": {
+      "number": 240,
+      "url": "https://github.com/open-software-factory/software-factory/pull/240"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "developer",
+      "label": "Developer / PR",
+      "subtitle": "the human and the pull request",
+      "order": 0
+    },
+    {
+      "id": "ci",
+      "label": "GitHub Actions CI",
+      "subtitle": "build and lint jobs",
+      "order": 1
+    },
+    {
+      "id": "toolchain",
+      "label": "Rust toolchain",
+      "subtitle": "rustup, cargo, clippy, rustfmt",
+      "order": 2
+    },
+    {
+      "id": "osf",
+      "label": "osf crates",
+      "subtitle": "lint core, config, reviewers, work items",
+      "order": 3
+    },
+    {
+      "id": "tests",
+      "label": "Test suites",
+      "subtitle": "unit and integration tests",
+      "order": 4
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request",
+      "label": "Pull request",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "developer",
+      "subtitle": "branch under review",
+      "summary": "The change under review: a CI toolchain pin plus assertion-style rewrites in the osf test suites.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "build + lint jobs",
+      "summary": "Both jobs replace `rustup component add clippy rustfmt` with an explicit install of Rust 1.99.0 and `rustup default 1.99.0`, so CI no longer inherits whatever Rust the dev container image ships.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 168,
+          "endLine": 180
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 299,
+          "endLine": 310
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-job",
+      "label": "Build job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "detect, install, cache, build",
+      "summary": "The build job now installs the pinned toolchain only when a root Cargo.toml is detected, then caches and builds against it.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 168,
+          "endLine": 180
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-job",
+      "label": "Lint job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "clippy + rustfmt",
+      "summary": "The lint job installs the same pinned toolchain before running clippy and rustfmt, keeping both jobs on one compiler version.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 299,
+          "endLine": 310
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rustup",
+      "label": "rustup",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "toolchain installer",
+      "summary": "Installs the 1.99.0 toolchain with the minimal profile and the clippy and rustfmt components, then makes it the default.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "rust-1-99",
+      "label": "Rust 1.99.0",
+      "kind": "package",
+      "delta": "added",
+      "lane": "toolchain",
+      "subtitle": "pinned compiler",
+      "summary": "The pinned compiler version both CI jobs now select. Previously the jobs used whatever toolchain the container image provided.",
+      "files": [],
+      "badges": [
+        "pinned"
+      ]
+    },
+    {
+      "id": "clippy",
+      "label": "clippy",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "lint component",
+      "summary": "Installed as part of the pinned toolchain rather than added to an existing one.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "rustfmt",
+      "label": "rustfmt",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "format component",
+      "summary": "Installed as part of the pinned toolchain rather than added to an existing one.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "osf-lint-core",
+      "label": "osf-lint-core",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "expectation checks",
+      "summary": "Expectation matching is untouched; only its tests switch to `assert_eq!` against an empty Vec so a mismatch prints the actual findings.",
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs",
+          "startLine": 190,
+          "endLine": 200
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-config",
+      "label": "osf config loader",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "osf.toml resolution",
+      "summary": "Config loading and defaulting are unchanged; tests now compare `must_explain_names`, `known_names` and `reviewers` against empty Vecs.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1088,
+          "endLine": 1110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-reviewers",
+      "label": "Reviewer roster",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "agent roster + sandbox checks",
+      "summary": "Roster construction and sandbox-check assembly are unchanged; tests assert empty rosters and empty sandbox checks with `assert_eq!`.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 1069,
+          "endLine": 1090
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-work-item",
+      "label": "Work-item references",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "issue reference scanner",
+      "summary": "Reference candidate extraction is unchanged; tests covering fenced blocks, HTML comments, block quotes and inline code now compare against an empty Vec of references.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645,
+          "endLine": 660
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-writing-lints",
+      "label": "Writing lints",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "prose rule engine",
+      "summary": "The writing rule engine is unchanged; its tests now assert empty rule lists with `assert_eq!` so a regression shows which rule fired.",
+      "files": [
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 196,
+          "endLine": 215
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-moon",
+      "label": "Moon report parser",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "task report + query parsing",
+      "summary": "Report and query parsing are unchanged; tests compare parsed task lists against empty Vecs.",
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 710,
+          "endLine": 720
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-agents",
+      "label": "Agent registry",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "agent definitions",
+      "summary": "Agent definitions are unchanged; tests assert non-empty names and empty env lists with `assert_ne!` and `assert_eq!`.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 757,
+          "endLine": 770
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-changeset-risk",
+      "label": "Changeset risk",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "risk signal extraction",
+      "summary": "Risk signal extraction is unchanged; one test now compares the signal list against an empty Vec.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 704,
+          "endLine": 710
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unit-tests",
+      "label": "Unit tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "subtitle": "in-crate #[cfg(test)] modules",
+      "summary": "The bulk of the diff: `assert!(x.is_empty())` becomes `assert_eq!(x, Vec::<T>::new())` across expectation, config, reviewers, work-item, writing-lint, moon, agents and changeset-risk test modules.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645,
+          "endLine": 660
+        },
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 196,
+          "endLine": 215
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "integration-tests",
+      "label": "Integration tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "subtitle": "reviewers + scan rules",
+      "summary": "The reviewers and scan_rules integration suites adopt the same empty-Vec assertion style for sandbox checks and rule-id lists.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 632,
+          "endLine": 648
+        },
+        {
+          "path": "crates/osf/tests/scan_rules.rs",
+          "startLine": 143,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-triggers-ci",
+      "from": "pull-request",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "push / pull_request",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "ci-runs-build",
+      "from": "ci-workflow",
+      "to": "build-job",
+      "kind": "call",
+      "delta": "modified",
+      "label": "build job",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "ci-runs-lint",
+      "from": "ci-workflow",
+      "to": "lint-job",
+      "kind": "call",
+      "delta": "modified",
+      "label": "lint job",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-installs-toolchain",
+      "from": "build-job",
+      "to": "rustup",
+      "kind": "call",
+      "delta": "modified",
+      "label": "toolchain install 1.99.0",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 168,
+          "endLine": 180
+        }
+      ]
+    },
+    {
+      "id": "lint-installs-toolchain",
+      "from": "lint-job",
+      "to": "rustup",
+      "kind": "call",
+      "delta": "modified",
+      "label": "toolchain install 1.99.0",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 299,
+          "endLine": 310
+        }
+      ]
+    },
+    {
+      "id": "rustup-provides-rust",
+      "from": "rustup",
+      "to": "rust-1-99",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "minimal profile",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "rust-1-99-includes-clippy",
+      "from": "rust-1-99",
+      "to": "clippy",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "rust-1-99-includes-rustfmt",
+      "from": "rust-1-99",
+      "to": "rustfmt",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-compiles-osf",
+      "from": "build-job",
+      "to": "osf-config",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "cargo build",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-checks-osf",
+      "from": "lint-job",
+      "to": "osf-writing-lints",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "cargo clippy",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "unit-tests-cover-osf",
+      "from": "unit-tests",
+      "to": "osf-work-item",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assert_eq! empty Vec",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645,
+          "endLine": 660
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-config",
+      "from": "unit-tests",
+      "to": "osf-config",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assert_eq! empty Vec",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1088,
+          "endLine": 1110
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-lint-core",
+      "from": "unit-tests",
+      "to": "osf-lint-core",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assert_eq! empty Vec",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf-lint-core/src/expectation.rs",
+          "startLine": 190,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-reviewers",
+      "from": "unit-tests",
+      "to": "osf-reviewers",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assert_eq! empty Vec",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 1069,
+          "endLine": 1090
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-moon",
+      "from": "unit-tests",
+      "to": "osf-moon",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assert_eq! empty Vec",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/moon.rs",
+          "startLine": 710,
+          "endLine": 720
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-agents",
+      "from": "unit-tests",
+      "to": "osf-agents",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assert_ne! / assert_eq!",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 757,
+          "endLine": 770
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-risk",
+      "from": "unit-tests",
+      "to": "osf-changeset-risk",
+      "kind": "call",
+      "delta": "modified",
+      "label": "assert_eq! empty Vec",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 704,
+          "endLine": 710
+        }
+      ]
+    },
+    {
+      "id": "integration-tests-cover-reviewers",
+      "from": "integration-tests",
+      "to": "osf-reviewers",
+      "kind": "call",
+      "delta": "modified",
+      "label": "sandbox_check empty",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 632,
+          "endLine": 648
+        }
+      ]
+    },
+    {
+      "id": "integration-tests-cover-writing",
+      "from": "integration-tests",
+      "to": "osf-writing-lints",
+      "kind": "call",
+      "delta": "modified",
+      "label": "rule_ids empty",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/scan_rules.rs",
+          "startLine": 143,
+          "endLine": 150
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "ci-toolchain-pin",
+      "title": "CI installs the pinned Rust toolchain",
+      "summary": "Both CI jobs now install Rust 1.99.0 explicitly and make it the default before building or linting, instead of adding components to whatever toolchain the container image already had.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "ci-workflow",
+          "label": "ci.yml"
+        },
+        {
+          "node": "build-job",
+          "label": "Build job"
+        },
+        {
+          "node": "lint-job",
+          "label": "Lint job"
+        },
+        {
+          "node": "rustup",
+          "label": "rustup"
+        },
+        {
+          "node": "rust-1-99",
+          "label": "Rust 1.99.0"
+        }
+      ],
+      "messages": [
+        {
+          "id": "ci-dispatch-build",
+          "from": "ci-workflow",
+          "to": "build-job",
+          "label": "run build job",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 168,
+              "endLine": 180
+            }
+          ]
+        },
+        {
+          "id": "build-install",
+          "from": "build-job",
+          "to": "rustup",
+          "label": "toolchain install 1.99.0 --profile minimal --component clippy,rustfmt",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 168,
+              "endLine": 180
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "ToolchainSpec",
+              "shape": "{ version: \"1.99.0\", profile: \"minimal\", components: [\"clippy\", \"rustfmt\"] }",
+              "sample": {
+                "version": "1.99.0",
+                "profile": "minimal",
+                "components": [
+                  "clippy",
+                  "rustfmt"
+                ]
+              },
+              "before": {
+                "version": "container-default",
+                "profile": "default",
+                "components": [
+                  "clippy",
+                  "rustfmt"
+                ]
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "build-default",
+          "from": "build-job",
+          "to": "rustup",
+          "label": "rustup default 1.99.0",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 168,
+              "endLine": 180
+            }
+          ]
+        },
+        {
+          "id": "rustup-installs",
+          "from": "rustup",
+          "to": "rust-1-99",
+          "label": "install toolchain",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "ci-dispatch-lint",
+          "from": "ci-workflow",
+          "to": "lint-job",
+          "label": "run lint job",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 299,
+              "endLine": 310
+            }
+          ]
+        },
+        {
+          "id": "lint-install",
+          "from": "lint-job",
+          "to": "rustup",
+          "label": "toolchain install 1.99.0 --profile minimal --component clippy,rustfmt",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 299,
+              "endLine": 310
+            }
+          ]
+        },
+        {
+          "id": "lint-default",
+          "from": "lint-job",
+          "to": "rustup",
+          "label": "rustup default 1.99.0",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 299,
+              "endLine": 310
+            }
+          ]
+        },
+        {
+          "id": "lint-uses-toolchain",
+          "from": "lint-job",
+          "to": "rust-1-99",
+          "label": "cargo clippy / cargo fmt --check",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 11,
+    "additions": 114,
+    "deletions": 61,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "view-ci-toolchain",
+      "title": "CI toolchain pin",
+      "lens": "architecture",
+      "summary": "The two GitHub Actions jobs and the pinned Rust 1.99.0 toolchain they now install.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "ci",
+          "toolchain"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-osf-test-surface",
+      "title": "osf crates and their test suites",
+      "lens": "architecture",
+      "summary": "The osf modules whose tests changed, and the unit and integration suites that exercise them.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "osf",
+          "tests"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "view-ci-flow",
+      "title": "Toolchain install sequence",
+      "lens": "data-flow",
+      "summary": "Ordered steps each CI job takes to install and select the pinned toolchain.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "ci-toolchain-pin"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
