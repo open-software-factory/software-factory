@@ -1,0 +1,319 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-06T12:10:00.945Z",
+  "title": "tree-sitter 0.25.10 → 0.27.0 in the osf crate",
+  "summary": "A dependency bump: the `osf` crate pins `tree-sitter` to 0.27.0 instead of 0.25.10, and Cargo.lock follows with the new version, checksum, and a dropped `regex-syntax` transitive dependency. No source code changes — the Rust parser grammar (`tree-sitter-rust` 0.24.2) and every consumer of the tree-sitter runtime are untouched, so the blast radius is the parser runtime ABI underneath the osf crate's syntax analysis.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4a8d2ac459f9d84c2b6403ee113315c991facee7",
+      "ref": "4a8d2ac459f9d84c2b6403ee113315c991facee7"
+    },
+    "head": {
+      "sha": "77dd18a457c1c69112ec3d773fdf7d2a329d03f0",
+      "ref": "77dd18a457c1c69112ec3d773fdf7d2a329d03f0"
+    },
+    "pullRequest": {
+      "number": 218,
+      "url": "https://github.com/open-software-factory/software-factory/pull/218"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI / entry",
+      "subtitle": "osf binary",
+      "order": 0
+    },
+    {
+      "id": "osf",
+      "label": "osf crate",
+      "subtitle": "analysis + orchestration",
+      "order": 1
+    },
+    {
+      "id": "parsing",
+      "label": "Parsing runtime",
+      "subtitle": "tree-sitter",
+      "order": 2
+    },
+    {
+      "id": "grammars",
+      "label": "Grammars",
+      "subtitle": "language bindings",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "cli",
+      "summary": "The command-line entry point that drives the osf crate's analysis commands. Unchanged by this diff; it is the reason the parser runtime is reachable at all.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "crates/osf/Cargo.toml",
+      "summary": "The crate whose manifest pins the tree-sitter runtime. This diff changes only that pin, from =0.25.10 to =0.27.0; no Rust source in the crate is touched.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-runtime",
+      "label": "tree-sitter runtime",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "parsing",
+      "subtitle": "0.25.10 → 0.27.0",
+      "summary": "The C/Rust parser runtime that builds and walks syntax trees. Two minor versions newer; the lockfile also shows its transitive `regex-syntax` dependency disappearing, so the runtime now resolves regex syntax through a different path.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1717,
+          "endLine": 1728
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-rust",
+      "label": "tree-sitter-rust",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "grammars",
+      "subtitle": "=0.24.2",
+      "summary": "The Rust grammar binding, still pinned at 0.24.2. It is compiled against the runtime, so it is the first thing that would notice an ABI break in the bump — but its pin did not move.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 39,
+          "endLine": 39
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cargo-lock",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "resolved dependency graph",
+      "summary": "The resolved graph: tree-sitter moves to 0.27.0 with a new checksum, and `regex-syntax` drops out of its dependency list. This is the only other file in the diff.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1716,
+          "endLine": 1728
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-cli-to-osf-crate",
+      "from": "osf-cli",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "commands",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI invokes the osf crate's analysis commands; unchanged, but it is how the parser runtime gets exercised.",
+      "files": []
+    },
+    {
+      "id": "osf-crate-to-runtime",
+      "from": "osf-crate",
+      "to": "tree-sitter-runtime",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=0.27.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The pin this change is about: the osf crate now requires tree-sitter 0.27.0 rather than 0.25.10.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "runtime-to-grammar",
+      "from": "tree-sitter-runtime",
+      "to": "tree-sitter-rust",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "grammar ABI",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The grammar binding is compiled against the runtime. Its pin is unchanged, so the compatibility question raised by the bump lives on this edge.",
+      "files": []
+    },
+    {
+      "id": "osf-crate-to-lock",
+      "from": "osf-crate",
+      "to": "cargo-lock",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "resolves",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The manifest pin resolves into the lockfile entry that moved to 0.27.0.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1717,
+          "endLine": 1728
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "parse-source-file",
+      "title": "Parsing a source file after the bump",
+      "summary": "The path a file takes through the parser runtime. Only the runtime version at the end of the chain changed; the sequence itself is identical to before.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-cli",
+          "label": "osf CLI"
+        },
+        {
+          "node": "osf-crate",
+          "label": "osf crate"
+        },
+        {
+          "node": "tree-sitter-runtime",
+          "label": "tree-sitter"
+        },
+        {
+          "node": "tree-sitter-rust",
+          "label": "rust grammar"
+        }
+      ],
+      "messages": [
+        {
+          "id": "invoke-parse",
+          "from": "osf-cli",
+          "to": "osf-crate",
+          "label": "analyze command",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Unchanged entry into the crate.",
+          "files": []
+        },
+        {
+          "id": "load-grammar",
+          "from": "osf-crate",
+          "to": "tree-sitter-rust",
+          "label": "load Rust grammar",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The grammar binding is still pinned at 0.24.2.",
+          "files": []
+        },
+        {
+          "id": "build-tree",
+          "from": "osf-crate",
+          "to": "tree-sitter-runtime",
+          "label": "parse source",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Now served by tree-sitter 0.27.0 instead of 0.25.10 — the only step whose implementation moved.",
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 38,
+              "endLine": 38
+            }
+          ]
+        },
+        {
+          "id": "return-tree",
+          "from": "tree-sitter-runtime",
+          "to": "osf-crate",
+          "label": "syntax tree",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The tree handed back to the crate; the crate's own code is untouched.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 3,
+    "deletions": 4,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Dependency bump across the parsing stack",
+      "lens": "architecture",
+      "summary": "The osf crate's pin on the tree-sitter runtime, and the lockfile resolution that follows it.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "parsing-runtime-detail",
+      "title": "Parsing runtime and grammar binding",
+      "lens": "architecture",
+      "summary": "Narrows to the runtime/grammar pair, where the version bump meets the unchanged grammar pin.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "tree-sitter-runtime",
+          "tree-sitter-rust",
+          "cargo-lock"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
