@@ -27,6 +27,21 @@ impl CleanCopy {
     /// Names the reason when git cannot list the files, or the folder or a
     /// file cannot be written.
     pub fn create(root: &Path) -> Result<Self, String> {
+        Self::copy(root, false)
+    }
+
+    /// The same copy as [`create`](Self::create), then made read-only, deepest
+    /// first, so the coding agent that starts in it cannot change it.
+    ///
+    /// # Errors
+    /// Names the reason when git cannot list the files, the folder or a file
+    /// cannot be written, or its read-only mode cannot be set.
+    pub fn create_read_only(root: &Path) -> Result<Self, String> {
+        Self::copy(root, true)
+    }
+
+    /// The one copy body both constructors share.
+    fn copy(root: &Path, read_only: bool) -> Result<Self, String> {
         static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let mut files = git::tracked_files(root, None).map_err(|e| format!("files: {e}"))?;
         files.extend(git::untracked_files(root).map_err(|e| format!("files: {e}"))?);
@@ -51,6 +66,9 @@ impl CleanCopy {
         let left_out = agents::project_settings();
         for rel in &files {
             copy.add(root, rel, &left_out)?;
+        }
+        if read_only {
+            set_read_only_tree(&copy.dir, true)?;
         }
         Ok(copy)
     }
@@ -100,8 +118,55 @@ impl CleanCopy {
     }
 }
 
+/// Turns `path`'s write permission off or on for every file and folder under
+/// it, children before the folder that holds them.
+fn set_read_only_tree(path: &Path, read_only: bool) -> Result<(), String> {
+    if path.is_dir() {
+        let entries =
+            std::fs::read_dir(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        for entry in entries {
+            let child = entry
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?
+                .path();
+            set_read_only_tree(&child, read_only)?;
+        }
+    }
+    set_read_only(path, read_only)
+}
+
+/// Turns `path`'s write permission off or on: files 0o444 and folders 0o555 on
+/// Unix, the read-only attribute on each file elsewhere.
+fn set_read_only(path: &Path, read_only: bool) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = match (path.is_dir(), read_only) {
+            (true, true) => 0o555,
+            (true, false) => 0o700,
+            (false, true) => 0o444,
+            (false, false) => 0o600,
+        };
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+            .map_err(|e| format!("cannot protect {}: {e}", path.display()))
+    }
+    #[cfg(not(unix))]
+    {
+        // Windows carries read-only only on a file, and it is best effort.
+        if path.is_dir() {
+            return Ok(());
+        }
+        let mut permissions = std::fs::metadata(path)
+            .map_err(|e| format!("cannot protect {}: {e}", path.display()))?
+            .permissions();
+        permissions.set_readonly(read_only);
+        let _ = std::fs::set_permissions(path, permissions);
+        Ok(())
+    }
+}
+
 impl Drop for CleanCopy {
     fn drop(&mut self) {
+        let _ = set_read_only_tree(&self.dir, false);
         let _ = std::fs::remove_dir_all(&self.dir);
     }
 }
@@ -208,6 +273,49 @@ mod tests {
     fn the_copy_is_removed_when_it_is_dropped() {
         let root = repo_with(&[("a.txt", "a")]);
         let copy = CleanCopy::create(&root).expect("copy creates");
+        let dir = copy.dir().to_path_buf();
+        assert!(dir.join("a.txt").is_file());
+        drop(copy);
+        assert!(!dir.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_read_only_copy_has_read_only_files_and_folders_and_resists_writing() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let root = repo_with(&[("a.txt", "a"), ("dir/b.txt", "b")]);
+        let copy = CleanCopy::create_read_only(&root).expect("copy creates");
+        let mode = |path: &Path| {
+            std::fs::metadata(path)
+                .expect("metadata")
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode(copy.dir()), 0o555);
+        assert_eq!(mode(&copy.dir().join("a.txt")), 0o444);
+        assert_eq!(mode(&copy.dir().join("dir")), 0o555);
+        assert_eq!(mode(&copy.dir().join("dir/b.txt")), 0o444);
+        let err = std::fs::write(copy.dir().join("new.txt"), "x").expect_err("write fails");
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+    }
+
+    #[test]
+    fn a_read_only_copy_holds_the_same_files_as_a_writable_one() {
+        let root = repo_with(&[
+            ("src/lib.rs", "fn one() {}\n"),
+            ("README.md", "text\n"),
+            ("nested/deep/note.md", "x"),
+        ]);
+        let writable = CleanCopy::create(&root).expect("copy creates");
+        let read_only = CleanCopy::create_read_only(&root).expect("copy creates");
+        assert_eq!(listed(read_only.dir()), listed(writable.dir()));
+    }
+
+    #[test]
+    fn a_read_only_copy_is_removed_when_it_is_dropped() {
+        let root = repo_with(&[("a.txt", "a")]);
+        let copy = CleanCopy::create_read_only(&root).expect("copy creates");
         let dir = copy.dir().to_path_buf();
         assert!(dir.join("a.txt").is_file());
         drop(copy);
