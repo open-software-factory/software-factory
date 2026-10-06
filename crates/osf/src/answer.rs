@@ -117,7 +117,7 @@ fn fenced_blocks(raw: &str) -> Vec<String> {
 /// with no names at all.
 fn schema_error_reason(error: &jsonschema::ValidationError) -> String {
     use jsonschema::error::ValidationErrorKind as Kind;
-    let detail = match &error.kind {
+    let detail = match error.kind() {
         Kind::AdditionalProperties { .. } | Kind::UnevaluatedProperties { .. } => {
             "an unexpected field".to_string()
         }
@@ -125,7 +125,7 @@ fn schema_error_reason(error: &jsonschema::ValidationError) -> String {
     };
     format!(
         "the answer does not match its schema at \"{}\": {detail}",
-        error.instance_path
+        error.instance_path()
     )
 }
 

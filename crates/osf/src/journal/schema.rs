@@ -28,8 +28,8 @@ pub fn validate(event: &serde_json::Value) -> Result<(), Vec<String>> {
     let reasons: Vec<String> = validator()
         .iter_errors(event)
         .map(|error| {
-            let path = &error.instance_path;
-            let label = if path.as_str().is_empty() {
+            let path = error.instance_path();
+            let label = if path.is_empty() {
                 "(root)"
             } else {
                 path.as_str()
