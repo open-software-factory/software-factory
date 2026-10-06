@@ -447,7 +447,9 @@ RUN set -eu; \
     done; \
     rm -rf /opt/dsh-profile
 
-# The hook files from osf.toml, written by `osf hooks install --agents`.
+# The home hook files from osf.toml, written by `osf hooks install --agents`; the home copies stay.
+# The system copies below are the ones a changed HOME cannot move.
+# omp and dsh have no system-wide location, so their hook files stay under the home folder only.
 COPY osf.toml /tmp/osf-hooks/osf.toml
 RUN set -eu; \
     stamp=/tmp/osf-hooks.stamp; \
@@ -469,6 +471,17 @@ RUN set -eu; \
           chown root:root "$dir"; \
           chmod 1777 "$dir" ;; \
       esac; \
+    done; \
+    for pair in "${DEV_HOME}/.claude/settings.json:/etc/claude-code/managed-settings.json" \
+                "${DEV_HOME}/.config/opencode/opencode.json:/etc/opencode/opencode.json"; do \
+      src="${pair%%:*}"; \
+      dst="${pair#*:}"; \
+      if [ -f "$src" ]; then \
+        mkdir -p "$(dirname "$dst")"; \
+        install -o root -g root -m 0444 "$src" "$dst"; \
+        chown root:root "$(dirname "$dst")"; \
+        chmod 0555 "$(dirname "$dst")"; \
+      fi; \
     done; \
     rm -rf /tmp/osf-hooks "$stamp"
 

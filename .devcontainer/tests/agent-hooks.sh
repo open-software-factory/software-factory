@@ -3,9 +3,10 @@
 # crates/osf/src/agents.rs: every enabled agent's hook file exists, names
 # osf, is owned by root, and the current user cannot write to it; a disabled
 # agent has none. osf hook itself answers a sample stop and a sample prompt
-# payload. Names no agent directly; everything it checks comes from
-# `osf agents list --json`, run from the folder that holds osf.toml. Run by
-# hand, inside a container, from that folder, with: sh tests/agent-hooks.sh
+# payload. The home paths come from `osf agents list --json`, run from the
+# folder that holds osf.toml; a small map below adds the system-wide path of
+# the two agents whose installed binary pins one. Run by hand, inside a
+# container, from that folder, with: sh tests/agent-hooks.sh
 set -eu
 
 TOTAL=0
@@ -53,6 +54,16 @@ check_enabled_hook() {
   fi
 }
 
+# system_hook_file AGENT: the system-wide hook file whose path an installed
+# agent binary pins, or nothing for an agent that reads no system-wide file.
+system_hook_file() {
+  case "$1" in
+    claude) printf '%s\n' /etc/claude-code/managed-settings.json ;;
+    opencode) printf '%s\n' /etc/opencode/opencode.json ;;
+    *) ;;
+  esac
+}
+
 # Every row `osf agents list --json` prints for the osf.toml in this folder.
 # The run happens here, in the folder that holds that file.
 rows="$(osf agents list --json)"
@@ -88,6 +99,25 @@ while [ "$i" -lt "$count" ]; do
       fi
     fi
   done
+  # A mapped agent has one system-wide copy a changed HOME cannot move.
+  system="$(system_hook_file "$agent")"
+  if [ -n "$system" ]; then
+    if [ "$enabled" = "true" ]; then
+      check_enabled_hook "$agent" "$system"
+      home_path="$HOME/$hooks"
+      if cmp -s "$home_path" "$system"; then
+        pass "$agent: system hook file $system has the home hook file's bytes"
+      else
+        fail "$agent: system hook file $system has the home hook file's bytes"
+      fi
+    else
+      if [ -e "$system" ]; then
+        fail "$agent: disabled agent has no system hook file at $system"
+      else
+        pass "$agent: disabled agent has no system hook file"
+      fi
+    fi
+  fi
   i=$((i + 1))
 done
 
