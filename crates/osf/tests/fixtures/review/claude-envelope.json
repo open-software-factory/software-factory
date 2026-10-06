@@ -1,0 +1,24 @@
+{
+  "type": "result",
+  "subtype": "success",
+  "session_id": "test-session-0000",
+  "total_cost_usd": 0.0123,
+  "result": "See structured_output.",
+  "structured_output": {
+    "lens": "correctness",
+    "scores": {
+      "c1": 0.9,
+      "c2": 0.8
+    },
+    "findings": [
+      {
+        "path": "src/lib.rs",
+        "line": 42,
+        "quote": "let x = compute();",
+        "severity": "minor",
+        "action": "should-fix",
+        "body": "rename x, its purpose is not obvious at the call site"
+      }
+    ]
+  }
+}
