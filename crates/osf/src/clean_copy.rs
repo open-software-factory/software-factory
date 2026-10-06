@@ -159,8 +159,8 @@ fn set_read_only(path: &Path, read_only: bool) -> Result<(), String> {
             .map_err(|e| format!("cannot protect {}: {e}", path.display()))?
             .permissions();
         permissions.set_readonly(read_only);
-        let _ = std::fs::set_permissions(path, permissions);
-        Ok(())
+        std::fs::set_permissions(path, permissions)
+            .map_err(|e| format!("cannot protect {}: {e}", path.display()))
     }
 }
 
