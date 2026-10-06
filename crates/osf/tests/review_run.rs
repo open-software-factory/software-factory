@@ -3518,6 +3518,37 @@ fn a_lens_past_the_per_attempt_limit_is_stopped_naming_that_limit() {
     );
 }
 
+/// A total limit too large to count from now is refused before any reviewer
+/// starts, naming the setting, rather than panicking while adding it.
+#[test]
+#[cfg(unix)]
+fn a_total_limit_too_large_is_refused_naming_the_setting() {
+    let fakes = Fakes::new("", &[("opencode", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo_with_active_lenses(
+        "too-large-total-limit",
+        &format!(
+            "[review]\ntotal_timeout_seconds = 9223372036854775807\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &["correctness"],
+    );
+    let home = common::isolated_home("review-run-too-large-total-limit");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("total_timeout_seconds"), "{stderr}");
+}
+
 /// The whole-run limit stops the lens that is running and records each lens
 /// that never started, without a context error that would hide its journal
 /// event.

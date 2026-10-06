@@ -228,6 +228,9 @@ pub const DEFAULT_REVIEW_TIMEOUT_SECS: u64 = 1800;
 /// The whole reviewer run's timeout, in seconds, `review_config` reports when `[review]` names none.
 pub const DEFAULT_REVIEW_TOTAL_TIMEOUT_SECS: u64 = 2700;
 
+/// The largest value `review_config` accepts for either review timeout, in seconds.
+pub const MAX_REVIEW_TIMEOUT_SECS: u64 = 86_400;
+
 /// The `[agents]` section of a repository's own `osf.toml`: which of the
 /// agents in [`crate::agents::AGENTS`] it uses. Every field left out takes
 /// its default from that list; [`crate::agents::resolve`] checks the rest.
@@ -366,10 +369,26 @@ pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
             path.display()
         )));
     }
+    if config.timeout_seconds > MAX_REVIEW_TIMEOUT_SECS {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: timeout_seconds must be at most {} (24 hours), found {}",
+            path.display(),
+            MAX_REVIEW_TIMEOUT_SECS,
+            config.timeout_seconds
+        )));
+    }
     if config.total_timeout_seconds == 0 {
         return Err(ConfigError::new(format!(
             "{}: [review]: total_timeout_seconds must be a whole number greater than zero, found 0",
             path.display()
+        )));
+    }
+    if config.total_timeout_seconds > MAX_REVIEW_TIMEOUT_SECS {
+        return Err(ConfigError::new(format!(
+            "{}: [review]: total_timeout_seconds must be at most {} (24 hours), found {}",
+            path.display(),
+            MAX_REVIEW_TIMEOUT_SECS,
+            config.total_timeout_seconds
         )));
     }
     if let Some(ceiling) = config.cost_ceiling {
@@ -1550,6 +1569,50 @@ mod tests {
                 "{label}: {err}"
             );
         }
+    }
+
+    #[test]
+    fn a_timeout_above_the_ceiling_is_refused_naming_the_setting() {
+        for key in ["timeout_seconds", "total_timeout_seconds"] {
+            for value in ["86401", "9223372036854775807"] {
+                let dir = TempDir::new(&format!("osf-config-test-review-ceiling-{key}-{value}"));
+                std::fs::write(dir.join("osf.toml"), format!("[review]\n{key} = {value}\n"))
+                    .expect("osf.toml writes");
+                let err = review_config(&dir).expect_err("a timeout above the ceiling is refused");
+                let message = err.to_string();
+                assert!(message.contains(key), "{key} {value}: {message}");
+                assert!(message.contains("86400"), "{key} {value}: {message}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_timeout_at_the_ceiling_is_accepted() {
+        let timeout_dir = TempDir::new("osf-config-test-review-ceiling-ok-timeout");
+        std::fs::write(
+            timeout_dir.join("osf.toml"),
+            "[review]\ntimeout_seconds = 86400\n",
+        )
+        .expect("osf.toml writes");
+        assert_eq!(
+            review_config(&timeout_dir)
+                .expect("86400 loads")
+                .timeout_seconds,
+            86400
+        );
+
+        let total_dir = TempDir::new("osf-config-test-review-ceiling-ok-total");
+        std::fs::write(
+            total_dir.join("osf.toml"),
+            "[review]\ntotal_timeout_seconds = 86400\n",
+        )
+        .expect("osf.toml writes");
+        assert_eq!(
+            review_config(&total_dir)
+                .expect("86400 loads")
+                .total_timeout_seconds,
+            86400
+        );
     }
 
     #[test]

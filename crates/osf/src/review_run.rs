@@ -495,6 +495,13 @@ fn run_pool(
         .collect()
 }
 
+/// The instant the whole-run limit ends, or a reason when it is too far away.
+fn deadline_after(total: Duration) -> Result<Instant, String> {
+    Instant::now()
+        .checked_add(total)
+        .ok_or_else(|| "[review]: total_timeout_seconds is too large to count from now".to_string())
+}
+
 fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
     let sources = Sources {
         root: req.root,
@@ -541,7 +548,19 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
     };
 
     // Taken once, just before the workers start: it bounds every lens.
-    let deadline = Instant::now() + setup.total;
+    let deadline = match deadline_after(setup.total) {
+        Ok(deadline) => deadline,
+        Err(reason) => {
+            return ReviewerRun {
+                reviewer: reviewer.name.clone(),
+                lenses: lenses
+                    .iter()
+                    .map(|lens| could_not_run_lens(lens, reason.clone()))
+                    .collect(),
+                binding: req.binding.cloned(),
+            };
+        }
+    };
     let count = lenses.len();
     let workers = setup.concurrency.min(count);
     // No reviewer reports cost yet, so nothing adds to this counter.
@@ -1621,5 +1640,12 @@ mod tests {
                 Some("answered")
             );
         }
+    }
+
+    #[test]
+    fn a_total_too_large_to_count_is_an_error_naming_the_setting() {
+        let err = deadline_after(Duration::MAX).expect_err("no instant is that far away");
+        assert!(err.contains("total_timeout_seconds"), "{err}");
+        assert!(deadline_after(Duration::from_secs(60)).is_ok());
     }
 }
