@@ -192,7 +192,8 @@ RUN uv tool install "git+https://github.com/NVIDIA/skillspector.git@${SKILLSPECT
     chown -R root:root /opt/factory/uv-tools /opt/factory/uv-python && \
     chmod -R a+rX /opt/factory/uv-tools /opt/factory/uv-python && \
     skillspector --help >/dev/null && \
-    skillevaluator --help >/dev/null
+    skillevaluator --help >/dev/null && \
+    chmod -R go-w /opt/factory/uv-tools /opt/factory/uv-python
 
 # Node, from the official nodejs.org binary tarball, checked against its
 # published SHA-256. This avoids adding a NodeSource apt repository and
@@ -241,10 +242,11 @@ RUN set -eu; \
     bun --version
 
 # The coding agents, installed as global npm packages into this same Node
-# install. That install is already root-owned and already on PATH, so no
-# separate prefix or lock-down step is needed for these either. Every one
-# of them is usable as a builder or a reviewer; see the [agents] table of
-# osf.toml and crates/osf/src/agents.rs.
+# install. That install is already root-owned and already on PATH, so the
+# install needs no separate prefix. npm still writes group- and other-
+# writable files for some packages, so the write bits are stripped after
+# the install. Every one of them is usable as a builder or a reviewer; see
+# the [agents] table of osf.toml and crates/osf/src/agents.rs.
 RUN npm install -g \
       @openai/codex@${CODEX_VERSION} \
       @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} \
@@ -253,7 +255,9 @@ RUN npm install -g \
     codex --version && \
     claude --version && \
     opencode --version && \
-    omp --version
+    omp --version && \
+    chown -R root:root /usr/local/lib/nodejs && \
+    chmod -R go-w /usr/local/lib/nodejs
 
 # dsh from its own lockfile. To update: edit .devcontainer/dsh/package.json, regenerate the lockfile, rebuild.
 COPY .devcontainer/dsh/package.json .devcontainer/dsh/package-lock.json /opt/dsh/
@@ -538,3 +542,8 @@ RUN cd /tmp/agent-hooks-test && sh tests/agent-hooks.sh && rm -rf /tmp/agent-hoo
 COPY --chown=dev:dev .devcontainer/githooks /tmp/git-hooks-test/githooks
 COPY --chown=dev:dev .devcontainer/tests/git-hooks.sh /tmp/git-hooks-test/git-hooks.sh
 RUN sh /tmp/git-hooks-test/git-hooks.sh /tmp/git-hooks-test/githooks && rm -rf /tmp/git-hooks-test
+
+# Proves every root-owned toolchain folder is read-only for the dev user.
+# See .devcontainer/tests/toolchain-readonly.sh.
+COPY --chown=dev:dev .devcontainer/tests/toolchain-readonly.sh /tmp/toolchain-readonly-test.sh
+RUN sh /tmp/toolchain-readonly-test.sh && rm -f /tmp/toolchain-readonly-test.sh
