@@ -143,7 +143,7 @@ fn a_configured_prefix_without_a_path_is_refused_not_ignored() {
 fn plain_text_has_no_session_link_finding() {
     let (_repo, rules) = rules();
     let found = rules.scan_text("A plain sentence with no link at all.\n", Context::Document);
-    assert!(rule_ids(&found).is_empty());
+    assert_eq!(rule_ids(&found), Vec::<&str>::new());
 }
 
 // --- agent state paths: one case per agent, per session place -----------
@@ -288,7 +288,7 @@ fn a_repository_relative_path_has_no_local_path_finding() {
         "The file lives at crates/osf/src/scan/mod.rs.\n",
         Context::Document,
     );
-    assert!(rule_ids(&found).is_empty());
+    assert_eq!(rule_ids(&found), Vec::<&str>::new());
 }
 
 // --- the repository: owner and visibility, with no configuration --------
@@ -352,7 +352,10 @@ fn with_no_owner_from_anywhere_the_rule_does_not_run_and_says_so() {
         built.notes()
     );
     let text = format!("See {}.\n", foreign_reference("other-org", "tools", 42));
-    assert!(rule_ids(&built.scan_text(&text, Context::Document)).is_empty());
+    assert_eq!(
+        rule_ids(&built.scan_text(&text, Context::Document)),
+        Vec::<&str>::new()
+    );
 }
 
 /// A private repository changes nothing. None of this belongs in a private
@@ -429,7 +432,7 @@ fn text_with_no_denylisted_name_has_no_finding() {
     cfg.denylist = vec!["SecretCode".to_string()];
     let rules = Rules::build(&repo.dir, &cfg).expect("config builds");
     let found = rules.scan_text("Nothing sensitive here.\n", Context::Document);
-    assert!(rule_ids(&found).is_empty());
+    assert_eq!(rule_ids(&found), Vec::<&str>::new());
 }
 
 /// The denylist match must never appear in the message, the excerpt, the
@@ -484,7 +487,7 @@ fn a_coauthor_trailer_fires() {
 fn a_normal_commit_message_has_no_coauthor_finding() {
     let (_repo, rules) = rules();
     let found = rules.scan_text("Fix the bug.\n", Context::Commit);
-    assert!(rule_ids(&found).is_empty());
+    assert_eq!(rule_ids(&found), Vec::<&str>::new());
 }
 
 // --- secrets ----------------------------------------------------------------
