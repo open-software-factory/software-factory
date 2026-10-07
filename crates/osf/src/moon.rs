@@ -382,31 +382,12 @@ pub(crate) fn run_holding(inv: &Invocation, _lock: &ReportLock) -> Outcome {
 /// be running; a direct kill of moon itself follows as a fallback so
 /// `wait` below cannot hang on a tree-kill command that never started.
 fn timed_out(child: &mut Child) -> Outcome {
-    let killed = kill_tree(child);
+    let killed = crate::process::kill_tree(child);
     let _ = child.kill();
     let _ = child.wait();
     match killed {
         Ok(()) => Outcome::TimedOut,
         Err(e) => Outcome::CouldNotRun(format!("moon timed out and could not be killed: {e}")),
-    }
-}
-
-/// Kills `child` and every process it spawned: `taskkill /PID <pid> /T /F`
-/// on Windows, `kill -KILL` on the process group on Unix (no new crate).
-fn kill_tree(child: &Child) -> Result<(), String> {
-    let pid = child.id();
-    #[cfg(windows)]
-    let output = Command::new("taskkill")
-        .args(["/PID", &pid.to_string(), "/T", "/F"])
-        .output();
-    #[cfg(unix)]
-    let output = Command::new("kill")
-        .args(["-KILL", "--", &format!("-{pid}")])
-        .output();
-    match output {
-        Ok(o) if o.status.success() => Ok(()),
-        Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
-        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -729,7 +710,7 @@ mod tests {
     #[test]
     fn the_captured_report_parses_into_one_outcome_per_task() {
         let tasks = parse_report(REPORT).expect("report parses");
-        assert!(!tasks.is_empty());
+        assert_ne!(tasks, Vec::<TaskOutcome>::new());
         assert!(
             tasks.iter().any(|t| t.target.ends_with(":probe")),
             "{:?}",
@@ -938,7 +919,7 @@ mod tests {
     #[test]
     fn a_query_with_no_matching_tasks_is_an_empty_list() {
         let targets = parse_query_tasks(r#"{"tasks":{}}"#).expect("empty query parses");
-        assert!(targets.is_empty());
+        assert_eq!(targets, Vec::<TaskSlot>::new());
     }
 
     #[test]

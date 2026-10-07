@@ -1,0 +1,20 @@
+name = "observability-and-rollback"
+summary = "Whether the change can be seen failing, and turned off, without a full redeploy."
+weight = 0.6
+runs = "triggered"
+
+[trigger]
+paths = ["**/*log*/**", "**/metrics/**", ".github/workflows/**", "**/Dockerfile*", "**/charts/**", "**/Chart.yaml"]
+
+[[criteria]]
+id = "observable"
+question = "Does the change add a log, a metric or a trace that would show it failing in production?"
+
+[[criteria]]
+id = "reversible"
+question = "Can the change be turned off or rolled back without a code change, such as behind a flag?"
+
+[severity_guide]
+blocker = "A change with no way to see it failing and no way to turn it off short of a redeploy."
+major = "A change with one of the two: observable but not reversible, or reversible but not observable."
+minor = "Both are present, but only partially, such as a log with no matching alert."

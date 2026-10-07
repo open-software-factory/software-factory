@@ -103,7 +103,7 @@ jobs:
         env:
           OSF_CONFIG: osf.toml
           OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
-        run: ./target/release/osf scan --format human
+        run: ./target/release/osf scan --format human --no-suppress
 
       - name: Scan the commit messages this change adds
         if: github.event_name == 'pull_request'
@@ -168,9 +168,13 @@ jobs:
             echo "::notice::no Cargo.toml at the repository root, nothing to build yet"
           fi
 
-      - name: Install the toolchain components
+      - name: Install the pinned Rust toolchain
         if: steps.detect.outputs.present == 'true'
-        run: rustup component add clippy rustfmt
+        # Pinned here because the dev container image still ships an older Rust.
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.0 --profile minimal --component clippy,rustfmt
+          rustup default 1.99.0
 
       - name: Cache the build
         if: steps.detect.outputs.present == 'true'
@@ -214,7 +218,8 @@ jobs:
             echo "::notice::no skills to check"
             exit 0
           fi
-          ./target/release/osf lint skill --format human "${skills[@]}"
+          # --gate so this change's own config file cannot loosen a skill rule
+          ./target/release/osf lint skill --gate --format human "${skills[@]}"
 
       # Claude Code reads only .claude/skills, so that folder must stay a
       # symlink to .agents/skills rather than drift as its own copy.
@@ -294,10 +299,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install the toolchain components
+      - name: Install the pinned Rust toolchain
+        # Pinned here because the dev container image still ships an older Rust.
         run: |
           set -euo pipefail
-          rustup component add clippy rustfmt
+          rustup toolchain install 1.99.0 --profile minimal --component clippy,rustfmt
+          rustup default 1.99.0
 
       - name: Cache the build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9

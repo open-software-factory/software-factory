@@ -2,7 +2,10 @@
 //! run on its own over an explicit file list instead of a computed diff.
 
 mod common;
-use common::{isolated_home, run_osf, run_osf_with_env, session_link, TempRepo};
+use common::{
+    fake_secret_assignment, isolated_home, run_osf, run_osf_with_env, session_link,
+    suppress_marker, TempRepo,
+};
 
 /// The length of a SARIF report's first run's `results` array, read without
 /// the panicking index operator this workspace's clippy settings deny.
@@ -156,7 +159,10 @@ fn check_lint_writing_gate_ignores_a_suppression_marker() {
     let repo = TempRepo::new("check-gate");
     repo.write(
         "n.md",
-        "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n",
+        &format!(
+            "Fixed in #125 today. {}\n",
+            suppress_marker("disable-line", "bare-reference", Some("tracked"))
+        ),
     );
     repo.commit("suppressed");
     let home = isolated_home("check-gate");
@@ -176,6 +182,140 @@ fn check_lint_writing_gate_ignores_a_suppression_marker() {
             "pull-request",
             "--gate",
             "n.md",
+        ],
+    );
+    assert_eq!(gated.status.code(), Some(1), "{gated:?}");
+}
+
+/// A suppression marker on a `scan` finding works the same way it does for
+/// `lint-writing`: `osf-disable-line <rule> -- <reason>` on the offending
+/// line drops the exit code to 0.
+#[test]
+fn check_scan_honours_a_suppression_marker_with_a_reason() {
+    let repo = TempRepo::new("check-scan-suppress");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("TOKEN"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.commit("add a suppressed secret");
+    let home = isolated_home("check-scan-suppress");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "pre-push", "config.txt"],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+}
+
+/// The same marker with no reason after `--` does not suppress: the finding
+/// still fails the check.
+#[test]
+fn check_scan_ignores_a_suppression_marker_with_no_reason() {
+    let repo = TempRepo::new("check-scan-suppress-no-reason");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("SECRET"),
+            suppress_marker("disable-line", "scan-secret", None)
+        ),
+    );
+    repo.commit("add an unreasoned marker");
+    let home = isolated_home("check-scan-suppress-no-reason");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "pre-push", "config.txt"],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+}
+
+/// `--gate` ignores a suppression marker for `scan`, the same as it already
+/// does for `lint-writing`: a secret with a reasoned marker must not pass
+/// the pull-request gate just because the change under review added the
+/// marker itself.
+#[test]
+fn check_scan_gate_ignores_a_suppression_marker() {
+    let repo = TempRepo::new("check-scan-gate");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("TOKEN"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.commit("add a suppressed secret");
+    let home = isolated_home("check-scan-gate");
+    let plain = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan",
+            "--checkpoint",
+            "pull-request",
+            "config.txt",
+        ],
+    );
+    assert_eq!(plain.status.code(), Some(0), "{plain:?}");
+    let gated = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan",
+            "--checkpoint",
+            "pull-request",
+            "--gate",
+            "config.txt",
+        ],
+    );
+    assert_eq!(gated.status.code(), Some(1), "{gated:?}");
+}
+
+/// The same gate behaviour for `scan-staged`.
+#[test]
+fn check_scan_staged_gate_ignores_a_suppression_marker() {
+    let repo = TempRepo::new("check-scan-staged-gate");
+    repo.write("config.txt", "Clean for now.\n");
+    repo.commit("clean");
+    repo.write(
+        "config.txt",
+        &format!(
+            "{} {}\n",
+            fake_secret_assignment("SECRET"),
+            suppress_marker("disable-line", "scan-secret", Some("test fixture"))
+        ),
+    );
+    repo.stage("config.txt");
+    let home = isolated_home("check-scan-staged-gate");
+    let plain = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "config.txt",
+        ],
+    );
+    assert_eq!(plain.status.code(), Some(0), "{plain:?}");
+    let gated = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "scan-staged",
+            "--checkpoint",
+            "pre-commit",
+            "--gate",
+            "config.txt",
         ],
     );
     assert_eq!(gated.status.code(), Some(1), "{gated:?}");
@@ -324,7 +464,7 @@ fn check_scan_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
 #[test]
 fn check_lint_skill_at_the_pre_push_checkpoint_reads_head_not_the_working_tree() {
     let repo = TempRepo::new("check-lint-skill-pre-push-head");
-    let first_person = "---\nname: demo\ndescription: I can check a folder for common problems when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+    let first_person = "---\nname: demo\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
     repo.write("skills/demo/SKILL.md", first_person);
     repo.commit("add a first-person skill description");
     let third_person = "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
@@ -342,8 +482,8 @@ fn check_lint_skill_at_the_pre_push_checkpoint_reads_head_not_the_working_tree()
         ],
     );
     assert!(
-        String::from_utf8_lossy(&out.stdout).contains("skill-first-person"),
-        "the committed, first-person description must still be read at pre-push: {out:?}"
+        String::from_utf8_lossy(&out.stdout).contains("AS-016"),
+        "the committed, duplicate-name frontmatter must still be read at pre-push: {out:?}"
     );
 }
 
@@ -352,7 +492,7 @@ fn check_lint_skill_at_the_pre_push_checkpoint_reads_head_not_the_working_tree()
 #[test]
 fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_fix() {
     let repo = TempRepo::new("check-lint-skill-hook-disk");
-    let first_person = "---\nname: demo\ndescription: I can check a folder for common problems when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
+    let first_person = "---\nname: demo\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
     repo.write("skills/demo/SKILL.md", first_person);
     repo.commit("add a first-person skill description");
     let third_person = "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n";
@@ -369,8 +509,14 @@ fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_fix() {
             "skills/demo/SKILL.md",
         ],
     );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(
-        !String::from_utf8_lossy(&out.stdout).contains("skill-first-person"),
+        stdout.contains("osf check lint-skill: 0 error(s)"),
+        "the check printed no result: {out:?}"
+    );
+    assert!(
+        !stdout.contains("AS-016"),
         "the on-disk fix must be what the hook checkpoint reads: {out:?}"
     );
 }
@@ -430,8 +576,14 @@ fn check_lint_skill_at_the_hook_checkpoint_reads_the_working_tree_script() {
             "skills/demo/SKILL.md",
         ],
     );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(
-        !String::from_utf8_lossy(&out.stdout).contains("skill-script-unpinned"),
+        stdout.contains("osf check lint-skill: 0 error(s)"),
+        "the check printed no result: {out:?}"
+    );
+    assert!(
+        !stdout.contains("skill-script-unpinned"),
         "the on-disk fix must be what the hook checkpoint reads: {out:?}"
     );
 }
@@ -455,4 +607,72 @@ fn an_inherited_osf_checkpoint_env_var_no_longer_changes_what_pre_push_reads() {
         &["check", "scan", "--checkpoint", "pre-push", "notes.md"],
     );
     assert_eq!(out.status.code(), Some(0), "{out:?}");
+}
+
+/// Config cannot turn off a skill fixture's own declared-rule contract.
+#[test]
+fn config_cannot_disable_a_skill_fixture_contract_failure_in_check() {
+    let repo = TempRepo::new("check-skill-fixture-policy-is-fixed");
+    repo.write(
+        "crates/osf/tests/fixtures/skills/demo/SKILL.md",
+        "---\nname: demo\ndescription: Use this skill when the user wants a health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n1. Read the folder listing.\n2. Report the result.\n3. Write one line per problem found.\n\nStop when every check has run once.\n\n<!-- osf-expect-skill\nskill-first-person\n-->\n",
+    );
+    repo.write(
+        "osf.toml",
+        "[skill.levels]\nexpectation-missing = \"off\"\n",
+    );
+    repo.commit("add a declared skill fixture and weaken its contract policy");
+    let home = isolated_home("check-skill-fixture-policy-is-fixed");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "--config",
+            "osf.toml",
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pre-push",
+            "crates/osf/tests/fixtures/skills/demo/SKILL.md",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("expectation-missing"),
+        "{out:?}"
+    );
+}
+
+/// The out-of-fixtures marker warning stays configurable.
+#[test]
+fn check_honors_config_for_a_skill_marker_outside_fixtures_warning() {
+    let repo = TempRepo::new("check-skill-outside-fixtures-warning-configurable");
+    repo.write(
+        "skills/demo/SKILL.md",
+        "---\nname: demo\ndescription: Use this skill when the user wants a quick health check.\n---\n\nRun this skill to check a folder for basic problems before it ships.\n\n## Checks\n\n1. Read the folder listing.\n2. Check that a license file exists.\n3. Check that a readme file exists.\n4. Write one line per problem found, with the file path.\n\nStop when every check has run once.\n\n<!-- osf-expect-skill\n-->\n",
+    );
+    repo.write(
+        "osf.toml",
+        "[skill.levels]\nexpectation-outside-fixtures = \"off\"\n",
+    );
+    repo.commit("add an out-of-fixtures marker and configure its warning off");
+    let home = isolated_home("check-skill-outside-fixtures-warning-configurable");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "--config",
+            "osf.toml",
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pre-push",
+            "skills/demo/SKILL.md",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        !String::from_utf8_lossy(&out.stdout).contains("expectation-outside-fixtures"),
+        "{out:?}"
+    );
 }

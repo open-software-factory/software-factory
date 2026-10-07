@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -15,6 +16,8 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub enum Payload {
     Verification(Verification),
     CheckpointComplete(CheckpointComplete),
+    ReviewAnswer(ReviewAnswer),
+    ReviewDecision(ReviewDecision),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -50,6 +53,60 @@ pub struct CheckpointComplete {
     /// so its JSON key order, and so its place in the replay hash, never
     /// depends on the order tasks happened to run in.
     pub slots: std::collections::BTreeMap<String, CheckResult>,
+}
+
+/// One reviewer's outcome for one lens: its own scores and findings, or the
+/// reason it counts as missing.
+///
+/// `transcript` is a path or nothing, never a prompt or a raw answer: the
+/// journal carries no secret text, and a prompt is already redacted by
+/// `review_context` before any reviewer ever sees it.
+///
+/// `grade` is always `"reported"`: a reviewer's judgment is an agent saying
+/// so, unmeasured, exactly the grade decisions 0005 and 0016 give it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ReviewAnswer {
+    pub lens: String,
+    pub reviewer: String,
+    pub family: String,
+    /// The model the reviewer's harness was pinned to, when its roster
+    /// entry named one. `None` when the harness ran with its own default.
+    pub model: Option<String>,
+    pub result: String,
+    pub scores: BTreeMap<String, f64>,
+    pub findings_kept: u32,
+    pub findings_dropped: u32,
+    pub transcript: Option<String>,
+    pub reason: Option<String>,
+    pub grade: String,
+    /// This reviewer's own attempt number for this lens, one-based: more
+    /// than one when the quorum rule asks its family for extra rounds.
+    pub round: u32,
+}
+
+/// The whole review's verdict, with each lens's own outcome alongside the
+/// weighted score that decided it.
+///
+/// `score` and `threshold` are `None` exactly when `verdict` is
+/// `"could-not-run"`: a could-not-run review was never scored against the
+/// threshold, so there is nothing genuine to report next to it.
+///
+/// `grade` is always `"reported"`, the same grade as the [`ReviewAnswer`]s
+/// it is decided from: a verdict reached by weighing reported judgments is
+/// itself reported, not independently observed or measured.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ReviewDecision {
+    pub verdict: String,
+    pub lenses: Vec<(String, String)>,
+    pub score: Option<f64>,
+    pub threshold: Option<f64>,
+    /// The families that built this change, from every commit's own
+    /// `Code-Generator:` trailer in the reviewed range, or the
+    /// `--builder-family` flag when the caller named one. Read
+    /// `["unknown"]` as no trailer naming a known family was found; the
+    /// roster then ran with nothing left out.
+    pub builder_families: Vec<String>,
+    pub grade: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -92,7 +149,8 @@ fn to_hex(bytes: &[u8]) -> String {
 /// from the wall-clock time the run started and the process id, and names
 /// nothing about what the run decided. A verification's own `duration_ms`
 /// varies run to run even when every decision is identical, so it is
-/// zeroed here; the real values still reach the stored event untouched,
+/// zeroed here, and a review answer's `transcript` path, a per-run temporary
+/// location, is dropped; the real values still reach the stored event untouched,
 /// since this is only ever used to compute a hash. The `cache` field is
 /// dropped for the same reason: a first run misses the cache and a repeat
 /// run hits it, with identical decisions.
@@ -103,7 +161,11 @@ fn replay_payload(payload: &Payload) -> Payload {
             cache: None,
             ..v.clone()
         }),
-        Payload::CheckpointComplete(_) => payload.clone(),
+        Payload::ReviewAnswer(a) => Payload::ReviewAnswer(ReviewAnswer {
+            transcript: None,
+            ..a.clone()
+        }),
+        Payload::CheckpointComplete(_) | Payload::ReviewDecision(_) => payload.clone(),
     }
 }
 
@@ -284,7 +346,9 @@ mod tests {
     fn verification_with_duration(check: &str, duration_ms: u64) -> Payload {
         match verification(check) {
             Payload::Verification(v) => Payload::Verification(Verification { duration_ms, ..v }),
-            other @ Payload::CheckpointComplete(_) => other,
+            other @ (Payload::CheckpointComplete(_)
+            | Payload::ReviewAnswer(_)
+            | Payload::ReviewDecision(_)) => other,
         }
     }
 
@@ -316,6 +380,39 @@ mod tests {
         assert_eq!(ha, hb);
     }
 
+    fn review_answer(transcript: Option<&str>) -> Payload {
+        Payload::ReviewAnswer(ReviewAnswer {
+            lens: "correctness".into(),
+            reviewer: "reviewer-a".into(),
+            family: "family-a".into(),
+            model: None,
+            result: "answered".into(),
+            scores: BTreeMap::new(),
+            findings_kept: 1,
+            findings_dropped: 0,
+            transcript: transcript.map(str::to_string),
+            reason: None,
+            grade: "reported".into(),
+            round: 1,
+        })
+    }
+
+    /// The transcript path names a temporary file that differs on every run,
+    /// so it must not reach the replay hash; a decided value still does.
+    #[test]
+    fn a_review_answer_hashes_the_same_whatever_its_transcript_path() {
+        let a = event_hash("0", "osf", &review_answer(Some("/tmp/run-1/a.log")));
+        let b = event_hash("0", "osf", &review_answer(Some("/tmp/run-2/b.log")));
+        let none = event_hash("0", "osf", &review_answer(None));
+        assert_eq!(a, b);
+        assert_eq!(a, none);
+        let Payload::ReviewAnswer(mut changed) = review_answer(None) else {
+            unreachable!("review_answer builds a ReviewAnswer");
+        };
+        changed.findings_kept = 2;
+        assert_ne!(a, event_hash("0", "osf", &Payload::ReviewAnswer(changed)));
+    }
+
     /// A first run misses the cache and a repeat run hits it, with the same decisions: decision 0005 requires the same head hash.
     #[test]
     fn a_cache_miss_and_a_cache_hit_have_the_same_head_hash() {
@@ -324,7 +421,9 @@ mod tests {
                 cache: Some(cache.into()),
                 ..v
             }),
-            other @ Payload::CheckpointComplete(_) => other,
+            other @ (Payload::CheckpointComplete(_)
+            | Payload::ReviewAnswer(_)
+            | Payload::ReviewDecision(_)) => other,
         };
         let a_dir = TempDir::new("osf-journal-cache-miss");
         let b_dir = TempDir::new("osf-journal-cache-hit");
