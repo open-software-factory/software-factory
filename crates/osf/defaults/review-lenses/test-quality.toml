@@ -1,0 +1,17 @@
+name = "test-quality"
+summary = "Whether the change's tests would catch the defect they were written to catch."
+weight = 1.0
+runs = "always"
+
+[[criteria]]
+id = "catches-the-defect"
+question = "Would each new or changed test fail if the code under it reverted to before this change?"
+
+[[criteria]]
+id = "covers-the-edges"
+question = "Do the tests cover the edge cases and failure paths the change adds, not only its main path?"
+
+[severity_guide]
+blocker = "A test that always passes, whatever the code does, standing in for real coverage."
+major = "A missing test for a failure path or edge case the change adds."
+minor = "A test that covers the change but reads unclearly or duplicates another test."

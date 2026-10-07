@@ -100,8 +100,9 @@ pub const RULE_META: &[RuleMeta] = &[
         "house",
         "### What it does\n\
          Flags a labelled `open-software-factory/software-factory#123 (the thing)` reference that is not \
-         wrapped in a Markdown link. Always a warning, in every context: a \
-         labelled reference is already resolvable without the link.\n\
+         wrapped in a Markdown link. It warns outside commit messages. \
+         Commit messages do not render Markdown links. A labelled \
+         reference remains resolvable without the link.\n\
          ### Why it is bad\n\
          The reader cannot click through. They must open a browser tab and \
          search for the reference by hand.\n\
@@ -220,7 +221,8 @@ pub const RULE_META: &[RuleMeta] = &[
         Style,
         "house",
         "### What it does\n\
-         Flags an em dash, an en dash, or a spaced double hyphen.\n\
+         Flags only the em-dash character U+2014. En-dash ranges and \
+         double hyphens are not covered by this rule.\n\
          ### Why it is bad\n\
          An em dash often joins two ideas that would read better as two \
          sentences. It also reads, to many people, as a sign the text was \
@@ -327,26 +329,6 @@ pub const RULE_META: &[RuleMeta] = &[
          ### Example\n\
          Bad: **Run the full suite before every release, without exception.**\n\
          Good: **Run the tests.** Every release needs a clean run first."
-    ),
-    rule_meta!(
-        "parenthetical",
-        House,
-        Style,
-        "house",
-        "### What it does\n\
-         Flags a parenthetical aside of four or more words.\n\
-         ### Why it is bad\n\
-         A long aside interrupts the main sentence. Reading it as its own \
-         sentence is usually easier.\n\
-         ### Class\n\
-         house: our own taste, no external standard requires this limit.\n\
-         ### Citation\n\
-         house\n\
-         ### Example\n\
-         Bad: The fix (which took three days because the failure only showed \
-         up under load) shipped today.\n\
-         Good: The fix shipped today. It took three days, because the \
-         failure only showed up under load."
     ),
     rule_meta!(
         "heading-in-short-text",
@@ -585,8 +567,11 @@ pub const RULE_META: &[RuleMeta] = &[
         Style,
         "house",
         "### What it does\n\
-         Flags `experts agree`, `studies show`, and `widely regarded`, with \
-         no source named.\n\
+         Flags `experts agree`, `studies show`, and `widely regarded` unless \
+         the same sentence has a Markdown link to an absolute HTTP(S) URL \
+         after the phrase. The link needs a non-empty text label. A link \
+         whose only content is an image has no text label. A link before the \
+         phrase, or in another sentence, does not count.\n\
          ### Why it is bad\n\
          An unnamed source cannot be checked. The reader has no way to \
          judge the claim behind it.\n\
@@ -600,7 +585,12 @@ pub const RULE_META: &[RuleMeta] = &[
          review faster.\n\
          ### Coverage\n\
          Runs in every context this lint knows: a transcript, a commit, a \
-         document, and a skill. It reads English text only.",
+         document, and a skill. It accepts an inline labelled HTTP(S) link in \
+         the same sentence, placed after the phrase. This is citation syntax \
+         only. It does not check that the link supports the claim, or assess \
+         the source. A link before the phrase, a link in another sentence, \
+         reference-style and relative links, bare URLs, and autolinks do not \
+         count.",
         Exception::FixedLevel(Level::Error)
     ),
     rule_meta!(

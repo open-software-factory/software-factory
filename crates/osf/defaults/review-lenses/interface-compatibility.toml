@@ -1,0 +1,21 @@
+name = "interface-compatibility"
+summary = "Whether the change keeps a public interface working for the callers that already use it."
+weight = 0.9
+runs = "triggered"
+
+[trigger]
+paths = ["**/api/**", "**/*.proto", "**/openapi/**", "**/*.graphql"]
+signals = ["public surface"]
+
+[[criteria]]
+id = "backward-compatible"
+question = "Can an existing caller keep calling this interface, unchanged, and still get a correct answer?"
+
+[[criteria]]
+id = "versioned-when-broken"
+question = "When the change does break compatibility, is it shipped as a new version instead of silently replacing the old one?"
+
+[severity_guide]
+blocker = "An existing caller now gets a wrong answer, an error, or a crash with no version change."
+major = "A behaviour change a caller could reasonably be relying on, undocumented."
+minor = "An addition to the interface with no effect on an existing caller."

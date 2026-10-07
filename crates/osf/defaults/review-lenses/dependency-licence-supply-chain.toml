@@ -1,0 +1,20 @@
+name = "dependency-licence-supply-chain"
+summary = "Whether a new or changed dependency is licensed, maintained and sourced safely."
+weight = 0.6
+runs = "triggered"
+
+[trigger]
+paths = ["Cargo.toml", "Cargo.lock", "package.json", "package-lock.json", "go.mod", "requirements.txt"]
+
+[[criteria]]
+id = "licence-compatible"
+question = "Is the new or updated dependency's licence compatible with this project's own licence?"
+
+[[criteria]]
+id = "source-trustworthy"
+question = "Does the dependency come from its official source, pinned to a specific version?"
+
+[severity_guide]
+blocker = "A dependency with an incompatible licence, or pulled from an untrusted source."
+major = "A dependency with no pinned version, or one that is unmaintained."
+minor = "A dependency choice with a minor concern and a clear, low-risk upside."

@@ -41,10 +41,8 @@ const MAX_ADVICE_LINES: usize = 20;
 /// first message of a session too.
 pub const STANDING_REMINDER: &str =
     "osf writing-lint reminder for this reply. State the point and stop. \
-    Do not end a sentence with a `, not X` or `, never X` tail. \
     Write a reference as owner/repo#N (what it is). \
-    Name a thing by what it is rather than by its place in a list. \
-    No sweeps such as `nobody` or `everyone`.";
+    Name a thing by what it is rather than by its place in a list.";
 
 /// Every spelling of the session key, most common first.
 const SESSION_KEYS: &[&str] = &["session_id", "sessionId", "sessionID"];
@@ -166,7 +164,8 @@ fn stop_with_input(
             return refuse_could_not_run(answer, &session, &prompt, max_bounces, &e);
         }
     };
-    let findings = checked_findings(&text, &known, cfg);
+    let checked = checked_findings(&text, &known, cfg);
+    let findings = checked.findings;
 
     let advise: Vec<&lints::Finding> = findings
         .iter()
@@ -179,6 +178,13 @@ fn stop_with_input(
     let counter = counter_path(&session, &prompt);
     let Some((blocking, verb, instruction)) = blocking_set(&findings) else {
         let _ = std::fs::remove_file(&counter);
+        if !checked.dropped.is_empty() {
+            eprintln!(
+                "osf hook writing policy: dropped {} finding(s) from audited rules: {}",
+                checked.dropped.len(),
+                audited_rule_names(&checked.dropped)
+            );
+        }
         return ExitCode::SUCCESS;
     };
 
@@ -254,20 +260,40 @@ fn refuse_could_not_run(
     refuse(answer, &reason)
 }
 
-/// Lints `text` as a transcript, and applies the config's level overrides,
+/// What a stop check found, and the rule of every finding the audited
+/// policy dropped.
+struct Checked {
+    findings: Vec<lints::Finding>,
+    dropped: Vec<&'static str>,
+}
+
+/// The distinct rule names in `dropped`, in a stable order.
+fn audited_rule_names(dropped: &[&'static str]) -> String {
+    let mut names = dropped.to_vec();
+    names.sort_unstable();
+    names.dedup();
+    names.join(", ")
+}
+
+/// Lints `text` as a transcript, and applies the config's level overrides.
+/// The approved disabled defaults cannot be re-enabled in a stop check,
 /// dropping every suppressed finding. The stop check runs on every turn
 /// end, so it stays on the fast tier only.
-fn checked_findings(
-    text: &str,
-    known: &lints::KnownNames,
-    cfg: &WritingConfig,
-) -> Vec<lints::Finding> {
+fn checked_findings(text: &str, known: &lints::KnownNames, cfg: &WritingConfig) -> Checked {
     let findings =
         lints::writing::lint_writing(text, known, cfg, lints::Context::Transcript, true, false);
-    osf_lint_core::apply_level_overrides(findings, &cfg.levels)
+    let dropped = findings
+        .iter()
+        .filter(|f| f.suppressed.is_none() && lints::policy::disabled_by_default(f.rule))
+        .map(|f| f.rule)
+        .collect();
+    let mut levels = cfg.levels.clone();
+    lints::policy::enforce(&mut levels);
+    let findings = osf_lint_core::apply_level_overrides(findings, &levels)
         .into_iter()
         .filter(|f| f.suppressed.is_none())
-        .collect()
+        .collect();
+    Checked { findings, dropped }
 }
 
 /// The findings that block the stop, the opening line, and the
@@ -678,6 +704,19 @@ mod tests {
     use super::*;
     use crate::test_support::TempDir;
 
+    /// A session id no other test or run shares, so a leftover or parallel
+    /// run never meets this test's counter or advice file.
+    fn unique(name: &str) -> String {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock is after the epoch")
+            .as_nanos();
+        format!("{name}-{}-{nanos}", std::process::id())
+    }
+
+    /// The fallback `unknown` key is shared by design, so its tests take turns.
+    static UNKNOWN_SESSION: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// A path lexically inside the repository that is actually a symlink to
     /// somewhere else must not be accepted as repository-relative: the
     /// canonical check, which follows the symlink, must run and must be the
@@ -857,6 +896,79 @@ mod tests {
         f
     }
 
+    #[test]
+    fn audited_detectors_do_not_block_but_retained_reference_checks_do() {
+        let known = lints::load_known_names(&[], None).expect("names load");
+        let cfg = WritingConfig::default();
+        let checked = checked_findings("Input -> output.", &known, &cfg);
+        assert!(
+            checked.findings.is_empty(),
+            "disabled arrow enforced: {:?}",
+            checked.findings
+        );
+        assert_eq!(checked.dropped, vec!["arrow"], "the drop was not recorded");
+        let checked = checked_findings("Fixed in #125 today.", &known, &cfg);
+        assert!(
+            checked.findings.iter().any(|f| f.rule == "bare-reference"),
+            "retained rule lost: {:?}",
+            checked.findings
+        );
+        assert!(checked.dropped.is_empty(), "nothing was dropped here");
+        assert!(blocking_set(&checked.findings).is_some());
+    }
+
+    #[test]
+    fn a_config_override_cannot_reenable_an_audited_detector_in_the_stop_check() {
+        let known = lints::load_known_names(&[], None).expect("names load");
+        let mut cfg = WritingConfig::default();
+        cfg.levels
+            .insert("arrow".to_string(), osf_lint_core::LevelSetting::Error);
+        cfg.levels.insert(
+            "bare-reference".to_string(),
+            osf_lint_core::LevelSetting::Warning,
+        );
+        let checked = checked_findings("Input -> output. Fixed in #125 today.", &known, &cfg);
+        assert!(
+            checked.findings.iter().all(|f| f.rule != "arrow"),
+            "audit policy reenabled by config: {:?}",
+            checked.findings
+        );
+        let kept = checked
+            .findings
+            .iter()
+            .find(|f| f.rule == "bare-reference")
+            .expect("a kept rule must still report");
+        assert_eq!(
+            kept.level,
+            lints::Level::Warning,
+            "the config's level for a kept rule must apply"
+        );
+    }
+
+    #[test]
+    fn the_standing_reminder_gives_the_concrete_writing_instructions() {
+        for phrase in [
+            "Write a reference as owner/repo#N (what it is).",
+            "Name a thing by what it is rather than by its place in a list.",
+        ] {
+            assert!(
+                STANDING_REMINDER.contains(phrase),
+                "reminder lost: {phrase}"
+            );
+        }
+        // Advice for a rule that is off can never be checked, so it stays out.
+        for phrase in ["`, not X`", "nobody", "everyone"] {
+            assert!(
+                !STANDING_REMINDER.contains(phrase),
+                "the reminder names a disabled rule's shape: {phrase}"
+            );
+        }
+        assert!(
+            !STANDING_REMINDER.contains("disabled"),
+            "the reminder must tell the writer what to do, not what is off: {STANDING_REMINDER}"
+        );
+    }
+
     /// An advise finding must not block the stop hook.
     #[test]
     fn an_advise_only_batch_does_not_block() {
@@ -905,7 +1017,7 @@ mod tests {
     /// An advise finding's advice survives to `osf hook prompt`.
     #[test]
     fn advice_survives_to_the_next_prompt() {
-        let session = "test-session-advice-survives";
+        let session = &unique("test-session-advice-survives");
         let _ = std::fs::remove_file(advice_path(session));
         let finding = finding_with(Remediation::Advise);
         store_advice(session, &[&finding]);
@@ -921,7 +1033,7 @@ mod tests {
     /// kilobytes of advice. Each turn now replaces the last turn's lines.
     #[test]
     fn advice_holds_the_last_turn_only() {
-        let session = "test-session-advice-last-turn";
+        let session = &unique("test-session-advice-last-turn");
         let _ = std::fs::remove_file(advice_path(session));
         let mut first = finding_with(Remediation::Advise);
         first.excerpt = "first-turn".to_string();
@@ -936,7 +1048,7 @@ mod tests {
 
     #[test]
     fn advice_is_capped_and_deduplicated() {
-        let session = "test-session-advice-cap";
+        let session = &unique("test-session-advice-cap");
         let _ = std::fs::remove_file(advice_path(session));
         let same = finding_with(Remediation::Advise);
         let mut distinct: Vec<lints::Finding> = Vec::new();
@@ -968,7 +1080,7 @@ mod tests {
     fn the_standing_reminder_is_one_line_and_leads_the_prompt_text() {
         assert_eq!(STANDING_REMINDER.lines().count(), 1);
         assert!(STANDING_REMINDER.len() < 400, "{}", STANDING_REMINDER.len());
-        let session = "test-session-reminder-order";
+        let session = &unique("test-session-reminder-order");
         let _ = std::fs::remove_file(advice_path(session));
         assert_eq!(prompt_text(session), STANDING_REMINDER);
         let finding = finding_with(Remediation::Advise);
@@ -997,6 +1109,9 @@ mod tests {
     /// `stop` can fail to run at all.
     #[test]
     fn a_standard_input_read_failure_refuses_rather_than_passes() {
+        let _turn = UNKNOWN_SESSION
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = std::fs::remove_file(counter_path("unknown", ""));
         let err = std::io::Error::other("device is busy");
         let code = stop_with_input(Err(err), None, 2, &WritingConfig::default(), None);
@@ -1005,6 +1120,9 @@ mod tests {
 
     #[test]
     fn input_that_is_not_json_refuses_rather_than_passes() {
+        let _turn = UNKNOWN_SESSION
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let _ = std::fs::remove_file(counter_path("unknown", ""));
         let code = stop_with_input(
             Ok("not json at all".to_string()),
@@ -1018,7 +1136,7 @@ mod tests {
 
     #[test]
     fn an_event_with_no_assistant_message_refuses_rather_than_passes() {
-        let session = "test-session-no-assistant-message";
+        let session = &unique("test-session-no-assistant-message");
         let _ = std::fs::remove_file(counter_path(session, ""));
         let raw = serde_json::json!({ "session_id": session }).to_string();
         let code = stop_with_input(Ok(raw), None, 2, &WritingConfig::default(), None);
@@ -1027,7 +1145,7 @@ mod tests {
 
     #[test]
     fn an_unreadable_known_names_file_refuses_rather_than_passes() {
-        let session = "test-session-unreadable-known-names";
+        let session = &unique("test-session-unreadable-known-names");
         let _ = std::fs::remove_file(counter_path(session, ""));
         let raw = serde_json::json!({
             "session_id": session,
@@ -1046,7 +1164,7 @@ mod tests {
     /// than hanging the turn forever.
     #[test]
     fn a_could_not_run_refusal_is_let_through_after_max_bounces() {
-        let session = "test-session-could-not-run-bounce-limit";
+        let session = &unique("test-session-could-not-run-bounce-limit");
         let counter = counter_path(session, "");
         let _ = std::fs::remove_file(&counter);
         let raw = serde_json::json!({
