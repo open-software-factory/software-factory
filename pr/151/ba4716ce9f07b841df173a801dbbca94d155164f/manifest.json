@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "devcontainer-agent-toolchain",
+    "headSha": "ba4716ce9f07b841df173a801dbbca94d155164f",
+    "contentHash": "716d69df7b4387571453fe157fb1f5bc"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0c1f42ea4c5adcee9995304ceb337f94",
+      "bytes": 39940,
+      "width": 1928,
+      "height": 1116,
+      "animated": true,
+      "path": "container-view-light-0c1f42ea4c5adcee9995304ceb337f94.svg"
+    },
+    {
+      "id": "container-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2f92c737c140969e49d811b542b80cf0",
+      "bytes": 40421,
+      "width": 1928,
+      "height": 1116,
+      "animated": true,
+      "path": "container-view-dark-2f92c737c140969e49d811b542b80cf0.svg"
+    },
+    {
+      "id": "hook-wiring-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hook-wiring-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "222a90d81563b7de3ece24fd48e52cc0",
+      "bytes": 16436,
+      "width": 973,
+      "height": 596,
+      "animated": true,
+      "path": "hook-wiring-view-light-222a90d81563b7de3ece24fd48e52cc0.svg"
+    },
+    {
+      "id": "hook-wiring-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hook-wiring-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a6154027f69d8ba9e9ad761967ab68d0",
+      "bytes": 16614,
+      "width": 973,
+      "height": 596,
+      "animated": true,
+      "path": "hook-wiring-view-dark-a6154027f69d8ba9e9ad761967ab68d0.svg"
+    },
+    {
+      "id": "git-wrapper-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "git-wrapper-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d49a93b01251353641fc2dfd23e80f65",
+      "bytes": 9035,
+      "width": 505,
+      "height": 388,
+      "animated": true,
+      "path": "git-wrapper-view-light-d49a93b01251353641fc2dfd23e80f65.svg"
+    },
+    {
+      "id": "git-wrapper-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "git-wrapper-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "449cf37097722219ae6638f6852f7980",
+      "bytes": 9139,
+      "width": 505,
+      "height": 388,
+      "animated": true,
+      "path": "git-wrapper-view-dark-449cf37097722219ae6638f6852f7980.svg"
+    }
+  ]
+}
