@@ -1,0 +1,637 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "review-workflow-codex-egress-allowlist",
+  "generatedAt": "2026-10-07T13:13:21.779Z",
+  "title": "Codex review job gains chatgpt.com egress",
+  "summary": "The Codex review job's network allowlist in the GitHub Actions workflow gains one host, chatgpt.com:443, taking the job from seven permitted endpoints to eight. The accompanying test in crates/osf/tests/review_workflow.rs is updated in lockstep: its name, its expected host list and its assertion message all move from seven to eight, so the test still pins the allowlist exactly. Nothing else about the job, the container it runs in, or the review pipeline changes.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "40c96440576cf20760fd9cf63dd7364baa3facd6",
+      "ref": "40c96440576cf20760fd9cf63dd7364baa3facd6"
+    },
+    "head": {
+      "sha": "f7e342565902b97d748c5ee78909f6d7bade5812",
+      "ref": "f7e342565902b97d748c5ee78909f6d7bade5812"
+    },
+    "pullRequest": {
+      "number": 254,
+      "url": "https://github.com/open-software-factory/software-factory/pull/254"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "ci",
+      "label": "GitHub Actions",
+      "subtitle": "workflow definition and runners",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The review workflow that orchestrates the Codex review job, including the egress allowlist applied to its container."
+    },
+    {
+      "id": "runner",
+      "label": "Review container",
+      "subtitle": "sandboxed job runtime",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "The container the Codex job executes in, whose outbound traffic is filtered by the allowlist."
+    },
+    {
+      "id": "external",
+      "label": "External services",
+      "subtitle": "hosts the job may reach",
+      "order": 2,
+      "delta": "modified",
+      "summary": "Third-party endpoints the Codex job is permitted to contact; chatgpt.com joins this set."
+    },
+    {
+      "id": "tests",
+      "label": "Workflow tests",
+      "subtitle": "crates/osf/tests",
+      "order": 3,
+      "delta": "modified",
+      "summary": "Rust tests that parse the workflow YAML and assert the Codex job's host list exactly."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "review-codex job",
+      "summary": "The GitHub Actions workflow defining the Codex review job. This change adds chatgpt.com:443 to the job's egress allowlist, widening the set of hosts the sandboxed job may contact.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 167,
+          "endLine": 170
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-job",
+      "label": "review-codex job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "runs in the review container",
+      "summary": "The job that performs the Codex review. Its structure, steps and container image are untouched; only the host allowlist it inherits changes.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "egress-allowlist",
+      "label": "Egress allowlist",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "seven hosts → eight hosts",
+      "summary": "The list of host:port endpoints the Codex job is allowed to reach. chatgpt.com:443 is appended, so the job can now open connections to that host in addition to the existing seven.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 160,
+          "endLine": 171
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-container",
+      "label": "Review container",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "runner",
+      "subtitle": "sandboxed job runtime",
+      "summary": "The container the Codex job runs inside. Its network policy is driven entirely by the allowlist, so the container itself needs no change to gain the new destination.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "host-chatgpt",
+      "label": "chatgpt.com:443",
+      "kind": "external",
+      "delta": "added",
+      "lane": "external",
+      "subtitle": "newly permitted endpoint",
+      "summary": "The host added by this change. It becomes the eighth endpoint the Codex job may contact, alongside the container registry, package registry and OpenAI API hosts.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 170,
+          "endLine": 170
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "host-openai",
+      "label": "api.openai.com:443",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "existing endpoint",
+      "summary": "The OpenAI API host the Codex job already reaches. It stays in the allowlist unchanged and is the neighbour that makes the new host's purpose legible.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 169,
+          "endLine": 169
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "host-registry",
+      "label": "ghcr.io:443",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "container registry",
+      "summary": "The container registry the job pulls its image from. Unchanged, but part of the same allowlist the test pins.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 166,
+          "endLine": 166
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "host-pkg-containers",
+      "label": "pkg-containers.githubusercontent.com:443",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "package registry",
+      "summary": "The package registry host already permitted for the job. Unchanged, and part of the exact set the test asserts.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 168,
+          "endLine": 168
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-workflow-test",
+      "label": "review_workflow.rs",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "tests",
+      "subtitle": "the_codex_job_allows_exactly_its_eight_hosts",
+      "summary": "The integration test that parses the workflow and asserts the Codex job's host list exactly. It is renamed from seven to eight hosts, chatgpt.com:443 is added to the expected set, and the assertion message is updated to match.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 541,
+          "endLine": 563
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "endpoints-of",
+      "label": "endpoints_of()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "tests",
+      "subtitle": "extracts host:port pairs",
+      "summary": "The helper that pulls the allowlist endpoints out of the parsed job body. It is reused unchanged; only the expected set it is compared against grows.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "job-body",
+      "label": "job_body()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "tests",
+      "subtitle": "parses the review-codex job",
+      "summary": "The helper that extracts the review-codex job body from the workflow text. Unchanged, and the reason the test tracks the workflow definition directly.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "workflow-defines-job",
+      "from": "review-workflow",
+      "to": "codex-job",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "defines",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The workflow file declares the Codex review job.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ]
+    },
+    {
+      "id": "job-uses-allowlist",
+      "from": "codex-job",
+      "to": "egress-allowlist",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "applies",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The job applies the egress allowlist to its container's network policy.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ]
+    },
+    {
+      "id": "allowlist-permits-chatgpt",
+      "from": "egress-allowlist",
+      "to": "host-chatgpt",
+      "kind": "data",
+      "delta": "added",
+      "label": "permits",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The added line: the allowlist now permits outbound connections to chatgpt.com:443.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 170,
+          "endLine": 170
+        }
+      ]
+    },
+    {
+      "id": "allowlist-permits-openai",
+      "from": "egress-allowlist",
+      "to": "host-openai",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "permits",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pre-existing permission for the OpenAI API host, unchanged by this diff.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 169,
+          "endLine": 169
+        }
+      ]
+    },
+    {
+      "id": "allowlist-permits-registry",
+      "from": "egress-allowlist",
+      "to": "host-registry",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "permits",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The pre-existing permission for the container registry.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 166,
+          "endLine": 166
+        }
+      ]
+    },
+    {
+      "id": "allowlist-permits-pkg",
+      "from": "egress-allowlist",
+      "to": "host-pkg-containers",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "permits",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The pre-existing permission for the package registry host.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 168,
+          "endLine": 168
+        }
+      ]
+    },
+    {
+      "id": "container-reaches-chatgpt",
+      "from": "review-container",
+      "to": "host-chatgpt",
+      "kind": "http",
+      "delta": "added",
+      "label": "HTTPS 443",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The new outbound path this change unlocks: the review container can now reach chatgpt.com over HTTPS.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 170,
+          "endLine": 170
+        }
+      ]
+    },
+    {
+      "id": "container-reaches-openai",
+      "from": "review-container",
+      "to": "host-openai",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "HTTPS 443",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The existing outbound path from the container to the OpenAI API.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 169,
+          "endLine": 169
+        }
+      ]
+    },
+    {
+      "id": "test-reads-workflow",
+      "from": "review-workflow-test",
+      "to": "review-workflow",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "reads YAML",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The test reads the workflow file as text and parses the Codex job out of it.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 542,
+          "endLine": 542
+        }
+      ]
+    },
+    {
+      "id": "test-uses-job-body",
+      "from": "review-workflow-test",
+      "to": "job-body",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "job_body()",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The test extracts the review-codex job body via the shared helper.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 542,
+          "endLine": 542
+        }
+      ]
+    },
+    {
+      "id": "test-uses-endpoints",
+      "from": "review-workflow-test",
+      "to": "endpoints-of",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "endpoints_of()",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The test collects the job's host:port endpoints through the shared helper.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 543,
+          "endLine": 543
+        }
+      ]
+    },
+    {
+      "id": "test-asserts-chatgpt",
+      "from": "review-workflow-test",
+      "to": "host-chatgpt",
+      "kind": "data",
+      "delta": "added",
+      "label": "expects",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The added expectation: the test now requires chatgpt.com:443 to appear in the job's host list.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 554,
+          "endLine": 554
+        }
+      ]
+    },
+    {
+      "id": "test-asserts-openai",
+      "from": "review-workflow-test",
+      "to": "host-openai",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "expects",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The test continues to require the OpenAI API host in the list.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 553,
+          "endLine": 553
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "allowlist-assertion",
+      "title": "Asserting the Codex job's eight hosts",
+      "summary": "How the test turns the workflow's allowlist into an exact-set assertion, and where the new host enters that comparison.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-workflow-test",
+          "label": "review_workflow.rs"
+        },
+        {
+          "node": "review-workflow",
+          "label": "review.yml"
+        },
+        {
+          "node": "egress-allowlist",
+          "label": "allowlist"
+        },
+        {
+          "node": "host-chatgpt",
+          "label": "chatgpt.com:443"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-workflow",
+          "from": "review-workflow-test",
+          "to": "review-workflow",
+          "label": "read workflow text",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/review_workflow.rs",
+              "startLine": 542,
+              "endLine": 542
+            }
+          ]
+        },
+        {
+          "id": "extract-job",
+          "from": "review-workflow-test",
+          "to": "review-workflow-test",
+          "label": "job_body(\"review-codex\")",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The helper parses the job body out of the YAML so the assertion is scoped to this job alone.",
+          "files": [
+            {
+              "path": "crates/osf/tests/review_workflow.rs",
+              "startLine": 542,
+              "endLine": 542
+            }
+          ]
+        },
+        {
+          "id": "collect-endpoints",
+          "from": "review-workflow-test",
+          "to": "egress-allowlist",
+          "label": "endpoints_of(body)",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/review_workflow.rs",
+              "startLine": 543,
+              "endLine": 543
+            }
+          ]
+        },
+        {
+          "id": "build-expected",
+          "from": "review-workflow-test",
+          "to": "host-chatgpt",
+          "label": "expected += chatgpt.com:443",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The one new element in the expected set; the other seven entries are unchanged.",
+          "files": [
+            {
+              "path": "crates/osf/tests/review_workflow.rs",
+              "startLine": 554,
+              "endLine": 554
+            }
+          ]
+        },
+        {
+          "id": "compare-sets",
+          "from": "review-workflow-test",
+          "to": "egress-allowlist",
+          "label": "assert_eq!(hosts, expected)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The assertion message now says eight hosts instead of seven; the comparison itself is unchanged.",
+          "files": [
+            {
+              "path": "crates/osf/tests/review_workflow.rs",
+              "startLine": 560,
+              "endLine": 560
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 4,
+    "deletions": 2,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-pipeline",
+      "title": "Review pipeline and its egress boundary",
+      "lens": "architecture",
+      "summary": "The Codex review job, the container it runs in, the hosts it may reach, and the test that pins that host set.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "allowlist-detail",
+      "title": "Allowlist and its test",
+      "lens": "architecture",
+      "summary": "The allowlist as a configuration node, the endpoints it permits, and the test that asserts the exact set.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "egress-allowlist",
+          "host-chatgpt",
+          "host-openai",
+          "host-registry",
+          "host-pkg-containers",
+          "review-workflow-test",
+          "endpoints-of",
+          "job-body"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

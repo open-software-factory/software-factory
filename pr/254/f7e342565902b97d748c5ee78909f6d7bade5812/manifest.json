@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "review-workflow-codex-egress-allowlist",
+    "headSha": "f7e342565902b97d748c5ee78909f6d7bade5812",
+    "contentHash": "29ac9b1c27066a5d87b61aa06f9f2f21"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6cdc8799c63af220b30c33acf990699c",
+      "bytes": 22767,
+      "width": 1718,
+      "height": 760,
+      "animated": true,
+      "path": "review-pipeline-light-6cdc8799c63af220b30c33acf990699c.svg"
+    },
+    {
+      "id": "review-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cec6756256652f12f451086bc0f13124",
+      "bytes": 22936,
+      "width": 1718,
+      "height": 760,
+      "animated": true,
+      "path": "review-pipeline-dark-cec6756256652f12f451086bc0f13124.svg"
+    },
+    {
+      "id": "allowlist-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "allowlist-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "117787e2782c4073336eff8364783ea7",
+      "bytes": 15955,
+      "width": 1284,
+      "height": 418,
+      "animated": true,
+      "path": "allowlist-detail-light-117787e2782c4073336eff8364783ea7.svg"
+    },
+    {
+      "id": "allowlist-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "allowlist-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ca8a719eef098db8d701ba57a3ad4e41",
+      "bytes": 16079,
+      "width": 1284,
+      "height": 418,
+      "animated": true,
+      "path": "allowlist-detail-dark-ca8a719eef098db8d701ba57a3ad4e41.svg"
+    }
+  ]
+}
