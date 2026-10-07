@@ -1,0 +1,516 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T10:25:37.826Z",
+  "title": "Bump @deepseek-ai/schemastery to 3.18.4 in the dsh integration",
+  "summary": "A dependency-only change: the `dsh` integration's devDependency on `@deepseek-ai/schemastery` moves from 3.18.2 to 3.18.4, and the pnpm lockfile is regenerated to match — a new package entry, a new snapshot, and the importer specifier/version pair updated. No source code changes, so the runtime shape of the system is untouched; what changes is which schema-validation build the dsh integration resolves at install time.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "6373e93b558ae9b3c5662014b029df1158d9fef2",
+      "ref": "6373e93b558ae9b3c5662014b029df1158d9fef2"
+    },
+    "head": {
+      "sha": "7b46aac40d8dfd86a5cf18f0bf3e1811b9969626",
+      "ref": "7b46aac40d8dfd86a5cf18f0bf3e1811b9969626"
+    },
+    "pullRequest": {
+      "number": 221,
+      "url": "https://github.com/open-software-factory/software-factory/pull/221"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "pnpm monorepo",
+      "order": 0,
+      "summary": "The repository root and its pnpm workspace metadata, which decide how every package resolves its dependencies."
+    },
+    {
+      "id": "integrations",
+      "label": "Integrations",
+      "subtitle": "integrations/*",
+      "order": 1,
+      "summary": "The integration packages that adapt external agent runtimes into the factory."
+    },
+    {
+      "id": "registry",
+      "label": "Package registry",
+      "subtitle": "npm / pnpm store",
+      "order": 2,
+      "summary": "Where the pinned tarballs come from and where they are cached on disk."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pnpm-workspace",
+      "label": "pnpm workspace",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "workspace",
+      "subtitle": "pnpm-workspace.yaml",
+      "summary": "Defines the workspace globs that make integrations/dsh a first-class importer in the root lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-lock",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "lockfileVersion 9",
+      "summary": "Regenerated for the bump: the dsh importer now records specifier 3.18.4, a new `@deepseek-ai/schemastery@3.18.4` package entry with its integrity hash is added, and a matching snapshot records its two transitive dependencies.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 45,
+          "endLine": 52
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 247,
+          "endLine": 252
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2216,
+          "endLine": 2221
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-package",
+      "label": "integrations/dsh",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integrations",
+      "subtitle": "@deepseek-ai/dsh integration",
+      "summary": "The integration package whose manifest changed. Only its devDependencies block moved; its scripts, runtime dependencies and entry points are untouched.",
+      "files": [
+        {
+          "path": "integrations/dsh/package.json",
+          "startLine": 29,
+          "endLine": 36
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "schemastery-dep",
+      "label": "@deepseek-ai/schemastery",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integrations",
+      "group": "dsh-devDependencies",
+      "subtitle": "3.18.2 → 3.18.4",
+      "summary": "The schema-definition library used by the dsh integration at development time. The pinned version moves forward one patch release; the package name and its role are unchanged.",
+      "files": [
+        {
+          "path": "integrations/dsh/package.json",
+          "startLine": 32,
+          "endLine": 32
+        }
+      ],
+      "badges": [
+        "devDependency",
+        "patch bump"
+      ]
+    },
+    {
+      "id": "cosmokit",
+      "label": "@deepseek-ai/cosmokit",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "integrations",
+      "group": "transitive",
+      "subtitle": "1.8.5",
+      "summary": "Transitive dependency of schemastery. The lockfile pins the same 1.8.5 for both the old and the new schemastery snapshot, so nothing shifts here.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2216,
+          "endLine": 2221
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "standard-schema-spec",
+      "label": "@standard-schema/spec",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "integrations",
+      "group": "transitive",
+      "subtitle": "1.1.0",
+      "summary": "The second transitive dependency of schemastery, also unchanged between the two snapshots.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2216,
+          "endLine": 2221
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "npm-registry",
+      "label": "npm registry",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "registry.npmjs.org",
+      "summary": "Source of the schemastery 3.18.4 tarball; the lockfile records its integrity hash so installs are reproducible.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 250,
+          "endLine": 251
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-store",
+      "label": "pnpm content-addressable store",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "node_modules/.pnpm",
+      "summary": "Where the resolved tarball lands and from which the dsh integration's node_modules links are made.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "dsh-declares-schemastery",
+      "from": "dsh-package",
+      "to": "schemastery-dep",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 3.18.4",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one line that changed: the dsh manifest now asks for schemastery 3.18.4 instead of 3.18.2.",
+      "files": [
+        {
+          "path": "integrations/dsh/package.json",
+          "startLine": 32,
+          "endLine": 32
+        }
+      ]
+    },
+    {
+      "id": "lock-pins-schemastery",
+      "from": "pnpm-lock",
+      "to": "schemastery-dep",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "specifier + version",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile importer entry and the new package/snapshot entries keep the manifest and the resolved tree in agreement.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 45,
+          "endLine": 52
+        }
+      ]
+    },
+    {
+      "id": "workspace-includes-dsh",
+      "from": "pnpm-workspace",
+      "to": "dsh-package",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workspace globs are what make the dsh manifest an importer section in the root lockfile at all.",
+      "files": []
+    },
+    {
+      "id": "schemastery-needs-cosmokit",
+      "from": "schemastery-dep",
+      "to": "cosmokit",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "1.8.5",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unchanged transitive edge, carried over verbatim into the new snapshot.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2218,
+          "endLine": 2219
+        }
+      ]
+    },
+    {
+      "id": "schemastery-needs-standard-schema",
+      "from": "schemastery-dep",
+      "to": "standard-schema-spec",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "1.1.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Second unchanged transitive edge of the bumped package.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2219,
+          "endLine": 2220
+        }
+      ]
+    },
+    {
+      "id": "registry-serves-schemastery",
+      "from": "npm-registry",
+      "to": "schemastery-dep",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "tarball + integrity",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new version is fetched from the registry and verified against the integrity hash recorded in the lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 250,
+          "endLine": 251
+        }
+      ]
+    },
+    {
+      "id": "store-caches-schemastery",
+      "from": "pnpm-store",
+      "to": "schemastery-dep",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The resolved tarball is cached locally and linked into the dsh integration's node_modules.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "install-resolution",
+      "title": "Resolving schemastery for the dsh integration",
+      "summary": "What happens on the next install after this bump: pnpm reads the changed manifest, matches it against the regenerated lockfile, and fetches the new tarball into the store.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "dsh-package",
+          "label": "integrations/dsh"
+        },
+        {
+          "node": "pnpm-lock",
+          "label": "pnpm-lock.yaml"
+        },
+        {
+          "node": "npm-registry",
+          "label": "npm registry"
+        },
+        {
+          "node": "pnpm-store",
+          "label": "pnpm store"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-manifest",
+          "from": "dsh-package",
+          "to": "pnpm-lock",
+          "label": "read devDependencies",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The manifest now names schemastery 3.18.4; the lockfile importer section was regenerated to match.",
+          "files": [
+            {
+              "path": "integrations/dsh/package.json",
+              "startLine": 32,
+              "endLine": 32
+            }
+          ]
+        },
+        {
+          "id": "match-specifier",
+          "from": "pnpm-lock",
+          "to": "pnpm-lock",
+          "label": "specifier 3.18.4 → package entry",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "The importer's specifier and version both point at the newly added `@deepseek-ai/schemastery@3.18.4` package entry and its snapshot.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 45,
+              "endLine": 52
+            },
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 247,
+              "endLine": 252
+            }
+          ]
+        },
+        {
+          "id": "fetch-tarball",
+          "from": "pnpm-lock",
+          "to": "npm-registry",
+          "label": "GET schemastery@3.18.4",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Only reached when the new version is not already in the local store.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 250,
+              "endLine": 251
+            }
+          ]
+        },
+        {
+          "id": "verify-integrity",
+          "from": "npm-registry",
+          "to": "pnpm-store",
+          "label": "tarball + integrity check",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The integrity hash recorded in the lockfile is what makes the fetch reproducible.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 250,
+              "endLine": 251
+            }
+          ]
+        },
+        {
+          "id": "link-into-dsh",
+          "from": "pnpm-store",
+          "to": "dsh-package",
+          "label": "link into node_modules",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The dsh integration's node_modules now resolves schemastery to 3.18.4; its two transitive deps are unchanged.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2216,
+              "endLine": 2221
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 11,
+    "deletions": 3,
+    "chips": [
+      {
+        "label": "Dependency bump",
+        "value": "3.18.2 → 3.18.4",
+        "tone": "modified"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      },
+      {
+        "label": "Transitive deps changed",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "dependency-resolution",
+      "title": "Dependency resolution",
+      "lens": "architecture",
+      "summary": "How the dsh integration's schemastery pin flows from the manifest through the lockfile to the registry and the local store.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "dsh-dependency-detail",
+      "title": "dsh devDependency detail",
+      "lens": "architecture",
+      "summary": "The dsh package's devDependency edge and the two transitive packages that hang off schemastery, both unchanged.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "dsh-package",
+          "schemastery-dep",
+          "cosmokit",
+          "standard-schema-spec"
+        ],
+        "edges": [
+          "dsh-declares-schemastery",
+          "schemastery-needs-cosmokit",
+          "schemastery-needs-standard-schema"
+        ],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "install-flow-view",
+      "title": "Install-time resolution",
+      "lens": "data-flow",
+      "summary": "The ordered steps pnpm takes to turn the changed manifest into a linked node_modules entry.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "install-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
