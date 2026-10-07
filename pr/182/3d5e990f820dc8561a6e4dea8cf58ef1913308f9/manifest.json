@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "react-dom-19-3-bump",
+    "headSha": "3d5e990f820dc8561a6e4dea8cf58ef1913308f9",
+    "contentHash": "7f8b726fe8b1d4ade4daf9c256683cab"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "view-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "19aa501d8a9884e2cb4c91f405b59477",
+      "bytes": 20773,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "view-containers-light-19aa501d8a9884e2cb4c91f405b59477.svg"
+    },
+    {
+      "id": "view-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4d9814dbc20b7f5273034eaaf7e30750",
+      "bytes": 20982,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "view-containers-dark-4d9814dbc20b7f5273034eaaf7e30750.svg"
+    },
+    {
+      "id": "view-deps-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-deps",
+      "mediaType": "image/svg+xml",
+      "contentHash": "40fa6f152757ac1b6b45a21ee9edbe06",
+      "bytes": 7670,
+      "width": 860,
+      "height": 190,
+      "animated": false,
+      "path": "view-deps-light-40fa6f152757ac1b6b45a21ee9edbe06.svg"
+    },
+    {
+      "id": "view-deps-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-deps",
+      "mediaType": "image/svg+xml",
+      "contentHash": "02d158aab6ee3fc95deb30ba3d2a8223",
+      "bytes": 7751,
+      "width": 860,
+      "height": 190,
+      "animated": false,
+      "path": "view-deps-dark-02d158aab6ee3fc95deb30ba3d2a8223.svg"
+    },
+    {
+      "id": "view-install-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "view-install-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8860f85d25b7ad80c62ef2aaa9040c48",
+      "bytes": 14552,
+      "width": 1241,
+      "height": 375,
+      "animated": true,
+      "path": "view-install-flow-light-8860f85d25b7ad80c62ef2aaa9040c48.svg"
+    },
+    {
+      "id": "view-install-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "view-install-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "29ccd1d872cf3ce703b2f818c67ed472",
+      "bytes": 14703,
+      "width": 1241,
+      "height": 375,
+      "animated": true,
+      "path": "view-install-flow-dark-29ccd1d872cf3ce703b2f818c67ed472.svg"
+    }
+  ]
+}
