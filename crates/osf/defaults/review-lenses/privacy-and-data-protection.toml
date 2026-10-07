@@ -1,0 +1,17 @@
+name = "privacy-and-data-protection"
+summary = "Whether the change keeps personal or sensitive data out of the places it should never reach."
+weight = 1.0
+runs = "always"
+
+[[criteria]]
+id = "no-sensitive-logging"
+question = "Does the change avoid writing personal or sensitive data to a log, a message or a trace?"
+
+[[criteria]]
+id = "data-minimisation"
+question = "Does the change collect, store or send only the data the feature actually needs?"
+
+[severity_guide]
+blocker = "Personal or sensitive data reaches a log, a third party or a user who should not see it."
+major = "More data is collected or kept than the feature needs, with no stated reason."
+minor = "A privacy concern with no data actually exposed today."

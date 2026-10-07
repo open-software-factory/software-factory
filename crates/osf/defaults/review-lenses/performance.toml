@@ -1,0 +1,21 @@
+name = "performance"
+summary = "Whether the change keeps the cost of a hot path or a large input within what it was before."
+weight = 0.7
+runs = "triggered"
+
+[trigger]
+paths = ["**/*.sql", "**/benches/**", "**/*loop*"]
+signals = ["high-traffic path"]
+
+[[criteria]]
+id = "no-added-complexity"
+question = "Does the change avoid turning a linear operation into one that scales worse with its input?"
+
+[[criteria]]
+id = "no-repeated-work"
+question = "Does the change avoid doing the same expensive lookup or computation more than once per request?"
+
+[severity_guide]
+blocker = "A change that turns a fast path into one that times out or falls over under real load."
+major = "A measurable slowdown on a path that matters, with no offsetting reason."
+minor = "A theoretical cost with no measurable effect at today's scale."

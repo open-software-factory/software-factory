@@ -39,6 +39,7 @@ const WIDE_GLOB_TASKS: &[&str] = &[
     "lint-skill-hook",
     "lint-skill-pre-push",
     "lint-skill-gate",
+    "review",
 ];
 
 /// The moon.yml tasks that are not osf checks: narrow, Rust-source inputs,

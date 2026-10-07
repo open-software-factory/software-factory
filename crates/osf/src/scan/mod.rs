@@ -15,13 +15,13 @@
 
 mod meta;
 
-pub use meta::rule_meta;
+pub use meta::{rule_ids, rule_meta};
 
 use crate::agents::AGENTS;
 use crate::config::ScanConfig;
 use crate::exclude::Excluder;
 use crate::repository::{self, Repository};
-use osf_lint_core::{resolve, Context, Finding, Level};
+use osf_lint_core::{apply_suppressions, resolve, Context, Finding, Level};
 use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -198,7 +198,11 @@ fn agent_state_path_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
 
 fn coauthor_trailer_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
     for (line, content) in lines(text) {
-        if content.trim_start().starts_with("Co-Authored-By:") {
+        if content
+            .trim_start()
+            .split_once(':')
+            .is_some_and(|(field, _)| field.eq_ignore_ascii_case("Co-Authored-By"))
+        {
             out.push(finding(
                 "scan-coauthor-trailer",
                 line,
@@ -383,6 +387,162 @@ fn foreign_reference_findings(owner: &str, clause: &str, text: &str, out: &mut V
     }
 }
 
+// --- secrets ---------------------------------------------------------------
+
+/// Well-known cloud, forge and provider token shapes, and an assignment of
+/// a literal to an upper-snake-case name ending in `KEY`, `TOKEN`, `SECRET`
+/// or `PASSWORD`. The name shape is deliberately narrow: it excludes an
+/// ordinary lower-case identifier such as `cache_key` or `sort_key`, and a
+/// whole word that merely ends in one of these strings, such as `MONKEY`.
+fn secret_shape_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    re(
+        &RE,
+        concat!(
+            r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b",
+            r"|\bgh[pousr]_[A-Za-z0-9]{36,}\b",
+            r"|\bgithub_pat_[A-Za-z0-9_]{20,}\b",
+            r"|\bglpat-[A-Za-z0-9_\-]{20,}\b",
+            r"|\bsk-ant-[A-Za-z0-9_\-]{20,}\b",
+            r"|\bsk-[A-Za-z0-9]{20,}\b",
+            r"|\bxox[baprs]-[A-Za-z0-9\-]{10,}\b",
+            r#"|\b((?:[A-Z][A-Z0-9]*_)*(?:KEY|TOKEN|SECRET|PASSWORD))\b\s*[:=]\s*(?:'([^'\s]{8,})'|"([^"\s]{8,})")"#,
+        ),
+    )
+}
+
+/// Exact values seen only in documentation and examples, never in a real
+/// credential: AWS's own docs example access key id, and its matching
+/// example secret access key.
+const KNOWN_PLACEHOLDER_LITERALS: &[&str] = &[
+    "AKIAIOSFODNN7EXAMPLE",
+    "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+];
+
+/// A `KEY`/`TOKEN`/`SECRET`/`PASSWORD` assignment value that only documents
+/// or templates a secret, never holds one, matched whole and
+/// case-insensitively so a real value merely starting or ending with one of
+/// these words still fires.
+fn placeholder_value_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    re(
+        &RE,
+        r"(?i)^(?:changeme|password|placeholder|x+|your[_-].*[_-]here)$",
+    )
+}
+
+/// Whether a secret-shaped match is a known placeholder rather than a real
+/// secret: `whole` is the full match, `name` and `value` are the assigned
+/// name and its quoted value when the match came from the assignment shape.
+fn is_known_placeholder(whole: &str, name: Option<&str>, value: Option<&str>) -> bool {
+    if KNOWN_PLACEHOLDER_LITERALS.contains(&whole) {
+        return true;
+    }
+    value.is_some_and(|v| {
+        KNOWN_PLACEHOLDER_LITERALS.contains(&v)
+            || placeholder_value_pattern().is_match(v)
+            || is_reference_value(v)
+            || (name.is_some_and(is_storage_key_name) && is_readable_slug(v))
+    })
+}
+
+/// A name ending in `KEY` that is not a credential-style name: no word of it
+/// is `API`, `PRIVATE`, `SECRET`, `ACCESS`, `AUTH`, `PASSWORD`, `PASSWD`,
+/// `PASS` or `TOKEN`. Only such a name may hold a slug value unflagged.
+fn is_storage_key_name(name: &str) -> bool {
+    const CREDENTIAL_WORDS: &[&str] = &[
+        "API", "PRIVATE", "SECRET", "ACCESS", "AUTH", "PASSWORD", "PASSWD", "PASS", "TOKEN",
+    ];
+    name.ends_with("KEY") && !name.split('_').any(|word| CREDENTIAL_WORDS.contains(&word))
+}
+
+/// A value that names a variable or an expression, such as `${NAME}`,
+/// `$NAME` or `${{ secrets.X }}`, so the secret lives elsewhere.
+fn is_reference_value(value: &str) -> bool {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    re(
+        &RE,
+        r"^(?:\$\{[^}]*\}+|\$[A-Za-z_][A-Za-z0-9_]*|\{\{.*\}\})$",
+    )
+    .is_match(value)
+}
+
+/// A lowercase slug such as `od-factory-float`, exempt only under a storage
+/// key name (see [`is_storage_key_name`]): only lowercase letters,
+/// digits, hyphens, underscores and dots, and every part between separators
+/// reads as a word or a short label. A part of five or more characters that
+/// mixes in digits, or a letters-only part over 15 characters, looks random,
+/// so such a value stays flagged.
+fn is_readable_slug(value: &str) -> bool {
+    let charset = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || "-_.".contains(c);
+    if !value.chars().all(charset) {
+        return false;
+    }
+    value.split(['-', '_', '.']).all(|part| {
+        part.len() <= 4 || (part.len() <= 15 && part.chars().all(|c| c.is_ascii_lowercase()))
+    })
+}
+
+/// A PEM private-key block, its `BEGIN`/`END` lines and everything between
+/// them, found over the whole text rather than one line at a time.
+fn pem_key_pattern() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        regex::RegexBuilder::new(
+            r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
+        )
+        .dot_matches_new_line(true)
+        .build()
+        .expect("PEM key pattern compiles")
+    })
+}
+
+/// Never records the matched text: the same reason `scan-denied-name`
+/// does not. A line this fires on is not something a reader needs to see
+/// repeated back to them to know it must go. A line where every match is a
+/// known placeholder is not flagged at all.
+fn secret_line_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
+    let pattern = secret_shape_pattern();
+    for (line, content) in lines(text) {
+        let real = pattern.captures_iter(content).any(|caps| {
+            let whole = caps.get(0).map_or("", |m| m.as_str());
+            let name = caps.get(1).map(|m| m.as_str());
+            let value = caps.get(2).or_else(|| caps.get(3)).map(|m| m.as_str());
+            !is_known_placeholder(whole, name, value)
+        });
+        if real {
+            out.push(finding(
+                "scan-secret",
+                line,
+                format!("text shaped like a real secret {clause}"),
+                "",
+            ));
+        }
+    }
+}
+
+/// One finding per line of a PEM private-key block, so a caller that
+/// redacts by line blanks the whole key, not only its `BEGIN` line.
+fn pem_key_findings(clause: &str, text: &str, out: &mut Vec<Finding>) {
+    for hit in pem_key_pattern().find_iter(text) {
+        let start_line = text
+            .bytes()
+            .take(hit.start())
+            .filter(|&b| b == b'\n')
+            .count()
+            + 1;
+        let span_lines = hit.as_str().matches('\n').count() + 1;
+        for offset in 0..span_lines {
+            out.push(finding(
+                "scan-secret",
+                start_line + offset,
+                format!("a private-key block {clause}"),
+                "",
+            ));
+        }
+    }
+}
+
 // --- the denylist ---------------------------------------------------------
 
 /// A compiled denylist: patterns that must never appear in the repository,
@@ -488,6 +648,8 @@ impl Rules {
         if let Some(owner) = &self.repository.owner {
             foreign_reference_findings(owner, clause, text, &mut out);
         }
+        secret_line_findings(clause, text, &mut out);
+        pem_key_findings(clause, text, &mut out);
         self.denylist.find(text, &mut out);
         resolve_and_explain(&mut out, context);
         osf_lint_core::sort_findings(&mut out);
@@ -581,7 +743,9 @@ fn resolve_scan_targets(
 /// or as given on the command line otherwise. A binary file is skipped. A
 /// file matching `excluder` is never even read. A symlink is never read
 /// either; it is counted as excluded instead, so a scan of nothing but
-/// symlinks is never reported as clean.
+/// symlinks is never reported as clean. With `no_suppress`, every
+/// `osf-disable`-family marker is ignored, so every finding it would have
+/// silenced is reported; continuous integration runs with this set.
 ///
 /// # Errors
 /// Returns an error if git cannot run, or a named path cannot be read.
@@ -590,6 +754,7 @@ pub fn scan_paths(
     paths: &[PathBuf],
     rules: &Rules,
     excluder: &Excluder,
+    no_suppress: bool,
 ) -> Result<ScanOutcome, String> {
     let (targets, skipped_links) = resolve_scan_targets(dir, paths)?;
     let mut files = Vec::new();
@@ -611,6 +776,11 @@ pub fn scan_paths(
         }
         let text = String::from_utf8_lossy(&bytes);
         let findings = rules.scan_text(&text, Context::Document);
+        let findings = if no_suppress {
+            findings
+        } else {
+            apply_suppressions(&text, findings, &crate::lints::all_rule_ids(), &rule_ids())
+        };
         files.push((label, findings));
     }
     Ok(ScanOutcome {
@@ -619,7 +789,9 @@ pub fn scan_paths(
     })
 }
 
-/// Scans every commit message in `range`, named by its commit hash.
+/// Scans every commit message in `range`, named by its commit hash. A
+/// commit message has no file to carry a suppression marker, so a finding
+/// here is never suppressible.
 ///
 /// # Errors
 /// Returns an error if git cannot run in `dir`, such as when `range` does not resolve.

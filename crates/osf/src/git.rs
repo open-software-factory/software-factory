@@ -761,6 +761,35 @@ pub fn diff_numstat(dir: &Path, rev: &str) -> Result<Vec<String>, GitError> {
     run_text(dir, &["diff", "--numstat", rev]).map(|t| t.lines().map(str::to_string).collect())
 }
 
+/// One `(status, path)` pair per changed path against `rev`: the status
+/// letter git reports (`A`, `M`, `D`, `R100`, ...), reduced to its first
+/// character, and, for a rename or copy, the new path.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `rev` does not resolve.
+pub fn diff_name_status(dir: &Path, rev: &str) -> Result<Vec<(char, String)>, GitError> {
+    let text = run_text(dir, &["diff", "--name-status", rev])?;
+    Ok(text
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.splitn(2, '\t');
+            let status = fields.next()?.chars().next()?;
+            let rest = fields.next()?;
+            let path = rest.rsplit('\t').next().unwrap_or(rest);
+            Some((status, path.to_string()))
+        })
+        .collect())
+}
+
+/// The unified diff against `rev`, with no context lines, so every line
+/// after a hunk header is either an addition or a deletion.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `rev` does not resolve.
+pub fn diff_patch(dir: &Path, rev: &str) -> Result<String, GitError> {
+    run_text(dir, &["diff", "--no-color", "--unified=0", rev])
+}
+
 /// Added and removed line counts for one path. A binary file has two zeros.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Numstat {
@@ -779,6 +808,58 @@ pub struct Numstat {
 pub fn diff_numstat_between(dir: &Path, base: &str, head: &str) -> Result<Vec<Numstat>, GitError> {
     let range = format!("{base}...{head}");
     run(dir, &["diff", "--numstat", "-M", "-z", &range]).map(|raw| parse_numstat_z(&raw))
+}
+
+/// Line counts for every path that differs between `base` and `HEAD`, as
+/// [`changed_files`] reads the range: a `base` that is a tree is compared
+/// directly. A deleted path is included.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
+pub fn numstat_since(dir: &Path, base: &str) -> Result<Vec<Numstat>, GitError> {
+    let range = format!("{base}...HEAD");
+    let mut args = vec!["diff", "--numstat", "-M", "-z"];
+    if is_tree(dir, base) {
+        args.extend([base, "HEAD"]);
+    } else {
+        args.push(&range);
+    }
+    run(dir, &args).map(|raw| parse_numstat_z(&raw))
+}
+
+/// The full unified diff of `base...HEAD`, with no colour. A `base` that is a
+/// tree is compared directly.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
+pub fn diff_full_since(dir: &Path, base: &str) -> Result<String, GitError> {
+    let range = format!("{base}...HEAD");
+    let mut args = vec!["diff", "--no-color"];
+    if is_tree(dir, base) {
+        args.extend([base, "HEAD"]);
+    } else {
+        args.push(&range);
+    }
+    run_text(dir, &args)
+}
+
+/// The commit log of `base..HEAD`, with no colour; every commit reachable
+/// from `HEAD` when `base` is a tree.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `base` does not resolve.
+pub fn log_since(dir: &Path, base: &str) -> Result<String, GitError> {
+    let range = format!("{base}..HEAD");
+    let target = if is_tree(dir, base) { "HEAD" } else { &range };
+    run_text(dir, &["log", "--no-color", target])
+}
+
+/// The full object id `rev` names in `dir`.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, or `rev` does not resolve.
+pub fn resolve_rev(dir: &Path, rev: &str) -> Result<String, GitError> {
+    run_text(dir, &["rev-parse", "--verify", rev]).map(|t| t.trim().to_string())
 }
 
 /// Parses `git diff --numstat -M -z`: `added<TAB>removed<TAB>path<NUL>`, and
