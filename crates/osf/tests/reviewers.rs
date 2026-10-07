@@ -632,7 +632,7 @@ fn the_codex_reviewer_carries_a_sandbox_check_outside_the_container() {
             .expect("reviewer is in the roster")
     };
     assert_eq!(check("codex"), vec!["codex", "sandbox", "--", "true"]);
-    assert!(check("claude").is_empty());
+    assert_eq!(check("claude"), Vec::<String>::new());
 }
 
 /// Inside the factory container codex's own sandbox is off, so it carries no
@@ -644,7 +644,7 @@ fn the_codex_reviewer_inside_the_container_has_no_sandbox_check() {
         .expect("osf.toml writes");
     let reviewers = roster_in(&root, true).expect("roster loads");
     let codex = reviewers.first().expect("codex is in the roster");
-    assert!(codex.sandbox_check.is_empty());
+    assert_eq!(codex.sandbox_check, Vec::<String>::new());
     let read_only = codex.read_only.as_ref().expect("codex has a mode");
     assert_eq!(
         read_only.args,
