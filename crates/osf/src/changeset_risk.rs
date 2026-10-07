@@ -704,7 +704,7 @@ mod tests {
             vec![vec!["Some plain prose."]],
             vec![],
         )];
-        assert!(signals_for(&diffs, &[]).is_empty());
+        assert_eq!(signals_for(&diffs, &[]), Vec::<String>::new());
     }
 
     // C4 negative test: a lockfile-only change never earns "concurrency",
