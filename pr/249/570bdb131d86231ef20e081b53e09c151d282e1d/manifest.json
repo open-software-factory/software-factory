@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "pr-lens-ci-rust-toolchain-cache",
+    "headSha": "570bdb131d86231ef20e081b53e09c151d282e1d",
+    "contentHash": "1da3f4b4d7503178fbeadbca8723b650"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "ci-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b0fdb9a075229e1ab663bf90ff16bb7b",
+      "bytes": 22680,
+      "width": 1772,
+      "height": 874,
+      "animated": true,
+      "path": "ci-pipeline-light-b0fdb9a075229e1ab663bf90ff16bb7b.svg"
+    },
+    {
+      "id": "ci-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b356ddebffbd8b93eb5758ed9b86ab6f",
+      "bytes": 22925,
+      "width": 1772,
+      "height": 874,
+      "animated": true,
+      "path": "ci-pipeline-dark-b356ddebffbd8b93eb5758ed9b86ab6f.svg"
+    },
+    {
+      "id": "rust-toolchain-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "rust-toolchain-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1af8e3c88a8b0ab5913b06d3595ff1f1",
+      "bytes": 15010,
+      "width": 1781,
+      "height": 449,
+      "animated": true,
+      "path": "rust-toolchain-flow-light-1af8e3c88a8b0ab5913b06d3595ff1f1.svg"
+    },
+    {
+      "id": "rust-toolchain-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "rust-toolchain-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "80ff6dc333f5ad1b534c7f1b43cc7c0c",
+      "bytes": 15173,
+      "width": 1781,
+      "height": 449,
+      "animated": true,
+      "path": "rust-toolchain-flow-dark-80ff6dc333f5ad1b534c7f1b43cc7c0c.svg"
+    }
+  ]
+}

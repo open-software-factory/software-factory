@@ -1,0 +1,664 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "pr-lens-ci-rust-toolchain-cache",
+  "generatedAt": "2026-10-07T08:55:13.342Z",
+  "title": "CI: shared Rust version pin and cached toolchain",
+  "summary": "The CI workflow now declares the Rust version once in a workflow-level `RUST_VERSION` env var, and both Rust-consuming jobs install that version instead of a hard-coded literal. Each of those jobs also gains an `actions/cache` step over `~/.rustup`, keyed by OS and the pinned version, so a warm cache lets `rustup toolchain install` short-circuit. The comments record that this is interim: issue #244 will bake the toolchain into the dev container image and move the pin to `rust-toolchain.toml`, at which point the install step disappears.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "10424e39700ecc5199e5a1ec41104792c99f498b",
+      "ref": "10424e39700ecc5199e5a1ec41104792c99f498b"
+    },
+    "head": {
+      "sha": "570bdb131d86231ef20e081b53e09c151d282e1d",
+      "ref": "570bdb131d86231ef20e081b53e09c151d282e1d"
+    },
+    "pullRequest": {
+      "number": 249,
+      "url": "https://github.com/open-software-factory/software-factory/pull/249"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "What starts a CI run: pushes and pull requests, funnelled through a concurrency group that cancels superseded runs."
+    },
+    {
+      "id": "workflow",
+      "label": "Workflow definition",
+      "subtitle": ".github/workflows/ci.yml",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The single workflow file that holds the job graph, the new workflow-level Rust version pin, and the per-job steps."
+    },
+    {
+      "id": "jobs",
+      "label": "CI jobs",
+      "subtitle": "GitHub-hosted runners",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The jobs that run on runners. Two of them build Rust and therefore install and cache the pinned toolchain."
+    },
+    {
+      "id": "external",
+      "label": "External services",
+      "subtitle": "Actions and toolchain distribution",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "Off-runner dependencies: the Actions cache backend and the rustup distribution channel that serves toolchain archives."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "push-pr-events",
+      "label": "Push / pull_request",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "github.ref, github.event",
+      "summary": "Repository events that select the workflow and supply the ref used by the concurrency group.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "concurrency-group",
+      "label": "Concurrency group",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "ci-${{ github.ref }}",
+      "summary": "Cancels in-progress runs for the same ref so superseded commits do not keep runners busy.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "workflow-level env + job graph",
+      "summary": "The workflow file itself. This change adds a top-level `env` block holding `RUST_VERSION: 1.99.0`, which every job can now read, and rewrites the two toolchain install steps to consume it.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 20,
+          "endLine": 25
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rust-version-pin",
+      "label": "RUST_VERSION",
+      "kind": "config",
+      "delta": "added",
+      "lane": "workflow",
+      "group": "env",
+      "subtitle": "1.99.0",
+      "summary": "The single source of truth for the Rust version. Previously the literal `1.99.0` was duplicated in two install steps; now it is declared once at workflow scope and interpolated as `${{ env.RUST_VERSION }}`. The comment records that this pin is interim until issue #244 moves it into `rust-toolchain.toml`.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 20,
+          "endLine": 25
+        }
+      ],
+      "badges": [
+        "single source of truth"
+      ]
+    },
+    {
+      "id": "dsh-plugin-job",
+      "label": "dsh-plugin",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "jobs",
+      "subtitle": "plugin checks",
+      "summary": "The plugin job. It does not build Rust, so it is untouched by this change and serves as the contrast case for the two jobs that do.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "rust-build-job",
+      "label": "Rust build job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "jobs",
+      "group": "rust",
+      "subtitle": "detect → cache → install → build",
+      "summary": "The first Rust-consuming job. It gains a `Cache the Rust toolchain` step before the install step, and its install step now reads `${{ env.RUST_VERSION }}` instead of the literal version. The install step is still gated on the `detect` step finding a root `Cargo.toml`.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 178,
+          "endLine": 194
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rust-lint-job",
+      "label": "Rust lint job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "jobs",
+      "group": "rust",
+      "subtitle": "fetch-depth 0 → cache → install",
+      "summary": "The second Rust-consuming job, which checks out full history and then installs the same toolchain. It receives the identical cache step and the identical `env.RUST_VERSION` substitution, which is what makes the shared pin worth having.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 319,
+          "endLine": 334
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "rustup-cache-step",
+      "label": "Cache the Rust toolchain",
+      "kind": "function",
+      "delta": "added",
+      "lane": "jobs",
+      "group": "rust",
+      "subtitle": "actions/cache@55cc834",
+      "summary": "A new step in both Rust jobs. It caches `~/.rustup` under the key `rustup-${{ runner.os }}-${{ env.RUST_VERSION }}` with restore key `rustup-${{ runner.os }}-`, so a cache hit for the exact OS and version restores the installed toolchain and the subsequent `rustup toolchain install` becomes a no-op.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 178,
+          "endLine": 184
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 319,
+          "endLine": 325
+        }
+      ],
+      "badges": [
+        "new step",
+        "keyed by OS + version"
+      ]
+    },
+    {
+      "id": "rustup-install-step",
+      "label": "Install the pinned Rust toolchain",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "jobs",
+      "group": "rust",
+      "subtitle": "rustup toolchain install $RUST_VERSION",
+      "summary": "The existing install step, now parameterised. It runs `rustup toolchain install \"${{ env.RUST_VERSION }}\" --profile minimal --component clippy,rustfmt` followed by `rustup default` on the same value, so the version is no longer written twice in the file.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 186,
+          "endLine": 194
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 327,
+          "endLine": 334
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-cache-step",
+      "label": "Cache the build",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "jobs",
+      "group": "rust",
+      "subtitle": "cargo target cache",
+      "summary": "The pre-existing cargo build cache that follows the toolchain install. It is unchanged, but it is the reason the toolchain cache matters: a cold toolchain install delays the point at which the build cache can be used.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "actions-cache",
+      "label": "Actions cache backend",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "actions/cache@55cc834",
+      "summary": "GitHub's cache service, addressed by the pinned `actions/cache` commit. It stores and restores the `~/.rustup` archive under the version-scoped key.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "rustup-dist",
+      "label": "rustup distribution",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "static.rust-lang.org",
+      "summary": "The upstream channel that serves the toolchain archives. On a cache miss the install step downloads from here; on a hit it is not contacted.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "events-to-workflow",
+      "from": "push-pr-events",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "events-to-concurrency",
+      "from": "push-pr-events",
+      "to": "concurrency-group",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "github.ref",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-dsh",
+      "from": "ci-workflow",
+      "to": "dsh-plugin-job",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-rust-build",
+      "from": "ci-workflow",
+      "to": "rust-build-job",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-rust-lint",
+      "from": "ci-workflow",
+      "to": "rust-lint-job",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "pin-to-build-install",
+      "from": "rust-version-pin",
+      "to": "rustup-install-step",
+      "kind": "data",
+      "delta": "added",
+      "label": "${{ env.RUST_VERSION }}",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The connection this change is really about: one workflow-level value now feeds both install steps, so the version can no longer drift between jobs.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 20,
+          "endLine": 25
+        }
+      ]
+    },
+    {
+      "id": "pin-to-lint-install",
+      "from": "rust-version-pin",
+      "to": "rustup-install-step",
+      "kind": "data",
+      "delta": "added",
+      "label": "${{ env.RUST_VERSION }}",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The second consumer of the same pin, in the lint job. Together with the build job this is the duplication the change removes.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 20,
+          "endLine": 25
+        }
+      ]
+    },
+    {
+      "id": "build-job-to-cache-step",
+      "from": "rust-build-job",
+      "to": "rustup-cache-step",
+      "kind": "call",
+      "delta": "added",
+      "label": "before install",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-job-to-cache-step",
+      "from": "rust-lint-job",
+      "to": "rustup-cache-step",
+      "kind": "call",
+      "delta": "added",
+      "label": "before install",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cache-step-to-actions-cache",
+      "from": "rustup-cache-step",
+      "to": "actions-cache",
+      "kind": "http",
+      "delta": "added",
+      "label": "restore ~/.rustup",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cache-step-to-install-step",
+      "from": "rustup-cache-step",
+      "to": "rustup-install-step",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "warm ~/.rustup",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "install-step-to-rustup-dist",
+      "from": "rustup-install-step",
+      "to": "rustup-dist",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "toolchain archive",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "install-step-to-build-cache",
+      "from": "rustup-install-step",
+      "to": "build-cache-step",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "rust-toolchain-provisioning",
+      "title": "Provisioning the pinned Rust toolchain",
+      "summary": "How a Rust job gets its compiler after this change: the cache step tries to restore `~/.rustup` under an OS-and-version key, and the install step either finds the toolchain already present or downloads it from rustup.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "rust-build-job",
+          "label": "Rust job"
+        },
+        {
+          "node": "rustup-cache-step",
+          "label": "Cache step"
+        },
+        {
+          "node": "actions-cache",
+          "label": "Actions cache"
+        },
+        {
+          "node": "rustup-install-step",
+          "label": "Install step"
+        },
+        {
+          "node": "rustup-dist",
+          "label": "rustup dist"
+        }
+      ],
+      "messages": [
+        {
+          "id": "flow-cache-restore",
+          "from": "rust-build-job",
+          "to": "rustup-cache-step",
+          "label": "run cache step",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 178,
+              "endLine": 184
+            }
+          ]
+        },
+        {
+          "id": "flow-cache-lookup",
+          "from": "rustup-cache-step",
+          "to": "actions-cache",
+          "label": "GET rustup-{os}-{version}",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "A hit restores the whole `~/.rustup` directory, including the installed 1.99.0 toolchain and its clippy and rustfmt components.",
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "CacheKey",
+              "shape": "rustup-${{ runner.os }}-${{ env.RUST_VERSION }}",
+              "sample": {
+                "key": "rustup-Linux-1.99.0",
+                "restoreKeys": [
+                  "rustup-Linux-"
+                ]
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CacheHit | CacheMiss",
+              "sample": {
+                "cacheHit": true,
+                "restoredKey": "rustup-Linux-1.99.0"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "flow-cache-result",
+          "from": "actions-cache",
+          "to": "rustup-cache-step",
+          "label": "restore ~/.rustup",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "flow-cache-to-install",
+          "from": "rustup-cache-step",
+          "to": "rustup-install-step",
+          "label": "warm toolchain dir",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "flow-install",
+          "from": "rustup-install-step",
+          "to": "rustup-install-step",
+          "label": "rustup toolchain install $RUST_VERSION",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "With a warm cache this resolves locally; on a miss it downloads the minimal profile plus clippy and rustfmt.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 186,
+              "endLine": 194
+            }
+          ]
+        },
+        {
+          "id": "flow-install-download",
+          "from": "rustup-install-step",
+          "to": "rustup-dist",
+          "label": "fetch toolchain archive",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Only reached on a cache miss, which is the case the new cache step exists to avoid.",
+          "files": []
+        },
+        {
+          "id": "flow-install-default",
+          "from": "rustup-install-step",
+          "to": "rustup-install-step",
+          "label": "rustup default $RUST_VERSION",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 186,
+              "endLine": 194
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 34,
+    "deletions": 7,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "ci-pipeline",
+      "title": "CI pipeline and the Rust toolchain path",
+      "lens": "architecture",
+      "summary": "The workflow, its jobs, and the two external services the Rust jobs depend on. The hero edges are the new `RUST_VERSION` pin feeding both install steps.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "rust-toolchain-flow",
+      "title": "Toolchain provisioning sequence",
+      "lens": "data-flow",
+      "summary": "The ordered steps a Rust job takes to obtain its compiler, from cache lookup through install to default.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "rust-toolchain-provisioning"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-pin",
+        "heading": "One pin, two jobs",
+        "body": "`RUST_VERSION` is declared once at workflow scope and read by both install steps.",
+        "stage": {
+          "kind": "view",
+          "view": "ci-pipeline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "rust-version-pin",
+            "rustup-install-step"
+          ],
+          "edges": [
+            "pin-to-build-install",
+            "pin-to-lint-install"
+          ],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-cache",
+        "heading": "Cache before install",
+        "body": "Each Rust job restores `~/.rustup` under an OS-and-version key before installing.",
+        "stage": {
+          "kind": "view",
+          "view": "ci-pipeline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "rustup-cache-step",
+            "actions-cache"
+          ],
+          "edges": [
+            "cache-step-to-actions-cache",
+            "cache-step-to-install-step"
+          ],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-sequence",
+        "heading": "Warm path vs cold path",
+        "body": "A cache hit makes the install a no-op; a miss falls through to rustup distribution.",
+        "stage": {
+          "kind": "flow",
+          "flow": "rust-toolchain-provisioning"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "flow-cache-lookup",
+            "flow-install",
+            "flow-install-download"
+          ]
+        }
+      }
+    ]
+  }
+}
