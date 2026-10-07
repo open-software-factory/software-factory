@@ -168,9 +168,13 @@ jobs:
             echo "::notice::no Cargo.toml at the repository root, nothing to build yet"
           fi
 
-      - name: Install the toolchain components
+      - name: Install the pinned Rust toolchain
         if: steps.detect.outputs.present == 'true'
-        run: rustup component add clippy rustfmt
+        # Pinned here because the dev container image still ships an older Rust.
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.99.0 --profile minimal --component clippy,rustfmt
+          rustup default 1.99.0
 
       - name: Cache the build
         if: steps.detect.outputs.present == 'true'
@@ -295,10 +299,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install the toolchain components
+      - name: Install the pinned Rust toolchain
+        # Pinned here because the dev container image still ships an older Rust.
         run: |
           set -euo pipefail
-          rustup component add clippy rustfmt
+          rustup toolchain install 1.99.0 --profile minimal --component clippy,rustfmt
+          rustup default 1.99.0
 
       - name: Cache the build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9

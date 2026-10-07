@@ -710,7 +710,7 @@ mod tests {
     #[test]
     fn the_captured_report_parses_into_one_outcome_per_task() {
         let tasks = parse_report(REPORT).expect("report parses");
-        assert!(!tasks.is_empty());
+        assert_ne!(tasks, Vec::<TaskOutcome>::new());
         assert!(
             tasks.iter().any(|t| t.target.ends_with(":probe")),
             "{:?}",
@@ -919,7 +919,7 @@ mod tests {
     #[test]
     fn a_query_with_no_matching_tasks_is_an_empty_list() {
         let targets = parse_query_tasks(r#"{"tasks":{}}"#).expect("empty query parses");
-        assert!(targets.is_empty());
+        assert_eq!(targets, Vec::<TaskSlot>::new());
     }
 
     #[test]
