@@ -4,11 +4,11 @@ Status: draft. This document states principles for later enforcement. It becomes
 
 Date: 2026-09-30
 
-Decision 0020, the decision on who can post a review result the factory trusts, is [open-software-factory/software-factory#136 (the review check design)](https://github.com/open-software-factory/software-factory/issues/136). It settles the review gate on one platform, GitHub Actions. This document names the general properties behind that record. Any gate, on any platform, needs these properties to be safe.
+Decision 0020, the decision on who can post a review result the factory trusts, is [open-software-factory/software-factory#136 (the review check design)](https://github.com/open-software-factory/software-factory/issues/136). It settles the review check on one platform, GitHub Actions. This document names the general properties behind that record. Any gate, on any platform, needs these properties to be safe.
 
 ## Problem
 
-A gate checks a change. A gate blocks or allows a merge. The review check is one gate. A gate is only as safe as the platform that runs it.
+A gate checks a change. A gate blocks or allows a merge. The review check is meant to be one gate, and it is advisory for now. A gate is only as safe as the platform that runs it.
 
 The factory plans to support more than one execution platform over time. GitHub Actions is the first platform, and other platforms come later.
 
@@ -39,13 +39,14 @@ This loop carries forward the rule in [decision 0003](decisions/0003-determinist
 | Key never exposed | The job can use a key. The job never reads the key's value. | As of 2026-09-30, this is not met on GitHub-hosted runners. A later option is a self-hosted, ephemeral runner with a proxy on the host. The proxy adds the key to model API requests. The job itself never sees the key. | Future |
 | Least privilege for the builder | The builder app cannot change a setting a gate later reads. | Remove `actions_variables: write` from the builder app. | Recommended |
 
-## Adopter minimum for the review gate
+## Adopter minimum for the review check
 
-As of 2026-09-30, an adopter who wants the review gate needs three things:
+As of 2026-10-03, the review check is advisory. It posts a check run and a review, and no branch protection requires it. It becomes a required check, and so meets the Gate property, when the key proxy and the network split land. An adopter who wants the review check needs two things:
 
 - the verifier app's ID and its key
-- one environment, named `review`, holding two model keys
-- branch protection that requires the review job
+- one environment, named `review`, holding at least two model keys
+
+When the review check becomes required, the adopter adds one more thing: branch protection that requires the review job.
 
 ## Future work
 
