@@ -1,0 +1,618 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-tree-sitter-0-27-bump",
+  "generatedAt": "2026-10-07T11:53:30.293Z",
+  "title": "tree-sitter 0.25.10 → 0.27.0 in the osf crate",
+  "summary": "A dependency-only change: the `osf` crate pins `tree-sitter` to 0.27.0 instead of 0.25.10, and Cargo.lock follows, dropping the transitive `regex-syntax` edge that 0.25.x pulled in. No source file changes, so the runtime shape of the system is untouched — what moves is the parser runtime that every Rust source file in a scanned repository is fed through, and the lockfile graph underneath it.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "ec890b8f14816a10404b57d663b9d3657ef1f1e4",
+      "ref": "ec890b8f14816a10404b57d663b9d3657ef1f1e4"
+    },
+    "head": {
+      "sha": "c640c18bc436c0416877d1ac4348f0b60a35427b",
+      "ref": "c640c18bc436c0416877d1ac4348f0b60a35427b"
+    },
+    "pullRequest": {
+      "number": 218,
+      "url": "https://github.com/open-software-factory/software-factory/pull/218"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI & orchestration",
+      "subtitle": "osf binary",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The user-facing entry point that drives a scan and prints results."
+    },
+    {
+      "id": "analysis",
+      "label": "Analysis engine",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "The crate whose manifest changed: it walks a repository, parses source files and produces findings."
+    },
+    {
+      "id": "parser",
+      "label": "Parser runtime",
+      "subtitle": "tree-sitter",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The tree-sitter runtime and its Rust grammar. The runtime version pin is the whole of this change."
+    },
+    {
+      "id": "deps",
+      "label": "Dependency graph",
+      "subtitle": "Cargo.lock",
+      "order": 3,
+      "delta": "modified",
+      "summary": "The resolved crate graph. tree-sitter 0.27.0 no longer depends on regex-syntax."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "command entry point",
+      "summary": "Invokes the osf crate to run a scan over a target repository and report findings. Unaffected by the version bump, but it is the reason the parser is loaded at all.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "analysis",
+      "subtitle": "crates/osf",
+      "summary": "The crate whose manifest changed. Its `tree-sitter` dependency pin moves from `=0.25.10` to `=0.27.0`; nothing else in the manifest is touched.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 35,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "source-walker",
+      "label": "Source walker",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "analysis",
+      "group": "scan-pipeline",
+      "subtitle": "file discovery",
+      "summary": "Finds the source files in the target repository and hands each one to the parser. It is the producer of every buffer the parser runtime sees.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "rust-grammar",
+      "label": "tree-sitter-rust",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "parser",
+      "group": "grammar",
+      "subtitle": "=0.24.2",
+      "summary": "The Rust grammar loaded into the runtime. Its pin is unchanged, so the parse tree shape a reviewer sees is the same before and after.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 39,
+          "endLine": 39
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tree-sitter-runtime",
+      "label": "tree-sitter runtime",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "parser",
+      "group": "runtime",
+      "subtitle": "0.25.10 → 0.27.0",
+      "summary": "The parser runtime the osf crate links against. Two minor versions forward: the API surface the crate compiles against is now 0.27.0, and the runtime no longer carries a regex-syntax dependency.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 38,
+          "endLine": 38
+        },
+        {
+          "path": "Cargo.lock",
+          "startLine": 1716,
+          "endLine": 1727
+        }
+      ],
+      "badges": [
+        "major-version-pin"
+      ]
+    },
+    {
+      "id": "parse-tree",
+      "label": "Parse tree",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "parser",
+      "group": "runtime",
+      "subtitle": "syntax tree per file",
+      "summary": "The output the analysis engine consumes. Produced by the same grammar, so its shape is unchanged; only the runtime that builds it moved.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "lockfile",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "resolved graph",
+      "summary": "The resolved dependency graph. tree-sitter moves to 0.27.0 with a new checksum, and the `regex-syntax` entry disappears from its dependency list.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1716,
+          "endLine": 1727
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "regex-syntax",
+      "label": "regex-syntax",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "deps",
+      "subtitle": "no longer pulled by tree-sitter",
+      "summary": "Previously a transitive dependency of tree-sitter 0.25.x. The 0.27.0 manifest drops it, so it leaves the lock graph unless another crate still requires it.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1724,
+          "endLine": 1724,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "crates-io",
+      "label": "crates.io registry",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "deps",
+      "subtitle": "registry source",
+      "summary": "The registry the pinned versions resolve against. Both the old and new tree-sitter entries point here.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1719,
+          "endLine": 1719
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-invokes-osf",
+      "from": "osf-cli",
+      "to": "osf-crate",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "run scan",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The CLI drives the analysis crate. Unchanged, but it is the top of the path that reaches the bumped dependency.",
+      "files": []
+    },
+    {
+      "id": "osf-walks-sources",
+      "from": "osf-crate",
+      "to": "source-walker",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "discover files",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The crate enumerates source files before parsing them.",
+      "files": []
+    },
+    {
+      "id": "walker-feeds-parser",
+      "from": "source-walker",
+      "to": "tree-sitter-runtime",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "source buffers",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each discovered file is handed to the parser runtime. This is the boundary the version bump sits behind.",
+      "files": []
+    },
+    {
+      "id": "osf-depends-tree-sitter",
+      "from": "osf-crate",
+      "to": "tree-sitter-runtime",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=0.25.10 → =0.27.0",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The change itself: the osf crate's manifest pin moves two minor versions forward. Everything else in this document is context for judging that move.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 38,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "runtime-loads-grammar",
+      "from": "tree-sitter-runtime",
+      "to": "rust-grammar",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "load grammar",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The runtime loads the Rust grammar. The grammar pin is untouched, which is why the parse tree shape should not move.",
+      "files": []
+    },
+    {
+      "id": "runtime-produces-tree",
+      "from": "tree-sitter-runtime",
+      "to": "parse-tree",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "syntax tree",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The runtime emits a parse tree per file for the analysis engine to consume.",
+      "files": []
+    },
+    {
+      "id": "tree-feeds-osf",
+      "from": "parse-tree",
+      "to": "osf-crate",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "findings input",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The parse tree flows back into the analysis engine, which derives findings from it.",
+      "files": []
+    },
+    {
+      "id": "lock-resolves-tree-sitter",
+      "from": "lockfile",
+      "to": "tree-sitter-runtime",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.27.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile records the new version and checksum for tree-sitter.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1716,
+          "endLine": 1727
+        }
+      ]
+    },
+    {
+      "id": "lock-drops-regex-syntax",
+      "from": "lockfile",
+      "to": "regex-syntax",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "edge dropped",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "tree-sitter 0.27.0 no longer lists regex-syntax, so this transitive edge leaves the resolved graph.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1724,
+          "endLine": 1724,
+          "revision": "base"
+        }
+      ]
+    },
+    {
+      "id": "lock-fetches-registry",
+      "from": "lockfile",
+      "to": "crates-io",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "registry source",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Both versions resolve from the same registry source.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "parse-one-source-file",
+      "title": "Parsing one source file after the bump",
+      "summary": "The per-file path through the parser runtime. The runtime version changed, but the grammar and the tree it produces did not, so this sequence is the same shape before and after.",
+      "delta": "unchanged",
+      "participants": [
+        {
+          "node": "source-walker",
+          "label": "walker"
+        },
+        {
+          "node": "tree-sitter-runtime",
+          "label": "tree-sitter 0.27.0"
+        },
+        {
+          "node": "rust-grammar",
+          "label": "rust grammar"
+        },
+        {
+          "node": "parse-tree",
+          "label": "parse tree"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-hand-buffer",
+          "from": "source-walker",
+          "to": "tree-sitter-runtime",
+          "label": "source buffer",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "&str",
+              "shape": "&str",
+              "sample": {
+                "source": "fn main() { println!(\"hi\"); }"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-load-grammar",
+          "from": "tree-sitter-runtime",
+          "to": "rust-grammar",
+          "label": "load language",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "LanguageFn",
+              "shape": "fn() -> LanguageFn",
+              "sample": {
+                "symbol": "tree_sitter_rust"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-parse",
+          "from": "tree-sitter-runtime",
+          "to": "tree-sitter-runtime",
+          "label": "parse buffer",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The runtime walks the buffer with the loaded grammar. This is the step whose implementation moved from 0.25.10 to 0.27.0.",
+          "files": []
+        },
+        {
+          "id": "step-return-tree",
+          "from": "tree-sitter-runtime",
+          "to": "parse-tree",
+          "label": "syntax tree",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "response": {
+              "type": "Tree",
+              "shape": "Tree",
+              "sample": {
+                "rootKind": "source_file",
+                "hasError": false
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-consume",
+          "from": "parse-tree",
+          "to": "source-walker",
+          "label": "tree for analysis",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The tree is handed back to the analysis pipeline, which is unchanged by this diff.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 3,
+    "deletions": 4,
+    "chips": [
+      {
+        "label": "Runtime jump",
+        "value": "2 minor versions",
+        "tone": "modified"
+      },
+      {
+        "label": "Transitive deps dropped",
+        "value": "1",
+        "tone": "removed"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "view-containers",
+      "title": "Containers touched by the bump",
+      "lens": "architecture",
+      "summary": "The osf crate, the parser runtime it links, and the lockfile that resolves them. The only modified edges are the manifest pin and the dropped transitive dependency.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-parser-internals",
+      "title": "Inside the parser runtime",
+      "lens": "architecture",
+      "summary": "The runtime, the Rust grammar it loads and the parse tree it emits — the internals that decide whether a runtime version bump is observable to the analysis engine.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "tree-sitter-runtime",
+          "rust-grammar",
+          "parse-tree",
+          "source-walker"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "view-parse-flow",
+      "title": "Per-file parse sequence",
+      "lens": "data-flow",
+      "summary": "One source file through the parser runtime, from buffer to tree.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "parse-one-source-file"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "wt-change",
+        "heading": "The pin moves",
+        "body": "crates/osf/Cargo.toml pins tree-sitter to 0.27.0 instead of 0.25.10.",
+        "stage": {
+          "kind": "view",
+          "view": "view-containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [
+            "osf-depends-tree-sitter"
+          ],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-lock",
+        "heading": "The lock follows",
+        "body": "Cargo.lock records 0.27.0 with a new checksum and drops regex-syntax.",
+        "stage": {
+          "kind": "view",
+          "view": "view-containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [
+            "lock-resolves-tree-sitter",
+            "lock-drops-regex-syntax"
+          ],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-grammar",
+        "heading": "Grammar unchanged",
+        "body": "tree-sitter-rust stays at 0.24.2, so the tree shape should not move.",
+        "stage": {
+          "kind": "view",
+          "view": "view-parser-internals"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [
+            "runtime-loads-grammar"
+          ],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-flow",
+        "heading": "Same parse path",
+        "body": "A file still goes buffer → runtime → grammar → tree, with only the runtime version differing.",
+        "stage": {
+          "kind": "flow",
+          "flow": "parse-one-source-file"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}
