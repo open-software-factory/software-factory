@@ -1,0 +1,751 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T11:34:42.032Z",
+  "title": "Review workflow: git safe.directory for agent containers",
+  "summary": "The review workflow runs several agent containers (Codex, Claude, OpenRouter, verifier) that operate on the checked-out PR and base trees mounted at /pr and /base. Git refuses to read repositories owned by a different uid than the container user, so each job now writes a small gitconfig declaring /pr and /base as safe.directory and bind-mounts it read-only at /home/dev/.gitconfig inside the container. Nothing else about the jobs changes: the same images, mounts, tokens and working directories are used, and the gitconfig is produced in the same out/ directory that is already mounted into the container.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "6373e93b558ae9b3c5662014b029df1158d9fef2",
+      "ref": "6373e93b558ae9b3c5662014b029df1158d9fef2"
+    },
+    "head": {
+      "sha": "6e3cc1e39e3f620ed92edc93d267a013f519053d",
+      "ref": "6e3cc1e39e3f620ed92edc93d267a013f519053d"
+    },
+    "pullRequest": {
+      "number": 252,
+      "url": "https://github.com/open-software-factory/software-factory/pull/252"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "github",
+      "label": "GitHub Actions",
+      "subtitle": "workflow runner",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The runner that checks out the repository, prepares the pr/ and base/ trees, and drives every job in review.yml."
+    },
+    {
+      "id": "host",
+      "label": "Runner workspace",
+      "subtitle": "bind-mounted directories",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The host-side directories that are bind-mounted into the agent containers: the PR checkout, the base checkout, the work item, and the out/ scratch directory that now also holds gitconfig."
+    },
+    {
+      "id": "agent",
+      "label": "Agent containers",
+      "subtitle": "review image",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The containerised review agents (Codex, Claude, OpenRouter) and the verifier, each started with the same mounts and now with a read-only gitconfig at /home/dev/.gitconfig."
+    },
+    {
+      "id": "git",
+      "label": "Git inside container",
+      "subtitle": "/pr and /base",
+      "order": 3,
+      "delta": "modified",
+      "summary": "Git operations the agents run against the mounted checkouts; safe.directory entries let them read repositories owned by another uid."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "GitHub Actions workflow",
+      "summary": "The workflow that builds the review image, prepares the PR and base checkouts, and fans out to the agent and verifier jobs. This change adds a gitconfig write and a read-only mount to each job.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 208,
+          "endLine": 215
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prepare-step",
+      "label": "Prepare out/ step",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "chmod, jq, printf gitconfig",
+      "summary": "The setup step in each job that makes out/ writable, extracts the pull request metadata, and now also writes out/gitconfig with safe.directory entries for /pr and /base.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 208,
+          "endLine": 211
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-checkout",
+      "label": "pr/ checkout",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "host",
+      "subtitle": "mounted at /pr:ro",
+      "summary": "The pull request working tree prepared on the runner and mounted read-only into every agent container at /pr.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 236,
+          "endLine": 236
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "base-checkout",
+      "label": "base/ checkout",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "host",
+      "subtitle": "mounted at /base:ro",
+      "summary": "The base revision working tree mounted read-only into the verifier container at /base.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 575,
+          "endLine": 575
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "out-dir",
+      "label": "out/",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "host",
+      "subtitle": "scratch + gitconfig",
+      "summary": "The runner scratch directory mounted read-write at /out. It now also carries gitconfig, which is separately bind-mounted into the container as the user's git config.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 211,
+          "endLine": 211
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gitconfig-file",
+      "label": "out/gitconfig",
+      "kind": "config",
+      "delta": "added",
+      "lane": "host",
+      "subtitle": "[safe] directory = /pr, /base",
+      "summary": "A two-entry git config declaring /pr and /base as safe directories, written by printf in each job's prepare step.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 211,
+          "endLine": 211
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-agent",
+      "label": "Codex agent",
+      "kind": "service",
+      "delta": "modified",
+      "lane": "agent",
+      "subtitle": "REVIEW_IMAGE, CODEX_API_KEY",
+      "summary": "The Codex review container, run with /pr, /work-item and /out mounted and now with out/gitconfig at /home/dev/.gitconfig.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 236,
+          "endLine": 242
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude-agent",
+      "label": "Claude agent",
+      "kind": "service",
+      "delta": "modified",
+      "lane": "agent",
+      "subtitle": "REVIEW_IMAGE, CLAUDE_CODE_OAUTH_TOKEN",
+      "summary": "The Claude review container, same mounts as the Codex job and now the same read-only gitconfig mount.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 342,
+          "endLine": 348
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "openrouter-agent",
+      "label": "OpenRouter agent",
+      "kind": "service",
+      "delta": "modified",
+      "lane": "agent",
+      "subtitle": "REVIEW_IMAGE, OPENROUTER_API_KEY",
+      "summary": "The OpenRouter review container, same mounts and now the same read-only gitconfig mount.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 450,
+          "endLine": 456
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "verifier",
+      "label": "Verifier",
+      "kind": "service",
+      "delta": "modified",
+      "lane": "agent",
+      "subtitle": "GH_TOKEN, OSF_STATE_DIR",
+      "summary": "The verification container that also mounts /base and now receives the gitconfig at /home/dev/.gitconfig.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 575,
+          "endLine": 581
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "container-git",
+      "label": "git",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "git",
+      "subtitle": "reads /pr and /base",
+      "summary": "The git binary inside the agent containers. With the mounted config it treats /pr and /base as safe directories and can read the mounted repositories.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 211,
+          "endLine": 211
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "prepare-writes-gitconfig",
+      "from": "prepare-step",
+      "to": "gitconfig-file",
+      "kind": "data",
+      "delta": "added",
+      "label": "printf [safe]",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Each job's prepare step writes the safe.directory config into out/gitconfig.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 211,
+          "endLine": 211
+        }
+      ]
+    },
+    {
+      "id": "gitconfig-mounts-codex",
+      "from": "gitconfig-file",
+      "to": "codex-agent",
+      "kind": "data",
+      "delta": "added",
+      "label": "/home/dev/.gitconfig:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The gitconfig is bind-mounted read-only into the Codex container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 239,
+          "endLine": 239
+        }
+      ]
+    },
+    {
+      "id": "gitconfig-mounts-claude",
+      "from": "gitconfig-file",
+      "to": "claude-agent",
+      "kind": "data",
+      "delta": "added",
+      "label": "/home/dev/.gitconfig:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The gitconfig is bind-mounted read-only into the Claude container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 345,
+          "endLine": 345
+        }
+      ]
+    },
+    {
+      "id": "gitconfig-mounts-openrouter",
+      "from": "gitconfig-file",
+      "to": "openrouter-agent",
+      "kind": "data",
+      "delta": "added",
+      "label": "/home/dev/.gitconfig:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The gitconfig is bind-mounted read-only into the OpenRouter container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 453,
+          "endLine": 453
+        }
+      ]
+    },
+    {
+      "id": "gitconfig-mounts-verifier",
+      "from": "gitconfig-file",
+      "to": "verifier",
+      "kind": "data",
+      "delta": "added",
+      "label": "/home/dev/.gitconfig:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The gitconfig is bind-mounted read-only into the verifier container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 578,
+          "endLine": 578
+        }
+      ]
+    },
+    {
+      "id": "pr-mounts-codex",
+      "from": "pr-checkout",
+      "to": "codex-agent",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/pr:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The PR checkout is mounted read-only into the Codex container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 236,
+          "endLine": 236
+        }
+      ]
+    },
+    {
+      "id": "pr-mounts-claude",
+      "from": "pr-checkout",
+      "to": "claude-agent",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/pr:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The PR checkout is mounted read-only into the Claude container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 342,
+          "endLine": 342
+        }
+      ]
+    },
+    {
+      "id": "pr-mounts-openrouter",
+      "from": "pr-checkout",
+      "to": "openrouter-agent",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/pr:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The PR checkout is mounted read-only into the OpenRouter container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 450,
+          "endLine": 450
+        }
+      ]
+    },
+    {
+      "id": "pr-mounts-verifier",
+      "from": "pr-checkout",
+      "to": "verifier",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/pr:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The PR checkout is mounted read-only into the verifier container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 576,
+          "endLine": 576
+        }
+      ]
+    },
+    {
+      "id": "base-mounts-verifier",
+      "from": "base-checkout",
+      "to": "verifier",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/base:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The base checkout is mounted read-only into the verifier container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 575,
+          "endLine": 575
+        }
+      ]
+    },
+    {
+      "id": "out-mounts-codex",
+      "from": "out-dir",
+      "to": "codex-agent",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/out",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The scratch directory is mounted read-write into the Codex container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 238,
+          "endLine": 238
+        }
+      ]
+    },
+    {
+      "id": "out-mounts-claude",
+      "from": "out-dir",
+      "to": "claude-agent",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/out",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The scratch directory is mounted read-write into the Claude container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 344,
+          "endLine": 344
+        }
+      ]
+    },
+    {
+      "id": "out-mounts-openrouter",
+      "from": "out-dir",
+      "to": "openrouter-agent",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/out",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The scratch directory is mounted read-write into the OpenRouter container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 452,
+          "endLine": 452
+        }
+      ]
+    },
+    {
+      "id": "out-mounts-verifier",
+      "from": "out-dir",
+      "to": "verifier",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "/out",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The scratch directory is mounted read-write into the verifier container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 577,
+          "endLine": 577
+        }
+      ]
+    },
+    {
+      "id": "codex-reads-git",
+      "from": "codex-agent",
+      "to": "container-git",
+      "kind": "call",
+      "delta": "modified",
+      "label": "git status/diff",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The Codex agent runs git against the mounted checkouts; the safe.directory entries make those reads succeed.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 211,
+          "endLine": 211
+        }
+      ]
+    },
+    {
+      "id": "claude-reads-git",
+      "from": "claude-agent",
+      "to": "container-git",
+      "kind": "call",
+      "delta": "modified",
+      "label": "git status/diff",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The Claude agent runs git against the mounted checkouts; the safe.directory entries make those reads succeed.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 211,
+          "endLine": 211
+        }
+      ]
+    },
+    {
+      "id": "openrouter-reads-git",
+      "from": "openrouter-agent",
+      "to": "container-git",
+      "kind": "call",
+      "delta": "modified",
+      "label": "git status/diff",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The OpenRouter agent runs git against the mounted checkouts; the safe.directory entries make those reads succeed.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 211,
+          "endLine": 211
+        }
+      ]
+    },
+    {
+      "id": "verifier-reads-git",
+      "from": "verifier",
+      "to": "container-git",
+      "kind": "call",
+      "delta": "modified",
+      "label": "git status/diff",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The verifier runs git against the mounted checkouts; the safe.directory entries make those reads succeed.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 211,
+          "endLine": 211
+        }
+      ]
+    },
+    {
+      "id": "workflow-runs-prepare",
+      "from": "review-workflow",
+      "to": "prepare-step",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow executes the prepare step in each job before starting the container.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 208,
+          "endLine": 211
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "gitconfig-to-agent",
+      "title": "gitconfig reaches the agent container",
+      "summary": "How the safe.directory config written on the runner ends up as the git config inside an agent container, and how git then reads the mounted checkouts.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "prepare-step",
+          "label": "prepare step"
+        },
+        {
+          "node": "gitconfig-file",
+          "label": "out/gitconfig"
+        },
+        {
+          "node": "codex-agent",
+          "label": "agent container"
+        },
+        {
+          "node": "container-git",
+          "label": "git"
+        }
+      ],
+      "messages": [
+        {
+          "id": "write-gitconfig",
+          "from": "prepare-step",
+          "to": "gitconfig-file",
+          "label": "printf [safe] directory = /pr, /base",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Written into out/ alongside pull-request.json, before the container starts.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 211,
+              "endLine": 211
+            }
+          ]
+        },
+        {
+          "id": "mount-gitconfig",
+          "from": "gitconfig-file",
+          "to": "codex-agent",
+          "label": "bind mount /home/dev/.gitconfig:ro",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Read-only, so the agent cannot rewrite the config.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 239,
+              "endLine": 239
+            }
+          ]
+        },
+        {
+          "id": "git-reads-pr",
+          "from": "codex-agent",
+          "to": "container-git",
+          "label": "git status / git diff",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Git now accepts /pr and /base as safe directories instead of refusing to read them.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 211,
+              "endLine": 211
+            }
+          ]
+        },
+        {
+          "id": "git-returns",
+          "from": "container-git",
+          "to": "codex-agent",
+          "label": "diff output",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": false,
+          "note": "The same diff the agent would have seen had ownership matched.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 8,
+    "deletions": 0,
+    "chips": [
+      {
+        "label": "Jobs touched",
+        "value": "4",
+        "tone": "modified"
+      },
+      {
+        "label": "New mounts",
+        "value": "4",
+        "tone": "added"
+      },
+      {
+        "label": "New config file",
+        "value": "1",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "review-workflow-context",
+      "title": "Review workflow and its containers",
+      "lens": "architecture",
+      "summary": "The review workflow prepares checkouts and a gitconfig on the runner, then starts agent and verifier containers that read the mounted repositories through git.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "gitconfig-mount-detail",
+      "title": "gitconfig mount detail",
+      "lens": "architecture",
+      "summary": "The added gitconfig file and the four containers it is mounted into, alongside the unchanged pr/, base/ and out/ mounts.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "gitconfig-file",
+          "out-dir",
+          "pr-checkout",
+          "base-checkout",
+          "codex-agent",
+          "claude-agent",
+          "openrouter-agent",
+          "verifier",
+          "container-git"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

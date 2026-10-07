@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "6e3cc1e39e3f620ed92edc93d267a013f519053d",
+    "contentHash": "509c2d97e5e46c9486875cafc4ab41e1"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-workflow-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-workflow-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cdc71ebea9618cbf529902a684d9467a",
+      "bytes": 25363,
+      "width": 1833,
+      "height": 646,
+      "animated": false,
+      "path": "review-workflow-context-light-cdc71ebea9618cbf529902a684d9467a.svg"
+    },
+    {
+      "id": "review-workflow-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-workflow-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d1bd933b9e8bf4adf6fcc3dd15f3afc1",
+      "bytes": 25592,
+      "width": 1833,
+      "height": 646,
+      "animated": false,
+      "path": "review-workflow-context-dark-d1bd933b9e8bf4adf6fcc3dd15f3afc1.svg"
+    },
+    {
+      "id": "gitconfig-mount-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "gitconfig-mount-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b7682186238e389b20cab39f974ad177",
+      "bytes": 21766,
+      "width": 1409,
+      "height": 468,
+      "animated": false,
+      "path": "gitconfig-mount-detail-light-b7682186238e389b20cab39f974ad177.svg"
+    },
+    {
+      "id": "gitconfig-mount-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "gitconfig-mount-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cbcb8476ad1f338127e22cb0e985e180",
+      "bytes": 21949,
+      "width": 1409,
+      "height": 468,
+      "animated": false,
+      "path": "gitconfig-mount-detail-dark-cbcb8476ad1f338127e22cb0e985e180.svg"
+    }
+  ]
+}
