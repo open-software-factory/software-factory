@@ -1,0 +1,20 @@
+name = "reliability-and-failure-modes"
+summary = "Whether the change keeps working, or fails safely, when something it depends on does not."
+weight = 0.8
+runs = "triggered"
+
+[trigger]
+paths = ["**/retry/**", "**/*circuit*"]
+
+[[criteria]]
+id = "handles-dependency-failure"
+question = "Does the change handle the failure or timeout of every external call it adds or touches?"
+
+[[criteria]]
+id = "fails-safely"
+question = "When the change does fail, does it fail in a way that leaves data and state consistent?"
+
+[severity_guide]
+blocker = "A dependency failure crashes the process or corrupts state instead of failing safely."
+major = "A missing retry or timeout on a call that can hang or fail transiently."
+minor = "A failure mode that is handled, but with an unclear or unlogged error."

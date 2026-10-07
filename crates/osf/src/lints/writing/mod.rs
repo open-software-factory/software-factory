@@ -76,7 +76,12 @@ pub fn lint_writing(
     let mut findings = if no_suppress {
         findings
     } else {
-        osf_lint_core::apply_suppressions(text, findings, &rules::rule_ids())
+        osf_lint_core::apply_suppressions(
+            text,
+            findings,
+            &crate::lints::all_rule_ids(),
+            &rules::rule_ids(),
+        )
     };
     osf_lint_core::sort_findings(&mut findings);
     add_explain_pointers(&mut findings);
@@ -137,6 +142,14 @@ mod tests {
         is_fixture_path, is_scan_rule, load_known_names, Evidence, Level, Remediation,
     };
 
+    /// Builds an `osf-<directive>` marker at run time: `osf scan` reads its
+    /// own tracked source for markers too, so the shape must never sit
+    /// whole in this file.
+    fn marker(directive: &str, rest: &str) -> String {
+        let open = ["<!--", "osf-"].join(" ");
+        format!("{open}{directive}{rest} -->")
+    }
+
     fn lint(text: &str) -> Vec<Finding> {
         lint_writing(
             text,
@@ -183,7 +196,7 @@ mod tests {
     #[test]
     fn bare_issue_reference() {
         assert_eq!(rules_of("Fixed in #125 today."), vec!["bare-reference"]);
-        assert!(rules_of("Use `#12` in code.").is_empty());
+        assert_eq!(rules_of("Use `#12` in code."), Vec::<&str>::new());
     }
 
     #[test]
@@ -196,9 +209,9 @@ mod tests {
             rules_of("Fixed in repo#125 (the canvas fixes) today."),
             vec!["reference-without-link"]
         );
-        assert!(
-            rules_of("Fixed in [repo#125 (the canvas fixes)](https://example.com) today.")
-                .is_empty()
+        assert_eq!(
+            rules_of("Fixed in [repo#125 (the canvas fixes)](https://example.com) today."),
+            Vec::<&str>::new()
         );
     }
 
@@ -229,7 +242,7 @@ mod tests {
             rules_of("As discussed, ship it."),
             vec!["chat-local-reference"]
         );
-        assert!(rules_of("Round 2 found nothing.").is_empty());
+        assert_eq!(rules_of("Round 2 found nothing."), Vec::<&str>::new());
     }
 
     /// A document context, not the `lint` helper's transcript context: a
@@ -351,7 +364,10 @@ mod tests {
     /// list, is never reported: a bare capital letter proves nothing.
     #[test]
     fn an_ordinary_capitalised_word_with_no_evidence_is_never_reported() {
-        assert!(rules_of("Setup is about fifteen minutes and it happens once.").is_empty());
+        assert_eq!(
+            rules_of("Setup is about fifteen minutes and it happens once."),
+            Vec::<&str>::new()
+        );
     }
 
     /// A multi-word run stays one candidate, not two, and a run repeated
@@ -393,7 +409,10 @@ mod tests {
     /// too, so only a multi-word run's repetition counts.
     #[test]
     fn a_repeated_single_word_capital_is_still_not_evidence_of_a_name() {
-        assert!(rules_of("Vale runs fast. Vale never appears lowercase.").is_empty());
+        assert_eq!(
+            rules_of("Vale runs fast. Vale never appears lowercase."),
+            Vec::<&str>::new()
+        );
     }
 
     /// Every tier-1 finding (the must-explain list) is deterministic, and
@@ -425,11 +444,12 @@ mod tests {
     /// it starts uppercase and has a lowercase tail.
     #[test]
     fn contraction_is_not_a_name() {
-        assert!(
-            rules_of("If you want the clean version anyway, say so and I'll do it.").is_empty()
+        assert_eq!(
+            rules_of("If you want the clean version anyway, say so and I'll do it."),
+            Vec::<&str>::new()
         );
-        assert!(rules_of("We'll ship it today.").is_empty());
-        assert!(rules_of("Don't skip the test.").is_empty());
+        assert_eq!(rules_of("We'll ship it today."), Vec::<&str>::new());
+        assert_eq!(rules_of("Don't skip the test."), Vec::<&str>::new());
     }
 
     /// A run that opens with a known name, such as the built-in "GitHub",
@@ -560,11 +580,13 @@ mod tests {
             rules_of("**Run the full suite before every release, without exception.**"),
             vec!["bold-sentence"]
         );
-        assert!(rules_of("**Run the tests.**").is_empty());
-        assert!(rules_of(
-            "Run the tests before every release, but only **the smoke suite** needs a rerun."
-        )
-        .is_empty());
+        assert_eq!(rules_of("**Run the tests.**"), Vec::<&str>::new());
+        assert_eq!(
+            rules_of(
+                "Run the tests before every release, but only **the smoke suite** needs a rerun."
+            ),
+            Vec::<&str>::new()
+        );
     }
 
     #[test]
@@ -585,8 +607,14 @@ mod tests {
     fn a_processor_architecture_a_developer_already_knows_needs_no_description() {
         // Real case: a pull request table of processor architectures flagged
         // Intel, Arm and Apple Silicon as undefined names.
-        assert!(rules_of("The build runs on Intel and Arm.").is_empty());
-        assert!(rules_of("Apple Silicon runs the same binary.").is_empty());
+        assert_eq!(
+            rules_of("The build runs on Intel and Arm."),
+            Vec::<&str>::new()
+        );
+        assert_eq!(
+            rules_of("Apple Silicon runs the same binary."),
+            Vec::<&str>::new()
+        );
     }
 
     #[test]
@@ -749,9 +777,9 @@ mod tests {
             rules_of("DuckDB runs fast."),
             vec!["undefined-name-at-start"]
         );
-        assert!(rules_of("Build runs fast.").is_empty());
-        assert!(rules_of("Fixing runs fast.").is_empty());
-        assert!(rules_of("🤖 Generated with care.").is_empty());
+        assert_eq!(rules_of("Build runs fast."), Vec::<&str>::new());
+        assert_eq!(rules_of("Fixing runs fast."), Vec::<&str>::new());
+        assert_eq!(rules_of("🤖 Generated with care."), Vec::<&str>::new());
     }
 
     #[test]
@@ -779,7 +807,11 @@ mod tests {
 
     #[test]
     fn a_suppressed_line_is_kept_but_marked() {
-        let f = lint("Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n");
+        let t = format!(
+            "Fixed in #125 today. {}\n",
+            marker("disable-line", " bare-reference -- tracked")
+        );
+        let f = lint(&t);
         // The marker's own `-->` and ` -- ` must not lint as an arrow or an em dash.
         assert_eq!(f.len(), 1, "{f:?}");
         let bare = f
@@ -792,9 +824,12 @@ mod tests {
     #[test]
     fn no_suppress_ignores_every_marker() {
         let known = load_known_names(&[], None).expect("built-in names load");
-        let text = "Fixed in #125 today. <!-- osf-disable-line bare-reference -- tracked -->\n";
+        let text = format!(
+            "Fixed in #125 today. {}\n",
+            marker("disable-line", " bare-reference -- tracked")
+        );
         let f = lint_writing(
-            text,
+            &text,
             &known,
             &WritingConfig::default(),
             Context::Transcript,
