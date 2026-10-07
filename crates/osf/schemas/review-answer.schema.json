@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://open-software-factory.dev/schemas/review-answer.schema.json",
+  "title": "Review answer",
+  "description": "One reviewer's answer for one review lens.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lens", "scores", "findings"],
+  "properties": {
+    "lens": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scores": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "line", "quote", "severity", "action", "body"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "quote": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["blocker", "major", "minor"]
+          },
+          "action": {
+            "type": "string",
+            "enum": ["must-fix", "should-fix", "maybe-fix", "justify", "defer", "dismiss"]
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

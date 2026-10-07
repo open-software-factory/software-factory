@@ -1,0 +1,17 @@
+name = "data-migration-and-compatibility"
+summary = "Whether a changed stored shape keeps reading and writing data that already exists."
+weight = 1.0
+runs = "always"
+
+[[criteria]]
+id = "reads-old-data"
+question = "Can the changed code still read every record written before this change?"
+
+[[criteria]]
+id = "migration-present"
+question = "Does a schema or serialised-shape change carry a migration or a compatible default for existing rows?"
+
+[severity_guide]
+blocker = "Existing stored data becomes unreadable, or is silently misread, after this change."
+major = "Existing data still reads, but a migration step is missing or manual."
+minor = "A compatibility risk with no existing data affected yet."
