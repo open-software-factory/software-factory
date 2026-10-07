@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "dc25d0848aeefc5d4ddfd327e9d2981935d11502",
+    "contentHash": "bf95816b7efdbdfe1c267e3429b6d4a2"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "journal-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9f7852c893449235b397ab8e773a71ef",
+      "bytes": 22307,
+      "width": 1782,
+      "height": 532,
+      "animated": false,
+      "path": "journal-containers-light-9f7852c893449235b397ab8e773a71ef.svg"
+    },
+    {
+      "id": "journal-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ba41afa3cbc1f1eb9e3ed4875f497551",
+      "bytes": 22555,
+      "width": 1782,
+      "height": 532,
+      "animated": false,
+      "path": "journal-containers-dark-ba41afa3cbc1f1eb9e3ed4875f497551.svg"
+    },
+    {
+      "id": "journal-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c97ff625dfc7ee6e95f78641374dc5ec",
+      "bytes": 16799,
+      "width": 933,
+      "height": 532,
+      "animated": false,
+      "path": "journal-components-light-c97ff625dfc7ee6e95f78641374dc5ec.svg"
+    },
+    {
+      "id": "journal-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "05cdf76b94c165ea934c25edb9626066",
+      "bytes": 16978,
+      "width": 933,
+      "height": 532,
+      "animated": false,
+      "path": "journal-components-dark-05cdf76b94c165ea934c25edb9626066.svg"
+    },
+    {
+      "id": "append-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "append-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "266e0dc87ce7629bff6dc2dc50729974",
+      "bytes": 14175,
+      "width": 1551,
+      "height": 407,
+      "animated": true,
+      "path": "append-flow-light-266e0dc87ce7629bff6dc2dc50729974.svg"
+    },
+    {
+      "id": "append-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "append-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "92d1351b086bbb24dc2d4fef1b5f5fbb",
+      "bytes": 14322,
+      "width": 1551,
+      "height": 407,
+      "animated": true,
+      "path": "append-flow-dark-92d1351b086bbb24dc2d4fef1b5f5fbb.svg"
+    },
+    {
+      "id": "replay-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "replay-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "191e98a200f3d5866abbfeefedf70fc8",
+      "bytes": 11835,
+      "width": 1192,
+      "height": 357,
+      "animated": true,
+      "path": "replay-flow-light-191e98a200f3d5866abbfeefedf70fc8.svg"
+    },
+    {
+      "id": "replay-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "replay-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cf0b46b47967cf6de5533fef3f9f2182",
+      "bytes": 11958,
+      "width": 1192,
+      "height": 357,
+      "animated": true,
+      "path": "replay-flow-dark-cf0b46b47967cf6de5533fef3f9f2182.svg"
+    }
+  ]
+}
