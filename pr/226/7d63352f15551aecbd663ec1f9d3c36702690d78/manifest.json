@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "7d63352f15551aecbd663ec1f9d3c36702690d78",
+    "contentHash": "b81ff47cdc4960b415552bc4e6501165"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "journal-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2aa1a9006f7f456bacd6b907b6b85c12",
+      "bytes": 24427,
+      "width": 1829,
+      "height": 646,
+      "animated": false,
+      "path": "journal-containers-light-2aa1a9006f7f456bacd6b907b6b85c12.svg"
+    },
+    {
+      "id": "journal-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "13481dd87e74ea286412e0efd81e2007",
+      "bytes": 24698,
+      "width": 1829,
+      "height": 646,
+      "animated": false,
+      "path": "journal-containers-dark-13481dd87e74ea286412e0efd81e2007.svg"
+    },
+    {
+      "id": "journal-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fa399e598ec9d61085b07b9aca968649",
+      "bytes": 14844,
+      "width": 512,
+      "height": 646,
+      "animated": false,
+      "path": "journal-components-light-fa399e598ec9d61085b07b9aca968649.svg"
+    },
+    {
+      "id": "journal-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6520c945a5d370ef562c9a08ccb2b75a",
+      "bytes": 15001,
+      "width": 512,
+      "height": 646,
+      "animated": false,
+      "path": "journal-components-dark-6520c945a5d370ef562c9a08ccb2b75a.svg"
+    },
+    {
+      "id": "append-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "append-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6409346a84a738adf7664436b1f2aa43",
+      "bytes": 14984,
+      "width": 1551,
+      "height": 449,
+      "animated": true,
+      "path": "append-flow-light-6409346a84a738adf7664436b1f2aa43.svg"
+    },
+    {
+      "id": "append-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "append-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f39f0ecce11d8c9a57c49184c8bf09b1",
+      "bytes": 15131,
+      "width": 1551,
+      "height": 449,
+      "animated": true,
+      "path": "append-flow-dark-f39f0ecce11d8c9a57c49184c8bf09b1.svg"
+    },
+    {
+      "id": "read-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "read-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "04bb8d91c08dfbe5e9dfa16c7ec56aeb",
+      "bytes": 11818,
+      "width": 1192,
+      "height": 357,
+      "animated": true,
+      "path": "read-flow-light-04bb8d91c08dfbe5e9dfa16c7ec56aeb.svg"
+    },
+    {
+      "id": "read-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "read-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d45a368e89d4393808563530152136b7",
+      "bytes": 11942,
+      "width": 1192,
+      "height": 357,
+      "animated": true,
+      "path": "read-flow-dark-d45a368e89d4393808563530152136b7.svg"
+    }
+  ]
+}
