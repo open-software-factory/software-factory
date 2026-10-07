@@ -346,7 +346,10 @@ mod tests {
     #[test]
     fn a_missing_index_is_an_empty_list() {
         let dir = TempDir::new("osf-index-missing");
-        assert_eq!(runs_for_work_item(&dir, ITEM).expect("runs"), Vec::<String>::new());
+        assert_eq!(
+            runs_for_work_item(&dir, ITEM).expect("runs"),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
