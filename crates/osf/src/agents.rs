@@ -757,7 +757,7 @@ mod tests {
     #[test]
     fn every_agent_has_a_name_a_family_a_command_a_state_dir_and_a_session_path() {
         for a in AGENTS {
-            assert!(!a.name.is_empty());
+            assert_ne!(a.name, "");
             if let Family::Fixed(family) = a.family {
                 assert!(!family.is_empty(), "{}", a.name);
             }
@@ -912,14 +912,14 @@ mod tests {
     fn codex_runs_in_its_read_only_sandbox_outside_the_container() {
         let mode = read_only_of("codex").expect("codex documents a read-only mode");
         assert_eq!(mode.args, &["--sandbox", "read-only"]);
-        assert!(mode.env.is_empty());
+        assert_eq!(mode.env, &[]);
     }
 
     #[test]
     fn codex_runs_with_its_sandbox_off_inside_the_container() {
         let mode = in_container_of("codex").expect("codex documents an in-container mode");
         assert_eq!(mode.args, &["--dangerously-bypass-approvals-and-sandbox"]);
-        assert!(mode.env.is_empty());
+        assert_eq!(mode.env, &[]);
     }
 
     #[test]
