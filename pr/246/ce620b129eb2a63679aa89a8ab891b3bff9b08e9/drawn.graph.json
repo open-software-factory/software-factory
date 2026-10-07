@@ -1,0 +1,885 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T00:03:57.971Z",
+  "title": "Per-lens answer schema for reviewer subprocesses",
+  "summary": "Reviewer answers were validated against one static schema whose `scores` object was unconstrained, so a reviewer could return scores for criteria the lens never declared. This change adds `answer::schema_for(lens)`, which clones the compiled-in review-answer schema and rewrites `properties.scores` into a closed object with exactly one numeric 0–1 property per criterion of the lens being run. `reviewers::run_with_retry` now builds that schema once per run and threads it through `run_child` and `build_args`, so both the temp schema file and the inline `--json-schema` value carry the lens-specific contract, on the first attempt and the retry alike. Tests assert the generated schema obeys the structured-output keyword rules for every shipped lens and that a real codex answer validates against it.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4a8d2ac459f9d84c2b6403ee113315c991facee7",
+      "ref": "4a8d2ac459f9d84c2b6403ee113315c991facee7"
+    },
+    "head": {
+      "sha": "ce620b129eb2a63679aa89a8ab891b3bff9b08e9",
+      "ref": "ce620b129eb2a63679aa89a8ab891b3bff9b08e9"
+    },
+    "pullRequest": {
+      "number": 246,
+      "url": "https://github.com/open-software-factory/software-factory/pull/246"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "review run orchestration",
+      "order": 0,
+      "summary": "The command that drives a review: it loads lenses, picks reviewers and owns the retry loop."
+    },
+    {
+      "id": "review-core",
+      "label": "Review core",
+      "subtitle": "crates/osf/src",
+      "order": 1,
+      "summary": "The in-process modules that build prompts, schemas and reviewer arguments."
+    },
+    {
+      "id": "reviewer-process",
+      "label": "Reviewer subprocess",
+      "subtitle": "codex / claude CLI",
+      "order": 2,
+      "summary": "The external agent process that receives the prompt and schema and emits a JSON answer."
+    },
+    {
+      "id": "fixtures",
+      "label": "Test fixtures",
+      "subtitle": "crates/osf/tests",
+      "order": 3,
+      "summary": "Recorded reviewer output used to pin the contract between the schema and the reducer."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-run",
+      "label": "osf review run",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "review command entry point",
+      "summary": "Loads the lens set and drives each reviewer through the retry loop. Unchanged, but it is the caller whose behaviour the new schema changes.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 414,
+          "endLine": 440
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lens-registry",
+      "label": "Lens registry",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "review-core",
+      "subtitle": "crate::lenses::load",
+      "summary": "Supplies the `Lens` values, each with its criteria ids, that the schema is now derived from.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 324,
+          "endLine": 329
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "schema-for",
+      "label": "answer::schema_for",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "fn schema_for(lens: &Lens) -> String",
+      "summary": "Clones the compiled-in review-answer schema, replaces `properties.scores` with a closed object requiring one 0–1 number per criterion id of the lens, and returns it as compact JSON. This is the whole point of the change: the schema handed to a reviewer is now a function of the lens.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 22,
+          "endLine": 54
+        }
+      ],
+      "badges": [
+        "new"
+      ]
+    },
+    {
+      "id": "answer-schema",
+      "label": "review-answer.schema.json",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "review-core",
+      "subtitle": "include_str! SCHEMA",
+      "summary": "The static schema compiled into the binary. It remains the base document; only its `scores` sub-schema is rewritten per lens.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-with-retry",
+      "label": "run_with_retry",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "fn run_with_retry(...)",
+      "summary": "Now calls `answer::schema_for(lens)` once before the first attempt and passes the resulting string to both the initial `run_child` and the retry `run_child`, so a retry cannot drift to a different contract than the first attempt.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 414,
+          "endLine": 440
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-child",
+      "label": "run_child",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "fn run_child(..., schema: &str, ...)",
+      "summary": "Gained a `schema: &str` parameter. It writes that string to the temp schema file instead of the static `answer::SCHEMA`, and forwards it to `build_args` for the inline case.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 639,
+          "endLine": 660
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-args",
+      "label": "build_args",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "fn build_args(..., schema: &str)",
+      "summary": "Gained a `schema: &str` parameter. `SchemaArg::Path` still points at the temp file; `SchemaArg::Inline` now pushes the caller-supplied schema rather than the compiled-in constant.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 769,
+          "endLine": 810
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "extract-and-validate",
+      "label": "extract_and_validate",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "review-core",
+      "subtitle": "reducer-side answer checks",
+      "summary": "Parses the reviewer's raw output and checks it against the lens. Unchanged, but it is the second gate the same answer must pass, which is why the new test asserts both.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 321,
+          "endLine": 330
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-cli",
+      "label": "Reviewer CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "reviewer-process",
+      "subtitle": "codex / claude with --json-schema",
+      "summary": "The agent process. It receives the prompt file and either a schema file path or an inline schema string, and returns a JSON answer on stdout.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 660,
+          "endLine": 700
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-answer-fixture",
+      "label": "codex-answer.json",
+      "kind": "test",
+      "delta": "added",
+      "lane": "fixtures",
+      "subtitle": "real recorded answer",
+      "summary": "A real codex answer for the correctness lens, added so the generated schema can be validated against output an actual reviewer produced rather than a hand-written stub.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/review/codex-answer.json",
+          "startLine": 1,
+          "endLine": 1
+        }
+      ],
+      "badges": [
+        "new"
+      ]
+    },
+    {
+      "id": "schema-rules-test",
+      "label": "structured-output rules test",
+      "kind": "test",
+      "delta": "added",
+      "lane": "fixtures",
+      "subtitle": "assert_structured_output_rules",
+      "summary": "Walks every sub-schema of the generated document and asserts only supported keywords appear, that every object sets `additionalProperties: false`, and that `required` matches `properties` exactly — run for the test lens and for every shipped lens.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 340,
+          "endLine": 420
+        }
+      ],
+      "badges": [
+        "new"
+      ]
+    },
+    {
+      "id": "scores-test",
+      "label": "scores-per-criterion test",
+      "kind": "test",
+      "delta": "added",
+      "lane": "fixtures",
+      "subtitle": "the_scores_object_lists_each_criterion_of_the_lens",
+      "summary": "Asserts the generated `scores` object requires exactly the lens's criterion ids and declares one property per id.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 422,
+          "endLine": 445
+        }
+      ],
+      "badges": [
+        "new"
+      ]
+    },
+    {
+      "id": "real-answer-test",
+      "label": "real-answer validation test",
+      "kind": "test",
+      "delta": "added",
+      "lane": "fixtures",
+      "subtitle": "a_real_codex_answer_validates_against_the_lens_schema",
+      "summary": "Runs the recorded codex answer through both the reducer's checks and a JSON Schema validator loaded with the generated lens schema, pinning the two gates to the same contract.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 447,
+          "endLine": 462
+        }
+      ],
+      "badges": [
+        "new"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "run-with-retry-calls-schema-for",
+      "from": "run-with-retry",
+      "to": "schema-for",
+      "kind": "call",
+      "delta": "added",
+      "label": "schema_for(lens)",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The new call that makes the reviewer contract lens-specific.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 417,
+          "endLine": 417
+        }
+      ]
+    },
+    {
+      "id": "schema-for-reads-answer-schema",
+      "from": "schema-for",
+      "to": "answer-schema",
+      "kind": "data",
+      "delta": "added",
+      "label": "clone + rewrite scores",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The base schema is parsed and its `scores` sub-schema replaced.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 24,
+          "endLine": 52
+        }
+      ]
+    },
+    {
+      "id": "schema-for-reads-lens-registry",
+      "from": "schema-for",
+      "to": "lens-registry",
+      "kind": "data",
+      "delta": "added",
+      "label": "lens.criteria",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Criterion ids come from the lens being run, which is what closes the scores object.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 28,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "run-with-retry-calls-run-child",
+      "from": "run-with-retry",
+      "to": "run-child",
+      "kind": "call",
+      "delta": "modified",
+      "label": "schema passed through",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "Both the first attempt and the retry now receive the same generated schema string.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 418,
+          "endLine": 440
+        }
+      ]
+    },
+    {
+      "id": "run-child-calls-build-args",
+      "from": "run-child",
+      "to": "build-args",
+      "kind": "call",
+      "delta": "modified",
+      "label": "schema forwarded",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The schema string reaches argument construction so the inline case uses it too.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 653,
+          "endLine": 653
+        }
+      ]
+    },
+    {
+      "id": "run-child-writes-schema-file",
+      "from": "run-child",
+      "to": "reviewer-cli",
+      "kind": "data",
+      "delta": "modified",
+      "label": "prompt file + schema file",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The temp schema file now holds the lens-specific document rather than the static constant.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 648,
+          "endLine": 650
+        }
+      ]
+    },
+    {
+      "id": "build-args-inlines-schema",
+      "from": "build-args",
+      "to": "reviewer-cli",
+      "kind": "data",
+      "delta": "modified",
+      "label": "--json-schema <schema>",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "For reviewers configured with `SchemaArg::Inline`, the generated schema is pushed as the flag value.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 802,
+          "endLine": 806
+        }
+      ]
+    },
+    {
+      "id": "reviewer-cli-returns-answer",
+      "from": "reviewer-cli",
+      "to": "extract-and-validate",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "raw JSON answer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The answer the reviewer emits is still parsed and checked by the reducer, unchanged.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 420,
+          "endLine": 425
+        }
+      ]
+    },
+    {
+      "id": "real-answer-test-uses-fixture",
+      "from": "real-answer-test",
+      "to": "codex-answer-fixture",
+      "kind": "data",
+      "delta": "added",
+      "label": "include_str!",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test reads the recorded answer from the fixture.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 449,
+          "endLine": 450
+        }
+      ]
+    },
+    {
+      "id": "real-answer-test-uses-schema-for",
+      "from": "real-answer-test",
+      "to": "schema-for",
+      "kind": "call",
+      "delta": "added",
+      "label": "schema_for(&lens)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The fixture is validated against the generated schema, not the static one.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 452,
+          "endLine": 453
+        }
+      ]
+    },
+    {
+      "id": "schema-rules-test-uses-schema-for",
+      "from": "schema-rules-test",
+      "to": "schema-for",
+      "kind": "call",
+      "delta": "added",
+      "label": "every shipped lens",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The keyword and required/properties rules are asserted over the generated schema for each shipped lens.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 414,
+          "endLine": 419
+        }
+      ]
+    },
+    {
+      "id": "scores-test-uses-schema-for",
+      "from": "scores-test",
+      "to": "schema-for",
+      "kind": "call",
+      "delta": "added",
+      "label": "schema_for(&test_lens())",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Checks the scores object shape directly.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 424,
+          "endLine": 425
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "lens-schema-to-reviewer",
+      "title": "Building and delivering the lens-specific schema",
+      "summary": "One review attempt: the lens is turned into a schema, the schema is written to a temp file or inlined into the reviewer's arguments, and the reviewer's answer comes back to the reducer.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "run-with-retry",
+          "label": "run_with_retry"
+        },
+        {
+          "node": "schema-for",
+          "label": "schema_for"
+        },
+        {
+          "node": "run-child",
+          "label": "run_child"
+        },
+        {
+          "node": "reviewer-cli",
+          "label": "Reviewer CLI"
+        },
+        {
+          "node": "extract-and-validate",
+          "label": "extract_and_validate"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m1",
+          "from": "run-with-retry",
+          "to": "schema-for",
+          "label": "schema_for(lens)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Called once per run, before the first attempt, so the retry reuses the same contract.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 417,
+              "endLine": 417
+            }
+          ]
+        },
+        {
+          "id": "m2",
+          "from": "schema-for",
+          "to": "schema-for",
+          "label": "rewrite properties.scores",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Clones the compiled-in schema and replaces scores with a closed object requiring one 0–1 number per criterion id.",
+          "files": [
+            {
+              "path": "crates/osf/src/answer.rs",
+              "startLine": 24,
+              "endLine": 52
+            }
+          ],
+          "payload": {
+            "response": {
+              "type": "String",
+              "shape": "compact JSON schema",
+              "sample": {
+                "type": "object",
+                "properties": {
+                  "scores": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "logic",
+                      "error-handling"
+                    ],
+                    "properties": {
+                      "logic": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "error-handling": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "lens",
+                  "scores",
+                  "findings"
+                ]
+              },
+              "source": {
+                "path": "crates/osf/src/answer.rs",
+                "startLine": 22,
+                "endLine": 54
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "m3",
+          "from": "schema-for",
+          "to": "run-child",
+          "label": "schema: &str",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 417,
+              "endLine": 418
+            }
+          ]
+        },
+        {
+          "id": "m4",
+          "from": "run-child",
+          "to": "reviewer-cli",
+          "label": "prompt file + schema file (or inline)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The temp schema file now holds the generated document; for SchemaArg::Inline the same string is pushed as the flag value.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 648,
+              "endLine": 653
+            },
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 802,
+              "endLine": 806
+            }
+          ]
+        },
+        {
+          "id": "m5",
+          "from": "reviewer-cli",
+          "to": "extract-and-validate",
+          "label": "raw JSON answer",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The reducer's checks are unchanged; the answer must now satisfy both them and the generated schema.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 420,
+              "endLine": 425
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 208,
+    "deletions": 14,
+    "chips": [
+      {
+        "label": "Schema source",
+        "value": "static → per-lens",
+        "tone": "hero"
+      },
+      {
+        "label": "New public fn",
+        "value": "schema_for",
+        "tone": "added"
+      },
+      {
+        "label": "Threaded params",
+        "value": "run_child, build_args",
+        "tone": "modified"
+      },
+      {
+        "label": "New tests",
+        "value": "3",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "reviewer-contract",
+      "title": "Reviewer answer contract",
+      "lens": "architecture",
+      "summary": "The review run, the schema builder it now calls, and the reviewer subprocess that consumes the result.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "schema-construction",
+          "title": "Schema construction internals",
+          "lens": "architecture",
+          "summary": "How schema_for turns a lens into the document handed to the reviewer.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "schema-for",
+              "answer-schema",
+              "lens-registry",
+              "run-with-retry"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "argument-assembly",
+          "title": "Argument assembly",
+          "lens": "architecture",
+          "summary": "How the generated schema reaches the reviewer's command line, by file or inline.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "run-child",
+              "build-args",
+              "reviewer-cli",
+              "run-with-retry"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "schema-tests",
+      "title": "Contract tests",
+      "lens": "architecture",
+      "summary": "The three new tests that pin the generated schema to the structured-output rules and to a real recorded answer.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "schema-rules-test",
+          "scores-test",
+          "real-answer-test",
+          "codex-answer-fixture",
+          "schema-for",
+          "extract-and-validate"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "w1",
+        "heading": "One schema per lens",
+        "body": "run_with_retry builds the schema from the lens before the first attempt.",
+        "stage": {
+          "kind": "view",
+          "view": "reviewer-contract"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "run-with-retry",
+            "schema-for"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "w2",
+        "heading": "Scores become closed",
+        "body": "schema_for rewrites properties.scores to require exactly the lens's criteria.",
+        "stage": {
+          "kind": "view",
+          "view": "schema-construction"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "schema-for",
+            "answer-schema",
+            "lens-registry"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "w3",
+        "heading": "Delivered by file or flag",
+        "body": "run_child writes the schema to a temp file; build_args inlines it when configured.",
+        "stage": {
+          "kind": "view",
+          "view": "argument-assembly"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "run-child",
+            "build-args",
+            "reviewer-cli"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "w4",
+        "heading": "Same schema on retry",
+        "body": "The retry reuses the string built once, so both attempts share one contract.",
+        "stage": {
+          "kind": "flow",
+          "flow": "lens-schema-to-reviewer"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "m1",
+            "m3",
+            "m4"
+          ]
+        }
+      },
+      {
+        "id": "w5",
+        "heading": "Pinned by tests",
+        "body": "A real codex answer is validated against the generated schema and the reducer.",
+        "stage": {
+          "kind": "view",
+          "view": "schema-tests"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "real-answer-test",
+            "codex-answer-fixture",
+            "schema-for"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      }
+    ]
+  }
+}
