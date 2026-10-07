@@ -2,7 +2,7 @@
 
 Status: draft hypothesis, tested on paper against the smallest working engine on 2026-09-20. The answers are in the closing section. Real runs confirm or amend them.
 
-Date: 2026-09-05, amended 2026-09-20
+Date: 2026-09-05, amended 2026-09-20, amended 2026-10-05: verifying is a step and no longer a state.
 
 ## Why this document exists
 
@@ -20,8 +20,8 @@ Every entity has a stable string ID. Relationships use an identifier and never a
 |---|---|---|
 | Repository | id, name, purpose | healthy, attention-required, stale |
 | Intent | id, title, summary | none |
-| Work item | id, title, category (epic, feature, story, task, bug, chore), repository, dependsOn | ready, active, blocked, verifying, completed |
-| Agent session | id, repository, work item, operation | running, waiting, verifying |
+| Work item | id, title, category (epic, feature, story, task, bug, chore), repository, dependsOn | ready, active, blocked, completed |
+| Agent session | id, repository, work item, operation | running, waiting |
 | Pull request | id, repository, work item, check IDs, review state (awaiting-review, approved, changes-requested) | open |
 | Verification check | id, repository, work item, pull request, phase (pre-deployment, post-deployment), command | passed, failed, running, pending |
 | Runner | id, platform (windows-x64, linux-x64, linux-arm64, macos-arm64), location (local, remote), current work item | available, busy, stale |
@@ -34,6 +34,8 @@ Every entity has a stable string ID. Relationships use an identifier and never a
 | Containment action | id, type (rollout-halted, generation-paused, queue-quarantined, snapshot-preserved), related IDs | completed |
 | Metric series | id, label, unit, timestamped points | none |
 | Event | id, type, at, related IDs, summary | none |
+
+Verifying is a step and no longer a state, as [decision 0019 (what ready means)](decisions/0019-what-ready-means.md) sets.
 
 Event types used: `work.stage.changed`, `agent.operation`, `artifact.emitted`, `gate.changed`, `deployment.changed`, `attention.raised`, `runner.stale`, `decision.requested`, `decision.approved`, `recovery.completed`.
 
