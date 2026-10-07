@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "ba5dc01818b1eef6b3746b8cd5a3fdbeb514989d",
+    "contentHash": "30abbc54184c17284b93152b7cfa61c8"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "forge-seam-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b477f585c3cabdb835aa3f25d3044fc2",
+      "bytes": 26119,
+      "width": 1905,
+      "height": 542,
+      "animated": false,
+      "path": "forge-seam-light-b477f585c3cabdb835aa3f25d3044fc2.svg"
+    },
+    {
+      "id": "forge-seam-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "653357be774ebda3fab806a85dfc86f2",
+      "bytes": 26446,
+      "width": 1905,
+      "height": 542,
+      "animated": false,
+      "path": "forge-seam-dark-653357be774ebda3fab806a85dfc86f2.svg"
+    },
+    {
+      "id": "github-adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "github-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "585cc46c472e531ed31782bf4d8280c1",
+      "bytes": 10591,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "github-adapter-internals-light-585cc46c472e531ed31782bf4d8280c1.svg"
+    },
+    {
+      "id": "github-adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "github-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3f150bbb36408ad4998c3aea2c6e09da",
+      "bytes": 10693,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "github-adapter-internals-dark-3f150bbb36408ad4998c3aea2c6e09da.svg"
+    },
+    {
+      "id": "report-step-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "report-step-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "67ac5ad73a7a57e62b5545a1d4c2459a",
+      "bytes": 6308,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "report-step-view-light-67ac5ad73a7a57e62b5545a1d4c2459a.svg"
+    },
+    {
+      "id": "report-step-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "report-step-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e2ea699d9f2d14d4004122624c1eebb3",
+      "bytes": 6364,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "report-step-view-dark-e2ea699d9f2d14d4004122624c1eebb3.svg"
+    },
+    {
+      "id": "report-step-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "report-step-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6dba5d84e672c4b3d2c203670358cd00",
+      "bytes": 13489,
+      "width": 2085,
+      "height": 489,
+      "animated": true,
+      "path": "report-step-flow-light-6dba5d84e672c4b3d2c203670358cd00.svg"
+    },
+    {
+      "id": "report-step-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "report-step-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d2ac1917b31ced002702550a29477ecf",
+      "bytes": 13567,
+      "width": 2085,
+      "height": 489,
+      "animated": true,
+      "path": "report-step-flow-dark-d2ac1917b31ced002702550a29477ecf.svg"
+    },
+    {
+      "id": "self-review-fallback-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "self-review-fallback-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d1ce5ae3cfa3466e2fc1fb00115b5d52",
+      "bytes": 11832,
+      "width": 888,
+      "height": 429,
+      "animated": true,
+      "path": "self-review-fallback-flow-light-d1ce5ae3cfa3466e2fc1fb00115b5d52.svg"
+    },
+    {
+      "id": "self-review-fallback-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "self-review-fallback-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bc04d2cb55f11779324036a605c4c120",
+      "bytes": 11910,
+      "width": 888,
+      "height": 429,
+      "animated": true,
+      "path": "self-review-fallback-flow-dark-bc04d2cb55f11779324036a605c4c120.svg"
+    }
+  ]
+}
