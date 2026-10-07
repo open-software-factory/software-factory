@@ -1,0 +1,680 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "oxfmt-0-71-toolchain-bump",
+  "generatedAt": "2026-10-07T12:02:41.443Z",
+  "title": "oxfmt 0.70.0 → 0.71.0 across three integrations",
+  "summary": "A dependency-only change: the three integration packages (dsh, omp, opencode) each move their devDependency `oxfmt` from 0.70.0 to 0.71.0, and the lockfile is regenerated to match. The bump pulls in a new oxfmt release plus its transitive `tinypool` 2.1.2 → 2.2.0, and re-resolves all nineteen optional `@oxfmt/binding-*` platform binaries to 0.71.0. No application code, runtime path or published artifact changes; the blast radius is the developer/CI formatting step and the lockfile that pins it.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "ec890b8f14816a10404b57d663b9d3657ef1f1e4",
+      "ref": "ec890b8f14816a10404b57d663b9d3657ef1f1e4"
+    },
+    "head": {
+      "sha": "4eff809fc9326431a3862b3959789ef58bfb21db",
+      "ref": "4eff809fc9326431a3862b3959789ef58bfb21db"
+    },
+    "pullRequest": {
+      "number": 223,
+      "url": "https://github.com/open-software-factory/software-factory/pull/223"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "integrations",
+      "label": "Integration packages",
+      "subtitle": "workspace packages under integrations/",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The three workspace packages whose devDependency specifier changed. They are the only manifests touched."
+    },
+    {
+      "id": "toolchain",
+      "label": "Dev toolchain",
+      "subtitle": "formatter and its transitive deps",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The formatter binary and the packages it resolves at install time. Version moved from 0.70.0 to 0.71.0."
+    },
+    {
+      "id": "lockfile",
+      "label": "Lockfile",
+      "subtitle": "pnpm-lock.yaml",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The single source of truth for resolved versions; every importer and package entry for oxfmt was rewritten."
+    },
+    {
+      "id": "ci",
+      "label": "CI / local dev",
+      "subtitle": "install and format steps",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "Consumers of the toolchain that are not themselves edited by this diff but whose behaviour follows the resolved version."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pkg-dsh",
+      "label": "integrations/dsh",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integrations",
+      "group": "manifests",
+      "subtitle": "devDependency oxfmt 0.71.0",
+      "summary": "DeepSeek integration package. Its devDependencies block is the only line changed: oxfmt 0.70.0 → 0.71.0.",
+      "files": [
+        {
+          "path": "integrations/dsh/package.json",
+          "startLine": 31,
+          "endLine": 37
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pkg-omp",
+      "label": "integrations/omp",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integrations",
+      "group": "manifests",
+      "subtitle": "devDependency oxfmt 0.71.0",
+      "summary": "oh-my-pi integration package. Same single-line devDependency bump; no other field in the manifest moved.",
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 21,
+          "endLine": 27
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pkg-opencode",
+      "label": "integrations/opencode",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integrations",
+      "group": "manifests",
+      "subtitle": "devDependency oxfmt 0.71.0",
+      "summary": "opencode integration package. Same single-line devDependency bump, keeping the three integrations on one formatter version.",
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 27,
+          "endLine": 33
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "oxfmt",
+      "label": "oxfmt",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "toolchain",
+      "group": "formatter",
+      "subtitle": "0.70.0 → 0.71.0",
+      "summary": "The formatter itself. The lockfile entry is renamed to oxfmt@0.71.0 with a new integrity hash, and its optionalDependencies are re-pointed at the 0.71.0 platform bindings.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1693,
+          "endLine": 1696
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tinypool",
+      "label": "tinypool",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "toolchain",
+      "group": "transitive",
+      "subtitle": "2.1.2 → 2.2.0",
+      "summary": "Transitive dependency of oxfmt, bumped as a side effect of the release. It is the only non-oxfmt package whose version changed in this diff.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1915,
+          "endLine": 1916
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "oxfmt-bindings",
+      "label": "@oxfmt/binding-*",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "toolchain",
+      "group": "native",
+      "subtitle": "19 platform binaries @ 0.71.0",
+      "summary": "The per-platform native binaries oxfmt selects at install time. All nineteen entries (android, darwin, freebsd, linux gnu/musl across arm/arm64/ppc64/riscv64/s390x/x64, openharmony, win32) were re-resolved from 0.70.0 to 0.71.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 711,
+          "endLine": 823
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lockfile",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "importers + packages + snapshots",
+      "summary": "Regenerated lockfile. Three importer blocks, the oxfmt package entry, the tinypool entry, all binding package entries and all matching snapshot entries were rewritten to the new versions.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 51,
+          "endLine": 94
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-install",
+      "label": "pnpm install",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "frozen-lockfile resolution",
+      "summary": "Install step in CI and on developer machines. Not edited here, but it is what turns the lockfile change into a different formatter binary on disk.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-format",
+      "label": "format check",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci",
+      "subtitle": "oxfmt run over the workspace",
+      "summary": "The step that actually invokes oxfmt. Its output can shift because the formatter version moved, even though no source file was touched in this diff.",
+      "files": [
+        {
+          "path": "integrations/dsh/package.json"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "dsh-depends-oxfmt",
+      "from": "pkg-dsh",
+      "to": "oxfmt",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 0.71.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "dsh declares oxfmt as a devDependency; the specifier moved from 0.70.0 to 0.71.0.",
+      "files": [
+        {
+          "path": "integrations/dsh/package.json",
+          "startLine": 34,
+          "endLine": 34
+        }
+      ]
+    },
+    {
+      "id": "omp-depends-oxfmt",
+      "from": "pkg-omp",
+      "to": "oxfmt",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 0.71.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "omp declares the same devDependency and moves in lockstep with the other two integrations.",
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 24,
+          "endLine": 24
+        }
+      ]
+    },
+    {
+      "id": "opencode-depends-oxfmt",
+      "from": "pkg-opencode",
+      "to": "oxfmt",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 0.71.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "opencode declares the same devDependency; all three manifests now agree on 0.71.0.",
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 30,
+          "endLine": 30
+        }
+      ]
+    },
+    {
+      "id": "oxfmt-depends-tinypool",
+      "from": "oxfmt",
+      "to": "tinypool",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "tinypool 2.2.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "oxfmt 0.71.0 depends on tinypool 2.2.0 where 0.70.0 depended on 2.1.2.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3396,
+          "endLine": 3398
+        }
+      ]
+    },
+    {
+      "id": "oxfmt-optional-bindings",
+      "from": "oxfmt",
+      "to": "oxfmt-bindings",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "19 optional platform binaries",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The connection the change is really about: oxfmt resolves one of nineteen platform-specific native binaries at install time, and every one of them moved to 0.71.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3399,
+          "endLine": 3417
+        }
+      ]
+    },
+    {
+      "id": "manifests-pinned-by-lockfile",
+      "from": "pkg-dsh",
+      "to": "lockfile",
+      "kind": "data",
+      "delta": "modified",
+      "label": "importer entry",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The dsh importer block in the lockfile records the resolved oxfmt 0.71.0 for the new specifier.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 51,
+          "endLine": 57
+        }
+      ]
+    },
+    {
+      "id": "omp-pinned-by-lockfile",
+      "from": "pkg-omp",
+      "to": "lockfile",
+      "kind": "data",
+      "delta": "modified",
+      "label": "importer entry",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The omp importer block is rewritten the same way.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 69,
+          "endLine": 75
+        }
+      ]
+    },
+    {
+      "id": "opencode-pinned-by-lockfile",
+      "from": "pkg-opencode",
+      "to": "lockfile",
+      "kind": "data",
+      "delta": "modified",
+      "label": "importer entry",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The opencode importer block is rewritten the same way.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 87,
+          "endLine": 93
+        }
+      ]
+    },
+    {
+      "id": "lockfile-drives-install",
+      "from": "lockfile",
+      "to": "ci-install",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "frozen resolution",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Install reads the lockfile to decide which oxfmt and binding tarballs to fetch.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    },
+    {
+      "id": "install-provides-oxfmt",
+      "from": "ci-install",
+      "to": "oxfmt",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "installs 0.71.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The install step materialises the resolved oxfmt version into node_modules.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ]
+    },
+    {
+      "id": "format-uses-oxfmt",
+      "from": "ci-format",
+      "to": "oxfmt",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "oxfmt --check",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The format step invokes the installed oxfmt binary; its behaviour follows whatever version install produced.",
+      "files": [
+        {
+          "path": "integrations/dsh/package.json"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "oxfmt-version-resolution",
+      "title": "How the oxfmt bump reaches the formatter binary",
+      "summary": "From a one-line specifier change in each manifest, through the regenerated lockfile, to the native binary that actually runs.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "pkg-dsh",
+          "label": "dsh manifest"
+        },
+        {
+          "node": "lockfile",
+          "label": "pnpm-lock.yaml"
+        },
+        {
+          "node": "ci-install",
+          "label": "pnpm install"
+        },
+        {
+          "node": "oxfmt",
+          "label": "oxfmt"
+        },
+        {
+          "node": "oxfmt-bindings",
+          "label": "platform binding"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-declare",
+          "from": "pkg-dsh",
+          "to": "lockfile",
+          "label": "oxfmt: 0.71.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The same edit is made in the omp and opencode manifests; the lockfile importer blocks for all three are rewritten together.",
+          "files": [
+            {
+              "path": "integrations/dsh/package.json",
+              "startLine": 34,
+              "endLine": 34
+            },
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 51,
+              "endLine": 57
+            }
+          ]
+        },
+        {
+          "id": "step-resolve",
+          "from": "lockfile",
+          "to": "ci-install",
+          "label": "resolved oxfmt@0.71.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The lockfile now pins oxfmt 0.71.0, tinypool 2.2.0 and all nineteen bindings at 0.71.0.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1693,
+              "endLine": 1696
+            }
+          ]
+        },
+        {
+          "id": "step-install",
+          "from": "ci-install",
+          "to": "oxfmt",
+          "label": "fetch and link",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Install fetches the 0.71.0 tarball instead of 0.70.0.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 3396,
+              "endLine": 3398
+            }
+          ]
+        },
+        {
+          "id": "step-select-binding",
+          "from": "oxfmt",
+          "to": "oxfmt-bindings",
+          "label": "select platform binary",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "oxfmt picks the optional binding matching the host cpu/os; every candidate is now at 0.71.0.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 3399,
+              "endLine": 3417
+            }
+          ]
+        },
+        {
+          "id": "step-format",
+          "from": "oxfmt",
+          "to": "oxfmt",
+          "label": "format workspace",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The formatter then runs over the workspace. No source file changed in this diff, so any output difference is attributable to the version bump alone.",
+          "files": [
+            {
+              "path": "integrations/dsh/package.json"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 4,
+    "additions": 92,
+    "deletions": 92,
+    "chips": [
+      {
+        "label": "oxfmt",
+        "value": "0.70.0 → 0.71.0",
+        "tone": "modified"
+      },
+      {
+        "label": "Manifests bumped",
+        "value": "3",
+        "tone": "modified"
+      },
+      {
+        "label": "Platform bindings re-resolved",
+        "value": "19",
+        "tone": "modified"
+      },
+      {
+        "label": "Transitive bumps",
+        "value": "tinypool 2.2.0",
+        "tone": "modified"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "view-toolchain",
+      "title": "Dev toolchain dependency graph",
+      "lens": "architecture",
+      "summary": "The three integration manifests, the formatter they share, and the lockfile that pins the resolved versions.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-lockfile-detail",
+      "title": "Lockfile resolution detail",
+      "lens": "architecture",
+      "summary": "Narrows to the lockfile and the toolchain packages it resolves, showing the importer entries and the binding fan-out.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "lockfile",
+          "oxfmt",
+          "tinypool",
+          "oxfmt-bindings",
+          "ci-install"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "wt-manifests",
+        "heading": "Three one-line bumps",
+        "body": "dsh, omp and opencode each move oxfmt from 0.70.0 to 0.71.0 in devDependencies.",
+        "stage": {
+          "kind": "view",
+          "view": "view-toolchain"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "pkg-dsh",
+            "pkg-omp",
+            "pkg-opencode"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-lockfile",
+        "heading": "Lockfile regenerated",
+        "body": "Importer blocks, the oxfmt entry and every snapshot are rewritten to the new versions.",
+        "stage": {
+          "kind": "view",
+          "view": "view-lockfile-detail"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "lockfile"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-bindings",
+        "heading": "Bindings fan out",
+        "body": "All nineteen optional platform binaries move to 0.71.0; install picks the one matching the host.",
+        "stage": {
+          "kind": "view",
+          "view": "view-lockfile-detail"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "oxfmt",
+            "oxfmt-bindings"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "wt-flow",
+        "heading": "Resolution in order",
+        "body": "Specifier to lockfile to install to binary: the path the version change actually travels.",
+        "stage": {
+          "kind": "flow",
+          "flow": "oxfmt-version-resolution"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}
