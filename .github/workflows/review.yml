@@ -89,10 +89,18 @@ jobs:
           path: base
           persist-credentials: false
 
+      # The runner owns the checkout and the image user does not, so the build writes only here.
+      - name: Make the folder the build writes to
+        run: mkdir build-out
+
       - name: Build osf from the base branch only, with no cache
         run: >-
           docker run --rm
-          -v "${{ github.workspace }}/base:/base"
+          --user "$(id -u):$(id -g)"
+          -v "${{ github.workspace }}/base:/base:ro"
+          -v "${{ github.workspace }}/build-out:/build-out"
+          -e CARGO_HOME=/build-out/cargo-home
+          -e CARGO_TARGET_DIR=/build-out/target
           -w /base
           ${{ env.REVIEW_IMAGE }}
           cargo build --release --bin osf
@@ -101,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: osf-binary
-          path: base/target/release/osf
+          path: build-out/target/release/osf
           if-no-files-found: error
 
       # The work item is the issue the pull request names on its Issue line,
@@ -114,12 +122,14 @@ jobs:
           mkdir -p work-item
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > work-item/pull-request.json
           docker run --rm \
+            --user "$(id -u):$(id -g)" \
             -e GH_TOKEN \
             -v "${{ github.workspace }}/base:/base:ro" \
+            -v "${{ github.workspace }}/build-out:/build-out:ro" \
             -v "${{ github.workspace }}/work-item:/work-item" \
             -w /work-item \
             ${{ env.REVIEW_IMAGE }} \
-            /base/target/release/osf review work-item \
+            /build-out/target/release/osf review work-item \
             --pull-request /work-item/pull-request.json \
             --repository ${{ github.repository }} \
             --head ${{ github.event.pull_request.head.sha }} \
@@ -195,6 +205,7 @@ jobs:
       - name: Save the pull request's number, title and body
         run: |
           mkdir -p out
+          chmod -R a+rwX out
           chmod +x bin/osf
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
 
@@ -308,6 +319,7 @@ jobs:
       - name: Save the pull request's number, title and body
         run: |
           mkdir -p out
+          chmod -R a+rwX out
           chmod +x bin/osf
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
 
@@ -413,6 +425,7 @@ jobs:
       - name: Save the pull request's number, title and body
         run: |
           mkdir -p out
+          chmod -R a+rwX out
           chmod +x bin/osf
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
 
@@ -527,6 +540,7 @@ jobs:
       - name: Make a writable folder for the review's own output
         run: |
           mkdir -p out/runs
+          chmod -R a+rwX out
           chmod +x bin/osf
 
       - name: Mint the verifier's own token

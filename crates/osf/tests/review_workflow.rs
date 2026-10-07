@@ -705,3 +705,116 @@ fn the_workflow_uses_no_privileged_settings() {
         );
     }
 }
+
+/// The `docker run` invocation whose command contains `command`.
+fn container_before(body: &str, command: &str) -> String {
+    let at = body
+        .find(command)
+        .unwrap_or_else(|| panic!("no `{command}` in {body}"));
+    let start = body[..at]
+        .rfind("docker run")
+        .unwrap_or_else(|| panic!("`{command}` starts no container"));
+    body[start..at + command.len()].to_string()
+}
+
+/// The runner owns its checkout; the build container writes only into `build-out`.
+#[test]
+fn the_build_job_builds_as_the_runner_user_into_a_writable_build_out() {
+    let build = job_body(&workflow_text(), "build");
+    assert!(
+        build.contains("mkdir -p build-out") || build.contains("mkdir build-out"),
+        "the build job makes the output folder first: {build}"
+    );
+    let cargo = unquoted(&container_before(&build, "cargo build"));
+    for expected in [
+        "--user $(id -u):$(id -g)",
+        "${{ github.workspace }}/base:/base:ro",
+        "${{ github.workspace }}/build-out:/build-out",
+        "-e CARGO_HOME=/build-out/cargo-home",
+        "-e CARGO_TARGET_DIR=/build-out/target",
+    ] {
+        assert!(
+            cargo.contains(expected),
+            "the cargo build container lacks `{expected}`: {cargo}"
+        );
+    }
+    assert!(
+        !cargo.contains("build-out:/build-out:ro"),
+        "the build output mount is writable: {cargo}"
+    );
+}
+
+/// The work item is read from a read-only `build-out` and written as the runner user.
+#[test]
+fn the_build_job_runs_the_work_item_command_from_the_read_only_build_out() {
+    let build = job_body(&workflow_text(), "build");
+    assert!(
+        build.contains("path: build-out/target/release/osf"),
+        "the osf-binary artifact comes from build-out: {build}"
+    );
+    let work_item = unquoted(&container_before(&build, "osf review work-item"));
+    for expected in [
+        "/build-out/target/release/osf review work-item",
+        "${{ github.workspace }}/build-out:/build-out:ro",
+        "--user $(id -u):$(id -g)",
+    ] {
+        assert!(
+            work_item.contains(expected),
+            "the work item container lacks `{expected}`: {work_item}"
+        );
+    }
+}
+
+/// Every container sees the runner's checkout as read-only.
+#[test]
+fn no_job_mounts_the_base_checkout_writable() {
+    let text = workflow_text();
+    let mut mounts = 0;
+    for line in text.lines() {
+        if let Some(rest) = line.split(":/base").nth(1) {
+            mounts += 1;
+            assert!(
+                rest.starts_with(":ro"),
+                "a mount of /base is writable: {}",
+                line.trim()
+            );
+        }
+    }
+    assert!(mounts >= 6, "found {mounts} mounts of /base");
+}
+
+/// A job that mounts a writable `out` must make it writable for the image user.
+#[test]
+fn every_job_that_mounts_out_writable_chmods_it_for_the_image_user() {
+    let text = workflow_text();
+    let mut writable = 0;
+    for (id, body) in jobs(&text) {
+        if !body.contains("/out:/out\"") {
+            continue;
+        }
+        writable += 1;
+        assert!(
+            body.contains("chmod -R a+rwX out"),
+            "job {id} mounts out writable but does not chmod it: {body}"
+        );
+    }
+    assert!(
+        writable >= 4,
+        "found {writable} jobs that mount out writable"
+    );
+}
+
+/// The build job runs untrusted code, so it reads no secret but the automatic token.
+#[test]
+fn the_build_job_reads_only_the_automatic_token() {
+    let build = job_body(&workflow_text(), "build");
+    assert!(
+        build.contains("secrets.GITHUB_TOKEN"),
+        "the build job reads the automatic token: {build}"
+    );
+    assert!(
+        provider_secrets(&build).is_empty(),
+        "the build job reads only the automatic token: {:?}",
+        provider_secrets(&build)
+    );
+}
