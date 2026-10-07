@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-review-workflow-container-hardening",
+    "headSha": "4ff1725efc116164fcfd747a66a630677443da04",
+    "contentHash": "f430687c68254acc4259a3847450eb8a"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0e632910ca9551676e5082cfe8e16b8a",
+      "bytes": 25308,
+      "width": 1881,
+      "height": 874,
+      "animated": false,
+      "path": "review-pipeline-light-0e632910ca9551676e5082cfe8e16b8a.svg"
+    },
+    {
+      "id": "review-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9b102059d390304010b1d5e9da0042a4",
+      "bytes": 25595,
+      "width": 1881,
+      "height": 874,
+      "animated": false,
+      "path": "review-pipeline-dark-9b102059d390304010b1d5e9da0042a4.svg"
+    },
+    {
+      "id": "build-job-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5565eea9062bad4a39c5cff145f2dd0c",
+      "bytes": 13713,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "build-job-detail-light-5565eea9062bad4a39c5cff145f2dd0c.svg"
+    },
+    {
+      "id": "build-job-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e4d383aec838a0a6bbacdf41d9bdfcd3",
+      "bytes": 13851,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "build-job-detail-dark-e4d383aec838a0a6bbacdf41d9bdfcd3.svg"
+    },
+    {
+      "id": "out-mount-jobs-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "out-mount-jobs",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9f3bc6c191f81222b005ecf131c916c8",
+      "bytes": 7206,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "out-mount-jobs-light-9f3bc6c191f81222b005ecf131c916c8.svg"
+    },
+    {
+      "id": "out-mount-jobs-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "out-mount-jobs",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3ea98e82b879062f01d63a2ee14829c3",
+      "bytes": 7276,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "out-mount-jobs-dark-3ea98e82b879062f01d63a2ee14829c3.svg"
+    },
+    {
+      "id": "build-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "build-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3d083c88bc9a7e9edb46182c0f963ba5",
+      "bytes": 15313,
+      "width": 1581,
+      "height": 429,
+      "animated": true,
+      "path": "build-flow-light-3d083c88bc9a7e9edb46182c0f963ba5.svg"
+    },
+    {
+      "id": "build-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "build-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "50030ddd48621226b3593db2b975630d",
+      "bytes": 15483,
+      "width": 1581,
+      "height": 429,
+      "animated": true,
+      "path": "build-flow-dark-50030ddd48621226b3593db2b975630d.svg"
+    }
+  ]
+}

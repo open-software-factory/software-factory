@@ -1,0 +1,773 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-review-workflow-container-hardening",
+  "generatedAt": "2026-10-07T09:19:52.475Z",
+  "title": "Review workflow: pinned toolchain and non-root container builds",
+  "summary": "The review pipeline's build job no longer writes into the runner's checkout. It installs a pinned Rust 1.99.0 toolchain, mounts the base checkout read-only, and redirects CARGO_HOME and CARGO_TARGET_DIR into a runner-owned build-out folder that the container writes as the runner's own uid. The osf binary and the work-item command are then read back from that folder, and every job that mounts a writable out directory now chmods it for the image user. The rest of the diff is a mechanical test-assertion rewrite from assert!(x.is_empty()) to assert_eq!(x, Vec::new()), plus new workflow-shape tests that pin these container invariants.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4a8d2ac459f9d84c2b6403ee113315c991facee7",
+      "ref": "4a8d2ac459f9d84c2b6403ee113315c991facee7"
+    },
+    "head": {
+      "sha": "4ff1725efc116164fcfd747a66a630677443da04",
+      "ref": "4ff1725efc116164fcfd747a66a630677443da04"
+    },
+    "pullRequest": {
+      "number": 241,
+      "url": "https://github.com/open-software-factory/software-factory/pull/241"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "What starts the pipeline: a pull request event and the workflow definitions it drives."
+    },
+    {
+      "id": "runner",
+      "label": "GitHub runner",
+      "subtitle": "host filesystem and shell",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The runner owns the checkout and the workspace. This change makes it the only writer: the container gets a read-only base mount and a writable build-out folder owned by the runner's uid."
+    },
+    {
+      "id": "containers",
+      "label": "Review containers",
+      "subtitle": "REVIEW_IMAGE, non-root",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The docker run invocations that build osf and run the review commands. They now run as the runner user and write only into build-out."
+    },
+    {
+      "id": "artifacts",
+      "label": "Artifacts and outputs",
+      "subtitle": "uploaded and mounted back",
+      "order": 3,
+      "delta": "modified",
+      "summary": "The osf binary artifact now comes from build-out, and the out directories the later jobs mount are chmodded for the image user."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "Pull request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "pull_request",
+      "summary": "The GitHub event that starts review.yml. Its payload supplies the PR number, title and body that become the work item.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "triggers",
+      "subtitle": "workflow definition",
+      "summary": "The review pipeline definition. This change adds the build-out folder, the read-only base mount, the pinned toolchain step and the chmod lines, and repoints the binary artifact at build-out.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "triggers",
+      "subtitle": "workflow definition",
+      "summary": "The CI pipeline. Both jobs that previously added clippy and rustfmt to whatever toolchain the image shipped now install and default to Rust 1.99.0 explicitly.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "runner-workspace",
+      "label": "Runner workspace",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "${{ github.workspace }}",
+      "summary": "The host directory holding the base checkout and the new build-out folder. The runner creates build-out and owns everything the container writes there.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 89,
+          "endLine": 96
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "base-checkout",
+      "label": "base checkout",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "mounted :ro",
+      "summary": "The base branch checkout. Every container mount of /base is now read-only, so no build step can mutate the runner's tree.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 95,
+          "endLine": 96
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-out",
+      "label": "build-out",
+      "kind": "datastore",
+      "delta": "added",
+      "lane": "runner",
+      "subtitle": "CARGO_HOME + CARGO_TARGET_DIR",
+      "summary": "A runner-owned folder created before the build. It holds cargo-home and target, so the container's compiler output lands where the runner can read and upload it.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 92,
+          "endLine": 96
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "out-dir",
+      "label": "out",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "chmod -R a+rwX",
+      "summary": "The per-job output directory mounted writable into the review containers. Each job that mounts it now chmods it so the image user can write.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 205,
+          "endLine": 208
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-container",
+      "label": "cargo build container",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "containers",
+      "subtitle": "cargo build --release --bin osf",
+      "summary": "Builds the osf binary from the base branch with no cache. It now runs as the runner uid, reads /base read-only and writes cargo-home and target into build-out.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 97,
+          "endLine": 106
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-item-container",
+      "label": "work-item container",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "containers",
+      "subtitle": "osf review work-item",
+      "summary": "Runs the freshly built osf against the pull request payload. It now runs as the runner uid and reads the binary from the read-only build-out mount.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 122,
+          "endLine": 134
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-containers",
+      "label": "review containers",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "containers",
+      "subtitle": "review, verify, publish",
+      "summary": "The later jobs that mount out writable and run the review commands. They gain a chmod so the image user can write into the mounted directory.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 205,
+          "endLine": 208
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-binary",
+      "label": "osf binary",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "artifacts",
+      "subtitle": "build-out/target/release/osf",
+      "summary": "The release binary built in the container. Its artifact path moved from base/target/release/osf to build-out/target/release/osf.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 109,
+          "endLine": 113
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflow-tests",
+      "label": "review_workflow tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "artifacts",
+      "subtitle": "container invariants",
+      "summary": "New integration tests that assert the build job makes build-out, mounts base read-only, runs as the runner user, reads only the automatic token, and that every writable out mount is chmodded.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 708,
+          "endLine": 820
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "assertion-tests",
+      "label": "assertion rewrites",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "artifacts",
+      "subtitle": "is_empty to assert_eq",
+      "summary": "Mechanical rewrites across the lint, config, work-item, reviewer and scan test suites, replacing assert!(x.is_empty()) with assert_eq!(x, Vec::new()) so failures print the actual contents.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 645,
+          "endLine": 660
+        },
+        {
+          "path": "crates/osf/src/lints/writing/mod.rs",
+          "startLine": 196,
+          "endLine": 215
+        },
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1088,
+          "endLine": 1110
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-event-to-review-workflow",
+      "from": "pull-request-event",
+      "to": "review-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "pull_request",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-workflow-to-runner-workspace",
+      "from": "review-workflow",
+      "to": "runner-workspace",
+      "kind": "other",
+      "delta": "modified",
+      "label": "mkdir build-out",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow now creates the build-out folder on the runner before any container starts.",
+      "files": []
+    },
+    {
+      "id": "runner-workspace-to-base-checkout",
+      "from": "runner-workspace",
+      "to": "base-checkout",
+      "kind": "data",
+      "delta": "modified",
+      "label": "checkout, mounted :ro",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "runner-workspace-to-build-out",
+      "from": "runner-workspace",
+      "to": "build-out",
+      "kind": "data",
+      "delta": "added",
+      "label": "mkdir build-out",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new writable folder the container is allowed to write into, owned by the runner uid.",
+      "files": []
+    },
+    {
+      "id": "build-out-to-build-container",
+      "from": "build-out",
+      "to": "build-container",
+      "kind": "data",
+      "delta": "added",
+      "label": "CARGO_HOME, CARGO_TARGET_DIR",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The build container's cargo home and target directory are redirected into build-out, so no compiler output touches the checkout.",
+      "files": []
+    },
+    {
+      "id": "base-checkout-to-build-container",
+      "from": "base-checkout",
+      "to": "build-container",
+      "kind": "data",
+      "delta": "modified",
+      "label": "/base:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The base checkout is now mounted read-only into the build container.",
+      "files": []
+    },
+    {
+      "id": "build-container-to-osf-binary",
+      "from": "build-container",
+      "to": "osf-binary",
+      "kind": "data",
+      "delta": "modified",
+      "label": "target/release/osf",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "osf-binary-to-work-item-container",
+      "from": "osf-binary",
+      "to": "work-item-container",
+      "kind": "data",
+      "delta": "modified",
+      "label": "/build-out/target/release/osf",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The work-item command now runs the binary from the read-only build-out mount rather than from the checkout.",
+      "files": []
+    },
+    {
+      "id": "build-out-to-work-item-container",
+      "from": "build-out",
+      "to": "work-item-container",
+      "kind": "data",
+      "delta": "added",
+      "label": "/build-out:ro",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "runner-workspace-to-out-dir",
+      "from": "runner-workspace",
+      "to": "out-dir",
+      "kind": "data",
+      "delta": "modified",
+      "label": "chmod -R a+rwX",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "out-dir-to-review-containers",
+      "from": "out-dir",
+      "to": "review-containers",
+      "kind": "data",
+      "delta": "modified",
+      "label": "/out:/out",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-tests-to-review-workflow",
+      "from": "workflow-tests",
+      "to": "review-workflow",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "asserts container shape",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new tests read review.yml and fail if the read-only mounts, runner user or chmod lines disappear.",
+      "files": []
+    },
+    {
+      "id": "assertion-tests-to-work-item-container",
+      "from": "assertion-tests",
+      "to": "work-item-container",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "assert_eq on empty vecs",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "build-osf-as-runner-user",
+      "title": "Build osf into build-out as the runner user",
+      "summary": "The build job creates a runner-owned output folder, then runs cargo in a container that reads the checkout read-only and writes only into build-out. The resulting binary is uploaded from there and reused by the work-item command.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "runner-workspace",
+          "label": "runner"
+        },
+        {
+          "node": "build-out",
+          "label": "build-out"
+        },
+        {
+          "node": "build-container",
+          "label": "cargo build"
+        },
+        {
+          "node": "osf-binary",
+          "label": "osf binary"
+        },
+        {
+          "node": "work-item-container",
+          "label": "work-item"
+        }
+      ],
+      "messages": [
+        {
+          "id": "mkdir-build-out",
+          "from": "runner-workspace",
+          "to": "build-out",
+          "label": "mkdir build-out",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The runner creates the folder before any container starts, so the mount point exists and is owned by the runner uid.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 92,
+              "endLine": 93
+            }
+          ]
+        },
+        {
+          "id": "mount-base-ro",
+          "from": "runner-workspace",
+          "to": "build-container",
+          "label": "/base:ro",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The checkout is mounted read-only; the container can no longer write into the runner's tree.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 95,
+              "endLine": 96
+            }
+          ]
+        },
+        {
+          "id": "mount-build-out",
+          "from": "runner-workspace",
+          "to": "build-container",
+          "label": "/build-out + CARGO_HOME, CARGO_TARGET_DIR",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Cargo's home and target directory are redirected into the writable mount, so all compiler output lands there.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 97,
+              "endLine": 106
+            }
+          ]
+        },
+        {
+          "id": "run-as-runner",
+          "from": "build-container",
+          "to": "build-container",
+          "label": "--user $(id -u):$(id -g)",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The container runs as the runner's uid and gid, so files it writes are owned by the runner.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 99,
+              "endLine": 99
+            }
+          ]
+        },
+        {
+          "id": "cargo-build",
+          "from": "build-container",
+          "to": "osf-binary",
+          "label": "cargo build --release --bin osf",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The release binary is produced inside build-out/target rather than base/target.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 105,
+              "endLine": 106
+            }
+          ]
+        },
+        {
+          "id": "upload-artifact",
+          "from": "osf-binary",
+          "to": "runner-workspace",
+          "label": "upload-artifact from build-out/target/release/osf",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The artifact path moved to build-out, matching where the binary now lives.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 109,
+              "endLine": 113
+            }
+          ]
+        },
+        {
+          "id": "run-work-item",
+          "from": "osf-binary",
+          "to": "work-item-container",
+          "label": "/build-out/target/release/osf review work-item",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The work-item command runs the binary from the read-only build-out mount as the runner user.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 122,
+              "endLine": 134
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 13,
+    "additions": 244,
+    "deletions": 64,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-pipeline",
+      "title": "Review pipeline containers",
+      "lens": "architecture",
+      "summary": "The build job's containers, the runner-owned folders they read and write, and the artifact that flows between them.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "build-job-detail",
+          "title": "Build job: mounts and user",
+          "lens": "architecture",
+          "summary": "The build job's two containers and the exact mounts and environment they receive.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "runner-workspace",
+              "base-checkout",
+              "build-out",
+              "build-container",
+              "work-item-container",
+              "osf-binary"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        },
+        {
+          "id": "out-mount-jobs",
+          "title": "Jobs that mount out writable",
+          "lens": "architecture",
+          "summary": "The later review jobs that mount out and now chmod it for the image user.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "out-dir",
+              "review-containers",
+              "runner-workspace"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "build-flow",
+      "title": "Build osf as the runner user",
+      "lens": "data-flow",
+      "summary": "The ordered steps that turn a read-only checkout into a binary the work-item command can run.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "build-osf-as-runner-user"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-create-build-out",
+        "heading": "Runner makes build-out",
+        "body": "The build job creates a runner-owned folder before any container starts.",
+        "stage": {
+          "kind": "view",
+          "view": "review-pipeline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "runner-workspace",
+            "build-out"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-mount-ro",
+        "heading": "Checkout goes read-only",
+        "body": "The base checkout is mounted :ro, so the container cannot mutate the runner's tree.",
+        "stage": {
+          "kind": "view",
+          "view": "review-pipeline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "base-checkout",
+            "build-container"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-cargo-home",
+        "heading": "Cargo writes into build-out",
+        "body": "CARGO_HOME and CARGO_TARGET_DIR point at the writable mount, as the runner uid.",
+        "stage": {
+          "kind": "flow",
+          "flow": "build-osf-as-runner-user"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "mount-build-out",
+            "run-as-runner"
+          ]
+        }
+      },
+      {
+        "id": "step-binary",
+        "heading": "Binary read back from build-out",
+        "body": "The artifact and the work-item command both read build-out/target/release/osf.",
+        "stage": {
+          "kind": "flow",
+          "flow": "build-osf-as-runner-user"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "cargo-build",
+            "upload-artifact",
+            "run-work-item"
+          ]
+        }
+      },
+      {
+        "id": "step-chmod-out",
+        "heading": "Writable out is chmodded",
+        "body": "Every job that mounts out writable now chmods it for the image user.",
+        "stage": {
+          "kind": "view",
+          "view": "out-mount-jobs"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "out-dir",
+            "review-containers"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      }
+    ]
+  }
+}
