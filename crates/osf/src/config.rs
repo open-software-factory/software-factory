@@ -1088,7 +1088,10 @@ mod tests {
             load(Some(&path), &[], &[], true)
         })
         .expect("gate load succeeds");
-        assert!(loaded.config.writing.must_explain_names.is_empty());
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            Vec::<String>::new()
+        );
     }
 
     /// No `OSF_CONFIG`, no repository, and no home file: the exemption
@@ -1101,7 +1104,10 @@ mod tests {
             load(None, &[], &[], true)
         })
         .expect("gate load succeeds");
-        assert!(loaded.config.writing.must_explain_names.is_empty());
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            Vec::<String>::new()
+        );
     }
 
     /// `resolve_path` finds a git repository's own `osf.toml` from any
@@ -1143,7 +1149,10 @@ mod tests {
             load(None, &[], &[], false)
         })
         .expect("load still succeeds outside a repository");
-        assert!(loaded.config.writing.must_explain_names.is_empty());
+        assert_eq!(
+            loaded.config.writing.must_explain_names,
+            Vec::<String>::new()
+        );
         assert!(loaded.file.is_none());
     }
 
@@ -1244,7 +1253,7 @@ mod tests {
         std::fs::write(&path, "[writing]\nknown_names = [\"Vale\"]\nfiller = []\n")
             .expect("file writes");
         let loaded = serial(&[], || load(Some(&path), &[], &[], true)).expect("gate load succeeds");
-        assert!(loaded.config.writing.known_names.is_empty());
+        assert_eq!(loaded.config.writing.known_names, Vec::<String>::new());
         assert_eq!(loaded.config.writing.filler.len(), DEFAULT_FILLER.len());
     }
 
@@ -1548,7 +1557,10 @@ mod tests {
         assert!(loaded.enabled.is_none() && loaded.builder.is_none());
         assert!(loaded.reviewers.is_empty() && loaded.models.is_empty());
         std::fs::write(dir.join("osf.toml"), "[writing]\nmax_numerals = 3\n").expect("writes");
-        assert!(agents_config(&dir).expect("loads").reviewers.is_empty());
+        assert_eq!(
+            agents_config(&dir).expect("loads").reviewers,
+            Vec::<String>::new()
+        );
     }
 
     #[test]
