@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1718 874" width="1718" height="874" role="img" aria-label="Dependency graph after the bump" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Dependency graph after the bump</title>
+<desc>The osf crate's hash dependency and the RustCrypto stack it resolves to, with the retired and newly introduced crates shown alongside.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1718" height="874" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1718" height="874" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="814" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">OSF CRATE · CRATES/OSF</text>
+<rect class="lanebox" x="440" y="44" width="404" height="814" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">RUSTCRYPTO HASH STACK · CRATES.IO</text>
+<rect class="lanebox" x="874" y="44" width="404" height="814" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="890" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">RETIRED DEPENDENCIES · CRATES.IO</text>
+<rect class="lanebox" x="1298" y="44" width="404" height="814" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="1314" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">NEW DEPENDENCIES · CRATES.IO</text></g>
+<g><path class="glow" stroke="#d29922" d="M404,123 L417,123 C424.18,123 430,128.82 430,136 L430,224 C430,231.18 435.82,237 443,237 L456,237" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-modified hero" d="M404,123 L417,123 C424.18,123 430,128.82 430,136 L430,224 C430,231.18 435.82,237 443,237 L456,237" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="2.25"/>
+<path class="edge edge-modified" d="M642,268 L642,273 C642,275.76 644.24,278 647,278 L717,278 C728.6,278 738,287.4 738,299 L738,320" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M642,268 L642,281 C642,288.18 636.18,294 629,294 L559,294 C551.82,294 546,299.82 546,307 L546,320" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M738,382 L738,403 C738,414.6 728.6,424 717,424 L551,424 C548.24,424 546,426.24 546,429 L546,434" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-added" d="M828,351 L831,351 C832.66,351 834,352.34 834,354 L834,371.5 C834,382.82 843.18,392 854.5,392 L1234,392 C1252.78,392 1268,407.22 1268,426 L1268,442 C1268,454.7 1278.3,465 1291,465 L1314,465" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M738,382 L738,434" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-added" d="M538,496 L538,499 C538,500.66 539.34,502 541,502 L860.67,502 C868.03,502 874,507.97 874,515.33 C874,522.7 879.97,528.67 887.33,528.67 L1269.5,528.67 C1283.4,528.67 1294.67,539.93 1294.67,553.83 L1294.67,569.33 C1294.67,574.67 1298.99,579 1304.33,579 L1314,579" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-added" d="M828,457 L836,457 C840.42,457 844,460.58 844,465 L844,508 C844,526.78 859.22,542 878,542 L1254.83,542 C1269.47,542 1281.33,553.86 1281.33,568.5 L1281.33,578.67 C1281.33,587.69 1288.65,595 1297.67,595 L1314,595" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5"/>
+<path class="edge edge-removed" d="M554,496 L554,505.67 C554,511.01 558.33,515.33 563.67,515.33 L830,515.33 C848.78,515.33 864,530.56 864,549.33 L864,688 C864,695.18 869.82,701 877,701 L890,701" marker-end="url(#mk-removed)" fill="none" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.7"/>
+<path class="edge edge-removed" d="M828,473 L841,473 C848.18,473 854,478.82 854,486 L854,667 C854,676.94 862.06,685 872,685 L890,685" marker-end="url(#mk-removed)" fill="none" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.7"/>
+<path class="edge edge-removed" d="M1076,724 L1076,776" marker-end="url(#mk-removed)" fill="none" stroke="#f85149" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.7"/>
+<path class="edge edge-added faded" d="M1314,563 L1311,563 C1309.34,563 1308,561.66 1308,560 L1308,344 C1308,325.22 1292.78,310 1274,310 L918,310 C899.22,310 884,294.78 884,276 L884,265 C884,249.54 871.46,237 856,237 L828,237" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="1.5" opacity="0.45"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="32" y="92" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M59,116 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52.5,119.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M59,123 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="119" font-size="13" font-weight="600" fill="#e6edf3">osf</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">crates/osf/Cargo.toml</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="363.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="456" y="206" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M483,230 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476.5,233.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M483,237 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="233" font-size="13" font-weight="600" fill="#e6edf3">sha2</text>
+<text class="nsub" x="506" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.10.9 → 0.11.0</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="198" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="787.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="456" y="320" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M483,344 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476.5,347.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M483,351 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="347" font-size="11.5" font-weight="600" fill="#e6edf3">cpufeatures</text>
+<text class="nsub" x="506" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.2.17 → 0.3.1</text>
+<g class="bdg bdg-modified"><rect x="562.38" y="312" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="595.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="648" y="320" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="662" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M675,344 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M668.5,347.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M675,351 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="347" font-size="11.5" font-weight="600" fill="#e6edf3">digest</text>
+<text class="nsub" x="698" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.10.7 → 0.11.3</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="312" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="787.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="456" y="434" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M483,458 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476.5,461.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M483,465 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="461" font-size="11.5" font-weight="600" fill="#e6edf3">crypto-common</text>
+<text class="nsub" x="506" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.1.7 → 0.2.2</text>
+<g class="bdg bdg-modified"><rect x="562.38" y="426" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="595.69" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="648" y="434" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="662" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M675,458 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M668.5,461.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M675,465 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="461" font-size="11.5" font-weight="600" fill="#e6edf3">block-buffer</text>
+<text class="nsub" x="698" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.10.4 → 0.12.1</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="426" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="787.69" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh ghost" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.55"><rect class="card" x="890" y="662" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#f85149" stroke-dasharray="4 3" stroke-opacity="0.6"/>
+<rect class="chip" x="904" y="680" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M917,686 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M910.5,689.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M917,693 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle strike" x="940" y="689" font-size="13" font-weight="600" fill="#e6edf3" text-decoration="line-through">generic-array</text>
+<text class="nsub" x="940" y="707" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.14.7, no longer in the lockfile</text>
+<g class="bdg bdg-removed"><rect x="1187.88" y="654" width="67.12" height="16" rx="8" fill="rgba(248,81,73,.12)" stroke="rgba(248,81,73,.4)" stroke-width="1"/><text x="1221.44" y="665" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#f85149">REMOVED</text></g></g>
+<g class="cardsh ghost" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.55"><rect class="card" x="890" y="776" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#f85149" stroke-dasharray="4 3" stroke-opacity="0.6"/>
+<rect class="chip" x="904" y="794" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M917,800 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M910.5,803.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M917,807 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle strike" x="940" y="803" font-size="13" font-weight="600" fill="#e6edf3" text-decoration="line-through">version_check</text>
+<text class="nsub" x="940" y="821" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">build-time helper, dropped with generic-array</text>
+<g class="bdg bdg-removed"><rect x="1187.88" y="768" width="67.12" height="16" rx="8" fill="rgba(248,81,73,.12)" stroke="rgba(248,81,73,.4)" stroke-width="1"/><text x="1221.44" y="779" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#f85149">REMOVED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="1314" y="434" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="1328" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M1341,458 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1334.5,461.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1341,465 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1364" y="461" font-size="13" font-weight="600" fill="#e6edf3">const-oid</text>
+<text class="nsub" x="1364" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.10.2</text>
+<g class="bdg bdg-added"><rect x="1638.45" y="426" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="1658.73" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="1314" y="548" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="1328" y="566" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M1341,572 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1334.5,575.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1341,579 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1364" y="575" font-size="13" font-weight="600" fill="#e6edf3">hybrid-array</text>
+<text class="nsub" x="1364" y="593" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.4.15</text>
+<g class="bdg bdg-added"><rect x="1638.45" y="540" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="1658.73" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g></g>
+<g><g><rect class="lpill" x="391.97" y="172.5" width="76.06" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="430" y="183.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">sha2 = &quot;0.11&quot;</text></g>
+<g><rect class="lpill" x="1049.1" y="302.5" width="93.8" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="1096" y="313.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">typenum retained</text></g></g>
+</svg>
