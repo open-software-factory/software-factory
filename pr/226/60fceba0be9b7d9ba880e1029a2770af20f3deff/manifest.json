@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "60fceba0be9b7d9ba880e1029a2770af20f3deff",
+    "contentHash": "1b74f673d19e2b4bca6921f0983dd4ed"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "journal-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c3c8194e7e32b54a578cfb4d063f37f5",
+      "bytes": 25212,
+      "width": 1828,
+      "height": 532,
+      "animated": false,
+      "path": "journal-architecture-light-c3c8194e7e32b54a578cfb4d063f37f5.svg"
+    },
+    {
+      "id": "journal-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5197bebfcba002c4f3ea0dea5c80b4ae",
+      "bytes": 25505,
+      "width": 1828,
+      "height": 532,
+      "animated": false,
+      "path": "journal-architecture-dark-5197bebfcba002c4f3ea0dea5c80b4ae.svg"
+    },
+    {
+      "id": "journal-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "73f0af51b87223bf095043d3fb71d7ac",
+      "bytes": 18031,
+      "width": 1458,
+      "height": 532,
+      "animated": false,
+      "path": "journal-internals-light-73f0af51b87223bf095043d3fb71d7ac.svg"
+    },
+    {
+      "id": "journal-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "39185cee1c359fa1031c9da0074c59f0",
+      "bytes": 18232,
+      "width": 1458,
+      "height": 532,
+      "animated": false,
+      "path": "journal-internals-dark-39185cee1c359fa1031c9da0074c59f0.svg"
+    }
+  ]
+}
