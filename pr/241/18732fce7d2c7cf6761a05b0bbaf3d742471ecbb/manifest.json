@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "18732fce7d2c7cf6761a05b0bbaf3d742471ecbb",
+    "contentHash": "1bf77f5f239153b75d33a0540e55c9f7"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a6e4dec97f2452f74ac5377b416c8cbf",
+      "bytes": 29816,
+      "width": 1733,
+      "height": 646,
+      "animated": true,
+      "path": "review-pipeline-light-a6e4dec97f2452f74ac5377b416c8cbf.svg"
+    },
+    {
+      "id": "review-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "deb2cb5ad9b6052d13e734b29424df0e",
+      "bytes": 30144,
+      "width": 1733,
+      "height": 646,
+      "animated": true,
+      "path": "review-pipeline-dark-deb2cb5ad9b6052d13e734b29424df0e.svg"
+    },
+    {
+      "id": "build-job-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5c33724a017ea88f19850dec15ede37e",
+      "bytes": 15788,
+      "width": 1284,
+      "height": 532,
+      "animated": true,
+      "path": "build-job-detail-light-5c33724a017ea88f19850dec15ede37e.svg"
+    },
+    {
+      "id": "build-job-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "963c182db1212a61827b461956cbe87e",
+      "bytes": 15926,
+      "width": 1284,
+      "height": 532,
+      "animated": true,
+      "path": "build-job-detail-dark-963c182db1212a61827b461956cbe87e.svg"
+    },
+    {
+      "id": "workflow-tests-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workflow-tests",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5c30c427ad34525380e9c2f751f649ac",
+      "bytes": 14925,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "workflow-tests-light-5c30c427ad34525380e9c2f751f649ac.svg"
+    },
+    {
+      "id": "workflow-tests-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workflow-tests",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0026cb37d09aaf994f64974721e98b39",
+      "bytes": 15127,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "workflow-tests-dark-0026cb37d09aaf994f64974721e98b39.svg"
+    }
+  ]
+}
