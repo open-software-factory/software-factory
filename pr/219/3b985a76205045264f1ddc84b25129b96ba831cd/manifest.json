@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-agnix-core-bump",
+    "headSha": "3b985a76205045264f1ddc84b25129b96ba831cd",
+    "contentHash": "13779a70d3651531a9f3813dc478938a"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "view-dependency-graph-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-dependency-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "49d4e42a1c6fd071f650c693957a211c",
+      "bytes": 11715,
+      "width": 1284,
+      "height": 532,
+      "animated": true,
+      "path": "view-dependency-graph-light-49d4e42a1c6fd071f650c693957a211c.svg"
+    },
+    {
+      "id": "view-dependency-graph-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-dependency-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "46b7e734b2f2db695f77d4ad8c9e3a5d",
+      "bytes": 11819,
+      "width": 1284,
+      "height": 532,
+      "animated": true,
+      "path": "view-dependency-graph-dark-46b7e734b2f2db695f77d4ad8c9e3a5d.svg"
+    },
+    {
+      "id": "view-resolution-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "view-resolution-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "736934f3a80a4d496f7f35cc35becd70",
+      "bytes": 11578,
+      "width": 1216,
+      "height": 299,
+      "animated": true,
+      "path": "view-resolution-flow-light-736934f3a80a4d496f7f35cc35becd70.svg"
+    },
+    {
+      "id": "view-resolution-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "view-resolution-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a50b746953058738f3007fc92f31dff7",
+      "bytes": 11704,
+      "width": 1216,
+      "height": 299,
+      "animated": true,
+      "path": "view-resolution-flow-dark-a50b746953058738f3007fc92f31dff7.svg"
+    }
+  ]
+}
