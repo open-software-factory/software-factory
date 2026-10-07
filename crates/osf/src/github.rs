@@ -926,7 +926,7 @@ mod tests {
             }
         );
         assert_eq!(sent.borrow().len(), 1);
-        assert!(messages.is_empty());
+        assert_eq!(messages, Vec::<String>::new());
     }
 
     #[test]
@@ -1005,7 +1005,7 @@ mod tests {
             review::Outcome::PostFailed("gh: rate limited".to_string())
         );
         assert_eq!(calls.get(), 1);
-        assert!(messages.is_empty());
+        assert_eq!(messages, Vec::<String>::new());
     }
 
     #[test]
