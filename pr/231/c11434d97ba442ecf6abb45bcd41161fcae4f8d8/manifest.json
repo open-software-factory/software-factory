@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-sandbox-provider",
+    "headSha": "c11434d97ba442ecf6abb45bcd41161fcae4f8d8",
+    "contentHash": "f97230a3b21750ee951bbdf56b2f1e1f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "arch-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b9f3f5f1b6ea6e3892fecf51f7747a46",
+      "bytes": 20163,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "arch-overview-light-b9f3f5f1b6ea6e3892fecf51f7747a46.svg"
+    },
+    {
+      "id": "arch-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b00bd8873c49d82a3e30ffb3ca1b0c1c",
+      "bytes": 20396,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "arch-overview-dark-b00bd8873c49d82a3e30ffb3ca1b0c1c.svg"
+    },
+    {
+      "id": "arch-docker-adapter-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-docker-adapter",
+      "mediaType": "image/svg+xml",
+      "contentHash": "abf11db44728e2cfbe9305333802c45d",
+      "bytes": 10364,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "arch-docker-adapter-light-abf11db44728e2cfbe9305333802c45d.svg"
+    },
+    {
+      "id": "arch-docker-adapter-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-docker-adapter",
+      "mediaType": "image/svg+xml",
+      "contentHash": "40fb5263e0bbfb307ceac3b1cf0be752",
+      "bytes": 10464,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "arch-docker-adapter-dark-40fb5263e0bbfb307ceac3b1cf0be752.svg"
+    },
+    {
+      "id": "flow-sandbox-run-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "flow-sandbox-run",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0f62933d693e7d73486d90c685a87958",
+      "bytes": 19252,
+      "width": 1641,
+      "height": 657,
+      "animated": true,
+      "path": "flow-sandbox-run-light-0f62933d693e7d73486d90c685a87958.svg"
+    },
+    {
+      "id": "flow-sandbox-run-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "flow-sandbox-run",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b038c66d836382d52ccc7b0f8dda5b42",
+      "bytes": 19397,
+      "width": 1641,
+      "height": 657,
+      "animated": true,
+      "path": "flow-sandbox-run-dark-b038c66d836382d52ccc7b0f8dda5b42.svg"
+    }
+  ]
+}
