@@ -17,6 +17,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # The one place the Rust version lives. The dev container image still ships an
+  # older Rust, so CI installs this toolchain and caches it for now. Issue
+  # open-software-factory/software-factory#244 bakes it into the image and moves
+  # the pin into rust-toolchain.toml, after which the install step goes away.
+  RUST_VERSION: 1.99.0
+
 jobs:
   dsh-plugin:
     name: dsh-plugin
@@ -168,9 +175,23 @@ jobs:
             echo "::notice::no Cargo.toml at the repository root, nothing to build yet"
           fi
 
-      - name: Install the toolchain components
+      - name: Cache the Rust toolchain
         if: steps.detect.outputs.present == 'true'
-        run: rustup component add clippy rustfmt
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.rustup
+          key: rustup-${{ runner.os }}-${{ env.RUST_VERSION }}
+          restore-keys: rustup-${{ runner.os }}-
+
+      - name: Install the pinned Rust toolchain
+        # Interim: the dev container image still ships an older Rust. Issue
+        # open-software-factory/software-factory#244 bakes the pinned toolchain
+        # into the image and moves the pin into rust-toolchain.toml, after which
+        # this step goes away.
+        run: |
+          set -euo pipefail
+          rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component clippy,rustfmt
+          rustup default "${{ env.RUST_VERSION }}"
 
       - name: Cache the build
         if: steps.detect.outputs.present == 'true'
@@ -295,10 +316,22 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install the toolchain components
+      - name: Cache the Rust toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.rustup
+          key: rustup-${{ runner.os }}-${{ env.RUST_VERSION }}
+          restore-keys: rustup-${{ runner.os }}-
+
+      - name: Install the pinned Rust toolchain
+        # Interim: the dev container image still ships an older Rust. Issue
+        # open-software-factory/software-factory#244 bakes the pinned toolchain
+        # into the image and moves the pin into rust-toolchain.toml, after which
+        # this step goes away.
         run: |
           set -euo pipefail
-          rustup component add clippy rustfmt
+          rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component clippy,rustfmt
+          rustup default "${{ env.RUST_VERSION }}"
 
       - name: Cache the build
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9

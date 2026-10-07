@@ -190,7 +190,7 @@ mod tests {
         let findings = vec![finding("arrow")];
         let mismatch = check(&expected, &findings);
         assert_eq!(mismatch.missing, vec!["semicolon".to_string()]);
-        assert!(mismatch.unexpected.is_empty());
+        assert_eq!(mismatch.unexpected, Vec::<String>::new());
     }
 
     #[test]
@@ -198,7 +198,7 @@ mod tests {
         let expected = BTreeSet::from(["arrow".to_string()]);
         let findings = vec![finding("arrow"), finding("semicolon")];
         let mismatch = check(&expected, &findings);
-        assert!(mismatch.missing.is_empty());
+        assert_eq!(mismatch.missing, Vec::<String>::new());
         assert_eq!(mismatch.unexpected, vec!["semicolon".to_string()]);
     }
 
@@ -297,7 +297,7 @@ mod tests {
             mismatch.missing,
             vec!["scripts/install.sh: skill-script-unpinned".to_string()]
         );
-        assert!(mismatch.unexpected.is_empty());
+        assert_eq!(mismatch.unexpected, Vec::<String>::new());
     }
 
     #[test]
@@ -308,7 +308,7 @@ mod tests {
             ("scripts/install.sh", "skill-script-unpinned"),
         ];
         let mismatch = check_skill(&expected, actual);
-        assert!(mismatch.missing.is_empty());
+        assert_eq!(mismatch.missing, Vec::<String>::new());
         assert_eq!(
             mismatch.unexpected,
             vec!["scripts/install.sh: skill-script-unpinned".to_string()]

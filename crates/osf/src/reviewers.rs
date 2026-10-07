@@ -1101,7 +1101,7 @@ mod tests {
     #[test]
     fn with_no_agents_table_there_is_no_reviewer() {
         let r = roster(&std::env::temp_dir()).expect("roster"); // osf: temp-dir allowed, no osf.toml is read from it here
-        assert!(r.is_empty());
+        assert_eq!(r, Vec::<Reviewer>::new());
     }
 
     fn agent(name: &str) -> &'static Agent {
@@ -1117,7 +1117,7 @@ mod tests {
         let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
         assert!(args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
         assert!(!args.contains(&"--sandbox".to_string()));
-        assert!(r.sandbox_check.is_empty());
+        assert_eq!(r.sandbox_check, Vec::<String>::new());
     }
 
     #[test]
