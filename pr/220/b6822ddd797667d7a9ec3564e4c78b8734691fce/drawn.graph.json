@@ -1,0 +1,489 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T10:28:16.812Z",
+  "title": "OpenCode plugin dependency bump 1.18.31 → 1.18.34",
+  "summary": "A dependency-only change: the OpenCode integration pins its dev dependency @opencode-ai/plugin from 1.18.31 to 1.18.34, and pnpm-lock.yaml is regenerated to match. The plugin package transitively pulls @opencode-ai/sdk, which moves in lockstep to 1.18.34, so the integration's build/test toolchain now resolves against the newer plugin and SDK pair. No source, config or runtime behaviour in the integration itself is touched.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "6373e93b558ae9b3c5662014b029df1158d9fef2",
+      "ref": "6373e93b558ae9b3c5662014b029df1158d9fef2"
+    },
+    "head": {
+      "sha": "b6822ddd797667d7a9ec3564e4c78b8734691fce",
+      "ref": "b6822ddd797667d7a9ec3564e4c78b8734691fce"
+    },
+    "pullRequest": {
+      "number": 220,
+      "url": "https://github.com/open-software-factory/software-factory/pull/220"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "integration",
+      "label": "OpenCode integration",
+      "subtitle": "integrations/opencode",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The workspace package whose dev dependency pin moved. Its build and test scripts are unchanged; only the resolved plugin version differs."
+    },
+    {
+      "id": "toolchain",
+      "label": "Build & test toolchain",
+      "subtitle": "pnpm workspace",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "pnpm resolves the workspace importer against the lockfile and installs the pinned plugin version into node_modules."
+    },
+    {
+      "id": "registry",
+      "label": "npm registry",
+      "subtitle": "external",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "Upstream source of the @opencode-ai/plugin and @opencode-ai/sdk tarballs."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "opencode-package",
+      "label": "@software-factory/opencode",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration",
+      "subtitle": "integrations/opencode/package.json",
+      "summary": "The integration package manifest. Its devDependencies pin for @opencode-ai/plugin was raised from 1.18.31 to 1.18.34; scripts and other dependencies are untouched.",
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 25,
+          "endLine": 31
+        }
+      ],
+      "badges": [
+        "devDependency pin"
+      ]
+    },
+    {
+      "id": "opencode-plugin",
+      "label": "@opencode-ai/plugin",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration",
+      "group": "opencode-ai",
+      "subtitle": "1.18.31 → 1.18.34",
+      "summary": "The plugin package the integration builds and tests against. Only its resolved version changes; it is consumed as a dev dependency, so it does not ship in the integration's runtime output.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 81,
+          "endLine": 88
+        }
+      ],
+      "badges": [
+        "dev dependency"
+      ]
+    },
+    {
+      "id": "opencode-sdk",
+      "label": "@opencode-ai/sdk",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration",
+      "group": "opencode-ai",
+      "subtitle": "1.18.31 → 1.18.34",
+      "summary": "Transitive dependency of the plugin, bumped in lockstep. It is the only dependency the plugin declares that moved in this diff.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2531,
+          "endLine": 2544
+        }
+      ],
+      "badges": [
+        "transitive"
+      ]
+    },
+    {
+      "id": "pnpm-lockfile",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "toolchain",
+      "subtitle": "workspace lockfile",
+      "summary": "Regenerated lockfile: the integrations/opencode importer specifier, the plugin package entry and its snapshot, and the SDK package entry and snapshot all move to 1.18.34.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 81,
+          "endLine": 88
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 568,
+          "endLine": 590
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2531,
+          "endLine": 2544
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-install",
+      "label": "pnpm install",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "workspace resolution",
+      "summary": "Resolves the importer's specifier against the lockfile and materialises the pinned plugin and SDK into node_modules. Unchanged by this diff, but it is what turns the version bump into an installed artifact.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "opencode-build",
+      "label": "build / test scripts",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "tsc + node --test",
+      "summary": "The integration's build and test scripts run against whatever plugin version pnpm installed. They are not edited here, but they are the consumers that will exercise 1.18.34.",
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 20,
+          "endLine": 26
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "npm-registry",
+      "label": "npm registry",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "registry.npmjs.org",
+      "summary": "Upstream host serving the 1.18.34 tarballs and their integrity hashes recorded in the lockfile.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "package-depends-plugin",
+      "from": "opencode-package",
+      "to": "opencode-plugin",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 1.18.34",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one line that changed: the integration's dev dependency pin for the OpenCode plugin.",
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 28,
+          "endLine": 28
+        }
+      ]
+    },
+    {
+      "id": "plugin-depends-sdk",
+      "from": "opencode-plugin",
+      "to": "opencode-sdk",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "@opencode-ai/sdk 1.18.34",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The plugin's own dependency on the SDK, which moved in lockstep and is the reason the SDK entry appears in the diff at all.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2531,
+          "endLine": 2544
+        }
+      ]
+    },
+    {
+      "id": "lockfile-pins-plugin",
+      "from": "pnpm-lockfile",
+      "to": "opencode-plugin",
+      "kind": "data",
+      "delta": "modified",
+      "label": "specifier + integrity",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile records the new specifier, resolved version and integrity hash for the plugin.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 81,
+          "endLine": 88
+        }
+      ]
+    },
+    {
+      "id": "lockfile-pins-sdk",
+      "from": "pnpm-lockfile",
+      "to": "opencode-sdk",
+      "kind": "data",
+      "delta": "modified",
+      "label": "specifier + integrity",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile records the new resolved version and integrity hash for the SDK.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 568,
+          "endLine": 590
+        }
+      ]
+    },
+    {
+      "id": "install-reads-lockfile",
+      "from": "pnpm-install",
+      "to": "pnpm-lockfile",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "frozen lockfile",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "install-fetches-registry",
+      "from": "pnpm-install",
+      "to": "npm-registry",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "tarball fetch",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-uses-plugin",
+      "from": "opencode-build",
+      "to": "opencode-plugin",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "imports at build/test time",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "dependency-bump",
+      "title": "Resolving the bumped plugin",
+      "summary": "How the one-line version bump becomes an installed plugin and SDK for the integration's build and test scripts.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "opencode-package",
+          "label": "package.json"
+        },
+        {
+          "node": "pnpm-lockfile",
+          "label": "pnpm-lock.yaml"
+        },
+        {
+          "node": "pnpm-install",
+          "label": "pnpm install"
+        },
+        {
+          "node": "npm-registry",
+          "label": "npm registry"
+        },
+        {
+          "node": "opencode-plugin",
+          "label": "@opencode-ai/plugin"
+        },
+        {
+          "node": "opencode-sdk",
+          "label": "@opencode-ai/sdk"
+        },
+        {
+          "node": "opencode-build",
+          "label": "build / test"
+        }
+      ],
+      "messages": [
+        {
+          "id": "bump-specifier",
+          "from": "opencode-package",
+          "to": "pnpm-lockfile",
+          "label": "devDependency 1.18.34",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The only hand-edited line; the rest of the lockfile churn is generated from it.",
+          "files": [
+            {
+              "path": "integrations/opencode/package.json",
+              "startLine": 28,
+              "endLine": 28
+            }
+          ]
+        },
+        {
+          "id": "resolve-lockfile",
+          "from": "pnpm-install",
+          "to": "pnpm-lockfile",
+          "label": "read importer + package entries",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 81,
+              "endLine": 88
+            }
+          ]
+        },
+        {
+          "id": "fetch-plugin",
+          "from": "pnpm-install",
+          "to": "npm-registry",
+          "label": "GET @opencode-ai/plugin@1.18.34",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 568,
+              "endLine": 590
+            }
+          ]
+        },
+        {
+          "id": "fetch-sdk",
+          "from": "pnpm-install",
+          "to": "npm-registry",
+          "label": "GET @opencode-ai/sdk@1.18.34",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2531,
+              "endLine": 2544
+            }
+          ]
+        },
+        {
+          "id": "install-plugin",
+          "from": "npm-registry",
+          "to": "opencode-plugin",
+          "label": "tarball 1.18.34",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "install-sdk",
+          "from": "opencode-plugin",
+          "to": "opencode-sdk",
+          "label": "transitive dependency",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The plugin declares the SDK, so the SDK version follows the plugin version.",
+          "files": []
+        },
+        {
+          "id": "plugin-ready",
+          "from": "opencode-plugin",
+          "to": "opencode-build",
+          "label": "resolved for tsc / node --test",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "integrations/opencode/package.json",
+              "startLine": 20,
+              "endLine": 26
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 10,
+    "deletions": 10,
+    "chips": [
+      {
+        "label": "Dependency bumps",
+        "value": "2 packages",
+        "tone": "modified"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      },
+      {
+        "label": "Plugin version",
+        "value": "1.18.34",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "view-containers",
+      "title": "Integration and its dependency resolution",
+      "lens": "architecture",
+      "summary": "The OpenCode integration package, the plugin and SDK it resolves, and the lockfile and install step that pin them.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-dependency-bump",
+      "title": "Dependency bump sequence",
+      "lens": "data-flow",
+      "summary": "The ordered path from the edited specifier through lockfile resolution and registry fetch to the installed plugin and SDK.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "dependency-bump"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
