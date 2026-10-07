@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "9a165f3acce14c2271967daffd9ecbc7049d6c4d",
+    "contentHash": "06ad1bffe625d1825968650e34364ea8"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6b35a4a69725ee4f0fd8e761d342f8e9",
+      "bytes": 21613,
+      "width": 1791,
+      "height": 532,
+      "animated": false,
+      "path": "context-light-6b35a4a69725ee4f0fd8e761d342f8e9.svg"
+    },
+    {
+      "id": "context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "472a1d12e3d9e30a35a7302a08054242",
+      "bytes": 21867,
+      "width": 1791,
+      "height": 532,
+      "animated": false,
+      "path": "context-dark-472a1d12e3d9e30a35a7302a08054242.svg"
+    },
+    {
+      "id": "containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8cc64b390483e34b1211b6cf553a3d2e",
+      "bytes": 19972,
+      "width": 1387,
+      "height": 532,
+      "animated": false,
+      "path": "containers-light-8cc64b390483e34b1211b6cf553a3d2e.svg"
+    },
+    {
+      "id": "containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d1a8324b801ee2f67020c0d572561f4f",
+      "bytes": 20215,
+      "width": 1387,
+      "height": 532,
+      "animated": false,
+      "path": "containers-dark-d1a8324b801ee2f67020c0d572561f4f.svg"
+    },
+    {
+      "id": "adapter-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adapter-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b4db3c95af7c73565aad9a0bb2c5b535",
+      "bytes": 8022,
+      "width": 446,
+      "height": 418,
+      "animated": false,
+      "path": "adapter-components-light-b4db3c95af7c73565aad9a0bb2c5b535.svg"
+    },
+    {
+      "id": "adapter-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adapter-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5bffc72a2148d81d028d44dd458acc5d",
+      "bytes": 8111,
+      "width": 446,
+      "height": 418,
+      "animated": false,
+      "path": "adapter-components-dark-5bffc72a2148d81d028d44dd458acc5d.svg"
+    },
+    {
+      "id": "read-ready-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "read-ready",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0868de40856b884d794fb90f6fe590e9",
+      "bytes": 16640,
+      "width": 1836,
+      "height": 527,
+      "animated": true,
+      "path": "read-ready-light-0868de40856b884d794fb90f6fe590e9.svg"
+    },
+    {
+      "id": "read-ready-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "read-ready",
+      "mediaType": "image/svg+xml",
+      "contentHash": "72f49ed672bb1967263c123c937de5c8",
+      "bytes": 16762,
+      "width": 1836,
+      "height": 527,
+      "animated": true,
+      "path": "read-ready-dark-72f49ed672bb1967263c123c937de5c8.svg"
+    },
+    {
+      "id": "write-state-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "write-state",
+      "mediaType": "image/svg+xml",
+      "contentHash": "045143e71724d0ff5cdc42d3cff242b5",
+      "bytes": 16070,
+      "width": 1836,
+      "height": 527,
+      "animated": true,
+      "path": "write-state-light-045143e71724d0ff5cdc42d3cff242b5.svg"
+    },
+    {
+      "id": "write-state-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "write-state",
+      "mediaType": "image/svg+xml",
+      "contentHash": "133fe0265eb6a340a895164c85721690",
+      "bytes": 16192,
+      "width": 1836,
+      "height": 527,
+      "animated": true,
+      "path": "write-state-dark-133fe0265eb6a340a895164c85721690.svg"
+    }
+  ]
+}
