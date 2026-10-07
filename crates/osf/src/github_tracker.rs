@@ -1690,7 +1690,7 @@ mod tests {
     fn parse_items_page_gives_zero_items_for_an_empty_list() {
         let page = items_page(json!([]), false, Value::Null);
         let parsed = parse_items_page(&page, "Ready").expect("parses");
-        assert!(parsed.items.is_empty());
+        assert_eq!(parsed.items, Vec::<WorkItem>::new());
         assert_eq!(parsed.next_cursor, None);
     }
 
