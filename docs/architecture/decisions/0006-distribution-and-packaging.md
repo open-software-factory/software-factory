@@ -1,12 +1,12 @@
 # 0006: Distribution and packaging
 
-Status: accepted
+Status: accepted. Amended by [decision 0012 (slots, check recognisers and slot attestations)](0012-slots-check-recognisers-and-slot-attestations.md) for a repository that adopts the checkpoint seam.
 
-Date: 2026-09-15
+Date: 2026-09-15, amended 2026-09-23 to note the generated files in [decision 0012 (slots, check recognisers and slot attestations)](0012-slots-check-recognisers-and-slot-attestations.md) below.
 
 ## Context
 
-The factory reaches a workspace as a core and a surface, which `docs/architecture/how-the-factory-reaches-a-repository.md` describes. This record decides what is published, under which names, how it is versioned, and how the core is protected once installed.
+The factory reaches a workspace as a core and a surface, which [how the factory reaches a repository](../how-the-factory-reaches-a-repository.md) describes. This record decides what is published, under which names, how it is versioned, and how the core is protected once installed.
 
 "Software factory" is a generic industry term in continuous use since 1968 and stays the project's description. The bare word `factory` is taken on the npm, PyPI and crates.io registries, and a commercial coding-agent company publishes a command-line tool under it. The project name and the organisation name stay as they are; only the published artifacts need distinct names.
 
@@ -35,7 +35,7 @@ One version string per release covers every artifact. Tags follow the moving-tag
 
 ### Where the core runs, and how it is protected
 
-The core runs inside whatever sandbox the adopter uses, on whatever platform that sandbox runs on. Decision 0002 treats both as providers. The factory ships a container on the local platform as the default pair. A virtual machine is another sandbox, and a server or a cloud is another platform. The rules below hold in every combination.
+The core runs inside whatever sandbox the adopter uses, on whatever platform that sandbox runs on. [Decision 0002 (provider-neutral process boundaries)](0002-provider-neutral-process-boundaries.md) treats both as providers. The factory ships a container on the local platform as the default pair. A virtual machine is another sandbox, and a server or a cloud is another platform. The rules below hold in every combination.
 
 The binary installs read-only and owned by root, under a checksum wrapper that verifies the installed files and the git hooks path before every hook runs. The same binary runs in continuous integration under the workflow's own token, which no agent holds, and branch protection requires that run. Local execution raises the bar against an agent that reads and works around a check. The continuous-integration run is the authority.
 
@@ -47,7 +47,7 @@ How an organisation or a team starts from nothing is undecided and is tracked as
 
 ### What an adopting repository receives
 
-A repository needs no file at all: the binary detects the ecosystem from its marker files, runs that ecosystem's standard tools and reads their native output. A repository overrides commands in one configuration file when the defaults are wrong. A repository that emits the factory's events from its own tooling needs no wrapping at all.
+A repository needs no file at all: the binary detects the ecosystem from its marker files, runs that ecosystem's standard tools and reads their native output. A repository overrides commands in one configuration file when the defaults are wrong. A repository that emits the factory's events from its own tooling needs no wrapping at all. A repository that adopts the checkpoint seam [decision 0012 (slots, check recognisers and slot attestations)](0012-slots-check-recognisers-and-slot-attestations.md) describes instead gains a small set of generated files and one configuration file. The zero-file path above stays the default for a repository that wants only ecosystem detection.
 
 ## Consequences
 

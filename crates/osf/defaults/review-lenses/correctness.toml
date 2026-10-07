@@ -1,0 +1,17 @@
+name = "correctness"
+summary = "Whether the change does what its code implies, with no defect a careful read would catch."
+weight = 1.0
+runs = "always"
+
+[[criteria]]
+id = "logic"
+question = "Does every changed branch, loop and edge case behave the way the surrounding code implies it should?"
+
+[[criteria]]
+id = "error-handling"
+question = "Does every new failure path return or log an error instead of silently giving a wrong answer?"
+
+[severity_guide]
+blocker = "A defect that reaches production and gives a wrong answer or loses data."
+major = "A defect that only a rare input reaches, but still gives a wrong answer."
+minor = "A defect confined to a log line, a message, or a path with no visible effect."

@@ -62,9 +62,9 @@ struct Frontmatter {
     body_start: usize,
 }
 
-/// Reads `<dir>/SKILL.md` and runs every kept skill rule over it, the
-/// writing lint over its body, and the script-pin check over every script
-/// under `<dir>/scripts`.
+/// Reads `<dir>/SKILL.md` from disk and runs [`lint_skill_text`] over it.
+/// Used only by the standalone `osf lint skill` command, which has no
+/// checkpoint of its own and always reads the working tree.
 ///
 /// # Errors
 ///
@@ -78,7 +78,35 @@ pub fn lint_skill(
     let path = dir.join("SKILL.md");
     let text = std::fs::read_to_string(&path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-    let lines: Vec<&str> = text.lines().collect();
+    Ok(lint_skill_text(
+        dir,
+        &text,
+        &scripts_on_disk(dir),
+        cfg,
+        known,
+        writing,
+    ))
+}
+
+/// Runs every kept skill rule over `skill_md`, the writing lint over its
+/// body, and the script-pin check over `scripts`. `skill_md` and `scripts`
+/// are the caller's own already-resolved content of `<dir>/SKILL.md` and
+/// `<dir>/scripts`, never read from disk here: `check.rs`'s checkpoint-aware
+/// `lint_skill_files` passes the committed content of both at every
+/// checkpoint but the hook, so a pre-push checkpoint lints the source
+/// actually being pushed, not whatever an unstaged working-tree edit left
+/// behind.
+#[must_use]
+pub fn lint_skill_text(
+    dir: &Path,
+    skill_md: &str,
+    scripts: &[ScriptEntry],
+    cfg: &SkillConfig,
+    known: &KnownNames,
+    writing: &WritingConfig,
+) -> Vec<SkillFinding> {
+    let path = dir.join("SKILL.md");
+    let lines: Vec<&str> = skill_md.lines().collect();
 
     // A duplicate key and an unclosed block are both reported by the agnix
     // engine, so no rule here repeats them and one defect gives one error.
@@ -98,9 +126,9 @@ pub fn lint_skill(
         })
         .collect();
     out.extend(body_writing_findings(&lines, fm.body_start, known, writing));
-    out.extend(script_findings(dir));
+    out.extend(script_findings(scripts));
     out.extend(
-        super::agnix::lint_file(&path, dir)
+        super::agnix::lint_text(&path, skill_md, dir)
             .into_iter()
             .map(|finding| SkillFinding {
                 file: "SKILL.md".to_string(),
@@ -115,7 +143,7 @@ pub fn lint_skill(
             b.finding.rule,
         ))
     });
-    Ok(out)
+    out
 }
 
 /// Runs [`lint_skill`], then applies the same declared-fixture contract the
@@ -140,7 +168,7 @@ pub fn lint_skill(
 /// warning: the folder is still linted as normal.
 ///
 /// # Errors
-/// Returns `Err` under the same conditions as [`lint_skill`].
+/// Returns `Err` when `SKILL.md` cannot be read.
 pub fn lint_skill_checked(
     dir: &Path,
     label: &str,
@@ -148,12 +176,36 @@ pub fn lint_skill_checked(
     known: &KnownNames,
     writing: &WritingConfig,
 ) -> Result<Vec<SkillFinding>, String> {
-    let findings = lint_skill(dir, cfg, known, writing)?;
-    let marker_path = dir.join("SKILL.md");
-    let text = std::fs::read_to_string(&marker_path)
-        .map_err(|e| format!("cannot read {}: {e}", marker_path.display()))?;
-    let Some(expected) = osf_lint_core::parse_skill_expectation(&text) else {
-        return Ok(findings);
+    let path = dir.join("SKILL.md");
+    let text = std::fs::read_to_string(&path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    Ok(lint_skill_checked_text(
+        dir,
+        label,
+        &text,
+        &scripts_on_disk(dir),
+        cfg,
+        known,
+        writing,
+    ))
+}
+
+/// As [`lint_skill_checked`], but `skill_md` and `scripts` are the caller's
+/// own already-resolved content of `<dir>/SKILL.md` and `<dir>/scripts`: the
+/// checkpoint-aware counterpart `check.rs`'s `lint_skill_files` calls.
+#[must_use]
+pub fn lint_skill_checked_text(
+    dir: &Path,
+    label: &str,
+    skill_md: &str,
+    scripts: &[ScriptEntry],
+    cfg: &SkillConfig,
+    known: &KnownNames,
+    writing: &WritingConfig,
+) -> Vec<SkillFinding> {
+    let findings = lint_skill_text(dir, skill_md, scripts, cfg, known, writing);
+    let Some(expected) = osf_lint_core::parse_skill_expectation(skill_md) else {
+        return findings;
     };
     if !super::is_fixture_path(label) {
         let mut findings = findings;
@@ -161,7 +213,7 @@ pub fn lint_skill_checked(
             file: "SKILL.md".to_string(),
             finding: outside_fixtures_warning(),
         });
-        return Ok(findings);
+        return findings;
     }
     let forbidden: BTreeSet<String> = expected
         .values()
@@ -170,7 +222,7 @@ pub fn lint_skill_checked(
         .cloned()
         .collect();
     if !forbidden.is_empty() {
-        return Ok(forbidden_scan_rule_findings(forbidden));
+        return forbidden_scan_rule_findings(forbidden);
     }
     let actual: Vec<(&str, &str)> = findings
         .iter()
@@ -178,9 +230,9 @@ pub fn lint_skill_checked(
         .collect();
     let mismatch = osf_lint_core::check_skill(&expected, actual);
     if mismatch.is_empty() {
-        return Ok(Vec::new());
+        return Vec::new();
     }
-    Ok(expectation_findings(&mismatch))
+    expectation_findings(&mismatch)
 }
 
 /// A warning that an `osf-expect-skill` marker outside a `tests/fixtures`
@@ -517,7 +569,7 @@ fn no_done_condition(body: &[&str], min_steps: usize) -> bool {
 
 fn manual_shape_findings(lines: &[&str], body_start: usize, cfg: &SkillConfig) -> Vec<Finding> {
     let body = lines.get(body_start..).unwrap_or(&[]);
-    let (overview, mut out) = overview_findings(lines, body_start, cfg);
+    let (_, mut out) = overview_findings(lines, body_start, cfg);
     let descriptive = descriptive_over_imperative(body);
     let no_done = no_done_condition(body, cfg.manual_min_steps);
     if descriptive {
@@ -534,22 +586,6 @@ fn manual_shape_findings(lines: &[&str], body_start: usize, cfg: &SkillConfig) -
             "skill-no-done-condition",
             "the steps never say when to stop".to_string(),
             "no done condition",
-        ));
-    }
-    let fired: Vec<&str> = [
-        (overview, "skill-first-section-is-overview"),
-        (descriptive, "skill-descriptive-over-imperative"),
-        (no_done, "skill-no-done-condition"),
-    ]
-    .into_iter()
-    .filter_map(|(b, name)| b.then_some(name))
-    .collect();
-    if fired.len() >= 2 {
-        out.push(finding_at(
-            body_start + 1,
-            "skill-reads-as-manual",
-            format!("this skill reads like a manual: {}", fired.join(", ")),
-            "reads as manual",
         ));
     }
     out
@@ -588,35 +624,30 @@ fn context_injection_findings(lines: &[&str], body_start: usize) -> Vec<Finding>
     out
 }
 
-/// Scans every file under `<dir>/scripts` for an install line with no
-/// pinned version. Windows has no executable bit, so a script's own
-/// permissions are never part of this check.
-fn script_findings(dir: &Path) -> Vec<SkillFinding> {
-    static LATEST: OnceLock<Regex> = OnceLock::new();
-    static NPM: OnceLock<Regex> = OnceLock::new();
-    static PIP: OnceLock<Regex> = OnceLock::new();
-    let latest_re = re(&LATEST, r":latest\b");
-    let npm_re = re(&NPM, r"npm install -g (?:@[^\s/]+/)?[^\s@]+(@\S+)?");
-    let pip_re = re(&PIP, r"pip install [^\s=]+(==\S+)?");
-    let scripts_dir = dir.join("scripts");
-    let read_dir = match std::fs::read_dir(&scripts_dir) {
+/// One thing the caller found under a skill's `scripts` folder: a file with
+/// its text (or why it could not be read), or the folder itself being unreadable.
+pub enum ScriptEntry {
+    /// `rel` is the path from the skill folder, such as `scripts/run.sh`.
+    File {
+        rel: String,
+        text: Result<String, String>,
+    },
+    FolderUnreadable(String),
+}
+
+/// Every file under `<dir>/scripts` as it is on disk now, for a caller with
+/// no checkpoint of its own. A checkpoint caller reads the same content
+/// source it reads `SKILL.md` from instead.
+#[must_use]
+pub fn scripts_on_disk(dir: &Path) -> Vec<ScriptEntry> {
+    let read_dir = match std::fs::read_dir(dir.join("scripts")) {
         Ok(rd) => rd,
         // No scripts folder at all is normal: most skills carry none.
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return vec![],
         // Anything else, such as `scripts` being a plain file, means a
         // real scripts folder may exist and go unchecked; report it rather
         // than silently treating the skill as having no scripts.
-        Err(e) => {
-            return vec![SkillFinding {
-                file: "scripts".to_string(),
-                finding: finding_at(
-                    1,
-                    "skill-script-unreadable",
-                    format!("cannot read the scripts folder: {e}"),
-                    "scripts",
-                ),
-            }]
-        }
+        Err(e) => return vec![ScriptEntry::FolderUnreadable(e.to_string())],
     };
     let mut out = Vec::new();
     for entry in read_dir.flatten() {
@@ -629,11 +660,35 @@ fn script_findings(dir: &Path) -> Vec<SkillFinding> {
             .unwrap_or(&path)
             .to_string_lossy()
             .replace('\\', "/");
-        let text = match std::fs::read_to_string(&path) {
-            Ok(t) => t,
-            Err(e) => {
+        let text = std::fs::read_to_string(&path).map_err(|e| e.to_string());
+        out.push(ScriptEntry::File { rel, text });
+    }
+    out
+}
+
+/// Scans every script in `scripts` for an install line with no pinned
+/// version. File permissions are never part of this check, so the result
+/// does not depend on an operating system's executable-bit support.
+fn script_findings(scripts: &[ScriptEntry]) -> Vec<SkillFinding> {
+    let mut out = Vec::new();
+    for entry in scripts {
+        let (rel, text) = match entry {
+            ScriptEntry::FolderUnreadable(e) => {
                 out.push(SkillFinding {
-                    file: rel,
+                    file: "scripts".to_string(),
+                    finding: finding_at(
+                        1,
+                        "skill-script-unreadable",
+                        format!("cannot read the scripts folder: {e}"),
+                        "scripts",
+                    ),
+                });
+                continue;
+            }
+            ScriptEntry::File { rel, text: Ok(t) } => (rel, t),
+            ScriptEntry::File { rel, text: Err(e) } => {
+                out.push(SkillFinding {
+                    file: rel.clone(),
                     finding: finding_at(
                         1,
                         "skill-script-unreadable",
@@ -644,58 +699,21 @@ fn script_findings(dir: &Path) -> Vec<SkillFinding> {
                 continue;
             }
         };
-        for (i, line) in text.lines().enumerate() {
-            out.extend(
-                unpinned_findings(line, i + 1, latest_re, npm_re, pip_re).map(|finding| {
-                    SkillFinding {
-                        file: rel.clone(),
-                        finding,
-                    }
-                }),
-            );
+        let lines: Vec<&str> = text.lines().collect();
+        for number in super::script_pins::unpinned_line_numbers(text) {
+            let line = number.checked_sub(1).and_then(|i| lines.get(i));
+            out.push(SkillFinding {
+                file: rel.clone(),
+                finding: finding_at(
+                    number,
+                    "skill-script-unpinned",
+                    "pin the direct dependency or image to an exact version; a lockfile flag alone does not pin the installed package".to_string(),
+                    line.map_or("", |l| l.trim()),
+                ),
+            });
         }
     }
     out
-}
-
-fn unpinned_findings<'a>(
-    line: &'a str,
-    line_no: usize,
-    latest_re: &Regex,
-    npm_re: &Regex,
-    pip_re: &Regex,
-) -> impl Iterator<Item = Finding> + 'a {
-    let latest = latest_re.is_match(line).then(|| {
-        finding_at(
-            line_no,
-            "skill-script-unpinned",
-            "pin the version instead of :latest".to_string(),
-            line.trim(),
-        )
-    });
-    let npm = npm_re
-        .captures(line)
-        .filter(|c| c.get(1).is_none())
-        .map(|_| {
-            finding_at(
-                line_no,
-                "skill-script-unpinned",
-                "pin the package version, as in name@1.2.3 or @scope/name@1.2.3".to_string(),
-                line.trim(),
-            )
-        });
-    let pip = pip_re
-        .captures(line)
-        .filter(|c| c.get(1).is_none())
-        .map(|_| {
-            finding_at(
-                line_no,
-                "skill-script-unpinned",
-                "pin the package version, as in name==1.2.3".to_string(),
-                line.trim(),
-            )
-        });
-    latest.into_iter().chain(npm).chain(pip)
 }
 
 pub const SKILL_RULE_META: &[RuleMeta] = &[
@@ -724,32 +742,6 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
               Bad: description: Checks a folder for common problems.\n\
               Good: Use this skill when the user wants a quick health check of a project \
               folder.",
-        exception: None,
-    },
-    RuleMeta {
-        id: "skill-reads-as-manual",
-        class: Class::House,
-        group: Group::Style,
-        citation: "house",
-        doc: "### What it does\n\
-              Flags a skill body where at least two of three signals fire together. One \
-              signal is an opening that reads as background rather than a step. Another \
-              is more lines describing the skill than telling an agent what to do. Or it \
-              is a run of numbered steps that never says when to stop.\n\
-              ### Why it is bad\n\
-              A skill file is read by an agent mid-task, rather than studied like a \
-              manual. Background explanation and passive description cost turns an agent \
-              should spend acting.\n\
-              ### Class\n\
-              house: our own taste. It is a composite of three heuristics, each of which \
-              can misfire on its own, so watch its false-positive rate.\n\
-              ### Citation\n\
-              house\n\
-              ### Example\n\
-              Bad: a skill that opens with three paragraphs of background, describes the \
-              tool in passive sentences, and lists steps with no stopping point.\n\
-              Good: A skill that opens with the first step and states when the run is \
-              done.",
         exception: None,
     },
     RuleMeta {
@@ -873,10 +865,24 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
         group: Group::Comprehension,
         citation: "house",
         doc: "### What it does\n\
-              Flags a line under `scripts/` that installs a dependency with no pinned \
-              version: `:latest`, `npm install -g` with no `@version`, or `pip install` \
-              with no `==version`. A scoped package, such as `@scope/name`, is included \
-              in that check.\n\
+              Flags a literal direct install with no exact package version, including \
+              scoped packages and floating tags. A lockfile flag alone does not pin \
+              the installed package. Container commands with a latest image tag also fire.\n\
+              Requirements files name dependency declarations. Their file arguments \
+              do not name direct packages. \
+              Their contents are not inspected by this check.\n\
+              ### Coverage\n\
+              The command registry supplies the supported tools named in each run's \
+              coverage statement. Only literal standalone command tokens are inspected. \
+              This is not a shell or language interpreter. Variables, expansions, \
+              escapes, chained commands, pipelines and multiline commands are not inspected. \
+              Neither are language API calls, indirect installs, unknown command \
+              options or requirements-file contents. Obvious local paths, VCS URLs, \
+              unscoped `owner/repo` shorthands, and archive filenames ending in \
+              `.whl`, `.zip`, `.tgz`, `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar`, or `.gz` \
+              are skipped. Other local or VCS spellings may be treated as direct \
+              packages. \
+              A clean result is not a complete script audit.\n\
               ### Why it is bad\n\
               An unpinned install can resolve to a different, unreviewed version between \
               the run that read this skill and the run that executes it. A skill's \
@@ -887,8 +893,8 @@ pub const SKILL_RULE_META: &[RuleMeta] = &[
               ### Citation\n\
               house\n\
               ### Example\n\
-              Bad: npm install -g @scope/tool\n\
-              Good: Pin the version, as in `npm install -g @scope/tool@1.4.2`.",
+              Bad: Install the helper from a floating release.\n\
+              Good: Install the helper at the exact reviewed version.",
         exception: None,
     },
     RuleMeta {
@@ -929,7 +935,6 @@ mod tests {
 
     const RULE_IDS: &[&str] = &[
         "skill-description-no-trigger",
-        "skill-reads-as-manual",
         "skill-first-section-is-overview",
         "skill-descriptive-over-imperative",
         "skill-no-done-condition",

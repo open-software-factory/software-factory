@@ -7,6 +7,7 @@
 use crate::config::WritingConfig;
 use osf_lint_core::segment::{reduce_inline, Doc, TextUnit};
 use osf_lint_core::{run_rules, Finding, FnRule, KnownNames, Level, Rule};
+use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -21,7 +22,6 @@ const SENTENCE_RULES: &[FnRule<WritingConfig>] = &[
     FnRule::sentence("semicolon", semicolon),
     FnRule::sentence("numbers-in-prose", numbers_in_prose),
     FnRule::sentence("bold-sentence", bold_sentence),
-    FnRule::sentence("parenthetical", parenthetical),
     FnRule::sentence("contrast-tail", contrast_tail),
     FnRule::sentence("contrast-not-just", contrast_not_just),
     FnRule::sentence("aphorism", aphorism),
@@ -345,17 +345,15 @@ fn long_sentence(s: &TextUnit, cfg: &WritingConfig) -> Vec<Finding> {
 }
 
 fn em_dash(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = re(&RE, r"—|–| -- ");
-    matches(s, re)
-        .iter()
-        .map(|m| {
+    reduce_inline(&s.text)
+        .match_indices('—')
+        .map(|_| {
             finding(
                 s,
                 "em-dash",
                 Level::Error,
                 "use a full stop or a comma".to_string(),
-                m.trim(),
+                "—",
             )
         })
         .collect()
@@ -480,28 +478,6 @@ fn bold_sentence(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
             .collect::<Vec<_>>()
             .join(" "),
     )]
-}
-
-fn parenthetical(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = re(&RE, r"\(([^()]+)\)");
-    let text = reduce_inline(&s.text);
-    re.captures_iter(&text)
-        .filter(|c| {
-            c.get(1)
-                .is_some_and(|g| g.as_str().split_whitespace().count() >= 4)
-        })
-        .filter_map(|c| c.get(0).map(|g| g.as_str().to_string()))
-        .map(|whole| {
-            finding(
-                s,
-                "parenthetical",
-                Level::Warning,
-                "make it its own sentence".to_string(),
-                &whole,
-            )
-        })
-        .collect()
 }
 
 /// A capitalised name whose first use is on the repository's must-explain
@@ -952,25 +928,99 @@ fn universal_pronoun(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
         .collect()
 }
 
+/// The byte offsets where a labelled link to an absolute HTTP(S) URL starts.
+fn labelled_link_starts(text: &str) -> Vec<usize> {
+    let mut starts = Vec::new();
+    let mut open: Option<(usize, bool, String)> = None;
+    let mut image_depth = 0usize;
+    for (event, range) in Parser::new(text).into_offset_iter() {
+        match event {
+            Event::Start(Tag::Link { dest_url, .. }) => {
+                let safe = url::Url::parse(&dest_url).is_ok_and(|url| {
+                    matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
+                });
+                open = Some((range.start, safe, String::new()));
+            }
+            Event::Start(Tag::Image { .. }) => image_depth += 1,
+            Event::End(TagEnd::Image) => image_depth = image_depth.saturating_sub(1),
+            // An image's alt text is not a label, so an image-only link has none.
+            Event::Text(value) | Event::Code(value) if image_depth == 0 => {
+                if let Some((_, _, label)) = open.as_mut() {
+                    label.push_str(&value);
+                }
+            }
+            Event::End(TagEnd::Link) => {
+                if let Some((start, safe, label)) = open.take() {
+                    let visible = label.trim();
+                    if safe && !visible.is_empty() && url::Url::parse(visible).is_err() {
+                        starts.push(start);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    starts
+}
+
 /// `experts agree`, `studies show`, `widely regarded`, with no source named.
+/// A labelled HTTP(S) link in the same sentence, after the phrase, names one.
 fn weasel_attribution(s: &TextUnit, _cfg: &WritingConfig) -> Vec<Finding> {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = re(
         &RE,
         r"(?i)\bexperts agree\b|\bstudies show\b|\bwidely regarded\b",
     );
-    matches(s, re)
-        .iter()
+    let (plain, raw_ends) = plain_text_with_raw_ends(&s.text);
+    let links = labelled_link_starts(&s.text);
+    re.find_iter(&plain)
+        .filter(|m| {
+            // A phrase whose raw position is unknown is never excused.
+            let end = m.end().checked_sub(1).and_then(|i| raw_ends.get(i));
+            !end.is_some_and(|end| links.iter().any(|start| start >= end))
+        })
         .map(|m| {
             finding(
                 s,
                 "weasel-attribution",
                 Level::Error,
                 "name who says this, or cut the claim".to_string(),
-                m,
+                m.as_str(),
             )
         })
         .collect()
+}
+
+/// The visible text of `text` (code spans read as `code`), with, for each of
+/// its bytes, the offset in `text` just after the source of that byte.
+fn plain_text_with_raw_ends(text: &str) -> (String, Vec<usize>) {
+    let mut plain = String::new();
+    let mut ends = Vec::new();
+    for (event, range) in Parser::new(text).into_offset_iter() {
+        match event {
+            Event::Text(value) => {
+                let exact = value.len() == range.len();
+                for i in 0..value.len() {
+                    ends.push(if exact {
+                        range.start + i + 1
+                    } else {
+                        range.end
+                    });
+                }
+                plain.push_str(&value);
+            }
+            Event::Code(_) => {
+                plain.push_str("code");
+                ends.extend([range.end; 4]);
+            }
+            Event::SoftBreak | Event::HardBreak => {
+                plain.push(' ');
+                ends.push(range.end);
+            }
+            _ => {}
+        }
+    }
+    (plain, ends)
 }
 
 /// A short label, a colon, then a lowercase reveal, outside a list item, a

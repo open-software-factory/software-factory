@@ -4,8 +4,68 @@
 //! only one of them calls is not dead code, just unused in this one.
 #![allow(dead_code)]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// Removes every inherited `OSF_*` and `MOON_*` variable from `command`:
+/// this repository's own checkpoint sets some of them (`OSF_CONFIG`,
+/// `OSF_DENYLIST`, `OSF_STATE_DIR`, and various `MOON_*` names) on `cargo
+/// test`, which every process it spawns inherits. A `git` command run
+/// against a throwaway repository can trigger a real hook that execs the
+/// built `osf` binary, which would otherwise resolve a config path or task
+/// state relative to the wrong directory. Every helper here that can end up
+/// running a real git hook calls this, the same way [`osf::scrub_git_env`]
+/// clears `GIT_*`.
+pub fn scrub_osf_and_moon_env(command: &mut Command) {
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") {
+            command.env_remove(key);
+        }
+    }
+}
+
+/// A folder name unique to this process and this call, so two processes (or
+/// two calls in one process) building a directory from the same `name` never
+/// share one.
+pub fn unique_dir(prefix: &str) -> PathBuf {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("clock is after the epoch")
+        .as_nanos();
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, the shared helper
+    base.join(format!("{prefix}-{}-{unique}", std::process::id()))
+}
+
+/// A fresh, empty directory unique to this process and this call, for a
+/// throwaway fixture with no git repository of its own. Removed on drop.
+pub struct TempDir(PathBuf);
+
+impl TempDir {
+    pub fn new(prefix: &str) -> Self {
+        let dir = unique_dir(prefix);
+        std::fs::create_dir_all(&dir).expect("temp dir creates");
+        TempDir(dir)
+    }
+}
+
+impl std::ops::Deref for TempDir {
+    type Target = Path;
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl AsRef<Path> for TempDir {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
 
 /// A throwaway git repository under the system temp directory, named
 /// uniquely so parallel tests never collide. Removed on drop.
@@ -15,8 +75,7 @@ pub struct TempRepo {
 
 impl TempRepo {
     pub fn new(name: &str) -> Self {
-        let dir = std::env::temp_dir().join(format!("osf-verify-test-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
+        let dir = unique_dir(&format!("osf-verify-test-{name}"));
         std::fs::create_dir_all(&dir).expect("temp repo dir creates");
         let repo = TempRepo { dir };
         repo.git(&["init", "-q", "-b", "main"]);
@@ -25,12 +84,17 @@ impl TempRepo {
         repo
     }
 
+    /// Runs `git` in this repository, with [`path_with_osf_first`] on
+    /// `PATH` so an installed hook that execs bare `osf` resolves to this
+    /// test run's own built binary, not whatever the machine running the
+    /// test does or does not have installed.
     pub fn git(&self, args: &[&str]) -> String {
-        let output = Command::new("git")
-            .current_dir(&self.dir)
-            .args(args)
-            .output()
-            .expect("git runs");
+        let mut command = Command::new("git");
+        command.current_dir(&self.dir).args(args);
+        osf::scrub_git_env(&mut command);
+        scrub_osf_and_moon_env(&mut command);
+        command.env("PATH", path_with_osf_first());
+        let output = command.output().expect("git runs");
         assert!(
             output.status.success(),
             "git {args:?} failed: {}",
@@ -65,6 +129,29 @@ impl TempRepo {
         self.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
     }
 
+    /// Creates a symlink at `link`, pointing at `target` (resolved the
+    /// way a real symlink resolves it: relative to `link`'s own parent
+    /// directory), creating any parent directory `link` needs. Plain std:
+    /// the `symlink` crate is unmaintained and fails on Windows when the
+    /// target is missing, which the dangling-link test needs.
+    pub fn symlink(&self, link: &str, target: &str) {
+        let full = self.dir.join(link);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).expect("symlink parent dir creates");
+        }
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(target, &full).expect("symlink creates");
+        #[cfg(windows)]
+        {
+            let resolved = full.parent().expect("symlink has a parent").join(target);
+            if resolved.is_dir() {
+                std::os::windows::fs::symlink_dir(target, &full).expect("symlink creates");
+            } else {
+                std::os::windows::fs::symlink_file(target, &full).expect("symlink creates");
+            }
+        }
+    }
+
     /// Writes `count` numbered lines to `path`, each newline-terminated,
     /// creating any parent directory it needs.
     pub fn write_lines(&self, path: &str, count: usize) {
@@ -75,6 +162,49 @@ impl TempRepo {
         }
         self.write(path, &content);
     }
+
+    /// Writes raw bytes to `path`, creating any parent directory it needs.
+    pub fn write_bytes(&self, path: &str, content: &[u8]) {
+        let full = self.dir.join(path);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).expect("fixture parent dir creates");
+        }
+        std::fs::write(&full, content).expect("fixture file writes");
+    }
+
+    /// Writes `.moon/workspace.yml` and a small `.osf/moon.yml` with one
+    /// task per checkpoint each of `lint-writing` and `scan` serves:
+    /// `lint-writing-hook` (`osf-hook`), `lint-writing-pre-push`
+    /// (`osf-pre-push`), `scan-pre-commit` (`osf-pre-commit`), `scan-hook`
+    /// (`osf-hook`), and `scan-pre-push` (`osf-pre-push`). Each passes its
+    /// own `--checkpoint` value. All read only Markdown
+    /// (`inputs: ['/**/*.md']`), so a change to a non-Markdown file affects
+    /// none of them. Each task's command is the built `osf` binary under
+    /// test. The caller commits these files itself, along with whatever
+    /// else the test needs in that first commit.
+    pub fn with_moon_workspace(name: &str) -> Self {
+        let repo = TempRepo::new(name);
+        repo.write(
+            ".moon/workspace.yml",
+            "projects:\n  osf: '.osf'\nvcs:\n  client: git\n  defaultBranch: main\n",
+        );
+        // `shell: false` runs the binary directly. Without it, moon's
+        // default shell on Windows is PowerShell, which cannot parse a
+        // quoted path followed by bare arguments on one line.
+        let bin = env!("CARGO_BIN_EXE_osf").replace('\\', "/");
+        repo.write(
+            ".osf/moon.yml",
+            &format!(
+                "language: rust\ntasks:\n  \
+                lint-writing-hook:\n    command: '\"{bin}\" check lint-writing --checkpoint hook --sarif-out .osf/out/lint-writing-hook.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  \
+                lint-writing-pre-push:\n    command: '\"{bin}\" check lint-writing --checkpoint pre-push --sarif-out .osf/out/lint-writing-pre-push.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  \
+                scan-pre-commit:\n    command: '\"{bin}\" check scan --checkpoint pre-commit --sarif-out .osf/out/scan-pre-commit.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-commit]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  \
+                scan-hook:\n    command: '\"{bin}\" check scan --checkpoint hook --sarif-out .osf/out/scan-hook.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-hook]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n  \
+                scan-pre-push:\n    command: '\"{bin}\" check scan --checkpoint pre-push --sarif-out .osf/out/scan-pre-push.sarif'\n    inputs: ['/**/*.md']\n    tags: [osf-pre-push]\n    options:\n      runFromWorkspaceRoot: true\n      cache: false\n      shell: false\n"
+            ),
+        );
+        repo
+    }
 }
 
 impl Drop for TempRepo {
@@ -83,13 +213,143 @@ impl Drop for TempRepo {
     }
 }
 
+/// A throwaway bare repository: a git repository with no work tree. Removed on drop.
+pub struct BareRepo {
+    pub dir: PathBuf,
+}
+
+impl BareRepo {
+    pub fn new(name: &str) -> Self {
+        let dir = unique_dir(&format!("osf-verify-test-{name}"));
+        let mut command = Command::new("git");
+        command.args(["init", "-q", "--bare"]).arg(&dir);
+        osf::scrub_git_env(&mut command);
+        let status = command.status().expect("git init runs");
+        assert!(
+            status.success(),
+            "bare git init failed for {}",
+            dir.display()
+        );
+        BareRepo { dir }
+    }
+}
+
+impl Drop for BareRepo {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.dir);
+    }
+}
+
+/// A fake `moon` for `OSF_MOON`: it copies [`write_fake_moon_report`]'s file into `.moon/cache/runReport.json` for `run`.
+/// `query` prints `fake-moon-query.json` when the repository has one; with `fake-moon-query-fails-after-first` present, every `query` after the first exits 1.
+#[cfg(windows)]
+pub fn write_fake_moon(repo: &TempRepo) -> PathBuf {
+    let path = repo.dir.join("fake-moon.cmd");
+    let script = "@echo off\r\n\
+        if \"%~1\"==\"--version\" (\r\n  echo moon 2.5.5\r\n  exit /b 0\r\n)\r\n\
+        if \"%~1\"==\"query\" (\r\n  \
+        if exist fake-moon-query-fails-after-first if exist .fake-moon-queried (echo query failed 1>&2 & exit /b 1)\r\n  \
+        echo.> .fake-moon-queried\r\n  \
+        if exist fake-moon-query.json (type fake-moon-query.json) else (echo {\"tasks\":{}})\r\n  exit /b 0\r\n)\r\n\
+        if \"%~1\"==\"run\" (\r\n  more > nul\r\n  if not exist \".moon\\cache\" mkdir \".moon\\cache\"\r\n  copy /y \"fake-moon-report.json\" \".moon\\cache\\runReport.json\" > nul\r\n  exit /b 0\r\n)\r\n\
+        exit /b 1\r\n";
+    std::fs::write(&path, script).expect("fake moon script writes");
+    path
+}
+
+/// The same as the Windows [`write_fake_moon`], as a POSIX shell script.
+#[cfg(unix)]
+pub fn write_fake_moon(repo: &TempRepo) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt as _;
+    let path = repo.dir.join("fake-moon.sh");
+    let script = "#!/bin/sh\ncase \"$1\" in\n  \
+        --version) echo 'moon 2.5.5'; exit 0 ;;\n  \
+        query) if [ -f fake-moon-query-fails-after-first ] && [ -f .fake-moon-queried ]; then echo 'query failed' >&2; exit 1; fi; touch .fake-moon-queried; if [ -f fake-moon-query.json ]; then cat fake-moon-query.json; else echo '{\"tasks\":{}}'; fi; exit 0 ;;\n  \
+        run) cat > /dev/null; mkdir -p .moon/cache; cp fake-moon-report.json .moon/cache/runReport.json; exit 0 ;;\n  \
+        *) exit 1 ;;\nesac\n";
+    std::fs::write(&path, script).expect("fake moon script writes");
+    let mut perms = std::fs::metadata(&path)
+        .expect("fake moon metadata")
+        .permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(&path, perms).expect("fake moon chmod");
+    path
+}
+
+/// Writes the report `write_fake_moon`'s `run` branch copies, from a raw `targetStates` body.
+pub fn write_fake_moon_report(repo: &TempRepo, target_states: &str) {
+    repo.write(
+        "fake-moon-report.json",
+        &format!(r#"{{"actions":[],"context":{{"targetStates":{{{target_states}}}}}}}"#),
+    );
+}
+
+/// A fresh, empty directory standing in for `HOME`, named uniquely so
+/// parallel tests never collide. Removed on drop.
+pub struct IsolatedHome(PathBuf);
+
+impl std::ops::Deref for IsolatedHome {
+    type Target = Path;
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for IsolatedHome {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
 /// A fresh, empty directory to stand in for `HOME`, so a spawned `osf`
-/// never picks up this machine's real `~/.osf/config.toml`.
-pub fn isolated_home(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("osf-verify-test-home-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
+/// never picks up this machine's real `~/.osf/config.toml`. Also holds an
+/// `AppData\Roaming` folder on Windows: moon's WASM plugin runtime derives
+/// its own cache config path from `USERPROFILE`, and fails to start at all
+/// when that folder is missing under an overridden profile.
+pub fn isolated_home(name: &str) -> IsolatedHome {
+    let dir = unique_dir(&format!("osf-verify-test-home-{name}"));
     std::fs::create_dir_all(&dir).expect("isolated home dir creates");
-    dir
+    std::fs::create_dir_all(dir.join("AppData").join("Roaming"))
+        .expect("isolated home AppData\\Roaming creates");
+    std::fs::create_dir_all(dir.join("AppData").join("Local"))
+        .expect("isolated home AppData\\Local creates");
+    IsolatedHome(dir)
+}
+
+/// `PATH`, with the freshly built `osf` binary's own folder prepended, so an
+/// installed hook script that calls bare `osf` (the way `osf hooks install`
+/// writes one) resolves to this test run's binary ahead of any other `osf`
+/// already on the machine.
+pub fn path_with_osf_first() -> std::ffi::OsString {
+    let bin_dir = std::path::Path::new(env!("CARGO_BIN_EXE_osf"))
+        .parent()
+        .expect("the built binary has a parent folder")
+        .to_path_buf();
+    let ambient = std::env::var_os("PATH").unwrap_or_default();
+    std::env::join_paths(std::iter::once(bin_dir).chain(std::env::split_paths(&ambient)))
+        .expect("PATH joins")
+}
+
+/// A real git command in `dir`, with `home` standing in for
+/// `HOME`/`USERPROFILE` and [`path_with_osf_first`] on `PATH`, so a git
+/// operation that triggers an installed hook script resolves bare `osf` to
+/// this test run's binary and reads this test's own isolated state, not the
+/// real machine's. Every inherited `GIT_*`, `OSF_*` and `MOON_*` variable is
+/// scrubbed first.
+pub fn git_with_hook_env(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    args: &[&str],
+) -> std::process::Output {
+    let mut command = Command::new("git");
+    command.current_dir(dir).args(args);
+    osf::scrub_git_env(&mut command);
+    scrub_osf_and_moon_env(&mut command);
+    command
+        .env("PATH", path_with_osf_first())
+        .env("HOME", home)
+        .env("USERPROFILE", home);
+    command.output().expect("git runs")
 }
 
 /// Runs the compiled `osf` binary in `dir`, with `home` standing in for
@@ -99,15 +359,124 @@ pub fn run_osf(
     home: &std::path::Path,
     args: &[&str],
 ) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_osf"))
-        .current_dir(dir)
+    run_osf_with_env(dir, home, &[], args)
+}
+
+/// The `osf` command, in `dir`, with `home` standing in for
+/// `HOME`/`USERPROFILE`, `env` applied on top, and every checkpoint-runner,
+/// `MOON_*` and `GIT_*` variable this repository's own checkpoint (or a
+/// caller's own git hook) sets on `cargo test` scrubbed first (see
+/// [`run_osf_with_env`]'s doc comment).
+fn osf_cmd(dir: &std::path::Path, home: &std::path::Path, env: &[(&str, &str)]) -> Command {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_osf"));
+    cmd.current_dir(dir)
         .env("HOME", home)
-        .env("USERPROFILE", home)
-        .env_remove("OSF_CONFIG")
-        .env_remove("OSF_DENYLIST")
+        .env("USERPROFILE", home);
+    for (key, _) in std::env::vars() {
+        if key.starts_with("OSF_") || key.starts_with("MOON_") || key.starts_with("GIT_") {
+            cmd.env_remove(key);
+        }
+    }
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    cmd
+}
+
+/// The same as [`run_osf`], with extra environment variables set for this
+/// one run, such as `OSF_FILES_FROM` or `OSF_BASE`.
+///
+/// Removes every inherited `OSF_*` variable from the ambient environment
+/// first: this repository's own checkpoint sets some of them (`OSF_CONFIG`,
+/// `OSF_DENYLIST`, `OSF_STATE_DIR`, and more) on the `moon` process, which
+/// every task it spawns inherits, `cargo test` included, so a test binary
+/// that never clears them reads its own checkpoint run's config, denylist,
+/// or state directory instead of the caller's `home`/`env`.
+///
+/// Also removes every inherited `MOON_*` variable: moon sets these on a
+/// task's own process (`MOON_WORKSPACE_ROOT`, `MOON_CACHE_DIR`, and the
+/// rest), and a test spawning `osf` under this repository's own `cargo
+/// test` task inherits them. Left in place, a test's own nested `moon`
+/// call reads them back and treats itself as still inside this
+/// repository's workspace instead of the throwaway one at `dir`.
+pub fn run_osf_with_env(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    env: &[(&str, &str)],
+    args: &[&str],
+) -> std::process::Output {
+    osf_cmd(dir, home, env)
         .args(args)
         .output()
         .expect("osf runs")
+}
+
+/// The same as [`run_osf_with_env`], writing `stdin` to the child's
+/// standard input instead of leaving it closed, for a hook command that
+/// reads its event from there.
+pub fn run_osf_stdin(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    env: &[(&str, &str)],
+    args: &[&str],
+    stdin: &str,
+) -> std::process::Output {
+    use std::io::Write as _;
+    let mut child = osf_cmd(dir, home, env)
+        .args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("osf spawns");
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(stdin.as_bytes())
+        .expect("stdin writes");
+    child.wait_with_output().expect("osf runs")
+}
+
+/// Spawns the compiled `osf` binary in `dir` without waiting for it, wiring
+/// its stdin, stdout and stderr as pipes. For a test that needs two runs to
+/// genuinely overlap in wall-clock time, pair this with [`write_stdin`]
+/// rather than [`run_osf_stdin`], which blocks until the child exits before
+/// the caller can even start a second one.
+pub fn spawn_osf_stdin(
+    dir: &std::path::Path,
+    home: &std::path::Path,
+    env: &[(&str, &str)],
+    args: &[&str],
+) -> std::process::Child {
+    osf_cmd(dir, home, env)
+        .args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("osf spawns")
+}
+
+/// Writes `stdin` to `child`'s own standard input and closes it, without
+/// waiting for the process to exit, so a caller can feed several
+/// already-spawned children before waiting on any of them.
+pub fn write_stdin(child: &mut std::process::Child, stdin: &str) {
+    use std::io::Write as _;
+    child
+        .stdin
+        .take()
+        .expect("stdin is piped")
+        .write_all(stdin.as_bytes())
+        .expect("stdin writes");
+}
+
+/// Escapes a script for embedding inside a single-quoted YAML scalar
+/// (`script: '{script}'`). YAML ends such a scalar at the first quote it
+/// sees; a literal quote inside the value must be written as two, so this
+/// doubles each one.
+pub fn yaml_single_quoted(script: &str) -> String {
+    script.replace('\'', "''")
 }
 
 /// Builds a session-link-shaped string at run time for one agent, from the
@@ -228,4 +597,77 @@ pub fn coauthor_trailer(name: &str, email: &str) -> String {
 /// any other owner named next to a `#<digits>` reference reads as foreign.
 pub fn foreign_reference(owner: &str, repo: &str, number: u32) -> String {
     format!("{owner}/{repo}#{number}")
+}
+
+/// A fake AWS-shaped access key id, built at run time for the same reason
+/// as [`session_link_for`]: this project's own `osf scan` would otherwise
+/// flag the literal shape sitting in this file.
+pub fn fake_cloud_key_id() -> String {
+    let prefix = "AKIA";
+    let body = "9F8E7D6C5B4A3210";
+    format!("{prefix}{body}")
+}
+
+/// A fake forge personal-access token of the given prefix (`ghp_`, `gho_`,
+/// or a fine-grained `github_pat_`), built at run time for the same reason
+/// as [`fake_cloud_key_id`].
+pub fn fake_forge_token(prefix: &str) -> String {
+    let body = "0123456789abcdef0123456789abcdef0123456789";
+    format!("{prefix}{body}")
+}
+
+/// A fake GitLab personal-access token, built at run time for the same
+/// reason as [`fake_cloud_key_id`].
+pub fn fake_gitlab_token() -> String {
+    let prefix = "glpat-";
+    let body = "abcdefghijklmnopqrstuv12";
+    format!("{prefix}{body}")
+}
+
+/// A fake provider secret key of the given prefix (`sk-` or `sk-ant-`),
+/// built at run time for the same reason as [`fake_cloud_key_id`].
+pub fn fake_provider_key(prefix: &str) -> String {
+    let body = "abcdefghijklmnopqrstuvwxyzABCD0123456789";
+    format!("{prefix}{body}")
+}
+
+/// A fake Slack-shaped token, built at run time for the same reason as
+/// [`fake_cloud_key_id`].
+pub fn fake_slack_token() -> String {
+    let prefix = "xoxb-";
+    let body = "1234567890-1234567890-abcdefghijklmnopqrstuvwx";
+    format!("{prefix}{body}")
+}
+
+/// A fake PEM private-key block, built at run time for the same reason as
+/// [`fake_cloud_key_id`]: its `BEGIN`/`END` lines and body are assembled
+/// from separate pieces, so no source line here holds the full shape.
+pub fn fake_pem_key_block() -> String {
+    let begin = ["-----BEGIN", "RSA PRIVATE KEY-----"].join(" ");
+    let end = ["-----END", "RSA PRIVATE KEY-----"].join(" ");
+    let body = "MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu\nKUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQ==";
+    format!("{begin}\n{body}\n{end}")
+}
+
+/// A fake `NAME_SUFFIX = "value"` secret-shaped assignment, built at run
+/// time for the same reason as [`fake_cloud_key_id`]: `suffix` is one of
+/// `KEY`, `TOKEN`, `SECRET` or `PASSWORD`.
+pub fn fake_secret_assignment(suffix: &str) -> String {
+    let name = format!("API_{suffix}");
+    let value = "abcd1234EFGH5678";
+    format!("{name} = \"{value}\"")
+}
+
+/// A suppression marker, built at run time for the same reason as
+/// [`fake_cloud_key_id`]: `osf scan` reads its own tracked source text for
+/// markers too, so the shape must never sit whole in this file. `directive`
+/// is `disable-line`, `disable-next-line` or `disable-file`; `reason` of
+/// `None` omits the `-- <reason>` part, to build a marker that must not
+/// suppress anything.
+pub fn suppress_marker(directive: &str, rule: &str, reason: Option<&str>) -> String {
+    let open = ["<!--", "osf-"].join(" ");
+    match reason {
+        Some(reason) => format!("{open}{directive} {rule} -- {reason} -->"),
+        None => format!("{open}{directive} {rule} -->"),
+    }
 }

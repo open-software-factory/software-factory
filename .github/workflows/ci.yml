@@ -4,16 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
-  # A whole-repository writing pass, on demand and every second day. The
-  # everyday gate reads only what a change touches; this catches drift that
-  # no change happens to touch, and is the pass to run before a release.
+  # The writing gate reads every tracked Markdown file on every run. These two
+  # triggers add a run when no change happens to touch the Markdown.
   workflow_dispatch:
-    inputs:
-      writing_scope:
-        description: Which Markdown the writing gate reads
-        type: choice
-        options: [changed, all]
-        default: changed
   schedule:
     - cron: '0 19 */2 * *'
 
@@ -23,6 +16,13 @@ permissions:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+
+env:
+  # The one place the Rust version lives. The dev container image still ships an
+  # older Rust, so CI installs this toolchain and caches it for now. Issue
+  # open-software-factory/software-factory#244 bakes it into the image and moves
+  # the pin into rust-toolchain.toml, after which the install step goes away.
+  RUST_VERSION: 1.99.0
 
 jobs:
   dsh-plugin:
@@ -110,7 +110,7 @@ jobs:
         env:
           OSF_CONFIG: osf.toml
           OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
-        run: ./target/release/osf scan --format human
+        run: ./target/release/osf scan --format human --no-suppress
 
       - name: Scan the commit messages this change adds
         if: github.event_name == 'pull_request'
@@ -164,9 +164,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          # full history so the changed-file list can be computed against the base
-          fetch-depth: 0
 
       - name: Look for a Rust workspace
         id: detect
@@ -178,9 +175,23 @@ jobs:
             echo "::notice::no Cargo.toml at the repository root, nothing to build yet"
           fi
 
-      - name: Install the toolchain components
+      - name: Cache the Rust toolchain
         if: steps.detect.outputs.present == 'true'
-        run: rustup component add clippy rustfmt
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.rustup
+          key: rustup-${{ runner.os }}-${{ env.RUST_VERSION }}
+          restore-keys: rustup-${{ runner.os }}-
+
+      - name: Install the pinned Rust toolchain
+        # Interim: the dev container image still ships an older Rust. Issue
+        # open-software-factory/software-factory#244 bakes the pinned toolchain
+        # into the image and moves the pin into rust-toolchain.toml, after which
+        # this step goes away.
+        run: |
+          set -euo pipefail
+          rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component clippy,rustfmt
+          rustup default "${{ env.RUST_VERSION }}"
 
       - name: Cache the build
         if: steps.detect.outputs.present == 'true'
@@ -201,6 +212,10 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Install moon
+        if: steps.detect.outputs.present == 'true'
+        uses: ./.github/actions/install-moon
+
       - name: Test
         if: steps.detect.outputs.present == 'true'
         run: cargo test --workspace
@@ -209,43 +224,55 @@ jobs:
         if: steps.detect.outputs.present == 'true'
         run: cargo build --release --bin osf
 
-      # Two scopes, one gate. `changed` reads only what this change touches
-      # and is the everyday cost. `all` reads every tracked Markdown file and
-      # is for a release pass, or for the run after a new rule lands. The
-      # weekly schedule uses `all`, so drift that no change happens to touch
-      # still surfaces.
+      # Every skill the repository ships, and every skill an agent uses while
+      # working here, every run: skills are few and cheap to check.
+      - name: Check the skills
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          mapfile -t skills < <(git ls-files 'skills/*/SKILL.md' '.agents/skills/*/SKILL.md' | xargs -r -n1 dirname)
+          if [ ${#skills[@]} -eq 0 ]; then
+            echo "::notice::no skills to check"
+            exit 0
+          fi
+          # --gate so this change's own config file cannot loosen a skill rule
+          ./target/release/osf lint skill --gate --format human "${skills[@]}"
+
+      # Claude Code reads only .claude/skills, so that folder must stay a
+      # symlink to .agents/skills rather than drift as its own copy.
+      - name: Check the Claude Code skills link
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          mode="$(git ls-files -s .claude/skills | awk '{print $1}')"
+          if [ "$mode" != '120000' ]; then
+            echo "::error::.claude/skills must be a symlink to ../.agents/skills, but git records it with mode '${mode:-<untracked>}', not a symlink mode of 120000."
+            echo "::error::fix: on Windows, run 'git config core.symlinks true' and turn on developer mode first. Then remove .claude/skills, run 'ln -s ../.agents/skills .claude/skills', and commit the result."
+            exit 1
+          fi
+          target="$(readlink .claude/skills)"
+          if [ "$target" != '../.agents/skills' ]; then
+            echo "::error::.claude/skills links to '$target', not '../.agents/skills'."
+            echo "::error::fix: remove .claude/skills, run 'ln -s ../.agents/skills .claude/skills', and commit the result."
+            exit 1
+          fi
+
+      # The gate reads every tracked Markdown file, on every run. A rule change
+      # can flag a file that a pull request does not touch, so the pull request
+      # that changes the rule must see those findings.
       #
       # This step is not gated on the Rust workspace being present. Markdown
-      # must always be checked. The only allowed skip is a scope that selects
-      # no Markdown at all.
+      # must always be checked. The only allowed skip is a repository with no
+      # Markdown at all.
       - name: Check the writing
         env:
           WORKSPACE_PRESENT: ${{ steps.detect.outputs.present }}
-          SCOPE: ${{ inputs.writing_scope || (github.event_name == 'schedule' && 'all') || 'changed' }}
-          BASE_REF: ${{ github.base_ref }}
-          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ "$SCOPE" = 'all' ]; then
-            mapfile -t docs < <(git ls-files '*.md')
-            echo "scope: every tracked Markdown file"
-          elif [ -n "$BASE_REF" ]; then
-            git fetch --quiet origin "$BASE_REF"
-            mapfile -t docs < <(
-              git diff --name-only --diff-filter=ACMR "origin/$BASE_REF...HEAD" -- '*.md'
-            )
-            echo "scope: what this pull request changes against $BASE_REF"
-          elif [ -n "$PUSH_BEFORE" ] && git cat-file -e "$PUSH_BEFORE^{commit}" 2>/dev/null; then
-            mapfile -t docs < <(
-              git diff --name-only --diff-filter=ACMR "$PUSH_BEFORE...HEAD" -- '*.md'
-            )
-            echo "scope: what this push changes"
-          else
-            mapfile -t docs < <(git ls-files '*.md')
-            echo "scope: every tracked Markdown file, because there is no earlier commit to diff against"
-          fi
+          mapfile -t docs < <(git ls-files '*.md')
+          echo "scope: every tracked Markdown file"
           if [ ${#docs[@]} -eq 0 ]; then
-            echo "::notice::this scope selects no Markdown"
+            echo "::notice::this repository has no Markdown"
             exit 0
           fi
           if [ "$WORKSPACE_PRESENT" != 'true' ]; then
@@ -278,3 +305,77 @@ jobs:
           name: writing-lint-findings
           path: osf.sarif
           if-no-files-found: ignore
+
+  checkpoint:
+    name: checkpoint
+    # github.base_ref only exists on pull_request events, so this job only runs there.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Cache the Rust toolchain
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.rustup
+          key: rustup-${{ runner.os }}-${{ env.RUST_VERSION }}
+          restore-keys: rustup-${{ runner.os }}-
+
+      - name: Install the pinned Rust toolchain
+        # Interim: the dev container image still ships an older Rust. Issue
+        # open-software-factory/software-factory#244 bakes the pinned toolchain
+        # into the image and moves the pin into rust-toolchain.toml, after which
+        # this step goes away.
+        run: |
+          set -euo pipefail
+          rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component clippy,rustfmt
+          rustup default "${{ env.RUST_VERSION }}"
+
+      - name: Cache the build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Install moon
+        uses: ./.github/actions/install-moon
+
+      - name: Build the tool
+        run: |
+          set -euo pipefail
+          cargo build --release --bin osf
+
+      - name: Put osf on PATH
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_WORKSPACE}/target/release" >> "$GITHUB_PATH"
+
+      - name: Set the state directory
+        run: |
+          set -euo pipefail
+          echo "OSF_STATE_DIR=${RUNNER_TEMP}/osf-state" >> "$GITHUB_ENV"
+
+      - name: Run the pull-request checkpoint
+        env:
+          OSF_CONFIG: osf.toml
+          OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin "${{ github.base_ref }}"
+          osf verify --checkpoint pull-request --base "origin/${{ github.base_ref }}"
+
+      - name: Keep the checkpoint evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: checkpoint-evidence
+          path: |
+            ${{ env.OSF_STATE_DIR }}/buffer
+            .osf/out
+          if-no-files-found: error

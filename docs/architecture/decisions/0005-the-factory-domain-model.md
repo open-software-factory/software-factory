@@ -1,8 +1,8 @@
 # 0005: The factory domain model, events included
 
-Status: accepted
+Status: accepted. Amended by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md) to add the checkpoint-complete and gap event types.
 
-Date: 2026-09-15.
+Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below.
 
 ## Context
 
@@ -40,12 +40,12 @@ Only observed evidence may carry a "verified by" attribution. A finding at a low
 
 ### Events are a core part of the model
 
-A state change is an event. The entity tables above are projections of the event stream rather than a second store. One envelope, versioned, one event per line:
+A state change is an event. The entity tables in this record are projections of the event stream rather than a second store. One envelope, versioned, one event per line:
 
 | Field | Holds |
 |---|---|
 | schema version | The envelope version, required. |
-| event type | One of: run started, verification, review, finding, state change, run complete, attention. |
+| event type | One of: run started, verification, review, finding, state change, run complete, attention, checkpoint-complete, gap. The checkpoint-complete and gap types are added by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md). |
 | run, work item, change | Identifiers, provider-qualified. |
 | actor | Harness, model, model family, or the person. |
 | timestamp | Wall-clock time, excluded from the run hash below. |
@@ -65,6 +65,6 @@ A run's event journal is hash-chained: each event carries the hash of the one be
 ## Consequences
 
 - The event schema is the first contract written, before any verifier, and lives beside the code that emits it.
-- The console's provisional state vocabulary is replaced by the lifecycle and grades above.
-- A provider adapter's fidelity is stated in its own terms: which entities it can read, which it cannot, and which edges it drops, following the read rule in decision 0003.
-- The model says nothing about orchestration, sandboxes or the work-item provider. Those are edges, recorded when their first adapter ships, per decision 0002.
+- The console's provisional state vocabulary is replaced by the lifecycle and grades this record defines.
+- A provider adapter's fidelity is stated in its own terms: which entities it can read, which it cannot, and which edges it drops, following the read rule in [decision 0003 (deterministic verification is authoritative)](0003-deterministic-verification-is-authoritative.md).
+- The model says nothing about orchestration, sandboxes or the work-item provider. Those are edges, recorded when their first adapter ships, per [decision 0002 (provider-neutral process boundaries)](0002-provider-neutral-process-boundaries.md).
