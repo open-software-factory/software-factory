@@ -1,0 +1,1159 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T11:53:30.466Z",
+  "title": "Devcontainer becomes a full agent factory image",
+  "summary": "This change turns the devcontainer from a Rust-only build box into the complete factory runtime: it pins and installs Node 22, pnpm, Bun, moon, gh, actionlint, uv, the NVIDIA skill linters, and every supported coding agent (codex, claude-code, opencode, omp, dsh), then wires each agent's own hook files back to `osf hook` so prompts and stops flow through the factory. The git wrapper is rewritten to force the hooks path per-invocation under a workspace root instead of a system-wide `core.hooksPath`, and a battery of build-time tests now proves the wrapper, the hooks, the toolchain read-only-ness and the image cleanliness before the image ships.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "ec890b8f14816a10404b57d663b9d3657ef1f1e4",
+      "ref": "ec890b8f14816a10404b57d663b9d3657ef1f1e4"
+    },
+    "head": {
+      "sha": "5fd6eb8f1c369ad1530e2079b48d4e3548321a9e",
+      "ref": "5fd6eb8f1c369ad1530e2079b48d4e3548321a9e"
+    },
+    "pullRequest": {
+      "number": 151,
+      "url": "https://github.com/open-software-factory/software-factory/pull/151"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "host",
+      "label": "Developer host",
+      "subtitle": "VS Code / docker",
+      "order": 0,
+      "summary": "Where the developer edits and where the container is launched from."
+    },
+    {
+      "id": "image",
+      "label": "Container image build",
+      "subtitle": "Dockerfile layers",
+      "order": 1,
+      "summary": "The build-time layers that install toolchains, agents and hook files, and the tests that gate them."
+    },
+    {
+      "id": "runtime",
+      "label": "Container runtime",
+      "subtitle": "dev user, /workspace",
+      "order": 2,
+      "summary": "What actually runs inside the container once it is up: the agents, the git wrapper, and the factory CLI."
+    },
+    {
+      "id": "external",
+      "label": "External services",
+      "subtitle": "registries and releases",
+      "order": 3,
+      "summary": "Everything the build and the agents reach out to over the network."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "dev-host",
+      "label": "Developer host",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "host",
+      "summary": "The machine running VS Code and Docker; supplies the workspace folder and GH_TOKEN.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "devcontainer-json",
+      "label": "devcontainer.json",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "host",
+      "subtitle": "workspaceMount, remoteEnv",
+      "summary": "Now pins the bind mount to /workspace, forwards GH_TOKEN from the host environment, and its postCreateCommand checks osf, moon, node and pnpm.",
+      "files": [
+        {
+          "path": ".devcontainer/devcontainer.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dockerfile",
+      "label": "Dockerfile",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "image",
+      "subtitle": "+493 lines",
+      "summary": "The single build recipe. Gained pinned downloads for moon, gh, actionlint, uv, Node, Bun, the four npm coding agents, dsh, the two NVIDIA skill tools, plus the hook-file installation and the build-time test gates.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "toolchain-layer",
+      "label": "Toolchain install layers",
+      "kind": "package",
+      "delta": "added",
+      "lane": "image",
+      "group": "toolchain",
+      "subtitle": "moon, gh, actionlint, uv, node, pnpm, bun",
+      "summary": "Each tool is fetched from its own release tarball and verified against a pinned SHA-256 before being installed root-owned under /usr/local/bin.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 109,
+          "endLine": 260
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "skill-tools-layer",
+      "label": "SkillSpector / SkillEvaluator",
+      "kind": "package",
+      "delta": "added",
+      "lane": "image",
+      "group": "toolchain",
+      "subtitle": "uv tool install at pinned commits",
+      "summary": "Installed via uv from NVIDIA git repositories at full 40-character commits, with UV_TOOL_DIR and UV_PYTHON_INSTALL_DIR moved out of root's home so dev can read them.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 190,
+          "endLine": 215
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-layer",
+      "label": "Coding agent install",
+      "kind": "package",
+      "delta": "added",
+      "lane": "image",
+      "group": "agents",
+      "subtitle": "codex, claude-code, opencode, omp",
+      "summary": "Four npm packages installed globally into the root-owned Node install, each pinned to an exact version, then write bits stripped.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 262,
+          "endLine": 285
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-layer",
+      "label": "dsh install",
+      "kind": "package",
+      "delta": "added",
+      "lane": "image",
+      "group": "agents",
+      "subtitle": "npm ci from own lockfile",
+      "summary": "dsh is installed from .devcontainer/dsh/package-lock.json into /opt/dsh and symlinked onto PATH, so its dependency tree is reproducible independently of the repo's pnpm workspace.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 287,
+          "endLine": 296
+        },
+        {
+          "path": ".devcontainer/dsh/package.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "factory-build-layer",
+      "label": "Factory plugin build",
+      "kind": "package",
+      "delta": "added",
+      "lane": "image",
+      "group": "agents",
+      "subtitle": "pnpm --filter integrations/*",
+      "summary": "Builds the dsh, omp and opencode integrations from the repo's own pnpm lockfile so their dist output matches what CI already tests.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 300,
+          "endLine": 312
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hook-install-layer",
+      "label": "Agent hook installation",
+      "kind": "config",
+      "delta": "added",
+      "lane": "image",
+      "group": "hooks",
+      "subtitle": "osf hooks install --agents",
+      "summary": "Runs osf hooks install against a copy of osf.toml, then locks every written hook file root-owned and read-only, mirroring claude and opencode settings into /etc.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 380,
+          "endLine": 430
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-hooks",
+      "label": "Codex hook files",
+      "kind": "config",
+      "delta": "added",
+      "lane": "image",
+      "group": "hooks",
+      "subtitle": "/etc/codex",
+      "summary": "System-level config.toml, requirements.toml and the prompt hook, all root-owned and read-only.",
+      "files": [
+        {
+          "path": ".devcontainer/hooks/codex/config.toml"
+        },
+        {
+          "path": ".devcontainer/hooks/codex/hooks/osf-prompt.toml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-profiles",
+      "label": "dsh factory/headless profiles",
+      "kind": "config",
+      "delta": "added",
+      "lane": "image",
+      "group": "hooks",
+      "subtitle": "~/.dsh/profiles/*",
+      "summary": "Both profiles get the osf-dsh-plugin under node_modules and a cordis.patch.yml registering the writing-check plugin and the Claude-format hooks bridge.",
+      "files": [
+        {
+          "path": ".devcontainer/hooks/dsh/cordis.patch.yml"
+        },
+        {
+          "path": ".devcontainer/hooks/dsh/profile.package.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude-hooks-json",
+      "label": ".claude/hooks.json",
+      "kind": "config",
+      "delta": "added",
+      "lane": "image",
+      "group": "hooks",
+      "subtitle": "UserPromptSubmit -> osf hook prompt",
+      "summary": "The Claude-format hook file the dsh profiles bridge to; it is the one hook file deliberately kept outside the root-owned profile directories.",
+      "files": [
+        {
+          "path": ".claude/hooks.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-tests",
+      "label": "Build-time test gates",
+      "kind": "test",
+      "delta": "added",
+      "lane": "image",
+      "group": "tests",
+      "subtitle": "8 shell scripts",
+      "summary": "git-wrapper, git-hooks, agent-hooks, skills-installed, dsh-starts, coding-agent-tools, builder-tools, toolchain-readonly and image-clean all run during the build and fail it on regression.",
+      "files": [
+        {
+          "path": ".devcontainer/tests/git-wrapper.sh"
+        },
+        {
+          "path": ".devcontainer/tests/agent-hooks.sh"
+        },
+        {
+          "path": ".devcontainer/tests/toolchain-readonly.sh"
+        },
+        {
+          "path": ".devcontainer/tests/image-clean.sh"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-wrapper",
+      "label": "git wrapper",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "/opt/factory/bin/git",
+      "summary": "Rewritten to force core.hooksPath on the command line for every git call under OSF_WORKSPACE_ROOT, instead of relying on a system-wide setting, and to refuse --no-verify and -n.",
+      "files": [
+        {
+          "path": ".devcontainer/git-wrapper"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "/opt/factory/bin/osf",
+      "summary": "The factory binary. Its repository module gained the workspace-root awareness the wrapper and hooks depend on.",
+      "files": [
+        {
+          "path": "crates/osf/src/repository.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-hook",
+      "label": "osf hook",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "runtime",
+      "subtitle": "prompt | stop",
+      "summary": "The subcommand every agent's hook file invokes; it has no pre-tool-use event, which is why none is wired.",
+      "files": [
+        {
+          "path": "crates/osf/src/repository.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-hooks",
+      "label": "git hooks",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "runtime",
+      "subtitle": "pre-commit, commit-msg, pre-push",
+      "summary": "Root-owned hook scripts that only call osf; the wrapper is what guarantees they run.",
+      "files": [
+        {
+          "path": ".devcontainer/githooks/pre-commit"
+        },
+        {
+          "path": ".devcontainer/githooks/pre-push"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "profile-path",
+      "label": "osf-path.sh",
+      "kind": "config",
+      "delta": "added",
+      "lane": "runtime",
+      "subtitle": "/etc/profile.d",
+      "summary": "Restores PATH in login shells, which otherwise reset it before reading profile.d and drop osf, cargo and every agent binary.",
+      "files": [
+        {
+          "path": ".devcontainer/profile.d/osf-path.sh"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workspace-mount",
+      "label": "/workspace bind mount",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "OSF_WORKSPACE_ROOT",
+      "summary": "The repository bind-mounted into the container; the wrapper reads the same path from OSF_WORKSPACE_ROOT so the two never disagree.",
+      "files": [
+        {
+          "path": ".devcontainer/devcontainer.json"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dev-home",
+      "label": "dev home",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "/home/dev",
+      "summary": "Holds the per-agent hook files that have no system-wide location (omp, dsh) plus the writable CARGO_HOME.",
+      "files": [
+        {
+          "path": ".devcontainer/Dockerfile",
+          "startLine": 330,
+          "endLine": 345
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "release-cdn",
+      "label": "Release tarballs",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "github.com, nodejs.org",
+      "summary": "Where every pinned binary is downloaded from during the build, each verified by SHA-256.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "npm-registry",
+      "label": "npm registry",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "registry.npmjs.org",
+      "summary": "Source of the four coding agents and the dsh dependency tree.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "nvidia-repos",
+      "label": "NVIDIA skill repos",
+      "kind": "external",
+      "delta": "added",
+      "lane": "external",
+      "subtitle": "skillspector, SkillEvaluator",
+      "summary": "Git repositories uv installs the two skill-checking tools from, pinned to full commits.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "skills-cdn",
+      "label": "skills CLI source",
+      "kind": "external",
+      "delta": "added",
+      "lane": "external",
+      "subtitle": "archify @ pinned commit",
+      "summary": "The third-party skills tree the image pulls with npx skills add, never vendored.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "gh-api",
+      "label": "GitHub API",
+      "kind": "external",
+      "delta": "added",
+      "lane": "external",
+      "subtitle": "gh, GH_TOKEN",
+      "summary": "Reached by the gh CLI for the builder role; the token is forwarded from the host through remoteEnv.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "devcontainer-mounts-workspace",
+      "from": "devcontainer-json",
+      "to": "workspace-mount",
+      "kind": "data",
+      "delta": "added",
+      "label": "bind mount",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new workspaceMount pins the repository to /workspace, which is the path the git wrapper treats as the workspace root.",
+      "files": [
+        {
+          "path": ".devcontainer/devcontainer.json",
+          "startLine": 7,
+          "endLine": 8
+        }
+      ]
+    },
+    {
+      "id": "devcontainer-forwards-token",
+      "from": "devcontainer-json",
+      "to": "gh-api",
+      "kind": "data",
+      "delta": "added",
+      "label": "GH_TOKEN",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "remoteEnv forwards the host's GH_TOKEN into the container so gh works without an interactive login.",
+      "files": []
+    },
+    {
+      "id": "dockerfile-installs-toolchain",
+      "from": "dockerfile",
+      "to": "toolchain-layer",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The Dockerfile gained the pinned download-and-verify blocks for every new tool.",
+      "files": []
+    },
+    {
+      "id": "dockerfile-installs-agents",
+      "from": "dockerfile",
+      "to": "agents-layer",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "dockerfile-installs-dsh",
+      "from": "dockerfile",
+      "to": "dsh-layer",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "dockerfile-builds-plugins",
+      "from": "dockerfile",
+      "to": "factory-build-layer",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "dockerfile-installs-hooks",
+      "from": "dockerfile",
+      "to": "hook-install-layer",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "dockerfile-runs-tests",
+      "from": "dockerfile",
+      "to": "build-tests",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each test script is copied in and run as its own layer, so a broken wrapper or hook fails the build.",
+      "files": []
+    },
+    {
+      "id": "toolchain-fetches-releases",
+      "from": "toolchain-layer",
+      "to": "release-cdn",
+      "kind": "http",
+      "delta": "added",
+      "label": "SHA-256 verified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "agents-fetch-npm",
+      "from": "agents-layer",
+      "to": "npm-registry",
+      "kind": "http",
+      "delta": "added",
+      "label": "pinned versions",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "dsh-fetch-npm",
+      "from": "dsh-layer",
+      "to": "npm-registry",
+      "kind": "http",
+      "delta": "added",
+      "label": "npm ci",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "skill-tools-fetch-nvidia",
+      "from": "skill-tools-layer",
+      "to": "nvidia-repos",
+      "kind": "http",
+      "delta": "added",
+      "label": "git+https @ commit",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "skills-fetch-cdn",
+      "from": "dockerfile",
+      "to": "skills-cdn",
+      "kind": "http",
+      "delta": "added",
+      "label": "npx skills add",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "hook-install-writes-codex",
+      "from": "hook-install-layer",
+      "to": "codex-hooks",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "osf hooks install writes the codex hook files, which are then locked root-owned and read-only.",
+      "files": []
+    },
+    {
+      "id": "hook-install-writes-dsh",
+      "from": "hook-install-layer",
+      "to": "dsh-profiles",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The dsh profiles are populated from the built plugin and the profile patch, then locked except for cordis.yml.",
+      "files": []
+    },
+    {
+      "id": "dsh-profiles-bridge-claude",
+      "from": "dsh-profiles",
+      "to": "claude-hooks-json",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "Claude-format bridge",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each dsh profile registers the Claude-format hooks bridge pointed at the repository's own .claude/hooks.json.",
+      "files": []
+    },
+    {
+      "id": "codex-hooks-call-osf",
+      "from": "codex-hooks",
+      "to": "osf-hook",
+      "kind": "call",
+      "delta": "added",
+      "label": "osf hook prompt",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The prompt hook file invokes osf hook, which is the whole point of the wiring: agent events reach the factory.",
+      "files": [
+        {
+          "path": ".devcontainer/hooks/codex/hooks/osf-prompt.toml"
+        }
+      ]
+    },
+    {
+      "id": "dsh-profiles-call-osf",
+      "from": "dsh-profiles",
+      "to": "osf-hook",
+      "kind": "call",
+      "delta": "added",
+      "label": "osf hook prompt/stop",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "wrapper-forces-hooks",
+      "from": "git-wrapper",
+      "to": "git-hooks",
+      "kind": "call",
+      "delta": "modified",
+      "label": "core.hooksPath forced",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The wrapper now passes the hooks path on the command line for every git call under the workspace, replacing the removed system-wide setting.",
+      "files": [
+        {
+          "path": ".devcontainer/git-wrapper"
+        }
+      ]
+    },
+    {
+      "id": "wrapper-reads-workspace",
+      "from": "git-wrapper",
+      "to": "workspace-mount",
+      "kind": "data",
+      "delta": "added",
+      "label": "OSF_WORKSPACE_ROOT",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The wrapper reads OSF_WORKSPACE_ROOT to decide whether a repository sits under the workspace mount.",
+      "files": []
+    },
+    {
+      "id": "wrapper-calls-git",
+      "from": "git-wrapper",
+      "to": "git-hooks",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "exec real git",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "git-hooks-call-osf",
+      "from": "git-hooks",
+      "to": "osf-cli",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each hook script only shells out to osf; the wrapper is what makes them unavoidable.",
+      "files": []
+    },
+    {
+      "id": "osf-hook-uses-cli",
+      "from": "osf-hook",
+      "to": "osf-cli",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "profile-path-restores-path",
+      "from": "profile-path",
+      "to": "osf-cli",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The profile.d script puts osf and the agent binaries back on PATH for login shells.",
+      "files": []
+    },
+    {
+      "id": "dev-home-hosts-hooks",
+      "from": "dev-home",
+      "to": "dsh-profiles",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The dsh profiles live under the dev home because dsh has no system-wide config path.",
+      "files": []
+    },
+    {
+      "id": "tests-verify-wrapper",
+      "from": "build-tests",
+      "to": "git-wrapper",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "git-wrapper.sh proves the refusals and the forced hooks path at build time.",
+      "files": []
+    },
+    {
+      "id": "tests-verify-hooks",
+      "from": "build-tests",
+      "to": "codex-hooks",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "agent-hooks.sh checks every enabled agent's hook file is root-owned, read-only, and answers a sample payload.",
+      "files": []
+    },
+    {
+      "id": "tests-verify-toolchain",
+      "from": "build-tests",
+      "to": "toolchain-layer",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "toolchain-readonly.sh proves every root-owned toolchain folder is read-only for dev.",
+      "files": []
+    },
+    {
+      "id": "tests-verify-image",
+      "from": "build-tests",
+      "to": "dockerfile",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "image-clean.sh proves no root cache or dsh session state reached a layer.",
+      "files": []
+    },
+    {
+      "id": "osf-cli-reads-repo",
+      "from": "osf-cli",
+      "to": "workspace-mount",
+      "kind": "data",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The repository module gained the workspace-root awareness the wrapper and hooks rely on.",
+      "files": [
+        {
+          "path": "crates/osf/src/repository.rs"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "agent-prompt-hook",
+      "title": "An agent prompt reaches the factory",
+      "summary": "What happens when a coding agent fires its prompt hook: the agent's own hook file shells out to osf hook, which is the single entry point every agent shares.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "dev-host",
+          "label": "Developer"
+        },
+        {
+          "node": "codex-hooks",
+          "label": "Codex hook file"
+        },
+        {
+          "node": "osf-hook",
+          "label": "osf hook"
+        },
+        {
+          "node": "osf-cli",
+          "label": "osf CLI"
+        }
+      ],
+      "messages": [
+        {
+          "id": "agent-fires-prompt",
+          "from": "dev-host",
+          "to": "codex-hooks",
+          "label": "submit prompt",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Codex fires its UserPromptSubmit-equivalent event; the hook file is root-owned so the wiring cannot be edited away.",
+          "files": []
+        },
+        {
+          "id": "hook-invokes-osf",
+          "from": "codex-hooks",
+          "to": "osf-hook",
+          "label": "osf hook prompt",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".devcontainer/hooks/codex/hooks/osf-prompt.toml"
+            }
+          ]
+        },
+        {
+          "id": "osf-hook-runs",
+          "from": "osf-hook",
+          "to": "osf-hook",
+          "label": "dispatch",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "osf hook has no pre-tool-use event, so only prompt and stop are ever wired.",
+          "files": []
+        },
+        {
+          "id": "osf-hook-returns",
+          "from": "osf-cli",
+          "to": "codex-hooks",
+          "label": "hook result",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "hook-returns-to-agent",
+          "from": "codex-hooks",
+          "to": "dev-host",
+          "label": "prompt proceeds",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "git-commit-under-workspace",
+      "title": "A commit under /workspace is forced through the hooks",
+      "summary": "The wrapper's new behaviour: it recognises the repository sits under OSF_WORKSPACE_ROOT, forces the hooks path on the command line, and refuses the flags that would skip the hooks.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "dev-host",
+          "label": "Developer"
+        },
+        {
+          "node": "git-wrapper",
+          "label": "git wrapper"
+        },
+        {
+          "node": "workspace-mount",
+          "label": "/workspace"
+        },
+        {
+          "node": "git-hooks",
+          "label": "git hooks"
+        },
+        {
+          "node": "osf-cli",
+          "label": "osf CLI"
+        }
+      ],
+      "messages": [
+        {
+          "id": "dev-runs-git",
+          "from": "dev-host",
+          "to": "git-wrapper",
+          "label": "git commit",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "wrapper-checks-root",
+          "from": "git-wrapper",
+          "to": "workspace-mount",
+          "label": "OSF_WORKSPACE_ROOT",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The wrapper reads the same workspace root the devcontainer bind mount uses, so the two files never name it separately.",
+          "files": []
+        },
+        {
+          "id": "wrapper-forces-hookspath",
+          "from": "git-wrapper",
+          "to": "git-hooks",
+          "label": "-c core.hooksPath=/opt/factory/githooks",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Forced per invocation rather than set system-wide, so a scratch repository under /tmp is unaffected.",
+          "files": []
+        },
+        {
+          "id": "hooks-run-osf",
+          "from": "git-hooks",
+          "to": "osf-cli",
+          "label": "osf check",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "hooks-return",
+          "from": "osf-cli",
+          "to": "git-wrapper",
+          "label": "exit status",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "wrapper-returns",
+          "from": "git-wrapper",
+          "to": "dev-host",
+          "label": "commit result",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 31,
+    "additions": 11211,
+    "deletions": 162,
+    "chips": [
+      {
+        "label": "Pinned binaries",
+        "value": "9",
+        "tone": "added"
+      },
+      {
+        "label": "Coding agents",
+        "value": "5",
+        "tone": "added"
+      },
+      {
+        "label": "Build-time test gates",
+        "value": "8",
+        "tone": "added"
+      },
+      {
+        "label": "System-wide core.hooksPath",
+        "value": "removed",
+        "tone": "removed"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "container-image",
+      "title": "Container image build",
+      "lens": "architecture",
+      "summary": "What the Dockerfile now installs and how the pieces depend on each other.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "runtime-wiring",
+      "title": "Runtime wiring: agents, wrapper, hooks",
+      "lens": "architecture",
+      "summary": "How the installed pieces connect once the container is running.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "runtime",
+          "external"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "hook-install-detail",
+      "title": "Hook installation detail",
+      "lens": "architecture",
+      "summary": "The hook-install layer and the files it writes, including the dsh profiles' bridge to .claude/hooks.json.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "hook-install-layer",
+          "codex-hooks",
+          "dsh-profiles",
+          "claude-hooks-json",
+          "osf-hook",
+          "build-tests"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-image",
+        "heading": "The image grows a toolchain",
+        "body": "Nine pinned binaries, five coding agents, and the two NVIDIA skill tools, all checksum-verified.",
+        "stage": {
+          "kind": "view",
+          "view": "container-image"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "toolchain-layer",
+            "agents-layer",
+            "dsh-layer",
+            "skill-tools-layer"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-hooks",
+        "heading": "Every agent gets a hook file",
+        "body": "osf hooks install writes them, then the build locks them root-owned and read-only.",
+        "stage": {
+          "kind": "view",
+          "view": "hook-install-detail"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "hook-install-layer",
+            "codex-hooks",
+            "dsh-profiles",
+            "claude-hooks-json"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-wrapper",
+        "heading": "The wrapper forces the hooks path",
+        "body": "No system-wide core.hooksPath; the wrapper passes it per invocation under the workspace root.",
+        "stage": {
+          "kind": "view",
+          "view": "runtime-wiring"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "git-wrapper",
+            "git-hooks",
+            "workspace-mount"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "step-prompt-flow",
+        "heading": "A prompt reaches the factory",
+        "body": "The agent's hook file shells out to osf hook, the one entry point every agent shares.",
+        "stage": {
+          "kind": "flow",
+          "flow": "agent-prompt-hook"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "step-commit-flow",
+        "heading": "A commit cannot skip the hooks",
+        "body": "The wrapper recognises the workspace, forces the hooks path, and the hooks call osf.",
+        "stage": {
+          "kind": "flow",
+          "flow": "git-commit-under-workspace"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}

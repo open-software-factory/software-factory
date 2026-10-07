@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "5fd6eb8f1c369ad1530e2079b48d4e3548321a9e",
+    "contentHash": "4045253870e1b45f41768853a0a9f606"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-image-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-image",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4da9c05aaeddac110acc37055c685ab1",
+      "bytes": 41538,
+      "width": 1848,
+      "height": 1102,
+      "animated": false,
+      "path": "container-image-light-4da9c05aaeddac110acc37055c685ab1.svg"
+    },
+    {
+      "id": "container-image-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-image",
+      "mediaType": "image/svg+xml",
+      "contentHash": "81f6be873d990d974fb717419892ea46",
+      "bytes": 42040,
+      "width": 1848,
+      "height": 1102,
+      "animated": false,
+      "path": "container-image-dark-81f6be873d990d974fb717419892ea46.svg"
+    },
+    {
+      "id": "runtime-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "runtime-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2703e1f583b7542e461061b43b9589c0",
+      "bytes": 17370,
+      "width": 997,
+      "height": 646,
+      "animated": false,
+      "path": "runtime-wiring-light-2703e1f583b7542e461061b43b9589c0.svg"
+    },
+    {
+      "id": "runtime-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "runtime-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "44524f6541882ba1fd0f00d3f5da1b2c",
+      "bytes": 17595,
+      "width": 997,
+      "height": 646,
+      "animated": false,
+      "path": "runtime-wiring-dark-44524f6541882ba1fd0f00d3f5da1b2c.svg"
+    },
+    {
+      "id": "hook-install-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hook-install-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3b161d41595fc306d5161965a1f319e5",
+      "bytes": 11785,
+      "width": 953,
+      "height": 532,
+      "animated": false,
+      "path": "hook-install-detail-light-3b161d41595fc306d5161965a1f319e5.svg"
+    },
+    {
+      "id": "hook-install-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hook-install-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e299692bc5c55a3d1576834d43a4f3f9",
+      "bytes": 11907,
+      "width": 953,
+      "height": 532,
+      "animated": false,
+      "path": "hook-install-detail-dark-e299692bc5c55a3d1576834d43a4f3f9.svg"
+    }
+  ]
+}
