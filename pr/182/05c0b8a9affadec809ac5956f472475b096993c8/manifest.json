@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "console-react-dom-19-3-0",
+    "headSha": "05c0b8a9affadec809ac5956f472475b096993c8",
+    "contentHash": "8769ff670d75c906308129eba7c133d1"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "console-dependency-graph-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "console-dependency-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0399c23efbc6bbd3ca55bcdcec72eb8e",
+      "bytes": 19647,
+      "width": 1718,
+      "height": 458,
+      "animated": false,
+      "path": "console-dependency-graph-light-0399c23efbc6bbd3ca55bcdcec72eb8e.svg"
+    },
+    {
+      "id": "console-dependency-graph-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "console-dependency-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b3d5220fe6ccdf64a9671f04a1b7f51d",
+      "bytes": 19835,
+      "width": 1718,
+      "height": 458,
+      "animated": false,
+      "path": "console-dependency-graph-dark-b3d5220fe6ccdf64a9671f04a1b7f51d.svg"
+    },
+    {
+      "id": "render-runtime-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "render-runtime-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8bc041c367f4069a78a833c7231c4e1b",
+      "bytes": 10808,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "render-runtime-detail-light-8bc041c367f4069a78a833c7231c4e1b.svg"
+    },
+    {
+      "id": "render-runtime-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "render-runtime-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7a08c7a80241b06e61a72f6b9d2f1986",
+      "bytes": 10928,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "render-runtime-detail-dark-7a08c7a80241b06e61a72f6b9d2f1986.svg"
+    },
+    {
+      "id": "install-resolution-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "install-resolution-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "18f82a059d88e7e08fcde4109d9c44d8",
+      "bytes": 15506,
+      "width": 1494,
+      "height": 375,
+      "animated": true,
+      "path": "install-resolution-flow-light-18f82a059d88e7e08fcde4109d9c44d8.svg"
+    },
+    {
+      "id": "install-resolution-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "install-resolution-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6c261a546872e30888c5a64b439fcc73",
+      "bytes": 15670,
+      "width": 1494,
+      "height": 375,
+      "animated": true,
+      "path": "install-resolution-flow-dark-6c261a546872e30888c5a64b439fcc73.svg"
+    }
+  ]
+}
