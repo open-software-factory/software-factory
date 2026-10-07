@@ -1,0 +1,1042 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-symlink-resolution",
+  "generatedAt": "2026-10-07T10:09:37.124Z",
+  "title": "Symlink resolution in osf check and scan",
+  "summary": "Adds a shared `symlink` module that decides what a symlink means to the scanner. Previously every symlink was skipped and counted as excluded; now a link whose real target lives inside the repository is followed to the real files behind it, while a link pointing outside the repository, into `.git`, at nothing, or in a loop is refused with a `symlink refused:` error. `check scan`, `check lint-writing` and `check lint-skill` expand their path arguments through the new module before existence checks and scanning, and the directory walker in `scan` now resolves links instead of counting them.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "6373e93b558ae9b3c5662014b029df1158d9fef2",
+      "ref": "6373e93b558ae9b3c5662014b029df1158d9fef2"
+    },
+    "head": {
+      "sha": "04f05e595b39fa1bce6d6424a676fb0ef8f672ee",
+      "ref": "04f05e595b39fa1bce6d6424a676fb0ef8f672ee"
+    },
+    "pullRequest": {
+      "number": 243,
+      "url": "https://github.com/open-software-factory/software-factory/pull/243"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI entry",
+      "subtitle": "osf binary",
+      "order": 0,
+      "summary": "The command surface a user or CI invokes."
+    },
+    {
+      "id": "checks",
+      "label": "Check dispatch",
+      "subtitle": "crates/osf/src/check.rs",
+      "order": 1,
+      "summary": "Routes a named check to its implementation and owns the path arguments."
+    },
+    {
+      "id": "resolution",
+      "label": "Symlink resolution",
+      "subtitle": "crates/osf/src/symlink.rs",
+      "order": 2,
+      "summary": "New module: decides whether a link is followed or refused, and expands it to real files."
+    },
+    {
+      "id": "scanning",
+      "label": "Scanning and linting",
+      "subtitle": "crates/osf/src/scan",
+      "order": 3,
+      "summary": "Walks directories, reads files, and produces findings."
+    },
+    {
+      "id": "filesystem",
+      "label": "Repository filesystem",
+      "subtitle": "working tree",
+      "order": 4,
+      "summary": "The real files and links on disk that everything above reads."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "check <name> [paths]",
+      "summary": "Parses the check name and the path arguments that the symlink rules now apply to.",
+      "files": [
+        {
+          "path": "crates/osf/src/lib.rs",
+          "startLine": 37,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-check",
+      "label": "run_check",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "checks",
+      "subtitle": "dispatch by CheckName",
+      "summary": "Now expands symlinks among the given paths before the existence check for Scan, LintWriting and LintSkill, so a linked path is validated against its real files rather than reported missing.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 48,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ensure-files-exist",
+      "label": "ensure_files_exist",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "checks",
+      "subtitle": "not-found guard",
+      "summary": "Still the caller's own not-found error; it now sees the expanded path list, so a missing plain path still fails while a link is judged by its target.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 48,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "expand-links",
+      "label": "expand_links",
+      "kind": "function",
+      "delta": "added",
+      "lane": "resolution",
+      "subtitle": "(root, files) -> Vec<String>",
+      "summary": "Entry point for the check path: plain and missing paths pass through unchanged, a symlink is replaced by the repository-relative paths of the real files behind it, duplicates removed first-seen-wins.",
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 17,
+          "endLine": 52
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve-link",
+      "label": "resolve_link",
+      "kind": "function",
+      "delta": "added",
+      "lane": "resolution",
+      "subtitle": "(root, link) -> Vec<(label, real)>",
+      "summary": "Resolves one link against the repository root, returning a label path as walked through the link and the real file to read.",
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 63,
+          "endLine": 68
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve-link-from",
+      "label": "resolve_link_from",
+      "kind": "function",
+      "delta": "added",
+      "lane": "resolution",
+      "subtitle": "recursive core",
+      "summary": "Follows the link, refuses a target outside the repository, returns a single pair for a file, and for a directory checks the ancestor stack for a loop before walking it.",
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 72,
+          "endLine": 92
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "follow",
+      "label": "follow",
+      "kind": "function",
+      "delta": "added",
+      "lane": "resolution",
+      "subtitle": "symlink chain walker",
+      "summary": "Walks the link chain to its real target, refusing a dangling link and a chain that revisits a link identity.",
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 96,
+          "endLine": 122
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "inside-repository",
+      "label": "inside_repository",
+      "kind": "function",
+      "delta": "added",
+      "lane": "resolution",
+      "subtitle": "boundary predicate",
+      "summary": "The containment rule: the real target must start with the canonical root and must not start with the root's `.git` folder.",
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 133,
+          "endLine": 135
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "walk-dir",
+      "label": "walk_dir",
+      "kind": "function",
+      "delta": "added",
+      "lane": "resolution",
+      "subtitle": "sorted, .git-skipping",
+      "summary": "Walks the real directory behind a link, resolving nested links by the same rules and tracking ancestors so a directory cycle is refused.",
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 142,
+          "endLine": 180
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "collect-files",
+      "label": "collect_files",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "scanning",
+      "subtitle": "(root, path, out)",
+      "summary": "No longer counts a symlink as skipped: it calls resolve_link and pushes the resulting (label, real) pairs, so a link inside the repository is walked to its real files.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 682,
+          "endLine": 720
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve-scan-targets",
+      "label": "resolve_scan_targets",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "scanning",
+      "subtitle": "paths -> (label, real)",
+      "summary": "Drops the skipped counter and threads the repository root into collect_files; with no paths it still returns git-tracked files unchanged, so a tracked symlink stays excluded later.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 723,
+          "endLine": 750
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-files",
+      "label": "scan_files",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "scanning",
+      "subtitle": "read, exclude, find",
+      "summary": "Reads each real file, applies the excluder, and produces findings; unchanged, but now receives resolved targets.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 750,
+          "endLine": 800
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-writing-files",
+      "label": "lint_writing_files",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "scanning",
+      "subtitle": "writing linter",
+      "summary": "One of the check implementations that now receives an expanded path list.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 58,
+          "endLine": 62
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-skill-files",
+      "label": "lint_skill_files",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "scanning",
+      "subtitle": "skill linter",
+      "summary": "The skill linter, which now accepts a linked skills directory such as `.claude/skills -> ../.agents/skills` instead of reporting file not found.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 63,
+          "endLine": 66
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "repo-tree",
+      "label": "Repository working tree",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "filesystem",
+      "subtitle": "real files, links, .git",
+      "summary": "The files and symlinks on disk. Links inside the tree are followed; links out of it, into `.git`, dangling, or looping are refused.",
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 133,
+          "endLine": 135
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "symlink-tests",
+      "label": "symlink unit tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "resolution",
+      "subtitle": "inside, outside, loop, dangling, .git, dedup",
+      "summary": "Nine unit tests pin the follow/refuse matrix, including the `.git` refusal and first-seen dedup order.",
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 182,
+          "endLine": 320
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-integration-tests",
+      "label": "check integration tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "scanning",
+      "subtitle": "follow, refuse, loop, skills link",
+      "summary": "End-to-end tests assert exit code 1 with a finding for a followed link, exit code 2 with `symlink refused` for outside and loop links, and a clean lint-skill run over a linked skills directory.",
+      "files": [
+        {
+          "path": "crates/osf/tests/check.rs",
+          "startLine": 679,
+          "endLine": 774
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-integration-tests",
+      "label": "scan integration tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "scanning",
+      "subtitle": "explicit link now followed",
+      "summary": "The old expectations that an explicit symlinked directory is skipped and counted excluded are replaced by expectations that it is followed and its finding reported.",
+      "files": [
+        {
+          "path": "crates/osf/tests/scan.rs",
+          "startLine": 95,
+          "endLine": 166
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-to-run-check",
+      "from": "osf-cli",
+      "to": "run-check",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "check name + paths",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "run-check-to-expand-links",
+      "from": "run-check",
+      "to": "expand-links",
+      "kind": "call",
+      "delta": "added",
+      "label": "expand_links(dir, files)",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The change's centre: every path argument to scan, lint-writing and lint-skill is expanded through the new module before anything else happens.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 50,
+          "endLine": 66
+        }
+      ]
+    },
+    {
+      "id": "run-check-to-ensure",
+      "from": "run-check",
+      "to": "ensure-files-exist",
+      "kind": "call",
+      "delta": "modified",
+      "label": "expanded paths",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Existence is now checked against the expanded list, so a link is judged by its real target.",
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 51,
+          "endLine": 52
+        }
+      ]
+    },
+    {
+      "id": "run-check-to-scan-files",
+      "from": "run-check",
+      "to": "scan-files",
+      "kind": "call",
+      "delta": "modified",
+      "label": "scan_files(opts, &files, …)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 52,
+          "endLine": 52
+        }
+      ]
+    },
+    {
+      "id": "run-check-to-lint-writing",
+      "from": "run-check",
+      "to": "lint-writing-files",
+      "kind": "call",
+      "delta": "modified",
+      "label": "lint_writing_files(opts, &files, gate)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 60,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "run-check-to-lint-skill",
+      "from": "run-check",
+      "to": "lint-skill-files",
+      "kind": "call",
+      "delta": "modified",
+      "label": "lint_skill_files(opts, &files)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/check.rs",
+          "startLine": 64,
+          "endLine": 64
+        }
+      ]
+    },
+    {
+      "id": "expand-links-to-resolve-link-from",
+      "from": "expand-links",
+      "to": "resolve-link-from",
+      "kind": "call",
+      "delta": "added",
+      "label": "per symlink",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 41,
+          "endLine": 41
+        }
+      ]
+    },
+    {
+      "id": "resolve-link-to-resolve-link-from",
+      "from": "resolve-link",
+      "to": "resolve-link-from",
+      "kind": "call",
+      "delta": "added",
+      "label": "canonical root + link",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 67,
+          "endLine": 67
+        }
+      ]
+    },
+    {
+      "id": "resolve-link-from-to-follow",
+      "from": "resolve-link-from",
+      "to": "follow",
+      "kind": "call",
+      "delta": "added",
+      "label": "follow(link, label)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 78,
+          "endLine": 78
+        }
+      ]
+    },
+    {
+      "id": "resolve-link-from-to-inside",
+      "from": "resolve-link-from",
+      "to": "inside-repository",
+      "kind": "call",
+      "delta": "added",
+      "label": "containment check",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 79,
+          "endLine": 81
+        }
+      ]
+    },
+    {
+      "id": "resolve-link-from-to-walk-dir",
+      "from": "resolve-link-from",
+      "to": "walk-dir",
+      "kind": "call",
+      "delta": "added",
+      "label": "directory target",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 89,
+          "endLine": 89
+        }
+      ]
+    },
+    {
+      "id": "walk-dir-to-resolve-link-from",
+      "from": "walk-dir",
+      "to": "resolve-link-from",
+      "kind": "call",
+      "delta": "added",
+      "label": "nested link",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 170,
+          "endLine": 170
+        }
+      ]
+    },
+    {
+      "id": "collect-files-to-resolve-link",
+      "from": "collect-files",
+      "to": "resolve-link",
+      "kind": "call",
+      "delta": "added",
+      "label": "resolve_link(root, path)",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The walker's old skip-and-count branch is replaced by a call into the shared resolver, which is what makes a linked directory inside a scanned folder contribute its real files.",
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 687,
+          "endLine": 690
+        }
+      ]
+    },
+    {
+      "id": "resolve-scan-targets-to-collect-files",
+      "from": "resolve-scan-targets",
+      "to": "collect-files",
+      "kind": "call",
+      "delta": "modified",
+      "label": "collect_files(dir, path, &mut files)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 739,
+          "endLine": 739
+        }
+      ]
+    },
+    {
+      "id": "scan-files-to-resolve-scan-targets",
+      "from": "scan-files",
+      "to": "resolve-scan-targets",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "targets",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/scan/mod.rs",
+          "startLine": 750,
+          "endLine": 800
+        }
+      ]
+    },
+    {
+      "id": "follow-to-repo-tree",
+      "from": "follow",
+      "to": "repo-tree",
+      "kind": "data",
+      "delta": "added",
+      "label": "read_link / canonicalize",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 110,
+          "endLine": 121
+        }
+      ]
+    },
+    {
+      "id": "walk-dir-to-repo-tree",
+      "from": "walk-dir",
+      "to": "repo-tree",
+      "kind": "data",
+      "delta": "added",
+      "label": "read_dir",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/symlink.rs",
+          "startLine": 149,
+          "endLine": 152
+        }
+      ]
+    },
+    {
+      "id": "scan-files-to-repo-tree",
+      "from": "scan-files",
+      "to": "repo-tree",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "file bytes",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "symlink-tests-to-expand-links",
+      "from": "symlink-tests",
+      "to": "expand-links",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "unit coverage",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "check-tests-to-run-check",
+      "from": "check-integration-tests",
+      "to": "run-check",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "exit codes 1 / 2",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "scan-tests-to-scan-files",
+      "from": "scan-integration-tests",
+      "to": "scan-files",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "followed vs refused",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "explicit-link-expansion",
+      "title": "An explicit symlinked path is expanded and scanned",
+      "summary": "What happens when a user or CI names a symlinked directory on the command line: the link is resolved to the real files behind it, existence is checked on those, and the scan reports findings from the target.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "osf-cli",
+          "label": "osf check scan"
+        },
+        {
+          "node": "run-check",
+          "label": "run_check"
+        },
+        {
+          "node": "expand-links",
+          "label": "expand_links"
+        },
+        {
+          "node": "resolve-link-from",
+          "label": "resolve_link_from"
+        },
+        {
+          "node": "repo-tree",
+          "label": "working tree"
+        },
+        {
+          "node": "scan-files",
+          "label": "scan_files"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m1",
+          "from": "osf-cli",
+          "to": "run-check",
+          "label": "check scan link",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/check.rs",
+              "startLine": 48,
+              "endLine": 50
+            }
+          ]
+        },
+        {
+          "id": "m2",
+          "from": "run-check",
+          "to": "expand-links",
+          "label": "expand_links(dir, [\"link\"])",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/check.rs",
+              "startLine": 50,
+              "endLine": 50
+            }
+          ]
+        },
+        {
+          "id": "m3",
+          "from": "expand-links",
+          "to": "repo-tree",
+          "label": "symlink_metadata(link)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/symlink.rs",
+              "startLine": 29,
+              "endLine": 33
+            }
+          ]
+        },
+        {
+          "id": "m4",
+          "from": "repo-tree",
+          "to": "expand-links",
+          "label": "is a symlink",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/symlink.rs",
+              "startLine": 33,
+              "endLine": 33
+            }
+          ]
+        },
+        {
+          "id": "m5",
+          "from": "expand-links",
+          "to": "resolve-link-from",
+          "label": "resolve_link_from(root, label, link)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/symlink.rs",
+              "startLine": 41,
+              "endLine": 41
+            }
+          ]
+        },
+        {
+          "id": "m6",
+          "from": "resolve-link-from",
+          "to": "repo-tree",
+          "label": "follow chain, canonicalize target",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/symlink.rs",
+              "startLine": 78,
+              "endLine": 78
+            }
+          ]
+        },
+        {
+          "id": "m7",
+          "from": "resolve-link-from",
+          "to": "resolve-link-from",
+          "label": "inside repository, walk real dir",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/symlink.rs",
+              "startLine": 82,
+              "endLine": 90
+            }
+          ]
+        },
+        {
+          "id": "m8",
+          "from": "resolve-link-from",
+          "to": "expand-links",
+          "label": "[(label, real)]",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/symlink.rs",
+              "startLine": 91,
+              "endLine": 91
+            }
+          ]
+        },
+        {
+          "id": "m9",
+          "from": "expand-links",
+          "to": "run-check",
+          "label": "[\"real/file.md\"]",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/symlink.rs",
+              "startLine": 44,
+              "endLine": 50
+            }
+          ]
+        },
+        {
+          "id": "m10",
+          "from": "run-check",
+          "to": "scan-files",
+          "label": "scan_files(opts, &files, false, gate)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/check.rs",
+              "startLine": 52,
+              "endLine": 52
+            }
+          ]
+        },
+        {
+          "id": "m11",
+          "from": "scan-files",
+          "to": "repo-tree",
+          "label": "read real file bytes",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 750,
+              "endLine": 800
+            }
+          ]
+        },
+        {
+          "id": "m12",
+          "from": "scan-files",
+          "to": "run-check",
+          "label": "findings for real/file.md",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/scan/mod.rs",
+              "startLine": 750,
+              "endLine": 800
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 6,
+    "additions": 481,
+    "deletions": 62,
+    "chips": [
+      {
+        "label": "New symlink module",
+        "value": "320 lines",
+        "tone": "added"
+      },
+      {
+        "label": "Refusal reasons",
+        "value": "4",
+        "tone": "neutral"
+      },
+      {
+        "label": "Checks expanded",
+        "value": "3",
+        "tone": "modified"
+      },
+      {
+        "label": "Symlink tests",
+        "value": "9 unit + 4 e2e",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Symlink resolution across check and scan",
+      "lens": "architecture",
+      "summary": "The new symlink module sits between the check dispatcher and the filesystem, and the scan walker now calls into it instead of skipping links.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "resolution-internals",
+      "title": "Inside the symlink module",
+      "lens": "architecture",
+      "summary": "How expand_links, resolve_link_from, follow, inside_repository and walk_dir divide the follow-or-refuse decision.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "expand-links",
+          "resolve-link",
+          "resolve-link-from",
+          "follow",
+          "inside-repository",
+          "walk-dir",
+          "repo-tree"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "scan-walker",
+      "title": "The scan walker after the change",
+      "lens": "architecture",
+      "summary": "collect_files and resolve_scan_targets now thread the repository root and resolve links rather than counting them.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "resolve-scan-targets",
+          "collect-files",
+          "resolve-link",
+          "scan-files",
+          "repo-tree"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "explicit-link-flow",
+      "title": "Explicit symlinked path, step by step",
+      "lens": "data-flow",
+      "summary": "The ordered sequence from a named symlink to findings from the real files behind it.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "explicit-link-expansion"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
