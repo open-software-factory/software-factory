@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "f2e8f2067fd3fe7e840388ace0f153e75c306356",
+    "contentHash": "9458becfb4f66c0cbb1634b4a1cdfa1d"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f42e33a58bfed405b75543117e6d9462",
+      "bytes": 23489,
+      "width": 1718,
+      "height": 760,
+      "animated": false,
+      "path": "review-pipeline-light-f42e33a58bfed405b75543117e6d9462.svg"
+    },
+    {
+      "id": "review-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5a74df59c8d18f16c5982104a16e785d",
+      "bytes": 23786,
+      "width": 1718,
+      "height": 760,
+      "animated": false,
+      "path": "review-pipeline-dark-5a74df59c8d18f16c5982104a16e785d.svg"
+    },
+    {
+      "id": "build-job-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "85f79ba0fd41b9f7d6fe4aa034928b4f",
+      "bytes": 13000,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "build-job-detail-light-85f79ba0fd41b9f7d6fe4aa034928b4f.svg"
+    },
+    {
+      "id": "build-job-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0ef32b9ea55565797e9ff15b6b3f8462",
+      "bytes": 13138,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "build-job-detail-dark-0ef32b9ea55565797e9ff15b6b3f8462.svg"
+    },
+    {
+      "id": "ci-toolchain-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-toolchain-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "10595cf75704016ec289a0a4a7c95473",
+      "bytes": 5423,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "ci-toolchain-detail-light-10595cf75704016ec289a0a4a7c95473.svg"
+    },
+    {
+      "id": "ci-toolchain-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-toolchain-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5bbde91acc3943a1a850c23313107e72",
+      "bytes": 5469,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "ci-toolchain-detail-dark-5bbde91acc3943a1a850c23313107e72.svg"
+    },
+    {
+      "id": "build-and-review-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "build-and-review-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0d7fcfb7e36a625a720ba12b9f533d2b",
+      "bytes": 14260,
+      "width": 1441,
+      "height": 375,
+      "animated": true,
+      "path": "build-and-review-flow-light-0d7fcfb7e36a625a720ba12b9f533d2b.svg"
+    },
+    {
+      "id": "build-and-review-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "build-and-review-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5c0e5759001c4c45f0b544e39f34a0c7",
+      "bytes": 14419,
+      "width": 1441,
+      "height": 375,
+      "animated": true,
+      "path": "build-and-review-flow-dark-5c0e5759001c4c45f0b544e39f34a0c7.svg"
+    }
+  ]
+}
