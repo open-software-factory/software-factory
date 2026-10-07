@@ -844,7 +844,7 @@ mod tests {
         let dir = TempDir::new("osf-reader-empty");
         write_lines(&dir, "run-empty", &[]);
         let journal = read_run(&dir, "run-empty").expect("read empty");
-        assert!(journal.events.is_empty());
+        assert_eq!(journal.events, Vec::<Event>::new());
         assert_eq!(journal.head_hash, "0".repeat(64));
     }
 
@@ -928,7 +928,7 @@ mod tests {
         let dir = TempDir::new("osf-reader-none");
         write_lines(&dir, "run-none", &[]);
         let journal = read_run(&dir, "run-none").expect("read");
-        assert!(journal.events.is_empty());
+        assert_eq!(journal.events, Vec::<Event>::new());
         assert!(!journal.complete);
     }
 
