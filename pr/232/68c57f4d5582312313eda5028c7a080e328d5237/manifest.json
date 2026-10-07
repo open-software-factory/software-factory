@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "68c57f4d5582312313eda5028c7a080e328d5237",
+    "contentHash": "04fd7826395e739669ace91c8e9fb118"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "harness-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dd41f07a4d14bf84bd7f0e7ea5fa8b1f",
+      "bytes": 36127,
+      "width": 1748,
+      "height": 874,
+      "animated": false,
+      "path": "harness-architecture-light-dd41f07a4d14bf84bd7f0e7ea5fa8b1f.svg"
+    },
+    {
+      "id": "harness-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f2adcfe750e519088b0ddf56e9092a33",
+      "bytes": 36621,
+      "width": 1748,
+      "height": 874,
+      "animated": false,
+      "path": "harness-architecture-dark-f2adcfe750e519088b0ddf56e9092a33.svg"
+    },
+    {
+      "id": "dsh-adapter-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dsh-adapter-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "793344064b4edf2f418c9d75938dd33f",
+      "bytes": 19724,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "dsh-adapter-components-light-793344064b4edf2f418c9d75938dd33f.svg"
+    },
+    {
+      "id": "dsh-adapter-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dsh-adapter-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "be9f59a66b1c2efeafbcfda0e396233a",
+      "bytes": 19973,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "dsh-adapter-components-dark-be9f59a66b1c2efeafbcfda0e396233a.svg"
+    },
+    {
+      "id": "dsh-run-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "dsh-run-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b65dbf4bc9070d6fe07649b99186c426",
+      "bytes": 23509,
+      "width": 1641,
+      "height": 847,
+      "animated": true,
+      "path": "dsh-run-flow-view-light-b65dbf4bc9070d6fe07649b99186c426.svg"
+    },
+    {
+      "id": "dsh-run-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "dsh-run-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "abe55649b6b11b2ee958e87d8632f7f5",
+      "bytes": 23673,
+      "width": 1641,
+      "height": 847,
+      "animated": true,
+      "path": "dsh-run-flow-view-dark-abe55649b6b11b2ee958e87d8632f7f5.svg"
+    }
+  ]
+}
