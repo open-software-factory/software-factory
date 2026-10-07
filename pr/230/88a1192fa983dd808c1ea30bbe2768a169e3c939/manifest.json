@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "88a1192fa983dd808c1ea30bbe2768a169e3c939",
+    "contentHash": "9a2da0a0d0a08542d1c1dfeb1297dd52"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fa014b4acb79e58e6746164a398c4404",
+      "bytes": 20735,
+      "width": 1726,
+      "height": 532,
+      "animated": false,
+      "path": "architecture-overview-light-fa014b4acb79e58e6746164a398c4404.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b1b2d0bf6bceeac510bc173dcbf90cef",
+      "bytes": 20967,
+      "width": 1726,
+      "height": 532,
+      "animated": false,
+      "path": "architecture-overview-dark-b1b2d0bf6bceeac510bc173dcbf90cef.svg"
+    },
+    {
+      "id": "adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e505566ed24729b53f4f4723bb97fddc",
+      "bytes": 11497,
+      "width": 888,
+      "height": 532,
+      "animated": false,
+      "path": "adapter-internals-light-e505566ed24729b53f4f4723bb97fddc.svg"
+    },
+    {
+      "id": "adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "26505ac47db01cb8a14d243bdd327bc8",
+      "bytes": 11608,
+      "width": 888,
+      "height": 532,
+      "animated": false,
+      "path": "adapter-internals-dark-26505ac47db01cb8a14d243bdd327bc8.svg"
+    },
+    {
+      "id": "seam-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "seam-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f37c6277d436fd37fdb6550dc26368ab",
+      "bytes": 10948,
+      "width": 880,
+      "height": 418,
+      "animated": false,
+      "path": "seam-internals-light-f37c6277d436fd37fdb6550dc26368ab.svg"
+    },
+    {
+      "id": "seam-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "seam-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "65a3f731b6c11a8011b7c07b2c1d328d",
+      "bytes": 11070,
+      "width": 880,
+      "height": 418,
+      "animated": false,
+      "path": "seam-internals-dark-65a3f731b6c11a8011b7c07b2c1d328d.svg"
+    },
+    {
+      "id": "read-and-pick-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "read-and-pick-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7e8ebf6b14b9670e0d197f163ac5ae68",
+      "bytes": 15143,
+      "width": 1641,
+      "height": 451,
+      "animated": true,
+      "path": "read-and-pick-flow-light-7e8ebf6b14b9670e0d197f163ac5ae68.svg"
+    },
+    {
+      "id": "read-and-pick-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "read-and-pick-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "82c384f5a444b8c19b5153b44dd31fd2",
+      "bytes": 15276,
+      "width": 1641,
+      "height": 451,
+      "animated": true,
+      "path": "read-and-pick-flow-dark-82c384f5a444b8c19b5153b44dd31fd2.svg"
+    },
+    {
+      "id": "write-state-and-recap-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "write-state-and-recap-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8c1554c518b467e73803e5fafb8ecad2",
+      "bytes": 17448,
+      "width": 1641,
+      "height": 565,
+      "animated": true,
+      "path": "write-state-and-recap-flow-light-8c1554c518b467e73803e5fafb8ecad2.svg"
+    },
+    {
+      "id": "write-state-and-recap-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "write-state-and-recap-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "839d47fc028fe6e1096d41044978b671",
+      "bytes": 17581,
+      "width": 1641,
+      "height": 565,
+      "animated": true,
+      "path": "write-state-and-recap-flow-dark-839d47fc028fe6e1096d41044978b671.svg"
+    }
+  ]
+}

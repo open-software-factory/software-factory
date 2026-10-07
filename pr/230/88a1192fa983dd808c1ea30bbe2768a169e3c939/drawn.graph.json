@@ -1,0 +1,996 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T08:48:04.969Z",
+  "title": "Provider-neutral tracker seam and the first GitHub adapter",
+  "summary": "This change introduces a provider-neutral `Tracker` seam in `crates/osf/src/tracker` — the trait, its data types, the ready rule, the run-finishing writes, and an in-memory test double — and adds the first adapter behind it, `GitHubTracker`, which drives GitHub Issues and Projects v2 through the installed `gh` CLI. Every adapter request is one `gh` invocation whose argv and JSON payload are built by pure functions and whose response is read by a pure parser, so the adapter is a thin loop over a `GhRunner`. The seam itself names no provider; a test enforces that.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "10424e39700ecc5199e5a1ec41104792c99f498b",
+      "ref": "10424e39700ecc5199e5a1ec41104792c99f498b"
+    },
+    "head": {
+      "sha": "88a1192fa983dd808c1ea30bbe2768a169e3c939",
+      "ref": "88a1192fa983dd808c1ea30bbe2768a169e3c939"
+    },
+    "pullRequest": {
+      "number": 230,
+      "url": "https://github.com/open-software-factory/software-factory/pull/230"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "engine",
+      "label": "Engine / callers",
+      "subtitle": "osf crate consumers",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "Code that drives a run: it picks a work item and reports the run's outcome through the tracker seam."
+    },
+    {
+      "id": "seam",
+      "label": "Tracker seam",
+      "subtitle": "crates/osf/src/tracker",
+      "order": 1,
+      "delta": "added",
+      "summary": "The provider-neutral trait, its data types, the ready rule, the finishing writes and the in-memory double."
+    },
+    {
+      "id": "adapter",
+      "label": "GitHub adapter",
+      "subtitle": "crates/osf/src/github_tracker.rs",
+      "order": 2,
+      "delta": "added",
+      "summary": "The first Tracker implementation: pure argv/payload builders, pure parsers, and a thin loop over a GhRunner."
+    },
+    {
+      "id": "external",
+      "label": "External",
+      "subtitle": "gh CLI and GitHub",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The installed gh command-line tool and the GitHub GraphQL API it reaches."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "engine-run",
+      "label": "Engine run",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "engine",
+      "subtitle": "pick then finish",
+      "summary": "The caller that reads the backlog, picks one dispatchable item, and writes the run's state and recap. It only knows the Tracker trait.",
+      "files": [
+        {
+          "path": "crates/osf/tests/tracker_fake_run.rs",
+          "startLine": 36,
+          "endLine": 66
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tracker-trait",
+      "label": "Tracker trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "read_ready / write_state / write_recap / capabilities",
+      "summary": "The seam between the factory and a work tracker. Object-safe, provider-neutral, and the only thing the engine depends on.",
+      "files": [
+        {
+          "path": "crates/osf/src/tracker/mod.rs",
+          "startLine": 176,
+          "endLine": 216
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tracker-types",
+      "label": "Tracker data types",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "WorkItem, WorkState, Capability",
+      "summary": "WorkItemId, WorkItem, Dependency, Status, WorkState, BlockedCause, TrackerError, Capability, StateWrite and TrackerCapabilities, with pinned serde names.",
+      "files": [
+        {
+          "path": "crates/osf/src/tracker/mod.rs",
+          "startLine": 1,
+          "endLine": 175
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ready-rule",
+      "label": "Ready rule",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "dispatchable / pick",
+      "summary": "Decides which read item may be dispatched: open, status ready, every blocker closed. Kept out of every adapter so adapters never filter by status themselves.",
+      "files": [
+        {
+          "path": "crates/osf/src/tracker/ready.rs",
+          "startLine": 1,
+          "endLine": 80
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "report",
+      "label": "Run finishing",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "require_capabilities / finish_run",
+      "summary": "Checks the tracker's reported capabilities, then writes the state and the recap, stopping at the first failing step and naming it.",
+      "files": [
+        {
+          "path": "crates/osf/src/tracker/report.rs",
+          "startLine": 1,
+          "endLine": 110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fake-tracker",
+      "label": "FakeTracker",
+      "kind": "test",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "in-memory double",
+      "summary": "Records every call as plain data and does no I/O. Scriptable reads, capabilities, and per-operation or per-state failures.",
+      "files": [
+        {
+          "path": "crates/osf/src/tracker/fake.rs",
+          "startLine": 1,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-tracker",
+      "label": "GitHubTracker",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "impl Tracker for GitHubTracker<R>",
+      "summary": "The first adapter. read_ready verifies the status field, then pages project items; write_state resolves the option, the project item id, optionally posts a blocked-cause comment, then mutates the field.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_tracker.rs",
+          "startLine": 160,
+          "endLine": 330
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-runner",
+      "label": "GhRunner",
+      "kind": "module",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "run(argv, stdin)",
+      "summary": "The one side-effecting seam of the adapter. RealGhRunner spawns the program, drains stdout and stderr on threads, feeds stdin, and enforces a 60-second default timeout.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_tracker.rs",
+          "startLine": 20,
+          "endLine": 140
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pure-builders",
+      "label": "argv and payload builders",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "read_ready_payload, mutation_payload, …",
+      "summary": "Pure functions that build the argv and the JSON body of every request, so the adapter's wire format is testable without a process.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_tracker.rs",
+          "startLine": 332,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pure-parsers",
+      "label": "response parsers",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "parse_items_page, parse_project_status, …",
+      "summary": "Pure parsers for every response. A malformed item that is not in the ready status is kept as an unreadable skipped item; a malformed ready item fails the page.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_tracker.rs",
+          "startLine": 472,
+          "endLine": 760
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-cli",
+      "label": "gh CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "installed command-line tool",
+      "summary": "The installed gh program. Every adapter request is one invocation of it.",
+      "files": [
+        {
+          "path": "crates/osf/tests/tracker_real_runner.rs",
+          "startLine": 1,
+          "endLine": 167
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-api",
+      "label": "GitHub GraphQL API",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "Issues and Projects v2",
+      "summary": "The API gh reaches: project items, single-select status fields, issue blockers, and issue comments.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_tracker.rs",
+          "startLine": 332,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "engine-calls-trait",
+      "from": "engine-run",
+      "to": "tracker-trait",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "pick, finish_run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The engine drives a run entirely through the trait; it never names a provider.",
+      "files": []
+    },
+    {
+      "id": "trait-impl-github",
+      "from": "github-tracker",
+      "to": "tracker-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl Tracker",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The adapter implements the seam. This is the connection the change is really about: the first provider behind a neutral interface.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_tracker.rs",
+          "startLine": 160,
+          "endLine": 330
+        }
+      ]
+    },
+    {
+      "id": "trait-impl-fake",
+      "from": "fake-tracker",
+      "to": "tracker-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl Tracker",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The in-memory double implements the same seam, so engine tests need no process or network.",
+      "files": []
+    },
+    {
+      "id": "ready-uses-trait",
+      "from": "ready-rule",
+      "to": "tracker-trait",
+      "kind": "call",
+      "delta": "added",
+      "label": "read_ready",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The ready rule reads through the trait and applies the dispatchability predicate itself.",
+      "files": []
+    },
+    {
+      "id": "report-uses-trait",
+      "from": "report",
+      "to": "tracker-trait",
+      "kind": "call",
+      "delta": "added",
+      "label": "capabilities, write_state, write_recap",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The finishing writes check capabilities first, then write state and recap in order.",
+      "files": []
+    },
+    {
+      "id": "github-uses-runner",
+      "from": "github-tracker",
+      "to": "gh-runner",
+      "kind": "call",
+      "delta": "added",
+      "label": "run(argv, stdin)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Every adapter request funnels through one GhRunner call, which is the only place a process is spawned.",
+      "files": [
+        {
+          "path": "crates/osf/src/github_tracker.rs",
+          "startLine": 160,
+          "endLine": 330
+        }
+      ]
+    },
+    {
+      "id": "github-uses-builders",
+      "from": "github-tracker",
+      "to": "pure-builders",
+      "kind": "call",
+      "delta": "added",
+      "label": "build argv and payload",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter builds each request from pure functions before handing it to the runner.",
+      "files": []
+    },
+    {
+      "id": "github-uses-parsers",
+      "from": "github-tracker",
+      "to": "pure-parsers",
+      "kind": "call",
+      "delta": "added",
+      "label": "parse response",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter reads each response with a pure parser, so malformed shapes are unit-testable.",
+      "files": []
+    },
+    {
+      "id": "runner-spawns-gh",
+      "from": "gh-runner",
+      "to": "gh-cli",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "spawn",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "RealGhRunner spawns the installed gh program with the built argv and stdin.",
+      "files": []
+    },
+    {
+      "id": "gh-calls-api",
+      "from": "gh-cli",
+      "to": "github-api",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "GraphQL over HTTPS",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "gh forwards the GraphQL request to the GitHub API and returns the JSON on stdout.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "read-and-pick",
+      "title": "Read the backlog and pick one item",
+      "summary": "The engine reads the project's ready items through the adapter and applies the ready rule to choose one dispatchable item.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "engine-run",
+          "label": "Engine"
+        },
+        {
+          "node": "ready-rule",
+          "label": "Ready rule"
+        },
+        {
+          "node": "github-tracker",
+          "label": "GitHubTracker"
+        },
+        {
+          "node": "gh-runner",
+          "label": "GhRunner"
+        },
+        {
+          "node": "github-api",
+          "label": "GitHub API"
+        }
+      ],
+      "messages": [
+        {
+          "id": "pick-calls-read",
+          "from": "engine-run",
+          "to": "ready-rule",
+          "label": "pick(tracker)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/tracker/ready.rs",
+              "startLine": 44,
+              "endLine": 80
+            }
+          ]
+        },
+        {
+          "id": "read-calls-adapter",
+          "from": "ready-rule",
+          "to": "github-tracker",
+          "label": "read_ready()",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/tracker/ready.rs",
+              "startLine": 44,
+              "endLine": 80
+            }
+          ]
+        },
+        {
+          "id": "adapter-verifies-field",
+          "from": "github-tracker",
+          "to": "gh-runner",
+          "label": "project status query",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "One extra project query verifies the configured status field before any item page.",
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 200,
+              "endLine": 215
+            }
+          ]
+        },
+        {
+          "id": "adapter-reads-page",
+          "from": "github-tracker",
+          "to": "gh-runner",
+          "label": "items(first: 100, after: cursor)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "repeat": 1,
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 216,
+              "endLine": 260
+            }
+          ]
+        },
+        {
+          "id": "runner-to-api",
+          "from": "gh-runner",
+          "to": "github-api",
+          "label": "gh api graphql --input -",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 60,
+              "endLine": 140
+            }
+          ]
+        },
+        {
+          "id": "api-returns-page",
+          "from": "github-api",
+          "to": "github-tracker",
+          "label": "JSON page with nodes and cursor",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "response": {
+              "type": "ItemPage",
+              "shape": "{ items: WorkItem[], next_cursor: Option<String> }",
+              "sample": {
+                "items": [
+                  {
+                    "id": {
+                      "provider": "github",
+                      "repo": "open-software-factory/demo",
+                      "item": "42"
+                    },
+                    "title": "A change",
+                    "status": "ready",
+                    "closed": false,
+                    "blocked_by": [
+                      {
+                        "id": {
+                          "provider": "github",
+                          "repo": "open-software-factory/demo",
+                          "item": "7"
+                        },
+                        "closed": true
+                      }
+                    ]
+                  }
+                ],
+                "next_cursor": null
+              },
+              "source": {
+                "path": "crates/osf/src/github_tracker.rs",
+                "startLine": 472,
+                "endLine": 560
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "adapter-returns-items",
+          "from": "github-tracker",
+          "to": "ready-rule",
+          "label": "ReadOutcome::Found(items)",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 216,
+              "endLine": 260
+            }
+          ]
+        },
+        {
+          "id": "rule-returns-pick",
+          "from": "ready-rule",
+          "to": "engine-run",
+          "label": "Pick::Item(item)",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/tracker/ready.rs",
+              "startLine": 44,
+              "endLine": 80
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "write-state-and-recap",
+      "title": "Write a run's state and recap",
+      "summary": "The engine checks the tracker's capabilities, writes the work state, and then writes the recap, stopping at the first failure. A blocked state posts its cause as a comment before the status moves.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "engine-run",
+          "label": "Engine"
+        },
+        {
+          "node": "report",
+          "label": "Run finishing"
+        },
+        {
+          "node": "github-tracker",
+          "label": "GitHubTracker"
+        },
+        {
+          "node": "gh-runner",
+          "label": "GhRunner"
+        },
+        {
+          "node": "github-api",
+          "label": "GitHub API"
+        }
+      ],
+      "messages": [
+        {
+          "id": "finish-checks",
+          "from": "engine-run",
+          "to": "report",
+          "label": "finish_run(id, state, recap)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/tracker/report.rs",
+              "startLine": 80,
+              "endLine": 110
+            }
+          ]
+        },
+        {
+          "id": "report-reads-capabilities",
+          "from": "report",
+          "to": "github-tracker",
+          "label": "capabilities()",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/tracker/report.rs",
+              "startLine": 50,
+              "endLine": 78
+            }
+          ]
+        },
+        {
+          "id": "report-writes-state",
+          "from": "report",
+          "to": "github-tracker",
+          "label": "write_state(id, state)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/tracker/report.rs",
+              "startLine": 80,
+              "endLine": 110
+            }
+          ]
+        },
+        {
+          "id": "adapter-reads-project",
+          "from": "github-tracker",
+          "to": "gh-runner",
+          "label": "project id, field id, options",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 262,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "adapter-reads-item",
+          "from": "github-tracker",
+          "to": "gh-runner",
+          "label": "issue projectItems",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 262,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "adapter-posts-cause",
+          "from": "github-tracker",
+          "to": "gh-runner",
+          "label": "POST issue comment",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Only for a blocked state: the cause is recorded before the status moves, so a blocked item always carries its cause.",
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 262,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "adapter-mutates-field",
+          "from": "github-tracker",
+          "to": "gh-runner",
+          "label": "updateProjectV2ItemFieldValue",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 262,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "runner-to-api-write",
+          "from": "gh-runner",
+          "to": "github-api",
+          "label": "gh api graphql / gh api POST",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 60,
+              "endLine": 140
+            }
+          ]
+        },
+        {
+          "id": "report-writes-recap",
+          "from": "report",
+          "to": "github-tracker",
+          "label": "write_recap(id, recap)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/tracker/report.rs",
+              "startLine": 80,
+              "endLine": 110
+            }
+          ]
+        },
+        {
+          "id": "adapter-posts-recap",
+          "from": "github-tracker",
+          "to": "gh-runner",
+          "label": "POST issue comment",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/github_tracker.rs",
+              "startLine": 262,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "finish-returns",
+          "from": "report",
+          "to": "engine-run",
+          "label": "Ok(()) or FinishError{step}",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/tracker/report.rs",
+              "startLine": 80,
+              "endLine": 110
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 9,
+    "additions": 4653,
+    "deletions": 0,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Tracker seam and its first adapter",
+      "lens": "architecture",
+      "summary": "The engine talks only to the provider-neutral Tracker trait; GitHubTracker is the first implementation, and every one of its requests funnels through a single GhRunner call.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "adapter-internals",
+          "title": "Inside GitHubTracker",
+          "lens": "architecture",
+          "summary": "The adapter is a thin loop: pure builders make the request, the runner executes it, pure parsers read the response.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "github-tracker",
+              "gh-runner",
+              "pure-builders",
+              "pure-parsers",
+              "gh-cli",
+              "github-api"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": [
+            {
+              "id": "seam-internals",
+              "title": "Inside the tracker seam",
+              "lens": "architecture",
+              "summary": "The trait, its data types, the ready rule, the finishing writes, and the in-memory double that lets the engine be tested without I/O.",
+              "scope": {
+                "kind": "selection",
+                "lanes": [],
+                "nodes": [
+                  "tracker-trait",
+                  "tracker-types",
+                  "ready-rule",
+                  "report",
+                  "fake-tracker",
+                  "engine-run"
+                ],
+                "edges": [],
+                "flows": []
+              },
+              "defaultOpen": false,
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "read-and-pick-flow",
+      "title": "Read the backlog and pick one item",
+      "lens": "data-flow",
+      "summary": "One read pass: verify the status field, page the project items, and apply the ready rule to choose a dispatchable item.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "read-and-pick"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "write-state-and-recap-flow",
+      "title": "Write a run's state and recap",
+      "lens": "data-flow",
+      "summary": "One finishing pass: check capabilities, write the state (posting a blocked cause first when blocked), then write the recap.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "write-state-and-recap"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "seam",
+        "heading": "A neutral seam",
+        "body": "The engine depends on the Tracker trait alone; no provider name appears in the seam's source.",
+        "stage": {
+          "kind": "view",
+          "view": "architecture-overview"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "engine-run",
+            "tracker-trait",
+            "tracker-types"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "adapter",
+        "heading": "The first adapter",
+        "body": "GitHubTracker implements the trait and funnels every request through one GhRunner call.",
+        "stage": {
+          "kind": "view",
+          "view": "architecture-overview"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "github-tracker",
+            "gh-runner",
+            "gh-cli",
+            "github-api"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "pure",
+        "heading": "Pure edges",
+        "body": "argv and payload builders and response parsers keep the wire format testable without a process.",
+        "stage": {
+          "kind": "view",
+          "view": "adapter-internals"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "pure-builders",
+            "pure-parsers"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "read",
+        "heading": "Read and pick",
+        "body": "The adapter pages project items; the ready rule decides which one may be dispatched.",
+        "stage": {
+          "kind": "flow",
+          "flow": "read-and-pick"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      },
+      {
+        "id": "write",
+        "heading": "Write and recap",
+        "body": "Capabilities are checked first, then the state, then the recap; a blocked state posts its cause before the status moves.",
+        "stage": {
+          "kind": "flow",
+          "flow": "write-state-and-recap"
+        },
+        "focus": {
+          "kind": "all"
+        }
+      }
+    ]
+  }
+}
