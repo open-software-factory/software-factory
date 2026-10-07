@@ -1,0 +1,1105 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T08:46:28.698Z",
+  "title": "dsh harness adapter: first concrete Harness behind a neutral seam",
+  "summary": "Adds a provider-neutral `harness` module (the `Harness`/`CommandRunner` traits, `CommandSpec`, `HarnessResult`, `HarnessCapabilities`, prompt and QUESTION-line helpers) plus an in-memory `fake` double, and the first concrete adapter, `dsh_harness`, which runs `dsh --profile headless --json -` through a `CommandRunner`, parses newline-delimited JSON events, and probes the binary's version, headless help and profile dump. The adapter refuses a dirty tree before starting, verifies the head commit did not move, and keeps the API key out of every git command.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "10424e39700ecc5199e5a1ec41104792c99f498b",
+      "ref": "10424e39700ecc5199e5a1ec41104792c99f498b"
+    },
+    "head": {
+      "sha": "479a3264a6d4ddd4fc0aa2c3864a0710739b41a2",
+      "ref": "479a3264a6d4ddd4fc0aa2c3864a0710739b41a2"
+    },
+    "pullRequest": {
+      "number": 232,
+      "url": "https://github.com/open-software-factory/software-factory/pull/232"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "caller",
+      "label": "Factory caller",
+      "subtitle": "engine / tests",
+      "order": 0
+    },
+    {
+      "id": "neutral",
+      "label": "Neutral harness seam",
+      "subtitle": "crates/osf/src/harness",
+      "order": 1
+    },
+    {
+      "id": "adapter",
+      "label": "dsh adapter",
+      "subtitle": "crates/osf/src/dsh_harness.rs",
+      "order": 2
+    },
+    {
+      "id": "external",
+      "label": "External processes",
+      "subtitle": "dsh binary and git",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "harness-trait",
+      "label": "Harness trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "neutral",
+      "subtitle": "run + capabilities",
+      "summary": "The provider-neutral seam: `run` executes one task through a `CommandRunner`, `capabilities` reports what the harness can do. Nothing here names a harness or a model vendor.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 1,
+          "endLine": 200
+        }
+      ],
+      "badges": [
+        "object-safe"
+      ]
+    },
+    {
+      "id": "command-runner",
+      "label": "CommandRunner trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "neutral",
+      "subtitle": "run(&CommandSpec) -> CommandOutput",
+      "summary": "The only way the adapter reaches a process. It runs a command with exactly its env, workdir and stdin, kills the tree at the timeout, and reports Exited or TimedOut.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 30,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prompt-helpers",
+      "label": "Prompt and QUESTION helpers",
+      "kind": "function",
+      "delta": "added",
+      "lane": "neutral",
+      "subtitle": "build_prompt, question_line",
+      "summary": "`build_prompt` appends the four task rules, including the QUESTION: contract; `question_line` reads the marker from the last non-blank line of the final message.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 200,
+          "endLine": 260
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "result-types",
+      "label": "HarnessResult / Capability",
+      "kind": "module",
+      "delta": "added",
+      "lane": "neutral",
+      "subtitle": "plain data for the journal",
+      "summary": "Serializable result and capability types: actor, session id, final message, outcome, changed files, branch, head commit, usage, cost, and the eight capability fields.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 70,
+          "endLine": 200
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fake-runner",
+      "label": "FakeRunner / FakeHarness",
+      "kind": "test",
+      "delta": "added",
+      "lane": "neutral",
+      "subtitle": "in-memory doubles",
+      "summary": "Replays scripted command outputs and harness results, records every call as plain data, and starts no process.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/fake.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-harness",
+      "label": "DshHarness",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "impl Harness for dsh",
+      "summary": "The first concrete adapter. Validates the task, checks the tree is clean, runs dsh headless, parses events, re-checks status and head, and maps the final message to Finished or Asked.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": [
+        "pinned 0.2.0-rc.2"
+      ]
+    },
+    {
+      "id": "event-parser",
+      "label": "parse_events",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "newline-delimited JSON",
+      "summary": "Reduces dsh stdout to session id, final message, summed usage over step_end events, and the first non-completed turn_end reason. A non-JSON line fails with its line number.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 180,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-probes",
+      "label": "git status / head / branch",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "porcelain -z, rev-parse",
+      "summary": "Builds the three git commands with a minimal environment (PATH, HOME, GIT_*), parses NUL-separated porcelain including renames, and rejects a run that moved the head.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 120,
+          "endLine": 180
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "capability-probes",
+      "label": "capability probes",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "--version, --help, --dump-config",
+      "summary": "Probes the binary version against the pin, checks the headless help promises --json and stdin, and reads the profile dump for the message-check plugin row. A probe that cannot run is Unknown, never Unsupported.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 600,
+          "endLine": 760
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-binary",
+      "label": "dsh binary",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "headless profile",
+      "summary": "The external coding harness. Reads the prompt on stdin, writes newline-delimited JSON events to stdout, and reports no model name and no cost figure.",
+      "files": [],
+      "badges": [
+        "no cost figure"
+      ]
+    },
+    {
+      "id": "git-binary",
+      "label": "git",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "status, rev-parse",
+      "summary": "Reads the working tree and the head commit. It receives only PATH, HOME and GIT_* so no credential reaches it.",
+      "files": [],
+      "badges": [
+        "minimal env"
+      ]
+    },
+    {
+      "id": "fixtures",
+      "label": "recorded run fixtures",
+      "kind": "test",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "jsonl, help, dump-config",
+      "summary": "Recorded dsh output: a created-file run, a question run, prose questions that must not count, a missing-credential failure, the version, the headless help and a full profile dump.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-run-created-file.jsonl"
+        },
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-dump-config.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "neutrality-test",
+      "label": "harness_neutral test",
+      "kind": "test",
+      "delta": "added",
+      "lane": "neutral",
+      "subtitle": "scans the folder for vendor names",
+      "summary": "Asserts the neutral harness folder holds exactly mod.rs and fake.rs and names no supported agent, container runtime or model vendor, and proves the scanner can fail on dsh_harness.rs.",
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_neutral.rs",
+          "startLine": 1,
+          "endLine": 204
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fake-run-test",
+      "label": "harness_fake_run test",
+      "kind": "test",
+      "delta": "added",
+      "lane": "neutral",
+      "subtitle": "full run through the trait objects",
+      "summary": "Drives a complete dsh run and a capability report through the fakes, and asserts the shared run_one helper names neither dsh nor the fake.",
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_fake_run.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "caller-to-harness",
+      "from": "harness-trait",
+      "to": "dsh-harness",
+      "kind": "call",
+      "delta": "added",
+      "label": "run(task)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The factory calls the neutral trait; the dsh adapter is the first implementation behind it.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 1,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "dsh-to-runner",
+      "from": "dsh-harness",
+      "to": "command-runner",
+      "kind": "call",
+      "delta": "added",
+      "label": "runner.run(spec)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter starts no process itself; every command goes through the runner.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 60,
+          "endLine": 90
+        }
+      ]
+    },
+    {
+      "id": "runner-to-dsh",
+      "from": "command-runner",
+      "to": "dsh-binary",
+      "kind": "other",
+      "delta": "added",
+      "label": "--profile headless --json -",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The prompt is fed on stdin and JSON events are read from stdout.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 60,
+          "endLine": 80
+        }
+      ]
+    },
+    {
+      "id": "runner-to-git",
+      "from": "command-runner",
+      "to": "git-binary",
+      "kind": "other",
+      "delta": "added",
+      "label": "status / rev-parse",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Three git commands run with the minimal environment, so the API key never reaches git.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 100,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "dsh-to-parser",
+      "from": "dsh-binary",
+      "to": "event-parser",
+      "kind": "data",
+      "delta": "added",
+      "label": "jsonl events",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Session, step_end usage, turn_end reason and final text are reduced to the recorded result.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 180,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "dsh-to-probes",
+      "from": "dsh-binary",
+      "to": "capability-probes",
+      "kind": "other",
+      "delta": "added",
+      "label": "--version / --help / --dump-config",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Three probes report presence, the version pin, headless adequacy and whether a message-check plugin is enabled.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 600,
+          "endLine": 760
+        }
+      ]
+    },
+    {
+      "id": "parser-to-result",
+      "from": "event-parser",
+      "to": "result-types",
+      "kind": "data",
+      "delta": "added",
+      "label": "Parsed -> HarnessResult",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Parsed events plus the git probes become the serializable result the journal records.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 300,
+          "endLine": 420
+        }
+      ]
+    },
+    {
+      "id": "prompt-to-dsh",
+      "from": "prompt-helpers",
+      "to": "dsh-harness",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "build_prompt / question_line",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The adapter wraps the task text with the rules and reads the QUESTION: marker back out of the final message.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 200,
+          "endLine": 260
+        }
+      ]
+    },
+    {
+      "id": "fake-to-runner",
+      "from": "fake-runner",
+      "to": "command-runner",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl CommandRunner",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The fake implements the same trait, so tests exercise the adapter without a process.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/fake.rs",
+          "startLine": 1,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "fixtures-to-parser",
+      "from": "fixtures",
+      "to": "event-parser",
+      "kind": "data",
+      "delta": "added",
+      "label": "recorded stdout",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every parser and adapter test replays a recorded dsh run rather than a hand-written line.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-run-created-file.jsonl"
+        }
+      ]
+    },
+    {
+      "id": "neutrality-to-neutral",
+      "from": "neutrality-test",
+      "to": "harness-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "scans the folder",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test reads the neutral folder and fails if a harness or vendor name appears.",
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_neutral.rs",
+          "startLine": 1,
+          "endLine": 204
+        }
+      ]
+    },
+    {
+      "id": "fake-run-to-dsh",
+      "from": "fake-run-test",
+      "to": "dsh-harness",
+      "kind": "call",
+      "delta": "added",
+      "label": "full run + capabilities",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration test drives the adapter through the fakes and asserts the exact command sequence.",
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_fake_run.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "dsh-run",
+      "title": "One dsh task, from clean tree to recorded result",
+      "summary": "The adapter checks the tree is clean, records the head and branch, runs dsh headless with the prompt on stdin, parses the JSON events, then re-checks status and head before returning a result.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "dsh-harness",
+          "label": "DshHarness"
+        },
+        {
+          "node": "command-runner",
+          "label": "CommandRunner"
+        },
+        {
+          "node": "dsh-binary",
+          "label": "dsh"
+        },
+        {
+          "node": "git-binary",
+          "label": "git"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-status-before",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "git status --porcelain=v1 -z",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 120,
+              "endLine": 160
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: git, args: [status, --porcelain=v1, -z, --untracked-files=all]",
+              "sample": {
+                "program": "git",
+                "args": [
+                  "status",
+                  "--porcelain=v1",
+                  "-z",
+                  "--untracked-files=all"
+                ],
+                "workdir": "/repo",
+                "env": [
+                  [
+                    "PATH",
+                    "/usr/bin"
+                  ],
+                  [
+                    "HOME",
+                    "/var/agent-home"
+                  ]
+                ],
+                "stdin": null,
+                "timeout_secs": 60
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "outcome: Exited(0), stdout: String",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-head-before",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "git rev-parse HEAD",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 120,
+              "endLine": 160
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: git, args: [rev-parse, HEAD]",
+              "sample": {
+                "program": "git",
+                "args": [
+                  "rev-parse",
+                  "HEAD"
+                ],
+                "workdir": "/repo",
+                "timeout_secs": 60
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "stdout: String",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "1111111111111111111111111111111111111111\n",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-branch",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "git rev-parse --abbrev-ref HEAD",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 120,
+              "endLine": 160
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: git, args: [rev-parse, --abbrev-ref, HEAD]",
+              "sample": {
+                "program": "git",
+                "args": [
+                  "rev-parse",
+                  "--abbrev-ref",
+                  "HEAD"
+                ],
+                "workdir": "/repo",
+                "timeout_secs": 60
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "stdout: String",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "feat/harness-adapter\n",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-agent",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "dsh --profile headless --json -",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 60,
+              "endLine": 80
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: dsh, args: [--profile, headless, --json, -], stdin: prompt",
+              "sample": {
+                "program": "dsh",
+                "args": [
+                  "--profile",
+                  "headless",
+                  "--json",
+                  "-"
+                ],
+                "workdir": "/repo",
+                "env": [
+                  [
+                    "PATH",
+                    "/usr/bin"
+                  ],
+                  [
+                    "HOME",
+                    "/var/agent-home"
+                  ],
+                  [
+                    "DEEPSEEK_API_KEY",
+                    "key-value-for-test"
+                  ]
+                ],
+                "stdin": "Create hello.txt\n\nEdit files only inside the repository.\nNever run git commit, git push, git stash or git checkout.\nAdd no dependency unless the task says so.\nIf you need an answer before you can finish, end your final message with one line: QUESTION: <the question>",
+                "timeout_secs": 600
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "stdout: newline-delimited JSON events",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "{\"type\":\"session\",\"sessionId\":\"session-51e234bb-b776-44fd-89d7-e846db4cdaab\",\"cwd\":\"/workspace\"}\n{\"type\":\"status\",\"phase\":\"turn_end\",\"turn\":1,\"reason\":{\"kind\":\"completed\"}}\n{\"type\":\"final\",\"text\":\"I created `/workspace/hello.txt` containing the single word `hello`.\"}\n",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-parse",
+          "from": "dsh-harness",
+          "to": "dsh-harness",
+          "label": "parse_events(stdout)",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Session id, summed step_end usage, the first non-completed turn_end reason, and the final text. A non-JSON line fails with its line number.",
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 180,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "step-status-after",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "git status --porcelain=v1 -z",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 120,
+              "endLine": 160
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: git, args: [status, --porcelain=v1, -z, --untracked-files=all]",
+              "sample": {
+                "program": "git",
+                "args": [
+                  "status",
+                  "--porcelain=v1",
+                  "-z",
+                  "--untracked-files=all"
+                ],
+                "workdir": "/repo",
+                "timeout_secs": 60
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "stdout: NUL-separated porcelain",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "?? hello.txt\u0000",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-head-after",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "git rev-parse HEAD",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 120,
+              "endLine": 160
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: git, args: [rev-parse, HEAD]",
+              "sample": {
+                "program": "git",
+                "args": [
+                  "rev-parse",
+                  "HEAD"
+                ],
+                "workdir": "/repo",
+                "timeout_secs": 60
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "stdout: String",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "1111111111111111111111111111111111111111\n",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-result",
+          "from": "dsh-harness",
+          "to": "dsh-harness",
+          "label": "HarnessResult",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "changed_files from the second status, branch and head from the probes, outcome Asked when the final message ends with a QUESTION: line, otherwise Finished.",
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 300,
+              "endLine": 420
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "capability-report",
+      "title": "Capability report for a pinned dsh",
+      "summary": "Three probes run in order: the version must match the pin, the headless help must promise --json and stdin, and the profile dump is read for the message-check plugin row. A probe that cannot run is Unknown, never Unsupported.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "dsh-harness",
+          "label": "DshHarness"
+        },
+        {
+          "node": "command-runner",
+          "label": "CommandRunner"
+        },
+        {
+          "node": "dsh-binary",
+          "label": "dsh"
+        }
+      ],
+      "messages": [
+        {
+          "id": "probe-version",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "dsh --version",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 600,
+              "endLine": 700
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: dsh, args: [--version]",
+              "sample": {
+                "program": "dsh",
+                "args": [
+                  "--version"
+                ],
+                "timeout_secs": 30
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "stdout: String",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "0.2.0-rc.2\n",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "probe-help",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "dsh --profile headless --help",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 700,
+              "endLine": 740
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: dsh, args: [--profile, headless, --help]",
+              "sample": {
+                "program": "dsh",
+                "args": [
+                  "--profile",
+                  "headless",
+                  "--help"
+                ],
+                "timeout_secs": 30
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "stdout: help text",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "Usage: dsh --profile headless [options] [task...]\n\nOptions:\n  --json             write newline-delimited run events to stdout instead of the\n                     final message\n",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "probe-dump",
+          "from": "dsh-harness",
+          "to": "command-runner",
+          "label": "dsh --profile headless --dump-config",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 740,
+              "endLine": 800
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "CommandSpec",
+              "shape": "program: dsh, args: [--profile, headless, --dump-config]",
+              "sample": {
+                "program": "dsh",
+                "args": [
+                  "--profile",
+                  "headless",
+                  "--dump-config"
+                ],
+                "timeout_secs": 30
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CommandOutput",
+              "shape": "stdout: YAML profile dump",
+              "sample": {
+                "outcome": {
+                  "Exited": 0
+                },
+                "stdout": "# == @deepseek-ai/dsh-base\n- id: tool-plugin-manager\n  name: '@deepseek-ai/dsh-plugin-manager/tools'\n  disabled: true\n",
+                "stderr": ""
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "probe-report",
+          "from": "dsh-harness",
+          "to": "dsh-harness",
+          "label": "HarnessCapabilities",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "cost_reporting and stop_mid_run are always Unsupported with a stated reason; question_signal is Unsupported because the QUESTION: line is a prompt contract, not an event.",
+          "files": [
+            {
+              "path": "crates/osf/src/dsh_harness.rs",
+              "startLine": 800,
+              "endLine": 860
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 16,
+    "additions": 3532,
+    "deletions": 0,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "context",
+      "title": "System context: factory, adapter, external tools",
+      "lens": "architecture",
+      "summary": "The factory reaches an external coding harness only through the neutral Harness trait; the dsh adapter is the first implementation, and it reaches dsh and git only through a CommandRunner.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "adapter-components",
+      "title": "dsh adapter internals",
+      "lens": "architecture",
+      "summary": "Inside the adapter: the run path (status, head, branch, agent, status, head), the event parser, the git probes and the capability probes.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "dsh-harness",
+          "event-parser",
+          "git-probes",
+          "capability-probes",
+          "fixtures"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "neutral-seam",
+      "title": "Neutral seam and its doubles",
+      "lens": "architecture",
+      "summary": "The provider-neutral module: the two traits, the prompt and QUESTION helpers, the serializable result types, and the in-memory fakes that let tests run without a process.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "harness-trait",
+          "command-runner",
+          "prompt-helpers",
+          "result-types",
+          "fake-runner",
+          "neutrality-test",
+          "fake-run-test"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "479a3264a6d4ddd4fc0aa2c3864a0710739b41a2",
+    "contentHash": "8e40207272b15ac0737cebaa3553ddb7"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d4489af58d080bfb4c873a4e112693dd",
+      "bytes": 25254,
+      "width": 1332,
+      "height": 874,
+      "animated": false,
+      "path": "context-light-d4489af58d080bfb4c873a4e112693dd.svg"
+    },
+    {
+      "id": "context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "30c80bc133a1e832e0e95a5293ab47a2",
+      "bytes": 25597,
+      "width": 1332,
+      "height": 874,
+      "animated": false,
+      "path": "context-dark-30c80bc133a1e832e0e95a5293ab47a2.svg"
+    },
+    {
+      "id": "adapter-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adapter-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b62ed8c232911c85a7e7758dc9f8b439",
+      "bytes": 8639,
+      "width": 436,
+      "height": 418,
+      "animated": false,
+      "path": "adapter-components-light-b62ed8c232911c85a7e7758dc9f8b439.svg"
+    },
+    {
+      "id": "adapter-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adapter-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "95c057bc8ea3b057ec0e2a476728400d",
+      "bytes": 8764,
+      "width": 436,
+      "height": 418,
+      "animated": false,
+      "path": "adapter-components-dark-95c057bc8ea3b057ec0e2a476728400d.svg"
+    },
+    {
+      "id": "neutral-seam-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "neutral-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dce68b0bfc3ade12eff06ea228d59d02",
+      "bytes": 11326,
+      "width": 446,
+      "height": 532,
+      "animated": false,
+      "path": "neutral-seam-light-dce68b0bfc3ade12eff06ea228d59d02.svg"
+    },
+    {
+      "id": "neutral-seam-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "neutral-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "55808cfb221fe225c1052d4b1a448505",
+      "bytes": 11495,
+      "width": 446,
+      "height": 532,
+      "animated": false,
+      "path": "neutral-seam-dark-55808cfb221fe225c1052d4b1a448505.svg"
+    }
+  ]
+}
