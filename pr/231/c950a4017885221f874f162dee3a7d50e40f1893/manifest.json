@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "c950a4017885221f874f162dee3a7d50e40f1893",
+    "contentHash": "a4c4da1e612364926fef21ab6fa41ef0"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5031e50c65d554bb6ac447d3fb3216aa",
+      "bytes": 23762,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "context-light-5031e50c65d554bb6ac447d3fb3216aa.svg"
+    },
+    {
+      "id": "context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3c1914fdf312a7517e78edc37768139b",
+      "bytes": 24039,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "context-dark-3c1914fdf312a7517e78edc37768139b.svg"
+    },
+    {
+      "id": "provider-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "provider-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b2ae0c0d96ff9423a0dbba5678f08ea6",
+      "bytes": 11501,
+      "width": 860,
+      "height": 760,
+      "animated": false,
+      "path": "provider-internals-light-b2ae0c0d96ff9423a0dbba5678f08ea6.svg"
+    },
+    {
+      "id": "provider-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "provider-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a5727785a1bf89726da9d657183baa36",
+      "bytes": 11623,
+      "width": 860,
+      "height": 760,
+      "animated": false,
+      "path": "provider-internals-dark-a5727785a1bf89726da9d657183baa36.svg"
+    },
+    {
+      "id": "seam-contract-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "seam-contract",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7543df9b7df4eae4777a5bed65c8cdae",
+      "bytes": 11196,
+      "width": 1333,
+      "height": 304,
+      "animated": false,
+      "path": "seam-contract-light-7543df9b7df4eae4777a5bed65c8cdae.svg"
+    },
+    {
+      "id": "seam-contract-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "seam-contract",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c08b98e45730430f100c331f382fdb94",
+      "bytes": 11307,
+      "width": 1333,
+      "height": 304,
+      "animated": false,
+      "path": "seam-contract-dark-c08b98e45730430f100c331f382fdb94.svg"
+    },
+    {
+      "id": "run-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "run-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b8b66b1a552529a064ed72ac769848df",
+      "bytes": 19806,
+      "width": 1296,
+      "height": 695,
+      "animated": true,
+      "path": "run-flow-light-b8b66b1a552529a064ed72ac769848df.svg"
+    },
+    {
+      "id": "run-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "run-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c7fb6f4e3f7e0f522ecee1bfea1b0385",
+      "bytes": 19951,
+      "width": 1296,
+      "height": 695,
+      "animated": true,
+      "path": "run-flow-dark-c7fb6f4e3f7e0f522ecee1bfea1b0385.svg"
+    },
+    {
+      "id": "stop-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "stop-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a24aa11853be6f04aadc902200a3643b",
+      "bytes": 13654,
+      "width": 1296,
+      "height": 391,
+      "animated": true,
+      "path": "stop-flow-light-a24aa11853be6f04aadc902200a3643b.svg"
+    },
+    {
+      "id": "stop-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "stop-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c38f88e7f3fcd71b96ea183b94d40ef7",
+      "bytes": 13798,
+      "width": 1296,
+      "height": 391,
+      "animated": true,
+      "path": "stop-flow-dark-c38f88e7f3fcd71b96ea183b94d40ef7.svg"
+    }
+  ]
+}
