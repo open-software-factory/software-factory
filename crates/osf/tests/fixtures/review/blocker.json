@@ -1,0 +1,17 @@
+{
+  "lens": "correctness",
+  "scores": {
+    "c1": 0.9,
+    "c2": 0.9
+  },
+  "findings": [
+    {
+      "path": "src/lib.rs",
+      "line": 2,
+      "quote": "fn broken() {}",
+      "severity": "blocker",
+      "action": "must-fix",
+      "body": "loses data"
+    }
+  ]
+}
