@@ -1338,7 +1338,7 @@ mod tests {
         let sandbox = sandbox(Vec::new());
         let error = sandbox.create(spec).expect_err("the spec is rejected");
         assert!(matches!(error, SandboxError::Rejected(_)), "{error:?}");
-        assert!(sandbox.runner.calls().is_empty());
+        assert_eq!(sandbox.runner.calls(), Vec::<Call>::new());
     }
 
     fn run_rejected(command: &CommandSpec) {
@@ -1348,7 +1348,7 @@ mod tests {
             .run(&id, command)
             .expect_err("the command is rejected");
         assert!(matches!(error, SandboxError::Rejected(_)), "{error:?}");
-        assert!(sandbox.runner.calls().is_empty());
+        assert_eq!(sandbox.runner.calls(), Vec::<Call>::new());
     }
 
     #[test]
