@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "84553c96f85709c08d179c246a6858bca6b43746",
+    "contentHash": "5e3c3fc08fbad700e8ecbfd7b563fe57"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "arch-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "059f90030c229e3e0cd23c6227d1db9f",
+      "bytes": 24182,
+      "width": 1797,
+      "height": 874,
+      "animated": false,
+      "path": "arch-context-light-059f90030c229e3e0cd23c6227d1db9f.svg"
+    },
+    {
+      "id": "arch-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "180a0b6755cb877333e44b81f95fa278",
+      "bytes": 24469,
+      "width": 1797,
+      "height": 874,
+      "animated": false,
+      "path": "arch-context-dark-180a0b6755cb877333e44b81f95fa278.svg"
+    },
+    {
+      "id": "arch-provider-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-provider",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c7366896210e05a3ff3f69758aa756ac",
+      "bytes": 10094,
+      "width": 910,
+      "height": 418,
+      "animated": false,
+      "path": "arch-provider-light-c7366896210e05a3ff3f69758aa756ac.svg"
+    },
+    {
+      "id": "arch-provider-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-provider",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b6a1cf6d6c8ea6c0ffc1ffb21a12c28e",
+      "bytes": 10194,
+      "width": 910,
+      "height": 418,
+      "animated": false,
+      "path": "arch-provider-dark-b6a1cf6d6c8ea6c0ffc1ffb21a12c28e.svg"
+    },
+    {
+      "id": "arch-seam-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "arch-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6add0eee3f3542121c14a6965f30fa34",
+      "bytes": 10446,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "arch-seam-light-6add0eee3f3542121c14a6965f30fa34.svg"
+    },
+    {
+      "id": "arch-seam-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "arch-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "783db504c083cb79dbb613e8c03da424",
+      "bytes": 10557,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "arch-seam-dark-783db504c083cb79dbb613e8c03da424.svg"
+    }
+  ]
+}

@@ -1,0 +1,818 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T10:21:54.591Z",
+  "title": "Docker sandbox provider for `osf sandbox run`",
+  "summary": "Adds a provider-neutral sandbox seam (`Sandbox` trait, spec/command validation, an in-memory fake) and its first adapter, a Docker implementation that shells out to `docker` one invocation per operation. A new `osf sandbox run` subcommand plans a run from `--repo`/`--state`/`--image`, validates it before any docker call, then creates a container, execs the command, and always removes the container — including on SIGINT/SIGTERM, which a signal watcher turns into a removal before osf exits with 128+signal.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "6373e93b558ae9b3c5662014b029df1158d9fef2",
+      "ref": "6373e93b558ae9b3c5662014b029df1158d9fef2"
+    },
+    "head": {
+      "sha": "84553c96f85709c08d179c246a6858bca6b43746",
+      "ref": "84553c96f85709c08d179c246a6858bca6b43746"
+    },
+    "pullRequest": {
+      "number": 231,
+      "url": "https://github.com/open-software-factory/software-factory/pull/231"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI",
+      "subtitle": "osf binary",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The `osf sandbox run` subcommand: argument parsing, folder checks, and exit-code mapping."
+    },
+    {
+      "id": "host",
+      "label": "Host orchestration",
+      "subtitle": "crates/osf/src",
+      "order": 1,
+      "delta": "added",
+      "summary": "The provider-neutral seam, its validators, the run planner/executor, and the signal watcher."
+    },
+    {
+      "id": "provider",
+      "label": "Docker provider",
+      "subtitle": "docker_sandbox.rs",
+      "order": 2,
+      "delta": "added",
+      "summary": "Builds every docker argv as a pure function and drives the real `docker` program through a runner seam."
+    },
+    {
+      "id": "runtime",
+      "label": "Container runtime",
+      "subtitle": "docker daemon",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The installed docker client and daemon that actually create, exec into and remove containers."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "sandbox-run-cmd",
+      "label": "sandbox_run_cmd",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "fn sandbox_run_cmd(&SandboxRunArgs) -> ExitCode",
+      "summary": "Checks that --repo and --state are existing folders, builds a RunRequest, calls sandbox_cli::plan, prints the dry-run JSON or runs the plan, and maps the Execution to an exit code.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 3066,
+          "endLine": 3110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sandbox-action",
+      "label": "SandboxAction::Run",
+      "kind": "config",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "clap subcommand + SandboxRunArgs",
+      "summary": "The clap surface: --image, --repo, --state, --network, --user, --timeout, --name, --dry-run, and the trailing command words. Documents the exit codes 2/124/125/128+signal.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 214,
+          "endLine": 272
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sandbox-seam",
+      "label": "Sandbox trait",
+      "kind": "module",
+      "delta": "added",
+      "lane": "host",
+      "subtitle": "create / run / destroy / capabilities",
+      "summary": "The provider-neutral seam: SandboxSpec, CommandSpec, RunResult, SandboxError and the four operations. CommandSpec's Debug and serde print env keys and stdin length only, never values.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox/mod.rs",
+          "startLine": 1,
+          "endLine": 200
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sandbox-validate",
+      "label": "validate_spec / validate_command",
+      "kind": "module",
+      "delta": "added",
+      "lane": "host",
+      "subtitle": "pure pre-flight checks",
+      "summary": "Provider-neutral validation that runs before any provider call: pinned image, non-root user, absolute workdir, mount shape, limits, env keys and NUL values.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox/validate.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sandbox-fake",
+      "label": "FakeSandbox",
+      "kind": "test",
+      "delta": "added",
+      "lane": "host",
+      "subtitle": "in-memory Sandbox double",
+      "summary": "Records every create/run/destroy/capabilities call as plain data and does no I/O, so engine-style runs can be tested without a process, file, network or clock.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox/fake.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sandbox-cli",
+      "label": "sandbox_cli",
+      "kind": "module",
+      "delta": "added",
+      "lane": "host",
+      "subtitle": "plan / dry_run_json / execute_tracked",
+      "summary": "Turns a RunRequest into a validated Plan, renders the exact docker argv as dry-run JSON, and executes create → run → destroy over the seam, mapping outcomes to exit codes and notes.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox_cli.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sandbox-tracker",
+      "label": "SandboxTracker",
+      "kind": "module",
+      "delta": "added",
+      "lane": "host",
+      "subtitle": "current id + stop gates",
+      "summary": "Holds the sandbox id in use and the create/removal gates, so a signal stop waits for an in-flight create and only one removal runs at a time.",
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox_cli.rs",
+          "startLine": 44,
+          "endLine": 110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "stop-signal",
+      "label": "stop_signal",
+      "kind": "module",
+      "delta": "added",
+      "lane": "host",
+      "subtitle": "SIGINT/SIGTERM watcher",
+      "summary": "Installs an async-signal-safe handler that records SIGINT or SIGTERM in an atomic; the run loop polls take() and hands the removal to stop_for_signal.",
+      "files": [
+        {
+          "path": "crates/osf/src/stop_signal.rs",
+          "startLine": 1,
+          "endLine": 51
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-sandbox",
+      "label": "DockerSandbox",
+      "kind": "service",
+      "delta": "added",
+      "lane": "provider",
+      "subtitle": "impl Sandbox for DockerSandbox<R>",
+      "summary": "The Docker adapter: create validates and resolves mounts, runs `docker create` then `start` then an `id -u` check; run execs with a timeout and kills on timeout; destroy inspects then removes.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-argv",
+      "label": "argv builders",
+      "kind": "function",
+      "delta": "added",
+      "lane": "provider",
+      "subtitle": "create_argv / exec_argv / kill_argv / remove_argv / inspect_argv",
+      "summary": "Pure functions that build every docker invocation, including the pinned sandbox env, cap-drop, no-new-privileges, pids and memory limits, and the `--` separators that keep dashed words out of flag position.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 330,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-runner",
+      "label": "RealDockerRunner",
+      "kind": "service",
+      "delta": "added",
+      "lane": "provider",
+      "subtitle": "impl DockerRunner",
+      "summary": "Spawns the docker program in its own process group, writes stdin on a thread, reads both pipes on threads with a per-stream cap, waits with a timeout, and kills the whole tree on timeout.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 100,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "mount-resolve",
+      "label": "resolve_mounts",
+      "kind": "function",
+      "delta": "added",
+      "lane": "provider",
+      "subtitle": "canonicalize + refuse system paths and sockets",
+      "summary": "Canonicalizes every mount source, refusing missing sources, symlinks unless allowed, the host root, /run, /var/run, /proc, top-level sockets, and a source that is or holds the repository mount.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 560,
+          "endLine": 660
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-client",
+      "label": "docker CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "runtime",
+      "subtitle": "the installed program",
+      "summary": "The docker client the runner spawns; every operation is one invocation whose argv and response are built and read by pure functions.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 1,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docker-daemon",
+      "label": "docker daemon",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "runtime",
+      "subtitle": "container runtime",
+      "summary": "Creates, starts, execs into and removes the sandbox container; the image must be pinned and must not map the sandbox user to uid 0.",
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 1,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cmd-to-cli",
+      "from": "sandbox-run-cmd",
+      "to": "sandbox-cli",
+      "kind": "call",
+      "delta": "added",
+      "label": "plan / run_plan",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 3090,
+          "endLine": 3110
+        }
+      ]
+    },
+    {
+      "id": "cli-to-seam",
+      "from": "sandbox-cli",
+      "to": "sandbox-seam",
+      "kind": "call",
+      "delta": "added",
+      "label": "create / run / destroy",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox_cli.rs",
+          "startLine": 120,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "cli-to-validate",
+      "from": "sandbox-cli",
+      "to": "sandbox-validate",
+      "kind": "call",
+      "delta": "added",
+      "label": "validate_spec / validate_command",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox_cli.rs",
+          "startLine": 100,
+          "endLine": 120
+        }
+      ]
+    },
+    {
+      "id": "cli-to-tracker",
+      "from": "sandbox-cli",
+      "to": "sandbox-tracker",
+      "kind": "call",
+      "delta": "added",
+      "label": "set / gate / creating",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox_cli.rs",
+          "startLine": 120,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "cli-to-signal",
+      "from": "sandbox-cli",
+      "to": "stop-signal",
+      "kind": "call",
+      "delta": "added",
+      "label": "install / take",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox_cli.rs",
+          "startLine": 230,
+          "endLine": 270
+        }
+      ]
+    },
+    {
+      "id": "seam-to-docker",
+      "from": "sandbox-seam",
+      "to": "docker-sandbox",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl Sandbox",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 1,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "seam-to-fake",
+      "from": "sandbox-seam",
+      "to": "sandbox-fake",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl Sandbox",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/sandbox/fake.rs",
+          "startLine": 1,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "docker-to-argv",
+      "from": "docker-sandbox",
+      "to": "docker-argv",
+      "kind": "call",
+      "delta": "added",
+      "label": "build argv",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 330,
+          "endLine": 470
+        }
+      ]
+    },
+    {
+      "id": "docker-to-runner",
+      "from": "docker-sandbox",
+      "to": "docker-runner",
+      "kind": "call",
+      "delta": "added",
+      "label": "run / run_with_stdin",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 100,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "docker-to-mounts",
+      "from": "docker-sandbox",
+      "to": "mount-resolve",
+      "kind": "call",
+      "delta": "added",
+      "label": "resolve_mounts",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 560,
+          "endLine": 660
+        }
+      ]
+    },
+    {
+      "id": "runner-to-client",
+      "from": "docker-runner",
+      "to": "docker-client",
+      "kind": "other",
+      "delta": "added",
+      "label": "spawn argv",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 100,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "client-to-daemon",
+      "from": "docker-client",
+      "to": "docker-daemon",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "create / start / exec / kill / rm",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/docker_sandbox.rs",
+          "startLine": 1,
+          "endLine": 20
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "sandbox-run-flow",
+      "title": "`osf sandbox run` — create, exec, remove",
+      "summary": "One run: the CLI plans and validates, the Docker adapter creates and starts a container, checks the user is not root, execs the command with a timeout, then removes the container. A timeout kills the container before reporting 124.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "sandbox-run-cmd",
+          "label": "osf sandbox run"
+        },
+        {
+          "node": "sandbox-cli",
+          "label": "sandbox_cli"
+        },
+        {
+          "node": "docker-sandbox",
+          "label": "DockerSandbox"
+        },
+        {
+          "node": "docker-client",
+          "label": "docker"
+        },
+        {
+          "node": "docker-daemon",
+          "label": "daemon"
+        }
+      ],
+      "messages": [
+        {
+          "id": "plan",
+          "from": "sandbox-run-cmd",
+          "to": "sandbox-cli",
+          "label": "plan(RunRequest)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 3090,
+              "endLine": 3100
+            }
+          ]
+        },
+        {
+          "id": "validate",
+          "from": "sandbox-cli",
+          "to": "sandbox-cli",
+          "label": "validate_spec + validate_command",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Refusals land here, before any docker call, and map to exit 2.",
+          "files": [
+            {
+              "path": "crates/osf/src/sandbox_cli.rs",
+              "startLine": 100,
+              "endLine": 120
+            }
+          ]
+        },
+        {
+          "id": "create",
+          "from": "sandbox-cli",
+          "to": "docker-sandbox",
+          "label": "create(SandboxSpec)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/sandbox_cli.rs",
+              "startLine": 120,
+              "endLine": 160
+            }
+          ]
+        },
+        {
+          "id": "docker-create",
+          "from": "docker-sandbox",
+          "to": "docker-client",
+          "label": "docker create --name=… --mount=… image sleep 2147483647",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 330,
+              "endLine": 400
+            }
+          ]
+        },
+        {
+          "id": "daemon-create",
+          "from": "docker-client",
+          "to": "docker-daemon",
+          "label": "create + start",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "user-check",
+          "from": "docker-sandbox",
+          "to": "docker-client",
+          "label": "docker exec … id -u",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Refuses uid 0 and removes the container.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 200,
+              "endLine": 260
+            }
+          ]
+        },
+        {
+          "id": "exec",
+          "from": "sandbox-cli",
+          "to": "docker-sandbox",
+          "label": "run(SandboxId, CommandSpec)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/sandbox_cli.rs",
+              "startLine": 160,
+              "endLine": 200
+            }
+          ]
+        },
+        {
+          "id": "docker-exec",
+          "from": "docker-sandbox",
+          "to": "docker-client",
+          "label": "docker exec --env KEY -- id program args",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Env values travel in the client's environment, never in argv.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 400,
+              "endLine": 440
+            }
+          ]
+        },
+        {
+          "id": "daemon-exec",
+          "from": "docker-client",
+          "to": "docker-daemon",
+          "label": "exec in container",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "timeout-kill",
+          "from": "docker-sandbox",
+          "to": "docker-client",
+          "label": "docker kill -- id",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Only on timeout; a failed kill is reported as 125.",
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 260,
+              "endLine": 300
+            }
+          ]
+        },
+        {
+          "id": "destroy",
+          "from": "sandbox-cli",
+          "to": "docker-sandbox",
+          "label": "destroy(SandboxId)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/sandbox_cli.rs",
+              "startLine": 200,
+              "endLine": 230
+            }
+          ]
+        },
+        {
+          "id": "docker-remove",
+          "from": "docker-sandbox",
+          "to": "docker-client",
+          "label": "docker inspect … then docker rm --force -- id",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/docker_sandbox.rs",
+              "startLine": 300,
+              "endLine": 330
+            }
+          ]
+        },
+        {
+          "id": "daemon-remove",
+          "from": "docker-client",
+          "to": "docker-daemon",
+          "label": "remove container",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "result",
+          "from": "sandbox-cli",
+          "to": "sandbox-run-cmd",
+          "label": "Execution { stdout, stderr, exit_code, message }",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/sandbox_cli.rs",
+              "startLine": 200,
+              "endLine": 230
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 15,
+    "additions": 8451,
+    "deletions": 1,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "arch-context",
+      "title": "Sandbox run — system context",
+      "lens": "architecture",
+      "summary": "The new `osf sandbox run` path from the CLI through the provider-neutral seam to the Docker adapter and the installed docker client.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "arch-provider",
+      "title": "Docker provider internals",
+      "lens": "architecture",
+      "summary": "Inside the adapter: pure argv builders, the real runner that spawns docker, and mount resolution.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "docker-sandbox",
+          "docker-argv",
+          "docker-runner",
+          "mount-resolve",
+          "docker-client"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "arch-seam",
+      "title": "Sandbox seam and its implementations",
+      "lens": "architecture",
+      "summary": "The provider-neutral trait, its validators, and the two implementations: the Docker adapter and the in-memory fake.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "sandbox-seam",
+          "sandbox-validate",
+          "sandbox-fake",
+          "docker-sandbox",
+          "sandbox-cli"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
