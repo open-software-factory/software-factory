@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1708 646" width="1708" height="646" role="img" aria-label="Review job egress context" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Review job egress context</title>
+<desc>The review workflow, the runner it executes on, the egress allowlist it applies and the external hosts that allowlist governs.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1708" height="646" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1708" height="646" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="586" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">GITHUB · ACTIONS CONTROL PLANE</text>
+<rect class="lanebox" x="440" y="44" width="404" height="586" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">LINUX RUNNER · GITHUB-HOSTED, DOCKER</text>
+<rect class="lanebox" x="864" y="44" width="404" height="586" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="880" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">EGRESS ALLOWLIST · NETWORK POLICY IN REVIEW.YML</text>
+<rect class="lanebox" x="1288" y="44" width="404" height="586" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="1304" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">EXTERNAL SERVICES · REGISTRIES AND MODEL APIS</text></g>
+<g><path class="edge edge-neutral context" d="M404,123 L417,123 C424.18,123 430,128.82 430,136 L430,224 C430,231.18 435.82,237 443,237 L456,237" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M828,245 L837.67,245 C843.01,245 847.33,249.33 847.33,254.67 L847.33,326.67 C847.33,335.69 854.65,343 863.67,343 L880,343" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="glow" stroke="#3fb950" d="M1014,382 L1014,434" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M1014,382 L1014,434" marker-end="url(#mk-added)" fill="none" stroke="#3fb950" stroke-width="2.25"/>
+<circle r="3" fill="#3fb950"><animateMotion dur="2.1s" repeatCount="indefinite" path="M1014,382 L1014,434"/></circle>
+<circle r="3" fill="#3fb950"><animateMotion dur="2.1s" begin="-1.4s" repeatCount="indefinite" path="M1014,382 L1014,434"/></circle>
+<circle r="3" fill="#3fb950"><animateMotion dur="2.1s" begin="-0.7s" repeatCount="indefinite" path="M1014,382 L1014,434"/></circle>
+<path class="edge edge-neutral faded context" d="M1074,382 L1074,390 C1074,394.42 1077.58,398 1082,398 L1144,398 C1153.94,398 1162,406.06 1162,416 L1162,434" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.45"/>
+<path class="edge edge-neutral faded context" d="M1074,382 L1074,405 C1074,417.7 1063.7,428 1051,428 L908,428 C889.22,428 874,443.22 874,462 L874,576 C874,577.66 875.34,579 877,579 L880,579" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.45"/>
+<path class="edge edge-neutral faded context" d="M1074,382 L1074,385 C1074,386.66 1075.34,388 1077,388 L1252,388 C1270.78,388 1286,403.22 1286,422 L1286,562 C1286,571.39 1278.39,579 1269,579 L1252,579" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.45"/>
+<path class="edge edge-neutral context" d="M828,229 L831,229 C832.66,229 834,230.34 834,232 L834,261.5 C834,279.45 848.55,294 866.5,294 L1241.5,294 C1257.24,294 1270,306.76 1270,322.5 L1270,334 C1270,343.39 1277.61,351 1287,351 L1304,351" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1490,382 L1490,434" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral faded context" d="M880,359 L870.33,359 C864.99,359 860.67,363.33 860.67,368.67 L860.67,448.67 C860.67,457.69 853.35,465 844.33,465 L828,465" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.45"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="32" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M52,119 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,127 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="57" cy="119" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="62" cy="127" r="2.2"/></g>
+<text class="ntitle" x="82" y="119" font-size="11.5" font-weight="600" fill="#e6edf3">review.yml</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">AI review workflow</text>
+<g class="bdg bdg-modified"><rect x="138.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="171.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="224" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="238" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="246" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="251" cy="123" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="256" cy="123" r="1.8"/></g>
+<text class="ntitle" x="274" y="119" font-size="11.5" font-weight="600" fill="#e6edf3">Workflow trigger</text>
+<text class="nsub" x="274" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">pull_request</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="456" y="206" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="470" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="483" cy="237" r="6.5"/>
+<path class="glyph-stroke" d="M483,233.5 V237 H486" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="233" font-size="13" font-weight="600" fill="#e6edf3">Review job</text>
+<text class="nsub" x="506" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">runs-on: ubuntu-latest</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="456" y="434" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="470" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><text class="glyph" x="483" y="469.5" text-anchor="middle" fill="#9198a1" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="506" y="461" font-size="13" font-weight="600" fill="#e6edf3">Linux + Docker guard</text>
+<text class="nsub" x="506" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">runner.os != 'Linux'</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="880" y="320" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="894" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M900,347 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M900,355 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="905" cy="347" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="910" cy="355" r="2.2"/></g>
+<text class="ntitle" x="930" y="347" font-size="13" font-weight="600" fill="#e6edf3">Egress allowlist</text>
+<text class="nsub" x="930" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">host:port entries</text>
+<g class="bdg bdg-modified"><rect x="1178.38" y="312" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1211.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="880" y="434" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="894" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="899" y="459" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M899,461 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="461" font-size="11.5" font-weight="600" fill="#e6edf3">chatgpt.com:443</text>
+<text class="nsub" x="930" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">newly permitted host</text>
+<g class="bdg bdg-added"><rect x="1012.45" y="426" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="1032.73" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1072" y="434" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1086" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1091" y="459" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1091,461 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1122" y="461" font-size="11.5" font-weight="600" fill="#e6edf3">api.openai.com:443</text>
+<text class="nsub" x="1122" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">existing model endp…</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="880" y="548" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="894" y="566" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="899" y="573" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M899,575 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="930" y="575" font-size="11.5" font-weight="600" fill="#e6edf3">ghcr.io:443</text>
+<text class="nsub" x="930" y="593" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">container registry</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1072" y="548" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1086" y="566" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1091" y="573" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1091,575 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1122" y="575" font-size="10.5" font-weight="600" fill="#e6edf3">pkg-containers.github…</text>
+<text class="nsub" x="1122" y="593" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">registry blob host</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1304" y="320" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1318" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1324.5" y="344.5" width="13" height="13" rx="3" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="1331" cy="351" r="2"/></g>
+<text class="ntitle" x="1354" y="347" font-size="13" font-weight="600" fill="#e6edf3">Review container</text>
+<text class="nsub" x="1354" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">reviewer image</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1304" y="434" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1318" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1323" y="459" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1323,461 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1354" y="461" font-size="13" font-weight="600" fill="#e6edf3">ChatGPT endpoint</text>
+<text class="nsub" x="1354" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">HTTPS</text></g></g>
+<g><g><rect class="lpill" x="409.69" y="172.5" width="40.62" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="430" y="183.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">starts</text></g>
+<g><rect class="lpill" x="790.09" y="293" width="114.49" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="847.33" y="304" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">applies network policy</text></g>
+<g><rect class="lpill" x="978.3" y="399" width="71.41" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="1014" y="410" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">permits :443</text></g>
+<g><rect class="lpill" x="1077.3" y="390.5" width="71.41" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1113" y="401.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">permits :443</text></g>
+<g><rect class="lpill" x="838.3" y="508" width="71.41" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="874" y="519" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">permits :443</text></g>
+<g><rect class="lpill" x="1250.3" y="508" width="71.41" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1286" y="519" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">permits :443</text></g>
+<g><rect class="lpill" x="1022.22" y="286.5" width="63.57" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1054" y="297.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">docker run</text></g>
+<g><rect class="lpill" x="1465.5" y="400.5" width="49.01" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1490" y="411.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">HTTPS</text></g>
+<g><rect class="lpill" x="832.24" y="401.17" width="56.86" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="860.67" y="412.17" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">next step</text></g></g>
+</svg>

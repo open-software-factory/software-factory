@@ -1,0 +1,534 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-07T13:09:00.200Z",
+  "title": "Allow chatgpt.com egress in the review workflow",
+  "summary": "The review workflow runs an AI code-review job on a GitHub-hosted Linux runner behind a Docker network allowlist. This change adds one host, chatgpt.com:443, to that allowlist so the review container can reach ChatGPT-hosted endpoints in addition to the already-permitted api.openai.com. Nothing else in the job graph moves: the runner, the container image pull, the model call and the review output are all unchanged.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "40c96440576cf20760fd9cf63dd7364baa3facd6",
+      "ref": "40c96440576cf20760fd9cf63dd7364baa3facd6"
+    },
+    "head": {
+      "sha": "49b3b806c4a16ba122c0c0013d5e64a8167c29e0",
+      "ref": "49b3b806c4a16ba122c0c0013d5e64a8167c29e0"
+    },
+    "pullRequest": {
+      "number": 254,
+      "url": "https://github.com/open-software-factory/software-factory/pull/254"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "github",
+      "label": "GitHub",
+      "subtitle": "Actions control plane",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "Triggers the review workflow and hosts the runner that executes it."
+    },
+    {
+      "id": "runner",
+      "label": "Linux runner",
+      "subtitle": "GitHub-hosted, Docker",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "The job environment where the workflow steps and the review container execute."
+    },
+    {
+      "id": "egress",
+      "label": "Egress allowlist",
+      "subtitle": "Network policy in review.yml",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The set of hosts the job is permitted to reach. This change adds one entry to it."
+    },
+    {
+      "id": "external",
+      "label": "External services",
+      "subtitle": "Registries and model APIs",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "Third-party endpoints the review job depends on over HTTPS."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "github",
+      "subtitle": "AI review workflow",
+      "summary": "The workflow definition that drives the review job. The only edit in this change is a new host entry in its egress allowlist.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 167,
+          "endLine": 171
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflow-trigger",
+      "label": "Workflow trigger",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "github",
+      "subtitle": "pull_request",
+      "summary": "The event that starts the review job; untouched by this change.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-job",
+      "label": "Review job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "runner",
+      "subtitle": "runs-on: ubuntu-latest",
+      "summary": "The job that pulls the review image, runs the reviewer and posts results. Its step list is unchanged.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "runner-guard",
+      "label": "Linux + Docker guard",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "runner",
+      "subtitle": "runner.os != 'Linux'",
+      "summary": "The step immediately following the allowlist that fails fast if the job is not on the Linux runner with Docker it assumes.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 172
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "egress-allowlist",
+      "label": "Egress allowlist",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "egress",
+      "subtitle": "host:port entries",
+      "summary": "The list of destinations the job may open connections to. chatgpt.com:443 is appended here, alongside the existing registry and api.openai.com entries.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 167,
+          "endLine": 171
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "chatgpt-host",
+      "label": "chatgpt.com:443",
+      "kind": "external",
+      "delta": "added",
+      "lane": "egress",
+      "subtitle": "newly permitted host",
+      "summary": "The host added by this change. It is now reachable from the job over HTTPS.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 170
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "openai-api",
+      "label": "api.openai.com:443",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "egress",
+      "subtitle": "existing model endpoint",
+      "summary": "The model API host that was already allowed before this change; it stays in the list.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 169
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ghcr",
+      "label": "ghcr.io:443",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "egress",
+      "subtitle": "container registry",
+      "summary": "Registry the review image is pulled from; already allowed.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 165
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pkg-containers",
+      "label": "pkg-containers.githubusercontent.com:443",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "egress",
+      "subtitle": "registry blob host",
+      "summary": "Blob host used while pulling image layers; already allowed.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 166
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-container",
+      "label": "Review container",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "reviewer image",
+      "summary": "The containerised reviewer that performs the model call. It is the consumer of the newly permitted host.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "chatgpt-endpoint",
+      "label": "ChatGPT endpoint",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "HTTPS",
+      "summary": "The remote service behind chatgpt.com that the reviewer can now reach.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "trigger-to-job",
+      "from": "workflow-trigger",
+      "to": "review-job",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "starts",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "job-reads-allowlist",
+      "from": "review-job",
+      "to": "egress-allowlist",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "applies network policy",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 167,
+          "endLine": 171
+        }
+      ]
+    },
+    {
+      "id": "allowlist-permits-chatgpt",
+      "from": "egress-allowlist",
+      "to": "chatgpt-host",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "permits :443",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The one line this change adds: chatgpt.com:443 joins the set of destinations the job may reach.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 170
+        }
+      ]
+    },
+    {
+      "id": "allowlist-permits-openai",
+      "from": "egress-allowlist",
+      "to": "openai-api",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "permits :443",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 169
+        }
+      ]
+    },
+    {
+      "id": "allowlist-permits-ghcr",
+      "from": "egress-allowlist",
+      "to": "ghcr",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "permits :443",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 165
+        }
+      ]
+    },
+    {
+      "id": "allowlist-permits-pkg",
+      "from": "egress-allowlist",
+      "to": "pkg-containers",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "permits :443",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 166
+        }
+      ]
+    },
+    {
+      "id": "job-runs-container",
+      "from": "review-job",
+      "to": "review-container",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "docker run",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "container-calls-chatgpt",
+      "from": "review-container",
+      "to": "chatgpt-endpoint",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "HTTPS",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reviewer's outbound call to the ChatGPT endpoint. The call itself is unchanged; what changed is that the network policy now lets it through.",
+      "files": []
+    },
+    {
+      "id": "guard-follows-allowlist",
+      "from": "egress-allowlist",
+      "to": "runner-guard",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "next step",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 172
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "review-egress-flow",
+      "title": "Review job egress after the allowlist change",
+      "summary": "How a review run reaches the outside world, and where the new host sits in that path.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "workflow-trigger",
+          "label": "Trigger"
+        },
+        {
+          "node": "review-job",
+          "label": "Review job"
+        },
+        {
+          "node": "egress-allowlist",
+          "label": "Allowlist"
+        },
+        {
+          "node": "review-container",
+          "label": "Reviewer"
+        },
+        {
+          "node": "chatgpt-endpoint",
+          "label": "ChatGPT"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m-trigger",
+          "from": "workflow-trigger",
+          "to": "review-job",
+          "label": "pull_request event",
+          "kind": "async",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "m-apply-policy",
+          "from": "review-job",
+          "to": "egress-allowlist",
+          "label": "apply egress policy",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 167,
+              "endLine": 171
+            }
+          ]
+        },
+        {
+          "id": "m-add-host",
+          "from": "egress-allowlist",
+          "to": "egress-allowlist",
+          "label": "add chatgpt.com:443",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The single added line. Every other entry in the list is untouched.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 170
+            }
+          ]
+        },
+        {
+          "id": "m-run-container",
+          "from": "review-job",
+          "to": "review-container",
+          "label": "docker run reviewer",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "m-call-chatgpt",
+          "from": "review-container",
+          "to": "chatgpt-endpoint",
+          "label": "HTTPS request",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Previously blocked by the allowlist; now permitted.",
+          "files": []
+        },
+        {
+          "id": "m-response",
+          "from": "chatgpt-endpoint",
+          "to": "review-container",
+          "label": "review response",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 1,
+    "deletions": 0,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "view-egress-context",
+      "title": "Review job egress context",
+      "lens": "architecture",
+      "summary": "The review workflow, the runner it executes on, the egress allowlist it applies and the external hosts that allowlist governs.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-allowlist-detail",
+      "title": "Allowlist entries",
+      "lens": "architecture",
+      "summary": "The individual host entries in the egress allowlist, with the newly added chatgpt.com:443 highlighted against the unchanged neighbours.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "egress-allowlist",
+          "chatgpt-host",
+          "openai-api",
+          "ghcr",
+          "pkg-containers"
+        ],
+        "edges": [
+          "allowlist-permits-chatgpt",
+          "allowlist-permits-openai",
+          "allowlist-permits-ghcr",
+          "allowlist-permits-pkg"
+        ],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "view-egress-flow",
+      "title": "Egress sequence",
+      "lens": "data-flow",
+      "summary": "The ordered path from workflow trigger to the ChatGPT endpoint, showing where the new allowlist entry takes effect.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "review-egress-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

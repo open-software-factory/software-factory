@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "49b3b806c4a16ba122c0c0013d5e64a8167c29e0",
+    "contentHash": "3e7c2702005daf2512d8179234d1d95a"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "view-egress-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-egress-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dd7ad9de716e47860ed354ef2c30ff6c",
+      "bytes": 18575,
+      "width": 1708,
+      "height": 646,
+      "animated": true,
+      "path": "view-egress-context-light-dd7ad9de716e47860ed354ef2c30ff6c.svg"
+    },
+    {
+      "id": "view-egress-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-egress-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9b83ffd0368b523d70b4f5cbb32d227e",
+      "bytes": 18732,
+      "width": 1708,
+      "height": 646,
+      "animated": true,
+      "path": "view-egress-context-dark-9b83ffd0368b523d70b4f5cbb32d227e.svg"
+    },
+    {
+      "id": "view-allowlist-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-allowlist-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "487e5ce7d7f0637603bffaf921f354dd",
+      "bytes": 10074,
+      "width": 466,
+      "height": 418,
+      "animated": true,
+      "path": "view-allowlist-detail-light-487e5ce7d7f0637603bffaf921f354dd.svg"
+    },
+    {
+      "id": "view-allowlist-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-allowlist-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dcf38c9cfea7804f59d80e63f9b71da8",
+      "bytes": 10153,
+      "width": 466,
+      "height": 418,
+      "animated": true,
+      "path": "view-allowlist-detail-dark-dcf38c9cfea7804f59d80e63f9b71da8.svg"
+    },
+    {
+      "id": "view-egress-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "view-egress-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "80ce76da3624f59a6999147f9ff5a1ee",
+      "bytes": 12790,
+      "width": 1326,
+      "height": 391,
+      "animated": true,
+      "path": "view-egress-flow-light-80ce76da3624f59a6999147f9ff5a1ee.svg"
+    },
+    {
+      "id": "view-egress-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "view-egress-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fa0352b466bb87e6cf0cbe641be4b0f1",
+      "bytes": 12891,
+      "width": 1326,
+      "height": 391,
+      "animated": true,
+      "path": "view-egress-flow-dark-fa0352b466bb87e6cf0cbe641be4b0f1.svg"
+    }
+  ]
+}
