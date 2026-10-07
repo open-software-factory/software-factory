@@ -249,7 +249,7 @@ fn a_question_line_is_asked_with_no_changed_file() {
             question: QUESTION_MARKER_TEXT.to_string(),
         }
     );
-    assert!(result.changed_files.is_empty());
+    assert_eq!(result.changed_files, Vec::<String>::new());
 }
 
 #[test]
@@ -527,7 +527,7 @@ fn an_empty_repository_path_is_rejected() {
         error,
         HarnessError::Rejected("the repository path is empty".to_string())
     );
-    assert!(runner.commands().is_empty());
+    assert_eq!(runner.commands(), Vec::<osf::harness::CommandSpec>::new());
 }
 
 #[test]

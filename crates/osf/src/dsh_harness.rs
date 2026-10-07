@@ -839,7 +839,7 @@ mod tests {
 
     #[test]
     fn git_env_of_an_empty_environment_is_empty() {
-        assert!(git_env(&config()).is_empty());
+        assert_eq!(git_env(&config()), Vec::<(String, String)>::new());
     }
 
     #[test]
@@ -1187,7 +1187,7 @@ mod tests {
 
     #[test]
     fn parse_changed_files_on_empty_output_is_empty() {
-        assert!(parse_changed_files("").is_empty());
+        assert_eq!(parse_changed_files(""), Vec::<String>::new());
     }
 
     #[test]
