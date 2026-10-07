@@ -167,6 +167,7 @@ jobs:
             ghcr.io:443
             pkg-containers.githubusercontent.com:443
             api.openai.com:443
+            chatgpt.com:443
 
       - name: Require the Linux runner with Docker this workflow assumes
         if: runner.os != 'Linux'
