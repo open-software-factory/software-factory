@@ -645,11 +645,16 @@ mod tests {
 
     #[test]
     fn a_number_in_prose_with_no_keyword_names_nothing() {
-        assert!(candidates_both(
-            "See #5 and also open-software-factory/software-factory#6 for background."
-        )
-        .is_empty());
-        assert!(candidates_both("An entity &#123; is not a reference.").is_empty());
+        assert_eq!(
+            candidates_both(
+                "See #5 and also open-software-factory/software-factory#6 for background."
+            ),
+            Vec::<Reference>::new()
+        );
+        assert_eq!(
+            candidates_both("An entity &#123; is not a reference."),
+            Vec::<Reference>::new()
+        );
     }
 
     #[test]
@@ -885,7 +890,7 @@ mod tests {
     #[test]
     fn a_tilde_fenced_block_hides_an_issue_line() {
         let body = "~~~\nIssue: #123\n~~~";
-        assert!(candidates_both(body).is_empty());
+        assert_eq!(candidates_both(body), Vec::<Reference>::new());
     }
 
     #[test]
@@ -925,7 +930,10 @@ mod tests {
 
     #[test]
     fn an_unindented_fence_line_ends_the_list_item_and_opens_a_new_fence() {
-        assert!(candidates_both("- ```\n  Issue: #1\n```\nCloses #44").is_empty());
+        assert_eq!(
+            candidates_both("- ```\n  Issue: #1\n```\nCloses #44"),
+            Vec::<Reference>::new()
+        );
     }
 
     #[test]
@@ -963,7 +971,10 @@ mod tests {
 
     #[test]
     fn an_inline_code_span_hides_a_closing_keyword() {
-        assert!(candidates_both("Run `Closes #5` now.").is_empty());
+        assert_eq!(
+            candidates_both("Run `Closes #5` now."),
+            Vec::<Reference>::new()
+        );
     }
 
     #[test]
@@ -1076,18 +1087,24 @@ mod tests {
 
     #[test]
     fn an_html_comment_on_one_line_hides_an_issue_line() {
-        assert!(candidates_both("<!-- Issue: #123 -->").is_empty());
+        assert_eq!(
+            candidates_both("<!-- Issue: #123 -->"),
+            Vec::<Reference>::new()
+        );
     }
 
     #[test]
     fn an_html_comment_over_several_lines_hides_an_issue_line() {
-        assert!(candidates_both("<!--\nIssue: #123\n-->").is_empty());
+        assert_eq!(
+            candidates_both("<!--\nIssue: #123\n-->"),
+            Vec::<Reference>::new()
+        );
     }
 
     #[test]
     fn a_block_quote_line_is_ignored() {
-        assert!(candidates_both("> Issue: #123").is_empty());
-        assert!(candidates_both("  > Closes #5").is_empty());
+        assert_eq!(candidates_both("> Issue: #123"), Vec::<Reference>::new());
+        assert_eq!(candidates_both("  > Closes #5"), Vec::<Reference>::new());
     }
 
     #[test]
