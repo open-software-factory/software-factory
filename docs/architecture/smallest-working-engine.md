@@ -1,6 +1,6 @@
 # The smallest working engine
 
-Status: design. The boundary is [decision 0008](decisions/0008-the-smallest-working-engine.md). Date: 2026-09-20.
+Status: design. The boundary is [decision 0008](decisions/0008-the-smallest-working-engine.md). Date: 2026-09-20, amended 2026-10-05: verifying is a step and no longer a state.
 
 The smallest working engine is the smallest version of the engine that does one useful job from end to end. This document says what that job is, what stays outside it, which components do it, what passes between them, and which decisions it settles. The work items that build it live in the tracker.
 
@@ -13,7 +13,7 @@ The engine takes one ready work item and returns one pull request that is verifi
 | Pick | The engine reads one work item the tracker marks as ready, with its title, body, repository and dependencies. | The work item, provider-qualified, and the fact that it was read. |
 | Start | The engine starts the default sandbox on the local platform, opens a branch and a worktree for the work item, and starts a run. | A run-started event with the actor: the coding agent, its model, and its model family. |
 | Implement | The coding agent works inside the sandbox on the work item, with the repository's own skills and rules composed in. | The agent's session identifier, its cost when known, and the change: branch and head commit. |
-| Verify | The engine runs the repository's deterministic checks through `osf verify`. | One verifier-run event per check, with command, tool version, exit status, timing, and whether it ran at all. Located findings in SARIF. |
+| Verify | The engine runs the repository's deterministic checks through `osf verify`. | The verifying step, entered when the verifier runner starts. One verifier-run event per check, with command, tool version, exit status, timing, and whether it ran at all. Located findings in SARIF. |
 | Review | A second harness, of a different model family, reads the change and posts findings. | A review-run event with the round number and the scope it read, and one finding event per finding. |
 | Report | The engine opens the pull request, writes the status block, and links the run's evidence. | The state change to in review, and the run-complete event carrying the journal's head hash. |
 | Hand over | The work item waits for a person, or the engine loops once more on the review's must-fix findings. | Attention raised when the item needs a person. |
@@ -67,13 +67,12 @@ The event schema is the first contract written, before any component, and it liv
 
 ## The work item lifecycle in this slice
 
-The states are [decision 0005](decisions/0005-the-factory-domain-model.md)'s. This slice uses the ones the job reaches.
+The states are [decision 0005](decisions/0005-the-factory-domain-model.md)'s. This slice uses the ones the job reaches. Verifying is not a state. It is a step. The journal records the step, and the projections and the console show it. No forge field holds the step. The step starts when the agent's change exists and the verifier runner starts.
 
 | State | Entered when |
 |---|---|
 | ready | The tracker marks the item ready. The engine reads it. |
 | in progress | The run starts. |
-| verifying | The agent's change exists and the verifier runner starts. |
 | in review | The review round posts and the pull request opens. |
 | blocked, with a cause | The agent asks a question a person must answer, a dependency is unmet, or a hold needs a person. The cause is one of: dependency, human, clarification, ambiguous, capacity. |
 | failed | The run ends without a change, or the verifier runner could not run. |
