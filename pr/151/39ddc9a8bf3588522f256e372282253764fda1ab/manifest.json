@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "39ddc9a8bf3588522f256e372282253764fda1ab",
+    "contentHash": "4f7bfb2a569dc7950828b583832bed98"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d1d78be8aa6362a07e53cea3b5d2b7a9",
+      "bytes": 30847,
+      "width": 1758,
+      "height": 1102,
+      "animated": false,
+      "path": "container-view-light-d1d78be8aa6362a07e53cea3b5d2b7a9.svg"
+    },
+    {
+      "id": "container-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a1ecbdea020bba88f82166b0deb4d2e9",
+      "bytes": 31228,
+      "width": 1758,
+      "height": 1102,
+      "animated": false,
+      "path": "container-view-dark-a1ecbdea020bba88f82166b0deb4d2e9.svg"
+    },
+    {
+      "id": "hooks-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hooks-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "468c57f89c5c2bc987b17b3d70b2f184",
+      "bytes": 13441,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "hooks-view-light-468c57f89c5c2bc987b17b3d70b2f184.svg"
+    },
+    {
+      "id": "hooks-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hooks-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "79d673b73ec616283261a43c6941f603",
+      "bytes": 13588,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "hooks-view-dark-79d673b73ec616283261a43c6941f603.svg"
+    },
+    {
+      "id": "prompt-hook-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "prompt-hook-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7de7f4f104b4f738fd7ac39b793315c6",
+      "bytes": 12631,
+      "width": 1926,
+      "height": 337,
+      "animated": true,
+      "path": "prompt-hook-flow-light-7de7f4f104b4f738fd7ac39b793315c6.svg"
+    },
+    {
+      "id": "prompt-hook-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "prompt-hook-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "016f89e79fa275871227ad47cd6e05c3",
+      "bytes": 12766,
+      "width": 1926,
+      "height": 337,
+      "animated": true,
+      "path": "prompt-hook-flow-dark-016f89e79fa275871227ad47cd6e05c3.svg"
+    },
+    {
+      "id": "commit-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "commit-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e25b8c8962376c67e37f51afa0eab145",
+      "bytes": 12121,
+      "width": 1611,
+      "height": 353,
+      "animated": true,
+      "path": "commit-flow-light-e25b8c8962376c67e37f51afa0eab145.svg"
+    },
+    {
+      "id": "commit-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "commit-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "689a89ca2e5922ac55fc2f73d264b835",
+      "bytes": 12245,
+      "width": 1611,
+      "height": 353,
+      "animated": true,
+      "path": "commit-flow-dark-689a89ca2e5922ac55fc2f73d264b835.svg"
+    }
+  ]
+}
