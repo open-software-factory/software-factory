@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "devcontainer-agent-toolchain",
+    "headSha": "2a98c712f736c4a1761fdd4e8b6450822a5f506b",
+    "contentHash": "71bb4fd8faaae200141c05149ef4ad24"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "devcontainer-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "devcontainer-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "617ed7a0e6b64dfc8f3f70cfef054af0",
+      "bytes": 40241,
+      "width": 2273,
+      "height": 800,
+      "animated": false,
+      "path": "devcontainer-context-light-617ed7a0e6b64dfc8f3f70cfef054af0.svg"
+    },
+    {
+      "id": "devcontainer-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "devcontainer-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f6056d07108be6d3650a246a57820847",
+      "bytes": 40732,
+      "width": 2273,
+      "height": 800,
+      "animated": false,
+      "path": "devcontainer-context-dark-f6056d07108be6d3650a246a57820847.svg"
+    },
+    {
+      "id": "agent-hook-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2532bb8bc4ed3c638efd9c3557d55e2a",
+      "bytes": 20549,
+      "width": 900,
+      "height": 646,
+      "animated": false,
+      "path": "agent-hook-wiring-light-2532bb8bc4ed3c638efd9c3557d55e2a.svg"
+    },
+    {
+      "id": "agent-hook-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agent-hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "80f7f46f338c9e2db8dbb2f0711a2d1a",
+      "bytes": 20794,
+      "width": 900,
+      "height": 646,
+      "animated": false,
+      "path": "agent-hook-wiring-dark-80f7f46f338c9e2db8dbb2f0711a2d1a.svg"
+    },
+    {
+      "id": "toolchain-provenance-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "toolchain-provenance",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a42b5b09ebd216d2362163d9be1a9165",
+      "bytes": 21511,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "toolchain-provenance-light-a42b5b09ebd216d2362163d9be1a9165.svg"
+    },
+    {
+      "id": "toolchain-provenance-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "toolchain-provenance",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5e56749e9d4bcf53fb5e24aa7ba7e027",
+      "bytes": 21803,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "toolchain-provenance-dark-5e56749e9d4bcf53fb5e24aa7ba7e027.svg"
+    }
+  ]
+}
