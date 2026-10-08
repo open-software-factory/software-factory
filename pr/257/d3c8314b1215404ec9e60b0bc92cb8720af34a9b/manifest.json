@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-review-container-only-sandbox",
+    "headSha": "d3c8314b1215404ec9e60b0bc92cb8720af34a9b",
+    "contentHash": "ac270df5abb4b278d3056ee6eab9e837"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d96c8f549dff77023772a1993d52ee06",
+      "bytes": 33980,
+      "width": 1779,
+      "height": 988,
+      "animated": false,
+      "path": "review-pipeline-light-d96c8f549dff77023772a1993d52ee06.svg"
+    },
+    {
+      "id": "review-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d4b964c31b3bcd4d37d90520eba3dbf4",
+      "bytes": 34357,
+      "width": 1779,
+      "height": 988,
+      "animated": false,
+      "path": "review-pipeline-dark-d4b964c31b3bcd4d37d90520eba3dbf4.svg"
+    },
+    {
+      "id": "reviewer-selection-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-selection",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bf21e95a820cf339e9021836cde55dc0",
+      "bytes": 12292,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "reviewer-selection-light-bf21e95a820cf339e9021836cde55dc0.svg"
+    },
+    {
+      "id": "reviewer-selection-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-selection",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fd513851065996840388939af3009c6b",
+      "bytes": 12453,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "reviewer-selection-dark-fd513851065996840388939af3009c6b.svg"
+    },
+    {
+      "id": "kept-home-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "kept-home",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9f13bde8a94bef2cd981403d1df22ebe",
+      "bytes": 12397,
+      "width": 1284,
+      "height": 760,
+      "animated": false,
+      "path": "kept-home-light-9f13bde8a94bef2cd981403d1df22ebe.svg"
+    },
+    {
+      "id": "kept-home-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "kept-home",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ef7bb0bd11d6a8a2d558fb564856b000",
+      "bytes": 12534,
+      "width": 1284,
+      "height": 760,
+      "animated": false,
+      "path": "kept-home-dark-ef7bb0bd11d6a8a2d558fb564856b000.svg"
+    }
+  ]
+}

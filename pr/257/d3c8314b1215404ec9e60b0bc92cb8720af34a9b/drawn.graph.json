@@ -1,0 +1,1102 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-review-container-only-sandbox",
+  "generatedAt": "2026-10-08T13:58:35.186Z",
+  "title": "Reviewers run container-only: drop host sandbox detection",
+  "summary": "The review pipeline no longer tries to detect whether osf runs inside the factory container, and no longer probes an agent's own read-only sandbox before starting it. Codex now always runs with `--dangerously-bypass-approvals-and-sandbox`, because the container is treated as the only wall; the `sandbox_check` field, the marker-file trust logic and the pre-flight check are gone. In exchange, each reviewer job now keeps its temporary home: `OSF_KEEP_REVIEW_HOME=1` plus `TMPDIR=/out/reviewer-home` make the child's stdout/stderr and session files land in a mounted folder that is uploaded as a diagnostic artifact, with seeded login files stripped out first.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d20306cdd4355b5ee486c238424eadaea3c26ccc",
+      "ref": "d20306cdd4355b5ee486c238424eadaea3c26ccc"
+    },
+    "head": {
+      "sha": "d3c8314b1215404ec9e60b0bc92cb8720af34a9b",
+      "ref": "d3c8314b1215404ec9e60b0bc92cb8720af34a9b"
+    },
+    "pullRequest": {
+      "number": 257,
+      "url": "https://github.com/open-software-factory/software-factory/pull/257"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workflow",
+      "label": "GitHub Actions",
+      "subtitle": "review.yml jobs",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The three reviewer jobs (codex, claude, opencode) each prepare a mounted reviewer-home folder, pass the keep-home environment into the container, and upload the folder as an artifact."
+    },
+    {
+      "id": "osf",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The review runner builds a reviewer roster, prepares a fresh home, runs the agent child, and now preserves that home when asked instead of always deleting it."
+    },
+    {
+      "id": "agent",
+      "label": "Reviewer agents",
+      "subtitle": "codex / claude / opencode",
+      "order": 2,
+      "delta": "modified",
+      "summary": "Codex loses its host read-only mode and sandbox check; every agent now runs in its single documented container mode."
+    },
+    {
+      "id": "artifacts",
+      "label": "Run artifacts",
+      "subtitle": "uploaded from out/",
+      "order": 3,
+      "delta": "added",
+      "summary": "The kept reviewer home is uploaded alongside the existing answer JSON, giving a post-mortem record of child output and session files."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "reviewer jobs + collector",
+      "summary": "The workflow that runs each reviewer in the factory image and then collects their answers. This change adds a mounted reviewer-home directory, the keep-home environment variables, and an upload step per reviewer job.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 206,
+          "endLine": 270
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-job-codex",
+      "label": "review codex job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "group": "reviewer-jobs",
+      "subtitle": "docker run + upload",
+      "summary": "Runs osf review run in the review image with CODEX_API_KEY. Now also sets OSF_KEEP_REVIEW_HOME=1 and TMPDIR=/out/reviewer-home, and uploads out/reviewer-home as review-home-codex.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 240,
+          "endLine": 275
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-job-claude",
+      "label": "review claude job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "group": "reviewer-jobs",
+      "subtitle": "docker run + upload",
+      "summary": "Same shape as the codex job: keeps the reviewer home under the mounted out/ directory and uploads it as review-home-claude.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 357,
+          "endLine": 392
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-job-opencode",
+      "label": "review opencode job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "group": "reviewer-jobs",
+      "subtitle": "docker run + upload",
+      "summary": "Same shape again, uploading review-home-opencode.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 476,
+          "endLine": 511
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-home-artifact",
+      "label": "review-home-* artifact",
+      "kind": "datastore",
+      "delta": "added",
+      "lane": "artifacts",
+      "subtitle": "actions/upload-artifact",
+      "summary": "The kept reviewer home, uploaded with if: always() so a failed run still leaves its child stdout/stderr and session files for diagnosis.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 265,
+          "endLine": 275
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "answer-artifact",
+      "label": "answer JSON artifact",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "artifacts",
+      "subtitle": "out/codex.json etc.",
+      "summary": "The reviewer's validated answer, uploaded as before. It remains the only thing the collector job reads; the kept home is never an input to a verdict.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 262,
+          "endLine": 265
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run",
+      "label": "osf review run",
+      "kind": "service",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "crates/osf/src/reviewers.rs",
+      "summary": "The review entry point. It builds the roster, prepares each reviewer's home, runs the child, validates the answer, and now preserves the home when OSF_KEEP_REVIEW_HOME is set.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 397,
+          "endLine": 430
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "roster",
+      "label": "roster()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "reviewers::roster",
+      "summary": "Builds the reviewer list from osf.toml. It no longer takes an in_container flag and no longer consults agents::in_factory_container; each reviewer is built in its own single container mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 131,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-from-agent",
+      "label": "Reviewer::from_agent",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "mode selection",
+      "summary": "Chooses the read-only mode for a reviewer. The container-mode branch and the sandbox_check field are gone: read_only is now simply review.in_container.or(review.read_only).",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 92,
+          "endLine": 120
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-child",
+      "label": "run_child",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "spawn + capture",
+      "summary": "Spawns the agent, captures stdout and stderr, and now keeps the stderr text instead of discarding it: it is written into the preserved home, and a failed run prints its last non-empty line to the console.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 583,
+          "endLine": 700
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "preserve-home",
+      "label": "preserve_home",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf",
+      "subtitle": "keep-home writer",
+      "summary": "When OSF_KEEP_REVIEW_HOME is set, removes the seeded login files from the reviewer home and writes child.stdout and child.stderr into it. The home is a record only; nothing reads a verdict from it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 536,
+          "endLine": 560
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-home",
+      "label": "RunHome",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "fresh home + Drop",
+      "summary": "The per-run temporary home. Its Drop now checks keep_home() and leaves the directory in place, printing where it was kept, instead of always removing it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 318,
+          "endLine": 340
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "sandbox-check",
+      "label": "check_sandbox",
+      "kind": "function",
+      "delta": "removed",
+      "lane": "osf",
+      "subtitle": "pre-flight probe",
+      "summary": "Ran the agent's own sandbox around a harmless command before the review and reported could-not-run on failure. Deleted along with the sandbox_check field and its 30-second limit.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 427,
+          "endLine": 520,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "container-detection",
+      "label": "in_factory_container",
+      "kind": "function",
+      "delta": "removed",
+      "lane": "osf",
+      "subtitle": "marker trust logic",
+      "summary": "Decided whether osf ran inside the factory container by trusting /opt/factory/bin/osf only when it was a root-owned, non-group-writable regular file and /.dockerenv existed. Deleted with its marker constants and tests.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 21,
+          "endLine": 80,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-registry",
+      "label": "AGENTS registry",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "agent",
+      "subtitle": "crates/osf/src/agents.rs",
+      "summary": "The static table of agents and their review settings. The Review struct loses sandbox_check, and codex loses its host read-only mode, leaving only the in-container bypass mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 105,
+          "endLine": 115
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex",
+      "label": "codex",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "agent",
+      "subtitle": "--dangerously-bypass-approvals-and-sandbox",
+      "summary": "The codex reviewer. It now always runs with its own sandbox off, on the premise that the factory container is the wall; the --sandbox read-only mode and the codex sandbox -- true check are gone.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 391,
+          "endLine": 420
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude",
+      "label": "claude",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agent",
+      "subtitle": "file tools, no shell",
+      "summary": "Keeps its own read-only mode and never had a sandbox check, so its behaviour is unchanged; it is the neighbour that shows the new codex path is the odd one out.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 463,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "opencode",
+      "label": "opencode",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agent",
+      "subtitle": "OPENROUTER_API_KEY",
+      "summary": "Unchanged reviewer; it only gains the kept-home behaviour shared by every agent.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 370,
+          "endLine": 380
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "workflow-runs-codex",
+      "from": "review-workflow",
+      "to": "reviewer-job-codex",
+      "kind": "call",
+      "delta": "modified",
+      "label": "job",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow defines the codex reviewer job and now passes the keep-home environment into it.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 240,
+          "endLine": 250
+        }
+      ]
+    },
+    {
+      "id": "workflow-runs-claude",
+      "from": "review-workflow",
+      "to": "reviewer-job-claude",
+      "kind": "call",
+      "delta": "modified",
+      "label": "job",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 357,
+          "endLine": 365
+        }
+      ]
+    },
+    {
+      "id": "workflow-runs-opencode",
+      "from": "review-workflow",
+      "to": "reviewer-job-opencode",
+      "kind": "call",
+      "delta": "modified",
+      "label": "job",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 476,
+          "endLine": 484
+        }
+      ]
+    },
+    {
+      "id": "codex-job-invokes-osf",
+      "from": "reviewer-job-codex",
+      "to": "review-run",
+      "kind": "call",
+      "delta": "modified",
+      "label": "osf review run",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The job runs osf review run inside the review image, now with OSF_KEEP_REVIEW_HOME=1 and TMPDIR pointed at the mounted out/reviewer-home.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 240,
+          "endLine": 250
+        }
+      ]
+    },
+    {
+      "id": "claude-job-invokes-osf",
+      "from": "reviewer-job-claude",
+      "to": "review-run",
+      "kind": "call",
+      "delta": "modified",
+      "label": "osf review run",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 357,
+          "endLine": 365
+        }
+      ]
+    },
+    {
+      "id": "opencode-job-invokes-osf",
+      "from": "reviewer-job-opencode",
+      "to": "review-run",
+      "kind": "call",
+      "delta": "modified",
+      "label": "osf review run",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 476,
+          "endLine": 484
+        }
+      ]
+    },
+    {
+      "id": "run-builds-roster",
+      "from": "review-run",
+      "to": "roster",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The run builds its reviewer list; roster no longer needs a container-detection answer to do it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 397,
+          "endLine": 410
+        }
+      ]
+    },
+    {
+      "id": "roster-uses-from-agent",
+      "from": "roster",
+      "to": "reviewer-from-agent",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each selected agent becomes a Reviewer in its single container mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 131,
+          "endLine": 150
+        }
+      ]
+    },
+    {
+      "id": "from-agent-reads-registry",
+      "from": "reviewer-from-agent",
+      "to": "agent-registry",
+      "kind": "data",
+      "delta": "modified",
+      "label": "Review settings",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Reads the agent's review settings, now without sandbox_check and with codex's read_only set to None.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 92,
+          "endLine": 120
+        }
+      ]
+    },
+    {
+      "id": "run-spawns-child",
+      "from": "review-run",
+      "to": "run-child",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The run spawns the agent child and captures its output.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 583,
+          "endLine": 600
+        }
+      ]
+    },
+    {
+      "id": "run-child-invokes-codex",
+      "from": "run-child",
+      "to": "codex",
+      "kind": "call",
+      "delta": "modified",
+      "label": "bypass sandbox",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Codex is now always started with --dangerously-bypass-approvals-and-sandbox; the host read-only path is unreachable.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 391,
+          "endLine": 420
+        }
+      ]
+    },
+    {
+      "id": "run-child-invokes-claude",
+      "from": "run-child",
+      "to": "claude",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "read-only tools",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 463,
+          "endLine": 470
+        }
+      ]
+    },
+    {
+      "id": "run-child-invokes-opencode",
+      "from": "run-child",
+      "to": "opencode",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 370,
+          "endLine": 380
+        }
+      ]
+    },
+    {
+      "id": "run-child-preserves-home",
+      "from": "run-child",
+      "to": "preserve-home",
+      "kind": "call",
+      "delta": "added",
+      "label": "stdout + stderr",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "After the child exits, its captured output is handed to preserve_home, which writes it into the kept home.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 672,
+          "endLine": 700
+        }
+      ]
+    },
+    {
+      "id": "preserve-home-writes-home",
+      "from": "preserve-home",
+      "to": "run-home",
+      "kind": "data",
+      "delta": "added",
+      "label": "child.stdout / child.stderr",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Writes the child's output into the run home and strips the seeded login files out of it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 536,
+          "endLine": 560
+        }
+      ]
+    },
+    {
+      "id": "run-home-kept-on-drop",
+      "from": "run-home",
+      "to": "review-home-artifact",
+      "kind": "data",
+      "delta": "added",
+      "label": "kept when OSF_KEEP_REVIEW_HOME",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Drop leaves the directory in place when the keep-home variable is set, so the mounted folder survives the container and can be uploaded.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 318,
+          "endLine": 340
+        }
+      ]
+    },
+    {
+      "id": "codex-job-uploads-home",
+      "from": "reviewer-job-codex",
+      "to": "review-home-artifact",
+      "kind": "data",
+      "delta": "added",
+      "label": "upload-artifact",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The job uploads out/reviewer-home as review-home-codex with if: always().",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 265,
+          "endLine": 275
+        }
+      ]
+    },
+    {
+      "id": "claude-job-uploads-home",
+      "from": "reviewer-job-claude",
+      "to": "review-home-artifact",
+      "kind": "data",
+      "delta": "added",
+      "label": "upload-artifact",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 382,
+          "endLine": 392
+        }
+      ]
+    },
+    {
+      "id": "opencode-job-uploads-home",
+      "from": "reviewer-job-opencode",
+      "to": "review-home-artifact",
+      "kind": "data",
+      "delta": "added",
+      "label": "upload-artifact",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 501,
+          "endLine": 511
+        }
+      ]
+    },
+    {
+      "id": "codex-job-uploads-answer",
+      "from": "reviewer-job-codex",
+      "to": "answer-artifact",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "out/codex.json",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 262,
+          "endLine": 265
+        }
+      ]
+    },
+    {
+      "id": "run-child-used-sandbox-check",
+      "from": "run-child",
+      "to": "sandbox-check",
+      "kind": "call",
+      "delta": "removed",
+      "label": "pre-flight probe",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pre-flight sandbox probe that used to gate every reviewer run is gone.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 397,
+          "endLine": 405,
+          "revision": "base"
+        }
+      ]
+    },
+    {
+      "id": "roster-used-container-detection",
+      "from": "roster",
+      "to": "container-detection",
+      "kind": "call",
+      "delta": "removed",
+      "label": "in_factory_container()",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Roster no longer asks whether osf runs inside the factory container.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 131,
+          "endLine": 150,
+          "revision": "base"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "reviewer-run-keeps-home",
+      "title": "One reviewer run, with its home kept",
+      "summary": "How a reviewer job turns into a kept home: the workflow passes the keep-home environment, osf builds the roster without container detection, runs the agent child, and writes the child's output into the mounted home before the container exits.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "reviewer-job-codex",
+          "label": "reviewer job"
+        },
+        {
+          "node": "review-run",
+          "label": "osf review run"
+        },
+        {
+          "node": "run-child",
+          "label": "run_child"
+        },
+        {
+          "node": "codex",
+          "label": "codex"
+        },
+        {
+          "node": "run-home",
+          "label": "RunHome"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-env",
+          "from": "reviewer-job-codex",
+          "to": "review-run",
+          "label": "OSF_KEEP_REVIEW_HOME=1, TMPDIR=/out/reviewer-home",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The job also pre-creates out/reviewer-home and mounts out/ into the container.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 240,
+              "endLine": 250
+            }
+          ]
+        },
+        {
+          "id": "step-roster",
+          "from": "review-run",
+          "to": "review-run",
+          "label": "roster() without container detection",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "Each reviewer is built in its single container mode; codex gets read_only = None.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 131,
+              "endLine": 150
+            }
+          ]
+        },
+        {
+          "id": "step-spawn",
+          "from": "review-run",
+          "to": "run-child",
+          "label": "spawn reviewer",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 583,
+              "endLine": 600
+            }
+          ]
+        },
+        {
+          "id": "step-codex",
+          "from": "run-child",
+          "to": "codex",
+          "label": "codex exec --dangerously-bypass-approvals-and-sandbox",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "No sandbox check runs first any more; the container is the wall.",
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs",
+              "startLine": 391,
+              "endLine": 420
+            }
+          ]
+        },
+        {
+          "id": "step-answer",
+          "from": "codex",
+          "to": "run-child",
+          "label": "answer JSON on stdout",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 672,
+              "endLine": 690
+            }
+          ]
+        },
+        {
+          "id": "step-preserve",
+          "from": "run-child",
+          "to": "run-home",
+          "label": "child.stdout + child.stderr written, login files removed",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "preserve_home strips the seeded login paths so no credential is uploaded.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 536,
+              "endLine": 560
+            }
+          ]
+        },
+        {
+          "id": "step-keep",
+          "from": "run-home",
+          "to": "run-home",
+          "label": "Drop keeps the directory",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Without the variable the home is removed as before.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 318,
+              "endLine": 340
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 6,
+    "additions": 106,
+    "deletions": 542,
+    "chips": [
+      {
+        "label": "Sandbox pre-flight checks",
+        "value": "removed",
+        "tone": "removed"
+      },
+      {
+        "label": "Container detection",
+        "value": "removed",
+        "tone": "removed"
+      },
+      {
+        "label": "Reviewer homes kept",
+        "value": "3 jobs",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "review-pipeline",
+      "title": "Review pipeline",
+      "lens": "architecture",
+      "summary": "The three reviewer jobs, the osf review runner they invoke, the agents it spawns, and the artifacts that come back out.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "reviewer-selection",
+      "title": "Reviewer selection and mode",
+      "lens": "architecture",
+      "summary": "How a repository's osf.toml becomes a Reviewer, and how the container-detection and sandbox-check steps were cut out of that path.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "roster",
+          "reviewer-from-agent",
+          "agent-registry",
+          "codex",
+          "claude",
+          "opencode",
+          "container-detection",
+          "sandbox-check"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "kept-home",
+          "title": "Kept reviewer home",
+          "lens": "architecture",
+          "summary": "The new keep-home path: the environment variable, the Drop behaviour, preserve_home, and the uploaded artifact.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "review-run",
+              "run-child",
+              "preserve-home",
+              "run-home",
+              "review-home-artifact",
+              "reviewer-job-codex"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "walk-jobs",
+        "heading": "Three jobs, one new env",
+        "body": "Each reviewer job now mounts a home folder and sets OSF_KEEP_REVIEW_HOME.",
+        "stage": {
+          "kind": "view",
+          "view": "review-pipeline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "reviewer-job-codex",
+            "reviewer-job-claude",
+            "reviewer-job-opencode"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-roster",
+        "heading": "Roster stops asking",
+        "body": "roster() no longer consults in_factory_container; each agent has one mode.",
+        "stage": {
+          "kind": "view",
+          "view": "reviewer-selection"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "roster",
+            "container-detection",
+            "reviewer-from-agent"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-codex",
+        "heading": "Codex always bypasses",
+        "body": "The host read-only mode and its sandbox check are gone; the container is the wall.",
+        "stage": {
+          "kind": "view",
+          "view": "reviewer-selection"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "codex",
+            "sandbox-check"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-home",
+        "heading": "The home survives",
+        "body": "run_child writes stdout and stderr into the home, and Drop leaves it in place.",
+        "stage": {
+          "kind": "flow",
+          "flow": "reviewer-run-keeps-home"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "step-preserve",
+            "step-keep"
+          ]
+        }
+      },
+      {
+        "id": "walk-artifact",
+        "heading": "Uploaded for diagnosis",
+        "body": "The kept home is uploaded with if: always(), next to the answer JSON.",
+        "stage": {
+          "kind": "view",
+          "view": "review-pipeline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "review-home-artifact",
+            "answer-artifact"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      }
+    ]
+  }
+}
