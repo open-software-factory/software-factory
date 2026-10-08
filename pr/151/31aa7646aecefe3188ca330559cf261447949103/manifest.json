@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "31aa7646aecefe3188ca330559cf261447949103",
+    "contentHash": "4b78650613310a7a653360de016d50c7"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "19d8a5c7a0ec1bb1547ac2c095857c3b",
+      "bytes": 39862,
+      "width": 1873,
+      "height": 760,
+      "animated": false,
+      "path": "container-architecture-light-19d8a5c7a0ec1bb1547ac2c095857c3b.svg"
+    },
+    {
+      "id": "container-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f46e5ed4e3d10aa0c64b17a1aa5317d7",
+      "bytes": 40349,
+      "width": 1873,
+      "height": 760,
+      "animated": false,
+      "path": "container-architecture-dark-f46e5ed4e3d10aa0c64b17a1aa5317d7.svg"
+    },
+    {
+      "id": "hook-wiring-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7c554b8ce3107c296275866f395b0c76",
+      "bytes": 17852,
+      "width": 921,
+      "height": 646,
+      "animated": false,
+      "path": "hook-wiring-light-7c554b8ce3107c296275866f395b0c76.svg"
+    },
+    {
+      "id": "hook-wiring-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hook-wiring",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cb5cbc9bfc4d6453fc9a2a6eba64c64b",
+      "bytes": 18052,
+      "width": 921,
+      "height": 646,
+      "animated": false,
+      "path": "hook-wiring-dark-cb5cbc9bfc4d6453fc9a2a6eba64c64b.svg"
+    },
+    {
+      "id": "build-proofs-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-proofs",
+      "mediaType": "image/svg+xml",
+      "contentHash": "306391ddee755737dc67fae48bacd77b",
+      "bytes": 26722,
+      "width": 1833,
+      "height": 656,
+      "animated": false,
+      "path": "build-proofs-light-306391ddee755737dc67fae48bacd77b.svg"
+    },
+    {
+      "id": "build-proofs-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-proofs",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a61850639af2b67a5e7e80e7b2e8916d",
+      "bytes": 27055,
+      "width": 1833,
+      "height": 656,
+      "animated": false,
+      "path": "build-proofs-dark-a61850639af2b67a5e7e80e7b2e8916d.svg"
+    }
+  ]
+}
