@@ -6,6 +6,11 @@ use std::path::PathBuf;
 /// The codex version this workflow names.
 const CODEX_VERSION: &str = "0.154.0";
 
+/// Environment a reviewer container needs beyond its own provider credential:
+/// where it keeps its temporary files, and whether to keep the reviewer's home
+/// for diagnosis. Neither carries a key.
+const HOUSEKEEPING_ENV: &[&str] = &["TMPDIR", "OSF_KEEP_REVIEW_HOME"];
+
 fn workflow_text() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/review.yml");
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
@@ -295,6 +300,7 @@ fn each_reviewer_job_passes_only_the_credential_its_agent_names() {
             body.lines()
                 .filter_map(|line| line.trim().strip_prefix("-e "))
                 .map(str::trim)
+                .filter(|var| !HOUSEKEEPING_ENV.contains(var))
                 .collect()
         } else {
             env_secret_names(body)
@@ -523,11 +529,12 @@ fn the_codex_job_runs_in_the_review_container() {
         .lines()
         .filter_map(|line| line.trim().strip_prefix("-e "))
         .map(str::trim)
+        .filter(|var| !HOUSEKEEPING_ENV.contains(var))
         .collect();
     assert_eq!(
         envs,
         vec!["CODEX_API_KEY"],
-        "the container gets exactly one -e line"
+        "the container gets its one credential and the housekeeping variables"
     );
     for mount in ["/pr:/pr:ro", "/base:/base:ro", "/work-item:/work-item:ro"] {
         assert!(body.contains(mount), "the codex job mounts {mount}: {body}");
