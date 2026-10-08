@@ -1,0 +1,586 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-08T03:13:41.665Z",
+  "title": "Pin codex to o4-mini in the reviewer agent list",
+  "summary": "The repository's own osf.toml now names an explicit model for the codex reviewer instead of letting it fall back to its built-in default, which returned 401 against the review environment's API key. The reviewers test that asserts the parsed agent-to-model map is updated in lockstep, so the config and the expectation that guards it move together.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "0aa8e41a28dbb3925b9019816356dd3693484638",
+      "ref": "0aa8e41a28dbb3925b9019816356dd3693484638"
+    },
+    "head": {
+      "sha": "3816fbdfb57f9e249e8d7f8b57d9a66ae424c8c6",
+      "ref": "3816fbdfb57f9e249e8d7f8b57d9a66ae424c8c6"
+    },
+    "pullRequest": {
+      "number": 255,
+      "url": "https://github.com/open-software-factory/software-factory/pull/255"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "config",
+      "label": "Configuration",
+      "subtitle": "osf.toml, checked into the repo",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The repository's own osf.toml, which declares the reviewer agent list and the per-agent model overrides."
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "subtitle": "Rust library and its integration tests",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "The osf crate parses osf.toml into the reviewer/agent configuration the rest of the tooling consumes."
+    },
+    {
+      "id": "review-env",
+      "label": "Review environment",
+      "subtitle": "Agent CLIs and their API keys",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The environment where reviewers actually run: each agent CLI is invoked with the configured model and authenticates with the environment's key."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "reviewers + [agents.models]",
+      "summary": "Declares the ordered reviewer list (codex, claude, opencode) and a model per agent. This change adds an explicit codex entry so the codex reviewer no longer falls back to its own default model.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 48,
+          "endLine": 55
+        }
+      ],
+      "badges": [
+        "codex = o4-mini"
+      ]
+    },
+    {
+      "id": "agents-models-table",
+      "label": "[agents.models]",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "group": "osf-toml",
+      "subtitle": "agent name -> model id",
+      "summary": "The table mapping each agent to the model it should be invoked with. An agent left out of this table uses its own default; codex was previously left out and now is not.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 51,
+          "endLine": 55
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-list",
+      "label": "reviewers",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "config",
+      "group": "osf-toml",
+      "subtitle": "[\"codex\", \"claude\", \"opencode\"]",
+      "summary": "The ordered list of agents that review a change. Unchanged by this diff, but it is the reason the codex model entry matters: codex is first in the order.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 48,
+          "endLine": 48
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-config-parser",
+      "label": "osf.toml parser",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "osf-crate",
+      "subtitle": "reads reviewers and agent models",
+      "summary": "The osf crate code that loads osf.toml and exposes the reviewer list and the per-agent model lookup. It is the consumer of both changed lines and is not itself modified.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 460,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-test",
+      "label": "reviewers.rs",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf-crate",
+      "subtitle": "this_repositorys_osf_toml_selects_its_reviewers...",
+      "summary": "Integration test that parses the repository's own osf.toml and asserts the resulting agent-to-model map. Its codex expectation flips from None to Some(\"o4-mini\"), matching the new config entry.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 467,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-cli",
+      "label": "codex agent",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "review-env",
+      "subtitle": "invoked with the configured model",
+      "summary": "The codex CLI that performs a review. It receives the model named in osf.toml; before this change it received no model flag and used its own default.",
+      "files": [],
+      "badges": [
+        "was: gpt-6-astra default"
+      ]
+    },
+    {
+      "id": "claude-cli",
+      "label": "claude agent",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "review-env",
+      "subtitle": "claude-sonnet-5",
+      "summary": "The claude reviewer, already pinned to an explicit model. Included as context: it shows the pattern the codex entry now follows.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "opencode-cli",
+      "label": "opencode agent",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "review-env",
+      "subtitle": "openrouter/qwen/qwen3-coder-next",
+      "summary": "The opencode reviewer, already pinned to an explicit model. Included as context for the same pattern.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-api-key",
+      "label": "review API key",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "review-env",
+      "subtitle": "environment credential",
+      "summary": "The credential the review environment supplies to the agent CLIs. The codex default model was rejected by this key with a 401, which is the reason for the change.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-toml-defines-agents-models",
+      "from": "osf-toml",
+      "to": "agents-models-table",
+      "kind": "data",
+      "delta": "modified",
+      "label": "declares",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The config file declares the per-agent model table that now contains a codex entry.",
+      "files": []
+    },
+    {
+      "id": "osf-toml-defines-reviewers",
+      "from": "osf-toml",
+      "to": "reviewers-list",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "declares",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The same file declares the ordered reviewer list, unchanged here.",
+      "files": []
+    },
+    {
+      "id": "parser-reads-osf-toml",
+      "from": "osf-config-parser",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "parses",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The osf crate reads and parses osf.toml at load time.",
+      "files": []
+    },
+    {
+      "id": "reviewers-test-exercises-parser",
+      "from": "reviewers-test",
+      "to": "osf-config-parser",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "asserts parsed map",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test drives the parser against the repository's real osf.toml and asserts the resulting model lookup.",
+      "files": []
+    },
+    {
+      "id": "parser-yields-codex-model",
+      "from": "osf-config-parser",
+      "to": "codex-cli",
+      "kind": "data",
+      "delta": "modified",
+      "label": "model = o4-mini",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The parsed model for codex is now o4-mini rather than absent, so the codex reviewer is invoked with an explicit model instead of its own default.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 51,
+          "endLine": 53
+        }
+      ]
+    },
+    {
+      "id": "parser-yields-claude-model",
+      "from": "osf-config-parser",
+      "to": "claude-cli",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "model = claude-sonnet-5",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Unchanged: claude was already pinned to an explicit model.",
+      "files": []
+    },
+    {
+      "id": "parser-yields-opencode-model",
+      "from": "osf-config-parser",
+      "to": "opencode-cli",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "model = openrouter/qwen/qwen3-coder-next",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "Unchanged: opencode was already pinned to an explicit model.",
+      "files": []
+    },
+    {
+      "id": "codex-cli-authenticates",
+      "from": "codex-cli",
+      "to": "review-api-key",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "auth",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The codex agent authenticates with the review environment's key. The previous default model was rejected here with a 401; o4-mini is a model the key can use.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "codex-model-resolution",
+      "title": "How codex gets its model",
+      "summary": "The path from the checked-in config to the model the codex reviewer actually runs with, and the test that pins the parsed result.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-toml",
+          "label": "osf.toml"
+        },
+        {
+          "node": "osf-config-parser",
+          "label": "parser"
+        },
+        {
+          "node": "reviewers-test",
+          "label": "reviewers.rs"
+        },
+        {
+          "node": "codex-cli",
+          "label": "codex agent"
+        },
+        {
+          "node": "review-api-key",
+          "label": "API key"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-read-config",
+          "from": "osf-toml",
+          "to": "osf-config-parser",
+          "label": "read [agents.models]",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 51,
+              "endLine": 55
+            }
+          ]
+        },
+        {
+          "id": "step-resolve-codex",
+          "from": "osf-config-parser",
+          "to": "osf-config-parser",
+          "label": "lookup(\"codex\")",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "Before: no entry, so the lookup returned None and codex fell back to its own default. After: the entry resolves to o4-mini.",
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 51,
+              "endLine": 53
+            }
+          ]
+        },
+        {
+          "id": "step-assert-model",
+          "from": "osf-config-parser",
+          "to": "reviewers-test",
+          "label": "Some(\"o4-mini\")",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "The assertion flips from None to Some(\"o4-mini\"), keeping the test in step with the config.",
+          "files": [
+            {
+              "path": "crates/osf/tests/reviewers.rs",
+              "startLine": 467,
+              "endLine": 470
+            }
+          ]
+        },
+        {
+          "id": "step-invoke-codex",
+          "from": "osf-config-parser",
+          "to": "codex-cli",
+          "label": "--model o4-mini",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 51,
+              "endLine": 53
+            }
+          ]
+        },
+        {
+          "id": "step-codex-auth",
+          "from": "codex-cli",
+          "to": "review-api-key",
+          "label": "authenticate",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The default model was rejected here with a 401; o4-mini is accepted.",
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 51,
+              "endLine": 53
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 4,
+    "deletions": 1,
+    "chips": [
+      {
+        "label": "Config lines",
+        "value": "+3",
+        "tone": "added"
+      },
+      {
+        "label": "Test assertions",
+        "value": "1 flipped",
+        "tone": "modified"
+      },
+      {
+        "label": "Agents pinned",
+        "value": "3 of 3",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "reviewer-config-context",
+      "title": "Reviewer configuration and where it lands",
+      "lens": "architecture",
+      "summary": "The checked-in osf.toml, the osf crate that parses it, and the review environment where the resolved models are used.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "osf-toml-internals",
+      "title": "Inside osf.toml",
+      "lens": "architecture",
+      "summary": "The two declarations in the config file: the ordered reviewer list and the per-agent model table that this change edits.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "osf-toml",
+          "agents-models-table",
+          "reviewers-list"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "reviewers-test-scope",
+          "title": "The test that guards the map",
+          "lens": "architecture",
+          "summary": "The single assertion in reviewers.rs that pins the parsed codex model.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "reviewers-test",
+              "osf-config-parser"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "codex-model-resolution-flow",
+      "title": "Codex model resolution",
+      "lens": "data-flow",
+      "summary": "Config to parser to assertion to invocation, ending at the API key that rejected the old default.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "codex-model-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "walk-config",
+        "heading": "The config entry",
+        "body": "osf.toml gains an explicit codex model so the agent stops using its own default.",
+        "stage": {
+          "kind": "view",
+          "view": "osf-toml-internals"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "osf-toml",
+            "agents-models-table"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "walk-parse",
+        "heading": "The parser resolves it",
+        "body": "The osf crate reads the table and now finds a model where it previously found none.",
+        "stage": {
+          "kind": "flow",
+          "flow": "codex-model-resolution"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "step-read-config",
+            "step-resolve-codex"
+          ]
+        }
+      },
+      {
+        "id": "walk-assert",
+        "heading": "The test follows",
+        "body": "The reviewers test expectation flips from None to Some(\"o4-mini\") in the same commit.",
+        "stage": {
+          "kind": "flow",
+          "flow": "codex-model-resolution"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "step-assert-model"
+          ]
+        }
+      },
+      {
+        "id": "walk-invoke",
+        "heading": "The agent runs",
+        "body": "codex is invoked with o4-mini, a model the review environment's key accepts.",
+        "stage": {
+          "kind": "flow",
+          "flow": "codex-model-resolution"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "step-invoke-codex",
+            "step-codex-auth"
+          ]
+        }
+      }
+    ]
+  }
+}
