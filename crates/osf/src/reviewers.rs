@@ -536,10 +536,10 @@ fn prepare_command(
 /// credential, by name). Every other reviewer's credential and login, and
 /// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
 /// process. A missing login path adds a note to `notes`, once.
-/// Writes a reviewer's own record into its home, and takes any seeded login
-/// out of it, when the home is kept for diagnosis. The home is not the
-/// journal: no verdict, finding or reason is ever read from it.
-fn preserve_home(home: &RunHome, reviewer: &Reviewer, stdout: &str, stderr: &str) {
+/// Takes a seeded login out of a reviewer's home when it is kept, so a
+/// credential never rides out with the reviewer's own record. Nothing is
+/// seeded when a key is in the environment, as in CI.
+fn forget_login(home: &RunHome, reviewer: &Reviewer) {
     if !keep_home() {
         return;
     }
@@ -548,33 +548,6 @@ fn preserve_home(home: &RunHome, reviewer: &Reviewer, stdout: &str, stderr: &str
         let _ = std::fs::remove_file(&path);
         let _ = std::fs::remove_dir_all(&path);
     }
-    let _ = std::fs::write(home.0.join("child.stdout"), stdout);
-    let _ = std::fs::write(home.0.join("child.stderr"), stderr);
-}
-
-/// The reason a non-zero reviewer exit returns, printing the child's own
-/// last line to the console on the way. The reason stays generic: it may be
-/// journalled, and a reviewer's output is reviewer-controlled text.
-fn exit_reason(reviewer: &Reviewer, status: std::process::ExitStatus, stderr: &str) -> String {
-    let code = status
-        .code()
-        .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
-    if let Some(line) = last_non_empty_line(stderr) {
-        eprintln!(
-            "osf: reviewer '{}' exited with code {code}: {line}",
-            reviewer.name
-        );
-    }
-    format!("reviewer '{}' exited with code {code}", reviewer.name)
-}
-
-/// The last non-empty line of `text`, trimmed and capped at 200 characters:
-/// the shape a console diagnostic takes, never a reason.
-fn last_non_empty_line(text: &str) -> Option<String> {
-    text.lines()
-        .rev()
-        .find(|line| !line.trim().is_empty())
-        .map(|line| line.trim().chars().take(200).collect())
 }
 
 fn run_child(
@@ -688,19 +661,25 @@ fn run_child(
     let stdout_text = stdout_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
-    // Joined so the reader thread always finishes cleanly. It never enters
-    // the returned reason, which may be journalled: a reviewer's stderr is
-    // reviewer-controlled text. It goes to the kept home, and a failed run
-    // also prints its last line to the console, where only a person
-    // diagnosing the run reads it.
-    let stderr_text = stderr_reader
+    // Drained and joined so the reader thread always finishes cleanly, but
+    // never read: a reviewer's stderr is reviewer-controlled text, and every
+    // place osf's own output goes - the journal, the console, a posted review
+    // - must stay free of it. A kept home (OSF_KEEP_REVIEW_HOME) is the one
+    // record of it, and it travels as its own artifact, never as output.
+    let _stderr_text = stderr_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
     cleanup();
-    preserve_home(&home, reviewer, &stdout_text, &stderr_text);
+    forget_login(&home, reviewer);
 
     if !status.success() {
-        return Err(exit_reason(reviewer, status, &stderr_text));
+        let code = status
+            .code()
+            .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
+        return Err(format!(
+            "reviewer '{}' exited with code {code}",
+            reviewer.name
+        ));
     }
     Ok(stdout_text)
 }
