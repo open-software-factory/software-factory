@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 304" width="860" height="304" role="img" aria-label="Codex's mode" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Codex's mode</title>
+<desc>Codex's definition now carries only an in-container mode; the read-only mode and the sandbox check are gone.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="860" height="304" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="860" height="304" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="244" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">OSF CLI · CRATES/OSF</text>
+<rect class="lanebox" x="440" y="44" width="404" height="244" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">REVIEWER AGENT · CODEX / CLAUDE / OPENCODE</text></g>
+<g><path class="edge edge-modified" d="M218,154 L218,206" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="92" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="59" y="127.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="82" y="119" font-size="13" font-weight="600" fill="#1f2328">Reviewer roster</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">roster / Reviewer::from_agent</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M52,233 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,241 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="57" cy="233" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="62" cy="241" r="2.2"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#1f2328">AGENTS table</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">crates/osf/src/agents.rs</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="456" y="92" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="475" y="117" width="16" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M475,119 l8,6 8,-6" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="119" font-size="13" font-weight="600" fill="#1f2328">codex</text>
+<text class="nsub" x="506" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">--dangerously-bypass-approvals-and-sandbox</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="787.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g></g>
+<g></g>
+</svg>
