@@ -300,7 +300,10 @@ fn each_reviewer_job_passes_only_the_credential_its_agent_names() {
             body.lines()
                 .filter_map(|line| line.trim().strip_prefix("-e "))
                 .map(str::trim)
-                .filter(|var| !HOUSEKEEPING_ENV.contains(var))
+                .filter(|var| {
+                    let name = var.split('=').next().unwrap_or(var);
+                    !HOUSEKEEPING_ENV.contains(&name)
+                })
                 .collect()
         } else {
             env_secret_names(body)
@@ -529,7 +532,10 @@ fn the_codex_job_runs_in_the_review_container() {
         .lines()
         .filter_map(|line| line.trim().strip_prefix("-e "))
         .map(str::trim)
-        .filter(|var| !HOUSEKEEPING_ENV.contains(var))
+        .filter(|var| {
+            let name = var.split('=').next().unwrap_or(var);
+            !HOUSEKEEPING_ENV.contains(&name)
+        })
         .collect();
     assert_eq!(
         envs,
