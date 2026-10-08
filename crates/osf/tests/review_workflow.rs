@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 /// The codex version this workflow names.
-const CODEX_VERSION: &str = "0.154.0";
+const CODEX_VERSION: &str = "0.161.0";
 
 fn workflow_text() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/review.yml");
