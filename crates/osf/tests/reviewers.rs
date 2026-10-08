@@ -7,9 +7,7 @@ mod common;
 
 use common::TempDir;
 use osf::lenses::{Criterion, Lens, Runs, SeverityGuide, Trigger};
-use osf::reviewers::{
-    roster, run_one, Outcome, ReadOnly, Reviewer, SchemaArg, Switches,
-};
+use osf::reviewers::{roster, run_one, Outcome, ReadOnly, Reviewer, SchemaArg, Switches};
 use std::sync::Mutex;
 use std::time::Duration;
 
