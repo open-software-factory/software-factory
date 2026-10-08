@@ -552,6 +552,22 @@ fn preserve_home(home: &RunHome, reviewer: &Reviewer, stdout: &str, stderr: &str
     let _ = std::fs::write(home.0.join("child.stderr"), stderr);
 }
 
+/// The reason a non-zero reviewer exit returns, printing the child's own
+/// last line to the console on the way. The reason stays generic: it may be
+/// journalled, and a reviewer's output is reviewer-controlled text.
+fn exit_reason(reviewer: &Reviewer, status: std::process::ExitStatus, stderr: &str) -> String {
+    let code = status
+        .code()
+        .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
+    if let Some(line) = last_non_empty_line(stderr) {
+        eprintln!(
+            "osf: reviewer '{}' exited with code {code}: {line}",
+            reviewer.name
+        );
+    }
+    format!("reviewer '{}' exited with code {code}", reviewer.name)
+}
+
 /// The last non-empty line of `text`, trimmed and capped at 200 characters:
 /// the shape a console diagnostic takes, never a reason.
 fn last_non_empty_line(text: &str) -> Option<String> {
@@ -684,19 +700,7 @@ fn run_child(
     preserve_home(&home, reviewer, &stdout_text, &stderr_text);
 
     if !status.success() {
-        let code = status
-            .code()
-            .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
-        if let Some(line) = last_non_empty_line(&stderr_text) {
-            eprintln!(
-                "osf: reviewer '{}' exited with code {code}: {line}",
-                reviewer.name
-            );
-        }
-        return Err(format!(
-            "reviewer '{}' exited with code {code}",
-            reviewer.name
-        ));
+        return Err(exit_reason(reviewer, status, &stderr_text));
     }
     Ok(stdout_text)
 }
