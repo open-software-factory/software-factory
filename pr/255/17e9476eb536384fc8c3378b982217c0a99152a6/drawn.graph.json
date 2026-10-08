@@ -1,0 +1,631 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-toml-codex-model-pin",
+  "generatedAt": "2026-10-08T03:10:51.453Z",
+  "title": "Pin codex to o4-mini in osf.toml",
+  "summary": "A three-line addition to osf.toml names an explicit model for the codex review agent. Previously codex fell through to its own built-in default (gpt-6-astra), which the review environment's API key rejected with a 401; the config now routes codex to o4-mini, a model that key can use. Nothing else in the agent roster or the review pipeline changes — claude and opencode keep their existing model assignments.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "0aa8e41a28dbb3925b9019816356dd3693484638",
+      "ref": "0aa8e41a28dbb3925b9019816356dd3693484638"
+    },
+    "head": {
+      "sha": "17e9476eb536384fc8c3378b982217c0a99152a6",
+      "ref": "17e9476eb536384fc8c3378b982217c0a99152a6"
+    },
+    "pullRequest": {
+      "number": 255,
+      "url": "https://github.com/open-software-factory/software-factory/pull/255"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "config",
+      "label": "Configuration",
+      "subtitle": "osf.toml",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The repository's agent configuration file, which declares the reviewer roster and per-agent model overrides."
+    },
+    {
+      "id": "orchestrator",
+      "label": "Review Orchestrator",
+      "subtitle": "software-factory runtime",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "Reads osf.toml, resolves each reviewer agent to a concrete model, and dispatches review runs."
+    },
+    {
+      "id": "agents",
+      "label": "Reviewer Agents",
+      "subtitle": "codex, claude, opencode",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The external coding agents invoked to review a pull request, each launched with the model resolved from configuration."
+    },
+    {
+      "id": "provider",
+      "label": "Model Provider API",
+      "subtitle": "external inference endpoint",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The remote API that authenticates the review environment's key and serves the requested model."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "[agents.models]",
+      "summary": "Declares the reviewer roster and a per-agent model map. This change adds a codex entry to that map so codex no longer relies on its own default model.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 48,
+          "endLine": 56
+        }
+      ],
+      "badges": [
+        "+3 lines"
+      ]
+    },
+    {
+      "id": "agents-models-table",
+      "label": "[agents.models]",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "group": "osf-toml",
+      "subtitle": "codex = \"o4-mini\"",
+      "summary": "The model override table. Adding codex = \"o4-mini\" makes the codex agent's model explicit instead of implicit, which is what avoids the 401 the default model produced.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 51,
+          "endLine": 56
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-list",
+      "label": "reviewers",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "config",
+      "group": "osf-toml",
+      "subtitle": "[\"codex\", \"claude\", \"opencode\"]",
+      "summary": "The roster of agents that run on each review. Unchanged by this diff, but it is why the codex model entry matters: codex is one of the three agents always dispatched.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 48,
+          "endLine": 48
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-loader",
+      "label": "Config Loader",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "orchestrator",
+      "subtitle": "parses osf.toml",
+      "summary": "Reads and validates osf.toml, producing the reviewer roster and the per-agent model map the orchestrator uses.",
+      "files": [
+        {
+          "path": "osf.toml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "model-resolver",
+      "label": "Model Resolver",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "orchestrator",
+      "subtitle": "agent -> model",
+      "summary": "Looks up each agent in [agents.models]. When an agent has no entry it falls back to that agent's own default model — the path codex took before this change.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 51,
+          "endLine": 56
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-runner",
+      "label": "Review Runner",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "orchestrator",
+      "subtitle": "dispatches reviewers",
+      "summary": "Launches each configured reviewer agent with its resolved model and collects the review output.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 48,
+          "endLine": 48
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-agent",
+      "label": "codex",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agents",
+      "subtitle": "model: o4-mini",
+      "summary": "The codex reviewer. Its effective model changes from its built-in default (gpt-6-astra) to o4-mini because of the new config entry.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 54,
+          "endLine": 54
+        }
+      ],
+      "badges": [
+        "model pinned"
+      ]
+    },
+    {
+      "id": "claude-agent",
+      "label": "claude",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agents",
+      "subtitle": "model: claude-sonnet-5",
+      "summary": "The claude reviewer, already pinned to claude-sonnet-5. Untouched by this diff.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 55,
+          "endLine": 55
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "opencode-agent",
+      "label": "opencode",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agents",
+      "subtitle": "model: openrouter/qwen/qwen3-coder-next",
+      "summary": "The opencode reviewer, already pinned to an OpenRouter-hosted model. Untouched by this diff.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 56,
+          "endLine": 56
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "model-api",
+      "label": "Model Provider API",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "provider",
+      "subtitle": "authenticated inference",
+      "summary": "The remote endpoint that validates the review environment's API key and serves the requested model. It rejected gpt-6-astra with a 401 and accepts o4-mini.",
+      "files": [],
+      "badges": [
+        "401 on gpt-6-astra"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-toml-defines-models",
+      "from": "osf-toml",
+      "to": "agents-models-table",
+      "kind": "data",
+      "delta": "modified",
+      "label": "declares",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The config file now carries a codex entry in its model table.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 51,
+          "endLine": 56
+        }
+      ]
+    },
+    {
+      "id": "osf-toml-defines-reviewers",
+      "from": "osf-toml",
+      "to": "reviewers-list",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "declares",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 48,
+          "endLine": 48
+        }
+      ]
+    },
+    {
+      "id": "loader-reads-config",
+      "from": "config-loader",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "reads",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "osf.toml"
+        }
+      ]
+    },
+    {
+      "id": "loader-feeds-resolver",
+      "from": "config-loader",
+      "to": "model-resolver",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "model map",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "resolver-feeds-runner",
+      "from": "model-resolver",
+      "to": "review-runner",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "agent -> model",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "runner-invokes-codex",
+      "from": "review-runner",
+      "to": "codex-agent",
+      "kind": "call",
+      "delta": "modified",
+      "label": "codex with o4-mini",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The dispatch that changes behavior: codex is now launched with o4-mini instead of its own default model.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 54,
+          "endLine": 54
+        }
+      ]
+    },
+    {
+      "id": "runner-invokes-claude",
+      "from": "review-runner",
+      "to": "claude-agent",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "claude-sonnet-5",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 55,
+          "endLine": 55
+        }
+      ]
+    },
+    {
+      "id": "runner-invokes-opencode",
+      "from": "review-runner",
+      "to": "opencode-agent",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "qwen3-coder-next",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 56,
+          "endLine": 56
+        }
+      ]
+    },
+    {
+      "id": "codex-calls-api",
+      "from": "codex-agent",
+      "to": "model-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "o4-mini inference",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The request that previously failed with a 401 against gpt-6-astra now succeeds because the model named in config is one the key can use.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 52,
+          "endLine": 54
+        }
+      ]
+    },
+    {
+      "id": "claude-calls-api",
+      "from": "claude-agent",
+      "to": "model-api",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "claude-sonnet-5",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "opencode-calls-api",
+      "from": "opencode-agent",
+      "to": "model-api",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "qwen3-coder-next",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "codex-model-resolution",
+      "title": "Resolving codex's model from osf.toml",
+      "summary": "How the new config entry turns into the model codex actually calls: the loader reads osf.toml, the resolver finds the codex entry instead of falling back to codex's default, and the runner launches codex against the provider API with o4-mini.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-toml",
+          "label": "osf.toml"
+        },
+        {
+          "node": "config-loader",
+          "label": "Config Loader"
+        },
+        {
+          "node": "model-resolver",
+          "label": "Model Resolver"
+        },
+        {
+          "node": "review-runner",
+          "label": "Review Runner"
+        },
+        {
+          "node": "codex-agent",
+          "label": "codex"
+        },
+        {
+          "node": "model-api",
+          "label": "Provider API"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-config",
+          "from": "config-loader",
+          "to": "osf-toml",
+          "label": "read osf.toml",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "osf.toml"
+            }
+          ]
+        },
+        {
+          "id": "return-model-map",
+          "from": "osf-toml",
+          "to": "config-loader",
+          "label": "reviewers + [agents.models]",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "The returned map now includes codex = \"o4-mini\".",
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 51,
+              "endLine": 56
+            }
+          ]
+        },
+        {
+          "id": "resolve-codex-model",
+          "from": "config-loader",
+          "to": "model-resolver",
+          "label": "model map",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "codex-entry-found",
+          "from": "model-resolver",
+          "to": "model-resolver",
+          "label": "codex -> o4-mini (entry hit, no default fallback)",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "Before this change the lookup missed and codex used its own default gpt-6-astra.",
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 52,
+              "endLine": 54
+            }
+          ]
+        },
+        {
+          "id": "dispatch-codex",
+          "from": "model-resolver",
+          "to": "review-runner",
+          "label": "codex: o4-mini",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "launch-codex",
+          "from": "review-runner",
+          "to": "codex-agent",
+          "label": "launch codex with o4-mini",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 54,
+              "endLine": 54
+            }
+          ]
+        },
+        {
+          "id": "codex-inference",
+          "from": "codex-agent",
+          "to": "model-api",
+          "label": "inference request (o4-mini)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Previously this request named gpt-6-astra and came back 401.",
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 52,
+              "endLine": 54
+            }
+          ]
+        },
+        {
+          "id": "inference-ok",
+          "from": "model-api",
+          "to": "codex-agent",
+          "label": "200 review output",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 3,
+    "deletions": 0,
+    "chips": [
+      {
+        "label": "Config entries added",
+        "value": "1",
+        "tone": "added"
+      },
+      {
+        "label": "Agents affected",
+        "value": "1 of 3",
+        "tone": "modified"
+      },
+      {
+        "label": "Codex model",
+        "value": "o4-mini",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "review-config-context",
+      "title": "Review configuration and agent dispatch",
+      "lens": "architecture",
+      "summary": "The whole path from osf.toml to the provider API, showing that only the codex model binding changed while the roster and the other two agents stay as they were.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "codex-model-binding",
+      "title": "Codex model binding",
+      "lens": "architecture",
+      "summary": "Narrows to the config table, the resolver and the codex agent — the three nodes whose behavior the new entry actually alters.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "agents-models-table",
+          "model-resolver",
+          "codex-agent",
+          "model-api"
+        ],
+        "edges": [
+          "resolver-feeds-runner",
+          "runner-invokes-codex",
+          "codex-calls-api"
+        ],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "codex-model-resolution-flow",
+      "title": "Codex model resolution flow",
+      "lens": "data-flow",
+      "summary": "The ordered sequence that turns the new config line into a successful inference call.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "codex-model-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

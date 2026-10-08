@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-toml-codex-model-pin",
+    "headSha": "17e9476eb536384fc8c3378b982217c0a99152a6",
+    "contentHash": "2ce48f41d8b14f39a1e41a070bf120f5"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-config-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-config-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9a44e2fc7287c4f6b38a1b7b20a57e53",
+      "bytes": 20511,
+      "width": 1777,
+      "height": 646,
+      "animated": true,
+      "path": "review-config-context-light-9a44e2fc7287c4f6b38a1b7b20a57e53.svg"
+    },
+    {
+      "id": "review-config-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-config-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bca1ddee16793ef8b0a65dc94c031a1b",
+      "bytes": 20688,
+      "width": 1777,
+      "height": 646,
+      "animated": true,
+      "path": "review-config-context-dark-bca1ddee16793ef8b0a65dc94c031a1b.svg"
+    },
+    {
+      "id": "codex-model-binding-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "codex-model-binding",
+      "mediaType": "image/svg+xml",
+      "contentHash": "764038d86de64a2a277565fc118a8c59",
+      "bytes": 11595,
+      "width": 1708,
+      "height": 532,
+      "animated": true,
+      "path": "codex-model-binding-light-764038d86de64a2a277565fc118a8c59.svg"
+    },
+    {
+      "id": "codex-model-binding-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "codex-model-binding",
+      "mediaType": "image/svg+xml",
+      "contentHash": "57427ec1c4a76e1e9b53110172da2b33",
+      "bytes": 11691,
+      "width": 1708,
+      "height": 532,
+      "animated": true,
+      "path": "codex-model-binding-dark-57427ec1c4a76e1e9b53110172da2b33.svg"
+    },
+    {
+      "id": "codex-model-resolution-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "codex-model-resolution-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f6778aca2dc7489e220fdc0819f8c1d2",
+      "bytes": 16469,
+      "width": 1632,
+      "height": 467,
+      "animated": true,
+      "path": "codex-model-resolution-flow-light-f6778aca2dc7489e220fdc0819f8c1d2.svg"
+    },
+    {
+      "id": "codex-model-resolution-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "codex-model-resolution-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c7fd306aa860bfd015453d32e2f1bf10",
+      "bytes": 16645,
+      "width": 1632,
+      "height": 467,
+      "animated": true,
+      "path": "codex-model-resolution-flow-dark-c7fd306aa860bfd015453d32e2f1bf10.svg"
+    }
+  ]
+}
