@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "c74046e516650cf92f391684befc4a3cfb513521",
+    "contentHash": "224078512f05bfcde34739787285b548"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-config-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-config-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "af0d05ee7871393942c8ef703c1ddc41",
+      "bytes": 16965,
+      "width": 1284,
+      "height": 760,
+      "animated": true,
+      "path": "reviewer-config-context-light-af0d05ee7871393942c8ef703c1ddc41.svg"
+    },
+    {
+      "id": "reviewer-config-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-config-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "661aaa842102aa150764769ca7153f35",
+      "bytes": 17132,
+      "width": 1284,
+      "height": 760,
+      "animated": true,
+      "path": "reviewer-config-context-dark-661aaa842102aa150764769ca7153f35.svg"
+    },
+    {
+      "id": "osf-toml-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "osf-toml-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dfa511f97e050ac1d01a6d7ee205af43",
+      "bytes": 7191,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "osf-toml-internals-light-dfa511f97e050ac1d01a6d7ee205af43.svg"
+    },
+    {
+      "id": "osf-toml-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "osf-toml-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "eef5e64d8099da936bfc64edf8b1faee",
+      "bytes": 7263,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "osf-toml-internals-dark-eef5e64d8099da936bfc64edf8b1faee.svg"
+    },
+    {
+      "id": "roster-test-scope-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "roster-test-scope",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7a2da05aa561e43010fb3ad09614ace6",
+      "bytes": 6984,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "roster-test-scope-light-7a2da05aa561e43010fb3ad09614ace6.svg"
+    },
+    {
+      "id": "roster-test-scope-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "roster-test-scope",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9c72c657092f5bf55dc105752dfdf6c6",
+      "bytes": 7044,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "roster-test-scope-dark-9c72c657092f5bf55dc105752dfdf6c6.svg"
+    },
+    {
+      "id": "roster-load-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "roster-load-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9ad11733e9997d5c4b2ba40a46e052fc",
+      "bytes": 12329,
+      "width": 2288,
+      "height": 357,
+      "animated": true,
+      "path": "roster-load-flow-light-9ad11733e9997d5c4b2ba40a46e052fc.svg"
+    },
+    {
+      "id": "roster-load-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "roster-load-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1980cb3d724cbbf0e6643a1773c28504",
+      "bytes": 12471,
+      "width": 2288,
+      "height": 357,
+      "animated": true,
+      "path": "roster-load-flow-dark-1980cb3d724cbbf0e6643a1773c28504.svg"
+    }
+  ]
+}

@@ -1,0 +1,529 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-08T09:05:19.517Z",
+  "title": "Pin codex model in osf.toml, drop model assertions from roster test",
+  "summary": "This change adds an explicit `codex` model to the `[agents.models]` table in `osf.toml`, because codex's built-in default (gpt-6-astra) returned 401 against the review environment's API key. The roster test in `crates/osf/tests/reviewers.rs` is relaxed in the same commit: it still asserts the reviewer order (codex, claude, opencode) but no longer asserts which model each reviewer is pinned to, since model names churn every few weeks. Net effect: the reviewer roster is unchanged, but codex now runs on a named model instead of its own default.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d20306cdd4355b5ee486c238424eadaea3c26ccc",
+      "ref": "d20306cdd4355b5ee486c238424eadaea3c26ccc"
+    },
+    "head": {
+      "sha": "c74046e516650cf92f391684befc4a3cfb513521",
+      "ref": "c74046e516650cf92f391684befc4a3cfb513521"
+    },
+    "pullRequest": {
+      "number": 255,
+      "url": "https://github.com/open-software-factory/software-factory/pull/255"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "config",
+      "label": "Configuration",
+      "subtitle": "osf.toml",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The repository's own osf.toml, which declares the reviewer roster and per-agent model pins."
+    },
+    {
+      "id": "osf-crate",
+      "label": "osf crate",
+      "subtitle": "Rust library + tests",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The osf crate loads the roster from osf.toml and its integration tests assert the loaded shape."
+    },
+    {
+      "id": "review-runtime",
+      "label": "Review runtime",
+      "subtitle": "agent CLIs",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The external agent CLIs that osf invokes to perform reviews, each with its own default model and API-key path."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "reviewers + [agents.models]",
+      "summary": "Declares the reviewer list `[\"codex\", \"claude\", \"opencode\"]` and the per-agent model pins. This change adds `codex = \"gpt-6.1-sol\"` to `[agents.models]`; claude and opencode pins are untouched.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 48,
+          "endLine": 55
+        }
+      ],
+      "badges": [
+        "codex pin added"
+      ]
+    },
+    {
+      "id": "agents-models-table",
+      "label": "[agents.models]",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "group": "osf-toml",
+      "subtitle": "per-agent model overrides",
+      "summary": "The table that maps an agent name to the model it should be invoked with. An agent left out of this table falls back to its own default model.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 51,
+          "endLine": 55
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-list",
+      "label": "reviewers",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "config",
+      "group": "osf-toml",
+      "subtitle": "[\"codex\", \"claude\", \"opencode\"]",
+      "summary": "The ordered reviewer roster. Unchanged by this commit; the test still asserts this exact order.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 48,
+          "endLine": 48
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "roster-loader",
+      "label": "roster()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf-crate",
+      "subtitle": "loads osf.toml into Reviewer entries",
+      "summary": "Reads osf.toml from the repository root and produces the ordered list of reviewers, each carrying an optional model. Unchanged here, but it is the seam the test exercises.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 456,
+          "endLine": 458
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-test",
+      "label": "reviewers.rs test",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf-crate",
+      "subtitle": "this_repositorys_osf_toml_selects_its_reviewers_from_the_agent_list_in_order",
+      "summary": "Still asserts the reviewer names and their order. The three model assertions (claude, opencode, codex) were removed, so the test no longer fails when a model pin changes.",
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 452,
+          "endLine": 462
+        }
+      ],
+      "badges": [
+        "-3 model assertions"
+      ]
+    },
+    {
+      "id": "codex-cli",
+      "label": "codex",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "review-runtime",
+      "subtitle": "agent CLI",
+      "summary": "Invoked with the model named in osf.toml. Previously ran on its own default (gpt-6-astra), which returned 401 against the review environment's key.",
+      "files": [],
+      "badges": [
+        "model now pinned"
+      ]
+    },
+    {
+      "id": "claude-cli",
+      "label": "claude",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "review-runtime",
+      "subtitle": "agent CLI",
+      "summary": "Still pinned to claude-sonnet-5 in osf.toml; the test no longer asserts that pin.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "opencode-cli",
+      "label": "opencode",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "review-runtime",
+      "subtitle": "agent CLI",
+      "summary": "Still pinned to openrouter/qwen/qwen3-coder-next in osf.toml; the test no longer asserts that pin.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-toml-contains-models",
+      "from": "osf-toml",
+      "to": "agents-models-table",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "declares",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "osf-toml-contains-reviewers",
+      "from": "osf-toml",
+      "to": "reviewers-list",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "declares",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "roster-loader-reads-osf-toml",
+      "from": "roster-loader",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "parses",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 456,
+          "endLine": 457
+        }
+      ]
+    },
+    {
+      "id": "reviewers-test-calls-roster",
+      "from": "reviewers-test",
+      "to": "roster-loader",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "roster(repo_root)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 457,
+          "endLine": 457
+        }
+      ]
+    },
+    {
+      "id": "reviewers-test-asserts-order",
+      "from": "reviewers-test",
+      "to": "reviewers-list",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "assert_eq!(names, [...])",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 459,
+          "endLine": 459
+        }
+      ]
+    },
+    {
+      "id": "models-table-pins-codex",
+      "from": "agents-models-table",
+      "to": "codex-cli",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "codex = \"gpt-6.1-sol\"",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The change the commit is really about: codex is now invoked with a named model instead of its own default, which the review environment's key could not authenticate.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "startLine": 53,
+          "endLine": 53
+        }
+      ]
+    },
+    {
+      "id": "models-table-pins-claude",
+      "from": "agents-models-table",
+      "to": "claude-cli",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "claude-sonnet-5",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "models-table-pins-opencode",
+      "from": "agents-models-table",
+      "to": "opencode-cli",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "openrouter/qwen/qwen3-coder-next",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "roster-load",
+      "title": "Loading the reviewer roster from osf.toml",
+      "summary": "How the repository's own osf.toml becomes the ordered reviewer list the test asserts on, and where the codex model pin enters.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "reviewers-test",
+          "label": "reviewers.rs test"
+        },
+        {
+          "node": "roster-loader",
+          "label": "roster()"
+        },
+        {
+          "node": "osf-toml",
+          "label": "osf.toml"
+        },
+        {
+          "node": "agents-models-table",
+          "label": "[agents.models]"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-call-roster",
+          "from": "reviewers-test",
+          "to": "roster-loader",
+          "label": "roster(repo_root)",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/reviewers.rs",
+              "startLine": 457,
+              "endLine": 457
+            }
+          ]
+        },
+        {
+          "id": "step-read-toml",
+          "from": "roster-loader",
+          "to": "osf-toml",
+          "label": "read + parse",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/reviewers.rs",
+              "startLine": 456,
+              "endLine": 457
+            }
+          ]
+        },
+        {
+          "id": "step-read-models",
+          "from": "osf-toml",
+          "to": "agents-models-table",
+          "label": "[agents.models]",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The table now carries a codex entry alongside claude and opencode.",
+          "files": [
+            {
+              "path": "osf.toml",
+              "startLine": 51,
+              "endLine": 55
+            }
+          ]
+        },
+        {
+          "id": "step-return-roster",
+          "from": "roster-loader",
+          "to": "reviewers-test",
+          "label": "Vec<Reviewer>",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/reviewers.rs",
+              "startLine": 456,
+              "endLine": 462
+            }
+          ],
+          "payload": {
+            "response": {
+              "type": "Vec<Reviewer>",
+              "shape": "[{ name: String, model: Option<String> }]",
+              "sample": [
+                {
+                  "name": "codex",
+                  "model": "gpt-6.1-sol"
+                },
+                {
+                  "name": "claude",
+                  "model": "claude-sonnet-5"
+                },
+                {
+                  "name": "opencode",
+                  "model": "openrouter/qwen/qwen3-coder-next"
+                }
+              ],
+              "before": [
+                {
+                  "name": "codex",
+                  "model": null
+                },
+                {
+                  "name": "claude",
+                  "model": "claude-sonnet-5"
+                },
+                {
+                  "name": "opencode",
+                  "model": "openrouter/qwen/qwen3-coder-next"
+                }
+              ],
+              "source": {
+                "path": "crates/osf/tests/reviewers.rs",
+                "startLine": 456,
+                "endLine": 462
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-assert-names",
+          "from": "reviewers-test",
+          "to": "reviewers-test",
+          "label": "assert_eq!(names, [codex, claude, opencode])",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The order assertion survives; the three model assertions that followed it were deleted.",
+          "files": [
+            {
+              "path": "crates/osf/tests/reviewers.rs",
+              "startLine": 459,
+              "endLine": 459
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 5,
+    "deletions": 10,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "reviewer-config-context",
+      "title": "Reviewer configuration and the review runtime",
+      "lens": "architecture",
+      "summary": "The repository's osf.toml feeds the osf crate's roster loader, which in turn determines which agent CLI runs each review and with which model.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "osf-toml-internals",
+      "title": "Inside osf.toml",
+      "lens": "architecture",
+      "summary": "The two declarations the change touches: the reviewer roster (unchanged) and the per-agent model table (codex pin added).",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "osf-toml",
+          "agents-models-table",
+          "reviewers-list"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "roster-test-scope",
+          "title": "What the roster test still asserts",
+          "lens": "architecture",
+          "summary": "The test keeps the name-and-order assertion and drops the model assertions, so the model table can change without breaking it.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "reviewers-test",
+              "roster-loader",
+              "reviewers-list"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "roster-load-flow",
+      "title": "Roster load sequence",
+      "lens": "data-flow",
+      "summary": "The ordered steps from the test calling roster() through to the returned reviewer list, showing the codex model changing from null to a pinned name.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "roster-load"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
