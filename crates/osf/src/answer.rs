@@ -19,6 +19,39 @@ use std::sync::OnceLock;
 /// The review answer schema, versioned with osf.
 pub const SCHEMA: &str = include_str!("../schemas/review-answer.schema.json");
 
+/// [`SCHEMA`] with `scores` fixed to one required property per criterion of `lens`, as compact JSON.
+///
+/// # Panics
+/// Panics when the compiled-in [`SCHEMA`] is not valid JSON, a build-time mistake.
+#[must_use]
+pub fn schema_for(lens: &Lens) -> String {
+    let mut schema: serde_json::Value =
+        serde_json::from_str(SCHEMA).expect("the review answer schema is valid JSON");
+
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+    for criterion in &lens.criteria {
+        required.push(serde_json::Value::String(criterion.id.clone()));
+        properties.insert(
+            criterion.id.clone(),
+            serde_json::json!({ "type": "number", "minimum": 0, "maximum": 1 }),
+        );
+    }
+    let scores = serde_json::json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": required,
+        "properties": properties,
+    });
+
+    schema
+        .get_mut("properties")
+        .and_then(serde_json::Value::as_object_mut)
+        .expect("the review answer schema has a properties object")
+        .insert("scores".to_string(), scores);
+    schema.to_string()
+}
+
 /// One reviewer's answer for one lens: a score for each criterion and the findings it raised.
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Answer {
@@ -286,6 +319,140 @@ mod tests {
             .into_iter()
             .find(|l| l.name == "correctness")
             .expect("correctness lens is shipped")
+    }
+
+    /// Every shipped lens, loaded the same way `osf review run` would.
+    fn shipped_lenses() -> Vec<Lens> {
+        let root = TempDir::new("osf-answer-shipped-all");
+        std::fs::create_dir_all(root.join(".osf/review-lenses")).expect("dirs");
+        crate::lenses::load(&root, None).expect("loads").lenses
+    }
+
+    /// Every keyword the structured-output service accepts.
+    const ALLOWED_SCHEMA_KEYWORDS: &[&str] = &[
+        "$schema",
+        "$id",
+        "title",
+        "description",
+        "type",
+        "properties",
+        "required",
+        "additionalProperties",
+        "items",
+        "enum",
+        "minimum",
+        "maximum",
+        "minLength",
+    ];
+
+    /// Walks every sub-schema of `schema` and asserts the structured-output rules.
+    fn assert_structured_output_rules(schema: &str) {
+        fn walk(value: &serde_json::Value, path: &str) {
+            let Some(object) = value.as_object() else {
+                return;
+            };
+            for (key, child) in object {
+                assert!(
+                    ALLOWED_SCHEMA_KEYWORDS.contains(&key.as_str()),
+                    "the schema at \"{path}\" uses the unsupported keyword \"{key}\""
+                );
+                match key.as_str() {
+                    "properties" => {
+                        if let Some(properties) = child.as_object() {
+                            for (name, subschema) in properties {
+                                walk(subschema, &format!("{path}.properties.{name}"));
+                            }
+                        }
+                    }
+                    "items" => walk(child, &format!("{path}.items")),
+                    "additionalProperties" if child.is_object() => {
+                        walk(child, &format!("{path}.additionalProperties"));
+                    }
+                    _ => {}
+                }
+            }
+            if object.get("type").and_then(serde_json::Value::as_str) != Some("object") {
+                return;
+            }
+            assert_eq!(
+                object.get("additionalProperties"),
+                Some(&serde_json::Value::Bool(false)),
+                "the object schema at \"{path}\" must set additionalProperties to false"
+            );
+            let properties = object
+                .get("properties")
+                .and_then(serde_json::Value::as_object)
+                .unwrap_or_else(|| panic!("the object schema at \"{path}\" has no properties"));
+            let required = object
+                .get("required")
+                .and_then(serde_json::Value::as_array)
+                .unwrap_or_else(|| panic!("the object schema at \"{path}\" has no required"));
+            let mut required_names: Vec<&str> = required
+                .iter()
+                .map(|entry| entry.as_str().expect("a required entry is a string"))
+                .collect();
+            let mut property_names: Vec<&str> = properties.keys().map(String::as_str).collect();
+            required_names.sort_unstable();
+            property_names.sort_unstable();
+            assert_eq!(
+                required_names, property_names,
+                "the object schema at \"{path}\" must require exactly the keys of \"properties\""
+            );
+        }
+        walk(
+            &serde_json::from_str(schema).expect("the schema is valid JSON"),
+            "$",
+        );
+    }
+
+    #[test]
+    fn the_schema_sent_to_a_reviewer_follows_the_structured_output_rules() {
+        assert_structured_output_rules(&schema_for(&test_lens()));
+        for lens in shipped_lenses() {
+            assert_structured_output_rules(&schema_for(&lens));
+        }
+    }
+
+    #[test]
+    fn the_scores_object_lists_each_criterion_of_the_lens() {
+        let schema: serde_json::Value =
+            serde_json::from_str(&schema_for(&test_lens())).expect("the schema is valid JSON");
+        let scores = schema
+            .get("properties")
+            .and_then(|properties| properties.get("scores"))
+            .expect("the schema has properties.scores");
+        let required: Vec<&str> = scores
+            .get("required")
+            .and_then(serde_json::Value::as_array)
+            .expect("scores.required")
+            .iter()
+            .map(|id| id.as_str().expect("a criterion id"))
+            .collect();
+        assert_eq!(required, vec!["c1", "c2"]);
+        let properties = scores
+            .get("properties")
+            .and_then(serde_json::Value::as_object)
+            .expect("scores.properties");
+        assert_eq!(properties.len(), 2, "{properties:?}");
+        assert!(properties.contains_key("c1"), "{properties:?}");
+        assert!(properties.contains_key("c2"), "{properties:?}");
+    }
+
+    #[test]
+    fn a_real_codex_answer_validates_against_the_lens_schema_and_the_reducer_checks() {
+        let lens = shipped_correctness_lens();
+        let raw = include_str!("../tests/fixtures/review/codex-answer.json");
+        extract_and_validate(raw, &lens).expect("the real answer passes the reducer's checks");
+        let schema: serde_json::Value =
+            serde_json::from_str(&schema_for(&lens)).expect("the schema is valid JSON");
+        let validator =
+            jsonschema::validator_for(&schema).expect("the lens schema is a valid JSON Schema");
+        let answer: serde_json::Value =
+            serde_json::from_str(raw).expect("the real answer is valid JSON");
+        assert!(
+            validator.validate(&answer).is_ok(),
+            "the real answer must validate against the schema sent to codex"
+        );
     }
 
     #[test]
