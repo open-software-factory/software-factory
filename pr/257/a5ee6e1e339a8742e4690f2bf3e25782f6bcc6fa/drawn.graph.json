@@ -1,0 +1,802 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-08T13:46:51.463Z",
+  "title": "Reviewer home kept for diagnosis",
+  "summary": "Reviewer runs now keep their per-run home directory when OSF_KEEP_REVIEW_HOME is set, so the child's stdout/stderr and session files survive for diagnosis. The review workflow mounts out/reviewer-home as TMPDIR for all three reviewer jobs and uploads it as an artifact, and codex drops --ephemeral so its session is no longer discarded. Seeded login paths are stripped from the kept home before it is written, and a failed run prints only the last stderr line to the console — never into the journalled reason.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d20306cdd4355b5ee486c238424eadaea3c26ccc",
+      "ref": "d20306cdd4355b5ee486c238424eadaea3c26ccc"
+    },
+    "head": {
+      "sha": "a5ee6e1e339a8742e4690f2bf3e25782f6bcc6fa",
+      "ref": "a5ee6e1e339a8742e4690f2bf3e25782f6bcc6fa"
+    },
+    "pullRequest": {
+      "number": 257,
+      "url": "https://github.com/open-software-factory/software-factory/pull/257"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workflow",
+      "label": "GitHub Actions workflow",
+      "subtitle": "review.yml",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The review workflow that prepares the workspace, runs each reviewer container and uploads artifacts."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The Rust binary that prepares a reviewer's home, runs the child process and decides what is journalled."
+    },
+    {
+      "id": "reviewer-child",
+      "label": "Reviewer child process",
+      "subtitle": "codex / claude / opencode",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The agent process run inside the container, whose stdout, stderr and session files are the reviewer's own record."
+    },
+    {
+      "id": "artifacts",
+      "label": "Artifacts & journal",
+      "subtitle": "uploaded output",
+      "order": 3,
+      "delta": "modified",
+      "summary": "Where a run's output ends up: uploaded artifacts for diagnosis, and the journal that carries verdicts."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "three reviewer jobs + collector",
+      "summary": "Declares the codex, claude and opencode reviewer jobs. Each now creates out/reviewer-home, passes OSF_KEEP_REVIEW_HOME=1 and TMPDIR=/out/reviewer-home into the container, and uploads the folder as an artifact.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 206,
+          "endLine": 270
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-home-dir",
+      "label": "out/reviewer-home",
+      "kind": "datastore",
+      "delta": "added",
+      "lane": "workflow",
+      "subtitle": "mounted TMPDIR",
+      "summary": "A host directory created before the container runs and mounted at /out. It becomes the reviewer's TMPDIR, so the kept home lands on the host and can be uploaded.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 206,
+          "endLine": 210
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-home-artifact",
+      "label": "review-home-* artifact",
+      "kind": "other",
+      "delta": "added",
+      "lane": "artifacts",
+      "subtitle": "upload-artifact, if: always()",
+      "summary": "Uploads out/reviewer-home after each reviewer job, even on failure, so the kept home can be inspected after the run.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 265,
+          "endLine": 272
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-run",
+      "label": "osf review run",
+      "kind": "service",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "entry point",
+      "summary": "The command the workflow invokes inside the container; it drives home preparation, child execution and journalling.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-home",
+      "label": "RunHome",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "per-run home + Drop",
+      "summary": "Owns the reviewer's temporary home. Its Drop now checks keep_home() and, when set, leaves the directory in place and prints where it is instead of removing it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 345,
+          "endLine": 365
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "keep-home",
+      "label": "keep_home()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "OSF_KEEP_REVIEW_HOME",
+      "summary": "Reads OSF_KEEP_REVIEW_HOME from the environment. Presence alone turns on home retention; the value is not inspected.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 348,
+          "endLine": 355
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "preserve-home",
+      "label": "preserve_home()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "strip logins, write child output",
+      "summary": "When the home is kept, removes every seeded login path from it and writes child.stdout and child.stderr into the home. It never reads a verdict or finding from the home.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 652,
+          "endLine": 668
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "last-non-empty-line",
+      "label": "last_non_empty_line()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "trim, cap at 200 chars",
+      "summary": "Extracts the last non-blank line of stderr, trimmed and capped at 200 characters, for the console diagnostic on a failed run.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 670,
+          "endLine": 677
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-child",
+      "label": "run_child()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "spawn, drain, cleanup",
+      "summary": "Now keeps the home handle, joins stderr instead of discarding it, calls preserve_home after cleanup, and on a non-zero exit prints the last stderr line to the console while the returned reason stays free of reviewer text.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 696,
+          "endLine": 812
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prepare-command",
+      "label": "prepare_command()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "builds child command + home",
+      "summary": "Builds the child command, the RunHome and the login notes. Unchanged, but it is what seeds the login paths that preserve_home later strips.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 649
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-registry",
+      "label": "AGENTS registry",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "codex clean_copy switches",
+      "summary": "The codex entry drops --ephemeral from its clean-copy switches, so codex no longer discards its session; the comment now says the first two switches ignore user config and rules files.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 458,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-child",
+      "label": "codex exec",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "reviewer-child",
+      "subtitle": "session now persists",
+      "summary": "Runs without --ephemeral, so its session files are written into the home rather than thrown away.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 458,
+          "endLine": 470
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude-child",
+      "label": "claude reviewer",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "reviewer-child",
+      "subtitle": "CLAUDE_CODE_OAUTH_TOKEN",
+      "summary": "Runs with the same home-retention environment; its session files now survive in the kept home.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 357,
+          "endLine": 365
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "opencode-child",
+      "label": "opencode reviewer",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "reviewer-child",
+      "subtitle": "OPENROUTER_API_KEY",
+      "summary": "Runs with the same home-retention environment; its session files now survive in the kept home.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 476,
+          "endLine": 484
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "journal",
+      "label": "Journal",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "artifacts",
+      "subtitle": "verdicts and reasons",
+      "summary": "The record the collector reads. The kept home is explicitly not this: no verdict, finding or reason is ever read from it, and stderr still never enters a journalled reason.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 785,
+          "endLine": 800
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "workflow-sets-keep-env",
+      "from": "review-workflow",
+      "to": "reviewer-run",
+      "kind": "other",
+      "delta": "added",
+      "label": "OSF_KEEP_REVIEW_HOME=1, TMPDIR=/out/reviewer-home",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Each reviewer job now passes the retention flag and points TMPDIR at the mounted out/reviewer-home, which is what makes the kept home land on the host.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 240,
+          "endLine": 246
+        }
+      ]
+    },
+    {
+      "id": "workflow-creates-home-dir",
+      "from": "review-workflow",
+      "to": "reviewer-home-dir",
+      "kind": "other",
+      "delta": "added",
+      "label": "mkdir -p out/reviewer-home",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The job creates the directory before the container starts so the mount point exists.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 206,
+          "endLine": 210
+        }
+      ]
+    },
+    {
+      "id": "home-dir-uploaded",
+      "from": "reviewer-home-dir",
+      "to": "review-home-artifact",
+      "kind": "data",
+      "delta": "added",
+      "label": "upload-artifact, if: always()",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The kept home is uploaded after the job, even when the reviewer failed, which is the point of keeping it.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 265,
+          "endLine": 272
+        }
+      ]
+    },
+    {
+      "id": "run-child-uses-home",
+      "from": "run-child",
+      "to": "run-home",
+      "kind": "call",
+      "delta": "modified",
+      "label": "holds the home handle",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "run_child now binds the home returned by prepare_command instead of discarding it, so it can preserve it after the child exits.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 696,
+          "endLine": 700
+        }
+      ]
+    },
+    {
+      "id": "run-home-checks-keep",
+      "from": "run-home",
+      "to": "keep-home",
+      "kind": "call",
+      "delta": "added",
+      "label": "Drop consults the flag",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "RunHome::drop asks keep_home() before removing the directory; when set it leaves the home and prints its path.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 357,
+          "endLine": 365
+        }
+      ]
+    },
+    {
+      "id": "run-child-preserves",
+      "from": "run-child",
+      "to": "preserve-home",
+      "kind": "call",
+      "delta": "added",
+      "label": "after cleanup()",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "After the child exits and cleanup runs, run_child writes the child's output into the home and strips seeded logins.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 795,
+          "endLine": 800
+        }
+      ]
+    },
+    {
+      "id": "preserve-strips-logins",
+      "from": "preserve-home",
+      "to": "prepare-command",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "removes reviewer.login_paths",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "preserve_home deletes every path prepare_command seeded as a login, so the kept home carries no credential.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 656,
+          "endLine": 662
+        }
+      ]
+    },
+    {
+      "id": "run-child-diagnostic",
+      "from": "run-child",
+      "to": "last-non-empty-line",
+      "kind": "call",
+      "delta": "added",
+      "label": "on non-zero exit",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A failed run takes the last non-empty stderr line and prints it to the console, where only a person diagnosing the run reads it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 800,
+          "endLine": 810
+        }
+      ]
+    },
+    {
+      "id": "run-child-journals",
+      "from": "run-child",
+      "to": "journal",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "reason only, no stderr",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The returned reason stays reviewer-text-free, so nothing reviewer-controlled reaches the journal.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 785,
+          "endLine": 800
+        }
+      ]
+    },
+    {
+      "id": "registry-configures-codex",
+      "from": "agent-registry",
+      "to": "codex-child",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "--ephemeral removed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Dropping --ephemeral means codex writes its session into the home instead of discarding it, which is what makes the kept home worth uploading.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 458,
+          "endLine": 470
+        }
+      ]
+    },
+    {
+      "id": "codex-writes-home",
+      "from": "codex-child",
+      "to": "run-home",
+      "kind": "data",
+      "delta": "modified",
+      "label": "session files",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Codex's session files now persist in the reviewer home rather than being ephemeral.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 458,
+          "endLine": 470
+        }
+      ]
+    },
+    {
+      "id": "claude-writes-home",
+      "from": "claude-child",
+      "to": "run-home",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "session files",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Claude's session files land in the same home and are now kept.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 357,
+          "endLine": 365
+        }
+      ]
+    },
+    {
+      "id": "opencode-writes-home",
+      "from": "opencode-child",
+      "to": "run-home",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "session files",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Opencode's session files land in the same home and are now kept.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 476,
+          "endLine": 484
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "kept-home-flow",
+      "title": "A reviewer run that keeps its home",
+      "summary": "The workflow sets the retention flag and TMPDIR, osf runs the child, and after the child exits the home is stripped of seeded logins, filled with the child's output, and left on the host for upload.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-workflow",
+          "label": "review.yml"
+        },
+        {
+          "node": "reviewer-run",
+          "label": "osf review run"
+        },
+        {
+          "node": "run-child",
+          "label": "run_child()"
+        },
+        {
+          "node": "codex-child",
+          "label": "codex exec"
+        },
+        {
+          "node": "run-home",
+          "label": "RunHome"
+        },
+        {
+          "node": "review-home-artifact",
+          "label": "artifact"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-set-env",
+          "from": "review-workflow",
+          "to": "reviewer-run",
+          "label": "OSF_KEEP_REVIEW_HOME=1, TMPDIR=/out/reviewer-home",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 240,
+              "endLine": 246
+            }
+          ]
+        },
+        {
+          "id": "step-prepare",
+          "from": "reviewer-run",
+          "to": "run-child",
+          "label": "prepare_command() builds the home",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 696,
+              "endLine": 700
+            }
+          ]
+        },
+        {
+          "id": "step-spawn",
+          "from": "run-child",
+          "to": "codex-child",
+          "label": "spawn with clean-copy switches",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "--ephemeral is gone, so the session is no longer discarded.",
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs",
+              "startLine": 458,
+              "endLine": 470
+            }
+          ]
+        },
+        {
+          "id": "step-session",
+          "from": "codex-child",
+          "to": "run-home",
+          "label": "session files written",
+          "kind": "async",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs",
+              "startLine": 458,
+              "endLine": 470
+            }
+          ]
+        },
+        {
+          "id": "step-exit",
+          "from": "codex-child",
+          "to": "run-child",
+          "label": "exit status + stdout/stderr",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 785,
+              "endLine": 795
+            }
+          ]
+        },
+        {
+          "id": "step-preserve",
+          "from": "run-child",
+          "to": "run-home",
+          "label": "preserve_home(): strip logins, write child.stdout/stderr",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 795,
+              "endLine": 800
+            }
+          ]
+        },
+        {
+          "id": "step-drop",
+          "from": "run-home",
+          "to": "run-home",
+          "label": "Drop sees keep_home(), leaves the directory",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 357,
+              "endLine": 365
+            }
+          ]
+        },
+        {
+          "id": "step-upload",
+          "from": "review-workflow",
+          "to": "review-home-artifact",
+          "label": "upload out/reviewer-home, if: always()",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 265,
+              "endLine": 272
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 86,
+    "deletions": 7,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "reviewer-run-context",
+      "title": "Reviewer run: workflow, osf, child",
+      "lens": "architecture",
+      "summary": "The three containers involved in a reviewer run and what the change altered in each: the workflow now sets the retention environment and uploads the home, osf keeps and fills the home, and codex no longer discards its session.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "home-retention-components",
+      "title": "Home retention inside osf",
+      "lens": "architecture",
+      "summary": "The functions that decide whether a home survives: keep_home() gates RunHome::drop and preserve_home(), which strips seeded logins and writes the child's output.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "run-home",
+          "keep-home",
+          "preserve-home",
+          "run-child",
+          "last-non-empty-line",
+          "prepare-command",
+          "journal"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "codex-switch-detail",
+          "title": "Codex clean-copy switches",
+          "lens": "architecture",
+          "summary": "The registry entry whose switch list changed, and the child it configures.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "agent-registry",
+              "codex-child"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "kept-home-flow-view",
+      "title": "Kept home, step by step",
+      "lens": "data-flow",
+      "summary": "The ordered path from the workflow's environment through the child's session files to the uploaded artifact.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "kept-home-flow"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

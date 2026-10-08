@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "a5ee6e1e339a8742e4690f2bf3e25782f6bcc6fa",
+    "contentHash": "a4d380e20d73d92782c8ec65f835df08"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-run-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-run-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "182cd18d368f262da21be4831ac19533",
+      "bytes": 25793,
+      "width": 1708,
+      "height": 656,
+      "animated": false,
+      "path": "reviewer-run-context-light-182cd18d368f262da21be4831ac19533.svg"
+    },
+    {
+      "id": "reviewer-run-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-run-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2ba859a33a76ccdbe8ce463158f8a1a7",
+      "bytes": 26074,
+      "width": 1708,
+      "height": 656,
+      "animated": false,
+      "path": "reviewer-run-context-dark-2ba859a33a76ccdbe8ce463158f8a1a7.svg"
+    },
+    {
+      "id": "home-retention-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "home-retention-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6236d04ac9e465c6b92fcbab8746b5f1",
+      "bytes": 12690,
+      "width": 878,
+      "height": 532,
+      "animated": false,
+      "path": "home-retention-components-light-6236d04ac9e465c6b92fcbab8746b5f1.svg"
+    },
+    {
+      "id": "home-retention-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "home-retention-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b9e9c1c7df48fa24a187fa0c1853ef7d",
+      "bytes": 12825,
+      "width": 878,
+      "height": 532,
+      "animated": false,
+      "path": "home-retention-components-dark-b9e9c1c7df48fa24a187fa0c1853ef7d.svg"
+    },
+    {
+      "id": "codex-switch-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "codex-switch-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "792e706c21f949a83fe413ba2300538c",
+      "bytes": 5807,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "codex-switch-detail-light-792e706c21f949a83fe413ba2300538c.svg"
+    },
+    {
+      "id": "codex-switch-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "codex-switch-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f2b0bd85d38c5e63d6fcc643ccbde7e7",
+      "bytes": 5854,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "codex-switch-detail-dark-f2b0bd85d38c5e63d6fcc643ccbde7e7.svg"
+    },
+    {
+      "id": "kept-home-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "kept-home-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "eeb394e3845899021ff7703ddf58abfc",
+      "bytes": 16902,
+      "width": 1902,
+      "height": 467,
+      "animated": true,
+      "path": "kept-home-flow-view-light-eeb394e3845899021ff7703ddf58abfc.svg"
+    },
+    {
+      "id": "kept-home-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "kept-home-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "08ecd60d857494ca63dea632770c68b6",
+      "bytes": 17072,
+      "width": 1902,
+      "height": 467,
+      "animated": true,
+      "path": "kept-home-flow-view-dark-08ecd60d857494ca63dea632770c68b6.svg"
+    }
+  ]
+}
