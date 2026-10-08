@@ -65,14 +65,14 @@ ARG SKILLEVALUATOR_COMMIT=0da4646f9354664017706ba6c9d42bfbc38cbaa2
 # and the default builder). Each is pinned to one exact npm version so a
 # rebuild in a month installs the same tool a reviewer just tested against.
 ARG CODEX_VERSION=0.161.0
-ARG CLAUDE_CODE_VERSION=2.1.284
+ARG CLAUDE_CODE_VERSION=2.1.293
 # opencode's upstream npm package is opencode-ai; @opencode/cli is a
 # different, much newer package under a different GitHub org. This
 # project's own opencode plugin (integrations/opencode) already depends on
 # @opencode-ai/plugin, opencode-ai's own typed plugin SDK, which only ever
 # matches opencode-ai's own version line. Pinned to the exact version that
 # plugin SDK version also exists at.
-ARG OPENCODE_VERSION=1.18.31
+ARG OPENCODE_VERSION=1.18.35
 ARG OMP_VERSION=18.2.8
 
 # The skills tool version and the full archify commit, each pinned exactly.
