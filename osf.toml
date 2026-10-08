@@ -48,5 +48,8 @@ reviewers = ["codex", "claude", "opencode"]
 # A model per agent. An agent left out uses its own default model, and dsh
 # and omp take no model flag.
 [agents.models]
+# Probes the API-key path: codex's own default (gpt-6-astra) returned 401
+# against the review environment's key, so name a model the key can use.
+codex = "o4-mini"
 claude = "claude-sonnet-5"
 opencode = "openrouter/qwen/qwen3-coder-next"
