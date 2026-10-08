@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-review-container-only",
+    "headSha": "14b612bb33615caeb1a105e2fbf3116d28af9175",
+    "contentHash": "e021c25c867ce8671a950a314d7f8f8a"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-runtime-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-runtime",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4c8e2fe6819a67e092919d5d6de406d7",
+      "bytes": 29165,
+      "width": 2182,
+      "height": 1112,
+      "animated": false,
+      "path": "reviewer-runtime-light-4c8e2fe6819a67e092919d5d6de406d7.svg"
+    },
+    {
+      "id": "reviewer-runtime-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-runtime",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ac81e58168e83ecfc52fc178a8373676",
+      "bytes": 29540,
+      "width": 2182,
+      "height": 1112,
+      "animated": false,
+      "path": "reviewer-runtime-dark-ac81e58168e83ecfc52fc178a8373676.svg"
+    },
+    {
+      "id": "reviewer-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5d2d9239ce3cafd2a66e36afd6a551e4",
+      "bytes": 15410,
+      "width": 472,
+      "height": 760,
+      "animated": false,
+      "path": "reviewer-internals-light-5d2d9239ce3cafd2a66e36afd6a551e4.svg"
+    },
+    {
+      "id": "reviewer-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "737c5b15dc2cdb447f4ebb52faa03f8a",
+      "bytes": 15639,
+      "width": 472,
+      "height": 760,
+      "animated": false,
+      "path": "reviewer-internals-dark-737c5b15dc2cdb447f4ebb52faa03f8a.svg"
+    },
+    {
+      "id": "kept-home-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "kept-home-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e12209ebc79e6794c08d6004a4d9e938",
+      "bytes": 15979,
+      "width": 1981,
+      "height": 467,
+      "animated": true,
+      "path": "kept-home-flow-light-e12209ebc79e6794c08d6004a4d9e938.svg"
+    },
+    {
+      "id": "kept-home-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "kept-home-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ee9a573d293d657eaf22a3205055cb28",
+      "bytes": 16138,
+      "width": 1981,
+      "height": 467,
+      "animated": true,
+      "path": "kept-home-flow-dark-ee9a573d293d657eaf22a3205055cb28.svg"
+    }
+  ]
+}
