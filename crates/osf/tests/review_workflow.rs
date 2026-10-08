@@ -539,7 +539,7 @@ fn the_codex_job_runs_in_the_review_container() {
 }
 
 #[test]
-fn the_codex_job_allows_exactly_its_seven_hosts() {
+fn the_codex_job_allows_exactly_its_eight_hosts() {
     let body = job_body(&workflow_text(), "review-codex");
     let mut hosts = endpoints_of(&body);
     hosts.sort();
@@ -551,12 +551,13 @@ fn the_codex_job_allows_exactly_its_seven_hosts() {
         "ghcr.io:443",
         "pkg-containers.githubusercontent.com:443",
         "api.openai.com:443",
+        "chatgpt.com:443",
     ]
     .iter()
     .map(ToString::to_string)
     .collect();
     expected.sort();
-    assert_eq!(hosts, expected, "the codex job names its seven hosts");
+    assert_eq!(hosts, expected, "the codex job names its eight hosts");
     assert!(
         !body.contains("release-assets"),
         "the codex job downloads no release: {body}"
