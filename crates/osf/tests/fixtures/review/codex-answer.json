@@ -1,0 +1,1 @@
+{"lens":"correctness","scores":{"logic":0.5,"error-handling":0.5},"findings":[{"path":"a.rs","line":1,"quote":"x","severity":"minor","action":"dismiss","body":"fine"}]}
