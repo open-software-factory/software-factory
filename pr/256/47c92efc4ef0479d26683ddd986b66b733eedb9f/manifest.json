@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "47c92efc4ef0479d26683ddd986b66b733eedb9f",
+    "contentHash": "b1b9c282b4cf0e287c20f57f1d9911b9"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "work-item-resolution-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "work-item-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b1dbcfa0b7624926a1a05759f119acea",
+      "bytes": 22280,
+      "width": 1708,
+      "height": 988,
+      "animated": false,
+      "path": "work-item-resolution-light-b1dbcfa0b7624926a1a05759f119acea.svg"
+    },
+    {
+      "id": "work-item-resolution-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "work-item-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "89a3856b5c05bf0841f8df90a878d81e",
+      "bytes": 22508,
+      "width": 1708,
+      "height": 988,
+      "animated": false,
+      "path": "work-item-resolution-dark-89a3856b5c05bf0841f8df90a878d81e.svg"
+    },
+    {
+      "id": "binding-check-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "binding-check",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c8e9bd5abc1bb701036de66fc0e408a4",
+      "bytes": 9565,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "binding-check-light-c8e9bd5abc1bb701036de66fc0e408a4.svg"
+    },
+    {
+      "id": "binding-check-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "binding-check",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0683bd2c4fa2b6b0418a8500294b6f94",
+      "bytes": 9633,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "binding-check-dark-0683bd2c4fa2b6b0418a8500294b6f94.svg"
+    },
+    {
+      "id": "resolve-work-item-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "resolve-work-item-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4eabf623b0f575ac53fc5768a9a0bd49",
+      "bytes": 14101,
+      "width": 2382,
+      "height": 375,
+      "animated": true,
+      "path": "resolve-work-item-flow-light-4eabf623b0f575ac53fc5768a9a0bd49.svg"
+    },
+    {
+      "id": "resolve-work-item-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "resolve-work-item-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a5b020d171df32a210e46494035d3e3e",
+      "bytes": 14236,
+      "width": 2382,
+      "height": 375,
+      "animated": true,
+      "path": "resolve-work-item-flow-dark-a5b020d171df32a210e46494035d3e3e.svg"
+    }
+  ]
+}

@@ -1,0 +1,750 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-08T12:34:15.672Z",
+  "title": "Work item resolution: first issue wins instead of refusing ambiguity",
+  "summary": "The work-item resolver no longer refuses a pull request whose visible text names more than one issue in its own repository. `own_issue` now returns the first candidate rather than the sole one, `find` drops the multi-issue refusal branch, and `check_binding` accepts a saved work item whenever the pull request text names that issue anywhere among the candidates. The `more_than_one_issue` reason string is deleted, and the four architecture/development documents that described the refusal are updated to describe first-wins precedence: the `Issue:` line wins, otherwise the first closing keyword does.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d20306cdd4355b5ee486c238424eadaea3c26ccc",
+      "ref": "d20306cdd4355b5ee486c238424eadaea3c26ccc"
+    },
+    "head": {
+      "sha": "47c92efc4ef0479d26683ddd986b66b733eedb9f",
+      "ref": "47c92efc4ef0479d26683ddd986b66b733eedb9f"
+    },
+    "pullRequest": {
+      "number": 256,
+      "url": "https://github.com/open-software-factory/software-factory/pull/256"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "pr-text",
+      "label": "Pull request text",
+      "subtitle": "untrusted input",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The pull request body and its Markdown prose, read from the event payload. Untrusted, and the source of every issue reference the resolver considers."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The Rust crate that parses the body, resolves the work item, and validates a saved work item against the pull request text. This change lives here."
+    },
+    {
+      "id": "code-host",
+      "label": "Code host API",
+      "subtitle": "gh api, read-only token",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The external API that returns the issue's title and body for a number the resolver chose."
+    },
+    {
+      "id": "review-run",
+      "label": "Review run",
+      "subtitle": "build and reviewer jobs",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The workflow jobs that save the work item as an artifact and hand it to each reviewer lens as untrusted data."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pr-body",
+      "label": "Pull request body",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "pr-text",
+      "subtitle": "Markdown prose from the event",
+      "summary": "The raw body text. References inside code blocks, inline code spans, HTML comments and block quotes are excluded before any issue is considered.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 340,
+          "endLine": 350
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "candidates",
+      "label": "candidates()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "&str -> Vec<Reference>",
+      "summary": "Extracts every issue reference from the body as Markdown prose, tagging each with the repository it names and whether it came from an `Issue:` line or a closing keyword.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 362,
+          "endLine": 364
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "own-issues",
+      "label": "own_issues()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "repository, &[Reference] -> Vec<u64>",
+      "summary": "Filters the candidates down to the ones naming the pull request's own repository, preserving the order in which the body named them.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 320,
+          "endLine": 338
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "own-issue",
+      "label": "own_issue()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "first of own_issues, or None",
+      "summary": "Previously returned the issue only when exactly one existed, and `None` for none or many. Now returns the first candidate, so a body naming several issues resolves to the earliest one instead of failing.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 338,
+          "endLine": 341
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "named-issue",
+      "label": "named_issue()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "repository, pr_body -> Option<u64>",
+      "summary": "Public helper over `own_issue`. Its contract changes from 'the only prose candidate' to 'the first prose candidate'; a body naming several issues now yields the first rather than `None`.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 343,
+          "endLine": 350
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "find",
+      "label": "find()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "source, repository, pr_body, head -> WorkItem",
+      "summary": "Resolves the work item for a pull request. The branch that returned `WorkItem::Missing(more_than_one_issue(...))` when several issues were named is gone; the first issue is fetched instead.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 355,
+          "endLine": 380
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-binding",
+      "label": "check_binding()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "json, repository, head, body -> Result",
+      "summary": "Validates a saved work item against the pull request text. It now accepts when the saved number appears anywhere among the body's own issues, rather than requiring it to be the single named issue.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 470,
+          "endLine": 492
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "more-than-one-issue",
+      "label": "more_than_one_issue()",
+      "kind": "function",
+      "delta": "removed",
+      "lane": "osf-cli",
+      "subtitle": "reason string builder",
+      "summary": "Built the refusal reason naming every issue the body mentioned. Deleted along with the refusal paths that used it.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 28,
+          "endLine": 36,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-item-tests",
+      "label": "work_item tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "mod tests",
+      "summary": "The tests that asserted refusal now assert first-wins: `find` takes #1 from 'Closes #1 / Fixes #2', the `Issue:` line beats a later closing keyword, a zero-width character before the line still reads it, and `check_binding` accepts a saved issue named among others.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 1180,
+          "endLine": 1310
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-api",
+      "label": "gh api issues",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "code-host",
+      "subtitle": "read-only token",
+      "summary": "Reads the chosen issue's title and body. Called once, for the number the resolver picked.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 494,
+          "endLine": 520
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "work-item-artifact",
+      "label": "work-item artifact",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "review-run",
+      "subtitle": "issue number + head commit + text",
+      "summary": "The saved work item the build job writes and each reviewer job reads read-only. Holds the issue number and the head commit it was resolved for.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 225,
+          "endLine": 236
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-lens",
+      "label": "Reviewer lens",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-run",
+      "subtitle": "spec and acceptance, etc.",
+      "summary": "Consumes the work item as untrusted data. A saved work item for another head commit, or for an issue the pull request text does not name, makes the lens could-not-run.",
+      "files": [
+        {
+          "path": "docs/architecture/verification-seam.md",
+          "startLine": 270,
+          "endLine": 276
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "decision-records",
+      "label": "Decision records",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "review-run",
+      "subtitle": "0016, 0020, verification-seam, development",
+      "summary": "The prose that states the work-item rule. Four documents drop the 'two different issues is refused' sentence for 'several issues takes the first: the Issue: line wins, otherwise the first closing keyword'.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0016-the-review-check.md",
+          "startLine": 115,
+          "endLine": 118
+        },
+        {
+          "path": "docs/architecture/decisions/0020-who-can-post-a-review-result.md",
+          "startLine": 150,
+          "endLine": 153
+        },
+        {
+          "path": "docs/architecture/verification-seam.md",
+          "startLine": 270,
+          "endLine": 276
+        },
+        {
+          "path": "docs/development.md",
+          "startLine": 225,
+          "endLine": 236
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-body-to-candidates",
+      "from": "pr-body",
+      "to": "candidates",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "body text",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 362,
+          "endLine": 364
+        }
+      ]
+    },
+    {
+      "id": "candidates-to-own-issues",
+      "from": "candidates",
+      "to": "own-issues",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 320,
+          "endLine": 338
+        }
+      ]
+    },
+    {
+      "id": "own-issues-to-own-issue",
+      "from": "own-issues",
+      "to": "own-issue",
+      "kind": "call",
+      "delta": "modified",
+      "label": "first()",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The heart of the change: the ordered candidate list is now reduced by taking its first element instead of requiring it to be the only one.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 338,
+          "endLine": 341
+        }
+      ]
+    },
+    {
+      "id": "own-issue-to-named-issue",
+      "from": "own-issue",
+      "to": "named-issue",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 343,
+          "endLine": 350
+        }
+      ]
+    },
+    {
+      "id": "own-issue-to-find",
+      "from": "own-issue",
+      "to": "find",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`find` no longer branches on the candidate count; it takes the first issue and fetches it.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 355,
+          "endLine": 380
+        }
+      ]
+    },
+    {
+      "id": "find-to-gh-api",
+      "from": "find",
+      "to": "gh-api",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "GET issue #N",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 494,
+          "endLine": 520
+        }
+      ]
+    },
+    {
+      "id": "find-to-work-item-artifact",
+      "from": "find",
+      "to": "work-item-artifact",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "WorkItem::Found",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 355,
+          "endLine": 380
+        }
+      ]
+    },
+    {
+      "id": "work-item-artifact-to-reviewer-lens",
+      "from": "work-item-artifact",
+      "to": "reviewer-lens",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "read-only file",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 225,
+          "endLine": 236
+        }
+      ]
+    },
+    {
+      "id": "pr-body-to-check-binding",
+      "from": "pr-body",
+      "to": "check-binding",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "body text",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 470,
+          "endLine": 492
+        }
+      ]
+    },
+    {
+      "id": "check-binding-to-own-issues",
+      "from": "check-binding",
+      "to": "own-issues",
+      "kind": "call",
+      "delta": "modified",
+      "label": "contains(&number)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The binding check flips from 'the single named issue must equal the saved one' to 'the saved one must appear among the named issues'.",
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 470,
+          "endLine": 492
+        }
+      ]
+    },
+    {
+      "id": "check-binding-to-reviewer-lens",
+      "from": "check-binding",
+      "to": "reviewer-lens",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "Ok / Err",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 470,
+          "endLine": 492
+        }
+      ]
+    },
+    {
+      "id": "work-item-tests-to-find",
+      "from": "work-item-tests",
+      "to": "find",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "asserts first-wins",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 1180,
+          "endLine": 1310
+        }
+      ]
+    },
+    {
+      "id": "work-item-tests-to-check-binding",
+      "from": "work-item-tests",
+      "to": "check-binding",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "asserts acceptance",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/work_item.rs",
+          "startLine": 1278,
+          "endLine": 1310
+        }
+      ]
+    },
+    {
+      "id": "decision-records-to-find",
+      "from": "decision-records",
+      "to": "find",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "documents the rule",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0016-the-review-check.md",
+          "startLine": 115,
+          "endLine": 118
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "resolve-work-item",
+      "title": "Resolving the work item from a multi-issue body",
+      "summary": "A pull request body that names several issues in its own repository now resolves to the first one instead of being refused. The `Issue:` line wins over a later closing keyword, and the chosen issue is fetched once.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "pr-body",
+          "label": "PR body"
+        },
+        {
+          "node": "candidates"
+        },
+        {
+          "node": "own-issues"
+        },
+        {
+          "node": "own-issue"
+        },
+        {
+          "node": "find"
+        },
+        {
+          "node": "gh-api"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-read-body",
+          "from": "pr-body",
+          "to": "candidates",
+          "label": "body text",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/work_item.rs",
+              "startLine": 362,
+              "endLine": 364
+            }
+          ]
+        },
+        {
+          "id": "step-extract",
+          "from": "candidates",
+          "to": "own-issues",
+          "label": "references in own repo",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/work_item.rs",
+              "startLine": 320,
+              "endLine": 338
+            }
+          ]
+        },
+        {
+          "id": "step-first",
+          "from": "own-issues",
+          "to": "own-issue",
+          "label": "first()",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Before: `None` when the list held more than one issue. After: the first element, so 'Closes #1 / Fixes #2' yields #1.",
+          "files": [
+            {
+              "path": "crates/osf/src/work_item.rs",
+              "startLine": 338,
+              "endLine": 341
+            }
+          ]
+        },
+        {
+          "id": "step-resolve",
+          "from": "own-issue",
+          "to": "find",
+          "label": "Some(#1)",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "The `issues.len() > 1` refusal branch is gone; `find` proceeds to fetch.",
+          "files": [
+            {
+              "path": "crates/osf/src/work_item.rs",
+              "startLine": 355,
+              "endLine": 380
+            }
+          ]
+        },
+        {
+          "id": "step-fetch",
+          "from": "find",
+          "to": "gh-api",
+          "label": "GET issue #1",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/work_item.rs",
+              "startLine": 494,
+              "endLine": 520
+            }
+          ]
+        },
+        {
+          "id": "step-found",
+          "from": "gh-api",
+          "to": "find",
+          "label": "title + body",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/work_item.rs",
+              "startLine": 494,
+              "endLine": 520
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 5,
+    "additions": 60,
+    "deletions": 71,
+    "chips": [
+      {
+        "label": "Refusal path",
+        "value": "removed",
+        "tone": "removed"
+      },
+      {
+        "label": "Issue precedence",
+        "value": "first wins",
+        "tone": "hero"
+      },
+      {
+        "label": "Docs updated",
+        "value": "4",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "work-item-resolution",
+      "title": "Work item resolution",
+      "lens": "architecture",
+      "summary": "The osf CLI resolves a pull request's work item from its body, fetches the issue through the code host API, and saves it for the reviewer jobs. The changed functions are `own_issue`, `named_issue`, `find` and `check_binding`.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "binding-check",
+      "title": "Binding check",
+      "lens": "architecture",
+      "summary": "How a saved work item is validated against the pull request text before a reviewer lens consumes it.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "pr-body",
+          "check-binding",
+          "own-issues",
+          "work-item-artifact",
+          "reviewer-lens"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "resolve-work-item-flow",
+      "title": "Resolving the work item",
+      "lens": "data-flow",
+      "summary": "The ordered steps from pull request body to fetched issue for a body that names several issues.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "resolve-work-item"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
