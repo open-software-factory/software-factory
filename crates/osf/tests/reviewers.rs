@@ -467,7 +467,7 @@ fn this_repositorys_osf_toml_selects_its_reviewers_from_the_agent_list_in_order(
     };
     assert_eq!(model("claude"), Some("claude-sonnet-5"));
     assert_eq!(model("opencode"), Some("openrouter/qwen/qwen3-coder-next"));
-    assert_eq!(model("codex"), None);
+    assert_eq!(model("codex"), Some("o4-mini"));
 }
 
 /// A Claude-built range's family (`anthropic`, from its `Code-Generator:`
