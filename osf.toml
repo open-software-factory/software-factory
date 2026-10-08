@@ -50,6 +50,6 @@ reviewers = ["codex", "claude", "opencode"]
 [agents.models]
 # Probes the API-key path: codex's own default (gpt-6-astra) returned 401
 # against the review environment's key, so name a model the key can use.
-codex = "o4-mini"
+codex = "gpt-6.1-sol"
 claude = "claude-sonnet-5"
 opencode = "openrouter/qwen/qwen3-coder-next"
