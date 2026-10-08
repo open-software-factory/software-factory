@@ -458,12 +458,11 @@ pub const AGENTS: &[Agent] = &[
             path: "/codex/",
         },
         review: Some(Review {
-            // `codex exec --help`: the first three ignore user configuration, rules files and saved sessions; the folder is not a git repository.
+            // `codex exec --help`: the first two ignore user configuration and rules files; the folder is not a git repository.
             clean_copy: Switches {
                 args: &[
                     "--ignore-user-config",
                     "--ignore-rules",
-                    "--ephemeral",
                     "--skip-git-repo-check",
                 ],
                 env: &[],

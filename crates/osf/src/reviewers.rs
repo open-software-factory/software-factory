@@ -345,8 +345,21 @@ fn copy_dir(source: &Path, dest: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Whether a reviewer's home is kept after its run instead of removed. Set
+/// `OSF_KEEP_REVIEW_HOME` for a run whose child output and session files
+/// should survive for diagnosis, such as a reviewer job that points its
+/// temporary folder at a mounted one. The home is the reviewer's own record;
+/// it is never the journal, and nothing decides anything from it.
+fn keep_home() -> bool {
+    std::env::var_os("OSF_KEEP_REVIEW_HOME").is_some()
+}
+
 impl Drop for RunHome {
     fn drop(&mut self) {
+        if keep_home() {
+            eprintln!("osf: kept a reviewer home at {}", self.0.display());
+            return;
+        }
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
@@ -636,6 +649,31 @@ fn prepare_command(
 /// credential, by name). Every other reviewer's credential and login, and
 /// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
 /// process. A missing login path adds a note to `notes`, once.
+/// Writes a reviewer's own record into its home, and takes any seeded login
+/// out of it, when the home is kept for diagnosis. The home is not the
+/// journal: no verdict, finding or reason is ever read from it.
+fn preserve_home(home: &RunHome, reviewer: &Reviewer, stdout: &str, stderr: &str) {
+    if !keep_home() {
+        return;
+    }
+    for relative in &reviewer.login_paths {
+        let path = home.0.join(relative);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_dir_all(&path);
+    }
+    let _ = std::fs::write(home.0.join("child.stdout"), stdout);
+    let _ = std::fs::write(home.0.join("child.stderr"), stderr);
+}
+
+/// The last non-empty line of `text`, trimmed and capped at 200 characters:
+/// the shape a console diagnostic takes, never a reason.
+fn last_non_empty_line(text: &str) -> Option<String> {
+    text.lines()
+        .rev()
+        .find(|line| !line.trim().is_empty())
+        .map(|line| line.trim().chars().take(200).collect())
+}
+
 fn run_child(
     reviewer: &Reviewer,
     prompt: &str,
@@ -658,7 +696,7 @@ fn run_child(
         return Err(format!("reviewer '{}' has an empty command", reviewer.name));
     };
 
-    let (mut command, _home, home_notes) =
+    let (mut command, home, home_notes) =
         match prepare_command(reviewer, program, rest, workdir, real_home) {
             Ok(prepared) => prepared,
             Err(e) => {
@@ -747,18 +785,27 @@ fn run_child(
     let stdout_text = stdout_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
-    // Drained and joined so the reader thread always finishes cleanly, but
-    // never read: a reviewer's stderr is reviewer-controlled text, and this
-    // function's own errors are journalled, so it must never appear in one.
-    let _stderr_text = stderr_reader
+    // Joined so the reader thread always finishes cleanly. It never enters
+    // the returned reason, which may be journalled: a reviewer's stderr is
+    // reviewer-controlled text. It goes to the kept home, and a failed run
+    // also prints its last line to the console, where only a person
+    // diagnosing the run reads it.
+    let stderr_text = stderr_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
     cleanup();
+    preserve_home(&home, reviewer, &stdout_text, &stderr_text);
 
     if !status.success() {
         let code = status
             .code()
             .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
+        if let Some(line) = last_non_empty_line(&stderr_text) {
+            eprintln!(
+                "osf: reviewer '{}' exited with code {code}: {line}",
+                reviewer.name
+            );
+        }
         return Err(format!(
             "reviewer '{}' exited with code {code}",
             reviewer.name
