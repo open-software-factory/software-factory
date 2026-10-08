@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "devcontainer-agent-toolchain",
+    "headSha": "272bfeeede0f77525683952d06d8831d79493a39",
+    "contentHash": "630bc66324abbebeb9781493b7527764"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "container-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a398289ef6966ddac0c187e03c3cfbb6",
+      "bytes": 38648,
+      "width": 1838,
+      "height": 1444,
+      "animated": true,
+      "path": "container-view-light-a398289ef6966ddac0c187e03c3cfbb6.svg"
+    },
+    {
+      "id": "container-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "container-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "724da917f13f35d9cc144830e5ee64eb",
+      "bytes": 39118,
+      "width": 1838,
+      "height": 1444,
+      "animated": true,
+      "path": "container-view-dark-724da917f13f35d9cc144830e5ee64eb.svg"
+    },
+    {
+      "id": "hook-wiring-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "hook-wiring-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "79cfb308689fd230bc9552cf26658cca",
+      "bytes": 13719,
+      "width": 860,
+      "height": 418,
+      "animated": true,
+      "path": "hook-wiring-view-light-79cfb308689fd230bc9552cf26658cca.svg"
+    },
+    {
+      "id": "hook-wiring-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "hook-wiring-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "485525c1cfae531fbb781c50e779587b",
+      "bytes": 13853,
+      "width": 860,
+      "height": 418,
+      "animated": true,
+      "path": "hook-wiring-view-dark-485525c1cfae531fbb781c50e779587b.svg"
+    },
+    {
+      "id": "enforcement-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "enforcement-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e471b02ec53a5747109f3f434ba783ef",
+      "bytes": 10888,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "enforcement-view-light-e471b02ec53a5747109f3f434ba783ef.svg"
+    },
+    {
+      "id": "enforcement-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "enforcement-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "eca4d74df7a869f8b0d0f4a7791fc8bc",
+      "bytes": 11014,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "enforcement-view-dark-eca4d74df7a869f8b0d0f4a7791fc8bc.svg"
+    },
+    {
+      "id": "build-verification-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-verification-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "de7cada7e0d17b1260a47591186cb75c",
+      "bytes": 12832,
+      "width": 878,
+      "height": 760,
+      "animated": true,
+      "path": "build-verification-view-light-de7cada7e0d17b1260a47591186cb75c.svg"
+    },
+    {
+      "id": "build-verification-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-verification-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e279d0c799279b4aad8a9db10ea280a1",
+      "bytes": 12989,
+      "width": 878,
+      "height": 760,
+      "animated": true,
+      "path": "build-verification-view-dark-e279d0c799279b4aad8a9db10ea280a1.svg"
+    }
+  ]
+}
