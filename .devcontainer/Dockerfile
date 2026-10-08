@@ -64,7 +64,7 @@ ARG SKILLEVALUATOR_COMMIT=0da4646f9354664017706ba6c9d42bfbc38cbaa2
 # crates/osf/src/agents.rs, for the one list of them, their hook wiring,
 # and the default builder). Each is pinned to one exact npm version so a
 # rebuild in a month installs the same tool a reviewer just tested against.
-ARG CODEX_VERSION=0.154.0
+ARG CODEX_VERSION=0.161.0
 ARG CLAUDE_CODE_VERSION=2.1.284
 # opencode's upstream npm package is opencode-ai; @opencode/cli is a
 # different, much newer package under a different GitHub org. This
