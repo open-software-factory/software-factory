@@ -1,0 +1,386 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "ci-merge-group-trigger",
+  "generatedAt": "2026-10-09T12:43:39.998Z",
+  "title": "CI now also runs on the merge queue",
+  "summary": "The CI workflow gains a `merge_group` trigger alongside `pull_request` and `push`. Nothing inside the pipeline changes: the same jobs that gate a pull request now also run on the merge queue's own queue branch, which is the only way the required checks can be satisfied there before a queued PR is merged. The blast radius is the trigger surface of the workflow, not its steps.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "76d95d970425a7504deff97058cd7cea5fb03713",
+      "ref": "76d95d970425a7504deff97058cd7cea5fb03713"
+    },
+    "head": {
+      "sha": "94409201aff19aef42e634c9095861728ab23597",
+      "ref": "94409201aff19aef42e634c9095861728ab23597"
+    },
+    "pullRequest": {
+      "number": 265,
+      "url": "https://github.com/open-software-factory/software-factory/pull/265"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Event sources",
+      "subtitle": "What starts the workflow",
+      "order": 0,
+      "summary": "GitHub-side events that can start a CI run."
+    },
+    {
+      "id": "workflow",
+      "label": "CI workflow",
+      "subtitle": ".github/workflows/ci.yml",
+      "order": 1,
+      "summary": "The single workflow file that declares triggers and jobs."
+    },
+    {
+      "id": "jobs",
+      "label": "Jobs",
+      "subtitle": "Runners and checks",
+      "order": 2,
+      "summary": "The jobs the workflow schedules on GitHub-hosted runners."
+    },
+    {
+      "id": "repo",
+      "label": "Repository",
+      "subtitle": "Branches and gates",
+      "order": 3,
+      "summary": "Where the checks report and what they gate."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "pull_request",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "opened / synchronize / reopened",
+      "summary": "The existing trigger that runs CI on every pull request update.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 4,
+          "endLine": 5
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "merge-group-event",
+      "label": "merge_group",
+      "kind": "other",
+      "delta": "added",
+      "lane": "triggers",
+      "subtitle": "checks_requested",
+      "summary": "New trigger. The merge queue creates a temporary queue branch and fires this event; only workflows that listen for it are run there, so without it the required checks never report and the queue stalls.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 6,
+          "endLine": 8
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "push-main-event",
+      "label": "push to main",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "branches: [main]",
+      "summary": "Post-merge trigger that runs CI on the main branch.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 9,
+          "endLine": 10
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "CI workflow",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "name: CI",
+      "summary": "The workflow definition. Its `on:` block is the only thing this change touches; the job graph below it is untouched.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 1,
+          "endLine": 10
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-gate",
+      "label": "Writing gate",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "jobs",
+      "subtitle": "reads every tracked Markdown file",
+      "summary": "A job that scans tracked Markdown on every run. It now also runs on the queue branch, which is the intended consequence of the new trigger.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 11,
+          "endLine": 13
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "required-checks",
+      "label": "Required checks",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "repo",
+      "subtitle": "branch protection",
+      "summary": "The status checks branch protection requires before a pull request can merge. The merge queue evaluates these against the queue branch.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 6,
+          "endLine": 8
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "main-branch",
+      "label": "main",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "repo",
+      "subtitle": "protected branch",
+      "summary": "The branch the queue ultimately lands commits on.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 9,
+          "endLine": 10
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-event-starts-ci",
+      "from": "pull-request-event",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "on: pull_request",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Pull request activity starts a CI run, as before.",
+      "files": []
+    },
+    {
+      "id": "merge-group-starts-ci",
+      "from": "merge-group-event",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "added",
+      "label": "on: merge_group",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The change: the merge queue's event now starts the same workflow.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 6,
+          "endLine": 8
+        }
+      ]
+    },
+    {
+      "id": "push-starts-ci",
+      "from": "push-main-event",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "on: push",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Pushes to main still start a CI run.",
+      "files": []
+    },
+    {
+      "id": "ci-runs-writing-gate",
+      "from": "ci-workflow",
+      "to": "writing-gate",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "jobs",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow schedules its jobs; the job set is unchanged by this diff.",
+      "files": []
+    },
+    {
+      "id": "writing-gate-reports-checks",
+      "from": "writing-gate",
+      "to": "required-checks",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "status",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Job results surface as the status checks branch protection reads.",
+      "files": []
+    },
+    {
+      "id": "required-checks-gate-main",
+      "from": "required-checks",
+      "to": "main-branch",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "gate",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Satisfied checks are what allow the queued commit to land on main.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "merge-queue-run",
+      "title": "A queued pull request runs CI on the queue branch",
+      "summary": "How the new trigger turns a merge-queue entry into a CI run whose checks the queue can read.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "merge-group-event",
+          "label": "merge_group"
+        },
+        {
+          "node": "ci-workflow",
+          "label": "CI workflow"
+        },
+        {
+          "node": "writing-gate",
+          "label": "Writing gate"
+        },
+        {
+          "node": "required-checks",
+          "label": "Required checks"
+        }
+      ],
+      "messages": [
+        {
+          "id": "queue-fires-event",
+          "from": "merge-group-event",
+          "to": "ci-workflow",
+          "label": "merge_group (checks_requested)",
+          "kind": "async",
+          "delta": "added",
+          "animated": true,
+          "note": "The queue branch is a synthetic ref; only workflows subscribed to this event are started there.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 6,
+              "endLine": 8
+            }
+          ]
+        },
+        {
+          "id": "workflow-schedules-jobs",
+          "from": "ci-workflow",
+          "to": "writing-gate",
+          "label": "schedule jobs",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Same job graph as a pull_request run; the diff adds no steps.",
+          "files": []
+        },
+        {
+          "id": "gate-reports-status",
+          "from": "writing-gate",
+          "to": "required-checks",
+          "label": "check run status",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The queue reads these results to decide whether the entry may merge.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 3,
+    "deletions": 0,
+    "chips": [
+      {
+        "label": "New trigger",
+        "value": "merge_group",
+        "tone": "added"
+      },
+      {
+        "label": "Jobs changed",
+        "value": "0",
+        "tone": "neutral"
+      },
+      {
+        "label": "Workflow files touched",
+        "value": "1",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "ci-trigger-context",
+      "title": "CI trigger surface",
+      "lens": "architecture",
+      "summary": "The events that can start CI and what the resulting checks gate.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "merge-queue-run-view",
+      "title": "Merge queue run",
+      "lens": "data-flow",
+      "summary": "The ordered steps of a merge-queue-triggered CI run.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "merge-queue-run"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1308 261" width="1308" height="261" role="img" aria-label="Merge queue run" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Merge queue run</title>
+<desc>The ordered steps of a merge-queue-triggered CI run.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1308" height="261" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1308" height="261" rx="12" fill="url(#dots)"/>
+<g transform="translate(12,10)"><g><rect class="lanebox" x="4" y="6" width="277" height="229" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="337" y="6" width="277" height="229" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="670" y="6" width="277" height="229" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="1003" y="6" width="277" height="229" rx="12" fill="rgba(110,118,129,.07)"/></g>
+<g><line class="lifeline" x1="142.5" y1="82" x2="142.5" y2="223" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="475.5" y1="82" x2="475.5" y2="223" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="808.5" y1="82" x2="808.5" y2="223" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="802.5" y="161" width="12" height="50.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/>
+<line class="lifeline" x1="1141.5" y1="82" x2="1141.5" y2="223" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-added" x="16" y="18" width="253" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3fb950" stroke-opacity="0.55"/>
+<rect class="chip" x="30" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="38" cy="49" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="43" cy="49" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="48" cy="49" r="1.8"/></g>
+<text class="ntitle" x="66" y="45" font-size="13" font-weight="600" fill="#e6edf3">merge_group</text>
+<text class="nsub" x="66" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">checks_requested</text>
+<g class="bdg bdg-added"><rect x="221.45" y="10" width="40.55" height="16" rx="8" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)" stroke-width="1"/><text x="241.73" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#3fb950">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="349" y="18" width="253" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="363" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M369,45 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M369,53 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="374" cy="45" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="379" cy="53" r="2.2"/></g>
+<text class="ntitle" x="399" y="45" font-size="13" font-weight="600" fill="#e6edf3">CI workflow</text>
+<text class="nsub" x="399" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">name: CI</text>
+<g class="bdg bdg-modified"><rect x="528.38" y="10" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="561.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="682" y="18" width="253" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="696" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="709" cy="49" r="6.5"/>
+<path class="glyph-stroke" d="M709,45.5 V49 H712" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="732" y="45" font-size="13" font-weight="600" fill="#e6edf3">Writing gate</text>
+<text class="nsub" x="732" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">reads every tracked Markdown file</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1015" y="18" width="253" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1029" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="1037" cy="49" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="1042" cy="49" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="1047" cy="49" r="1.8"/></g>
+<text class="ntitle" x="1065" y="45" font-size="13" font-weight="600" fill="#e6edf3">Required checks</text>
+<text class="nsub" x="1065" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">branch protection</text></g></g>
+<g><path class="msg edge-added msg-strong" d="M142.5,123 L470.5,123" marker-end="url(#mko-added)" fill="none" stroke="#3fb950" stroke-width="2.25"/>
+<circle r="2.6" fill="#3fb950" opacity="0"><animateMotion dur="4.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0;0.3333;1" calcMode="linear" path="M142.5,123 L470.5,123"/><animate attributeName="opacity" dur="4.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0;0.0267;0.3067;0.3333;1"/></circle>
+<path class="msg edge-neutral" d="M475.5,161 L797.5,161" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5"/>
+<circle r="2.6" fill="#6e7681" opacity="0"><animateMotion dur="4.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.3333;0.6667;1" calcMode="linear" path="M475.5,161 L797.5,161"/><animate attributeName="opacity" dur="4.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.3333;0.36;0.64;0.6667;1"/></circle>
+<path class="msg edge-neutral msg-return" d="M814.5,199 L1136.5,199" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>
+<circle r="2.6" fill="#6e7681" opacity="0"><animateMotion dur="4.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.6667;1;1" calcMode="linear" path="M814.5,199 L1136.5,199"/><animate attributeName="opacity" dur="4.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.6667;0.6933;0.9733;1;1"/></circle></g>
+<g><g><rect class="lpill" x="222.95" y="115.5" width="167.11" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-added" x="306.5" y="126.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#3fb950">merge_group (checks_requested)</text></g>
+<g><rect class="lpill" x="597.72" y="153.5" width="77.57" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="636.5" y="164.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">schedule jobs</text></g>
+<g><rect class="lpill" x="930.84" y="191.5" width="89.32" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="975.5" y="202.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">check run status</text></g></g></g>
+</svg>
