@@ -48,9 +48,12 @@ jobs:
       # when it has a key, then the others in a fixed order. The second is
       # the one retry when the first fails. PR_LENS_MODEL names a model for
       # the configured provider only; another provider uses its own default.
-      # The openai default is a reasoning model, which rejects a fixed
-      # temperature, so its row asks the CLI to send none. Set
-      # PR_LENS_PROVIDER=openai with PR_LENS_MODEL to use another OpenAI model.
+      # The openai row has no default model, since none is verified against
+      # the org's key. It is tried only when a model is set: the repository
+      # variable PR_LENS_OPENAI_MODEL, or PR_LENS_MODEL when openai is the
+      # configured provider. With a key but no model it is skipped, and the
+      # skip is named in the note. OpenAI reasoning models reject a fixed
+      # temperature, so its row asks the CLI to send none.
       - name: Resolve the model providers
         id: provider
         env:
@@ -58,13 +61,14 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           MODEL_OVERRIDE: ${{ vars.PR_LENS_MODEL }}
+          OPENAI_MODEL: ${{ vars.PR_LENS_OPENAI_MODEL }}
         run: |
           set -euo pipefail
           # cli provider | base url | default model | key variable | temperature
           table() {
             case "$1" in
               deepseek) echo "openai-compatible|https://api.deepseek.com|deepseek-chat|DEEPSEEK_API_KEY|0" ;;
-              openai) echo "openai||o4-mini|OPENAI_API_KEY|default" ;;
+              openai) echo "openai|||OPENAI_API_KEY|default" ;;
               anthropic) echo "openai-compatible|https://api.anthropic.com/v1|claude-sonnet-5|ANTHROPIC_API_KEY|0" ;;
               *) return 1 ;;
             esac
@@ -77,6 +81,7 @@ jobs:
           echo "primary_key_var=${primary_key_var}" >> "$GITHUB_OUTPUT"
 
           seen=" "
+          skipped=""
           slot=0
           for name in "${PR_LENS_PROVIDER}" deepseek openai anthropic; do
             case "${seen}" in *" ${name} "*) continue ;; esac
@@ -87,6 +92,13 @@ jobs:
             fi
             if [ "${name}" = "${PR_LENS_PROVIDER}" ] && [ -n "${MODEL_OVERRIDE}" ]; then
               model="${MODEL_OVERRIDE}"
+            fi
+            if [ "${name}" = openai ] && [ -z "${model}" ]; then
+              model="${OPENAI_MODEL}"
+            fi
+            if [ "${name}" = openai ] && [ -z "${model}" ]; then
+              skipped="openai: skipped, no model configured (set PR_LENS_OPENAI_MODEL)"
+              continue
             fi
             slot=$((slot + 1))
             if [ "${slot}" -eq 1 ]; then prefix=first; else prefix=second; fi
@@ -102,6 +114,7 @@ jobs:
               break
             fi
           done
+          echo "skipped=${skipped}" >> "$GITHUB_OUTPUT"
 
       - name: List the changed files
         id: files
@@ -154,9 +167,10 @@ jobs:
         if: steps.files.outputs.docs_only == 'false' && steps.provider.outputs.first_name == ''
         env:
           GH_TOKEN: ${{ github.token }}
+          SKIPPED: ${{ steps.provider.outputs.skipped }}
         run: |
           set -euo pipefail
-          echo "pr-lens has no model key: add the review environment and a ${{ steps.provider.outputs.primary_key_var }} secret to draw a diagram here." > "${RUNNER_TEMP}/section.md"
+          echo "pr-lens has no usable model: add the review environment and a ${{ steps.provider.outputs.primary_key_var }} secret to draw a diagram here. ${SKIPPED}" > "${RUNNER_TEMP}/section.md"
           ./target/release/osf pr section write --pr "${{ github.event.pull_request.number }}" --name pr-lens --head "${{ github.event.pull_request.head.sha }}" --file "${RUNNER_TEMP}/section.md"
 
       - name: Fetch the pull request's head, as data only
@@ -178,6 +192,7 @@ jobs:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SKIPPED: ${{ steps.provider.outputs.skipped }}
           FIRST_NAME: ${{ steps.provider.outputs.first_name }}
           FIRST_CLI: ${{ steps.provider.outputs.first_cli_provider }}
           FIRST_BASE_URL: ${{ steps.provider.outputs.first_base_url }}
@@ -257,7 +272,7 @@ jobs:
             reason="${first_reason} | retry with ${reason}"
           fi
 
-          printf '%s\n' "${reason}" > "${RUNNER_TEMP}/analyze-reason.txt"
+          printf '%s\n' "${reason}${SKIPPED:+ | ${SKIPPED}}" > "${RUNNER_TEMP}/analyze-reason.txt"
           exit 1
 
       - name: Write a note when the model call failed
