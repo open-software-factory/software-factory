@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CLI_VERSION: 0.11.0
+  CLI_VERSION: 0.13.0
   PR_LENS_PROVIDER: ${{ vars.PR_LENS_PROVIDER || 'deepseek' }}
 
 jobs:
@@ -48,6 +48,9 @@ jobs:
       # when it has a key, then the others in a fixed order. The second is
       # the one retry when the first fails. PR_LENS_MODEL names a model for
       # the configured provider only; another provider uses its own default.
+      # The openai default is a reasoning model, which rejects a fixed
+      # temperature, so its row asks the CLI to send none. Set
+      # PR_LENS_PROVIDER=openai with PR_LENS_MODEL to use another OpenAI model.
       - name: Resolve the model providers
         id: provider
         env:
@@ -57,12 +60,12 @@ jobs:
           MODEL_OVERRIDE: ${{ vars.PR_LENS_MODEL }}
         run: |
           set -euo pipefail
-          # cli provider | base url | default model | key variable
+          # cli provider | base url | default model | key variable | temperature
           table() {
             case "$1" in
-              deepseek) echo "openai-compatible|https://api.deepseek.com|deepseek-chat|DEEPSEEK_API_KEY" ;;
-              openai) echo "openai|||OPENAI_API_KEY" ;;
-              anthropic) echo "openai-compatible|https://api.anthropic.com/v1|claude-sonnet-5|ANTHROPIC_API_KEY" ;;
+              deepseek) echo "openai-compatible|https://api.deepseek.com|deepseek-chat|DEEPSEEK_API_KEY|0" ;;
+              openai) echo "openai||o4-mini|OPENAI_API_KEY|default" ;;
+              anthropic) echo "openai-compatible|https://api.anthropic.com/v1|claude-sonnet-5|ANTHROPIC_API_KEY|0" ;;
               *) return 1 ;;
             esac
           }
@@ -70,7 +73,7 @@ jobs:
             echo "::error::PR_LENS_PROVIDER is '${PR_LENS_PROVIDER}'; supported values are deepseek, openai, anthropic."
             exit 1
           fi
-          IFS='|' read -r _ _ _ primary_key_var <<< "${primary_row}"
+          IFS='|' read -r _ _ _ primary_key_var _ <<< "${primary_row}"
           echo "primary_key_var=${primary_key_var}" >> "$GITHUB_OUTPUT"
 
           seen=" "
@@ -78,7 +81,7 @@ jobs:
           for name in "${PR_LENS_PROVIDER}" deepseek openai anthropic; do
             case "${seen}" in *" ${name} "*) continue ;; esac
             seen="${seen}${name} "
-            IFS='|' read -r cli base_url model key_var <<< "$(table "${name}")"
+            IFS='|' read -r cli base_url model key_var temperature <<< "$(table "${name}")"
             if [ -z "${!key_var:-}" ]; then
               continue
             fi
@@ -93,6 +96,7 @@ jobs:
               echo "${prefix}_base_url=${base_url}"
               echo "${prefix}_model=${model}"
               echo "${prefix}_key_var=${key_var}"
+              echo "${prefix}_temperature=${temperature}"
             } >> "$GITHUB_OUTPUT"
             if [ "${slot}" -eq 2 ]; then
               break
@@ -159,10 +163,13 @@ jobs:
         if: steps.files.outputs.docs_only == 'false' && steps.provider.outputs.first_name != ''
         run: git fetch origin "refs/pull/${{ github.event.pull_request.number }}/head"
 
-      # ubuntu-latest ships Node 22, which meets pr-lens 0.11.0's engines
+      # ubuntu-latest ships Node 22, which meets pr-lens 0.13.0's engines
       # field (>=20.11), so no setup-node step downloads anything here.
       # A review aid, not a gate: a failed model call writes a note below and the check still passes.
-      # When the first provider fails, one retry runs with the second, if any.
+      # Each provider is tried with both lenses, then with the architecture
+      # lens alone: a long data-flow answer is the likelier to fail
+      # validation, and one lens still draws a diagram. When the first
+      # provider fails both ways, one retry runs with the second, if any.
       - name: Analyze the diff
         if: steps.files.outputs.docs_only == 'false' && steps.provider.outputs.first_name != ''
         id: analyze
@@ -176,26 +183,33 @@ jobs:
           FIRST_BASE_URL: ${{ steps.provider.outputs.first_base_url }}
           FIRST_MODEL: ${{ steps.provider.outputs.first_model }}
           FIRST_KEY_VAR: ${{ steps.provider.outputs.first_key_var }}
+          FIRST_TEMPERATURE: ${{ steps.provider.outputs.first_temperature }}
           SECOND_NAME: ${{ steps.provider.outputs.second_name }}
           SECOND_CLI: ${{ steps.provider.outputs.second_cli_provider }}
           SECOND_BASE_URL: ${{ steps.provider.outputs.second_base_url }}
           SECOND_MODEL: ${{ steps.provider.outputs.second_model }}
           SECOND_KEY_VAR: ${{ steps.provider.outputs.second_key_var }}
+          SECOND_TEMPERATURE: ${{ steps.provider.outputs.second_temperature }}
         run: |
           set -uo pipefail
           echo "the model call failed before it reported a reason" > "${RUNNER_TEMP}/analyze-reason.txt"
 
-          # args: cli provider, base url, model, key variable, log file
+          # args: cli provider, base url, model, key variable, temperature,
+          # log file, then any extra flags, such as a single --lens
           attempt() {
+            local cli="$1" base_url="$2" model="$3" key_var="$4" temperature="$5" log="$6"
+            shift 6
             npx --yes "@coldtea/pr-lens-cli@${CLI_VERSION}" analyze \
               --base "${{ github.event.pull_request.base.sha }}" \
               --head "${{ github.event.pull_request.head.sha }}" \
               --pr "${{ github.event.pull_request.number }}" \
-              --provider "$1" \
-              --api-key-env "$4" \
-              ${3:+--model "$3"} \
-              ${2:+--base-url "$2"} \
-              --out "${RUNNER_TEMP}/pr-lens/graph.json" 2>&1 | tee "$5"
+              --provider "${cli}" \
+              --api-key-env "${key_var}" \
+              --temperature "${temperature}" \
+              ${model:+--model "${model}"} \
+              ${base_url:+--base-url "${base_url}"} \
+              "$@" \
+              --out "${RUNNER_TEMP}/pr-lens/graph.json" 2>&1 | tee "${log}"
           }
 
           # The first line the tool marks with a cross, else a plain fallback.
@@ -208,20 +222,39 @@ jobs:
             fi
           }
 
-          if attempt "${FIRST_CLI}" "${FIRST_BASE_URL}" "${FIRST_MODEL}" "${FIRST_KEY_VAR}" "${RUNNER_TEMP}/analyze-first.log"; then
+          # args: name, cli provider, base url, model, key variable,
+          # temperature, log prefix. Tries both lenses, then architecture
+          # alone. Sets `reason` to what failed when neither draws.
+          try_provider() {
+            local name="$1" log="$7"
+            if attempt "$2" "$3" "$4" "$5" "$6" "${log}.log"; then
+              return 0
+            fi
+            reason="${name}: $(reason_of "${log}.log")"
+            echo "::warning::pr-lens: ${name} failed with both lenses; retrying with the architecture lens alone."
+            rm -f "${RUNNER_TEMP}/pr-lens/graph.json"
+            if attempt "$2" "$3" "$4" "$5" "$6" "${log}-architecture.log" --lens architecture; then
+              return 0
+            fi
+            reason="${reason} | architecture lens alone: $(reason_of "${log}-architecture.log")"
+            return 1
+          }
+
+          reason=""
+          if try_provider "${FIRST_NAME}" "${FIRST_CLI}" "${FIRST_BASE_URL}" "${FIRST_MODEL}" "${FIRST_KEY_VAR}" "${FIRST_TEMPERATURE}" "${RUNNER_TEMP}/analyze-first"; then
             echo "::notice::pr-lens drew the diagram with ${FIRST_NAME}."
             exit 0
           fi
-          reason="${FIRST_NAME}: $(reason_of "${RUNNER_TEMP}/analyze-first.log")"
 
           if [ -n "${SECOND_NAME}" ]; then
             echo "::warning::pr-lens: ${FIRST_NAME} failed; retrying once with ${SECOND_NAME}."
             rm -f "${RUNNER_TEMP}/pr-lens/graph.json"
-            if attempt "${SECOND_CLI}" "${SECOND_BASE_URL}" "${SECOND_MODEL}" "${SECOND_KEY_VAR}" "${RUNNER_TEMP}/analyze-second.log"; then
+            first_reason="${reason}"
+            if try_provider "${SECOND_NAME}" "${SECOND_CLI}" "${SECOND_BASE_URL}" "${SECOND_MODEL}" "${SECOND_KEY_VAR}" "${SECOND_TEMPERATURE}" "${RUNNER_TEMP}/analyze-second"; then
               echo "::notice::pr-lens drew the diagram with ${SECOND_NAME}, after ${FIRST_NAME} failed."
               exit 0
             fi
-            reason="${reason} | retry with ${SECOND_NAME}: $(reason_of "${RUNNER_TEMP}/analyze-second.log")"
+            reason="${first_reason} | retry with ${reason}"
           fi
 
           printf '%s\n' "${reason}" > "${RUNNER_TEMP}/analyze-reason.txt"
