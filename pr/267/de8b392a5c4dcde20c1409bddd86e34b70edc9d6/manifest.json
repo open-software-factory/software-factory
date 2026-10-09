@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-moon-temp-exclude",
+    "headSha": "de8b392a5c4dcde20c1409bddd86e34b70edc9d6",
+    "contentHash": "f4adccce037d9a474e4fc079d34a82db"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "workspace-config-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workspace-config-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "66d1e7e7067106f0220db15a093e1545",
+      "bytes": 14712,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "workspace-config-view-light-66d1e7e7067106f0220db15a093e1545.svg"
+    },
+    {
+      "id": "workspace-config-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workspace-config-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9eddb07a7acb265da5efd5f13b9997f2",
+      "bytes": 14825,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "workspace-config-view-dark-9eddb07a7acb265da5efd5f13b9997f2.svg"
+    },
+    {
+      "id": "file-group-resolution-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "file-group-resolution-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "96de59849c596b71580816a2f0d24e65",
+      "bytes": 12547,
+      "width": 1411,
+      "height": 337,
+      "animated": true,
+      "path": "file-group-resolution-view-light-96de59849c596b71580816a2f0d24e65.svg"
+    },
+    {
+      "id": "file-group-resolution-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "file-group-resolution-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fdaf29fdb8ff706c1a416594eb73717e",
+      "bytes": 12671,
+      "width": 1411,
+      "height": 337,
+      "animated": true,
+      "path": "file-group-resolution-view-dark-fdaf29fdb8ff706c1a416594eb73717e.svg"
+    }
+  ]
+}

@@ -1,0 +1,427 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-moon-temp-exclude",
+  "generatedAt": "2026-10-09T12:39:53.779Z",
+  "title": "Exclude /temp from the OSF workspace file groups",
+  "summary": "A one-line change to the OSF workspace configuration: the `fileGroups` block in `.osf/moon.yml` gains an ignore pattern for `/temp/**`, so the scratch directory at the repository root is no longer swept into the workspace's tracked file set. Everything else in the config — the other ignore patterns, the workspace definition, and the tasks that consume these file groups — is untouched.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "fbc1af9ff82fc5e9ff791616e567e1dbf3e93c39",
+      "ref": "fbc1af9ff82fc5e9ff791616e567e1dbf3e93c39"
+    },
+    "head": {
+      "sha": "de8b392a5c4dcde20c1409bddd86e34b70edc9d6",
+      "ref": "de8b392a5c4dcde20c1409bddd86e34b70edc9d6"
+    },
+    "pullRequest": {
+      "number": 267,
+      "url": "https://github.com/open-software-factory/software-factory/pull/267"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace-config",
+      "label": "Workspace config",
+      "subtitle": ".osf",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The OSF workspace definition that declares file groups and tasks for the monorepo."
+    },
+    {
+      "id": "file-groups",
+      "label": "File groups",
+      "subtitle": "glob patterns",
+      "order": 1,
+      "delta": "modified",
+      "summary": "Named sets of paths that tasks read from; each entry is an include or a `!`-prefixed exclude."
+    },
+    {
+      "id": "repo-tree",
+      "label": "Repository tree",
+      "subtitle": "working copy",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "The directories on disk that the globs are matched against, including the scratch directories that are deliberately kept out."
+    },
+    {
+      "id": "tasks",
+      "label": "Tasks",
+      "subtitle": "moon",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The moon tasks that consume the resolved file groups as their inputs."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "moon-config",
+      "label": ".osf/moon.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace-config",
+      "subtitle": "workspace + fileGroups",
+      "summary": "The workspace configuration file. This change adds a single exclude entry to the `fileGroups` list.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 16,
+          "endLine": 23
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "file-groups-block",
+      "label": "fileGroups",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "file-groups",
+      "subtitle": "include/exclude glob list",
+      "summary": "The ordered list of glob patterns that defines the workspace's tracked file set. Excludes are applied after includes, so a new `!` entry narrows the set without touching any include.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 16,
+          "endLine": 23
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "temp-exclude",
+      "label": "!/temp/**",
+      "kind": "config",
+      "delta": "added",
+      "lane": "file-groups",
+      "subtitle": "new exclude pattern",
+      "summary": "The added line. It removes the repository-root `temp/` directory from every file group that inherits this list, matching the existing treatment of `.osf/out`, `.superpowers`, `.worktrees` and the other scratch paths.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 19
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "existing-excludes",
+      "label": "existing excludes",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "file-groups",
+      "subtitle": "out, worktrees, docs/temp-context, …",
+      "summary": "The pre-existing ignore patterns that the new entry sits alongside. They establish the convention this change follows: generated and scratch directories are excluded by name.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 17,
+          "endLine": 23
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "temp-dir",
+      "label": "temp/",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "repo-tree",
+      "subtitle": "scratch directory",
+      "summary": "A scratch directory at the repository root. It exists on disk but is now outside the workspace's file set.",
+      "files": [
+        {
+          "path": "temp"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "tracked-sources",
+      "label": "tracked sources",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "repo-tree",
+      "subtitle": "packages, docs, .osf",
+      "summary": "The source directories that remain in the file set after the new exclude is applied.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "moon-tasks",
+      "label": "moon tasks",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "tasks",
+      "subtitle": "inputs from fileGroups",
+      "summary": "Tasks whose input hashes are computed from the resolved file groups. They see a smaller input set, but no task definition changes.",
+      "files": [
+        {
+          "path": ".osf/moon.yml"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "moon-config-defines-file-groups",
+      "from": "moon-config",
+      "to": "file-groups-block",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "declares",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The config file declares the file group list; this change edits that declaration.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 16,
+          "endLine": 23
+        }
+      ]
+    },
+    {
+      "id": "file-groups-include-temp-exclude",
+      "from": "file-groups-block",
+      "to": "temp-exclude",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "contains",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new exclude pattern is a member of the file group list.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 19
+        }
+      ]
+    },
+    {
+      "id": "file-groups-include-existing-excludes",
+      "from": "file-groups-block",
+      "to": "existing-excludes",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "contains",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pre-existing ignore patterns remain in the list unchanged.",
+      "files": []
+    },
+    {
+      "id": "temp-exclude-filters-temp-dir",
+      "from": "temp-exclude",
+      "to": "temp-dir",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "excludes",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The added pattern removes `temp/` from the resolved file set.",
+      "files": [
+        {
+          "path": ".osf/moon.yml",
+          "startLine": 19
+        }
+      ]
+    },
+    {
+      "id": "existing-excludes-filter-temp-dir",
+      "from": "existing-excludes",
+      "to": "temp-dir",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "does not cover",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "None of the pre-existing patterns matched the root `temp/` directory, which is why the new entry was needed.",
+      "files": []
+    },
+    {
+      "id": "file-groups-resolve-tracked-sources",
+      "from": "file-groups-block",
+      "to": "tracked-sources",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "resolves to",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "After excludes are applied, the remaining source directories form the tracked set.",
+      "files": []
+    },
+    {
+      "id": "tracked-sources-feed-moon-tasks",
+      "from": "tracked-sources",
+      "to": "moon-tasks",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "inputs",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Tasks hash and read the resolved file set as their inputs.",
+      "files": []
+    },
+    {
+      "id": "moon-config-drives-moon-tasks",
+      "from": "moon-config",
+      "to": "moon-tasks",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "configures",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workspace config drives task definitions and their input resolution.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "file-group-resolution",
+      "title": "Resolving the file group after the new exclude",
+      "summary": "How the workspace turns the glob list into the input set a task sees, and where the added `!/temp/**` entry takes effect.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "moon-config",
+          "label": ".osf/moon.yml"
+        },
+        {
+          "node": "file-groups-block",
+          "label": "fileGroups"
+        },
+        {
+          "node": "temp-dir",
+          "label": "temp/"
+        },
+        {
+          "node": "tracked-sources",
+          "label": "tracked sources"
+        },
+        {
+          "node": "moon-tasks",
+          "label": "moon tasks"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-config",
+          "from": "moon-config",
+          "to": "file-groups-block",
+          "label": "read fileGroups list",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".osf/moon.yml",
+              "startLine": 16,
+              "endLine": 23
+            }
+          ]
+        },
+        {
+          "id": "apply-includes",
+          "from": "file-groups-block",
+          "to": "tracked-sources",
+          "label": "apply include globs",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Includes are evaluated first and pull in the source directories.",
+          "files": []
+        },
+        {
+          "id": "match-temp",
+          "from": "file-groups-block",
+          "to": "temp-dir",
+          "label": "match !/temp/**",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The new pattern matches the root scratch directory, which no earlier exclude covered.",
+          "files": [
+            {
+              "path": ".osf/moon.yml",
+              "startLine": 19
+            }
+          ]
+        },
+        {
+          "id": "drop-temp",
+          "from": "temp-dir",
+          "to": "tracked-sources",
+          "label": "excluded from set",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "`temp/` is removed before the set is handed to tasks.",
+          "files": []
+        },
+        {
+          "id": "hand-inputs",
+          "from": "tracked-sources",
+          "to": "moon-tasks",
+          "label": "resolved inputs",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Tasks now hash a set that no longer contains `temp/`.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 1,
+    "deletions": 0,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workspace-config-view",
+      "title": "Workspace configuration",
+      "lens": "architecture",
+      "summary": "The config file, the file group list it declares, and the repository directories that list resolves to.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "file-group-resolution-view",
+      "title": "File group resolution",
+      "lens": "data-flow",
+      "summary": "The ordered steps that turn the glob list into the input set a task consumes.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "file-group-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
