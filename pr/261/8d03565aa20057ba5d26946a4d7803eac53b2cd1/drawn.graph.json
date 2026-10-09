@@ -1,0 +1,298 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-09T09:12:03.750Z",
+  "title": "Ignore local temp/ scratch directory",
+  "summary": "A three-line change to .gitignore that adds a `temp/` entry under a new comment, so local scratch files stop showing up as untracked in git status. Nothing in the build, test or runtime path changes; the only effect is on which working-tree files git considers part of the repository.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d20306cdd4355b5ee486c238424eadaea3c26ccc",
+      "ref": "d20306cdd4355b5ee486c238424eadaea3c26ccc"
+    },
+    "head": {
+      "sha": "8d03565aa20057ba5d26946a4d7803eac53b2cd1",
+      "ref": "8d03565aa20057ba5d26946a4d7803eac53b2cd1"
+    },
+    "pullRequest": {
+      "number": 261,
+      "url": "https://github.com/open-software-factory/software-factory/pull/261"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "working-tree",
+      "label": "Developer working tree",
+      "subtitle": "local checkout",
+      "order": 0,
+      "summary": "Files a developer creates while working, including the scratch directory this change is about."
+    },
+    {
+      "id": "ignore-rules",
+      "label": "Ignore rules",
+      "subtitle": ".gitignore",
+      "order": 1,
+      "summary": "The pattern file git consults before deciding whether a path is tracked."
+    },
+    {
+      "id": "git",
+      "label": "Git",
+      "subtitle": "index and status",
+      "order": 2,
+      "summary": "The tooling that classifies paths and produces the diff a reviewer reads."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "temp-dir",
+      "label": "temp/",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "working-tree",
+      "subtitle": "local scratch, never committed",
+      "summary": "A developer-local scratch directory. It is not part of the repository and is not produced by any build step; it exists only on the machine of whoever is working.",
+      "files": [],
+      "badges": [
+        "untracked"
+      ]
+    },
+    {
+      "id": "docs-temp-context",
+      "label": "docs/temp-context/",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "working-tree",
+      "subtitle": "temporary working context and plans",
+      "summary": "An already-ignored directory for temporary working context and implementation plans. It sits directly below the new entry in the file and is the neighbour that shows the convention this change follows.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "gitignore",
+      "label": ".gitignore",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ignore-rules",
+      "subtitle": "root ignore rules",
+      "summary": "The root ignore file. This change adds a comment line and a `temp/` pattern between the worktree entries and the existing docs/temp-context/ entry.",
+      "files": [
+        {
+          "path": ".gitignore",
+          "startLine": 1,
+          "endLine": 11
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-status",
+      "label": "git status / add",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "git",
+      "subtitle": "path classification",
+      "summary": "The step that walks the working tree and asks the ignore rules whether each path is worth reporting. It is the only consumer of the new pattern.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "git-index",
+      "label": "Git index",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "git",
+      "subtitle": "staged tree",
+      "summary": "The staged snapshot. Because temp/ is now ignored, nothing under it can reach the index by accident.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "temp-dir-ignored-by-gitignore",
+      "from": "temp-dir",
+      "to": "gitignore",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "matched by temp/",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new pattern is what makes the scratch directory invisible to git. This is the whole change.",
+      "files": [
+        {
+          "path": ".gitignore",
+          "startLine": 5,
+          "endLine": 6
+        }
+      ]
+    },
+    {
+      "id": "docs-temp-context-ignored-by-gitignore",
+      "from": "docs-temp-context",
+      "to": "gitignore",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "matched by docs/temp-context/",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The pre-existing sibling rule, unchanged, showing the same convention already in use.",
+      "files": []
+    },
+    {
+      "id": "gitignore-read-by-git-status",
+      "from": "gitignore",
+      "to": "git-status",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "pattern list",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Git reads the ignore file on every status and add, so the new line takes effect immediately with no build step.",
+      "files": []
+    },
+    {
+      "id": "git-status-writes-index",
+      "from": "git-status",
+      "to": "git-index",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "staged paths",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Only non-ignored paths can be staged, which is the practical consequence of the new rule.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "path-classification",
+      "title": "How a temp/ file is classified",
+      "summary": "The path a developer's scratch file takes from creation to being silently skipped by git.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "temp-dir",
+          "label": "temp/ file"
+        },
+        {
+          "node": "gitignore",
+          "label": ".gitignore"
+        },
+        {
+          "node": "git-status",
+          "label": "git status"
+        },
+        {
+          "node": "git-index",
+          "label": "Git index"
+        }
+      ],
+      "messages": [
+        {
+          "id": "scratch-file-created",
+          "from": "temp-dir",
+          "to": "temp-dir",
+          "label": "developer writes scratch file",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "Nothing in the repository creates this file; it is purely local.",
+          "files": []
+        },
+        {
+          "id": "status-reads-ignore-rules",
+          "from": "git-status",
+          "to": "gitignore",
+          "label": "read ignore patterns",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".gitignore",
+              "startLine": 1,
+              "endLine": 11
+            }
+          ]
+        },
+        {
+          "id": "temp-path-matched",
+          "from": "gitignore",
+          "to": "git-status",
+          "label": "temp/ matches",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "Before this change the path fell through to the untracked list; now it is skipped.",
+          "files": [
+            {
+              "path": ".gitignore",
+              "startLine": 5,
+              "endLine": 6
+            }
+          ]
+        },
+        {
+          "id": "status-reports-clean",
+          "from": "git-status",
+          "to": "git-index",
+          "label": "no path staged",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The index is untouched, which is the point: scratch work can no longer be committed by accident.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 3,
+    "deletions": 0,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "ignore-rule-context",
+      "title": "Ignore rules and their consumers",
+      "lens": "architecture",
+      "summary": "The working tree, the ignore file and the git tooling that reads it. Only the .gitignore node changed; everything else is the context that gives the change its meaning.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "path-classification-view",
+      "title": "Path classification sequence",
+      "lens": "data-flow",
+      "summary": "The ordered path a scratch file takes through git's ignore check.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "path-classification"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
