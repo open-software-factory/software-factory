@@ -26,8 +26,8 @@ The research reached three findings.
 The recommendation is to adopt part of it later. Use OTLP as the transport. Keep
 factory work events authoritative. Add an optional edge mapping when a real seam
 appears. Revisit when
-[Arize-ai/openinference#2817 (the compatibility layer)](https://github.com/Arize-ai/openinference/issues/2817)
-and [Arize-ai/openinference#2983 (the gen_ai emission)](https://github.com/Arize-ai/openinference/issues/2983)
+[the OpenInference compatibility-layer issue](https://github.com/Arize-ai/openinference/issues/2817)
+and [the OpenInference gen_ai emission issue](https://github.com/Arize-ai/openinference/issues/2983)
 land, or when the OpenTelemetry GenAI conventions leave development stability.
 
 ## The convention
@@ -51,11 +51,11 @@ OpenTelemetry spans. Any OTLP backend can read them.
 
 The friction is in the attribute names. This convention does not reuse the
 `gen_ai.*` namespaces. It uses its own names to avoid attribute conflicts.
-[Arize-ai/openinference#2130 (the relation question)](https://github.com/Arize-ai/openinference/issues/2130)
+[the OpenInference issue on the relation to the GenAI conventions](https://github.com/Arize-ai/openinference/issues/2130)
 asks how the two relate. That issue is still open. A maintainer reply records
 that there is no documented mapping. Two further issues,
-[Arize-ai/openinference#2817 (the compatibility layer)](https://github.com/Arize-ai/openinference/issues/2817)
-and [Arize-ai/openinference#2983 (the gen_ai emission)](https://github.com/Arize-ai/openinference/issues/2983),
+[the OpenInference compatibility-layer issue](https://github.com/Arize-ai/openinference/issues/2817)
+and [the OpenInference gen_ai emission issue](https://github.com/Arize-ai/openinference/issues/2983),
 show a move toward `gen_ai.*`.
 
 The convergence is in progress. It is not settled. A decision to depend on these
@@ -111,8 +111,8 @@ OpenInference is only the model and harness call layer.
    kinds to factory run and review roles. Preserve the raw attributes.
 4. Take no core dependency on the unofficial Rust crate.
 5. Revisit when
-   [Arize-ai/openinference#2817 (the compatibility layer)](https://github.com/Arize-ai/openinference/issues/2817)
-   or [Arize-ai/openinference#2983 (the gen_ai emission)](https://github.com/Arize-ai/openinference/issues/2983)
+   [the OpenInference compatibility-layer issue](https://github.com/Arize-ai/openinference/issues/2817)
+   or [the OpenInference gen_ai emission issue](https://github.com/Arize-ai/openinference/issues/2983)
    land, or when the OpenTelemetry GenAI conventions reach stable.
 
 The follow-up work is tracked in
