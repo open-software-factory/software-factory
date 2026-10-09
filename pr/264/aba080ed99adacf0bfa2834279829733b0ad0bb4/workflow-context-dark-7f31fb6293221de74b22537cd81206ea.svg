@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1736 760" width="1736" height="760" role="img" aria-label="pr-lens workflow context" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>pr-lens workflow context</title>
+<desc>The workflow as a system: GitHub events and configuration on the left, the runner's jobs in the middle, the CLI and the model APIs on the right.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1736" height="760" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1736" height="760" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="700" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">GITHUB EVENTS · TRIGGERS AND REPOSITORY STATE</text>
+<rect class="lanebox" x="467.74" y="44" width="404" height="700" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="483.74" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">WORKFLOW JOBS · UBUNTU-LATEST RUNNER</text>
+<rect class="lanebox" x="891.74" y="44" width="404" height="700" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="907.74" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">PR-LENS CLI · NPX @COLDTEA/PR-LENS-CLI</text>
+<rect class="lanebox" x="1315.74" y="44" width="404" height="700" rx="12" fill="rgba(110,118,129,.07)"/>
+<text class="lanelabel" x="1331.74" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#9198a1">MODEL PROVIDERS · EXTERNAL APIS</text></g>
+<g><path class="edge edge-neutral context" d="M122,154 L122,167 C122,174.18 127.82,180 135,180 L423.37,180 C439.11,180 451.87,192.76 451.87,208.5 L451.87,221.07 C451.87,229.87 459,237 467.81,237 L483.74,237" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-modified" d="M404,123 L419.94,123 C428.74,123 435.87,130.13 435.87,138.94 L435.87,197.07 C435.87,210.28 446.59,221 459.81,221 L483.74,221" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M404,245 L483.74,245" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-modified" d="M669.74,268 L669.74,320" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M483.74,123 L451.81,123 C434.17,123 419.87,137.3 419.87,154.94 L419.87,319.07 C419.87,336.7 434.17,351 451.81,351 L483.74,351" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="glow" stroke="#d29922" d="M855.74,351 L868.74,351 C875.92,351 881.74,356.82 881.74,364 L881.74,452 C881.74,459.18 887.56,465 894.74,465 L907.74,465" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-modified hero" d="M855.74,351 L868.74,351 C875.92,351 881.74,356.82 881.74,364 L881.74,452 C881.74,459.18 887.56,465 894.74,465 L907.74,465" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="2.25"/>
+<path class="edge edge-neutral context" d="M1279.74,465 L1292.74,465 C1299.92,465 1305.74,470.82 1305.74,478 L1305.74,566 C1305.74,573.18 1311.56,579 1318.74,579 L1331.74,579" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-modified" d="M1279.74,449 L1284.74,449 C1287.5,449 1289.74,451.24 1289.74,454 L1289.74,481.5 C1289.74,499.45 1304.29,514 1322.24,514 L1596.74,514 C1606.13,514 1613.74,521.61 1613.74,531 L1613.74,548" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M1279.74,481 L1300.74,481 C1312.34,481 1321.74,490.4 1321.74,502 L1321.74,688 C1321.74,690.76 1323.98,693 1326.74,693 L1331.74,693" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M1093.74,496 L1093.74,548" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-modified" d="M669.74,382 L669.74,434" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/></g>
+<g><g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="32" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="51" y="117" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M51,119 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="119" font-size="11.5" font-weight="600" fill="#e6edf3">Pull request</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">opened / synchroniz…</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="224" y="92" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="238" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M244,119 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M244,127 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="249" cy="119" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="254" cy="127" r="2.2"/></g>
+<text class="ntitle" x="274" y="119" font-size="11.5" font-weight="600" fill="#e6edf3">Repository variables</text>
+<text class="nsub" x="274" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">PR_LENS_PROVIDER, P…</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="84" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="363.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="32" y="206" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M52,233 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,241 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="57" cy="233" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="62" cy="241" r="2.2"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#e6edf3">Repository secrets</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">DEEPSEEK / OPENAI / ANTHROPIC API keys</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="483.74" y="92" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="497.74" y="110" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="510.74" cy="123" r="6.5"/>
+<path class="glyph-stroke" d="M510.74,119.5 V123 H513.74" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="533.74" y="119" font-size="13" font-weight="600" fill="#e6edf3">List the changed files</text>
+<text class="nsub" x="533.74" y="137" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">steps.files</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="483.74" y="206" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="497.74" y="224" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="510.74" cy="237" r="6.5"/>
+<path class="glyph-stroke" d="M510.74,233.5 V237 H513.74" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="533.74" y="233" font-size="13" font-weight="600" fill="#e6edf3">Resolve the model providers</text>
+<text class="nsub" x="533.74" y="251" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">steps.provider</text>
+<g class="bdg bdg-modified"><rect x="782.12" y="198" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="815.43" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="483.74" y="320" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="497.74" y="338" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="510.74" cy="351" r="6.5"/>
+<path class="glyph-stroke" d="M510.74,347.5 V351 H513.74" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="533.74" y="347" font-size="13" font-weight="600" fill="#e6edf3">Analyze the diff</text>
+<text class="nsub" x="533.74" y="365" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">steps.analyze</text>
+<g class="bdg bdg-modified"><rect x="782.12" y="312" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="815.43" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="483.74" y="434" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="497.74" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="510.74" cy="465" r="6.5"/>
+<path class="glyph-stroke" d="M510.74,461.5 V465 H513.74" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="533.74" y="461" font-size="13" font-weight="600" fill="#e6edf3">Write a note when the model call failed</text>
+<text class="nsub" x="533.74" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">no usable model</text>
+<g class="bdg bdg-modified"><rect x="782.12" y="426" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="815.43" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="907.74" y="434" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="921.74" y="452" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M934.74,458 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M928.24,461.5 l6.5,3.5 l6.5,-3.5" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M934.74,465 v7" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="957.74" y="461" font-size="13" font-weight="600" fill="#e6edf3">pr-lens CLI</text>
+<text class="nsub" x="957.74" y="479" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">@coldtea/pr-lens-cli 0.13.0</text>
+<g class="bdg bdg-modified"><rect x="1206.12" y="426" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1239.43" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="907.74" y="548" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="921.74" y="566" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><ellipse class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="934.74" cy="574.5" rx="6.5" ry="2.6"/>
+<path class="glyph-stroke" d="M928.24,574.5 v9 a6.5,2.6 0 0 0 13 0 v-9" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="957.74" y="575" font-size="13" font-weight="600" fill="#e6edf3">graph.json</text>
+<text class="nsub" x="957.74" y="593" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">RUNNER_TEMP/pr-lens/graph.json</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1331.74" y="548" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1345.74" y="566" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1350.74" y="573" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1350.74,575 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1381.74" y="575" font-size="11.5" font-weight="600" fill="#e6edf3">DeepSeek API</text>
+<text class="nsub" x="1381.74" y="593" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">openai-compatible,…</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="1523.74" y="548" width="180" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="1537.74" y="566" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1542.74" y="573" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1542.74,575 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1573.74" y="575" font-size="11.5" font-weight="600" fill="#e6edf3">OpenAI API</text>
+<text class="nsub" x="1573.74" y="593" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">temperature default…</text>
+<g class="bdg bdg-modified"><rect x="1630.12" y="540" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="1663.43" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1331.74" y="662" width="372" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1345.74" y="680" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="1350.74" y="687" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1350.74,689 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1381.74" y="689" font-size="13" font-weight="600" fill="#e6edf3">Anthropic API</text>
+<text class="nsub" x="1381.74" y="707" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">openai-compatible, temperature 0</text></g></g>
+<g><g><rect class="lpill" x="230.05" y="172.5" width="98.28" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="279.19" y="183.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">pull_request event</text></g>
+<g><rect class="lpill" x="420.15" y="166" width="151.44" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="495.87" y="177" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">provider, model, openai model</text></g>
+<g><rect class="lpill" x="420.87" y="237.5" width="55.74" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="448.74" y="248.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">API keys</text></g>
+<g><rect class="lpill" x="566.32" y="286.5" width="206.85" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="669.74" y="297.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">first/second provider, temperature, skipped</text></g>
+<g><rect class="lpill" x="369.89" y="280" width="99.96" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="419.87" y="291" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">docs_only == false</text></g>
+<g><rect class="lpill" x="800.99" y="399" width="161.5" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="881.74" y="410" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">npx analyze --temperature --lens</text></g>
+<g><rect class="lpill" x="1237.05" y="514.5" width="78.69" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1276.4" y="525.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">temperature 0</text></g>
+<g><rect class="lpill" x="1406.43" y="506.5" width="106.12" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="1459.49" y="517.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">no temperature sent</text></g>
+<g><rect class="lpill" x="1282.4" y="622" width="78.69" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1321.74" y="633" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">temperature 0</text></g>
+<g><rect class="lpill" x="1049.36" y="514.5" width="88.77" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1093.74" y="525.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">graph document</text></g>
+<g><rect class="lpill" x="623.26" y="400.5" width="92.97" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="669.74" y="411.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">reason + skipped</text></g></g>
+</svg>

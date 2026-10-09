@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "aba080ed99adacf0bfa2834279829733b0ad0bb4",
+    "contentHash": "1c68db889ea77c77ce2e67fc34375c98"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "workflow-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workflow-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "48e4d51f76145924e190b12576db702f",
+      "bytes": 21486,
+      "width": 1736,
+      "height": 760,
+      "animated": false,
+      "path": "workflow-context-light-48e4d51f76145924e190b12576db702f.svg"
+    },
+    {
+      "id": "workflow-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workflow-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7f31fb6293221de74b22537cd81206ea",
+      "bytes": 21691,
+      "width": 1736,
+      "height": 760,
+      "animated": false,
+      "path": "workflow-context-dark-7f31fb6293221de74b22537cd81206ea.svg"
+    },
+    {
+      "id": "analyze-job-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "analyze-job",
+      "mediaType": "image/svg+xml",
+      "contentHash": "029463bd8bd6d354e8e5797ceb63b8e9",
+      "bytes": 13396,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "analyze-job-light-029463bd8bd6d354e8e5797ceb63b8e9.svg"
+    },
+    {
+      "id": "analyze-job-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "analyze-job",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b4d55141be52cffb8cb3191ebb612399",
+      "bytes": 13522,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "analyze-job-dark-b4d55141be52cffb8cb3191ebb612399.svg"
+    },
+    {
+      "id": "provider-fallback-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "provider-fallback-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8974ea13285eb80386f0948c9c5dc8a4",
+      "bytes": 16946,
+      "width": 1611,
+      "height": 563,
+      "animated": true,
+      "path": "provider-fallback-flow-light-8974ea13285eb80386f0948c9c5dc8a4.svg"
+    },
+    {
+      "id": "provider-fallback-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "provider-fallback-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "28626fcfb3429c5ae938ea8e598efef6",
+      "bytes": 17093,
+      "width": 1611,
+      "height": 563,
+      "animated": true,
+      "path": "provider-fallback-flow-dark-28626fcfb3429c5ae938ea8e598efef6.svg"
+    }
+  ]
+}
