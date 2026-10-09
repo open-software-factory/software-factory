@@ -1,0 +1,675 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-09T13:22:47.480Z",
+  "title": "pr-lens workflow: provider fallback and lens retry",
+  "summary": "The pr-lens GitHub Actions workflow gains a fifth column in its provider table (temperature), a new PR_LENS_OPENAI_MODEL repository variable, and a two-stage retry: each provider is first asked for both lenses, then for the architecture lens alone, before the next provider is tried. OpenAI rows are skipped when no model is configured, and the skip is reported in the failure note. The CLI pin moves from 0.11.0 to 0.13.0.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "76d95d970425a7504deff97058cd7cea5fb03713",
+      "ref": "76d95d970425a7504deff97058cd7cea5fb03713"
+    },
+    "head": {
+      "sha": "ba0f2297d1c5727487486acb24efaff5536bfb0e",
+      "ref": "ba0f2297d1c5727487486acb24efaff5536bfb0e"
+    },
+    "pullRequest": {
+      "number": 264,
+      "url": "https://github.com/open-software-factory/software-factory/pull/264"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "trigger",
+      "label": "Trigger",
+      "subtitle": "GitHub event surface",
+      "order": 0,
+      "delta": "unchanged"
+    },
+    {
+      "id": "runner",
+      "label": "Actions runner",
+      "subtitle": "ubuntu-latest, Node 22",
+      "order": 1,
+      "delta": "unchanged"
+    },
+    {
+      "id": "cli",
+      "label": "pr-lens CLI",
+      "subtitle": "npx @coldtea/pr-lens-cli",
+      "order": 2,
+      "delta": "modified"
+    },
+    {
+      "id": "providers",
+      "label": "Model providers",
+      "subtitle": "external APIs",
+      "order": 3,
+      "delta": "unchanged"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request",
+      "label": "Pull request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "trigger",
+      "subtitle": "opened / synchronize",
+      "summary": "The GitHub event that starts the workflow. Unchanged by this diff; it is the origin of the base and head SHAs the CLI is given.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-workflow",
+      "label": "pr-lens.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "workflow definition",
+      "summary": "The single changed file. It now carries a temperature column in the provider table, reads PR_LENS_OPENAI_MODEL, skips openai when no model is set, and wraps each provider attempt in a two-lens-then-architecture retry.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 1,
+          "endLine": 69
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve-providers",
+      "label": "Resolve the model providers",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "step: provider",
+      "summary": "Builds the ordered provider list from the secrets that are present. Now emits first_temperature / second_temperature, records a skipped note for openai-with-key-but-no-model, and reads the new OPENAI_MODEL variable.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 48,
+          "endLine": 115
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "analyze-diff",
+      "label": "Analyze the diff",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "step: analyze",
+      "summary": "Runs the CLI. The attempt helper now takes a temperature and passes extra flags through, and try_provider retries the same provider with --lens architecture when the both-lens run fails.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 167,
+          "endLine": 275
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "write-note",
+      "label": "Write a note when the model call failed",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "step: section write",
+      "summary": "The no-usable-model note now appends the skipped-provider explanation, so a reader learns that openai was present but unconfigured rather than absent.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 167,
+          "endLine": 175
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-cli",
+      "label": "pr-lens CLI",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "@coldtea/pr-lens-cli 0.13.0",
+      "summary": "Pinned version bumped from 0.11.0 to 0.13.0. The new --temperature flag and the --lens flag used by the retry are the reason for the bump.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "graph-json",
+      "label": "graph.json",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "RUNNER_TEMP/pr-lens",
+      "summary": "The artifact the CLI writes. It is deleted before each retry so a failed attempt cannot leave a stale diagram behind.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "deepseek",
+      "label": "DeepSeek",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "providers",
+      "subtitle": "openai-compatible, temperature 0",
+      "summary": "Default provider. Its table row gained an explicit temperature of 0, preserving the previous deterministic behaviour.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "openai",
+      "label": "OpenAI",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "providers",
+      "subtitle": "temperature default",
+      "summary": "Now requires a model to be configured: PR_LENS_OPENAI_MODEL, or PR_LENS_MODEL when openai is the configured provider. With a key but no model it is skipped and named in the note. Its row asks the CLI to send no temperature, since reasoning models reject a fixed one.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "anthropic",
+      "label": "Anthropic",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "providers",
+      "subtitle": "openai-compatible, temperature 0",
+      "summary": "Fallback provider, unchanged apart from the added temperature column value of 0.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-triggers-workflow",
+      "from": "pull-request",
+      "to": "pr-lens-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "pull_request event",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-runs-resolve",
+      "from": "pr-lens-workflow",
+      "to": "resolve-providers",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "step 1",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "resolve-feeds-analyze",
+      "from": "resolve-providers",
+      "to": "analyze-diff",
+      "kind": "data",
+      "delta": "modified",
+      "label": "first/second + temperature + skipped",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The provider step now hands the analyze step a temperature per slot and a skipped note, which is what makes the new retry and the new note possible.",
+      "files": []
+    },
+    {
+      "id": "analyze-invokes-cli",
+      "from": "analyze-diff",
+      "to": "pr-lens-cli",
+      "kind": "call",
+      "delta": "modified",
+      "label": "npx analyze --temperature --lens",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The attempt helper passes --temperature always and forwards extra flags, so the same provider can be re-run with --lens architecture.",
+      "files": []
+    },
+    {
+      "id": "cli-writes-graph",
+      "from": "pr-lens-cli",
+      "to": "graph-json",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "--out graph.json",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cli-calls-deepseek",
+      "from": "pr-lens-cli",
+      "to": "deepseek",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "chat completions",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cli-calls-openai",
+      "from": "pr-lens-cli",
+      "to": "openai",
+      "kind": "http",
+      "delta": "modified",
+      "label": "no temperature sent",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Only reached when a model is configured; the row now suppresses the temperature parameter.",
+      "files": []
+    },
+    {
+      "id": "cli-calls-anthropic",
+      "from": "pr-lens-cli",
+      "to": "anthropic",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "chat completions",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "analyze-writes-note",
+      "from": "analyze-diff",
+      "to": "write-note",
+      "kind": "data",
+      "delta": "modified",
+      "label": "analyze-reason.txt + skipped",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "On total failure the reason string now carries the skipped-provider note appended.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "provider-fallback",
+      "title": "Provider selection and lens retry",
+      "summary": "How the workflow picks a provider and what it does when the model call fails.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "resolve-providers",
+          "label": "Resolve providers"
+        },
+        {
+          "node": "analyze-diff",
+          "label": "Analyze"
+        },
+        {
+          "node": "pr-lens-cli",
+          "label": "CLI"
+        },
+        {
+          "node": "deepseek",
+          "label": "DeepSeek"
+        },
+        {
+          "node": "openai",
+          "label": "OpenAI"
+        },
+        {
+          "node": "anthropic",
+          "label": "Anthropic"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-secrets",
+          "from": "resolve-providers",
+          "to": "resolve-providers",
+          "label": "read keys, model vars, temperature table",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 61,
+              "endLine": 115
+            }
+          ]
+        },
+        {
+          "id": "emit-slots",
+          "from": "resolve-providers",
+          "to": "analyze-diff",
+          "label": "first/second name, cli, base url, model, key var, temperature, skipped",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 100,
+              "endLine": 115
+            }
+          ]
+        },
+        {
+          "id": "attempt-both-lenses",
+          "from": "analyze-diff",
+          "to": "pr-lens-cli",
+          "label": "analyze --temperature T (both lenses)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 205,
+              "endLine": 225
+            }
+          ]
+        },
+        {
+          "id": "call-first",
+          "from": "pr-lens-cli",
+          "to": "deepseek",
+          "label": "chat completions",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "first-fails",
+          "from": "deepseek",
+          "to": "pr-lens-cli",
+          "label": "validation error",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "attempt-architecture",
+          "from": "analyze-diff",
+          "to": "pr-lens-cli",
+          "label": "analyze --lens architecture",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The new second chance: a long data-flow answer is the likelier to fail validation, and one lens still draws a diagram.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 240,
+              "endLine": 252
+            }
+          ]
+        },
+        {
+          "id": "architecture-fails",
+          "from": "pr-lens-cli",
+          "to": "analyze-diff",
+          "label": "still fails",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "retry-second",
+          "from": "analyze-diff",
+          "to": "pr-lens-cli",
+          "label": "retry with second provider, both lenses then architecture",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 255,
+              "endLine": 268
+            }
+          ]
+        },
+        {
+          "id": "call-second",
+          "from": "pr-lens-cli",
+          "to": "anthropic",
+          "label": "chat completions",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "openai-skipped",
+          "from": "resolve-providers",
+          "to": "openai",
+          "label": "skipped: no model configured",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "OpenAI is only tried when PR_LENS_OPENAI_MODEL (or PR_LENS_MODEL for the openai provider) is set; the skip is named in the failure note.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 88,
+              "endLine": 95
+            }
+          ]
+        },
+        {
+          "id": "write-reason",
+          "from": "analyze-diff",
+          "to": "analyze-diff",
+          "label": "write analyze-reason.txt with skipped note",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 270,
+              "endLine": 272
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 69,
+    "deletions": 21,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workflow-context",
+      "title": "pr-lens workflow and its providers",
+      "lens": "architecture",
+      "summary": "The workflow file, the two steps this change touches, the CLI it pins, and the three model providers it can reach.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "provider-resolution",
+          "title": "Provider resolution internals",
+          "lens": "architecture",
+          "summary": "The table lookup, the openai skip, and the temperature column that feed the analyze step.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "resolve-providers",
+              "pr-lens-workflow",
+              "openai",
+              "deepseek",
+              "anthropic"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": [
+            {
+              "id": "analyze-retry",
+              "title": "Analyze retry ladder",
+              "lens": "architecture",
+              "summary": "The attempt helper and try_provider: both lenses, then architecture alone, then the second provider.",
+              "scope": {
+                "kind": "selection",
+                "lanes": [],
+                "nodes": [
+                  "analyze-diff",
+                  "pr-lens-cli",
+                  "graph-json",
+                  "write-note"
+                ],
+                "edges": [],
+                "flows": []
+              },
+              "defaultOpen": false,
+              "children": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "provider-fallback-flow",
+      "title": "Provider fallback and lens retry",
+      "lens": "data-flow",
+      "summary": "The ordered path from provider resolution through the two-lens attempt, the architecture-only retry, and the second provider.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "provider-fallback"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "resolve",
+        "heading": "Resolve providers",
+        "body": "Keys, model overrides and the new temperature column decide the two slots.",
+        "stage": {
+          "kind": "view",
+          "view": "provider-resolution"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "resolve-providers"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "skip-openai",
+        "heading": "OpenAI may be skipped",
+        "body": "A key without a model is skipped, and the skip is named in the note.",
+        "stage": {
+          "kind": "view",
+          "view": "provider-resolution"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "openai"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "both-lenses",
+        "heading": "First attempt: both lenses",
+        "body": "The CLI is asked for architecture and data-flow together.",
+        "stage": {
+          "kind": "flow",
+          "flow": "provider-fallback"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "attempt-both-lenses"
+          ]
+        }
+      },
+      {
+        "id": "architecture-only",
+        "heading": "Retry: architecture alone",
+        "body": "A failed both-lens run is retried with --lens architecture before giving up.",
+        "stage": {
+          "kind": "flow",
+          "flow": "provider-fallback"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "attempt-architecture"
+          ]
+        }
+      },
+      {
+        "id": "second-provider",
+        "heading": "Then the second provider",
+        "body": "Only after both attempts fail does the next provider get its turn.",
+        "stage": {
+          "kind": "flow",
+          "flow": "provider-fallback"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "retry-second"
+          ]
+        }
+      }
+    ]
+  }
+}
