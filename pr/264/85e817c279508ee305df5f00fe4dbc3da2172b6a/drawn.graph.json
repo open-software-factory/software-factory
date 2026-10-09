@@ -1,0 +1,888 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-09T12:31:17.341Z",
+  "title": "PR Lens workflow: provider temperature + architecture-lens fallback",
+  "summary": "The PR Lens GitHub Actions workflow is updated to run CLI 0.13.0, to pass an explicit temperature per provider (the OpenAI default is a reasoning model that rejects a fixed temperature, so its row asks for the provider default), and to make each provider attempt more resilient: a provider is first tried with both lenses, then retried with the architecture lens alone, and only then does the workflow fall through to the second provider. The provider table gains a fifth column, the attempt helper gains a temperature argument and pass-through extra flags, and the retry bookkeeping now accumulates reasons across both lens attempts.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "fbc1af9ff82fc5e9ff791616e567e1dbf3e93c39",
+      "ref": "fbc1af9ff82fc5e9ff791616e567e1dbf3e93c39"
+    },
+    "head": {
+      "sha": "85e817c279508ee305df5f00fe4dbc3da2172b6a",
+      "ref": "85e817c279508ee305df5f00fe4dbc3da2172b6a"
+    },
+    "pullRequest": {
+      "number": 264,
+      "url": "https://github.com/open-software-factory/software-factory/pull/264"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "trigger",
+      "label": "Trigger",
+      "subtitle": "GitHub event surface",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "What starts the workflow: the pull request event and the concurrency group that cancels superseded runs."
+    },
+    {
+      "id": "runner",
+      "label": "GitHub-hosted runner",
+      "subtitle": "ubuntu-latest, Node 22",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The job steps that run on the runner: file classification, provider resolution, diff fetch, and the analyze step that shells out to the CLI."
+    },
+    {
+      "id": "cli",
+      "label": "pr-lens CLI",
+      "subtitle": "npx @coldtea/pr-lens-cli",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The pinned CLI invoked by the analyze step; its version and the flags it accepts are what this change moves."
+    },
+    {
+      "id": "providers",
+      "label": "Model providers",
+      "subtitle": "External APIs",
+      "order": 3,
+      "delta": "modified",
+      "summary": "The OpenAI-compatible endpoints the CLI calls, each with its own key variable, default model and temperature policy."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "pull_request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "trigger",
+      "subtitle": "opened / synchronize / reopened",
+      "summary": "The GitHub event that triggers the workflow; its base and head SHAs are the inputs to the analysis.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 1,
+          "endLine": 16
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "concurrency-group",
+      "label": "Concurrency group",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "trigger",
+      "subtitle": "cancel-in-progress: true",
+      "summary": "Cancels an in-flight run when a newer commit arrives on the same pull request.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 14,
+          "endLine": 16
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workflow-env",
+      "label": "Workflow env",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "CLI_VERSION 0.13.0",
+      "summary": "Pins the CLI version used by every attempt and sets the default provider. The version bump is what brings the temperature flag and the lens flag into play.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 19,
+          "endLine": 21
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "files-step",
+      "label": "Classify changed files",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "runner",
+      "subtitle": "docs_only gate",
+      "summary": "Decides whether the diff is documentation-only; when it is, the model call is skipped entirely.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 100,
+          "endLine": 140
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "provider-step",
+      "label": "Resolve the model providers",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "table() now emits a temperature column",
+      "summary": "Builds the ordered list of providers that have a key present, and now also emits a temperature per provider: 0 for deepseek and anthropic, 'default' for openai.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 48,
+          "endLine": 110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fetch-step",
+      "label": "Fetch PR head ref",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "runner",
+      "subtitle": "git fetch refs/pull/N/head",
+      "summary": "Makes the head commit available locally before the CLI runs.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 160,
+          "endLine": 164
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "analyze-step",
+      "label": "Analyze the diff",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "try_provider: both lenses, then architecture alone",
+      "summary": "The step that calls the CLI. It now wraps each provider in try_provider, which attempts both lenses and, on failure, retries with --lens architecture before moving to the next provider.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 166,
+          "endLine": 260
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "attempt-fn",
+      "label": "attempt()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "cli, base url, model, key var, temperature, log, extra flags",
+      "summary": "The shell helper that invokes the CLI. It gains a temperature argument, forwards any extra flags after the fixed ones, and passes --temperature to the CLI.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 196,
+          "endLine": 214
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "try-provider-fn",
+      "label": "try_provider()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "runner",
+      "subtitle": "both lenses, then architecture alone",
+      "summary": "New helper that runs attempt with both lenses, and on failure removes the partial graph and retries with --lens architecture. It accumulates a reason string describing both failures.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 225,
+          "endLine": 240
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reason-of-fn",
+      "label": "reason_of()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "runner",
+      "subtitle": "first cross-marked line",
+      "summary": "Extracts the first failure line from a CLI log for the note written when every provider fails.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 216,
+          "endLine": 222
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-cli",
+      "label": "pr-lens CLI",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "@coldtea/pr-lens-cli 0.13.0",
+      "summary": "The analysis tool. Version 0.13.0 accepts --temperature and --lens, which the workflow now relies on.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "graph-json",
+      "label": "graph.json",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "RUNNER_TEMP/pr-lens/graph.json",
+      "summary": "The document the CLI writes and the workflow later posts as the PR comment. A failed attempt deletes it before retrying so a partial file is never posted.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 205,
+          "endLine": 205
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "deepseek-api",
+      "label": "DeepSeek API",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "providers",
+      "subtitle": "openai-compatible, temperature 0",
+      "summary": "Default provider. Its table row now carries an explicit temperature of 0.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 64,
+          "endLine": 64
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "openai-api",
+      "label": "OpenAI API",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "providers",
+      "subtitle": "o4-mini, temperature default",
+      "summary": "Its default model is now o4-mini, a reasoning model that rejects a fixed temperature, so the row asks the CLI to send none.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 65,
+          "endLine": 65
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "anthropic-api",
+      "label": "Anthropic API",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "providers",
+      "subtitle": "claude-sonnet-5, temperature 0",
+      "summary": "OpenAI-compatible endpoint with an explicit temperature of 0 in its table row.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 66,
+          "endLine": 66
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "event-to-concurrency",
+      "from": "pull-request-event",
+      "to": "concurrency-group",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "concurrency-to-files",
+      "from": "concurrency-group",
+      "to": "files-step",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "starts job",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "files-to-provider",
+      "from": "files-step",
+      "to": "provider-step",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "docs_only == false",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "provider-to-analyze",
+      "from": "provider-step",
+      "to": "analyze-step",
+      "kind": "data",
+      "delta": "modified",
+      "label": "first/second provider + temperature",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The provider step now hands the analyze step a temperature alongside each provider's cli, base url, model and key variable.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 96,
+          "endLine": 99
+        }
+      ]
+    },
+    {
+      "id": "fetch-to-analyze",
+      "from": "fetch-step",
+      "to": "analyze-step",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "head ref present",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "analyze-to-attempt",
+      "from": "analyze-step",
+      "to": "attempt-fn",
+      "kind": "call",
+      "delta": "modified",
+      "label": "attempt cli base model key temp log [flags]",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The call site now passes temperature and any extra flags, which is how the architecture-only retry is expressed.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 196,
+          "endLine": 214
+        }
+      ]
+    },
+    {
+      "id": "analyze-to-try-provider",
+      "from": "analyze-step",
+      "to": "try-provider-fn",
+      "kind": "call",
+      "delta": "added",
+      "label": "try_provider name cli base model key temp log",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new wrapper that gives every provider two chances: both lenses, then the architecture lens alone.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 225,
+          "endLine": 240
+        }
+      ]
+    },
+    {
+      "id": "try-provider-to-attempt",
+      "from": "try-provider-fn",
+      "to": "attempt-fn",
+      "kind": "call",
+      "delta": "added",
+      "label": "attempt, then attempt --lens architecture",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The fallback path: the same provider is invoked a second time with a single lens when the two-lens answer fails validation.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 228,
+          "endLine": 238
+        }
+      ]
+    },
+    {
+      "id": "analyze-to-reason-of",
+      "from": "analyze-step",
+      "to": "reason-of-fn",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "reason_of log",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "attempt-to-cli",
+      "from": "attempt-fn",
+      "to": "pr-lens-cli",
+      "kind": "call",
+      "delta": "modified",
+      "label": "npx analyze --temperature --lens",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI invocation now always carries --temperature and may carry --lens architecture.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 200,
+          "endLine": 213
+        }
+      ]
+    },
+    {
+      "id": "cli-to-graph",
+      "from": "pr-lens-cli",
+      "to": "graph-json",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "writes graph.json",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cli-to-deepseek",
+      "from": "pr-lens-cli",
+      "to": "deepseek-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "temperature 0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "DeepSeek is called with an explicit temperature of 0, unchanged in effect but now stated in the table.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 64,
+          "endLine": 64
+        }
+      ]
+    },
+    {
+      "id": "cli-to-openai",
+      "from": "pr-lens-cli",
+      "to": "openai-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "temperature omitted",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The OpenAI row now names o4-mini and asks the CLI to send no temperature, because a reasoning model rejects a fixed one.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 65,
+          "endLine": 65
+        }
+      ]
+    },
+    {
+      "id": "cli-to-anthropic",
+      "from": "pr-lens-cli",
+      "to": "anthropic-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "temperature 0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Anthropic is called with an explicit temperature of 0, now stated in the table.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 66,
+          "endLine": 66
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "provider-fallback",
+      "title": "One provider attempt, with the architecture-lens fallback",
+      "summary": "How a single provider is tried: both lenses first, then the architecture lens alone, with the reason accumulated for the note if every provider fails.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "analyze-step",
+          "label": "Analyze step"
+        },
+        {
+          "node": "try-provider-fn",
+          "label": "try_provider"
+        },
+        {
+          "node": "attempt-fn",
+          "label": "attempt"
+        },
+        {
+          "node": "pr-lens-cli",
+          "label": "pr-lens CLI"
+        },
+        {
+          "node": "graph-json",
+          "label": "graph.json"
+        }
+      ],
+      "messages": [
+        {
+          "id": "call-try-provider",
+          "from": "analyze-step",
+          "to": "try-provider-fn",
+          "label": "try_provider(name, cli, base, model, key, temperature, log)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 228,
+              "endLine": 228
+            }
+          ]
+        },
+        {
+          "id": "first-attempt",
+          "from": "try-provider-fn",
+          "to": "attempt-fn",
+          "label": "attempt(...) — both lenses",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 228,
+              "endLine": 230
+            }
+          ]
+        },
+        {
+          "id": "first-cli-call",
+          "from": "attempt-fn",
+          "to": "pr-lens-cli",
+          "label": "npx analyze --temperature ...",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 200,
+              "endLine": 213
+            }
+          ]
+        },
+        {
+          "id": "first-write",
+          "from": "pr-lens-cli",
+          "to": "graph-json",
+          "label": "writes graph.json",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 205,
+              "endLine": 205
+            }
+          ]
+        },
+        {
+          "id": "first-failure",
+          "from": "attempt-fn",
+          "to": "try-provider-fn",
+          "label": "non-zero exit",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 229,
+              "endLine": 229
+            }
+          ]
+        },
+        {
+          "id": "remove-partial",
+          "from": "try-provider-fn",
+          "to": "graph-json",
+          "label": "rm -f graph.json",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 233,
+              "endLine": 233
+            }
+          ]
+        },
+        {
+          "id": "second-attempt",
+          "from": "try-provider-fn",
+          "to": "attempt-fn",
+          "label": "attempt(...) --lens architecture",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 235,
+              "endLine": 235
+            }
+          ]
+        },
+        {
+          "id": "second-cli-call",
+          "from": "attempt-fn",
+          "to": "pr-lens-cli",
+          "label": "npx analyze --lens architecture",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 200,
+              "endLine": 213
+            }
+          ]
+        },
+        {
+          "id": "second-write",
+          "from": "pr-lens-cli",
+          "to": "graph-json",
+          "label": "writes graph.json",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 205,
+              "endLine": 205
+            }
+          ]
+        },
+        {
+          "id": "success-return",
+          "from": "try-provider-fn",
+          "to": "analyze-step",
+          "label": "0 — diagram drawn",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 236,
+              "endLine": 236
+            }
+          ]
+        },
+        {
+          "id": "failure-return",
+          "from": "try-provider-fn",
+          "to": "analyze-step",
+          "label": "1 — reason accumulated",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 239,
+              "endLine": 239
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 52,
+    "deletions": 19,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workflow-context",
+      "title": "PR Lens workflow in context",
+      "lens": "architecture",
+      "summary": "The workflow from the pull request event through the runner steps to the CLI and the model providers it calls.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": [
+        {
+          "id": "analyze-step-components",
+          "title": "Inside the analyze step",
+          "lens": "architecture",
+          "summary": "The shell helpers the analyze step composes: attempt, try_provider and reason_of, and the graph file they share.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "analyze-step",
+              "attempt-fn",
+              "try-provider-fn",
+              "reason-of-fn",
+              "pr-lens-cli",
+              "graph-json"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "provider-fallback-flow",
+      "title": "Provider attempt with architecture-lens fallback",
+      "lens": "data-flow",
+      "summary": "The ordered steps of one provider attempt, including the architecture-only retry.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "provider-fallback"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "resolve-providers",
+        "heading": "Resolve providers",
+        "body": "The table now emits a temperature per provider; openai asks for the default.",
+        "stage": {
+          "kind": "view",
+          "view": "workflow-context"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "provider-step",
+            "openai-api"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      },
+      {
+        "id": "first-attempt",
+        "heading": "Try both lenses",
+        "body": "try_provider runs the CLI with both lenses and the provider's temperature.",
+        "stage": {
+          "kind": "flow",
+          "flow": "provider-fallback"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "call-try-provider",
+            "first-attempt",
+            "first-cli-call"
+          ]
+        }
+      },
+      {
+        "id": "architecture-fallback",
+        "heading": "Fall back to one lens",
+        "body": "On failure the partial graph is removed and the CLI retries with --lens architecture.",
+        "stage": {
+          "kind": "flow",
+          "flow": "provider-fallback"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "first-failure",
+            "remove-partial",
+            "second-attempt",
+            "second-cli-call"
+          ]
+        }
+      },
+      {
+        "id": "second-provider",
+        "heading": "Then the second provider",
+        "body": "Only if both lens attempts fail does the workflow move to the next provider.",
+        "stage": {
+          "kind": "view",
+          "view": "workflow-context"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "analyze-step",
+            "try-provider-fn"
+          ],
+          "edges": [],
+          "messages": []
+        }
+      }
+    ]
+  }
+}
