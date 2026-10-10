@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "cc9ee1623a8437bba24ba754ba8fd215b1383842",
+    "contentHash": "6672cbe3bf4e4f5cc98304400538f1b0"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-failure-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-failure-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0597c3426a21100a298d808c767209c0",
+      "bytes": 22907,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "reviewer-failure-context-light-0597c3426a21100a298d808c767209c0.svg"
+    },
+    {
+      "id": "reviewer-failure-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-failure-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "62da3aac43ba27085b70973aa183d546",
+      "bytes": 23192,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "reviewer-failure-context-dark-62da3aac43ba27085b70973aa183d546.svg"
+    },
+    {
+      "id": "failure-classifier-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "failure-classifier-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "461ca9594475a8e4bbb33bdb0a77e858",
+      "bytes": 11729,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "failure-classifier-detail-light-461ca9594475a8e4bbb33bdb0a77e858.svg"
+    },
+    {
+      "id": "failure-classifier-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "failure-classifier-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "85b0c5c5cb731f5b0366f4ba1f11dda3",
+      "bytes": 11866,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "failure-classifier-detail-dark-85b0c5c5cb731f5b0366f4ba1f11dda3.svg"
+    },
+    {
+      "id": "verdict-to-event-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "verdict-to-event",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e49b9071fc873c3421d9ac08739309a3",
+      "bytes": 10298,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "verdict-to-event-light-e49b9071fc873c3421d9ac08739309a3.svg"
+    },
+    {
+      "id": "verdict-to-event-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "verdict-to-event",
+      "mediaType": "image/svg+xml",
+      "contentHash": "279290fd2820be377d01680cf909bcb2",
+      "bytes": 10413,
+      "width": 860,
+      "height": 646,
+      "animated": false,
+      "path": "verdict-to-event-dark-279290fd2820be377d01680cf909bcb2.svg"
+    },
+    {
+      "id": "failed-reviewer-run-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "failed-reviewer-run-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "17146568dda40f2b3ac2637fdd17f37e",
+      "bytes": 18325,
+      "width": 1698,
+      "height": 543,
+      "animated": true,
+      "path": "failed-reviewer-run-flow-light-17146568dda40f2b3ac2637fdd17f37e.svg"
+    },
+    {
+      "id": "failed-reviewer-run-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "failed-reviewer-run-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e12ff9eacbb6acb9830a336702887389",
+      "bytes": 18506,
+      "width": 1698,
+      "height": 543,
+      "animated": true,
+      "path": "failed-reviewer-run-flow-dark-e12ff9eacbb6acb9830a336702887389.svg"
+    }
+  ]
+}
