@@ -4159,3 +4159,78 @@ fn a_positive_cost_ceiling_still_runs_every_lens() {
         "{answers:?}"
     );
 }
+
+/// A fake reviewer that prints an HTTP 429 shape to standard error and then
+/// sleeps far past any limit the test sets.
+#[cfg(unix)]
+const QUOTA_THEN_SLEEP: &str =
+    "echo 'ERROR: stream error: 429 Too Many Requests: exceeded your current quota' 1>&2\nsleep 30\n";
+
+/// Runs the whole review, then one reviewer's saved run, under `review_toml`,
+/// and returns the journal text and the saved `--out` JSON.
+#[cfg(unix)]
+fn limit_run(tag: &str, review_toml: &str) -> (String, String) {
+    let fakes = Fakes::new(
+        "",
+        &[("opencode", Fake::Script(QUOTA_THEN_SLEEP.to_string()))],
+    );
+    let repo = review_repo_with_active_lenses(
+        tag,
+        &format!("{review_toml}\n\n{}", fakes.osf_toml_with_qwen_opencode()),
+        &["slow"],
+    );
+    let home = common::isolated_home(&format!("review-run-{tag}"));
+    fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    let journal = journal_text(&home);
+    let out_json = repo.dir.join("run.json");
+    let home = common::isolated_home(&format!("review-run-{tag}-out"));
+    fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "opencode",
+            "--base",
+            "origin/main",
+            "--out",
+            &out_json.to_string_lossy(),
+        ],
+    );
+    let saved = std::fs::read_to_string(&out_json).expect("--out is written");
+    (journal, saved)
+}
+
+#[test]
+#[cfg(unix)]
+fn a_timeout_at_the_per_attempt_limit_keeps_its_category_and_names_the_limit() {
+    let (journal, saved) = limit_run(
+        "limit-category-per-attempt",
+        "[review]\ntimeout_seconds = 1\ntotal_timeout_seconds = 300\n",
+    );
+    for text in [&journal, &saved] {
+        assert!(
+            text.contains("per-attempt limit (timeout_seconds = 1s)"),
+            "{text}"
+        );
+        assert!(text.contains("quota or rate limit"), "{text}");
+    }
+}
+
+#[test]
+#[cfg(unix)]
+fn a_timeout_at_the_total_limit_keeps_its_category_and_names_the_limit() {
+    let (journal, saved) = limit_run(
+        "limit-category-total",
+        "[review]\nconcurrency = 1\ntimeout_seconds = 30\ntotal_timeout_seconds = 2\n",
+    );
+    for text in [&journal, &saved] {
+        assert!(text.contains("total_timeout_seconds = 2s"), "{text}");
+        assert!(text.contains("quota or rate limit"), "{text}");
+    }
+}

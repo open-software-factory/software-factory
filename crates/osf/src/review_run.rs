@@ -446,17 +446,29 @@ fn total_ran_out_before_lens(seconds: u64) -> String {
     format!("the total limit (total_timeout_seconds = {seconds}s) ran out before this lens started")
 }
 
-/// The reason a running attempt was stopped by the whole run's limit.
-fn total_ran_out_while_running(reviewer: &str, seconds: u64) -> String {
+/// The reason a running attempt was stopped by the whole run's limit, or
+/// could not be stopped when the kill failed.
+fn total_ran_out_while_running(reviewer: &str, seconds: u64, kill_failed: bool) -> String {
+    let outcome = if kill_failed {
+        "it could not be stopped"
+    } else {
+        "it was stopped"
+    };
     format!(
-        "the total limit (total_timeout_seconds = {seconds}s) ran out while reviewer '{reviewer}' was running; it was stopped"
+        "the total limit (total_timeout_seconds = {seconds}s) ran out while reviewer '{reviewer}' was running; {outcome}"
     )
 }
 
-/// The reason a running attempt was stopped by the per-attempt limit.
-fn per_attempt_limit(reviewer: &str, seconds: u64) -> String {
+/// The reason a running attempt was stopped by the per-attempt limit, or
+/// could not be stopped when the kill failed.
+fn per_attempt_limit(reviewer: &str, seconds: u64, kill_failed: bool) -> String {
+    let outcome = if kill_failed {
+        "could not be stopped"
+    } else {
+        "was stopped"
+    };
     format!(
-        "reviewer '{reviewer}' timed out at the per-attempt limit (timeout_seconds = {seconds}s) and was stopped"
+        "reviewer '{reviewer}' timed out at the per-attempt limit (timeout_seconds = {seconds}s) and {outcome}"
     )
 }
 
@@ -670,6 +682,7 @@ impl Attempts<'_> {
                 reason: Some(self.scrub(&total_ran_out_while_running(
                     &self.reviewer.name,
                     self.total.as_secs(),
+                    false,
                 ))),
                 notes: Vec::new(),
                 round,
@@ -687,9 +700,10 @@ impl Attempts<'_> {
                 Some(redact_answer(self.root, self.config_root, answer)),
             ),
             Outcome::Invalid(reason) => ("invalid", Some(self.scrub(&reason)), None),
-            Outcome::CouldNotRun(reason) => (
+            Outcome::CouldNotRun(reason) => ("could-not-run", Some(self.scrub(&reason)), None),
+            Outcome::TimedOut(timeout) => (
                 "could-not-run",
-                Some(self.scrub(&self.limit_reason(reason, given))),
+                Some(self.scrub(&self.timeout_reason(&timeout, given))),
                 None,
             ),
         };
@@ -703,17 +717,17 @@ impl Attempts<'_> {
         }
     }
 
-    /// `reason` with the binding limit named when the attempt timed out;
-    /// every other reason passes through unchanged.
-    fn limit_reason(&self, reason: String, given: Duration) -> String {
-        if !reason.contains("timed out") {
-            return reason;
-        }
-        if given == self.per_attempt {
-            per_attempt_limit(&self.reviewer.name, self.per_attempt.as_secs())
+    /// The reason for an attempt that ran past its time: the binding limit,
+    /// the kill result and the category all come from `timeout`'s data, and
+    /// `given` says whether the per-attempt or the total limit bound it.
+    fn timeout_reason(&self, timeout: &reviewers::Timeout, given: Duration) -> String {
+        let name = &self.reviewer.name;
+        let core = if given == self.per_attempt {
+            per_attempt_limit(name, self.per_attempt.as_secs(), timeout.kill_failed)
         } else {
-            total_ran_out_while_running(&self.reviewer.name, self.total.as_secs())
-        }
+            total_ran_out_while_running(name, self.total.as_secs(), timeout.kill_failed)
+        };
+        format!("{core}{}", timeout.hint())
     }
 }
 
@@ -1721,6 +1735,21 @@ mod tests {
         scrub_run(&req, &mut run);
         let text = serde_json::to_string(&run).expect("serialises");
         assert!(!text.contains(secret), "{text}");
+    }
+
+    #[test]
+    fn a_failed_kill_is_never_worded_as_stopped() {
+        let per_attempt = per_attempt_limit("synthetic", 5, true);
+        assert!(
+            per_attempt.contains("could not be stopped"),
+            "{per_attempt}"
+        );
+        assert!(!per_attempt.contains("was stopped"), "{per_attempt}");
+        let total = total_ran_out_while_running("synthetic", 5, true);
+        assert!(total.contains("could not be stopped"), "{total}");
+        assert!(!total.contains("it was stopped"), "{total}");
+        assert!(per_attempt_limit("synthetic", 5, false).contains("was stopped"));
+        assert!(total_ran_out_while_running("synthetic", 5, false).contains("it was stopped"));
     }
 
     #[test]

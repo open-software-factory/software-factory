@@ -126,8 +126,91 @@ pub enum Outcome {
     Answered(Answer),
     /// The reviewer answered twice, and neither answer validated. Counts as missing.
     Invalid(String),
-    /// The reviewer's harness could not be started, timed out, or exited non-zero.
+    /// The reviewer's harness could not be started, or exited non-zero.
     CouldNotRun(String),
+    /// The reviewer ran past its time. Carried as data, so the caller names
+    /// the limit that bound it without reading the reason's wording.
+    TimedOut(Timeout),
+}
+
+/// How a reviewer's run ended past its time: what osf knows, never what the
+/// reviewer printed.
+#[derive(Debug, Clone)]
+pub struct Timeout {
+    pub reviewer: String,
+    /// How long the run was given.
+    pub waited: Duration,
+    /// Whether killing the reviewer's process tree failed.
+    pub kill_failed: bool,
+    /// The category its partial output points to.
+    pub category: crate::failure::Category,
+    /// Whether the time ran out before the run could start at all.
+    pub before_start: bool,
+}
+
+impl Timeout {
+    /// The category as a hint to append to a reason; empty when unknown.
+    #[must_use]
+    pub fn hint(&self) -> String {
+        if self.category == crate::failure::Category::Unknown {
+            String::new()
+        } else {
+            format!("; its output points to: {}", self.category.phrase())
+        }
+    }
+
+    /// The reason with no limit named, as `osf review post` style callers see it.
+    fn reason(&self) -> String {
+        let name = &self.reviewer;
+        if self.before_start {
+            format!(
+                "reviewer '{name}' timed out after {:?} before it could start again",
+                self.waited
+            )
+        } else if self.kill_failed {
+            format!(
+                "reviewer '{name}' timed out and could not be stopped{}",
+                self.hint()
+            )
+        } else {
+            format!(
+                "reviewer '{name}' timed out after {:?} and was stopped{}",
+                self.waited,
+                self.hint()
+            )
+        }
+    }
+}
+
+/// Why one run of a reviewer's command failed.
+#[derive(Debug)]
+enum Failure {
+    Plain(String),
+    TimedOut(Timeout),
+}
+
+impl From<String> for Failure {
+    fn from(reason: String) -> Self {
+        Failure::Plain(reason)
+    }
+}
+
+impl std::fmt::Display for Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Failure::Plain(reason) => f.write_str(reason),
+            Failure::TimedOut(timeout) => f.write_str(&timeout.reason()),
+        }
+    }
+}
+
+impl From<Failure> for Outcome {
+    fn from(failure: Failure) -> Self {
+        match failure {
+            Failure::Plain(reason) => Outcome::CouldNotRun(reason),
+            Failure::TimedOut(timeout) => Outcome::TimedOut(timeout),
+        }
+    }
 }
 
 /// The reviewers `<root>/osf.toml` selects under `[agents]`, in the order it
@@ -402,10 +485,13 @@ fn run_with_retry(
     let left = || {
         let remaining = timeout.saturating_sub(started.elapsed());
         if remaining.is_zero() {
-            Err(format!(
-                "reviewer '{}' timed out after {timeout:?} before it could start again",
-                reviewer.name
-            ))
+            Err(Timeout {
+                reviewer: reviewer.name.clone(),
+                waited: timeout,
+                kill_failed: false,
+                category: crate::failure::Category::Unknown,
+                before_start: true,
+            })
         } else {
             Ok(remaining)
         }
@@ -413,13 +499,13 @@ fn run_with_retry(
     let schema = answer::schema_for(lens);
     let remaining = match left() {
         Ok(remaining) => remaining,
-        Err(reason) => return Outcome::CouldNotRun(reason),
+        Err(timeout) => return Outcome::TimedOut(timeout),
     };
     let raw = match run_child(
         reviewer, prompt, &schema, workdir, remaining, real_home, notes,
     ) {
         Ok(text) => text,
-        Err(reason) => return Outcome::CouldNotRun(reason),
+        Err(failure) => return failure.into(),
     };
     match validate_stage(&raw, reviewer, lens) {
         Ok(answer) => Outcome::Answered(answer),
@@ -427,7 +513,7 @@ fn run_with_retry(
             let retry_prompt = format!("{prompt}\n\nThe previous answer was invalid: {reason}");
             let remaining = match left() {
                 Ok(remaining) => remaining,
-                Err(reason) => return Outcome::CouldNotRun(reason),
+                Err(timeout) => return Outcome::TimedOut(timeout),
             };
             match run_child(
                 reviewer,
@@ -442,7 +528,7 @@ fn run_with_retry(
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
                 },
-                Err(reason) => Outcome::CouldNotRun(reason),
+                Err(failure) => failure.into(),
             }
         }
     }
@@ -557,33 +643,6 @@ fn prepare_command(
 /// credential, by name). Every other reviewer's credential and login, and
 /// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
 /// process. A missing login path adds a note to `notes`, once.
-/// Why a reviewer that ran past `timeout` failed. The partial output is read
-/// only for a category, never repeated.
-fn timeout_reason(
-    reviewer: &Reviewer,
-    timeout: Duration,
-    kill_error: Option<String>,
-    stdout: &str,
-    stderr: &str,
-) -> String {
-    let category = crate::failure::classify(stdout, stderr);
-    let hint = if category == crate::failure::Category::Unknown {
-        String::new()
-    } else {
-        format!("; its output points to: {}", category.phrase())
-    };
-    match kill_error {
-        None => format!(
-            "reviewer '{}' timed out after {timeout:?} and was killed{hint}",
-            reviewer.name
-        ),
-        Some(e) => format!(
-            "reviewer '{}' timed out and could not be killed: {e}",
-            reviewer.name
-        ),
-    }
-}
-
 /// Why a reviewer that exited with an error failed: its name, exit code,
 /// seconds run, and the category its output points to, never that output.
 fn exit_reason(
@@ -617,7 +676,7 @@ fn run_child(
     timeout: Duration,
     real_home: Option<&Path>,
     notes: &mut Vec<String>,
-) -> Result<String, String> {
+) -> Result<String, Failure> {
     let prompt_file = write_temp_file("osf-review-prompt", prompt)?;
     let schema_file = write_temp_file("osf-review-schema", schema)?;
     let cleanup = || {
@@ -628,7 +687,7 @@ fn run_child(
     let args = build_args(reviewer, &prompt_file, &schema_file, schema);
     let Some((program, rest)) = args.split_first() else {
         cleanup();
-        return Err(format!("reviewer '{}' has an empty command", reviewer.name));
+        return Err(format!("reviewer '{}' has an empty command", reviewer.name).into());
     };
 
     let (mut command, _home, home_notes) =
@@ -636,7 +695,7 @@ fn run_child(
             Ok(prepared) => prepared,
             Err(e) => {
                 cleanup();
-                return Err(e);
+                return Err(e.into());
             }
         };
     for note in home_notes {
@@ -656,7 +715,7 @@ fn run_child(
         Ok(child) => child,
         Err(e) => {
             cleanup();
-            return Err(format!("cannot run reviewer '{}': {e}", reviewer.name));
+            return Err(format!("cannot run reviewer '{}': {e}", reviewer.name).into());
         }
     };
 
@@ -691,17 +750,17 @@ fn run_child(
             let partial_err = joined(stderr_reader);
             let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
-            return Err(timeout_reason(
-                reviewer,
-                timeout,
-                killed.err(),
-                &partial_out,
-                &partial_err,
-            ));
+            return Err(Failure::TimedOut(Timeout {
+                reviewer: reviewer.name.clone(),
+                waited: timeout,
+                kill_failed: killed.is_err(),
+                category: crate::failure::classify(&partial_out, &partial_err),
+                before_start: false,
+            }));
         }
         Err(e) => {
             cleanup();
-            return Err(format!("cannot wait for reviewer '{}': {e}", reviewer.name));
+            return Err(format!("cannot wait for reviewer '{}': {e}", reviewer.name).into());
         }
     };
 
@@ -728,7 +787,8 @@ fn run_child(
             started.elapsed(),
             &stdout_text,
             &stderr_text,
-        ));
+        )
+        .into());
     }
     Ok(stdout_text)
 }
@@ -877,7 +937,7 @@ mod tests {
         );
         match out {
             Ok(text) => (text, notes, Ok(())),
-            Err(e) => (String::new(), notes, Err(e)),
+            Err(e) => (String::new(), notes, Err(e.to_string())),
         }
     }
 
@@ -1303,7 +1363,8 @@ mod tests {
             None,
             &mut Vec::new(),
         )
-        .expect_err("the reviewer fails");
+        .expect_err("the reviewer fails")
+        .to_string();
         assert!(
             err.starts_with("reviewer 'synthetic' exited with code 1 after "),
             "{err}"
