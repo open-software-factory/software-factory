@@ -1,0 +1,753 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-10T03:50:39.964Z",
+  "title": "React 19.3.0 upgrade across console-lab and console-ui",
+  "summary": "This change bumps the React runtime from 18.3.1 to 19.3.0 for the console-lab app and the console-ui package, and re-resolves the pnpm lockfile so every React-dependent package (react-aria-components, react-aria, react-stately, @testing-library/react) is re-keyed onto the new peer. The console-ui peer range moves to ^19.3.0, so a consumer still on React 18 no longer satisfies it. No application source changed: the blast radius is the dependency graph and the two manifests that pin it.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "be12fbbb9bfa20af599363675f2341f6274815b5",
+      "ref": "be12fbbb9bfa20af599363675f2341f6274815b5"
+    },
+    "head": {
+      "sha": "4f2b55db781700b69e3bb0b0d69793b6ba754f41",
+      "ref": "4f2b55db781700b69e3bb0b0d69793b6ba754f41"
+    },
+    "pullRequest": {
+      "number": 182,
+      "url": "https://github.com/open-software-factory/software-factory/pull/182"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "apps",
+      "label": "Applications",
+      "subtitle": "runnable front ends",
+      "order": 0,
+      "summary": "The console-lab app that mounts the UI and pins the React runtime it runs on."
+    },
+    {
+      "id": "packages",
+      "label": "Workspace packages",
+      "subtitle": "shared libraries",
+      "order": 1,
+      "summary": "The console-ui component library that declares React as a peer, plus the lockfile that records the resolution."
+    },
+    {
+      "id": "runtime",
+      "label": "React runtime",
+      "subtitle": "react, react-dom, scheduler",
+      "order": 2,
+      "summary": "The React packages themselves, resolved by the lockfile to 19.3.0."
+    },
+    {
+      "id": "ecosystem",
+      "label": "React ecosystem",
+      "subtitle": "aria, stately, testing",
+      "order": 3,
+      "summary": "Third-party packages that take React as a peer and were re-resolved against 19.3.0."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "console-lab",
+      "label": "console-lab",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "apps",
+      "subtitle": "apps/console-lab",
+      "summary": "The lab application. Its package.json now pins react and react-dom at 19.3.0 instead of 18.3.1, which is the runtime the app actually mounts.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 11,
+          "endLine": 18
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-ui",
+      "label": "console-ui",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "packages",
+      "subtitle": "packages/console-ui",
+      "summary": "The shared component library. Its peerDependencies range moved from ^18.3.1 to ^19.3.0 and its devDependencies now install 19.3.0 for tests.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 21,
+          "endLine": 36
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lockfile",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "packages",
+      "subtitle": "workspace resolution",
+      "summary": "The single file where the upgrade actually lands: importer specs, package entries and snapshot peer keys all move from 18.3.1 to 19.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react",
+      "label": "react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "19.3.0",
+      "summary": "The React runtime itself. The lockfile drops react@18.3.1 and adds react@19.3.0; the 19.2.7 entry used elsewhere in the workspace is untouched.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1684,
+          "endLine": 1694
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-dom",
+      "label": "react-dom",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "19.3.0",
+      "summary": "The DOM renderer. Its 18.3.1 entry, which pulled in loose-envify, is replaced by 19.3.0, which depends only on react and scheduler.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1666,
+          "endLine": 1676
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scheduler",
+      "label": "scheduler",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "0.28.0",
+      "summary": "React's scheduler. The 0.23.2 entry (which depended on loose-envify) is removed and 0.28.0 is added for the 19.3.0 renderer.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1705,
+          "endLine": 1712
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "loose-envify",
+      "label": "loose-envify",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "runtime",
+      "subtitle": "1.4.0",
+      "summary": "A transitive dependency of React 18's runtime and scheduler. It disappears entirely from the lockfile because React 19 no longer needs it.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1513,
+          "endLine": 1516,
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-aria-components",
+      "label": "react-aria-components",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "ecosystem",
+      "subtitle": "1.21.1",
+      "summary": "The component primitives used by console-ui. Same version, but its peer resolution is re-keyed from react@18.3.1 to react@19.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3282,
+          "endLine": 3295
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-aria",
+      "label": "react-aria",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "ecosystem",
+      "subtitle": "3.52.1",
+      "summary": "Transitive of react-aria-components. Re-resolved against react@19.3.0 and react-dom@19.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3297,
+          "endLine": 3312
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-stately",
+      "label": "react-stately",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "ecosystem",
+      "subtitle": "3.50.0",
+      "summary": "State management for react-aria. Its peer key moves to react@19.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3322,
+          "endLine": 3331
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "testing-library-react",
+      "label": "@testing-library/react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "ecosystem",
+      "subtitle": "16.3.3",
+      "summary": "The test renderer used by console-ui's devDependencies. Its peer resolution now points at react-dom@19.3.0 and react@19.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2754,
+          "endLine": 2762
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "console-lab-depends-console-ui",
+      "from": "console-lab",
+      "to": "console-ui",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "workspace:*",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The app consumes the component library as a workspace dependency; unchanged by this PR but it is why the peer bump matters.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 13,
+          "endLine": 13
+        }
+      ]
+    },
+    {
+      "id": "console-lab-depends-react",
+      "from": "console-lab",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "19.3.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The app's direct pin on React moved from 18.3.1 to 19.3.0. This is the change the PR is about.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 14,
+          "endLine": 14
+        }
+      ]
+    },
+    {
+      "id": "console-lab-depends-react-dom",
+      "from": "console-lab",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "19.3.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The app's direct pin on react-dom moved from 18.3.1 to 19.3.0.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 15,
+          "endLine": 15
+        }
+      ]
+    },
+    {
+      "id": "console-ui-peers-react",
+      "from": "console-ui",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "^19.3.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The peer range widened upward: consumers must now supply React 19.3.0 or later, so a React 18 host no longer satisfies console-ui.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 24,
+          "endLine": 24
+        }
+      ]
+    },
+    {
+      "id": "console-ui-peers-react-dom",
+      "from": "console-ui",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "^19.3.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The react-dom peer range moved to ^19.3.0 alongside React itself.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 25,
+          "endLine": 25
+        }
+      ]
+    },
+    {
+      "id": "console-ui-devdep-react",
+      "from": "console-ui",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "19.3.0 (dev)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The library's own devDependency installs 19.3.0 so its tests run against the same runtime it now requires.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 33,
+          "endLine": 33
+        }
+      ]
+    },
+    {
+      "id": "react-dom-depends-react",
+      "from": "react-dom",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer ^19.3.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "react-dom@19.3.0 declares react ^19.3.0 as its peer, replacing the ^18.3.1 peer of the removed 18.3.1 entry.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1670,
+          "endLine": 1672
+        }
+      ]
+    },
+    {
+      "id": "react-dom-depends-scheduler",
+      "from": "react-dom",
+      "to": "scheduler",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.28.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The renderer now pulls scheduler 0.28.0 instead of 0.23.2.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1673,
+          "endLine": 1675
+        }
+      ]
+    },
+    {
+      "id": "react-dom-dropped-loose-envify",
+      "from": "react-dom",
+      "to": "loose-envify",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "no longer needed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "React 18's renderer depended on loose-envify; the 19.3.0 entry does not, so the package leaves the lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1513,
+          "endLine": 1516,
+          "revision": "base"
+        }
+      ]
+    },
+    {
+      "id": "scheduler-dropped-loose-envify",
+      "from": "scheduler",
+      "to": "loose-envify",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "no longer needed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "scheduler 0.23.2 depended on loose-envify; 0.28.0 has no dependencies at all.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3361,
+          "endLine": 3363,
+          "revision": "base"
+        }
+      ]
+    },
+    {
+      "id": "react-aria-components-peers-react",
+      "from": "react-aria-components",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer re-keyed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The package version is unchanged, but its peer resolution key in the lockfile moved from react@18.3.1 to react@19.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3282,
+          "endLine": 3295
+        }
+      ]
+    },
+    {
+      "id": "react-aria-components-depends-react-aria",
+      "from": "react-aria-components",
+      "to": "react-aria",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "3.52.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The transitive react-aria snapshot is re-resolved against the new React peer.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3290,
+          "endLine": 3290
+        }
+      ]
+    },
+    {
+      "id": "react-aria-components-depends-react-stately",
+      "from": "react-aria-components",
+      "to": "react-stately",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "3.50.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The transitive react-stately snapshot is likewise re-keyed onto react@19.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3292,
+          "endLine": 3292
+        }
+      ]
+    },
+    {
+      "id": "testing-library-peers-react",
+      "from": "testing-library-react",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer re-keyed",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test renderer's peer resolution moved to react@19.3.0 and react-dom@19.3.0.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2754,
+          "endLine": 2762
+        }
+      ]
+    },
+    {
+      "id": "lockfile-resolves-react",
+      "from": "lockfile",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "18.3.1 to 19.3.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile is where the version swap is recorded for every importer and snapshot.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 17,
+          "endLine": 30
+        }
+      ]
+    },
+    {
+      "id": "lockfile-resolves-react-dom",
+      "from": "lockfile",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "18.3.1 to 19.3.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile records the react-dom swap and its new scheduler dependency.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1666,
+          "endLine": 1676
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "install-resolution",
+      "title": "How the React 19.3.0 resolution reaches the app",
+      "summary": "A pnpm install walks from the two manifests through the lockfile and lands on the new React runtime and its re-keyed ecosystem peers.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "console-lab",
+          "label": "console-lab"
+        },
+        {
+          "node": "console-ui",
+          "label": "console-ui"
+        },
+        {
+          "node": "lockfile",
+          "label": "pnpm-lock.yaml"
+        },
+        {
+          "node": "react",
+          "label": "react"
+        },
+        {
+          "node": "react-dom",
+          "label": "react-dom"
+        },
+        {
+          "node": "react-aria-components",
+          "label": "react-aria-components"
+        }
+      ],
+      "messages": [
+        {
+          "id": "lab-declares-react",
+          "from": "console-lab",
+          "to": "console-ui",
+          "label": "workspace:* dependency",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The app still consumes the library as a workspace link; the peer range it must satisfy is what changed.",
+          "files": [
+            {
+              "path": "apps/console-lab/package.json",
+              "startLine": 13,
+              "endLine": 13
+            }
+          ]
+        },
+        {
+          "id": "lab-pins-react",
+          "from": "console-lab",
+          "to": "lockfile",
+          "label": "react 19.3.0, react-dom 19.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The app's direct pins are the entry point of the upgrade.",
+          "files": [
+            {
+              "path": "apps/console-lab/package.json",
+              "startLine": 14,
+              "endLine": 15
+            }
+          ]
+        },
+        {
+          "id": "ui-declares-peer",
+          "from": "console-ui",
+          "to": "lockfile",
+          "label": "peer ^19.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The library raises its peer range, so the lockfile must re-key every dependent snapshot.",
+          "files": [
+            {
+              "path": "packages/console-ui/package.json",
+              "startLine": 24,
+              "endLine": 25
+            }
+          ]
+        },
+        {
+          "id": "lockfile-resolves-react-step",
+          "from": "lockfile",
+          "to": "react",
+          "label": "react@19.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "react@18.3.1 is dropped and react@19.3.0 added; the 19.2.7 entry used elsewhere stays.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1684,
+              "endLine": 1694
+            }
+          ]
+        },
+        {
+          "id": "lockfile-resolves-react-dom-step",
+          "from": "lockfile",
+          "to": "react-dom",
+          "label": "react-dom@19.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "react-dom@19.3.0 replaces 18.3.1 and now depends on scheduler 0.28.0 rather than loose-envify.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1666,
+              "endLine": 1676
+            }
+          ]
+        },
+        {
+          "id": "lockfile-rekeys-aria",
+          "from": "lockfile",
+          "to": "react-aria-components",
+          "label": "peer re-key to react@19.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Same package version, new peer resolution key; react-aria and react-stately follow.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 3282,
+              "endLine": 3295
+            }
+          ]
+        },
+        {
+          "id": "aria-returns-to-ui",
+          "from": "react-aria-components",
+          "to": "console-ui",
+          "label": "resolved primitives",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "The library now resolves its primitives against React 19.3.0 at install time.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 3282,
+              "endLine": 3295
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 61,
+    "deletions": 74,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Dependency architecture after the upgrade",
+      "lens": "architecture",
+      "summary": "The app and the library on the left, the React runtime they resolve to in the middle, and the ecosystem packages re-keyed onto it on the right.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "runtime-resolution",
+      "title": "React runtime resolution detail",
+      "lens": "architecture",
+      "summary": "The runtime lane in close-up: react, react-dom, scheduler, and the loose-envify package that React 19 no longer needs.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "runtime"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "ecosystem-peers",
+      "title": "Ecosystem peer re-keying",
+      "lens": "architecture",
+      "summary": "The third-party packages whose lockfile snapshots were re-resolved against react@19.3.0 without a version change of their own.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "ecosystem"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

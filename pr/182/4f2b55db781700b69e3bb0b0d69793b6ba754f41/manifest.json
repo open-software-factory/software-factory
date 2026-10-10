@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "4f2b55db781700b69e3bb0b0d69793b6ba754f41",
+    "contentHash": "1591934948104b9bd70d9a3d0f4c6411"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "961745b01b166ac587e649d12be42567",
+      "bytes": 25651,
+      "width": 1738,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-overview-light-961745b01b166ac587e649d12be42567.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9269a50f91c3c80de0cf234ea9a3a787",
+      "bytes": 25905,
+      "width": 1738,
+      "height": 646,
+      "animated": false,
+      "path": "architecture-overview-dark-9269a50f91c3c80de0cf234ea9a3a787.svg"
+    },
+    {
+      "id": "runtime-resolution-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "runtime-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3397a0d02c68e87e8832ee92d642a0ab",
+      "bytes": 9628,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "runtime-resolution-light-3397a0d02c68e87e8832ee92d642a0ab.svg"
+    },
+    {
+      "id": "runtime-resolution-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "runtime-resolution",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ebc7038e35f48da3d55d7066d2806735",
+      "bytes": 9721,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "runtime-resolution-dark-ebc7038e35f48da3d55d7066d2806735.svg"
+    },
+    {
+      "id": "ecosystem-peers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ecosystem-peers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8be618161f03989c68782049e96a11a4",
+      "bytes": 8526,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "ecosystem-peers-light-8be618161f03989c68782049e96a11a4.svg"
+    },
+    {
+      "id": "ecosystem-peers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ecosystem-peers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cde0147aebf6e0aa8ce68fdac0b67b0c",
+      "bytes": 8619,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "ecosystem-peers-dark-cde0147aebf6e0aa8ce68fdac0b67b0c.svg"
+    }
+  ]
+}
