@@ -1,0 +1,476 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-10T03:24:26.547Z",
+  "title": "react-dom 19.3.0 bump in console-lab and console-ui",
+  "summary": "This change bumps the `react-dom` dependency from 18.3.1 to 19.3.0 in two workspace packages — the `console-lab` app and the `console-ui` component library — while leaving `react` itself pinned at 18.3.1. The lockfile is regenerated accordingly: the old `react-dom@18.3.1` / `scheduler@0.23.2` pair is dropped, `react-dom@19.3.0` / `scheduler@0.28.0` is added, and every peer-resolved snapshot that depended on react-dom (react-aria, react-aria-components, @testing-library/react) is re-resolved against the new version. The result is a mixed React 18 runtime / React 19 renderer pairing across the console workspace.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "be12fbbb9bfa20af599363675f2341f6274815b5",
+      "ref": "be12fbbb9bfa20af599363675f2341f6274815b5"
+    },
+    "head": {
+      "sha": "419f078310a801d4ffdd6d07fa386cf141729dfa",
+      "ref": "419f078310a801d4ffdd6d07fa386cf141729dfa"
+    },
+    "pullRequest": {
+      "number": 182,
+      "url": "https://github.com/open-software-factory/software-factory/pull/182"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "apps",
+      "label": "Applications",
+      "subtitle": "runnable workspace apps",
+      "order": 0,
+      "summary": "The console-lab application that mounts the console UI into a browser."
+    },
+    {
+      "id": "packages",
+      "label": "Workspace packages",
+      "subtitle": "shared libraries",
+      "order": 1,
+      "summary": "The console-ui component library consumed by the app."
+    },
+    {
+      "id": "runtime",
+      "label": "Runtime dependencies",
+      "subtitle": "resolved from the lockfile",
+      "order": 2,
+      "summary": "The React runtime, renderer and scheduler versions the workspace actually installs."
+    },
+    {
+      "id": "tooling",
+      "label": "Test tooling",
+      "subtitle": "dev-time only",
+      "order": 3,
+      "summary": "Testing-library packages that peer-resolve against react-dom."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "console-lab",
+      "label": "console-lab",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "apps",
+      "subtitle": "apps/console-lab",
+      "summary": "The lab application. Its package.json now declares react-dom 19.3.0 while react stays at 18.3.1.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 12,
+          "endLine": 18
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-ui",
+      "label": "console-ui",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "packages",
+      "subtitle": "packages/console-ui",
+      "summary": "The shared component library. Its react-dom devDependency moves to 19.3.0; react remains 18.3.1.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 29,
+          "endLine": 32
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react",
+      "label": "react",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "runtime",
+      "subtitle": "18.3.1",
+      "summary": "The React runtime itself is untouched by this change and stays pinned at 18.3.1 in both packages.",
+      "files": [],
+      "badges": [
+        "18.3.1"
+      ]
+    },
+    {
+      "id": "react-dom",
+      "label": "react-dom",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "18.3.1 → 19.3.0",
+      "summary": "The renderer is the subject of the change: both workspace manifests move from 18.3.1 to 19.3.0, and the lockfile swaps the resolved package entry.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1673,
+          "endLine": 1682
+        }
+      ],
+      "badges": [
+        "19.3.0"
+      ]
+    },
+    {
+      "id": "scheduler",
+      "label": "scheduler",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "0.23.2 → 0.28.0",
+      "summary": "react-dom 19.3.0 pulls scheduler 0.28.0 instead of 0.23.2; the old scheduler entry is removed from the lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1712,
+          "endLine": 1716
+        }
+      ],
+      "badges": [
+        "0.28.0"
+      ]
+    },
+    {
+      "id": "react-aria-components",
+      "label": "react-aria-components",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "1.21.1",
+      "summary": "Peer-resolved against react-dom. Its lockfile snapshot is re-keyed from react-dom@18.3.1 to react-dom@19.3.0; the declared version is unchanged.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3293,
+          "endLine": 3301
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-aria",
+      "label": "react-aria",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "3.52.1",
+      "summary": "Transitive dependency of react-aria-components, re-resolved against react-dom 19.3.0 in the lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3303,
+          "endLine": 3316
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "testing-library-react",
+      "label": "@testing-library/react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "tooling",
+      "subtitle": "16.3.3",
+      "summary": "Dev-time renderer harness. Its lockfile snapshot now resolves react-dom 19.3.0, so component tests in console-ui run against the new renderer.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2761,
+          "endLine": 2767
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "console-lab-depends-console-ui",
+      "from": "console-lab",
+      "to": "console-ui",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "workspace:*",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lab app consumes the shared component library as a workspace dependency.",
+      "files": []
+    },
+    {
+      "id": "console-lab-depends-react-dom",
+      "from": "console-lab",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "19.3.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The app manifest's react-dom specifier moves from 18.3.1 to 19.3.0.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 15,
+          "endLine": 15
+        }
+      ]
+    },
+    {
+      "id": "console-ui-depends-react-dom",
+      "from": "console-ui",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "19.3.0",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The library manifest's react-dom devDependency moves from 18.3.1 to 19.3.0.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 32,
+          "endLine": 32
+        }
+      ]
+    },
+    {
+      "id": "console-lab-depends-react",
+      "from": "console-lab",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "18.3.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "React itself is not bumped, so the app runs React 18 with a React 19 renderer.",
+      "files": []
+    },
+    {
+      "id": "console-ui-depends-react",
+      "from": "console-ui",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "18.3.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The library keeps React 18 as its peer/runtime.",
+      "files": []
+    },
+    {
+      "id": "react-dom-uses-scheduler",
+      "from": "react-dom",
+      "to": "scheduler",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.28.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new renderer resolves scheduler 0.28.0 rather than 0.23.2.",
+      "files": []
+    },
+    {
+      "id": "react-aria-components-peer-react-dom",
+      "from": "react-aria-components",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile snapshot is re-keyed to the react-dom 19.3.0 peer resolution.",
+      "files": []
+    },
+    {
+      "id": "react-aria-peer-react-dom",
+      "from": "react-aria",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Transitively re-resolved against react-dom 19.3.0.",
+      "files": []
+    },
+    {
+      "id": "testing-library-react-peer-react-dom",
+      "from": "testing-library-react",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Test harness snapshot now resolves react-dom 19.3.0.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "install-resolution",
+      "title": "Dependency resolution after the bump",
+      "summary": "How pnpm resolves the workspace after the manifest change: the two manifests request react-dom 19.3.0, the lockfile supplies it with scheduler 0.28.0, and the peer-dependent packages re-resolve against it.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "console-lab",
+          "label": "console-lab"
+        },
+        {
+          "node": "console-ui",
+          "label": "console-ui"
+        },
+        {
+          "node": "react-dom",
+          "label": "react-dom"
+        },
+        {
+          "node": "scheduler",
+          "label": "scheduler"
+        },
+        {
+          "node": "react-aria-components",
+          "label": "react-aria-components"
+        }
+      ],
+      "messages": [
+        {
+          "id": "lab-requests-dom",
+          "from": "console-lab",
+          "to": "react-dom",
+          "label": "react-dom 19.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The app manifest's specifier changes from 18.3.1 to 19.3.0.",
+          "files": [
+            {
+              "path": "apps/console-lab/package.json",
+              "startLine": 15,
+              "endLine": 15
+            }
+          ]
+        },
+        {
+          "id": "ui-requests-dom",
+          "from": "console-ui",
+          "to": "react-dom",
+          "label": "react-dom 19.3.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The library manifest's devDependency changes from 18.3.1 to 19.3.0.",
+          "files": [
+            {
+              "path": "packages/console-ui/package.json",
+              "startLine": 32,
+              "endLine": 32
+            }
+          ]
+        },
+        {
+          "id": "dom-pulls-scheduler",
+          "from": "react-dom",
+          "to": "scheduler",
+          "label": "scheduler 0.28.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The lockfile drops scheduler 0.23.2 and adds 0.28.0 as react-dom 19.3.0's dependency.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1712,
+              "endLine": 1716
+            }
+          ]
+        },
+        {
+          "id": "aria-re-resolves",
+          "from": "react-aria-components",
+          "to": "react-dom",
+          "label": "peer re-resolution",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The snapshot key changes from react-dom@18.3.1 to react-dom@19.3.0; the declared version stays 1.21.1.",
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 3293,
+              "endLine": 3301
+            }
+          ]
+        },
+        {
+          "id": "dom-returns",
+          "from": "react-dom",
+          "to": "console-lab",
+          "label": "resolved 19.3.0",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "The app installs react-dom 19.3.0 alongside react 18.3.1.",
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 31,
+    "deletions": 34,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workspace-deps",
+      "title": "Workspace dependency resolution",
+      "lens": "architecture",
+      "summary": "The two changed manifests, the React runtime they resolve, and the peer-dependent packages whose lockfile snapshots move with them.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "console-ui-internals",
+      "title": "console-ui renderer surface",
+      "lens": "architecture",
+      "summary": "The component library's renderer and test-harness dependencies, which are the only internals this change touches.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "console-ui",
+          "react",
+          "react-dom",
+          "testing-library-react",
+          "react-aria-components"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

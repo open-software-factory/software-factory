@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "419f078310a801d4ffdd6d07fa386cf141729dfa",
+    "contentHash": "47d35c18aa278677c47524b7eaa0fea5"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "workspace-deps-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "workspace-deps",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5ba16ab619c484ea415e13759f40e26d",
+      "bytes": 18901,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "workspace-deps-light-5ba16ab619c484ea415e13759f40e26d.svg"
+    },
+    {
+      "id": "workspace-deps-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "workspace-deps",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7e062409fd3c7833647a56492605bd0c",
+      "bytes": 19116,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "workspace-deps-dark-7e062409fd3c7833647a56492605bd0c.svg"
+    },
+    {
+      "id": "console-ui-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "console-ui-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c7f3e2023b21d7d9402010e9b47a4fa5",
+      "bytes": 11762,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "console-ui-internals-light-c7f3e2023b21d7d9402010e9b47a4fa5.svg"
+    },
+    {
+      "id": "console-ui-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "console-ui-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a9b420c5de2c9f3fb17c940b540bb9cc",
+      "bytes": 11894,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "console-ui-internals-dark-a9b420c5de2c9f3fb17c940b540bb9cc.svg"
+    }
+  ]
+}
