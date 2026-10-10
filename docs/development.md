@@ -261,23 +261,22 @@ a reviewer that timed out, where its partial output points to a category.
 What it does not cover: a reviewer that exits with code 0 and prints an
 invalid answer, which keeps its own validation reason, and any failure
 whose text matches none of the patterns. The last category means that no
-pattern matched. It does not mean that nothing failed. `osf` never keeps
-or prints the reviewer's own text in a reason, the journal, SARIF, the
-saved file or a posted review, because it can hold a credential.
+pattern matched. It does not mean that nothing failed. In a failure
+reason, `osf` never keeps or prints the reviewer's own text, because it can
+hold a credential. That covers the console, the journal, SARIF and the saved
+file. Each saved reason also goes through the secret removal below. The text
+of a valid finding is different: it is the reviewer's own words, and it
+reaches the review output after that same secret removal.
 
 A reviewer job turns red when it made attempts and none answered. It still
 writes its `--out` file and uploads it first. A reviewer that is off under
 `--if-enabled`, or left out for the builder's family, does not fail. The
 last job runs even after a red reviewer job and decides by quorum.
 
-With `OSF_KEEP_REVIEW_HOME` set, `osf` keeps each reviewer's home for local
-diagnosis. It removes the seeded login first, on every path out of a run,
-including a command that fails to start. If a login cannot be removed,
-`osf` removes the whole home. A kept home stays private (mode 0700) and
-holds only the files the harness created. It does not hold the harness's
-standard output or standard error. CI never keeps or uploads a reviewer home:
-the only artifact a reviewer job uploads is its saved answers, which pass the
-secret removal described below.
+A reviewer runs in a fresh home that `osf` removes whole when the run ends,
+whether the reviewer answered, failed, timed out or never started. If the
+removal fails, `osf` prints one line naming its own home folder. CI uploads
+only each reviewer's saved answers, never a home.
 
 Each reviewer asks for two rounds for each lens. A reviewer that answered
 also runs one more round, the critical round, and saves it marked as

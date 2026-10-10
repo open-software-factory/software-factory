@@ -163,17 +163,15 @@ const RUN_ENV_VARS: &[&str] = &[
     "WINDIR",
 ];
 
-/// A private, empty home directory for one reviewer run, removed on drop.
-/// With `OSF_KEEP_REVIEW_HOME` set it is kept for local diagnosis instead,
-/// still private (mode 0700), and its seeded login paths are removed on
-/// every path out, spawn and wait failures included.
+/// A private, empty home directory for one reviewer run. It is removed whole
+/// when it is dropped, on every path out of a run: an answer, a failure, a
+/// timeout and a command that never starts.
 struct RunHome {
     path: PathBuf,
-    login_paths: Vec<String>,
 }
 
 impl RunHome {
-    fn create(login_paths: &[String]) -> Result<Self, String> {
+    fn create() -> Result<Self, String> {
         static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -192,10 +190,7 @@ impl RunHome {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
                 .map_err(|e| format!("cannot protect {}: {e}", path.display()))?;
         }
-        let home = Self {
-            path,
-            login_paths: login_paths.to_vec(),
-        };
+        let home = Self { path };
         std::fs::create_dir(home.temp())
             .map_err(|e| format!("cannot create {}: {e}", home.temp().display()))?;
         #[cfg(windows)]
@@ -327,101 +322,18 @@ fn copy_dir(source: &Path, dest: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Whether a reviewer's home is kept after its run instead of removed. Set
-/// `OSF_KEEP_REVIEW_HOME` for a run whose child output and session files
-/// should survive for diagnosis, such as a reviewer job that points its
-/// temporary folder at a mounted one. The home is the reviewer's own record;
-/// it is never the journal, and nothing decides anything from it.
-fn keep_home() -> bool {
-    std::env::var_os("OSF_KEEP_REVIEW_HOME").is_some()
-}
-
-/// Removes the login at `relative` inside `root` without following a link in
-/// any component. Returns whether it is confirmed gone: only a missing path
-/// counts. A link or non-folder ancestor, or any error other than "not found",
-/// returns false so the caller removes the whole home instead.
-fn remove_login(root: &Path, relative: &str) -> bool {
-    use std::io::ErrorKind::NotFound;
-    let parts: Vec<_> = Path::new(relative).components().collect();
-    let mut current = root.to_path_buf();
-    for (index, part) in parts.iter().enumerate() {
-        current.push(part);
-        match std::fs::symlink_metadata(&current) {
-            Err(e) if e.kind() == NotFound => return true,
-            Err(_) => return false,
-            Ok(meta) if index + 1 < parts.len() => {
-                if meta.file_type().is_symlink() || !meta.is_dir() {
-                    return false;
-                }
-            }
-            Ok(meta) => {
-                let removed = if meta.is_dir() {
-                    std::fs::remove_dir_all(&current)
-                } else {
-                    std::fs::remove_file(&current)
-                };
-                if removed.is_err() {
-                    return false;
-                }
-            }
-        }
-    }
-    matches!(std::fs::symlink_metadata(&current), Err(e) if e.kind() == NotFound)
-}
-
-/// Gives the owner back access to every folder under `path`, without
-/// following links, so a folder the harness locked cannot block removal.
-#[cfg(unix)]
-fn restore_owner_access(path: &Path) {
-    use std::os::unix::fs::PermissionsExt as _;
-    let Ok(meta) = std::fs::symlink_metadata(path) else {
-        return;
-    };
-    if meta.is_dir() {
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
-        if let Ok(entries) = std::fs::read_dir(path) {
-            for entry in entries.flatten() {
-                restore_owner_access(&entry.path());
-            }
-        }
-    }
-}
-
-#[cfg(not(unix))]
-fn restore_owner_access(_path: &Path) {}
-
-impl RunHome {
-    /// Ends the home's life: removes it, or when `keep` is set removes the
-    /// seeded login paths and leaves the rest, private. A login that is not
-    /// confirmed gone removes the whole home instead, so a credential is
-    /// never left behind in a kept one. Says so when even that fails.
-    fn retire(&self, keep: bool) {
-        if keep
-            && self
-                .login_paths
-                .iter()
-                .all(|rel| remove_login(&self.path, rel))
-        {
-            eprintln!("osf: kept a reviewer home at {}", self.path.display());
-            return;
-        }
-        if std::fs::remove_dir_all(&self.path).is_err() {
-            restore_owner_access(&self.path);
-            if let Err(e) = std::fs::remove_dir_all(&self.path) {
-                if e.kind() != std::io::ErrorKind::NotFound {
-                    eprintln!(
-                        "osf: could not remove the reviewer home at {}; a login may remain there",
-                        self.path.display()
-                    );
-                }
-            }
-        }
-    }
-}
-
 impl Drop for RunHome {
     fn drop(&mut self) {
-        self.retire(keep_home());
+        // `remove_dir_all` does not follow a link: a home replaced by a link
+        // loses the link, never the folder it points at.
+        if let Err(e) = std::fs::remove_dir_all(&self.path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "osf: could not remove the reviewer home at {}",
+                    self.path.display()
+                );
+            }
+        }
     }
 }
 
@@ -582,7 +494,7 @@ fn prepare_command(
     workdir: &Path,
     real_home: Option<&Path>,
 ) -> Result<(Command, RunHome, Vec<String>), String> {
-    let home = RunHome::create(&reviewer.login_paths)?;
+    let home = RunHome::create()?;
     // A key in the environment is enough to sign in, so no login file is copied where a read tool could reach it.
     let key_in_environment = reviewer
         .credential_env
@@ -784,8 +696,7 @@ fn run_child(
     });
     let stdout_text = joined(stdout_reader);
     // Reviewer text never reaches osf's output, the journal or a posted
-    // review: `failure::classify` reads it and returns only a category. A kept
-    // home (OSF_KEEP_REVIEW_HOME) holds only files the harness made.
+    // review: `failure::classify` reads it and returns only a category.
     let stderr_text = joined(stderr_reader);
     cleanup();
 
@@ -1386,72 +1297,41 @@ mod tests {
         );
     }
 
-    #[cfg(unix)]
     #[test]
-    fn a_kept_home_loses_its_login_and_stays_private() {
-        use std::os::unix::fs::PermissionsExt as _;
-        let logins = vec![
-            ".fake-login/auth.json".to_string(),
-            ".fake-token".to_string(),
-        ];
-        let seed = |home: &RunHome| {
-            std::fs::create_dir_all(home.path.join(".fake-login")).expect("dir");
-            std::fs::write(home.path.join(".fake-login/auth.json"), "secret").expect("login");
-            std::fs::write(home.path.join(".fake-token"), "secret").expect("token");
-            std::fs::write(home.path.join("made-by-harness.txt"), "x").expect("file");
-        };
-        let home = RunHome::create(&logins).expect("home");
-        seed(&home);
-        home.retire(true);
-        assert!(!home.path.join(".fake-login/auth.json").exists());
-        assert!(!home.path.join(".fake-token").exists());
-        assert!(home.path.join("made-by-harness.txt").exists());
-        let mode = std::fs::metadata(&home.path)
-            .expect("meta")
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(mode, 0o700, "a kept home stays private");
-        home.retire(false);
-        assert!(!home.path.exists(), "a home that is not kept is removed");
+    fn the_home_is_gone_after_a_normal_run_and_after_a_failed_spawn() {
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, nothing is written there
+        let runs = [("true", true), ("osf-no-such-program-for-this-test", false)];
+        for (program, starts) in runs {
+            let r = reviewer("synthetic", vec![program]);
+            let (mut command, home, _) =
+                prepare_command(&r, program, &[], &workdir, None).expect("prepares");
+            let path = home.path.clone();
+            assert!(path.exists(), "the home exists while the run is prepared");
+            let spawned = command.spawn();
+            assert_eq!(spawned.is_ok(), starts, "{program}");
+            if let Ok(mut child) = spawned {
+                let _ = child.wait();
+            }
+            drop(home);
+            assert!(!path.exists(), "the home must be gone: {program}");
+        }
     }
 
     #[cfg(unix)]
     #[test]
-    fn a_login_under_a_replaced_ancestor_never_touches_files_outside_the_home() {
+    fn a_home_replaced_by_a_link_loses_the_link_and_not_the_folder_it_points_at() {
         let outside = crate::test_support::TempDir::new("osf-reviewers-outside");
         let decoy = outside.join("auth.json");
         std::fs::write(&decoy, "decoy").expect("decoy");
-        let home = RunHome::create(&[".fake-login/auth.json".to_string()]).expect("home");
-        std::os::unix::fs::symlink(&*outside, home.path.join(".fake-login")).expect("link");
-        home.retire(true);
+        let home = RunHome::create().expect("home");
+        let path = home.path.clone();
+        std::fs::remove_dir_all(&path).expect("the harness removes its home");
+        std::os::unix::fs::symlink(&*outside, &path).expect("link");
+        drop(home);
         assert!(decoy.exists(), "a file outside the home must survive");
-        assert!(!home.path.exists(), "the home must be gone");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_login_that_cannot_be_inspected_removes_the_whole_home() {
-        use std::os::unix::fs::PermissionsExt as _;
-        let locked = std::fs::Permissions::from_mode(0o000);
-        let probe = crate::test_support::TempDir::new("osf-reviewers-root-probe");
-        let dir = probe.join("d");
-        std::fs::create_dir(&dir).expect("dir");
-        std::fs::set_permissions(&dir, locked.clone()).expect("lock");
-        let is_root = std::fs::read_dir(&dir).is_ok();
-        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).expect("unlock");
-        if is_root {
-            eprintln!("skipped: running as root, a mode 000 folder is still readable");
-            return;
-        }
-        let home = RunHome::create(&[".fake-login/auth.json".to_string()]).expect("home");
-        std::fs::create_dir_all(home.path.join(".fake-login")).expect("dir");
-        std::fs::write(home.path.join(".fake-login/auth.json"), "secret").expect("login");
-        std::fs::set_permissions(home.path.join(".fake-login"), locked).expect("lock");
-        home.retire(true);
         assert!(
-            !home.path.exists(),
-            "the home must not be kept with a login in it"
+            std::fs::symlink_metadata(&path).is_err(),
+            "the link is gone"
         );
     }
 
