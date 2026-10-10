@@ -25,16 +25,6 @@ pub fn no_issue_linked(repository: &str) -> String {
     format!("no issue is linked: add an Issue line that names the issue this pull request is for, or close one with a closing keyword such as Closes {repository}#N. Link one so the spec and acceptance lens can run")
 }
 
-/// The reason saved when a pull request in `repository` names more than one issue.
-#[must_use]
-pub fn more_than_one_issue(repository: &str, numbers: &[u64]) -> String {
-    let named: Vec<String> = numbers.iter().map(|number| format!("#{number}")).collect();
-    format!(
-        "the pull request text names more than one issue in {repository}: {}. Name one issue and remove the others",
-        named.join(", ")
-    )
-}
-
 /// What the code host holds for an issue number.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Fetched {
@@ -345,19 +335,14 @@ fn own_issues(repository: &str, all: &[Reference]) -> Vec<u64> {
     found
 }
 
-/// The only issue in `repository` among `all`, or `None` for none or many.
+/// The first issue in `repository` among `all`, or `None` for none.
 fn own_issue(repository: &str, all: &[Reference]) -> Option<u64> {
-    let mut issues = own_issues(repository, all);
-    if issues.len() == 1 {
-        issues.pop()
-    } else {
-        None
-    }
+    own_issues(repository, all).first().copied()
 }
 
 /// The issue number the body of a pull request names for `repository`: the
-/// only prose candidate in that repository, or `None` when it names none
-/// there or names more than one.
+/// first prose candidate in that repository, or `None` when it names none
+/// there. A body that names several issues takes the first.
 #[must_use]
 pub fn named_issue(repository: &str, pr_body: &str) -> Option<u64> {
     own_issue(repository, &candidates(pr_body))
@@ -377,9 +362,6 @@ pub fn find(
 ) -> Result<WorkItem, String> {
     let all = candidates(pr_body);
     let issues = own_issues(repository, &all);
-    if issues.len() > 1 {
-        return Ok(WorkItem::Missing(more_than_one_issue(repository, &issues)));
-    }
     let Some(number) = issues.first().copied() else {
         return Ok(WorkItem::Missing(match all.first() {
             Some((Some(other), n)) => format!(
@@ -493,23 +475,17 @@ pub fn check_binding(
     };
     let all = candidates(body);
     let issues = own_issues(repository, &all);
-    if issues.len() > 1 {
-        return Err(more_than_one_issue(repository, &issues));
+    if issues.contains(&number) {
+        return Ok(());
     }
     match issues.first() {
-        Some(&named) if named == number => {}
-        Some(&named) => {
-            return Err(format!(
-                "the saved work item names issue #{number}, but the pull request text names #{named}"
-            ));
-        }
-        None => {
-            return Err(format!(
-                "the saved work item names issue #{number}, but the pull request text names no issue"
-            ));
-        }
+        Some(&named) => Err(format!(
+            "the saved work item names issue #{number}, but the pull request text names #{named}"
+        )),
+        None => Err(format!(
+            "the saved work item names issue #{number}, but the pull request text names no issue"
+        )),
     }
-    Ok(())
 }
 
 /// Reads issues through `gh api`, with the token in `GH_TOKEN`.
@@ -1204,22 +1180,27 @@ mod tests {
     }
 
     #[test]
-    fn find_refuses_when_the_body_names_two_issues() {
-        let source = Fake::issue("unused");
-        let item = find(&source, REPO, "Closes #1\nFixes #2", HEAD).expect("finds");
-        assert_eq!(item, WorkItem::Missing(more_than_one_issue(REPO, &[1, 2])));
-        assert!(source.asked.borrow().is_empty(), "nothing was fetched");
+    fn find_takes_the_first_of_two_issues() {
+        let source = Fake::issue("body");
+        let WorkItem::Found { number, .. } =
+            find(&source, REPO, "Closes #1\nFixes #2", HEAD).expect("finds")
+        else {
+            panic!("expected Found");
+        };
+        assert_eq!(number, 1);
+        assert_eq!(*source.asked.borrow(), vec![(REPO.to_string(), 1)]);
     }
 
     #[test]
-    fn find_refuses_when_the_issue_line_and_a_closing_keyword_disagree() {
-        let source = Fake::issue("unused");
-        let item = find(&source, REPO, "Issue: #12\n\nCloses #44", HEAD).expect("finds");
-        assert_eq!(
-            item,
-            WorkItem::Missing(more_than_one_issue(REPO, &[12, 44]))
-        );
-        assert!(source.asked.borrow().is_empty(), "nothing was fetched");
+    fn the_issue_line_wins_over_a_later_closing_keyword() {
+        let source = Fake::issue("body");
+        let WorkItem::Found { number, .. } =
+            find(&source, REPO, "Issue: #12\n\nCloses #44", HEAD).expect("finds")
+        else {
+            panic!("expected Found");
+        };
+        assert_eq!(number, 12);
+        assert_eq!(*source.asked.borrow(), vec![(REPO.to_string(), 12)]);
     }
 
     #[test]
@@ -1243,17 +1224,15 @@ mod tests {
     }
 
     #[test]
-    fn a_zero_width_character_before_the_issue_line_shows_every_issue() {
+    fn a_zero_width_character_before_the_issue_line_still_reads_it() {
         for zero_width in ['\u{200b}', '\u{200c}', '\u{200d}', '\u{2060}', '\u{feff}'] {
-            let source = Fake::issue("unused");
+            let source = Fake::issue("body");
             let body = format!("{zero_width}Issue: #44\n\nCloses #99");
-            let item = find(&source, REPO, &body, HEAD).expect("finds");
-            assert_eq!(
-                item,
-                WorkItem::Missing(more_than_one_issue(REPO, &[44, 99])),
-                "{body:?}"
-            );
-            assert!(source.asked.borrow().is_empty(), "nothing was fetched");
+            let WorkItem::Found { number, .. } = find(&source, REPO, &body, HEAD).expect("finds")
+            else {
+                panic!("expected Found");
+            };
+            assert_eq!(number, 44, "{body:?}");
         }
     }
 
@@ -1299,7 +1278,7 @@ mod tests {
     }
 
     #[test]
-    fn check_binding_refuses_when_the_body_names_more_than_one_issue() {
+    fn check_binding_accepts_a_body_that_names_the_saved_issue_among_others() {
         let json = WorkItem::Found {
             reference: format!("{REPO}#12"),
             number: 12,
@@ -1308,15 +1287,26 @@ mod tests {
             body: "body".to_string(),
         }
         .to_json();
-        let e = check_binding(&json, REPO, HEAD, Some("Issue: #12\n\nCloses #44"))
-            .expect_err("refused");
-        assert!(e.contains("12") && e.contains("44"), "{e}");
-        assert!(!e.contains("names no issue"), "{e}");
+        check_binding(&json, REPO, HEAD, Some("Issue: #12\n\nCloses #44")).expect("accepted");
     }
 
     #[test]
-    fn named_issue_is_none_when_the_body_names_two_distinct_issues() {
-        assert_eq!(named_issue(REPO, "Closes #1\nFixes #2"), None);
+    fn check_binding_refuses_a_saved_issue_the_body_does_not_name() {
+        let json = WorkItem::Found {
+            reference: format!("{REPO}#12"),
+            number: 12,
+            head: HEAD.to_string(),
+            title: "A title".to_string(),
+            body: "body".to_string(),
+        }
+        .to_json();
+        let e = check_binding(&json, REPO, HEAD, Some("Closes #44")).expect_err("refused");
+        assert!(e.contains("12") && e.contains("44"), "{e}");
+    }
+
+    #[test]
+    fn named_issue_takes_the_first_of_two_distinct_issues() {
+        assert_eq!(named_issue(REPO, "Closes #1\nFixes #2"), Some(1));
         assert_eq!(named_issue(REPO, "Issue: #12\n\nCloses #12"), Some(12));
     }
 }

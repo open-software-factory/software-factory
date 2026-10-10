@@ -1,0 +1,4 @@
+# Codex has no turn-end event that matches osf hook stop; user_prompt_submit is the one osf hook event Codex can reach.
+[[hook]]
+event = "user_prompt_submit"
+command = ["osf", "hook", "prompt"]

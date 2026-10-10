@@ -4,7 +4,12 @@
 use std::path::PathBuf;
 
 /// The codex version this workflow names.
-const CODEX_VERSION: &str = "0.154.0";
+const CODEX_VERSION: &str = "0.161.0";
+
+/// Environment a reviewer container needs beyond its own provider credential:
+/// where it keeps its temporary files, and whether to keep the reviewer's home
+/// for diagnosis. Neither carries a key.
+const HOUSEKEEPING_ENV: &[&str] = &["TMPDIR", "OSF_KEEP_REVIEW_HOME"];
 
 fn workflow_text() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/review.yml");
@@ -295,6 +300,10 @@ fn each_reviewer_job_passes_only_the_credential_its_agent_names() {
             body.lines()
                 .filter_map(|line| line.trim().strip_prefix("-e "))
                 .map(str::trim)
+                .filter(|var| {
+                    let name = var.split('=').next().unwrap_or(var);
+                    !HOUSEKEEPING_ENV.contains(&name)
+                })
                 .collect()
         } else {
             env_secret_names(body)
@@ -523,11 +532,15 @@ fn the_codex_job_runs_in_the_review_container() {
         .lines()
         .filter_map(|line| line.trim().strip_prefix("-e "))
         .map(str::trim)
+        .filter(|var| {
+            let name = var.split('=').next().unwrap_or(var);
+            !HOUSEKEEPING_ENV.contains(&name)
+        })
         .collect();
     assert_eq!(
         envs,
         vec!["CODEX_API_KEY"],
-        "the container gets exactly one -e line"
+        "the container gets its one credential and the housekeeping variables"
     );
     for mount in ["/pr:/pr:ro", "/base:/base:ro", "/work-item:/work-item:ro"] {
         assert!(body.contains(mount), "the codex job mounts {mount}: {body}");
@@ -539,7 +552,7 @@ fn the_codex_job_runs_in_the_review_container() {
 }
 
 #[test]
-fn the_codex_job_allows_exactly_its_seven_hosts() {
+fn the_codex_job_allows_exactly_its_eight_hosts() {
     let body = job_body(&workflow_text(), "review-codex");
     let mut hosts = endpoints_of(&body);
     hosts.sort();
@@ -551,12 +564,13 @@ fn the_codex_job_allows_exactly_its_seven_hosts() {
         "ghcr.io:443",
         "pkg-containers.githubusercontent.com:443",
         "api.openai.com:443",
+        "chatgpt.com:443",
     ]
     .iter()
     .map(ToString::to_string)
     .collect();
     expected.sort();
-    assert_eq!(hosts, expected, "the codex job names its seven hosts");
+    assert_eq!(hosts, expected, "the codex job names its eight hosts");
     assert!(
         !body.contains("release-assets"),
         "the codex job downloads no release: {body}"
@@ -601,7 +615,7 @@ fn the_codex_job_uses_no_privileged_setting() {
 }
 
 #[test]
-fn the_codex_command_runs_with_the_bypass_flag_only_inside_the_container() {
+fn the_codex_command_runs_with_the_bypass_flag_in_the_container() {
     let codex = osf::agents::AGENTS
         .iter()
         .find(|a| a.name == "codex")
@@ -614,23 +628,11 @@ fn the_codex_command_runs_with_the_bypass_flag_only_inside_the_container() {
     assert_eq!(
         in_container.args,
         &["--dangerously-bypass-approvals-and-sandbox"],
-        "inside the container codex runs with its own sandbox off"
+        "codex runs with its own sandbox off, because the container is the wall"
     );
-    let outside = review
-        .read_only
-        .as_ref()
-        .expect("codex documents a read-only mode");
-    assert_eq!(outside.args, &["--sandbox", "read-only"]);
     assert!(
-        !outside
-            .args
-            .contains(&"--dangerously-bypass-approvals-and-sandbox"),
-        "the bypass flag is only for the container"
-    );
-    assert_eq!(
-        review.sandbox_check,
-        &["codex", "sandbox", "--", "true"],
-        "outside the container osf checks the sandbox first"
+        review.read_only.is_none(),
+        "codex has no read-only mode of its own"
     );
 }
 

@@ -68,11 +68,6 @@ pub struct Reviewer {
     /// reviewer's login, goes in. A path that is missing is left out and
     /// named in the run's notes.
     pub login_paths: Vec<String>,
-    /// A command, program first, that starts this agent's read-only sandbox
-    /// around a harmless command. [`run_one`] runs it before the agent
-    /// reviews, and reports could-not-run when it fails. Empty when the
-    /// read-only mode has no sandbox to start.
-    pub sandbox_check: Vec<String>,
     /// The read-only folder that holds the change's diff and log. It takes
     /// the place of `{review_dir}` in the read-only arguments and environment.
     pub review_dir: Option<PathBuf>,
@@ -97,24 +92,14 @@ impl Reviewer {
     /// `agent` as a reviewer running `model`, with `in_container`'s
     /// container mode when osf runs inside the factory container; `None` when
     /// `agent` never reviews.
-    fn from_agent(agent: &Agent, model: Option<&str>, in_container: bool) -> Option<Self> {
+    fn from_agent(agent: &Agent, model: Option<&str>) -> Option<Self> {
         let review = agent.review.as_ref()?;
         let owned = |items: &[&str]| items.iter().map(ToString::to_string).collect();
         let (family, family_error) = match agent.family_for(model) {
             Ok(family) => (family.to_string(), None),
             Err(reason) => (crate::builder::UNKNOWN.to_string(), Some(reason)),
         };
-        let container_mode = if in_container {
-            review.in_container
-        } else {
-            None
-        };
-        let read_only = container_mode.or(review.read_only);
-        let sandbox_check: &[&str] = if container_mode.is_some() {
-            &[]
-        } else {
-            review.sandbox_check
-        };
+        let read_only = review.in_container.or(review.read_only);
         Some(Reviewer {
             name: agent.name.to_string(),
             family,
@@ -129,7 +114,6 @@ impl Reviewer {
             model_flag: review.model_flag.map(str::to_string),
             credential_env: owned(review.credential_env),
             login_paths: owned(review.login_paths),
-            sandbox_check: owned(sandbox_check),
             review_dir: None,
         })
     }
@@ -147,28 +131,17 @@ pub enum Outcome {
 }
 
 /// The reviewers `<root>/osf.toml` selects under `[agents]`, in the order it
-/// names them, with the container mode chosen by
-/// [`agents::in_factory_container`]. None when it names none.
+/// names them, each in its own container mode. None when it names none.
 ///
 /// # Errors
 /// Returns an error when `<root>/osf.toml` is not valid TOML, or its
 /// `[agents]` table does not match the shape [`agents::resolve`] accepts.
 pub fn roster(root: &Path) -> Result<Vec<Reviewer>, String> {
-    roster_in(root, agents::in_factory_container())
-}
-
-/// [`roster`] with the container detection given rather than read from the
-/// machine.
-///
-/// # Errors
-/// Returns an error when `<root>/osf.toml` is not valid TOML, or its
-/// `[agents]` table does not match the shape [`agents::resolve`] accepts.
-pub fn roster_in(root: &Path, in_container: bool) -> Result<Vec<Reviewer>, String> {
     let selection = agents::selection(root)?;
     Ok(selection
         .reviewers
         .iter()
-        .filter_map(|agent| Reviewer::from_agent(agent, selection.model(agent), in_container))
+        .filter_map(|agent| Reviewer::from_agent(agent, selection.model(agent)))
         .collect())
 }
 
@@ -345,8 +318,21 @@ fn copy_dir(source: &Path, dest: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Whether a reviewer's home is kept after its run instead of removed. Set
+/// `OSF_KEEP_REVIEW_HOME` for a run whose child output and session files
+/// should survive for diagnosis, such as a reviewer job that points its
+/// temporary folder at a mounted one. The home is the reviewer's own record;
+/// it is never the journal, and nothing decides anything from it.
+fn keep_home() -> bool {
+    std::env::var_os("OSF_KEEP_REVIEW_HOME").is_some()
+}
+
 impl Drop for RunHome {
     fn drop(&mut self) {
+        if keep_home() {
+            eprintln!("osf: kept a reviewer home at {}", self.0.display());
+            return;
+        }
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
@@ -411,10 +397,10 @@ fn run_with_retry(
             reviewer.name
         ));
     }
-    if let Err(reason) = check_sandbox(reviewer, workdir, timeout, real_home) {
-        return Outcome::CouldNotRun(reason);
-    }
-    let raw = match run_child(reviewer, prompt, workdir, timeout, real_home, notes) {
+    let schema = answer::schema_for(lens);
+    let raw = match run_child(
+        reviewer, prompt, &schema, workdir, timeout, real_home, notes,
+    ) {
         Ok(text) => text,
         Err(reason) => return Outcome::CouldNotRun(reason),
     };
@@ -422,7 +408,15 @@ fn run_with_retry(
         Ok(answer) => Outcome::Answered(answer),
         Err(reason) => {
             let retry_prompt = format!("{prompt}\n\nThe previous answer was invalid: {reason}");
-            match run_child(reviewer, &retry_prompt, workdir, timeout, real_home, notes) {
+            match run_child(
+                reviewer,
+                &retry_prompt,
+                &schema,
+                workdir,
+                timeout,
+                real_home,
+                notes,
+            ) {
                 Ok(raw) => match validate_stage(&raw, reviewer, lens) {
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
@@ -431,89 +425,6 @@ fn run_with_retry(
             }
         }
     }
-}
-
-/// The longest the sandbox check may run, whatever the reviewer's own timeout is.
-const SANDBOX_CHECK_LIMIT: Duration = Duration::from_secs(30);
-
-/// Runs `reviewer`'s sandbox check, when it has one: the command starts the
-/// agent's read-only sandbox around a harmless command, with the same
-/// environment and home the reviewer itself gets. A reviewer whose sandbox
-/// cannot start where osf runs never reviews.
-///
-/// # Errors
-/// Names the reviewer and the reason when the check cannot start, times
-/// out, or exits non-zero. The reason holds the last line the check printed
-/// to its error output, which comes from the sandbox tool and never from a model.
-fn check_sandbox(
-    reviewer: &Reviewer,
-    workdir: &Path,
-    timeout: Duration,
-    real_home: Option<&Path>,
-) -> Result<(), String> {
-    let Some((program, rest)) = reviewer.sandbox_check.split_first() else {
-        return Ok(());
-    };
-    let name = &reviewer.name;
-    let (mut command, _home, _notes) =
-        prepare_command(reviewer, program, rest, workdir, real_home)?;
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped());
-    #[cfg(unix)]
-    command.process_group(0);
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("reviewer '{name}' cannot start its sandbox check: {e}"))?;
-    let stderr_reader = child
-        .stderr
-        .take()
-        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
-    let limit = timeout.min(SANDBOX_CHECK_LIMIT);
-    let status = match child.wait_timeout(limit) {
-        Ok(Some(status)) => status,
-        Ok(None) => {
-            let _ = crate::process::kill_tree(&child);
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = stderr_reader.map(std::thread::JoinHandle::join);
-            return Err(format!(
-                "reviewer '{name}' sandbox check timed out after {limit:?}, so its read-only sandbox is not known to work here"
-            ));
-        }
-        Err(e) => {
-            return Err(format!(
-                "cannot wait for reviewer '{name}' sandbox check: {e}"
-            ))
-        }
-    };
-    let stderr = stderr_reader
-        .map(|h| h.join().unwrap_or_default())
-        .unwrap_or_default();
-    if status.success() {
-        return Ok(());
-    }
-    let code = status
-        .code()
-        .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
-    let line: String = stderr
-        .lines()
-        .rev()
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or_default()
-        .trim()
-        .chars()
-        .take(200)
-        .collect();
-    let detail = if line.is_empty() {
-        String::new()
-    } else {
-        format!(": {line}")
-    };
-    Err(format!(
-        "reviewer '{name}' cannot start its read-only sandbox here (exit code {code}){detail}"
-    ))
 }
 
 /// `raw`'s answer text, pulled out of `reviewer.answer_pointer` when it
@@ -625,28 +536,43 @@ fn prepare_command(
 /// credential, by name). Every other reviewer's credential and login, and
 /// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
 /// process. A missing login path adds a note to `notes`, once.
+/// Takes a seeded login out of a reviewer's home when it is kept, so a
+/// credential never rides out with the reviewer's own record. Nothing is
+/// seeded when a key is in the environment, as in CI.
+fn forget_login(home: &RunHome, reviewer: &Reviewer) {
+    if !keep_home() {
+        return;
+    }
+    for relative in &reviewer.login_paths {
+        let path = home.0.join(relative);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_dir_all(&path);
+    }
+}
+
 fn run_child(
     reviewer: &Reviewer,
     prompt: &str,
+    schema: &str,
     workdir: &Path,
     timeout: Duration,
     real_home: Option<&Path>,
     notes: &mut Vec<String>,
 ) -> Result<String, String> {
     let prompt_file = write_temp_file("osf-review-prompt", prompt)?;
-    let schema_file = write_temp_file("osf-review-schema", answer::SCHEMA)?;
+    let schema_file = write_temp_file("osf-review-schema", schema)?;
     let cleanup = || {
         let _ = std::fs::remove_file(&prompt_file);
         let _ = std::fs::remove_file(&schema_file);
     };
 
-    let args = build_args(reviewer, &prompt_file, &schema_file);
+    let args = build_args(reviewer, &prompt_file, &schema_file, schema);
     let Some((program, rest)) = args.split_first() else {
         cleanup();
         return Err(format!("reviewer '{}' has an empty command", reviewer.name));
     };
 
-    let (mut command, _home, home_notes) =
+    let (mut command, home, home_notes) =
         match prepare_command(reviewer, program, rest, workdir, real_home) {
             Ok(prepared) => prepared,
             Err(e) => {
@@ -736,12 +662,15 @@ fn run_child(
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
     // Drained and joined so the reader thread always finishes cleanly, but
-    // never read: a reviewer's stderr is reviewer-controlled text, and this
-    // function's own errors are journalled, so it must never appear in one.
+    // never read: a reviewer's stderr is reviewer-controlled text, and every
+    // place osf's own output goes - the journal, the console, a posted review
+    // - must stay free of it. A kept home (OSF_KEEP_REVIEW_HOME) is the one
+    // record of it, and it travels as its own artifact, never as output.
     let _stderr_text = stderr_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
     cleanup();
+    forget_login(&home, reviewer);
 
     if !status.success() {
         let code = status
@@ -757,8 +686,13 @@ fn run_child(
 
 /// `reviewer.command`, with `{prompt_file}` replaced by `prompt_file`'s
 /// path, `schema_flag`/its value appended when the reviewer declares one,
-/// and `model_flag`/`model` appended when both are set.
-fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Vec<String> {
+/// and `model_flag`/`model` appended when both are set. The schema value is `schema_file`, or `schema` when inlined.
+fn build_args(
+    reviewer: &Reviewer,
+    prompt_file: &Path,
+    schema_file: &Path,
+    schema: &str,
+) -> Vec<String> {
     let prompt_path = prompt_file.to_string_lossy().into_owned();
     let mut args: Vec<String> = reviewer
         .command
@@ -785,7 +719,7 @@ fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Ve
         args.push(flag.clone());
         args.push(match reviewer.schema_as {
             SchemaArg::Path => schema_file.to_string_lossy().into_owned(),
-            SchemaArg::Inline => answer::SCHEMA.to_string(),
+            SchemaArg::Inline => schema.to_string(),
         });
     }
     if let (Some(flag), Some(model)) = (&reviewer.model_flag, &reviewer.model) {
@@ -841,7 +775,6 @@ mod tests {
             model_flag: None,
             credential_env: Vec::new(),
             login_paths: Vec::new(),
-            sandbox_check: Vec::new(),
             review_dir: None,
         }
     }
@@ -887,6 +820,7 @@ mod tests {
         let out = run_child(
             reviewer,
             "",
+            answer::SCHEMA,
             &workdir,
             Duration::from_secs(30),
             Some(real_home),
@@ -960,6 +894,7 @@ mod tests {
         let out = run_child(
             &r,
             "",
+            answer::SCHEMA,
             &workdir,
             Duration::from_secs(30),
             None,
@@ -1009,6 +944,7 @@ mod tests {
         let out = run_child(
             &file_lister(&[".a-login/auth.json"]),
             "",
+            answer::SCHEMA,
             &workdir,
             Duration::from_secs(30),
             None,
@@ -1043,6 +979,7 @@ mod tests {
             let out = run_child(
                 &home_reporter(),
                 "",
+                answer::SCHEMA,
                 &workdir,
                 Duration::from_secs(30),
                 None,
@@ -1080,32 +1017,11 @@ mod tests {
     }
 
     #[test]
-    fn the_codex_reviewer_inside_the_container_runs_with_its_own_sandbox_off() {
-        let r = Reviewer::from_agent(agent("codex"), None, true).expect("codex reviews");
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+    fn the_codex_reviewer_runs_with_its_own_sandbox_off() {
+        let r = Reviewer::from_agent(agent("codex"), None).expect("codex reviews");
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert!(args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
         assert!(!args.contains(&"--sandbox".to_string()));
-        assert_eq!(r.sandbox_check, Vec::<String>::new());
-    }
-
-    #[test]
-    fn the_codex_reviewer_outside_the_container_runs_in_its_read_only_sandbox() {
-        let r = Reviewer::from_agent(agent("codex"), None, false).expect("codex reviews");
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
-        let pair = args
-            .windows(2)
-            .any(|w| matches!(w, [a, b] if a == "--sandbox" && b == "read-only"));
-        assert!(pair, "{args:?}");
-        assert!(!args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
-        assert_eq!(r.sandbox_check, vec!["codex", "sandbox", "--", "true"]);
-    }
-
-    #[test]
-    fn an_agent_without_an_in_container_mode_is_the_same_in_and_out_of_the_container() {
-        let inside = Reviewer::from_agent(agent("claude"), None, true).expect("claude reviews");
-        let outside = Reviewer::from_agent(agent("claude"), None, false).expect("claude reviews");
-        assert_eq!(inside.read_only, outside.read_only);
-        assert_eq!(inside.sandbox_check, outside.sandbox_check);
     }
 
     #[test]
@@ -1185,6 +1101,7 @@ mod tests {
             &r,
             Path::new("/tmp/prompt.txt"),
             Path::new("/tmp/schema.json"),
+            answer::SCHEMA,
         );
         assert_eq!(
             args,
@@ -1201,6 +1118,7 @@ mod tests {
             &r,
             Path::new("/tmp/prompt.txt"),
             Path::new("/tmp/schema.json"),
+            answer::SCHEMA,
         );
         assert_eq!(args, vec!["fake", "--model", "claude-sonnet-5"]);
     }
@@ -1213,12 +1131,13 @@ mod tests {
             &r,
             Path::new("/tmp/prompt.txt"),
             Path::new("/tmp/schema.json"),
+            answer::SCHEMA,
         );
         assert_eq!(args, vec!["fake"]);
     }
 
     #[test]
-    fn build_args_inlines_the_schema_text_when_asked() {
+    fn build_args_inlines_the_schema_it_is_given() {
         let mut r = reviewer("fake", vec!["fake"]);
         r.schema_flag = Some("--json-schema".to_string());
         r.schema_as = SchemaArg::Inline;
@@ -1226,8 +1145,9 @@ mod tests {
             &r,
             Path::new("/tmp/prompt.txt"),
             Path::new("/tmp/schema.json"),
+            "{\"given\":true}",
         );
-        assert_eq!(args, vec!["fake", "--json-schema", answer::SCHEMA]);
+        assert_eq!(args, vec!["fake", "--json-schema", "{\"given\":true}"]);
     }
 
     #[test]
@@ -1238,7 +1158,7 @@ mod tests {
             env: &[],
         });
         r.schema_flag = Some("--schema".to_string());
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert_eq!(
             args,
             vec![
@@ -1263,7 +1183,7 @@ mod tests {
             args: &["--ignore-user-config"],
             env: &[],
         };
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert_eq!(
             args,
             vec![
@@ -1284,7 +1204,7 @@ mod tests {
             env: &[],
         });
         r.review_dir = Some(PathBuf::from("/tmp/review-folder"));
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert_eq!(args, vec!["fake", "--add-dir", "/tmp/review-folder"]);
     }
 
@@ -1303,6 +1223,7 @@ mod tests {
         let out = run_child(
             &r,
             "",
+            answer::SCHEMA,
             &workdir,
             Duration::from_secs(30),
             None,
