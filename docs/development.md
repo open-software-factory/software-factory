@@ -1,7 +1,8 @@
 # Development container
 
 This repository ships a development container. It has a pinned Rust
-toolchain, `git-town`, and the `osf` command line tool built in.
+toolchain, `git-town`, `gh`, `moon`, `actionlint`, `uv`, Node, `pnpm`, the
+`osf` command line tool, and five coding agents built in.
 
 ## Open the container
 
@@ -14,14 +15,31 @@ Open the repository folder in such an editor, then run that command. The
 first build compiles `osf` from this repository's own source, so the
 first open takes a few minutes.
 
+On Windows, clone the repository inside the WSL filesystem. A Windows
+drive runs tests far slower, over a Windows bind mount.
+
 The container user is called `dev`. It is a normal user. It has no
 password-less root access, so it cannot install packages as root or
 change files that root owns.
 
+## Using a git worktree
+
+A plain `git worktree add` checkout's `.git` is not a directory. It is a
+file holding one line, `gitdir: <path>/.git/worktrees/<name>`, naming
+the main clone's `.git` by its absolute path on the host. Mounting only
+the worktree at `/workspace` breaks every git command inside the
+container, because that absolute path does not exist there.
+
+Mount the main clone's `.git` directory read-only at the same absolute
+path inside the container that it has on the host. Add this alongside
+the worktree mount at `/workspace`, in `devcontainer.json`'s `mounts` or
+on `docker run`'s own `-v`. Git then finds the path its worktree file
+already names, unchanged.
+
 ## What the hooks check
 
 Git hooks live at `/opt/factory/githooks` inside the container, owned by
-root. Each hook calls `osf` and nothing else:
+root. Each hook is a thin call to `osf` and nothing else:
 
 | Hook | What it runs |
 |---|---|
@@ -29,10 +47,12 @@ root. Each hook calls `osf` and nothing else:
 | `commit-msg` | `osf lint writing` over the commit message file, checking prose style. |
 | `pre-push` | `osf verify --stage pre-push`, which scans changed files, changed prose, changed skill folders, and pushed commit messages. |
 
-Run `git config --show-origin core.hooksPath` to see where this setting
-comes from. It comes from the system git configuration, not from this
-repository or from the `dev` user's own settings. The `dev` user does not
-own that file, so it cannot point the hooks somewhere else.
+`git config --show-origin core.hooksPath` may still show a repository's
+own setting, for example a self-hosting one under `.osf/hooks`. That
+setting no longer matters. The git wrapper, below, forces
+`/opt/factory/githooks` on the command line for every git call under the
+workspace. A command-line setting always wins over one written to a
+config file, local or system.
 
 ## What the hooks cannot do
 
@@ -47,6 +67,44 @@ The real authority is the check that runs on a pull request. A
 contributor does not control that check. The local hook exists so a
 mistake is found in seconds, at the commit. Without it, the same mistake
 is found only minutes later, after a push.
+
+## Coding agents and their hooks
+
+The container installs five coding agents: `dsh`, `omp`, `opencode`,
+`codex`, and Claude Code. Every one of them can act as a builder or a
+reviewer. `crates/osf/src/agents.rs` is the one list of them, selected
+by the `[agents]` table of `osf.toml`. It also names the default builder
+agent, read from the `OSF_DEFAULT_BUILDER`
+environment variable, set to `dsh` today.
+
+Each agent's own hook settings call `osf hook`, root-owned and read-only
+so the agent itself cannot edit its own wiring:
+
+| Agent | Hook file |
+|---|---|
+| Claude Code | `~/.claude/settings.json` |
+| Codex | `/etc/codex/` (managed hooks directory, forced by a requirements file; it stays hand-written because the requirements file refuses any other hook source) |
+| dsh | `~/.dsh/profiles/factory` |
+| opencode | `~/.config/opencode/opencode.json` |
+| omp | `~/.omp/agent/hooks/osf-stop/index.js` |
+
+dsh loads `~/.dsh/cordis.patch.yml` in every profile, so the image deletes
+the file the installer writes there and keeps the plugin in the factory
+profile only.
+
+`osf hooks install --agents` writes each file at image build from the
+`[agents]` table of osf.toml. An agent that osf.toml does not select gets
+no file there. Each written file is root-owned and read-only inside a
+sticky directory, so dev cannot delete or replace it.
+
+`osf hook` only answers two events: `stop`, at the end of a turn, and
+`prompt`, when a new one starts. Not every agent's own hook system has an
+event for both. Codex has no turn-end event at all, so only `prompt` is
+wired for it.
+
+dsh and omp have no system-wide configuration path of their own. Run
+`dsh --profile factory` to boot dsh with its hooks wired. omp and
+opencode read their hooks and plugin automatically.
 
 ## Run the same checks by hand
 
@@ -590,24 +648,117 @@ files, checks the findings against the files, journals, and decides. Both
 reach the same decision. Pass `--pull-request <file>`, a JSON file with
 the `number`, `title` and `body`, to put the pull request in the prompt.
 
+## Which osf a check uses
+
+The git hooks always call `/opt/factory/bin/osf`, the version pinned and
+built into the image at `docker build` time. A hook root-owned and
+read-only, running a binary root-owned and read-only, is the whole point
+of this container. The section above, "What the hooks cannot do",
+explains why.
+
+That pinned binary goes stale on a branch that changes `crates/osf`
+itself. The baked-in binary predates the very change a contributor is
+trying to test.
+
+On such a branch, build the workspace copy and run it directly, rather
+than relying on the hook:
+
+```sh
+cargo build --release -p osf
+./target/release/osf verify --stage pre-commit
+```
+
+The git hooks are not changed to prefer a workspace build automatically.
+A branch would then supply its own `osf` to its own pre-commit and
+pre-push checks. That is exactly the local, agent-editable check this
+project's hooks are built not to trust. The section above makes the same
+point about the real authority being the check that runs on a pull
+request. CI builds and runs `cargo test -p osf`, and the rest of this
+repository's own gates, directly against the branch. It never goes
+through the image's older, pinned binary.
+
+## The forced hooks path, and its one boundary
+
+The wrapper adds `-c core.hooksPath=/opt/factory/githooks` to every git
+call it lets through, for a repository under the workspace mount.
+
+A command-line setting always wins over one written to a config file,
+local or system. This holds even when the repository sets its own
+`core.hooksPath`, or when that setting was already in force before the
+wrapper ran.
+
+The workspace mount defaults to `/workspace`, matching
+`devcontainer.json`'s `workspaceFolder`. It reads from the
+`OSF_WORKSPACE_ROOT` environment variable when that is set, for a
+container started with a different bind mount.
+
+A repository outside the workspace mount is left alone: no
+`-c core.hooksPath=...` is added, and whatever hooks it already has, if
+any, run as normal. One example is a throwaway repository a test creates
+under `/tmp`. This is what keeps `osf`'s own test suite working inside
+the container. Its tests build scratch git repositories under `/tmp`,
+and do not expect the container's checks to run against their fixture
+content.
+
 ## The git wrapper, and its limit
 
 `/opt/factory/bin` comes before the real git on the container's path, and
-holds a wrapper called `git`. It refuses `git commit --no-verify`,
-`git commit -n`, and `git push --no-verify`, and prints why. Git allows
-its own options before the subcommand. One example is `git -c
-user.email=x commit ...`. The wrapper looks past those options to find
-the real subcommand. It does not only look at the first word.
+holds a wrapper called `git`. The wrapper raises the bar on known
+argument spellings. It is not a guard. The check that runs on the pull
+request is the authority, per decision 0003
+(docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
+Git allows its own
+options before the subcommand. One example is `git -c user.email=x
+commit ...`. The wrapper looks past those options to find the real
+subcommand. It does not only look at the first word.
 
 `git push -n` is short for `--dry-run`, an unrelated and harmless option,
 so the wrapper leaves it alone.
 
-The wrapper also refuses a `-c` that sets `core.hooksPath`,
-`core.fsmonitor`, or `core.editor`, on any git call. This block applies
-whatever capitalisation the key is given in. Git treats a config key's
-letters as case-insensitive, and so does this check. Each of these three
-keys was tested by hand in this container. Each one ran an arbitrary
-command as part of an ordinary `git commit`:
+The wrapper refuses these spellings of a skipped check:
+
+- The full `--no-verify` and its shorter accepted forms, such as
+  `--no-v` and `--no-verif`, on `git commit`, `git merge`, and
+  `git push`.
+- A short `-n` on `git commit` and `git merge`, alone or in a bundle. One
+  example is `-nm`. The wrapper reads a bundle from left to right. It
+  stops at a flag that takes a value, because the rest is that value. So
+  `-mn` is a message value and is not refused.
+
+The wrapper also refuses a caller-chosen hooks path or repository. It
+checks every route it knows, on any git call:
+
+- `-c core.hooksPath=...`, in any capitalisation of the key. Git treats a
+  config key's letters as case-insensitive, and so does this check.
+- `--config-env core.hooksPath=SOME_VAR` or
+  `--config-env=core.hooksPath=SOME_VAR`, which sets a config value from
+  an environment variable instead of a literal.
+- `--git-dir` and `--work-tree`, with a value or with `=`. Each points
+  git at a repository the caller chose.
+- `--no-hooks`, `--skip-hooks`, `--hooks-path`, and `--hooks-path=...`.
+  Each names a hooks path or skips the hooks.
+- The `GIT_DIR`, `GIT_WORK_TREE`, and `GIT_COMMON_DIR` environment
+  variables.
+- The git config environment overrides: `GIT_CONFIG_COUNT`,
+  `GIT_CONFIG_KEY_*`, `GIT_CONFIG_VALUE_*`, `GIT_CONFIG_PARAMETERS`,
+  `GIT_CONFIG_GLOBAL`, and `GIT_CONFIG_SYSTEM`. The wrapper refuses all
+  of them, before it looks at the command line. One exception applies.
+  `GIT_CONFIG_COUNT` is allowed when it carries only the pair
+  `core.fsmonitor=false`, which the build tool moon needs to turn the
+  file-system monitor off. Any other key or value, or a count that does
+  not match the pairs, is refused. Unset the others and run the command
+  by hand instead.
+
+The wrapper also refuses an alias, because an alias hides the real
+command from the first lookup. A `-c alias.*` or `--config-env alias.*`
+setting is refused on the command line. An alias written in a config
+file is expanded before the checks run, and the same refusals apply to
+its expansion. An alias that starts with `!` is refused, because it
+runs a shell command.
+
+The same keys are also refused for `-c` and `--config-env`, for the
+reason they always were. Each one was tested by hand in this container,
+and each ran an arbitrary command as part of an ordinary `git commit`:
 
 - `core.hooksPath` repoints every hook, in one call, to a folder of the
   caller's choosing.
@@ -616,8 +767,8 @@ command as part of an ordinary `git commit`:
 - `core.editor` runs as a command when `git commit` opens an editor.
   That happens whenever `-m` is left off.
 
-Two settings from the same family were also tested. The wrapper leaves
-both alone, because neither one applies here:
+These settings from the same family were also tested. The wrapper leaves
+them alone, because neither one applies here:
 
 - `core.pager` was tried against both `git commit` and `git push`,
   including with `--paginate` forced on. It is not a route into either
@@ -626,26 +777,112 @@ both alone, because neither one applies here:
   Git only runs it for an interactive rebase. This wrapper does not
   police that command.
 
-`--git-dir` and `--work-tree` were also checked. Pointing them at a
-different folder still left the container's system-wide hooks path in
-force for that folder. That path comes from `/etc/gitconfig`. It
-applies to every repository, unless something with a stronger claim
-overrides it. The wrapper now stops `-c` from being that override. So
-on their own, `--git-dir` and `--work-tree` do not open a way past the
-hooks. A shell in the container can already do what it likes to a
-folder it owns. It does not need those two options to do that.
+The `GIT_DIR` variable has one exception. Git exports `GIT_DIR` to a hook
+when a commit runs in a linked worktree. The wrapper allows `GIT_DIR`
+only when it names the same folder git finds from the current folder. It
+refuses a discovery failure and a different folder. `GIT_WORK_TREE` and
+`GIT_COMMON_DIR` have no exception.
 
 Every other `-c` value, such as `user.email`, still works. Setting one
 for a single command is still a normal, allowed thing to do.
 
-State this plainly: the wrapper is a speed bump and seals nothing. One thing
-defeats it, and the wrapper cannot stop it. Calling the real binary at
-its full path, `/usr/bin/git`, skips the wrapper completely.
+State this plainly: the wrapper raises the bar on known spellings and
+seals nothing. One thing defeats it, and the wrapper cannot stop it.
+Calling the real binary at its full path, `/usr/bin/git`, skips the
+wrapper completely.
 
-The wrapper only saves the time between a forgotten check and the same
-problem being caught on the pull request. That check, not this wrapper,
-is the real boundary. Even that check only reaches as far as the
-credential used to push. An agent that holds a push credential can
-still push straight past every check in this file. Taking that
-credential away from the agent is separate work. This wrapper does not
-do it.
+The pull-request check is the authority, per decision 0003
+(docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
+The wrapper does not replace it. Even that check only reaches as far as the credential used to
+push. An agent that holds a push credential can still push straight past
+every check in this file. Taking that credential away from the agent is
+separate work. This wrapper does not do it.
+
+Known limit: a worktree outside the workspace. A commit in a git
+worktree added outside the workspace root runs no hooks. This is on
+purpose. The forced hooks path covers only the workspace root, so osf's
+own scratch repositories keep working. The pull request check stays the
+authority.
+
+## Testing the hooks themselves
+
+`.devcontainer/tests/git-hooks.sh` checks that every hook file is
+executable, in the image and in the repository's own copy. It checks that
+every `osf` command and flag a hook calls exists in the installed `osf`.
+It then runs each hook in a scratch repository. The Dockerfile runs it
+during `docker build`. A hook that git stored without the executable bit
+fails the build. So does a hook that names a flag `osf` no longer has.
+
+## Testing the wrapper itself
+
+`.devcontainer/tests/git-wrapper.sh` asserts every refusal and
+pass-through this page describes. The Dockerfile runs it during
+`docker build`, as one of the last steps, so a broken wrapper fails the
+build instead of shipping quietly. Run it by hand inside a container
+with `sh .devcontainer/tests/git-wrapper.sh`.
+
+## GitHub access
+
+The image holds no GitHub login and no token. `gh` reports that it is not
+logged in until the caller passes a token in the `GH_TOKEN` environment
+variable. `gh` reads that variable by itself, so `gh auth status` then
+succeeds.
+
+Pass the token when you start the container. With `docker run`, add
+`-e GH_TOKEN`, so the value comes from your shell and not from the
+command line. The `devcontainer.json` file forwards `GH_TOKEN` from the
+host shell in the same way. Use a token that can read this repository.
+Give a builder the write access it needs, and nothing more.
+
+`osf scan` asks `gh` whether the repository is public. A gate run does
+not read `[scan] repository_visibility` from the configuration, so it
+always asks. Without `GH_TOKEN`, the scan warns that the visibility is
+unknown. Every rule still applies, so the warning does not change the
+result.
+
+## Builder tools
+
+One image serves both the builder and the reviewer role. Besides the
+coding agents above, it installs `cargo`, `rustfmt`, `clippy`, `osf`,
+`moon`, Node, `pnpm`, `git-town`, `gh`, `git`, `actionlint`, `uv`, and
+`bun`.
+
+[SkillSpector and SkillEvaluator](https://github.com/NVIDIA/skillspector)
+are two NVIDIA tools that check an agent skill, the first for safety and
+the second for quality. `osf lint skill` runs both against every skill
+it checks, and `uv` is in this image only to install them. `omp`'s own
+CLI has a `#!/usr/bin/env bun` shebang, so it runs on Bun rather than
+plain Node, unlike every other coding agent here. `bun` is in this image
+for that reason alone.
+
+`.devcontainer/tests/coding-agent-tools.sh` and
+`.devcontainer/tests/builder-tools.sh` run each tool's version check
+during `docker build`. `.devcontainer/tests/agent-hooks.sh` checks the
+hook wiring itself: every enabled agent's hook file, from the `[agents]`
+table of `osf.toml` selected from `crates/osf/src/agents.rs`, is
+root-owned and read-only, and `osf hook` answers a sample payload for
+each event it supports.
+
+A login shell (`bash -l`) resets `PATH` before reading
+`/etc/profile.d/*.sh`. That would otherwise drop `osf`, the cargo
+toolchain, and every coding agent's own binary for that shell, and
+`.devcontainer/profile.d/osf-path.sh` is what puts them back.
+
+## Third-party skills
+
+This repository does not vendor third-party skills. The image build
+installs them for the container user, under `~/.agents/skills`, and
+`.devcontainer/tests/skills-installed.sh` fails the build if one is
+missing or empty. Third-party skills are installed at the full pinned
+commit, each skill named by its path, and are not linted by osf; their
+quality checks are upstream's.
+
+| Skill folders | Source | Commit |
+| --- | --- | --- |
+| `archify`, `archify-review` | [tt-a1i/archify](https://github.com/tt-a1i/archify) | `d5a1333d7447c866a765adac7d4d062f2f02e4d2` |
+
+The pins are `ARCHIFY_COMMIT` and `SKILLS_CLI_VERSION` in
+`.devcontainer/Dockerfile`. A change to a pin is a reviewed change.
+[open-software-factory/software-factory#224 (pinned third-party skill
+list)](https://github.com/open-software-factory/software-factory/issues/224)
+is the home of the full list.
