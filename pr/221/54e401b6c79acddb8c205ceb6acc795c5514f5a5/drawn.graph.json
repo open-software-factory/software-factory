@@ -1,0 +1,306 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-10T08:46:20.253Z",
+  "title": "pnpm lockfile: duplicate schemastery entry",
+  "summary": "A single-file change to pnpm-lock.yaml that adds a second, byte-identical entry for @deepseek-ai/schemastery@3.18.4 in both the packages and snapshots sections of the lockfile. No source, manifest or dependency version changes: the resolved integrity hash and the dependency set (cosmokit 1.8.5, @standard-schema/spec 1.1.0) are the same as the entry already present. The only effect is on the lockfile itself, which now carries a duplicated key that the package manager must reconcile on the next install.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4395e34646f7fee9b1b72f7a50472dee33438453",
+      "ref": "4395e34646f7fee9b1b72f7a50472dee33438453"
+    },
+    "head": {
+      "sha": "54e401b6c79acddb8c205ceb6acc795c5514f5a5",
+      "ref": "54e401b6c79acddb8c205ceb6acc795c5514f5a5"
+    },
+    "pullRequest": {
+      "number": 221,
+      "url": "https://github.com/open-software-factory/software-factory/pull/221"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "repo source and manifests",
+      "order": 0,
+      "summary": "The packages and manifests a developer edits. Untouched by this change, but they are what the lockfile is supposed to describe."
+    },
+    {
+      "id": "lockfile",
+      "label": "Lockfile",
+      "subtitle": "pnpm-lock.yaml",
+      "order": 1,
+      "summary": "The resolved dependency graph pnpm reads and writes. This is the only artifact the change touches."
+    },
+    {
+      "id": "registry",
+      "label": "Registry",
+      "subtitle": "npm / external",
+      "order": 2,
+      "summary": "Where the resolved tarballs and integrity hashes come from. Unchanged; the added entry points at the same artifact as the existing one."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pnpm-lockfile",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "packages + snapshots sections",
+      "summary": "The lockfile gains a duplicate @deepseek-ai/schemastery@3.18.4 key in the packages map and a duplicate snapshot block with the same dependency list. Both copies resolve to the identical integrity hash, so the resolved graph is unchanged in content but now carries a repeated key.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 247,
+          "endLine": 252
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2102,
+          "endLine": 2110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "packages-section",
+      "label": "packages map",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lockfile",
+      "group": "lockfile-sections",
+      "subtitle": "resolution + integrity",
+      "summary": "The top-level packages map, keyed by name@version. The change inserts a second '@deepseek-ai/schemastery@3.18.4' key directly beneath the existing one, with the same resolution integrity string.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 247,
+          "endLine": 252
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "snapshots-section",
+      "label": "snapshots map",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "lockfile",
+      "group": "lockfile-sections",
+      "subtitle": "resolved dependency edges",
+      "summary": "The snapshots map records each package's resolved dependencies. The change inserts a second '@deepseek-ai/schemastery@3.18.4' block listing cosmokit 1.8.5 and @standard-schema/spec 1.1.0, matching the existing block exactly.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2102,
+          "endLine": 2110
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "schemastery",
+      "label": "@deepseek-ai/schemastery",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "3.18.4",
+      "summary": "The external package the duplicated lockfile entries describe. Its version, integrity hash and dependency set are identical before and after; nothing about the published artifact changed.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 247,
+          "endLine": 252
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cosmokit",
+      "label": "@deepseek-ai/cosmokit",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "1.8.5",
+      "summary": "A dependency of schemastery, listed identically in both the existing and the newly added snapshot block.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2105,
+          "endLine": 2105
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "standard-schema-spec",
+      "label": "@standard-schema/spec",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "1.1.0",
+      "summary": "A dependency of schemastery, listed identically in both the existing and the newly added snapshot block.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2106,
+          "endLine": 2106
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workspace-manifests",
+      "label": "package.json manifests",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "workspace",
+      "subtitle": "dependency declarations",
+      "summary": "The manifests that declare which packages the workspace depends on. Not part of this diff, so the duplicate lockfile entry was not introduced by a dependency declaration change.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1,
+          "endLine": 1
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-install",
+      "label": "pnpm install",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "workspace",
+      "subtitle": "lockfile consumer",
+      "summary": "The install step that reads pnpm-lock.yaml to materialise node_modules. It is the consumer that has to make sense of the duplicated key on the next run.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1,
+          "endLine": 1
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "manifests-to-lockfile",
+      "from": "workspace-manifests",
+      "to": "pnpm-lockfile",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "declared deps",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Manifests are the input pnpm resolves into the lockfile. Unchanged here, which is why the added entry is a duplicate rather than a new resolution.",
+      "files": []
+    },
+    {
+      "id": "lockfile-to-schemastery",
+      "from": "pnpm-lockfile",
+      "to": "schemastery",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "3.18.4 (twice)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The lockfile now pins schemastery 3.18.4 under two identical keys. This is the connection the change is really about: the same package, resolved twice in the same file.",
+      "files": []
+    },
+    {
+      "id": "schemastery-to-cosmokit",
+      "from": "schemastery",
+      "to": "cosmokit",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "1.8.5",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Schemastery's dependency on cosmokit, recorded identically in both snapshot blocks.",
+      "files": []
+    },
+    {
+      "id": "schemastery-to-standard-schema",
+      "from": "schemastery",
+      "to": "standard-schema-spec",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "1.1.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Schemastery's dependency on @standard-schema/spec, recorded identically in both snapshot blocks.",
+      "files": []
+    },
+    {
+      "id": "lockfile-to-install",
+      "from": "pnpm-lockfile",
+      "to": "pnpm-install",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "resolved graph",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The install step consumes the lockfile. With a duplicated key it must reconcile the two entries, which resolve to the same artifact.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 8,
+    "deletions": 0,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "lockfile-context",
+      "title": "Lockfile in context",
+      "lens": "architecture",
+      "summary": "Where the changed lockfile sits between the workspace manifests that feed it and the registry packages it pins.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "lockfile-sections",
+      "title": "Inside pnpm-lock.yaml",
+      "lens": "architecture",
+      "summary": "The two sections the diff edits: the packages map and the snapshots map, each gaining a duplicate schemastery key.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "pnpm-lockfile",
+          "packages-section",
+          "snapshots-section",
+          "schemastery",
+          "cosmokit",
+          "standard-schema-spec"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
