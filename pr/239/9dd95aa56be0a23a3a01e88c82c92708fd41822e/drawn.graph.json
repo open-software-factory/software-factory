@@ -1,0 +1,732 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-10T02:56:44.384Z",
+  "title": "Parallel lens execution with per-lens read-only copies and two time limits",
+  "summary": "The reviewer run no longer walks its lenses one at a time in a single shared workspace. Each lens now runs on a fixed thread pool bounded by a new `[review] concurrency` setting, and each lens gets its own read-only `CleanCopy` of the change so a coding agent cannot mutate the tree another lens is reading. Two new time limits bound the work: `timeout_seconds` (now 1800s, shared across a lens's attempts including its retry) and `total_timeout_seconds` (2700s, counted from the first lens start, after which running lenses are stopped and waiting lenses are recorded as could-not-run). A panic, a provider failure or a context-build failure in one lens is contained to that lens, and every lens and attempt still produces exactly one journal event naming its lens.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "6d9107717d03642b250aaf340cfc9fc5b57d2e54",
+      "ref": "6d9107717d03642b250aaf340cfc9fc5b57d2e54"
+    },
+    "head": {
+      "sha": "9dd95aa56be0a23a3a01e88c82c92708fd41822e",
+      "ref": "9dd95aa56be0a23a3a01e88c82c92708fd41822e"
+    },
+    "pullRequest": {
+      "number": 239,
+      "url": "https://github.com/open-software-factory/software-factory/pull/239"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "config",
+      "label": "Configuration",
+      "subtitle": "osf.toml [review]",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The `[review]` table gains `concurrency` and `total_timeout_seconds`, and both timeouts are now range-checked."
+    },
+    {
+      "id": "review-run",
+      "label": "Review run",
+      "subtitle": "crates/osf review_run",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The reviewer run now fans its lenses out over a thread pool, each with its own read-only copy and a shared deadline."
+    },
+    {
+      "id": "reviewer",
+      "label": "Reviewer process",
+      "subtitle": "coding-agent CLI",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The child process is now given only the time left under both limits, and its retry shares that budget."
+    },
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "clean copies on disk",
+      "order": 3,
+      "delta": "modified",
+      "summary": "A read-only variant of the clean copy is created per lens and removed when the lens ends."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-config",
+      "label": "ReviewConfig",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "threshold, concurrency, timeouts, cost ceiling",
+      "summary": "Parsed from the repository's own `osf.toml` on the base branch. Adds `concurrency` (default 8) and `total_timeout_seconds` (default 2700), raises the per-attempt default to 1800, and refuses zero, wrong types, or values above 86400 seconds, naming the setting.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 283,
+          "endLine": 400
+        }
+      ],
+      "badges": [
+        "default concurrency 8",
+        "max 86400s"
+      ]
+    },
+    {
+      "id": "setup",
+      "label": "setup()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-run",
+      "subtitle": "builds Setup from ReviewConfig",
+      "summary": "Copies the new settings into the run's `Setup`: `per_attempt`, `total`, `concurrency` and `cost_ceiling`, alongside the roster, threshold and prompt.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 294,
+          "endLine": 305
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-reviewer-with",
+      "label": "run_reviewer_with()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-run",
+      "subtitle": "one reviewer, all its lenses",
+      "summary": "Creates the shared change folder once, takes the whole-run deadline, then hands the selected lenses to the pool. An idle reviewer or a failed change folder still starts no worker and records one lens record each.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 515,
+          "endLine": 595
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-pool",
+      "label": "run_pool()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-run",
+      "subtitle": "fixed worker pool over a shared queue",
+      "summary": "Spawns `min(concurrency, lens count)` scoped threads that pop lens indices from a mutex-guarded queue and write results back in index order, so the journal order is stable regardless of which thread finished first.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 432,
+          "endLine": 470
+        }
+      ],
+      "badges": [
+        "scoped threads"
+      ]
+    },
+    {
+      "id": "run-lens",
+      "label": "run_lens()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-run",
+      "subtitle": "one lens, one read-only copy",
+      "summary": "Checks the deadline, creates a read-only `CleanCopy` of the change for this lens alone, builds the lens context, renders the prompt and runs the attempts. The copy is dropped when the lens ends.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 348,
+          "endLine": 390
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "contain-panic",
+      "label": "contain_panic()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-run",
+      "subtitle": "catch_unwind per lens",
+      "summary": "Wraps a lens body so a panic becomes a could-not-run record naming the lens and the panic message, instead of unwinding the pool and losing the other lenses' results.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 398,
+          "endLine": 415
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "deadline",
+      "label": "deadline_after()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-run",
+      "subtitle": "Instant::now() + total",
+      "summary": "Computes the instant the whole-run limit ends, or returns an error naming `total_timeout_seconds` when the duration is too large to add to the current instant.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 473,
+          "endLine": 478
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "attempts",
+      "label": "Attempts::once()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-run",
+      "subtitle": "per-attempt and total budget",
+      "summary": "Gives the child `min(per_attempt, remaining until deadline)`, records a not-started attempt once the deadline has passed, and rewrites a timeout reason to name whichever limit actually bound it.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 620,
+          "endLine": 675
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "judge-lens",
+      "label": "judge_lens()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-run",
+      "subtitle": "context errors now judged",
+      "summary": "A lens with a context error now also pushes a could-not-run `Judged` record before returning the verdict, so the lens still appears in the journal with its name.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1070,
+          "endLine": 1095
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-run-with-retry",
+      "label": "run_with_retry()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "reviewer",
+      "subtitle": "sandbox check, run, retry share one budget",
+      "summary": "Starts a clock, then gives the sandbox check, the first child run and the retry each only the time left under the attempt's timeout, returning could-not-run when nothing is left.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 405,
+          "endLine": 465
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-cli",
+      "label": "coding-agent CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "reviewer",
+      "subtitle": "opencode / omp / claude",
+      "summary": "The reviewer child process. It reads the prompt on stdin, works inside the read-only copy it is given, and writes an answer file. It is unaware of the pool and of the other lenses.",
+      "files": [],
+      "badges": [
+        "one process per attempt"
+      ]
+    },
+    {
+      "id": "clean-copy",
+      "label": "CleanCopy",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "tracked + untracked files",
+      "summary": "Gains `create_read_only`, which copies as before and then clears the write bit deepest-first: files 0o444 and folders 0o555 on Unix, the read-only attribute elsewhere. `Drop` restores write permission before removing the tree.",
+      "files": [
+        {
+          "path": "crates/osf/src/clean_copy.rs",
+          "startLine": 27,
+          "endLine": 170
+        }
+      ],
+      "badges": [
+        "0o444 / 0o555"
+      ]
+    },
+    {
+      "id": "change-folder",
+      "label": "ChangeFolder",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "workspace",
+      "subtitle": "diff and commit log on disk",
+      "summary": "The one folder per reviewer run that holds the diff and commit log the prompt points at. It is created once and shared by every lens of that reviewer.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 515,
+          "endLine": 530
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "config-to-setup",
+      "from": "review-config",
+      "to": "setup",
+      "kind": "data",
+      "delta": "modified",
+      "label": "concurrency, timeouts, ceiling",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The validated `[review]` settings become the run's `Setup`.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 294,
+          "endLine": 305
+        }
+      ]
+    },
+    {
+      "id": "setup-to-run-reviewer",
+      "from": "setup",
+      "to": "run-reviewer-with",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "run-reviewer-to-pool",
+      "from": "run-reviewer-with",
+      "to": "run-pool",
+      "kind": "call",
+      "delta": "added",
+      "label": "lenses, workers",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The change the PR is really about: lenses are handed to a bounded pool instead of being run in a loop.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 560,
+          "endLine": 585
+        }
+      ]
+    },
+    {
+      "id": "pool-to-lens",
+      "from": "run-pool",
+      "to": "run-lens",
+      "kind": "call",
+      "delta": "added",
+      "label": "one lens per worker",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 440,
+          "endLine": 455
+        }
+      ]
+    },
+    {
+      "id": "pool-to-panic",
+      "from": "run-pool",
+      "to": "contain-panic",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "run-reviewer-to-deadline",
+      "from": "run-reviewer-with",
+      "to": "deadline",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "deadline-to-lens",
+      "from": "deadline",
+      "to": "run-lens",
+      "kind": "data",
+      "delta": "added",
+      "label": "Instant deadline",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The single instant every lens and every attempt is measured against.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 545,
+          "endLine": 558
+        }
+      ]
+    },
+    {
+      "id": "lens-to-copy",
+      "from": "run-lens",
+      "to": "clean-copy",
+      "kind": "call",
+      "delta": "added",
+      "label": "create_read_only(root)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Each lens gets its own read-only copy, so parallel lenses cannot see or corrupt each other's tree.",
+      "files": [
+        {
+          "path": "crates/osf/src/clean_copy.rs",
+          "startLine": 36,
+          "endLine": 44
+        }
+      ]
+    },
+    {
+      "id": "lens-to-attempts",
+      "from": "run-lens",
+      "to": "attempts",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lens-to-change",
+      "from": "run-lens",
+      "to": "change-folder",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "diff file path",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "attempts-to-reviewers",
+      "from": "attempts",
+      "to": "reviewers-run-with-retry",
+      "kind": "call",
+      "delta": "modified",
+      "label": "given = min(per_attempt, remaining)",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 630,
+          "endLine": 645
+        }
+      ]
+    },
+    {
+      "id": "reviewers-to-agent",
+      "from": "reviewers-run-with-retry",
+      "to": "agent-cli",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "spawn with timeout",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "agent-to-copy",
+      "from": "agent-cli",
+      "to": "clean-copy",
+      "kind": "data",
+      "delta": "modified",
+      "label": "reads, cannot write",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The agent works inside the read-only copy; a write attempt fails with permission denied.",
+      "files": [
+        {
+          "path": "crates/osf/src/clean_copy.rs",
+          "startLine": 118,
+          "endLine": 170
+        }
+      ]
+    },
+    {
+      "id": "attempts-to-judge",
+      "from": "attempts",
+      "to": "judge-lens",
+      "kind": "data",
+      "delta": "modified",
+      "label": "LensRun attempts",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 7,
+    "additions": 1487,
+    "deletions": 85,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-run-containers",
+      "title": "Review run: pool, copies and limits",
+      "lens": "architecture",
+      "summary": "The reviewer run fans its lenses out over a bounded pool. Each lens owns a read-only copy of the change and is bounded by a per-attempt limit and a whole-run deadline.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "config-to-deadline",
+      "title": "Where the two time limits come from",
+      "lens": "architecture",
+      "summary": "The `[review]` settings are validated once, then become the per-attempt duration, the whole-run duration and the deadline every attempt is measured against.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "review-config",
+          "setup",
+          "run-reviewer-with",
+          "deadline",
+          "attempts",
+          "reviewers-run-with-retry"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "read-only-copy",
+          "title": "Read-only copy lifecycle",
+          "lens": "architecture",
+          "summary": "`create_read_only` copies the tracked and untracked files, then clears the write bit deepest-first; `Drop` restores it before removing the tree.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "run-lens",
+              "clean-copy",
+              "agent-cli"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "settings",
+        "heading": "Settings are validated",
+        "body": "`[review]` gains concurrency and a whole-run timeout, and both timeouts are range-checked.",
+        "stage": {
+          "kind": "view",
+          "view": "config-to-deadline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "review-config",
+            "setup"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "`ReviewConfig` now carries `concurrency` and `total_timeout_seconds`, and `review_config` refuses zero or values above 86400 seconds.",
+          "cites": [
+            {
+              "text": "`ReviewConfig`",
+              "ref": {
+                "kind": "node",
+                "node": "review-config"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "pool",
+        "heading": "Lenses fan out",
+        "body": "The selected lenses go to a fixed pool of `min(concurrency, lens count)` threads.",
+        "stage": {
+          "kind": "view",
+          "view": "review-run-containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "run-reviewer-with",
+            "run-pool",
+            "run-lens"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "`run_pool` pops lens indices from a shared queue and writes results back in index order, so the journal order does not depend on which thread finished first.",
+          "cites": [
+            {
+              "text": "`run_pool`",
+              "ref": {
+                "kind": "node",
+                "node": "run-pool"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "copies",
+        "heading": "One read-only copy per lens",
+        "body": "Each lens creates its own read-only `CleanCopy` and drops it when the lens ends.",
+        "stage": {
+          "kind": "view",
+          "view": "read-only-copy"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "run-lens",
+            "clean-copy",
+            "agent-cli"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "`create_read_only` clears the write bit deepest-first, so the coding agent that starts in the copy cannot change it.",
+          "cites": [
+            {
+              "text": "`create_read_only`",
+              "ref": {
+                "kind": "node",
+                "node": "clean-copy"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "limits",
+        "heading": "Two limits bound every attempt",
+        "body": "An attempt gets `min(per_attempt, remaining until deadline)`, and its retry shares that budget.",
+        "stage": {
+          "kind": "view",
+          "view": "config-to-deadline"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "deadline",
+            "attempts",
+            "reviewers-run-with-retry"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "`Attempts::once` gives the child only the time left under both limits, and `run_with_retry` gives the sandbox check, the first run and the retry that same budget.",
+          "cites": [
+            {
+              "text": "`Attempts::once`",
+              "ref": {
+                "kind": "node",
+                "node": "attempts"
+              }
+            },
+            {
+              "text": "`run_with_retry`",
+              "ref": {
+                "kind": "node",
+                "node": "reviewers-run-with-retry"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "containment",
+        "heading": "One lens cannot stop the others",
+        "body": "A panic, a provider failure or a context error is recorded as could-not-run for that lens alone.",
+        "stage": {
+          "kind": "view",
+          "view": "review-run-containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "contain-panic",
+            "judge-lens",
+            "run-pool"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "`contain_panic` turns a panic into a could-not-run record, and `judge_lens` now pushes a judged record for a lens whose context failed.",
+          "cites": [
+            {
+              "text": "`contain_panic`",
+              "ref": {
+                "kind": "node",
+                "node": "contain-panic"
+              }
+            },
+            {
+              "text": "`judge_lens`",
+              "ref": {
+                "kind": "node",
+                "node": "judge-lens"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
