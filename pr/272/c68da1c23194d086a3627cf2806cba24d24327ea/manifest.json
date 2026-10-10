@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "c68da1c23194d086a3627cf2806cba24d24327ea",
+    "contentHash": "d71360b459254d80cedf4ecc4f4b9962"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-run-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-run-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8cbbf3f09487dd7fb1387069566dc894",
+      "bytes": 24315,
+      "width": 1795,
+      "height": 760,
+      "animated": false,
+      "path": "review-run-architecture-light-8cbbf3f09487dd7fb1387069566dc894.svg"
+    },
+    {
+      "id": "review-run-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-run-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b78ed288ab8459e2afaf048c4cbb8bed",
+      "bytes": 24578,
+      "width": 1795,
+      "height": 760,
+      "animated": false,
+      "path": "review-run-architecture-dark-b78ed288ab8459e2afaf048c4cbb8bed.svg"
+    },
+    {
+      "id": "failure-classification-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "failure-classification-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a5068a47b25ed8965c1b3d76a4989ee0",
+      "bytes": 14741,
+      "width": 1411,
+      "height": 433,
+      "animated": true,
+      "path": "failure-classification-flow-light-a5068a47b25ed8965c1b3d76a4989ee0.svg"
+    },
+    {
+      "id": "failure-classification-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "failure-classification-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "29f8add353f1a6f72045b198aadc4eb5",
+      "bytes": 14877,
+      "width": 1411,
+      "height": 433,
+      "animated": true,
+      "path": "failure-classification-flow-dark-29f8add353f1a6f72045b198aadc4eb5.svg"
+    }
+  ]
+}
