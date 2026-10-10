@@ -578,6 +578,58 @@ fn forget_login(home: &RunHome, reviewer: &Reviewer) {
     }
 }
 
+/// Why a reviewer that ran past `timeout` failed. The partial output is read
+/// only for a category, never repeated.
+fn timeout_reason(
+    reviewer: &Reviewer,
+    timeout: Duration,
+    kill_error: Option<String>,
+    stdout: &str,
+    stderr: &str,
+) -> String {
+    let category = crate::failure::classify(stdout, stderr);
+    let hint = if category == crate::failure::Category::Unknown {
+        String::new()
+    } else {
+        format!("; its output points to: {}", category.phrase())
+    };
+    match kill_error {
+        None => format!(
+            "reviewer '{}' timed out after {timeout:?} and was killed{hint}",
+            reviewer.name
+        ),
+        Some(e) => format!(
+            "reviewer '{}' timed out and could not be killed: {e}",
+            reviewer.name
+        ),
+    }
+}
+
+/// Why a reviewer that exited with an error failed: its name, exit code,
+/// seconds run, and the category its output points to, never that output.
+fn exit_reason(
+    reviewer: &Reviewer,
+    code: Option<i32>,
+    elapsed: Duration,
+    stdout: &str,
+    stderr: &str,
+) -> String {
+    let code = code.map_or_else(|| "no exit code".to_string(), |c| c.to_string());
+    format!(
+        "reviewer '{}' exited with code {code} after {:.1} s: {}",
+        reviewer.name,
+        elapsed.as_secs_f64(),
+        crate::failure::classify(stdout, stderr).phrase()
+    )
+}
+
+/// The text a pipe-draining thread read, or nothing when it never started.
+fn joined(reader: Option<std::thread::JoinHandle<String>>) -> String {
+    reader
+        .map(|h| h.join().unwrap_or_default())
+        .unwrap_or_default()
+}
+
 fn run_child(
     reviewer: &Reviewer,
     prompt: &str,
@@ -656,31 +708,18 @@ fn run_child(
             let killed = crate::process::kill_tree(&child);
             let _ = child.kill();
             let _ = child.wait();
-            let partial_out = stdout_reader
-                .map(|h| h.join().unwrap_or_default())
-                .unwrap_or_default();
-            let partial_err = stderr_reader
-                .map(|h| h.join().unwrap_or_default())
-                .unwrap_or_default();
+            let partial_out = joined(stdout_reader);
+            let partial_err = joined(stderr_reader);
             let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
             forget_login(&home, reviewer);
-            let category = crate::failure::classify(&partial_out, &partial_err);
-            let hint = if category == crate::failure::Category::Unknown {
-                String::new()
-            } else {
-                format!("; its output points to: {}", category.phrase())
-            };
-            return Err(match killed {
-                Ok(()) => format!(
-                    "reviewer '{}' timed out after {timeout:?} and was killed{hint}",
-                    reviewer.name
-                ),
-                Err(e) => format!(
-                    "reviewer '{}' timed out and could not be killed: {e}",
-                    reviewer.name
-                ),
-            });
+            return Err(timeout_reason(
+                reviewer,
+                timeout,
+                killed.err(),
+                &partial_out,
+                &partial_err,
+            ));
         }
         Err(e) => {
             cleanup();
@@ -698,30 +737,21 @@ fn run_child(
         h.join()
             .unwrap_or_else(|_| Err(std::io::Error::other("the stdin writer thread panicked")))
     });
-    let stdout_text = stdout_reader
-        .map(|h| h.join().unwrap_or_default())
-        .unwrap_or_default();
-    // A reviewer's stderr is reviewer-controlled text, and every place osf's
-    // own output goes - the journal, the console, a posted review - must stay
-    // free of it. It is read only by `failure::classify`, which returns a
-    // fixed category and never the text. A kept home (OSF_KEEP_REVIEW_HOME)
-    // is the one record of it, and it travels as its own artifact.
-    let stderr_text = stderr_reader
-        .map(|h| h.join().unwrap_or_default())
-        .unwrap_or_default();
+    let stdout_text = joined(stdout_reader);
+    // Reviewer text never reaches osf's output, the journal or a posted
+    // review: `failure::classify` reads it and returns only a category. A kept
+    // home (OSF_KEEP_REVIEW_HOME) is its one record, as its own artifact.
+    let stderr_text = joined(stderr_reader);
     cleanup();
     forget_login(&home, reviewer);
 
     if !status.success() {
-        let code = status
-            .code()
-            .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
-        let category = crate::failure::classify(&stdout_text, &stderr_text);
-        return Err(format!(
-            "reviewer '{}' exited with code {code} after {:.1} s: {}",
-            reviewer.name,
-            started.elapsed().as_secs_f64(),
-            category.phrase()
+        return Err(exit_reason(
+            reviewer,
+            status.code(),
+            started.elapsed(),
+            &stdout_text,
+            &stderr_text,
         ));
     }
     Ok(stdout_text)
