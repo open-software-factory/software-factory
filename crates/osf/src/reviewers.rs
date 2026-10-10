@@ -414,7 +414,10 @@ fn run_with_retry(
     if let Err(reason) = check_sandbox(reviewer, workdir, timeout, real_home) {
         return Outcome::CouldNotRun(reason);
     }
-    let raw = match run_child(reviewer, prompt, workdir, timeout, real_home, notes) {
+    let schema = answer::schema_for(lens);
+    let raw = match run_child(
+        reviewer, prompt, &schema, workdir, timeout, real_home, notes,
+    ) {
         Ok(text) => text,
         Err(reason) => return Outcome::CouldNotRun(reason),
     };
@@ -422,7 +425,15 @@ fn run_with_retry(
         Ok(answer) => Outcome::Answered(answer),
         Err(reason) => {
             let retry_prompt = format!("{prompt}\n\nThe previous answer was invalid: {reason}");
-            match run_child(reviewer, &retry_prompt, workdir, timeout, real_home, notes) {
+            match run_child(
+                reviewer,
+                &retry_prompt,
+                &schema,
+                workdir,
+                timeout,
+                real_home,
+                notes,
+            ) {
                 Ok(raw) => match validate_stage(&raw, reviewer, lens) {
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
@@ -628,19 +639,20 @@ fn prepare_command(
 fn run_child(
     reviewer: &Reviewer,
     prompt: &str,
+    schema: &str,
     workdir: &Path,
     timeout: Duration,
     real_home: Option<&Path>,
     notes: &mut Vec<String>,
 ) -> Result<String, String> {
     let prompt_file = write_temp_file("osf-review-prompt", prompt)?;
-    let schema_file = write_temp_file("osf-review-schema", answer::SCHEMA)?;
+    let schema_file = write_temp_file("osf-review-schema", schema)?;
     let cleanup = || {
         let _ = std::fs::remove_file(&prompt_file);
         let _ = std::fs::remove_file(&schema_file);
     };
 
-    let args = build_args(reviewer, &prompt_file, &schema_file);
+    let args = build_args(reviewer, &prompt_file, &schema_file, schema);
     let Some((program, rest)) = args.split_first() else {
         cleanup();
         return Err(format!("reviewer '{}' has an empty command", reviewer.name));
@@ -757,8 +769,13 @@ fn run_child(
 
 /// `reviewer.command`, with `{prompt_file}` replaced by `prompt_file`'s
 /// path, `schema_flag`/its value appended when the reviewer declares one,
-/// and `model_flag`/`model` appended when both are set.
-fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Vec<String> {
+/// and `model_flag`/`model` appended when both are set. The schema value is `schema_file`, or `schema` when inlined.
+fn build_args(
+    reviewer: &Reviewer,
+    prompt_file: &Path,
+    schema_file: &Path,
+    schema: &str,
+) -> Vec<String> {
     let prompt_path = prompt_file.to_string_lossy().into_owned();
     let mut args: Vec<String> = reviewer
         .command
@@ -785,7 +802,7 @@ fn build_args(reviewer: &Reviewer, prompt_file: &Path, schema_file: &Path) -> Ve
         args.push(flag.clone());
         args.push(match reviewer.schema_as {
             SchemaArg::Path => schema_file.to_string_lossy().into_owned(),
-            SchemaArg::Inline => answer::SCHEMA.to_string(),
+            SchemaArg::Inline => schema.to_string(),
         });
     }
     if let (Some(flag), Some(model)) = (&reviewer.model_flag, &reviewer.model) {
@@ -887,6 +904,7 @@ mod tests {
         let out = run_child(
             reviewer,
             "",
+            answer::SCHEMA,
             &workdir,
             Duration::from_secs(30),
             Some(real_home),
@@ -960,6 +978,7 @@ mod tests {
         let out = run_child(
             &r,
             "",
+            answer::SCHEMA,
             &workdir,
             Duration::from_secs(30),
             None,
@@ -1009,6 +1028,7 @@ mod tests {
         let out = run_child(
             &file_lister(&[".a-login/auth.json"]),
             "",
+            answer::SCHEMA,
             &workdir,
             Duration::from_secs(30),
             None,
@@ -1043,6 +1063,7 @@ mod tests {
             let out = run_child(
                 &home_reporter(),
                 "",
+                answer::SCHEMA,
                 &workdir,
                 Duration::from_secs(30),
                 None,
@@ -1082,7 +1103,7 @@ mod tests {
     #[test]
     fn the_codex_reviewer_inside_the_container_runs_with_its_own_sandbox_off() {
         let r = Reviewer::from_agent(agent("codex"), None, true).expect("codex reviews");
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert!(args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
         assert!(!args.contains(&"--sandbox".to_string()));
         assert_eq!(r.sandbox_check, Vec::<String>::new());
@@ -1091,7 +1112,7 @@ mod tests {
     #[test]
     fn the_codex_reviewer_outside_the_container_runs_in_its_read_only_sandbox() {
         let r = Reviewer::from_agent(agent("codex"), None, false).expect("codex reviews");
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         let pair = args
             .windows(2)
             .any(|w| matches!(w, [a, b] if a == "--sandbox" && b == "read-only"));
@@ -1185,6 +1206,7 @@ mod tests {
             &r,
             Path::new("/tmp/prompt.txt"),
             Path::new("/tmp/schema.json"),
+            answer::SCHEMA,
         );
         assert_eq!(
             args,
@@ -1201,6 +1223,7 @@ mod tests {
             &r,
             Path::new("/tmp/prompt.txt"),
             Path::new("/tmp/schema.json"),
+            answer::SCHEMA,
         );
         assert_eq!(args, vec!["fake", "--model", "claude-sonnet-5"]);
     }
@@ -1213,12 +1236,13 @@ mod tests {
             &r,
             Path::new("/tmp/prompt.txt"),
             Path::new("/tmp/schema.json"),
+            answer::SCHEMA,
         );
         assert_eq!(args, vec!["fake"]);
     }
 
     #[test]
-    fn build_args_inlines_the_schema_text_when_asked() {
+    fn build_args_inlines_the_schema_it_is_given() {
         let mut r = reviewer("fake", vec!["fake"]);
         r.schema_flag = Some("--json-schema".to_string());
         r.schema_as = SchemaArg::Inline;
@@ -1226,8 +1250,9 @@ mod tests {
             &r,
             Path::new("/tmp/prompt.txt"),
             Path::new("/tmp/schema.json"),
+            "{\"given\":true}",
         );
-        assert_eq!(args, vec!["fake", "--json-schema", answer::SCHEMA]);
+        assert_eq!(args, vec!["fake", "--json-schema", "{\"given\":true}"]);
     }
 
     #[test]
@@ -1238,7 +1263,7 @@ mod tests {
             env: &[],
         });
         r.schema_flag = Some("--schema".to_string());
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert_eq!(
             args,
             vec![
@@ -1263,7 +1288,7 @@ mod tests {
             args: &["--ignore-user-config"],
             env: &[],
         };
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert_eq!(
             args,
             vec![
@@ -1284,7 +1309,7 @@ mod tests {
             env: &[],
         });
         r.review_dir = Some(PathBuf::from("/tmp/review-folder"));
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"));
+        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert_eq!(args, vec!["fake", "--add-dir", "/tmp/review-folder"]);
     }
 
@@ -1303,6 +1328,7 @@ mod tests {
         let out = run_child(
             &r,
             "",
+            answer::SCHEMA,
             &workdir,
             Duration::from_secs(30),
             None,
