@@ -1169,17 +1169,23 @@ fn a_secret_inside_a_recognised_error_is_named_by_category_only() {
 fn a_secret_in_an_invalid_answers_property_name_never_reaches_any_output() {
     let dir = TempDir::new("osf-review-invalid-secret");
     for agent in reviewer_agents() {
-        let secret = common::fake_provider_key("sk-");
-        let answer =
-            format!(r#"{{"lens":"correctness","scores":{{"{secret}":"invalid"}},"findings":[]}}"#);
-        let file = write_answer_file(
-            &dir,
-            &format!("{agent}.json"),
-            &as_printed_by(agent, &answer),
-        );
-        let (_, saved) =
-            assert_secret_stays_out(agent, Fake::Answers(&file), &secret, "secret-invalid");
-        assert!(saved.contains("does not match its schema"), "{saved}");
+        // A key of letters, and a key of digits only.
+        for secret in [
+            common::fake_provider_key("sk-"),
+            "12345678901234567890".to_string(),
+        ] {
+            let answer = format!(
+                r#"{{"lens":"correctness","scores":{{"{secret}":"invalid"}},"findings":[]}}"#
+            );
+            let file = write_answer_file(
+                &dir,
+                &format!("{agent}.json"),
+                &as_printed_by(agent, &answer),
+            );
+            let (_, saved) =
+                assert_secret_stays_out(agent, Fake::Answers(&file), &secret, "secret-invalid");
+            assert!(saved.contains("does not match its schema"), "{saved}");
+        }
     }
 }
 

@@ -50,8 +50,8 @@ pub fn schema_for(lens: &Lens) -> String {
         .expect("the review answer schema has a properties object")
         .insert("scores".to_string(), scores);
     // The identifiers stay in the file for editors. A harness validates the
-    // schema it is handed, and claude refuses one that names the 2020-12
-    // meta-schema it cannot resolve, so they never travel.
+    // schema it is handed, and some refuse one that names a meta-schema they
+    // cannot resolve, so the identifiers never travel.
     if let Some(object) = schema.as_object_mut() {
         object.remove("$schema");
         object.remove("$id");
@@ -149,45 +149,38 @@ fn fenced_blocks(raw: &str) -> Vec<String> {
     found.into_iter().map(|(_, content)| content).collect()
 }
 
-/// Every property name the shipped schema declares, at any depth. These are
-/// osf's own words, so they are safe to print.
-fn trusted_names() -> &'static std::collections::BTreeSet<String> {
-    static CELL: OnceLock<std::collections::BTreeSet<String>> = OnceLock::new();
-    fn walk(value: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {
-        match value {
-            serde_json::Value::Object(map) => {
-                if let Some(serde_json::Value::Object(props)) = map.get("properties") {
-                    out.extend(props.keys().cloned());
-                }
-                map.values().for_each(|v| walk(v, out));
-            }
-            serde_json::Value::Array(items) => items.iter().for_each(|v| walk(v, out)),
-            _ => {}
-        }
-    }
-    CELL.get_or_init(|| {
-        let schema: serde_json::Value =
-            serde_json::from_str(SCHEMA).expect("the review answer schema is valid JSON");
-        let mut names = std::collections::BTreeSet::new();
-        walk(&schema, &mut names);
-        names
-    })
-}
-
-/// `pointer` with every segment that is not a number or a name the schema
-/// declares replaced by `<field>`: a segment under `scores` is a key the
-/// reviewer chose, and that text must not be repeated.
+/// `pointer` with every segment that the shipped schema does not name
+/// replaced by `<field>`. The pointer is walked down the schema: a segment
+/// is kept only when it is a declared property, or an index into a position
+/// the schema says is an array. A key the reviewer chose, such as one under
+/// `scores`, is masked even when it is made of digits.
 fn trusted_location(pointer: &str) -> String {
+    static CELL: OnceLock<serde_json::Value> = OnceLock::new();
+    let schema = CELL.get_or_init(|| {
+        serde_json::from_str(SCHEMA).expect("the review answer schema is valid JSON")
+    });
+    let mut node = Some(schema);
     pointer
         .split('/')
         .map(|segment| {
-            if segment.is_empty()
-                || segment.bytes().all(|b| b.is_ascii_digit())
-                || trusted_names().contains(segment)
-            {
-                segment
+            if segment.is_empty() {
+                return segment.to_string();
+            }
+            let declared = node
+                .and_then(|n| n.get("properties"))
+                .and_then(|p| p.get(segment));
+            let item = node
+                .filter(|n| n.get("type").and_then(serde_json::Value::as_str) == Some("array"))
+                .filter(|_| segment.bytes().all(|b| b.is_ascii_digit()))
+                .and_then(|n| n.get("items"));
+            if let Some(next) = declared.or(item) {
+                node = Some(next);
+                segment.to_string()
             } else {
-                "<field>"
+                node = node
+                    .and_then(|n| n.get("additionalProperties"))
+                    .filter(|extra| extra.is_object());
+                "<field>".to_string()
             }
         })
         .collect::<Vec<_>>()
@@ -488,6 +481,19 @@ mod tests {
         let reason = extract_and_validate(raw, &lens).expect_err("the answer is invalid");
         assert!(!reason.contains("SECRET_VALUE"), "{reason}");
         assert!(reason.contains("/scores/<field>"), "{reason}");
+    }
+
+    #[test]
+    fn a_numeric_score_key_is_masked_and_an_array_index_is_kept() {
+        assert_eq!(
+            trusted_location("/scores/12345678901234567890"),
+            "/scores/<field>"
+        );
+        assert_eq!(trusted_location("/findings/3/path"), "/findings/3/path");
+        assert_eq!(
+            trusted_location("/findings/x/9"),
+            "/findings/<field>/<field>"
+        );
     }
 
     #[test]

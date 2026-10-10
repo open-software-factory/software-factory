@@ -477,8 +477,8 @@ impl Attempts<'_> {
                 None,
                 Some(redact_answer(self.root, self.config_root, answer)),
             ),
-            Outcome::Invalid(reason) => ("invalid", Some(reason), None),
-            Outcome::CouldNotRun(reason) => ("could-not-run", Some(reason), None),
+            Outcome::Invalid(reason) => ("invalid", Some(self.scrub(&reason)), None),
+            Outcome::CouldNotRun(reason) => ("could-not-run", Some(self.scrub(&reason)), None),
         };
         Attempt {
             result: result.to_string(),
@@ -488,6 +488,15 @@ impl Attempts<'_> {
             critical,
             answer,
         }
+    }
+}
+
+impl Attempts<'_> {
+    /// A reason with the exact secret values and the secret patterns removed,
+    /// as a last guard. The reasons themselves are built from fixed wording
+    /// and names osf owns, so this removes nothing in the ordinary case.
+    fn scrub(&self, reason: &str) -> String {
+        redact_reviewer_text(self.root, self.config_root, reason)
     }
 }
 
