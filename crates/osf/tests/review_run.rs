@@ -185,6 +185,8 @@ enum Fake<'a> {
     Slow(&'a str, u64),
     /// Writes a secret to standard error and exits non-zero, as a broken agent would.
     Fails(&'a str),
+    /// Exits 1 after printing this text to standard error.
+    FailsWithText(&'a str),
     /// Prints the answer file's text, and records its prompt, arguments and
     /// environment under the folder, plus a `started` file.
     Records(&'a str, &'a Path),
@@ -212,6 +214,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
             format!("OSF_FAKE_ANSWER='{answer}' OSF_FAKE_SLEEP_SECS={secs} exec '{harness}'")
         }
         Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
+        Fake::FailsWithText(text) => format!("echo '{text}' 1>&2\nexit 1"),
         Fake::Records(answer, dir) => format!(
             "env > '{d}/env'\nOSF_FAKE_ANSWER='{answer}' OSF_FAKE_PROMPT_CAPTURE='{d}/prompt' \
             OSF_FAKE_ARGS_CAPTURE='{d}/args' OSF_FAKE_HARNESS_LOG='{d}/started' OSF_FAKE_CHANGE_CAPTURE='{d}/change' \
@@ -245,6 +248,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         }
         Fake::Slow(answer, secs) => run(answer, &format!("set \"OSF_FAKE_SLEEP_SECS={secs}\"\r\n")),
         Fake::Fails(secret) => format!("@echo off\r\necho {secret} 1>&2\r\nexit /b 9\r\n"),
+        Fake::FailsWithText(text) => format!("@echo off\r\necho {text} 1>&2\r\nexit /b 1\r\n"),
     };
     std::fs::write(bin.join(format!("{agent}.cmd")), &body).expect("fake agent writes");
     if agent == "dsh" {
@@ -1001,6 +1005,56 @@ fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
         ],
     );
     assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+}
+
+#[test]
+fn a_secret_inside_a_recognised_error_is_named_by_category_only() {
+    let secret = common::fake_provider_key("sk-");
+    let text =
+        format!("ERROR: unexpected status 401 Unauthorized: Incorrect API key provided: {secret}");
+    let fakes = Fakes::new("", &[("codex", Fake::FailsWithText(&text))]);
+    let repo = review_repo("secret-recognised", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-secret-recognised");
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+    let journal = journal_text(&home);
+    assert!(journal.contains("rejected the credential"), "{journal}");
+    let out_json = repo.dir.join("run.json");
+    let home = common::isolated_home("review-run-secret-recognised-out");
+    let mut args: Vec<String> = [
+        "review",
+        "run",
+        "--reviewer",
+        "codex",
+        "--base",
+        "origin/main",
+        "--out",
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    args.push(out_json.to_string_lossy().into_owned());
+    let refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let job = fakes.run(&repo.dir, &home, &refs);
+    let saved = std::fs::read_to_string(&out_json)
+        .unwrap_or_else(|e| panic!("--out: {e}: {}", String::from_utf8_lossy(&job.stderr)));
+    assert!(
+        !saved.contains(&secret),
+        "the --out JSON leaked the secret: {saved}"
+    );
+    assert!(saved.contains("rejected the credential"), "{saved}");
 }
 
 /// A `Code-Generator: Claude ...` trailer on the reviewed commit makes

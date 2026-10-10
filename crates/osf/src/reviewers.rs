@@ -592,6 +592,7 @@ fn run_child(
     #[cfg(unix)]
     command.process_group(0);
 
+    let started = std::time::Instant::now();
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(e) => {
@@ -627,13 +628,23 @@ fn run_child(
             let killed = crate::process::kill_tree(&child);
             let _ = child.kill();
             let _ = child.wait();
-            let _ = stdout_reader.map(std::thread::JoinHandle::join);
-            let _ = stderr_reader.map(std::thread::JoinHandle::join);
+            let partial_out = stdout_reader
+                .map(|h| h.join().unwrap_or_default())
+                .unwrap_or_default();
+            let partial_err = stderr_reader
+                .map(|h| h.join().unwrap_or_default())
+                .unwrap_or_default();
             let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
+            let category = crate::failure::classify(&partial_out, &partial_err);
+            let hint = if category == crate::failure::Category::Unknown {
+                String::new()
+            } else {
+                format!("; its output points to: {}", category.phrase())
+            };
             return Err(match killed {
                 Ok(()) => format!(
-                    "reviewer '{}' timed out after {timeout:?} and was killed",
+                    "reviewer '{}' timed out after {timeout:?} and was killed{hint}",
                     reviewer.name
                 ),
                 Err(e) => format!(
@@ -661,12 +672,12 @@ fn run_child(
     let stdout_text = stdout_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
-    // Drained and joined so the reader thread always finishes cleanly, but
-    // never read: a reviewer's stderr is reviewer-controlled text, and every
-    // place osf's own output goes - the journal, the console, a posted review
-    // - must stay free of it. A kept home (OSF_KEEP_REVIEW_HOME) is the one
-    // record of it, and it travels as its own artifact, never as output.
-    let _stderr_text = stderr_reader
+    // A reviewer's stderr is reviewer-controlled text, and every place osf's
+    // own output goes - the journal, the console, a posted review - must stay
+    // free of it. It is read only by `failure::classify`, which returns a
+    // fixed category and never the text. A kept home (OSF_KEEP_REVIEW_HOME)
+    // is the one record of it, and it travels as its own artifact.
+    let stderr_text = stderr_reader
         .map(|h| h.join().unwrap_or_default())
         .unwrap_or_default();
     cleanup();
@@ -676,9 +687,12 @@ fn run_child(
         let code = status
             .code()
             .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
+        let category = crate::failure::classify(&stdout_text, &stderr_text);
         return Err(format!(
-            "reviewer '{}' exited with code {code}",
-            reviewer.name
+            "reviewer '{}' exited with code {code} after {:.1} s: {}",
+            reviewer.name,
+            started.elapsed().as_secs_f64(),
+            category.phrase()
         ));
     }
     Ok(stdout_text)
@@ -1231,6 +1245,42 @@ mod tests {
         )
         .expect("the reporter runs");
         assert_eq!(out, "locked");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_reviewer_names_its_exit_code_time_and_category_but_not_its_text() {
+        let r = reviewer(
+            "opencode",
+            vec![
+                "sh",
+                "-c",
+                "echo '{\"type\":\"error\",\"message\":\"Missing Authentication header sk-SECRET123\",\"statusCode\":401}'; exit 1",
+            ],
+        );
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints
+        let err = run_child(
+            &r,
+            "",
+            answer::SCHEMA,
+            &workdir,
+            Duration::from_secs(30),
+            None,
+            &mut Vec::new(),
+        )
+        .expect_err("the reviewer fails");
+        assert!(
+            err.starts_with("reviewer 'opencode' exited with code 1 after "),
+            "{err}"
+        );
+        assert!(
+            err.contains("the provider rejected the credential"),
+            "{err}"
+        );
+        assert!(
+            !err.contains("SECRET123") && !err.contains("Missing"),
+            "{err}"
+        );
     }
 
     #[cfg(unix)]
