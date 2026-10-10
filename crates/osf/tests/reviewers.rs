@@ -157,6 +157,7 @@ fn a_valid_answer_from_the_fake_harness_is_answered() {
         Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
         Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
         Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+        Outcome::TimedOut(t) => panic!("expected Answered, got TimedOut({t:?})"),
     }
 }
 
@@ -205,6 +206,7 @@ fn a_reviewer_child_sees_only_its_own_declared_credential() {
                 Outcome::Answered(_) => {}
                 Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
                 Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+                Outcome::TimedOut(t) => panic!("expected Answered, got TimedOut({t:?})"),
             }
         },
     );
@@ -244,6 +246,7 @@ fn an_invalid_answer_is_retried_once_then_reported_invalid() {
         Outcome::Invalid(_) => {}
         Outcome::Answered(_) => panic!("expected Invalid, got Answered"),
         Outcome::CouldNotRun(e) => panic!("expected Invalid, got CouldNotRun({e})"),
+        Outcome::TimedOut(t) => panic!("expected Invalid, got TimedOut({t:?})"),
     }
     let log = std::fs::read_to_string(&log_path).expect("the fake harness's log writes");
     assert_eq!(
@@ -292,6 +295,7 @@ fn a_reviewer_whose_required_key_is_missing_is_could_not_run() {
     );
     match outcome {
         Outcome::CouldNotRun(_) => {}
+        Outcome::TimedOut(t) => panic!("expected CouldNotRun, got TimedOut({t:?})"),
         Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
         Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
     }
@@ -321,11 +325,12 @@ fn a_reviewer_that_hangs_past_its_timeout_is_killed_and_reported_could_not_run()
         Duration::from_secs(2),
     );
     match outcome {
-        Outcome::CouldNotRun(reason) => {
-            assert!(reason.contains("timed out"), "{reason}");
+        Outcome::TimedOut(timeout) => {
+            assert!(!timeout.kill_failed && !timeout.before_start, "{timeout:?}");
         }
-        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
-        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+        Outcome::CouldNotRun(reason) => panic!("expected TimedOut, got CouldNotRun({reason})"),
+        Outcome::Answered(_) => panic!("expected TimedOut, got Answered"),
+        Outcome::Invalid(e) => panic!("expected TimedOut, got Invalid({e})"),
     }
 
     // The sleep would finish around the 6s mark from spawn; wait well past
@@ -358,11 +363,12 @@ fn a_large_prompt_to_a_harness_that_ignores_stdin_is_still_killed_at_its_timeout
         Duration::from_secs(2),
     );
     match outcome {
-        Outcome::CouldNotRun(reason) => {
-            assert!(reason.contains("timed out"), "{reason}");
+        Outcome::TimedOut(timeout) => {
+            assert!(!timeout.before_start, "{timeout:?}");
         }
-        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
-        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
+        Outcome::CouldNotRun(reason) => panic!("expected TimedOut, got CouldNotRun({reason})"),
+        Outcome::Answered(_) => panic!("expected TimedOut, got Answered"),
+        Outcome::Invalid(e) => panic!("expected TimedOut, got Invalid({e})"),
     }
     assert!(
         started.elapsed() < Duration::from_secs(8),
@@ -393,6 +399,7 @@ fn a_codex_style_plain_answer_needs_no_envelope_pointer() {
         Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
         Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
         Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+        Outcome::TimedOut(t) => panic!("expected Answered, got TimedOut({t:?})"),
     }
 }
 
@@ -422,6 +429,7 @@ fn a_harness_that_never_reads_a_large_prompt_and_exits_at_once_is_still_answered
         Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
         Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
         Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+        Outcome::TimedOut(t) => panic!("expected Answered, got TimedOut({t:?})"),
     }
 }
 
@@ -445,6 +453,7 @@ fn a_claude_code_style_envelope_extracts_structured_output() {
         Outcome::Answered(answer) => assert_eq!(answer.lens, "correctness"),
         Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
         Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
+        Outcome::TimedOut(t) => panic!("expected Answered, got TimedOut({t:?})"),
     }
 }
 
