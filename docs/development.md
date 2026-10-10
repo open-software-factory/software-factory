@@ -256,10 +256,9 @@ The work item comes from the pull request's own link. The `build` job runs
 `osf review work-item` with the job's read-only token. The command reads the
 pull request's body from the event. It takes the issue that the `Issue:`
 line names, or else the first issue the body closes with a closing keyword.
-A pull request whose visible text names two different issues in this
-repository is refused as a work item, and the reason names both numbers,
-in the shape
-`the pull request text names more than one issue in <repository>: #12, #34`.
+A pull request whose visible text names several issues in this repository
+takes the first: the `Issue:` line wins, and otherwise the first closing
+keyword does.
 It reads that issue from this repository through the code host's API. It
 saves the issue's text, or the reason there is none, as the `work-item`
 artifact, and each reviewer job receives that file read-only. The saved work
@@ -518,7 +517,10 @@ family before it runs any reviewer.
 
 It reads every commit in the reviewed range. It looks for each
 commit's own `Code-Generator:` trailer. It maps the model name in that
-trailer to a family, through a small table this tool ships. A
+trailer to a family, through a small table this tool ships. A commit may
+also carry an `Orchestrator:` trailer naming the model that supervised
+the work; that line is not read here, because this rule concerns the
+model that wrote the change. A
 repository's own `osf.toml` can add more names to that table, under
 `[review] builder_family_aliases`. The `--builder-family` flag skips
 this reading and names the family directly; pass it more than once for
