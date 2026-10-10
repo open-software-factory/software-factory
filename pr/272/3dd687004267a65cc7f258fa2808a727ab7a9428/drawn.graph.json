@@ -1,0 +1,777 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-10T04:48:26.825Z",
+  "title": "Reviewer failure classification and verdict propagation",
+  "summary": "A reviewer's raw output is untrusted text that can hold a credential, so this change stops it from reaching osf's output, journal, SARIF or posted review. A new harness-independent classifier (crates/osf/src/failure.rs) reads stdout and stderr — JSON status/label fields first, plain-text patterns last — and returns only a fixed Category whose wording osf owns; exit and timeout reasons now carry that category plus exit code and elapsed seconds. On top of that, a reviewer job that made attempts and never answered writes its --out file, then exits 2, and the posted verdict follows the run's overall verdict: a run that could not run posts COMMENT and never APPROVE, a failed run requests changes. Kept reviewer homes are chmodded readable (0755/0644) after the seeded login is removed, and each workflow job uploads only out/reviewer-home/osf-review-home-*.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "4395e34646f7fee9b1b72f7a50472dee33438453",
+      "ref": "4395e34646f7fee9b1b72f7a50472dee33438453"
+    },
+    "head": {
+      "sha": "3dd687004267a65cc7f258fa2808a727ab7a9428",
+      "ref": "3dd687004267a65cc7f258fa2808a727ab7a9428"
+    },
+    "pullRequest": {
+      "number": 272,
+      "url": "https://github.com/open-software-factory/software-factory/pull/272"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workflow",
+      "label": "GitHub Actions",
+      "subtitle": "review.yml jobs",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The reviewer jobs and the final quorum job. Each reviewer job may now go red, uploads only the kept homes, and the last job runs with always() and decides by quorum."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The review run and review post entry points that turn a reviewer run into an exit code and a posted verdict."
+    },
+    {
+      "id": "reviewer-runtime",
+      "label": "Reviewer runtime",
+      "subtitle": "child process + home",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The spawned agent process, its captured streams, its temporary home and the failure classifier that reads them."
+    },
+    {
+      "id": "providers",
+      "label": "Model providers",
+      "subtitle": "external APIs",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The external harnesses and provider APIs whose errors the classifier names by category."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "reviewer jobs + quorum job",
+      "summary": "Three reviewer jobs (codex, claude, opencode) and a final review job. Each reviewer job uploads only out/reviewer-home/osf-review-home-* and may fail; the final job runs with always() and decides by quorum rather than by a reviewer job's result.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 270,
+          "endLine": 275
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-job",
+      "label": "reviewer job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "osf review run --reviewer",
+      "summary": "Runs one reviewer, then uploads its kept home and its --out file. It no longer passes --warn-only, so a reviewer that tried and never answered turns the job red after the artifacts are written.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 270,
+          "endLine": 275
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "quorum-job",
+      "label": "review job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "always() && quorum",
+      "summary": "The last job runs even after a red reviewer job and decides by quorum, not by needs.review-* results.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 506,
+          "endLine": 510
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run-cli",
+      "label": "review run",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "review_run_exit_code",
+      "summary": "Saves the reviewer run first, then returns 0 when something answered and 2 when the reviewer made attempts and none answered, so the artifact explains the red job.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2000,
+          "endLine": 2020
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "post-run-outcome",
+      "label": "post run outcome",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "post_run_outcome",
+      "summary": "Posts the run's findings and summary, now passing the run's overall verdict into plan_review_for so the posted event follows it.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2306,
+          "endLine": 2315
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "plan-review-for",
+      "label": "plan_review_for",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "findings + overall verdict -> Plan",
+      "summary": "Chooses the posted verdict: a blocking finding requests changes whatever the run said, a failed run requests changes, a run that could not run posts COMMENT, and a pass or no overall verdict approves.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 137,
+          "endLine": 170
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "verdict-enum",
+      "label": "Verdict",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "RequestChanges | Approve | Comment",
+      "summary": "Gains Comment, a review with no verdict to give that is never an approval, and maps it to the COMMENT event.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 65,
+          "endLine": 90
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "never-answered",
+      "label": "never_answered",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "ReviewerRun::never_answered",
+      "summary": "True when a reviewer made at least one attempt or could not build a lens's context and no attempt on any lens answered. An idle reviewer that tried nothing has not failed.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 217,
+          "endLine": 240
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-child",
+      "label": "run_child",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "reviewer-runtime",
+      "subtitle": "spawn, capture, classify",
+      "summary": "Spawns the reviewer, drains stdout and stderr, and on timeout or non-zero exit builds a reason from the failure category plus exit code and elapsed seconds, never from the reviewer's text.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 578,
+          "endLine": 760
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "failure-classifier",
+      "label": "failure::classify",
+      "kind": "module",
+      "delta": "added",
+      "lane": "reviewer-runtime",
+      "subtitle": "stdout + stderr -> Category",
+      "summary": "Harness-independent reader: JSON fields (statusCode, status, api_error_status, error.type, error.code, code) first, plain-text patterns last, returning one of eight fixed categories whose wording osf owns.",
+      "files": [
+        {
+          "path": "crates/osf/src/failure.rs",
+          "startLine": 1,
+          "endLine": 347
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-home",
+      "label": "RunHome",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "reviewer-runtime",
+      "subtitle": "temp home + Drop",
+      "summary": "On drop with OSF_KEEP_REVIEW_HOME set, opens the kept home recursively (folders 0755, files 0644, symlinks untouched) after forget_login removed the seeded login, so another user can upload it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 327,
+          "endLine": 365
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "answer-schema",
+      "label": "answer schema",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "reviewer-runtime",
+      "subtitle": "schema_for",
+      "summary": "Strips $schema and $id from the schema handed to a harness, because claude refuses a schema naming a meta-schema it cannot resolve; the file keeps them for editors.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 49,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-harness",
+      "label": "reviewer harness",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "providers",
+      "subtitle": "codex / claude / opencode",
+      "summary": "The agent command osf spawns. Its stdout and stderr are untrusted text that may hold a credential.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 672,
+          "endLine": 760
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "provider-api",
+      "label": "provider API",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "providers",
+      "subtitle": "HTTP 401/403/404/429, DNS",
+      "summary": "The remote model endpoint whose status codes and error labels the classifier reads out of the harness output.",
+      "files": [
+        {
+          "path": "crates/osf/src/failure.rs",
+          "startLine": 1,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "reviewer-job-runs-osf",
+      "from": "reviewer-job",
+      "to": "review-run-cli",
+      "kind": "call",
+      "delta": "modified",
+      "label": "osf review run --reviewer",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 270,
+          "endLine": 275
+        }
+      ]
+    },
+    {
+      "id": "review-run-cli-saves-run",
+      "from": "review-run-cli",
+      "to": "never-answered",
+      "kind": "call",
+      "delta": "added",
+      "label": "save, then never_answered()",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The file is written before the exit code is decided, so the artifact explains the red job.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2000,
+          "endLine": 2020
+        }
+      ]
+    },
+    {
+      "id": "review-run-cli-spawns",
+      "from": "review-run-cli",
+      "to": "run-child",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "run_reviewer",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 217,
+          "endLine": 240
+        }
+      ]
+    },
+    {
+      "id": "run-child-spawns-harness",
+      "from": "run-child",
+      "to": "reviewer-harness",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "spawn, capture stdout/stderr",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 672,
+          "endLine": 760
+        }
+      ]
+    },
+    {
+      "id": "harness-calls-provider",
+      "from": "reviewer-harness",
+      "to": "provider-api",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "model request",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/failure.rs",
+          "startLine": 1,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "run-child-classifies",
+      "from": "run-child",
+      "to": "failure-classifier",
+      "kind": "call",
+      "delta": "added",
+      "label": "classify(stdout, stderr)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The only path from reviewer text to osf's output: the classifier returns a fixed category, never the text.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 578,
+          "endLine": 640
+        }
+      ]
+    },
+    {
+      "id": "run-child-uses-home",
+      "from": "run-child",
+      "to": "run-home",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "kept home, opened on drop",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 327,
+          "endLine": 365
+        }
+      ]
+    },
+    {
+      "id": "run-child-uses-schema",
+      "from": "run-child",
+      "to": "answer-schema",
+      "kind": "data",
+      "delta": "modified",
+      "label": "answer schema without $schema/$id",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 49,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "reviewer-job-uploads-home",
+      "from": "reviewer-job",
+      "to": "run-home",
+      "kind": "data",
+      "delta": "modified",
+      "label": "out/reviewer-home/osf-review-home-*",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 270,
+          "endLine": 275
+        }
+      ]
+    },
+    {
+      "id": "quorum-job-posts",
+      "from": "quorum-job",
+      "to": "post-run-outcome",
+      "kind": "call",
+      "delta": "modified",
+      "label": "always() && quorum",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 506,
+          "endLine": 510
+        }
+      ]
+    },
+    {
+      "id": "post-run-outcome-plans",
+      "from": "post-run-outcome",
+      "to": "plan-review-for",
+      "kind": "call",
+      "delta": "added",
+      "label": "Some(outcome.verdict)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The run's overall verdict now reaches the posted event, so a run that could not run posts COMMENT instead of APPROVE.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2306,
+          "endLine": 2315
+        }
+      ]
+    },
+    {
+      "id": "plan-review-for-uses-verdict",
+      "from": "plan-review-for",
+      "to": "verdict-enum",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "Comment | Approve | RequestChanges",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 137,
+          "endLine": 170
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "reviewer-failure-classification",
+      "title": "A reviewer fails: category, not text",
+      "summary": "A reviewer command exits non-zero. osf reads its stdout and stderr only to pick a fixed category, writes the run file, and turns the job red without ever repeating the reviewer's words.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "reviewer-job",
+          "label": "reviewer job"
+        },
+        {
+          "node": "run-child",
+          "label": "run_child"
+        },
+        {
+          "node": "reviewer-harness",
+          "label": "harness"
+        },
+        {
+          "node": "failure-classifier",
+          "label": "classify"
+        },
+        {
+          "node": "review-run-cli",
+          "label": "review run"
+        }
+      ],
+      "messages": [
+        {
+          "id": "spawn-reviewer",
+          "from": "reviewer-job",
+          "to": "run-child",
+          "label": "osf review run --reviewer codex",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 2000,
+              "endLine": 2020
+            }
+          ]
+        },
+        {
+          "id": "spawn-harness",
+          "from": "run-child",
+          "to": "reviewer-harness",
+          "label": "spawn in its own process group",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 672,
+              "endLine": 700
+            }
+          ]
+        },
+        {
+          "id": "harness-fails",
+          "from": "reviewer-harness",
+          "to": "run-child",
+          "label": "exit 1, stderr: 401 Unauthorized sk-...",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "The text may hold a credential, so it is read and discarded.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 737,
+              "endLine": 760
+            }
+          ]
+        },
+        {
+          "id": "classify-output",
+          "from": "run-child",
+          "to": "failure-classifier",
+          "label": "classify(stdout, stderr)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 578,
+              "endLine": 640
+            }
+          ]
+        },
+        {
+          "id": "category-back",
+          "from": "failure-classifier",
+          "to": "run-child",
+          "label": "Category::Credential",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "Only the category travels; the reviewer's own words never do.",
+          "files": [
+            {
+              "path": "crates/osf/src/failure.rs",
+              "startLine": 1,
+              "endLine": 60
+            }
+          ]
+        },
+        {
+          "id": "reason-built",
+          "from": "run-child",
+          "to": "run-child",
+          "label": "reviewer 'codex' exited with code 1 after 2.1 s: the provider rejected the credential",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 578,
+              "endLine": 640
+            }
+          ]
+        },
+        {
+          "id": "run-saved",
+          "from": "run-child",
+          "to": "review-run-cli",
+          "label": "ReviewerRun with the reason",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 217,
+              "endLine": 240
+            }
+          ]
+        },
+        {
+          "id": "exit-two",
+          "from": "review-run-cli",
+          "to": "reviewer-job",
+          "label": "save --out, then exit 2",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "The file is written first, so the artifact explains the red job.",
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 2000,
+              "endLine": 2020
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 11,
+    "additions": 886,
+    "deletions": 43,
+    "chips": [
+      {
+        "label": "Failure categories",
+        "value": "8",
+        "tone": "added"
+      },
+      {
+        "label": "Reviewer text in output",
+        "value": "0 bytes",
+        "tone": "hero"
+      },
+      {
+        "label": "Posted verdicts",
+        "value": "3",
+        "tone": "modified"
+      },
+      {
+        "label": "Kept-home mode",
+        "value": "0755/0644",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "reviewer-failure-architecture",
+      "title": "Reviewer failure path",
+      "lens": "architecture",
+      "summary": "How a reviewer's untrusted output becomes a fixed category, a saved run file and a red job, and how the run's verdict reaches the posted review.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "failure-classifier-components",
+      "title": "failure.rs internals",
+      "lens": "architecture",
+      "summary": "The classifier's two readers: JSON status and label fields first, plain-text patterns last, both returning one of eight fixed categories.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "failure-classifier",
+          "run-child",
+          "reviewer-harness",
+          "provider-api"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "failure-classifier-code",
+          "title": "Classifier entry points",
+          "lens": "architecture",
+          "summary": "classify, from_json, from_status and from_label, and the token-boundary rule for short needles such as 401 and tls.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "failure-classifier",
+              "run-child"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "reviewer-failure-flow",
+      "title": "Reviewer failure data flow",
+      "lens": "data-flow",
+      "summary": "The ordered steps from spawning a reviewer to a red job whose saved file names a category instead of the reviewer's text.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "reviewer-failure-classification"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

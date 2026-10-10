@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "3dd687004267a65cc7f258fa2808a727ab7a9428",
+    "contentHash": "2c055af74c7111bf127b1d9d29e997f9"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-failure-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-failure-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "033aa3afb8a70f8e6610ca3a13322618",
+      "bytes": 24161,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "reviewer-failure-architecture-light-033aa3afb8a70f8e6610ca3a13322618.svg"
+    },
+    {
+      "id": "reviewer-failure-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-failure-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b00e0541aa14974985c982354f82cb4b",
+      "bytes": 24457,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "reviewer-failure-architecture-dark-b00e0541aa14974985c982354f82cb4b.svg"
+    },
+    {
+      "id": "failure-classifier-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "failure-classifier-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "504b772d6a74972e31f926c7aacb81a3",
+      "bytes": 8256,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "failure-classifier-components-light-504b772d6a74972e31f926c7aacb81a3.svg"
+    },
+    {
+      "id": "failure-classifier-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "failure-classifier-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ea390b1b4d69dca02d833ab72e7256e2",
+      "bytes": 8324,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "failure-classifier-components-dark-ea390b1b4d69dca02d833ab72e7256e2.svg"
+    },
+    {
+      "id": "failure-classifier-code-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "failure-classifier-code",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6295ebd6fec9a7ce438f312968da31b1",
+      "bytes": 5415,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "failure-classifier-code-light-6295ebd6fec9a7ce438f312968da31b1.svg"
+    },
+    {
+      "id": "failure-classifier-code-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "failure-classifier-code",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0bc79117b990fbda28bc3ddc52583d3b",
+      "bytes": 5461,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "failure-classifier-code-dark-0bc79117b990fbda28bc3ddc52583d3b.svg"
+    },
+    {
+      "id": "reviewer-failure-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "reviewer-failure-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5a0205b1c1af3e56ffaf3cfbf5bcef7b",
+      "bytes": 15344,
+      "width": 1466,
+      "height": 467,
+      "animated": true,
+      "path": "reviewer-failure-flow-light-5a0205b1c1af3e56ffaf3cfbf5bcef7b.svg"
+    },
+    {
+      "id": "reviewer-failure-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "reviewer-failure-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "574f1d6e518ae4def12ae6db18dd05a3",
+      "bytes": 15480,
+      "width": 1466,
+      "height": 467,
+      "animated": true,
+      "path": "reviewer-failure-flow-dark-574f1d6e518ae4def12ae6db18dd05a3.svg"
+    }
+  ]
+}
