@@ -237,14 +237,15 @@ approval. The posted event and the exit code of `osf review run` and
 When a reviewer's command exits with an error, `osf` reads what the command
 printed to standard output and standard error. It puts only a fixed
 category in the reason, with the exit code and the seconds it ran, such as
-`reviewer 'opencode' exited with code 1 after 2.1 s: the provider rejected
+`reviewer 'example' exited with code 1 after 2.1 s: the provider rejected
 the credential (HTTP 401 or 403)`. `crates/osf/src/failure.rs` holds the
 categories. A harness-independent reader checks JSON fields first, such as
 `statusCode`, `status`, `api_error_status`, `error.type` and `error.code`,
 and plain text patterns last. A status number counts only with HTTP-status
 context, such as `status 401`, `HTTP 429` or `401 Unauthorized`, never as a
-number inside a path. A generic not-found error counts as an unavailable
-model only with evidence about a model. The categories are:
+number inside a path. A quota or network word counts only in a failure phrase, and an explicit
+permission refusal outranks it. A generic not-found error counts as an
+unavailable model only when it names the whole word "model". The categories are:
 
 - The provider rejected the credential (HTTP 401 or 403).
 - The model is unavailable to this credential.

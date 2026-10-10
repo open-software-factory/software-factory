@@ -87,12 +87,19 @@ const TEXT_PATTERNS: &[(Category, &[&str])] = &[
     (
         Category::Quota,
         &[
-            "quota",
+            "insufficient_quota",
+            "insufficient quota",
+            "insufficient credits",
+            "quota exceeded",
+            "exceeded your current quota",
+            "exceeded your quota",
+            "out of credits",
+            "no credits",
             "rate limit",
             "rate_limit",
-            "insufficient_quota",
-            "credits",
-            "billing",
+            "billing hard limit",
+            "billing_not_active",
+            "payment required",
         ],
     ),
     (
@@ -104,8 +111,13 @@ const TEXT_PATTERNS: &[(Category, &[&str])] = &[
             "etimedout",
             "cannot connect",
             "unable to connect",
-            "dns",
-            "tls",
+            "getaddrinfo",
+            "dns lookup failed",
+            "dns resolution failed",
+            "tls handshake",
+            "tls error",
+            "ssl error",
+            "certificate verify failed",
             "timed out connecting",
             "connection refused",
         ],
@@ -160,8 +172,21 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
     if has_status(&lower, &[401, 403]) {
         found = found.min(Category::Credential);
     }
-    if has_status(&lower, &[429]) {
+    if has_status(&lower, &[402, 429]) {
         found = found.min(Category::Quota);
+    }
+    // An explicit permission refusal outranks a quota or network phrase, which
+    // can come from a path or a message that only mentions such a word.
+    let explicit_permission = [
+        "eacces",
+        "eperm",
+        "permission denied",
+        "read-only file system",
+    ]
+    .iter()
+    .any(|n| has_token(&lower, n));
+    if explicit_permission && matches!(found, Category::Quota | Category::Unreachable) {
+        found = Category::Permission;
     }
     found
 }
@@ -233,15 +258,25 @@ fn json_values(text: &str) -> Vec<Value> {
 fn from_status(code: u64, value: &Value) -> Option<Category> {
     match code {
         401 | 403 => Some(Category::Credential),
-        429 => Some(Category::Quota),
+        402 | 429 => Some(Category::Quota),
         404 if mentions_model(value) => Some(Category::ModelUnavailable),
         _ => None,
     }
 }
 
+/// Whether `text` holds `word` as a whole word, not inside a longer one.
+fn has_word(text: &str, word: &str) -> bool {
+    text.match_indices(word).any(|(i, _)| {
+        let before = text[..i].chars().next_back();
+        let after = text[i + word.len()..].chars().next();
+        let edge = |c: Option<char>| c.is_none_or(|c| !c.is_alphanumeric());
+        edge(before) && edge(after)
+    })
+}
+
 fn mentions_model(value: &Value) -> bool {
     match value {
-        Value::String(s) => s.to_lowercase().contains("model"),
+        Value::String(s) => has_word(&s.to_lowercase(), "model"),
         Value::Array(a) => a.iter().any(mentions_model),
         Value::Object(o) => o.values().any(mentions_model),
         _ => false,
