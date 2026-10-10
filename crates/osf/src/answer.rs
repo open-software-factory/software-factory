@@ -49,6 +49,13 @@ pub fn schema_for(lens: &Lens) -> String {
         .and_then(serde_json::Value::as_object_mut)
         .expect("the review answer schema has a properties object")
         .insert("scores".to_string(), scores);
+    // The identifiers stay in the file for editors. A harness validates the
+    // schema it is handed, and some refuse one that names a meta-schema they
+    // cannot resolve, so the identifiers never travel.
+    if let Some(object) = schema.as_object_mut() {
+        object.remove("$schema");
+        object.remove("$id");
+    }
     schema.to_string()
 }
 
@@ -142,7 +149,45 @@ fn fenced_blocks(raw: &str) -> Vec<String> {
     found.into_iter().map(|(_, content)| content).collect()
 }
 
-/// The instance path plus a fixed, value-free description of why `error`
+/// `pointer` with every segment that the shipped schema does not name
+/// replaced by `<field>`. The pointer is walked down the schema: a segment
+/// is kept only when it is a declared property, or an index into a position
+/// the schema says is an array. A key the reviewer chose, such as one under
+/// `scores`, is masked even when it is made of digits.
+fn trusted_location(pointer: &str) -> String {
+    static CELL: OnceLock<serde_json::Value> = OnceLock::new();
+    let schema = CELL.get_or_init(|| {
+        serde_json::from_str(SCHEMA).expect("the review answer schema is valid JSON")
+    });
+    let mut node = Some(schema);
+    pointer
+        .split('/')
+        .map(|segment| {
+            if segment.is_empty() {
+                return segment.to_string();
+            }
+            let declared = node
+                .and_then(|n| n.get("properties"))
+                .and_then(|p| p.get(segment));
+            let item = node
+                .filter(|n| n.get("type").and_then(serde_json::Value::as_str) == Some("array"))
+                .filter(|_| segment.bytes().all(|b| b.is_ascii_digit()))
+                .and_then(|n| n.get("items"));
+            if let Some(next) = declared.or(item) {
+                node = Some(next);
+                segment.to_string()
+            } else {
+                node = node
+                    .and_then(|n| n.get("additionalProperties"))
+                    .filter(|extra| extra.is_object());
+                "<field>".to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// The instance path, with reviewer-chosen names hidden, plus a fixed, value-free description of why `error`
 /// failed, safe to journal or print: [`jsonschema::ValidationError::masked`]
 /// already replaces the failing value itself with a placeholder, but an
 /// unexpected-field error also names the field the reviewer chose, which is
@@ -158,7 +203,7 @@ fn schema_error_reason(error: &jsonschema::ValidationError) -> String {
     };
     format!(
         "the answer does not match its schema at \"{}\": {detail}",
-        error.instance_path
+        trusted_location(&error.instance_path.to_string())
     )
 }
 
@@ -330,8 +375,6 @@ mod tests {
 
     /// Every keyword the structured-output service accepts.
     const ALLOWED_SCHEMA_KEYWORDS: &[&str] = &[
-        "$schema",
-        "$id",
         "title",
         "description",
         "type",
@@ -406,11 +449,51 @@ mod tests {
     }
 
     #[test]
+    fn the_schema_sent_to_a_reviewer_names_no_meta_schema_or_id_but_the_file_keeps_them() {
+        let file: serde_json::Value = serde_json::from_str(SCHEMA).expect("the file is JSON");
+        assert!(file.get("$schema").is_some() && file.get("$id").is_some());
+        let sent: serde_json::Value =
+            serde_json::from_str(&schema_for(&test_lens())).expect("the schema is valid JSON");
+        assert!(sent.get("$schema").is_none(), "{sent}");
+        assert!(sent.get("$id").is_none(), "{sent}");
+        let validator = jsonschema::validator_for(&sent).expect("the sent schema compiles");
+        let answer = serde_json::json!({
+            "lens": "correctness",
+            "scores": {"c1": 1, "c2": 0.5},
+            "findings": []
+        });
+        assert!(validator.is_valid(&answer));
+        assert!(!validator.is_valid(&serde_json::json!({"lens": 1})));
+    }
+
+    #[test]
     fn the_schema_sent_to_a_reviewer_follows_the_structured_output_rules() {
         assert_structured_output_rules(&schema_for(&test_lens()));
         for lens in shipped_lenses() {
             assert_structured_output_rules(&schema_for(&lens));
         }
+    }
+
+    #[test]
+    fn an_invalid_answer_reason_never_repeats_a_name_the_reviewer_chose() {
+        let lens = test_lens();
+        let raw = r#"{"lens":"correctness","scores":{"SECRET_VALUE":"invalid"},"findings":[]}"#;
+        let reason = extract_and_validate(raw, &lens).expect_err("the answer is invalid");
+        assert!(!reason.contains("SECRET_VALUE"), "{reason}");
+        assert!(reason.contains("/scores/<field>"), "{reason}");
+    }
+
+    #[test]
+    fn a_numeric_score_key_is_masked_and_an_array_index_is_kept() {
+        assert_eq!(
+            trusted_location("/scores/12345678901234567890"),
+            "/scores/<field>"
+        );
+        assert_eq!(trusted_location("/findings/3/path"), "/findings/3/path");
+        assert_eq!(
+            trusted_location("/findings/x/9"),
+            "/findings/<field>/<field>"
+        );
     }
 
     #[test]

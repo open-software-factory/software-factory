@@ -6,10 +6,9 @@ use std::path::PathBuf;
 /// The codex version this workflow names.
 const CODEX_VERSION: &str = "0.161.0";
 
-/// Environment a reviewer container needs beyond its own provider credential:
-/// where it keeps its temporary files, and whether to keep the reviewer's home
-/// for diagnosis. Neither carries a key.
-const HOUSEKEEPING_ENV: &[&str] = &["TMPDIR", "OSF_KEEP_REVIEW_HOME"];
+/// Environment a reviewer container needs beyond its own provider credential.
+/// None: a reviewer container passes its provider's key and nothing else.
+const HOUSEKEEPING_ENV: &[&str] = &[];
 
 fn workflow_text() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/review.yml");
@@ -818,5 +817,52 @@ fn the_build_job_reads_only_the_automatic_token() {
         provider_secrets(&build).is_empty(),
         "the build job reads only the automatic token: {:?}",
         provider_secrets(&build)
+    );
+}
+
+#[test]
+fn no_reviewer_home_is_kept_or_uploaded_in_ci() {
+    let text = workflow_text();
+    let reviewers = reviewer_jobs(&text);
+    assert!(!reviewers.is_empty(), "no reviewer jobs found");
+    for (id, body) in reviewers {
+        for word in ["OSF_KEEP_REVIEW_HOME", "reviewer-home", "review-home-"] {
+            assert!(
+                !body.contains(word),
+                "{id} must not keep or upload a home: {word}"
+            );
+        }
+        assert!(
+            body.contains("name: review-run-"),
+            "{id} still uploads its saved answers"
+        );
+    }
+}
+
+#[test]
+fn a_red_reviewer_job_still_uploads_and_the_last_job_still_decides_by_quorum() {
+    let text = workflow_text();
+    for (id, body) in reviewer_jobs(&text) {
+        let run_at = body.find("osf review run").expect("runs a reviewer");
+        let after = &body[run_at..];
+        assert!(
+            !after.contains("--warn-only"),
+            "{id} must be able to go red"
+        );
+        let uploads = after.matches("uses: actions/upload-artifact").count();
+        let always = after.matches("if: always()").count();
+        assert!(
+            uploads >= 1 && always >= uploads,
+            "{id}: every upload runs after a failure"
+        );
+    }
+    let last = job_body(&text, "review");
+    assert!(
+        last.contains("always() &&"),
+        "the last job must run after a red reviewer job"
+    );
+    assert!(
+        !last.contains("needs.review-"),
+        "the last job decides by quorum, not by a reviewer job's result"
     );
 }

@@ -218,6 +218,24 @@ pub struct ReviewerRun {
 }
 
 impl ReviewerRun {
+    /// Whether this reviewer tried and never answered: it made at least one
+    /// attempt, or could not build a lens's context, and no attempt on any
+    /// lens answered. A reviewer that was idle, such as one left out for the
+    /// builder's family, tried nothing and has not failed.
+    #[must_use]
+    pub fn never_answered(&self) -> bool {
+        let tried = self
+            .lenses
+            .iter()
+            .any(|l| l.context_error.is_some() || !l.attempts.is_empty());
+        let answered = self
+            .lenses
+            .iter()
+            .flat_map(|l| &l.attempts)
+            .any(|a| a.result == "answered");
+        tried && !answered
+    }
+
     /// Writes this run to `path` as JSON.
     ///
     /// # Errors
@@ -428,17 +446,29 @@ fn total_ran_out_before_lens(seconds: u64) -> String {
     format!("the total limit (total_timeout_seconds = {seconds}s) ran out before this lens started")
 }
 
-/// The reason a running attempt was stopped by the whole run's limit.
-fn total_ran_out_while_running(reviewer: &str, seconds: u64) -> String {
+/// The reason a running attempt was stopped by the whole run's limit, or
+/// could not be stopped when the kill failed.
+fn total_ran_out_while_running(reviewer: &str, seconds: u64, kill_failed: bool) -> String {
+    let outcome = if kill_failed {
+        "it could not be stopped"
+    } else {
+        "it was stopped"
+    };
     format!(
-        "the total limit (total_timeout_seconds = {seconds}s) ran out while reviewer '{reviewer}' was running; it was stopped"
+        "the total limit (total_timeout_seconds = {seconds}s) ran out while reviewer '{reviewer}' was running; {outcome}"
     )
 }
 
-/// The reason a running attempt was stopped by the per-attempt limit.
-fn per_attempt_limit(reviewer: &str, seconds: u64) -> String {
+/// The reason a running attempt was stopped by the per-attempt limit, or
+/// could not be stopped when the kill failed.
+fn per_attempt_limit(reviewer: &str, seconds: u64, kill_failed: bool) -> String {
+    let outcome = if kill_failed {
+        "could not be stopped"
+    } else {
+        "was stopped"
+    };
     format!(
-        "reviewer '{reviewer}' timed out at the per-attempt limit (timeout_seconds = {seconds}s) and was stopped"
+        "reviewer '{reviewer}' timed out at the per-attempt limit (timeout_seconds = {seconds}s) and {outcome}"
     )
 }
 
@@ -503,6 +533,29 @@ fn deadline_after(total: Duration) -> Result<Instant, String> {
 }
 
 fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
+    let mut run = run_reviewer_unscrubbed(req, setup, reviewer);
+    scrub_run(req, &mut run);
+    run
+}
+
+/// Passes every reason and context error in `run` through the secret
+/// redaction, whatever made it: a limit, a panic, a context error or a
+/// reviewer failure. The reasons are built from fixed wording and osf's own
+/// names, so this removes nothing in the ordinary case.
+fn scrub_run(req: &Request, run: &mut ReviewerRun) {
+    for lens in &mut run.lenses {
+        if let Some(error) = &mut lens.context_error {
+            *error = redact_reviewer_text(req.root, req.config_root, error);
+        }
+        for attempt in &mut lens.attempts {
+            if let Some(reason) = &mut attempt.reason {
+                *reason = redact_reviewer_text(req.root, req.config_root, reason);
+            }
+        }
+    }
+}
+
+fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
     let sources = Sources {
         root: req.root,
         config_root: req.config_root,
@@ -626,10 +679,11 @@ impl Attempts<'_> {
         if remaining.is_zero() {
             return Attempt {
                 result: "could-not-run".to_string(),
-                reason: Some(total_ran_out_while_running(
+                reason: Some(self.scrub(&total_ran_out_while_running(
                     &self.reviewer.name,
                     self.total.as_secs(),
-                )),
+                    false,
+                ))),
                 notes: Vec::new(),
                 round,
                 critical,
@@ -645,10 +699,11 @@ impl Attempts<'_> {
                 None,
                 Some(redact_answer(self.root, self.config_root, answer)),
             ),
-            Outcome::Invalid(reason) => ("invalid", Some(reason), None),
-            Outcome::CouldNotRun(reason) => (
+            Outcome::Invalid(reason) => ("invalid", Some(self.scrub(&reason)), None),
+            Outcome::CouldNotRun(reason) => ("could-not-run", Some(self.scrub(&reason)), None),
+            Outcome::TimedOut(timeout) => (
                 "could-not-run",
-                Some(self.limit_reason(reason, given)),
+                Some(self.scrub(&self.timeout_reason(&timeout, given))),
                 None,
             ),
         };
@@ -662,17 +717,59 @@ impl Attempts<'_> {
         }
     }
 
-    /// `reason` with the binding limit named when the attempt timed out;
-    /// every other reason passes through unchanged.
-    fn limit_reason(&self, reason: String, given: Duration) -> String {
-        if !reason.contains("timed out") {
-            return reason;
-        }
-        if given == self.per_attempt {
-            per_attempt_limit(&self.reviewer.name, self.per_attempt.as_secs())
+    /// The reason for an attempt that ran past its time; see
+    /// [`timeout_reason`].
+    fn timeout_reason(&self, timeout: &reviewers::Timeout, given: Duration) -> String {
+        timeout_reason(
+            &self.reviewer.name,
+            self.per_attempt,
+            self.total,
+            given,
+            timeout,
+        )
+    }
+}
+
+/// The reason for an attempt that ran past its time. The binding limit, the
+/// kill result and the category all come from `timeout`'s data, and `given`
+/// says whether the per-attempt or the total limit bound it. A run whose
+/// time ran out before it could start again says so and is never reported
+/// as stopped.
+fn timeout_reason(
+    reviewer: &str,
+    per_attempt: Duration,
+    total: Duration,
+    given: Duration,
+    timeout: &reviewers::Timeout,
+) -> String {
+    let per_attempt_bound = given == per_attempt;
+    if timeout.before_start {
+        return if per_attempt_bound {
+            format!(
+                "the per-attempt limit (timeout_seconds = {}s) ran out before reviewer '{reviewer}' could start again",
+                per_attempt.as_secs()
+            )
         } else {
-            total_ran_out_while_running(&self.reviewer.name, self.total.as_secs())
-        }
+            format!(
+                "the total limit (total_timeout_seconds = {}s) ran out before reviewer '{reviewer}' could start again",
+                total.as_secs()
+            )
+        };
+    }
+    let core = if per_attempt_bound {
+        per_attempt_limit(reviewer, per_attempt.as_secs(), timeout.kill_failed)
+    } else {
+        total_ran_out_while_running(reviewer, total.as_secs(), timeout.kill_failed)
+    };
+    format!("{core}{}", timeout.hint())
+}
+
+impl Attempts<'_> {
+    /// A reason with the exact secret values and the secret patterns removed,
+    /// as a last guard. The reasons themselves are built from fixed wording
+    /// and names osf owns, so this removes nothing in the ordinary case.
+    fn scrub(&self, reason: &str) -> String {
+        redact_reviewer_text(self.root, self.config_root, reason)
     }
 }
 
@@ -1321,6 +1418,45 @@ mod tests {
         }
     }
 
+    fn run_with(lenses: Vec<LensRun>) -> ReviewerRun {
+        ReviewerRun {
+            reviewer: "x".to_string(),
+            lenses,
+            binding: None,
+        }
+    }
+
+    fn lens_run(results: &[&str], context_error: Option<&str>) -> LensRun {
+        LensRun {
+            lens: "correctness".to_string(),
+            context_error: context_error.map(str::to_string),
+            attempts: results
+                .iter()
+                .map(|r| Attempt {
+                    result: (*r).to_string(),
+                    reason: None,
+                    notes: Vec::new(),
+                    round: 1,
+                    critical: false,
+                    answer: None,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_reviewer_never_answered_only_when_it_tried_and_nothing_answered() {
+        assert!(run_with(vec![lens_run(&["could-not-run", "invalid"], None)]).never_answered());
+        assert!(run_with(vec![lens_run(&[], Some("no context"))]).never_answered());
+        assert!(!run_with(vec![
+            lens_run(&["could-not-run"], None),
+            lens_run(&["answered"], None)
+        ])
+        .never_answered());
+        assert!(!run_with(vec![lens_run(&[], None)]).never_answered());
+        assert!(!run_with(Vec::new()).never_answered());
+    }
+
     #[test]
     fn the_journal_event_carries_the_runs_notes_in_its_reason() {
         let (event, _) = judged(None, &["login path \"x\" is missing"]).into_event("lens");
@@ -1600,6 +1736,89 @@ mod tests {
         let attempt = run.attempts.first().expect("one attempt");
         assert_eq!(attempt.result, "answered");
         assert_eq!(attempt.reason, None);
+    }
+
+    #[test]
+    fn a_run_s_limit_panic_and_context_reasons_all_go_through_the_scrub() {
+        let tmp = crate::test_support::TempDir::new("osf-scrub-run");
+        let req = Request {
+            root: &tmp,
+            config_root: &tmp,
+            base: "HEAD",
+            work_item: None,
+            pull_request: None,
+            builder_family_overrides: &[],
+            binding: None,
+        };
+        let secret = format!("{}{}", "sk-", "ABCDEFGHIJKLMNOPQRSTUVWX0123456789");
+        let secret = secret.as_str();
+        let lens = test_lens("correctness");
+        let mut run = ReviewerRun {
+            reviewer: "synthetic".to_string(),
+            lenses: vec![
+                contain_panic(&lens, || panic!("boom {secret}")),
+                LensRun {
+                    lens: "x".to_string(),
+                    context_error: Some(format!("cannot build context {secret}")),
+                    attempts: Vec::new(),
+                },
+            ],
+            binding: None,
+        };
+        scrub_run(&req, &mut run);
+        let text = serde_json::to_string(&run).expect("serialises");
+        assert!(!text.contains(secret), "{text}");
+    }
+
+    #[test]
+    fn a_run_whose_time_ran_out_before_it_could_start_is_never_worded_as_stopped() {
+        let timeout = reviewers::Timeout {
+            reviewer: "synthetic".to_string(),
+            waited: Duration::from_secs(5),
+            kill_failed: false,
+            category: crate::failure::Category::Quota,
+            before_start: true,
+        };
+        let per_attempt = Duration::from_secs(5);
+        let total = Duration::from_secs(60);
+        let at_per_attempt = timeout_reason("synthetic", per_attempt, total, per_attempt, &timeout);
+        assert!(
+            at_per_attempt.contains("timeout_seconds = 5s"),
+            "{at_per_attempt}"
+        );
+        let at_total = timeout_reason(
+            "synthetic",
+            per_attempt,
+            total,
+            Duration::from_secs(3),
+            &timeout,
+        );
+        assert!(
+            at_total.contains("total_timeout_seconds = 60s"),
+            "{at_total}"
+        );
+        for reason in [at_per_attempt, at_total] {
+            assert!(
+                reason.contains("before reviewer 'synthetic' could start again"),
+                "{reason}"
+            );
+            assert!(!reason.contains("stopped"), "{reason}");
+        }
+    }
+
+    #[test]
+    fn a_failed_kill_is_never_worded_as_stopped() {
+        let per_attempt = per_attempt_limit("synthetic", 5, true);
+        assert!(
+            per_attempt.contains("could not be stopped"),
+            "{per_attempt}"
+        );
+        assert!(!per_attempt.contains("was stopped"), "{per_attempt}");
+        let total = total_ran_out_while_running("synthetic", 5, true);
+        assert!(total.contains("could not be stopped"), "{total}");
+        assert!(!total.contains("it was stopped"), "{total}");
+        assert!(per_attempt_limit("synthetic", 5, false).contains("was stopped"));
+        assert!(total_ran_out_while_running("synthetic", 5, false).contains("it was stopped"));
     }
 
     #[test]

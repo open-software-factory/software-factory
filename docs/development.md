@@ -226,6 +226,58 @@ job holds a read-only token, which it uses to find the work item. A
 reviewer whose job left no file counts as could-not-run, and
 could-not-run never passes.
 
+### Why a reviewer could not run
+
+The review posts one verdict per run. A pass posts an approval. A blocking
+finding, or a failed lens, requests changes. A run that could not run, with
+no quorum or with no reviewer answering, posts a comment and never an
+approval. The posted event and the exit code of `osf review run` and
+`osf review reduce` come from the same verdict.
+
+When a reviewer's command exits with an error, `osf` reads what the command
+printed to standard output and standard error. It puts only a fixed
+category in the reason, with the exit code and the seconds it ran, such as
+`reviewer 'example' exited with code 1 after 2.1 s: the provider rejected
+the credential (HTTP 401 or 403)`. `crates/osf/src/failure.rs` holds the
+categories. A harness-independent reader checks JSON fields first, such as
+`statusCode`, `status`, `api_error_status`, `error.type` and `error.code`,
+and plain text patterns last. A status number counts only with HTTP-status
+context, such as `status 401`, `HTTP 429` or `401 Unauthorized`, never as a
+number inside a path. A quota or network word counts only in a failure phrase, and an explicit
+permission refusal outranks it. A generic not-found error counts as an
+unavailable model only when it names the whole word "model". The categories are:
+
+- The provider rejected the credential (HTTP 401 or 403).
+- The model is unavailable to this credential.
+- The provider reports a quota or rate limit.
+- The harness rejected the answer schema.
+- The provider could not be reached.
+- The harness rejected its command line.
+- A home or file permission was refused.
+- No known failure pattern in its output.
+
+What this covers: a reviewer whose command exits with a non-zero code, and
+a reviewer that timed out, where its partial output points to a category.
+What it does not cover: a reviewer that exits with code 0 and prints an
+invalid answer, which keeps its own validation reason, and any failure
+whose text matches none of the patterns. The last category means that no
+pattern matched. It does not mean that nothing failed. In a failure
+reason, `osf` never keeps or prints the reviewer's own text, because it can
+hold a credential. That covers the console, the journal, SARIF and the saved
+file. Each saved reason also goes through the secret removal below. The text
+of a valid finding is different: it is the reviewer's own words, and it
+reaches the review output after that same secret removal.
+
+A reviewer job turns red when it made attempts and none answered. It still
+writes its `--out` file and uploads it first. A reviewer that is off under
+`--if-enabled`, or left out for the builder's family, does not fail. The
+last job runs even after a red reviewer job and decides by quorum.
+
+A reviewer runs in a fresh home that `osf` removes whole when the run ends,
+whether the reviewer answered, failed, timed out or never started. If the
+removal fails, `osf` prints one line naming its own home folder. CI uploads
+only each reviewer's saved answers, never a home.
+
 Each reviewer asks for two rounds for each lens. A reviewer that answered
 also runs one more round, the critical round, and saves it marked as
 critical. A reviewer job cannot know whether another family answered. So

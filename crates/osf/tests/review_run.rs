@@ -254,6 +254,10 @@ enum Fake<'a> {
     Slow(&'a str, u64),
     /// Writes a secret to standard error and exits non-zero, as a broken agent would.
     Fails(&'a str),
+    /// Exits 1 after printing this text to standard error.
+    FailsWithText(&'a str),
+    /// Prints this text to standard error, then sleeps this many seconds.
+    TextThenSleep(&'a str, u64),
     /// Prints the answer file's text, and records its prompt, arguments and
     /// environment under the folder, plus a `started` file.
     Records(&'a str, &'a Path),
@@ -285,6 +289,8 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
             format!("OSF_FAKE_ANSWER='{answer}' OSF_FAKE_SLEEP_SECS={secs} exec '{harness}'")
         }
         Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
+        Fake::FailsWithText(text) => format!("echo '{text}' 1>&2\nexit 1"),
+        Fake::TextThenSleep(text, secs) => format!("echo '{text}' 1>&2\nsleep {secs}"),
         Fake::Records(answer, dir) => format!(
             "env > '{d}/env'\nOSF_FAKE_ANSWER='{answer}' OSF_FAKE_PROMPT_CAPTURE='{d}/prompt' \
             OSF_FAKE_ARGS_CAPTURE='{d}/args' OSF_FAKE_HARNESS_LOG='{d}/started' OSF_FAKE_CHANGE_CAPTURE='{d}/change' \
@@ -319,6 +325,11 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         }
         Fake::Slow(answer, secs) => run(answer, &format!("set \"OSF_FAKE_SLEEP_SECS={secs}\"\r\n")),
         Fake::Fails(secret) => format!("@echo off\r\necho {secret} 1>&2\r\nexit /b 9\r\n"),
+        Fake::FailsWithText(text) => format!("@echo off\r\necho {text} 1>&2\r\nexit /b 1\r\n"),
+        Fake::TextThenSleep(text, secs) => format!(
+            "@echo off\r\necho {text} 1>&2\r\nping -n {} 127.0.0.1 >nul\r\n",
+            secs + 1
+        ),
     };
     std::fs::write(bin.join(format!("{agent}.cmd")), &body).expect("fake agent writes");
     if agent == "dsh" {
@@ -1081,6 +1092,188 @@ fn a_secret_in_reviewer_stderr_never_reaches_the_journal_or_output() {
         ],
     );
     assert_no_leak(&secret, &output, &home, Some(&sarif_out));
+}
+
+/// Every agent in the shared list that can review (has a read-only mode) and whose family is known
+/// without a configured model, so a fake of it is reached as a subprocess.
+fn reviewer_agents() -> Vec<&'static str> {
+    osf::agents::AGENTS
+        .iter()
+        .filter(|a| {
+            a.review
+                .as_ref()
+                .is_some_and(|r| r.read_only.is_some() || r.in_container.is_some())
+                && a.family_for(None).is_ok()
+        })
+        .map(|a| a.name)
+        .collect()
+}
+
+/// `answer` as `agent` prints it: inside its output envelope when the agent
+/// names a pointer to the answer, as is otherwise.
+fn as_printed_by(agent: &str, answer: &str) -> String {
+    let pointer = osf::agents::AGENTS
+        .iter()
+        .find(|a| a.name == agent)
+        .and_then(|a| a.review.as_ref())
+        .map_or("", |r| r.answer_pointer);
+    let mut value: serde_json::Value = serde_json::from_str(answer).expect("answer is JSON");
+    for key in pointer.rsplit('/').filter(|k| !k.is_empty()) {
+        value = serde_json::json!({ key: value });
+    }
+    value.to_string()
+}
+
+/// Runs `agent`'s fake as the one reviewer and saves its run to a file in a
+/// fresh folder. Returns the process output and the saved text, if any.
+fn save_failed_run(agent: &str, fake: Fake, tag: &str) -> (std::process::Output, Option<String>) {
+    let fakes = Fakes::new("", &[(agent, fake)]);
+    let repo = review_repo(&format!("{tag}-{agent}"), &fakes.osf_toml);
+    let dir = TempDir::new(&format!("osf-review-{tag}"));
+    let file = dir.join(format!("{agent}.json"));
+    let home = common::isolated_home(&format!("review-run-{tag}-{agent}"));
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            agent,
+            "--out",
+            &file.to_string_lossy(),
+            "--base",
+            "origin/main",
+        ],
+    );
+    (job, std::fs::read_to_string(&file).ok())
+}
+
+#[test]
+fn a_reviewer_job_exits_non_zero_after_writing_its_file_when_nothing_answered() {
+    let agents = reviewer_agents();
+    assert!(!agents.is_empty(), "the agent list has reviewers");
+    for agent in agents {
+        let (job, saved) = save_failed_run(
+            agent,
+            Fake::FailsWithText("ERROR: 401 Unauthorized"),
+            "reviewer-red",
+        );
+        assert_eq!(
+            job.status.code(),
+            Some(2),
+            "{agent}: {}",
+            String::from_utf8_lossy(&job.stderr)
+        );
+        let saved = saved.expect("the file is still written");
+        assert!(
+            saved.contains("rejected the credential"),
+            "{agent}: {saved}"
+        );
+    }
+}
+
+#[test]
+fn a_reviewer_job_that_answered_exits_zero() {
+    for agent in reviewer_agents() {
+        let dir = TempDir::new("osf-review-reviewer-green");
+        let valid = std::fs::read_to_string(fixture("valid.json")).expect("fixture reads");
+        let file = write_answer_file(&dir, "answer.json", &as_printed_by(agent, &valid));
+        let fakes = Fakes::new("", &[(agent, Fake::Answers(&file))]);
+        let repo = review_repo(&format!("reviewer-green-{agent}"), &fakes.osf_toml);
+        let file = save_run(&fakes, &repo, &dir, agent);
+        assert!(std::path::Path::new(&file).exists(), "{agent}");
+    }
+}
+
+/// Runs a whole review, then one reviewer's saved run, with `agent` failing
+/// as `fake` says, and asserts `secret` is nowhere in the console, the
+/// journal, SARIF or the saved JSON. Returns the journal and the saved JSON.
+fn assert_secret_stays_out(agent: &str, fake: Fake, secret: &str, tag: &str) -> (String, String) {
+    let fakes = Fakes::new("", &[(agent, fake)]);
+    let repo = review_repo(&format!("{tag}-{agent}"), &fakes.osf_toml);
+    let home = common::isolated_home(&format!("review-run-{tag}-{agent}"));
+    let sarif_out = repo.dir.join("out.sarif");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--sarif-out",
+            &sarif_out.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(secret, &output, &home, Some(&sarif_out));
+    let journal = journal_text(&home);
+    let out_json = repo.dir.join("run.json");
+    let home = common::isolated_home(&format!("review-run-{tag}-out-{agent}"));
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            agent,
+            "--base",
+            "origin/main",
+            "--out",
+            &out_json.to_string_lossy(),
+        ],
+    );
+    assert_no_leak(secret, &job, &home, None);
+    let saved = std::fs::read_to_string(&out_json)
+        .unwrap_or_else(|e| panic!("--out: {e}: {}", String::from_utf8_lossy(&job.stderr)));
+    assert!(
+        !saved.contains(secret),
+        "{agent}: the --out JSON leaked the secret: {saved}"
+    );
+    (journal, saved)
+}
+
+#[test]
+fn a_secret_inside_a_recognised_error_is_named_by_category_only() {
+    for agent in reviewer_agents() {
+        let secret = common::fake_provider_key("sk-");
+        let text = format!(
+            "ERROR: unexpected status 401 Unauthorized: Incorrect API key provided: {secret}"
+        );
+        let (journal, saved) = assert_secret_stays_out(
+            agent,
+            Fake::FailsWithText(&text),
+            &secret,
+            "secret-recognised",
+        );
+        assert!(journal.contains("rejected the credential"), "{journal}");
+        assert!(saved.contains("rejected the credential"), "{saved}");
+    }
+}
+
+#[test]
+fn a_secret_in_an_invalid_answers_property_name_never_reaches_any_output() {
+    let dir = TempDir::new("osf-review-invalid-secret");
+    for agent in reviewer_agents() {
+        // A key of letters, and a key of digits only.
+        for secret in [
+            common::fake_provider_key("sk-"),
+            "12345678901234567890".to_string(),
+        ] {
+            let answer = format!(
+                r#"{{"lens":"correctness","scores":{{"{secret}":"invalid"}},"findings":[]}}"#
+            );
+            let file = write_answer_file(
+                &dir,
+                &format!("{agent}.json"),
+                &as_printed_by(agent, &answer),
+            );
+            let (_, saved) =
+                assert_secret_stays_out(agent, Fake::Answers(&file), &secret, "secret-invalid");
+            assert!(saved.contains("does not match its schema"), "{saved}");
+        }
+    }
 }
 
 /// A `Code-Generator: Claude ...` trailer on the reviewed commit makes
@@ -3972,4 +4165,82 @@ fn a_positive_cost_ceiling_still_runs_every_lens() {
         answers.iter().all(|answer| answer["result"] == "answered"),
         "{answers:?}"
     );
+}
+
+/// The HTTP 429 shape a fake reviewer prints before it sleeps far past any
+/// limit the test sets. It holds no quote or percent sign, so it is the same
+/// text in a shell script and a command file.
+const QUOTA_SHAPE: &str = "ERROR: stream error: 429 Too Many Requests: exceeded your current quota";
+
+/// Runs the whole review, then one reviewer's saved run, with `agent` as the
+/// reviewer under `review_toml`, and returns the journal text and the saved
+/// `--out` JSON.
+fn limit_run(agent: &str, tag: &str, review_toml: &str) -> (String, String) {
+    let fakes = Fakes::new(
+        &format!("{review_toml}\n\n"),
+        &[(agent, Fake::TextThenSleep(QUOTA_SHAPE, 30))],
+    );
+    let repo =
+        review_repo_with_active_lenses(&format!("{tag}-{agent}"), &fakes.osf_toml, &["slow"]);
+    let home = common::isolated_home(&format!("review-run-{tag}-{agent}"));
+    fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    let journal = journal_text(&home);
+    let out_json = repo.dir.join("run.json");
+    let home = common::isolated_home(&format!("review-run-{tag}-out-{agent}"));
+    fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            agent,
+            "--base",
+            "origin/main",
+            "--out",
+            &out_json.to_string_lossy(),
+        ],
+    );
+    let saved = std::fs::read_to_string(&out_json).expect("--out is written");
+    (journal, saved)
+}
+
+#[test]
+fn a_timeout_at_the_per_attempt_limit_keeps_its_category_and_names_the_limit() {
+    for agent in reviewer_agents() {
+        let (journal, saved) = limit_run(
+            agent,
+            "limit-category-per-attempt",
+            "[review]\ntimeout_seconds = 1\ntotal_timeout_seconds = 300\n",
+        );
+        for text in [&journal, &saved] {
+            assert!(
+                text.contains("per-attempt limit (timeout_seconds = 1s)"),
+                "{agent}: {text}"
+            );
+            assert!(text.contains("quota or rate limit"), "{agent}: {text}");
+        }
+    }
+}
+
+#[test]
+fn a_timeout_at_the_total_limit_keeps_its_category_and_names_the_limit() {
+    for agent in reviewer_agents() {
+        let (journal, saved) = limit_run(
+            agent,
+            "limit-category-total",
+            "[review]\nconcurrency = 1\ntimeout_seconds = 30\ntotal_timeout_seconds = 2\n",
+        );
+        for text in [&journal, &saved] {
+            assert!(
+                text.contains("total_timeout_seconds = 2s"),
+                "{agent}: {text}"
+            );
+            assert!(text.contains("quota or rate limit"), "{agent}: {text}");
+        }
+    }
 }
