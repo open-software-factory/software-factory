@@ -241,7 +241,10 @@ category in the reason, with the exit code and the seconds it ran, such as
 the credential (HTTP 401 or 403)`. `crates/osf/src/failure.rs` holds the
 categories. A harness-independent reader checks JSON fields first, such as
 `statusCode`, `status`, `api_error_status`, `error.type` and `error.code`,
-and plain text patterns last. The categories are:
+and plain text patterns last. A status number counts only with HTTP-status
+context, such as `status 401`, `HTTP 429` or `401 Unauthorized`, never as a
+number inside a path. A generic not-found error counts as an unavailable
+model only with evidence about a model. The categories are:
 
 - The provider rejected the credential (HTTP 401 or 403).
 - The model is unavailable to this credential.

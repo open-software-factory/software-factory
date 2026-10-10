@@ -54,14 +54,15 @@ const TEXT_PATTERNS: &[(Category, &[&str])] = &[
             "not a valid json schema",
             "invalid_json_schema",
             "invalid schema for response_format",
-            "output schema",
+            "invalid output schema",
+            "output schema is invalid",
+            "output schema error",
+            "output schema rejected",
         ],
     ),
     (
         Category::Credential,
         &[
-            "401",
-            "403",
             "unauthorized",
             "invalid api key",
             "incorrect api key",
@@ -86,7 +87,6 @@ const TEXT_PATTERNS: &[(Category, &[&str])] = &[
     (
         Category::Quota,
         &[
-            "429",
             "quota",
             "rate limit",
             "rate_limit",
@@ -151,12 +151,19 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
         return found;
     }
     let lower = format!("{stdout}\n{stderr}").to_lowercase();
+    let mut found = Category::Unknown;
     for (category, needles) in TEXT_PATTERNS {
         if needles.iter().any(|n| has_token(&lower, n)) {
-            return *category;
+            found = found.min(*category);
         }
     }
-    Category::Unknown
+    if has_status(&lower, &[401, 403]) {
+        found = found.min(Category::Credential);
+    }
+    if has_status(&lower, &[429]) {
+        found = found.min(Category::Quota);
+    }
+    found
 }
 
 /// Whether `text` holds `needle`. A short needle, such as `401` or `tls`,
@@ -170,6 +177,46 @@ fn has_token(text: &str, needle: &str) -> bool {
         let after = text[i + needle.len()..].chars().next();
         let edge = |c: Option<char>| c.is_none_or(|c| !c.is_alphanumeric());
         edge(before) && edge(after)
+    })
+}
+
+/// Whether `text` holds one of `codes` as an HTTP status: after a word such
+/// as `status`, `http` or `error`, or before a reason such as `unauthorized`.
+/// A number inside a path, a longer number or a count does not qualify.
+fn has_status(text: &str, codes: &[u16]) -> bool {
+    const BEFORE: &[&str] = &[
+        "status",
+        "http",
+        "http/1.0",
+        "http/1.1",
+        "http/2",
+        "error",
+        "code",
+        "statuscode",
+        "status_code",
+    ];
+    const AFTER: &[&str] = &["unauthorized", "forbidden", "too many requests"];
+    codes.iter().any(|code| {
+        let needle = code.to_string();
+        text.match_indices(&needle).any(|(i, _)| {
+            let before = &text[..i];
+            let after = &text[i + needle.len()..];
+            let edge_before = before.chars().next_back();
+            let edge_after = after.chars().next();
+            let standalone =
+                |c: Option<char>| c.is_none_or(|c| !c.is_alphanumeric() && !"/.\\_-".contains(c));
+            if !standalone(edge_before) || !standalone(edge_after) {
+                return false;
+            }
+            let word = before
+                .trim_end_matches(|c: char| c.is_whitespace() || ":=(\"'".contains(c))
+                .rsplit(|c: char| c.is_whitespace() || "(\"'".contains(c))
+                .next()
+                .unwrap_or("")
+                .trim_end_matches(':');
+            let next = after.trim_start();
+            BEFORE.contains(&word) || AFTER.iter().any(|a| next.starts_with(a))
+        })
     })
 }
 
@@ -201,7 +248,7 @@ fn mentions_model(value: &Value) -> bool {
     }
 }
 
-fn from_label(label: &str) -> Option<Category> {
+fn from_label(label: &str, object: &Value) -> Option<Category> {
     let l = label.to_lowercase();
     let is = |needles: &[&str]| needles.iter().any(|n| l.contains(n));
     if is(&["invalid_json_schema"]) {
@@ -213,7 +260,7 @@ fn from_label(label: &str) -> Option<Category> {
         "unauthorized",
     ]) {
         Some(Category::Credential)
-    } else if is(&["model_not_found", "not_found_error"]) {
+    } else if is(&["model_not_found"]) || (is(&["not_found_error"]) && mentions_model(object)) {
         Some(Category::ModelUnavailable)
     } else if is(&["rate_limit", "insufficient_quota", "quota", "billing"]) {
         Some(Category::Quota)
@@ -248,7 +295,7 @@ fn from_json(value: &Value, depth: usize) -> Option<Category> {
                         take(code.and_then(|c| from_status(c, value)));
                     }
                     "type" | "code" | "name" | "subtype" => {
-                        take(v.as_str().and_then(from_label));
+                        take(v.as_str().and_then(|label| from_label(label, value)));
                     }
                     _ => {}
                 }
@@ -331,6 +378,45 @@ mod tests {
     #[test]
     fn a_short_number_inside_a_longer_one_is_not_a_status() {
         assert_eq!(classify("", "took 14015 ms"), Category::Unknown);
+    }
+
+    #[test]
+    fn competing_categories_follow_context_not_bare_numbers_or_words() {
+        let cases = [
+            (
+                "EACCES: permission denied, open '/cache/401/result'",
+                Category::Permission,
+            ),
+            (
+                "permission denied writing output schema",
+                Category::Permission,
+            ),
+            ("processed 429 items from /tmp/403/x", Category::Unknown),
+            ("status 401", Category::Credential),
+            ("HTTP/1.1 429 Too Many Requests", Category::Quota),
+            ("401 Unauthorized", Category::Credential),
+            ("error: 403", Category::Credential),
+            ("version 1.401.2 built", Category::Unknown),
+            (
+                "invalid output schema for the answer",
+                Category::SchemaRejected,
+            ),
+            (
+                r#"{"error":{"type":"not_found_error","message":"Requested session does not exist"}}"#,
+                Category::Unknown,
+            ),
+            (
+                r#"{"error":{"type":"not_found_error","message":"model: x-1 does not exist"}}"#,
+                Category::ModelUnavailable,
+            ),
+            (
+                r#"{"error":{"type":"model_not_found"}}"#,
+                Category::ModelUnavailable,
+            ),
+        ];
+        for (text, want) in cases {
+            assert_eq!(classify("", text), want, "{text}");
+        }
     }
 
     #[test]
