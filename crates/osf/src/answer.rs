@@ -49,6 +49,13 @@ pub fn schema_for(lens: &Lens) -> String {
         .and_then(serde_json::Value::as_object_mut)
         .expect("the review answer schema has a properties object")
         .insert("scores".to_string(), scores);
+    // The identifiers stay in the file for editors. A harness validates the
+    // schema it is handed, and claude refuses one that names the 2020-12
+    // meta-schema it cannot resolve, so they never travel.
+    if let Some(object) = schema.as_object_mut() {
+        object.remove("$schema");
+        object.remove("$id");
+    }
     schema.to_string()
 }
 
@@ -330,8 +337,6 @@ mod tests {
 
     /// Every keyword the structured-output service accepts.
     const ALLOWED_SCHEMA_KEYWORDS: &[&str] = &[
-        "$schema",
-        "$id",
         "title",
         "description",
         "type",
@@ -403,6 +408,24 @@ mod tests {
             &serde_json::from_str(schema).expect("the schema is valid JSON"),
             "$",
         );
+    }
+
+    #[test]
+    fn the_schema_sent_to_a_reviewer_names_no_meta_schema_or_id_but_the_file_keeps_them() {
+        let file: serde_json::Value = serde_json::from_str(SCHEMA).expect("the file is JSON");
+        assert!(file.get("$schema").is_some() && file.get("$id").is_some());
+        let sent: serde_json::Value =
+            serde_json::from_str(&schema_for(&test_lens())).expect("the schema is valid JSON");
+        assert!(sent.get("$schema").is_none(), "{sent}");
+        assert!(sent.get("$id").is_none(), "{sent}");
+        let validator = jsonschema::validator_for(&sent).expect("the sent schema compiles");
+        let answer = serde_json::json!({
+            "lens": "correctness",
+            "scores": {"c1": 1, "c2": 0.5},
+            "findings": []
+        });
+        assert!(validator.is_valid(&answer));
+        assert!(!validator.is_valid(&serde_json::json!({"lens": 1})));
     }
 
     #[test]
