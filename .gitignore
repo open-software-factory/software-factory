@@ -2,6 +2,9 @@
 .superpowers/
 .worktrees/
 
+# Local scratch, never committed
+temp/
+
 # Temporary working context and implementation plans
 docs/temp-context/
 

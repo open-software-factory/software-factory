@@ -18,8 +18,10 @@ description: Use this skill when you open a pull request, or update its descript
    - Add to the stack you are on with `git town append`.
    - Record a missing parent once with `git town set-parent`.
    - After a change lands lower in a stack, run `git town sync`. `git-town.toml` syncs by merge, so a pushed branch is never rewritten.
-8. Carry one attribution trailer in each commit.
+8. Carry an attribution trailer in each commit, and name the orchestrator when a different model ran the work.
    - Name the model that wrote the change: `Code-Generator: <model> <noreply@example.com>`.
+   - Name the model that supervised and committed the change, when it is not the writer: `Orchestrator: <model> <noreply@example.com>`.
+   - The reviewer-family rule reads the `Code-Generator:` trailer alone, so that line names the writer, never the orchestrator.
    - Never add a `Co-Authored-By` line, the git trailer that credits a second author.
    - Never add a link to a coding-agent session.
 9. Never force-push a branch you did not create.
