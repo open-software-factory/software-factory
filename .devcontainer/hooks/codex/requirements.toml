@@ -1,0 +1,9 @@
+# Enterprise-managed requirements, installed read-only at
+# /etc/codex/requirements.toml. Confirmed as a real, read location by the
+# installed codex binary's own strings: "Requirements file", "Failed to
+# read requirements file", and "enterprise-managed requirements".
+#
+# allow_managed_hooks_only refuses a hooks source other than
+# hooks.managed_dir (see /etc/codex/config.toml), the same way this
+# project's git wrapper refuses a caller-chosen hooks path.
+allow_managed_hooks_only = true

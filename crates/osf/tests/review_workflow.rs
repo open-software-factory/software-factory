@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 /// The codex version this workflow names.
-const CODEX_VERSION: &str = "0.154.0";
+const CODEX_VERSION: &str = "0.161.0";
 
 /// Environment a reviewer container needs beyond its own provider credential:
 /// where it keeps its temporary files, and whether to keep the reviewer's home

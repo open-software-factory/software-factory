@@ -28,9 +28,9 @@ env:
   # the build log of the "devcontainer image" workflow run for the commit you
   # want, and have the change reviewed like any workflow change. This image
   # was built from commit e40b471d55747c7ab88a2ea92e3e080c51631317.
-  REVIEW_IMAGE: ghcr.io/open-software-factory/devcontainer@sha256:bb1d03e038d6c6290d9ab3cd5f82fe44276938cde4ddd3137bc56b01405ebd68
+  REVIEW_IMAGE: ghcr.io/open-software-factory/devcontainer@sha256:d2f538092f64a75d49b2e31d03ee5d9b3aadbeab61e47690326e5f9cb8864d09
   # The version of codex the review image carries, which the codex job checks.
-  CODEX_VERSION: "0.154.0"
+  CODEX_VERSION: "0.161.0"
 
 concurrency:
   group: review-${{ github.event.pull_request.number }}
