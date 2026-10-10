@@ -2000,8 +2000,20 @@ fn review_run_exit_code(args: &ReviewRunArgs) -> u8 {
         binding: binding.as_ref(),
     };
     if let (Some(name), Some(out)) = (&args.reviewer, &args.out) {
-        return match review_run::run_reviewer(&req, name).and_then(|run| run.save(out)) {
-            Ok(()) => 0,
+        // The file is written first, so the artifact explains the red job.
+        return match review_run::run_reviewer(&req, name).and_then(|run| {
+            run.save(out)?;
+            Ok(run.never_answered())
+        }) {
+            Ok(false) => 0,
+            Ok(true) => {
+                eprintln!(
+                    "osf review run: reviewer {name} made attempts and none answered; \
+                     the reasons are in {}",
+                    out.display()
+                );
+                2
+            }
             Err(e) => {
                 eprintln!("osf review run: {e}");
                 2

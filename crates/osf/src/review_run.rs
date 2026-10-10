@@ -217,6 +217,24 @@ pub struct ReviewerRun {
 }
 
 impl ReviewerRun {
+    /// Whether this reviewer tried and never answered: it made at least one
+    /// attempt, or could not build a lens's context, and no attempt on any
+    /// lens answered. A reviewer that was idle, such as one left out for the
+    /// builder's family, tried nothing and has not failed.
+    #[must_use]
+    pub fn never_answered(&self) -> bool {
+        let tried = self
+            .lenses
+            .iter()
+            .any(|l| l.context_error.is_some() || !l.attempts.is_empty());
+        let answered = self
+            .lenses
+            .iter()
+            .flat_map(|l| &l.attempts)
+            .any(|a| a.result == "answered");
+        tried && !answered
+    }
+
     /// Writes this run to `path` as JSON.
     ///
     /// # Errors
@@ -1113,6 +1131,45 @@ mod tests {
             critical: false,
             notes: notes.iter().map(ToString::to_string).collect(),
         }
+    }
+
+    fn run_with(lenses: Vec<LensRun>) -> ReviewerRun {
+        ReviewerRun {
+            reviewer: "x".to_string(),
+            lenses,
+            binding: None,
+        }
+    }
+
+    fn lens_run(results: &[&str], context_error: Option<&str>) -> LensRun {
+        LensRun {
+            lens: "correctness".to_string(),
+            context_error: context_error.map(str::to_string),
+            attempts: results
+                .iter()
+                .map(|r| Attempt {
+                    result: (*r).to_string(),
+                    reason: None,
+                    notes: Vec::new(),
+                    round: 1,
+                    critical: false,
+                    answer: None,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_reviewer_never_answered_only_when_it_tried_and_nothing_answered() {
+        assert!(run_with(vec![lens_run(&["could-not-run", "invalid"], None)]).never_answered());
+        assert!(run_with(vec![lens_run(&[], Some("no context"))]).never_answered());
+        assert!(!run_with(vec![
+            lens_run(&["could-not-run"], None),
+            lens_run(&["answered"], None)
+        ])
+        .never_answered());
+        assert!(!run_with(vec![lens_run(&[], None)]).never_answered());
+        assert!(!run_with(Vec::new()).never_answered());
     }
 
     #[test]

@@ -764,6 +764,49 @@ fn save_run(fakes: &Fakes, repo: &TempRepo, dir: &TempDir, name: &str) -> String
     file
 }
 
+#[test]
+fn a_reviewer_job_exits_non_zero_after_writing_its_file_when_nothing_answered() {
+    let fakes = Fakes::new(
+        "",
+        &[("codex", Fake::FailsWithText("ERROR: 401 Unauthorized"))],
+    );
+    let repo = review_repo("reviewer-red", &fakes.osf_toml);
+    let dir = TempDir::new("osf-review-reviewer-red");
+    let file = dir.join("codex.json").to_string_lossy().into_owned();
+    let home = common::isolated_home("review-run-reviewer-red");
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert_eq!(
+        job.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&job.stderr)
+    );
+    let saved = std::fs::read_to_string(&file).expect("the file is still written");
+    assert!(saved.contains("rejected the credential"), "{saved}");
+}
+
+#[test]
+fn a_reviewer_job_that_answered_exits_zero() {
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo("reviewer-green", &fakes.osf_toml);
+    let dir = TempDir::new("osf-review-reviewer-green");
+    let file = save_run(&fakes, &repo, &dir, "codex");
+    assert!(std::path::Path::new(&file).exists());
+}
+
 /// Edits the first lens's attempts in the saved run at `file` with `edit`.
 fn edit_attempts(file: &str, edit: impl FnOnce(&mut Vec<serde_json::Value>)) {
     let mut run: serde_json::Value =

@@ -839,3 +839,31 @@ fn each_reviewer_uploads_only_its_kept_homes_and_not_the_copies() {
         );
     }
 }
+
+#[test]
+fn a_red_reviewer_job_still_uploads_and_the_last_job_still_decides_by_quorum() {
+    let text = workflow_text();
+    for (id, body) in reviewer_jobs(&text) {
+        let run_at = body.find("osf review run").expect("runs a reviewer");
+        let after = &body[run_at..];
+        assert!(
+            !after.contains("--warn-only"),
+            "{id} must be able to go red"
+        );
+        let uploads = after.matches("uses: actions/upload-artifact").count();
+        let always = after.matches("if: always()").count();
+        assert!(
+            uploads >= 2 && always >= uploads,
+            "{id}: every upload runs after a failure"
+        );
+    }
+    let last = job_body(&text, "review");
+    assert!(
+        last.contains("always() &&"),
+        "the last job must run after a red reviewer job"
+    );
+    assert!(
+        !last.contains("needs.review-"),
+        "the last job decides by quorum, not by a reviewer job's result"
+    );
+}
