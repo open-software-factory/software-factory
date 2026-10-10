@@ -1,0 +1,10 @@
+# System-level Codex config for this container, installed read-only at
+# /etc/codex/config.toml. Confirmed as a real, read location by the strings
+# in the installed codex binary itself: "Overridden by managed config
+# (system)" and the literal path "/etc/codex/config.toml".
+#
+# hooks.managed_dir names a directory of root-owned hook definitions.
+# /etc/codex/requirements.toml sets allow_managed_hooks_only, so only hooks
+# from this directory run; a project- or user-level hooks file is refused.
+[hooks]
+managed_dir = "/etc/codex/hooks"

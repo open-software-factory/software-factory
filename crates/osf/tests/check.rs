@@ -4,7 +4,7 @@
 mod common;
 use common::{
     fake_secret_assignment, isolated_home, run_osf, run_osf_with_env, session_link,
-    suppress_marker, TempRepo,
+    suppress_marker, TempDir, TempRepo,
 };
 
 /// The length of a SARIF report's first run's `results` array, read without
@@ -673,6 +673,102 @@ fn check_honors_config_for_a_skill_marker_outside_fixtures_warning() {
     assert_eq!(out.status.code(), Some(0), "{out:?}");
     assert!(
         !String::from_utf8_lossy(&out.stdout).contains("expectation-outside-fixtures"),
+        "{out:?}"
+    );
+}
+
+/// A `check scan` path that is a symlinked directory inside the repository
+/// is followed: the finding in the real file behind it is reported.
+#[test]
+fn check_scan_follows_a_link_to_an_inside_directory() {
+    let repo = TempRepo::new("check-scan-follows-link");
+    repo.write(
+        "real/leak.md",
+        &format!("See {} here.\n", session_link("abc123")),
+    );
+    repo.symlink("link", "real");
+    repo.commit("add a symlinked directory with a leak");
+    let home = isolated_home("check-scan-follows-link");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "pre-push", "link"],
+    );
+    assert_eq!(out.status.code(), Some(1), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("scan-session-link"),
+        "{out:?}"
+    );
+}
+
+/// A `check scan` path that is a symlink outside the repository is refused
+/// as a could-not-run error, never followed.
+#[test]
+fn check_scan_refuses_a_link_outside_the_repository() {
+    let repo = TempRepo::new("check-scan-outside-link");
+    repo.write("a.md", "Clean.\n");
+    let outside = TempDir::new("check-scan-outside-target");
+    std::fs::write(outside.join("secret.md"), "Clean.\n").expect("secret writes");
+    repo.symlink("link", &outside.to_string_lossy());
+    repo.commit("add an outside link");
+    let home = isolated_home("check-scan-outside-link");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "pre-push", "link"],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("symlink refused"),
+        "{out:?}"
+    );
+}
+
+/// A `check scan` path that is a symlink loop is refused as a could-not-run
+/// error, and the check terminates.
+#[test]
+fn check_scan_refuses_a_symlink_loop() {
+    let repo = TempRepo::new("check-scan-loop");
+    repo.write("real/sub/file.md", "Clean.\n");
+    repo.symlink("real/sub/loop", "..");
+    repo.commit("add a loop");
+    let home = isolated_home("check-scan-loop");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &["check", "scan", "--checkpoint", "pre-push", "real/sub/loop"],
+    );
+    assert_eq!(out.status.code(), Some(2), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("symlink refused"),
+        "{out:?}"
+    );
+}
+
+/// The `.claude/skills -> ../.agents/skills` layout this repository uses: a
+/// linked skills folder whose real files are checked, never reported as
+/// `file not found`.
+#[test]
+fn check_lint_skill_follows_a_skills_directory_link() {
+    let repo = TempRepo::new("check-lint-skill-link");
+    repo.write(".agents/skills/demo/SKILL.md", CLEAN_SKILL);
+    repo.symlink(".claude/skills", "../.agents/skills");
+    repo.commit("add a linked skills directory");
+    let home = isolated_home("check-lint-skill-link");
+    let out = run_osf(
+        &repo.dir,
+        &home,
+        &[
+            "check",
+            "lint-skill",
+            "--checkpoint",
+            "pre-push",
+            ".claude/skills",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0), "{out:?}");
+    assert!(
+        !String::from_utf8_lossy(&out.stdout).contains("file not found"),
         "{out:?}"
     );
 }

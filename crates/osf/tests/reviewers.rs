@@ -7,9 +7,7 @@ mod common;
 
 use common::TempDir;
 use osf::lenses::{Criterion, Lens, Runs, SeverityGuide, Trigger};
-use osf::reviewers::{
-    roster, roster_in, run_one, Outcome, ReadOnly, Reviewer, SchemaArg, Switches,
-};
+use osf::reviewers::{roster, run_one, Outcome, ReadOnly, Reviewer, SchemaArg, Switches};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -114,7 +112,6 @@ fn fake_reviewer(vars: &[(&str, &str)]) -> Reviewer {
         model_flag: None,
         credential_env: Vec::new(),
         login_paths: Vec::new(),
-        sandbox_check: Vec::new(),
         review_dir: None,
     }
 }
@@ -452,22 +449,14 @@ fn a_claude_code_style_envelope_extracts_structured_output() {
 }
 
 /// This repository's own `osf.toml` picks its reviewers from the agent
-/// list, in this order, and pins the models it names.
+/// list, in this order. It does not pin the models: a model name changes every
+/// few weeks, so asserting one here only records a value that will be stale.
 #[test]
 fn this_repositorys_osf_toml_selects_its_reviewers_from_the_agent_list_in_order() {
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
     let names: Vec<&str> = loaded.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(names, vec!["codex", "claude", "opencode"], "{loaded:?}");
-    let model = |name: &str| {
-        loaded
-            .iter()
-            .find(|r| r.name == name)
-            .and_then(|r| r.model.as_deref())
-    };
-    assert_eq!(model("claude"), Some("claude-sonnet-5"));
-    assert_eq!(model("opencode"), Some("openrouter/qwen/qwen3-coder-next"));
-    assert_eq!(model("codex"), None);
 }
 
 /// A Claude-built range's family (`anthropic`, from its `Code-Generator:`
@@ -489,162 +478,15 @@ fn a_claude_built_range_excludes_this_repositorys_claude_reviewer_and_no_other()
     assert_eq!(excluded, vec!["claude"], "{loaded:?}");
 }
 
-/// A fake sandbox check that records each run in `marker`, then succeeds when
-/// `works`, or prints a reason to standard error and fails.
-#[cfg(unix)]
-fn fake_sandbox_check(works: bool, marker: &std::path::Path) -> Vec<String> {
-    let marker = shell_single_quote(&marker.to_string_lossy());
-    let ending = if works {
-        "exit 0"
-    } else {
-        "echo 'bwrap: No permissions to create new namespace' 1>&2; exit 1"
-    };
-    vec![
-        "sh".to_string(),
-        "-c".to_string(),
-        format!("echo ran >> {marker}; {ending}"),
-    ]
-}
-
-#[cfg(windows)]
-fn fake_sandbox_check(works: bool, marker: &std::path::Path) -> Vec<String> {
-    let ending = if works {
-        "exit 0"
-    } else {
-        "[Console]::Error.WriteLine('bwrap: No permissions to create new namespace'); exit 1"
-    };
-    vec![
-        "powershell".to_string(),
-        "-NoProfile".to_string(),
-        "-ExecutionPolicy".to_string(),
-        "Bypass".to_string(),
-        "-Command".to_string(),
-        format!(
-            "Add-Content -Path '{}' -Value ran; {ending}",
-            marker.display()
-        ),
-    ]
-}
-
-/// A reviewer whose sandbox starts is checked once, then runs and answers.
+/// A roster built from a repository's own osf.toml puts codex in its own
+/// container mode, with its own sandbox off.
 #[test]
-fn a_sandbox_that_starts_lets_the_reviewer_answer() {
-    let workdir = TempDir::new("osf-reviewers-sandbox-works");
-    let marker = workdir.join("sandbox-check.log");
-    let log = workdir.join("harness.log");
-    let log_str = log.to_string_lossy().into_owned();
-    let answer_path = fixture("valid.json");
-    let mut reviewer = fake_reviewer(&[
-        ("OSF_FAKE_ANSWER", &answer_path),
-        ("OSF_FAKE_HARNESS_LOG", &log_str),
-    ]);
-    reviewer.sandbox_check = fake_sandbox_check(true, &marker);
-    let outcome = run_one(
-        &reviewer,
-        "review this change",
-        &test_lens(),
-        &workdir,
-        Duration::from_secs(10),
-    );
-    match outcome {
-        Outcome::Answered(_) => {}
-        Outcome::Invalid(e) => panic!("expected Answered, got Invalid({e})"),
-        Outcome::CouldNotRun(e) => panic!("expected Answered, got CouldNotRun({e})"),
-    }
-    assert!(marker.exists(), "the sandbox check ran before the reviewer");
-    assert!(log.exists(), "the reviewer ran after the check passed");
-}
-
-/// A reviewer whose sandbox cannot start never starts its agent: it is
-/// could-not-run, with the sandbox's own reason.
-#[test]
-fn a_sandbox_that_cannot_start_stops_the_reviewer_before_its_agent_runs() {
-    let workdir = TempDir::new("osf-reviewers-sandbox-fails");
-    let marker = workdir.join("sandbox-check.log");
-    let log = workdir.join("harness.log");
-    let log_str = log.to_string_lossy().into_owned();
-    let answer_path = fixture("valid.json");
-    let mut reviewer = fake_reviewer(&[
-        ("OSF_FAKE_ANSWER", &answer_path),
-        ("OSF_FAKE_HARNESS_LOG", &log_str),
-    ]);
-    reviewer.sandbox_check = fake_sandbox_check(false, &marker);
-    let outcome = run_one(
-        &reviewer,
-        "review this change",
-        &test_lens(),
-        &workdir,
-        Duration::from_secs(10),
-    );
-    match outcome {
-        Outcome::CouldNotRun(reason) => {
-            assert!(reason.contains("read-only sandbox"), "{reason}");
-            assert!(
-                reason.contains("No permissions to create new namespace"),
-                "{reason}"
-            );
-        }
-        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
-        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
-    }
-    assert!(marker.exists(), "the sandbox check ran");
-    assert!(!log.exists(), "the agent never started");
-}
-
-/// A sandbox check that never finishes is stopped, and the reviewer is could-not-run.
-#[cfg(unix)]
-#[test]
-fn a_sandbox_check_that_never_finishes_is_could_not_run() {
-    let workdir = TempDir::new("osf-reviewers-sandbox-hangs");
-    let mut reviewer = fake_reviewer(&[]);
-    reviewer.sandbox_check = vec!["sh".to_string(), "-c".to_string(), "sleep 30".to_string()];
-    let started = std::time::Instant::now();
-    let outcome = run_one(
-        &reviewer,
-        "review this change",
-        &test_lens(),
-        &workdir,
-        Duration::from_secs(1),
-    );
-    assert!(started.elapsed() < Duration::from_secs(20));
-    match outcome {
-        Outcome::CouldNotRun(reason) => assert!(reason.contains("timed out"), "{reason}"),
-        Outcome::Answered(_) => panic!("expected CouldNotRun, got Answered"),
-        Outcome::Invalid(e) => panic!("expected CouldNotRun, got Invalid({e})"),
-    }
-}
-
-/// Outside the factory container codex carries a sandbox check, and claude none.
-#[test]
-fn the_codex_reviewer_carries_a_sandbox_check_outside_the_container() {
-    let root = TempDir::new("osf-reviewers-roster-check");
-    std::fs::write(
-        root.join("osf.toml"),
-        "[agents]\nreviewers = [\"codex\", \"claude\"]\n",
-    )
-    .expect("osf.toml writes");
-    let reviewers = roster_in(&root, false).expect("roster loads");
-    let check = |name: &str| {
-        reviewers
-            .iter()
-            .find(|r| r.name == name)
-            .map(|r| r.sandbox_check.clone())
-            .expect("reviewer is in the roster")
-    };
-    assert_eq!(check("codex"), vec!["codex", "sandbox", "--", "true"]);
-    assert_eq!(check("claude"), Vec::<String>::new());
-}
-
-/// Inside the factory container codex's own sandbox is off, so it carries no
-/// check and runs with the bypass flag.
-#[test]
-fn the_codex_reviewer_inside_the_container_has_no_sandbox_check() {
-    let root = TempDir::new("osf-reviewers-roster-in-container");
+fn the_codex_reviewer_in_the_roster_runs_with_its_own_sandbox_off() {
+    let root = TempDir::new("osf-reviewers-roster-container");
     std::fs::write(root.join("osf.toml"), "[agents]\nreviewers = [\"codex\"]\n")
         .expect("osf.toml writes");
-    let reviewers = roster_in(&root, true).expect("roster loads");
+    let reviewers = roster(&root).expect("roster loads");
     let codex = reviewers.first().expect("codex is in the roster");
-    assert_eq!(codex.sandbox_check, Vec::<String>::new());
     let read_only = codex.read_only.as_ref().expect("codex has a mode");
     assert_eq!(
         read_only.args,

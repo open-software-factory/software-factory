@@ -1,0 +1,50 @@
+name: devcontainer image
+
+# Publishes the development container image so every contributor and CI
+# job pulls the same pinned reviewer tooling instead of building it by hand.
+on:
+  push:
+    branches: [main, build/devcontainer-tools]
+    paths: ['.devcontainer/**', '.github/workflows/devcontainer-image.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: devcontainer-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build and push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The main tag only follows a push to main; every push still gets its own SHA tag.
+      - name: Choose the image tags
+        id: tags
+        run: |
+          set -euo pipefail
+          tags="ghcr.io/open-software-factory/devcontainer:${{ github.sha }}"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            tags="$tags,ghcr.io/open-software-factory/devcontainer:main"
+          fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}

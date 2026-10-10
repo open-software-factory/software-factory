@@ -28,9 +28,9 @@ env:
   # the build log of the "devcontainer image" workflow run for the commit you
   # want, and have the change reviewed like any workflow change. This image
   # was built from commit e40b471d55747c7ab88a2ea92e3e080c51631317.
-  REVIEW_IMAGE: ghcr.io/open-software-factory/devcontainer@sha256:bb1d03e038d6c6290d9ab3cd5f82fe44276938cde4ddd3137bc56b01405ebd68
+  REVIEW_IMAGE: ghcr.io/open-software-factory/devcontainer@sha256:d2f538092f64a75d49b2e31d03ee5d9b3aadbeab61e47690326e5f9cb8864d09
   # The version of codex the review image carries, which the codex job checks.
-  CODEX_VERSION: "0.154.0"
+  CODEX_VERSION: "0.161.0"
 
 concurrency:
   group: review-${{ github.event.pull_request.number }}
@@ -206,6 +206,7 @@ jobs:
       - name: Save the pull request's number, title and body
         run: |
           mkdir -p out
+          mkdir -p out/reviewer-home
           chmod -R a+rwX out
           chmod +x bin/osf
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
@@ -239,6 +240,8 @@ jobs:
           -v "${{ github.workspace }}/out:/out"
           -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
           -w /pr
+          -e OSF_KEEP_REVIEW_HOME=1
+          -e TMPDIR=/out/reviewer-home
           -e CODEX_API_KEY
           ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
@@ -260,6 +263,14 @@ jobs:
         with:
           name: review-run-codex
           path: out/codex.json
+          if-no-files-found: ignore
+
+      - name: Keep this reviewer's home, for diagnosis
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-home-codex
+          path: out/reviewer-home
           if-no-files-found: ignore
 
   review-claude:
@@ -322,6 +333,7 @@ jobs:
       - name: Save the pull request's number, title and body
         run: |
           mkdir -p out
+          mkdir -p out/reviewer-home
           chmod -R a+rwX out
           chmod +x bin/osf
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
@@ -345,6 +357,8 @@ jobs:
           -v "${{ github.workspace }}/out:/out"
           -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
           -w /pr
+          -e OSF_KEEP_REVIEW_HOME=1
+          -e TMPDIR=/out/reviewer-home
           -e CLAUDE_CODE_OAUTH_TOKEN
           ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
@@ -366,6 +380,14 @@ jobs:
         with:
           name: review-run-claude
           path: out/claude.json
+          if-no-files-found: ignore
+
+      - name: Keep this reviewer's home, for diagnosis
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-home-claude
+          path: out/reviewer-home
           if-no-files-found: ignore
 
   review-opencode:
@@ -430,6 +452,7 @@ jobs:
       - name: Save the pull request's number, title and body
         run: |
           mkdir -p out
+          mkdir -p out/reviewer-home
           chmod -R a+rwX out
           chmod +x bin/osf
           jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
@@ -453,6 +476,8 @@ jobs:
           -v "${{ github.workspace }}/out:/out"
           -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
           -w /pr
+          -e OSF_KEEP_REVIEW_HOME=1
+          -e TMPDIR=/out/reviewer-home
           -e OPENROUTER_API_KEY
           ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
@@ -474,6 +499,14 @@ jobs:
         with:
           name: review-run-opencode
           path: out/opencode.json
+          if-no-files-found: ignore
+
+      - name: Keep this reviewer's home, for diagnosis
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-home-opencode
+          path: out/reviewer-home
           if-no-files-found: ignore
 
   review:
