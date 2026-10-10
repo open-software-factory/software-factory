@@ -1,0 +1,724 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-10T02:48:44.418Z",
+  "title": "Provider-neutral harness seam and the dsh adapter",
+  "summary": "Adds a provider-neutral `harness` module (the `Harness`/`CommandRunner` traits, `HarnessTask`, `HarnessResult`, `HarnessCapabilities`, prompt and QUESTION-line helpers) plus in-memory fakes, and the first concrete adapter, `dsh_harness`, which runs `dsh --profile headless --json -` through a `CommandRunner`, parses newline-delimited JSON events, and probes the binary's version, headless help and profile dump. The adapter guards the run with git status/head/branch checks, keeps credentials out of git's environment, and reports capabilities as supported/unsupported/unknown rather than assuming them.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "6d9107717d03642b250aaf340cfc9fc5b57d2e54",
+      "ref": "6d9107717d03642b250aaf340cfc9fc5b57d2e54"
+    },
+    "head": {
+      "sha": "5bd2760c3fed71baf6d287c29e789a5fba099230",
+      "ref": "5bd2760c3fed71baf6d287c29e789a5fba099230"
+    },
+    "pullRequest": {
+      "number": 232,
+      "url": "https://github.com/open-software-factory/software-factory/pull/232"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "factory",
+      "label": "Factory crate (osf)",
+      "subtitle": "crates/osf",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The library that gains the new modules; `lib.rs` re-exports `harness` and `dsh_harness`."
+    },
+    {
+      "id": "seam",
+      "label": "Harness seam",
+      "subtitle": "src/harness",
+      "order": 1,
+      "delta": "added",
+      "summary": "Provider-neutral traits and plain-data types that name no harness, command or model vendor."
+    },
+    {
+      "id": "adapter",
+      "label": "dsh adapter",
+      "subtitle": "src/dsh_harness.rs",
+      "order": 2,
+      "delta": "added",
+      "summary": "The first concrete Harness: builds commands, parses events, probes capabilities."
+    },
+    {
+      "id": "external",
+      "label": "External processes",
+      "subtitle": "dsh and git",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The binaries the adapter drives through a CommandRunner; nothing here starts a process itself."
+    },
+    {
+      "id": "tests",
+      "label": "Tests and fixtures",
+      "subtitle": "tests/",
+      "order": 4,
+      "delta": "added",
+      "summary": "Fake-driven run tests, neutrality scanner, and recorded dsh output fixtures."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-lib",
+      "label": "osf crate root",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "factory",
+      "subtitle": "crates/osf/src/lib.rs",
+      "summary": "Declares the two new public modules alongside the existing ones.",
+      "files": [
+        {
+          "path": "crates/osf/src/lib.rs",
+          "startLine": 13,
+          "endLine": 24
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-mod",
+      "label": "harness module",
+      "kind": "module",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "traits, task, result, capabilities",
+      "summary": "Defines CommandSpec/CommandOutput/CommandRunner, HarnessTask, Actor, Usage, HarnessOutcome, HarnessResult, Capability, HarnessCapabilities, HarnessError and the Harness trait, plus build_prompt and question_line. Names no harness or vendor.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 1,
+          "endLine": 432
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-trait",
+      "label": "Harness trait",
+      "kind": "other",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "run + capabilities",
+      "summary": "The seam the factory codes against: run one task through a CommandRunner, and report what the harness can do. Object-safe.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 160,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "command-runner",
+      "label": "CommandRunner trait",
+      "kind": "other",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "run(CommandSpec) -> CommandOutput",
+      "summary": "The only way a harness reaches a process. The runner owns env, workdir, stdin and timeout semantics; the adapter never spawns anything.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 38,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prompt-contract",
+      "label": "Prompt and QUESTION contract",
+      "kind": "function",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "build_prompt, question_line",
+      "summary": "Appends the four rules to the task text and reads a trailing QUESTION: line from the final message, since dsh emits no question event.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 192,
+          "endLine": 230
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fake-doubles",
+      "label": "FakeRunner / FakeHarness",
+      "kind": "test",
+      "delta": "added",
+      "lane": "seam",
+      "subtitle": "in-memory doubles",
+      "summary": "Replay scripted CommandOutputs and HarnessResults, record every call, and start no process.",
+      "files": [
+        {
+          "path": "crates/osf/src/harness/fake.rs",
+          "startLine": 1,
+          "endLine": 216
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-harness",
+      "label": "DshHarness",
+      "kind": "service",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "impl Harness for dsh",
+      "summary": "Validates the task, checks the tree is clean, records head and branch, runs dsh, parses events, re-checks status and head, and assembles a HarnessResult.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 1,
+          "endLine": 1328
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-config",
+      "label": "DshConfig",
+      "kind": "config",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "program, env, pinned version",
+      "summary": "Carries the program name, the complete child environment (nothing inherited) and the pinned version 0.2.0-rc.2.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 36,
+          "endLine": 60
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "command-builders",
+      "label": "Command builders",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "build_command, git_env, status/head/branch/probe",
+      "summary": "Pure functions that produce the dsh run command, the minimal git environment, and the git and probe commands.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 62,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "event-parser",
+      "label": "Event parser",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "parse_events, parse_changed_files",
+      "summary": "Reduces newline-delimited JSON events to session id, final message, summed usage and the first non-completed turn reason; parses NUL-separated git status into sorted changed paths.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 162,
+          "endLine": 300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "capability-probes",
+      "label": "Capability probes",
+      "kind": "function",
+      "delta": "added",
+      "lane": "adapter",
+      "subtitle": "version, headless help, profile dump",
+      "summary": "Probes --version, the headless help and --dump-config, and reads the message-check plugin row to decide stop_hook_checks_messages.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 560,
+          "endLine": 760
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-binary",
+      "label": "dsh binary",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "--profile headless --json -",
+      "summary": "The external coding harness. Reads the prompt on stdin and writes newline-delimited JSON events to stdout.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-headless-help.txt",
+          "startLine": 1,
+          "endLine": 21
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-binary",
+      "label": "git",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "status, rev-parse",
+      "summary": "Used to check the tree is clean, read the head commit and the branch, and detect a commit the agent should not have made.",
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 100,
+          "endLine": 140
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fake-run-tests",
+      "label": "harness_fake_run",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "subtitle": "full run through the trait",
+      "summary": "Drives DshHarness and FakeHarness through the same run_one function, asserting the commands, the result shape and the capability report.",
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_fake_run.rs",
+          "startLine": 1,
+          "endLine": 870
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "neutrality-test",
+      "label": "harness_neutral",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "subtitle": "no harness or vendor names",
+      "summary": "Scans src/harness for supported-agent names, container words and model-vendor words, and proves the scanner can fail on dsh_harness.rs.",
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_neutral.rs",
+          "startLine": 1,
+          "endLine": 204
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-fixtures",
+      "label": "Recorded dsh fixtures",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "subtitle": "jsonl runs, help, dump, version",
+      "summary": "Real captured output: a created-file run, question variants, a missing-credential failure, the headless help, the profile dump and the version.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-run-created-file.jsonl",
+          "startLine": 1,
+          "endLine": 18
+        },
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-dump-config.yml",
+          "startLine": 1,
+          "endLine": 379
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "lib-exposes-harness",
+      "from": "osf-lib",
+      "to": "harness-mod",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "pub mod harness",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/lib.rs",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ]
+    },
+    {
+      "id": "lib-exposes-dsh",
+      "from": "osf-lib",
+      "to": "dsh-harness",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "pub mod dsh_harness",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/lib.rs",
+          "startLine": 16,
+          "endLine": 16
+        }
+      ]
+    },
+    {
+      "id": "dsh-implements-harness",
+      "from": "dsh-harness",
+      "to": "harness-trait",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "impl Harness",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 560,
+          "endLine": 600
+        }
+      ]
+    },
+    {
+      "id": "dsh-uses-runner",
+      "from": "dsh-harness",
+      "to": "command-runner",
+      "kind": "call",
+      "delta": "added",
+      "label": "runner.run(spec)",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 600,
+          "endLine": 640
+        }
+      ]
+    },
+    {
+      "id": "dsh-uses-builders",
+      "from": "dsh-harness",
+      "to": "command-builders",
+      "kind": "call",
+      "delta": "added",
+      "label": "build_command, git_env",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 62,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "dsh-uses-parser",
+      "from": "dsh-harness",
+      "to": "event-parser",
+      "kind": "call",
+      "delta": "added",
+      "label": "parse_events, parse_changed_files",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 162,
+          "endLine": 300
+        }
+      ]
+    },
+    {
+      "id": "dsh-uses-probes",
+      "from": "dsh-harness",
+      "to": "capability-probes",
+      "kind": "call",
+      "delta": "added",
+      "label": "capabilities()",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 560,
+          "endLine": 760
+        }
+      ]
+    },
+    {
+      "id": "dsh-uses-prompt",
+      "from": "dsh-harness",
+      "to": "prompt-contract",
+      "kind": "call",
+      "delta": "added",
+      "label": "build_prompt, question_line",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 600,
+          "endLine": 640
+        }
+      ]
+    },
+    {
+      "id": "dsh-config-feeds-builders",
+      "from": "dsh-config",
+      "to": "command-builders",
+      "kind": "data",
+      "delta": "added",
+      "label": "program, env, version",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 36,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "runner-drives-dsh",
+      "from": "command-runner",
+      "to": "dsh-binary",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "spawns the process",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 38,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "runner-drives-git",
+      "from": "command-runner",
+      "to": "git-binary",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "spawns the process",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/harness/mod.rs",
+          "startLine": 38,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "dsh-emits-events",
+      "from": "dsh-binary",
+      "to": "event-parser",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "newline-delimited JSON",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/harness/dsh-run-created-file.jsonl",
+          "startLine": 1,
+          "endLine": 18
+        }
+      ]
+    },
+    {
+      "id": "git-reports-status",
+      "from": "git-binary",
+      "to": "event-parser",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "porcelain -z",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/dsh_harness.rs",
+          "startLine": 100,
+          "endLine": 140
+        }
+      ]
+    },
+    {
+      "id": "fake-run-tests-use-dsh",
+      "from": "fake-run-tests",
+      "to": "dsh-harness",
+      "kind": "call",
+      "delta": "added",
+      "label": "run_one",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_fake_run.rs",
+          "startLine": 1,
+          "endLine": 870
+        }
+      ]
+    },
+    {
+      "id": "fake-run-tests-use-fakes",
+      "from": "fake-run-tests",
+      "to": "fake-doubles",
+      "kind": "call",
+      "delta": "added",
+      "label": "FakeRunner, FakeHarness",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_fake_run.rs",
+          "startLine": 1,
+          "endLine": 870
+        }
+      ]
+    },
+    {
+      "id": "fake-run-tests-use-fixtures",
+      "from": "fake-run-tests",
+      "to": "run-fixtures",
+      "kind": "data",
+      "delta": "added",
+      "label": "include_str!",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_fake_run.rs",
+          "startLine": 1,
+          "endLine": 870
+        }
+      ]
+    },
+    {
+      "id": "neutrality-scans-seam",
+      "from": "neutrality-test",
+      "to": "harness-mod",
+      "kind": "data",
+      "delta": "added",
+      "label": "reads src/harness",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_neutral.rs",
+          "startLine": 1,
+          "endLine": 204
+        }
+      ]
+    },
+    {
+      "id": "neutrality-scans-adapter",
+      "from": "neutrality-test",
+      "to": "dsh-harness",
+      "kind": "data",
+      "delta": "added",
+      "label": "proves the scanner can fail",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/tests/harness_neutral.rs",
+          "startLine": 1,
+          "endLine": 204
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 16,
+    "additions": 3532,
+    "deletions": 0,
+    "chips": [
+      {
+        "label": "New modules",
+        "value": "2",
+        "tone": "added"
+      },
+      {
+        "label": "Recorded dsh fixtures",
+        "value": "10",
+        "tone": "added"
+      },
+      {
+        "label": "Processes started by adapter",
+        "value": "0",
+        "tone": "hero"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "harness-architecture",
+      "title": "Harness seam and dsh adapter",
+      "lens": "architecture",
+      "summary": "The factory crate gains a provider-neutral harness seam and one concrete adapter that reaches dsh and git only through a CommandRunner.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "adapter-internals",
+      "title": "Inside the dsh adapter",
+      "lens": "architecture",
+      "summary": "The adapter's pure functions: command builders, event parser and capability probes, all fed by DshConfig.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "dsh-harness",
+          "dsh-config",
+          "command-builders",
+          "event-parser",
+          "capability-probes",
+          "prompt-contract",
+          "command-runner",
+          "dsh-binary",
+          "git-binary"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
