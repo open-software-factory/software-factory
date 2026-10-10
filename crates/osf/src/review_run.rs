@@ -38,9 +38,10 @@ use crate::review_prompt;
 use crate::reviewers::{self, Outcome, Reviewer};
 use crate::secret_values;
 use crate::{changeset_risk, config, git};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::{Mutex, PoisonError};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// How many independent rounds a reviewer is asked for once chosen: more
 /// than one, so a single answer's own noise never alone decides a family's
@@ -262,7 +263,14 @@ struct Setup {
     selected: Vec<String>,
     roster: Vec<Reviewer>,
     threshold: f64,
-    timeout: Duration,
+    /// How long one reviewer attempt may run before it is stopped.
+    per_attempt: Duration,
+    /// How long this reviewer run may take, counted from the first lens start.
+    total: Duration,
+    /// How many lenses may run at once.
+    concurrency: usize,
+    /// The whole-run cost ceiling, when one is set.
+    cost_ceiling: Option<f64>,
     prompt: String,
     builder_families: Vec<String>,
     skip_families: BTreeSet<String>,
@@ -304,7 +312,10 @@ fn setup(req: &Request) -> Result<Setup, String> {
         selected,
         roster,
         threshold: review_config.threshold,
-        timeout: Duration::from_secs(review_config.timeout_seconds),
+        per_attempt: Duration::from_secs(review_config.timeout_seconds),
+        total: Duration::from_secs(review_config.total_timeout_seconds),
+        concurrency: review_config.concurrency,
+        cost_ceiling: review_config.cost_ceiling,
         prompt,
         builder_families,
         skip_families,
@@ -352,23 +363,187 @@ pub fn run_reviewer(req: &Request, name: &str) -> Result<ReviewerRun, String> {
     Ok(run_reviewer_with(req, &setup, reviewer))
 }
 
-/// What one reviewer's run works in: the folder that holds the diff, and the
-/// clean copy of the change it starts in. Both are removed when this is dropped.
-struct Workspace {
-    change: ChangeFolder,
-    copy: CleanCopy,
+/// Runs one lens in its own worker: a [`CleanCopy`] of the change per lens
+/// and the attempts made inside it, dropped when the lens ends.
+fn run_lens(
+    req: &Request,
+    setup: &Setup,
+    reviewer: &Reviewer,
+    lens: &Lens,
+    sources: &Sources,
+    change: &ChangeFolder,
+    deadline: Instant,
+) -> LensRun {
+    let mut run = LensRun {
+        lens: lens.name.clone(),
+        context_error: None,
+        attempts: Vec::new(),
+    };
+    if Instant::now() >= deadline {
+        return could_not_run_lens(lens, total_ran_out_before_lens(setup.total.as_secs()));
+    }
+    // One read-only copy per lens, dropped at the end of this function.
+    match CleanCopy::create_read_only(req.root) {
+        Err(reason) => run.context_error = Some(reason),
+        Ok(copy) => match review_context::build(lens, sources) {
+            Err(reason) => run.context_error = Some(reason),
+            Ok(metadata) => {
+                let file = change.file().to_string_lossy().into_owned();
+                let prompt = review_prompt::render(&setup.prompt, lens, &metadata, &file);
+                let attempts = Attempts {
+                    root: req.root,
+                    config_root: req.config_root,
+                    workdir: copy.dir(),
+                    reviewer,
+                    prompt: &prompt,
+                    lens,
+                    per_attempt: setup.per_attempt,
+                    total: setup.total,
+                    deadline,
+                };
+                run.attempts = attempts.run();
+            }
+        },
+    }
+    run
 }
 
-impl Workspace {
-    fn create(sources: &Sources) -> Result<Self, String> {
-        Ok(Self {
-            change: ChangeFolder::create(sources)?,
-            copy: CleanCopy::create(sources.root)?,
-        })
+/// A lens recorded as could-not-run before it started. `context_error` stays
+/// `None`: setting it would suppress every reviewer's journal event for the
+/// lens, and this record exists so one complete event still carries the name.
+fn could_not_run_lens(lens: &Lens, reason: String) -> LensRun {
+    LensRun {
+        lens: lens.name.clone(),
+        context_error: None,
+        attempts: vec![Attempt {
+            result: "could-not-run".to_string(),
+            reason: Some(reason),
+            notes: Vec::new(),
+            round: 1,
+            critical: false,
+            answer: None,
+        }],
     }
 }
 
+/// Runs `body`, turning a panic into a could-not-run record so one lens never stops the run.
+fn contain_panic(lens: &Lens, body: impl FnOnce() -> LensRun) -> LensRun {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)) {
+        Ok(run) => run,
+        Err(payload) => {
+            let message = payload
+                .downcast_ref::<&str>()
+                .map(|text| (*text).to_string())
+                .or_else(|| payload.downcast_ref::<String>().cloned())
+                .unwrap_or_else(|| "no message".to_string());
+            could_not_run_lens(lens, format!("lens '{}' panicked: {message}", lens.name))
+        }
+    }
+}
+
+/// The reason a lens never started because the whole run's limit ran out.
+fn total_ran_out_before_lens(seconds: u64) -> String {
+    format!("the total limit (total_timeout_seconds = {seconds}s) ran out before this lens started")
+}
+
+/// The reason a running attempt was stopped by the whole run's limit.
+fn total_ran_out_while_running(reviewer: &str, seconds: u64) -> String {
+    format!(
+        "the total limit (total_timeout_seconds = {seconds}s) ran out while reviewer '{reviewer}' was running; it was stopped"
+    )
+}
+
+/// The reason a running attempt was stopped by the per-attempt limit.
+fn per_attempt_limit(reviewer: &str, seconds: u64) -> String {
+    format!(
+        "reviewer '{reviewer}' timed out at the per-attempt limit (timeout_seconds = {seconds}s) and was stopped"
+    )
+}
+
+/// The reason a lens never started because the cost ceiling was reached.
+fn cost_ceiling_reached(ceiling: f64) -> String {
+    format!("the cost ceiling of {ceiling} was reached before this lens started")
+}
+
+/// The lens records for a reviewer that is idle or whose shared folder
+/// failed: no worker starts, exactly as before this run could parallelise.
+fn lens_records(lenses: &[&Lens], context_error: Option<&str>) -> Vec<LensRun> {
+    lenses
+        .iter()
+        .map(|lens| LensRun {
+            lens: lens.name.clone(),
+            context_error: context_error.map(ToString::to_string),
+            attempts: Vec::new(),
+        })
+        .collect()
+}
+
+/// Runs `count` pieces of work over `workers` threads, keeping their results in index order.
+fn run_pool(
+    count: usize,
+    workers: usize,
+    work: &(dyn Fn(usize) -> LensRun + Sync),
+) -> Vec<LensRun> {
+    let queue = Mutex::new(VecDeque::from_iter(0..count));
+    let results: Mutex<Vec<Option<LensRun>>> = Mutex::new((0..count).map(|_| None).collect());
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| loop {
+                let index = queue
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .pop_front();
+                let Some(index) = index else { break };
+                let run = work(index);
+                if let Some(slot) = results
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .get_mut(index)
+                {
+                    *slot = Some(run);
+                }
+            });
+        }
+    });
+    results
+        .into_inner()
+        .unwrap_or_else(PoisonError::into_inner)
+        .into_iter()
+        .map(|run| run.expect("every item is taken from the queue once"))
+        .collect()
+}
+
+/// The instant the whole-run limit ends, or a reason when it is too far away.
+fn deadline_after(total: Duration) -> Result<Instant, String> {
+    Instant::now()
+        .checked_add(total)
+        .ok_or_else(|| "[review]: total_timeout_seconds is too large to count from now".to_string())
+}
+
 fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
+    let mut run = run_reviewer_unscrubbed(req, setup, reviewer);
+    scrub_run(req, &mut run);
+    run
+}
+
+/// Passes every reason and context error in `run` through the secret
+/// redaction, whatever made it: a limit, a panic, a context error or a
+/// reviewer failure. The reasons are built from fixed wording and osf's own
+/// names, so this removes nothing in the ordinary case.
+fn scrub_run(req: &Request, run: &mut ReviewerRun) {
+    for lens in &mut run.lenses {
+        if let Some(error) = &mut lens.context_error {
+            *error = redact_reviewer_text(req.root, req.config_root, error);
+        }
+        for attempt in &mut lens.attempts {
+            if let Some(reason) = &mut attempt.reason {
+                *reason = redact_reviewer_text(req.root, req.config_root, reason);
+            }
+        }
+    }
+}
+
+fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
     let sources = Sources {
         root: req.root,
         config_root: req.config_root,
@@ -381,54 +556,74 @@ fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> Revie
         }),
     };
     let idle = reviewer.family_error.is_some() || reviewer.is_excluded_by(&setup.skip_families);
-    // Written once, before any reviewer starts, and removed when this run ends.
+    // Written once per reviewer run, and removed when this run ends.
     let change = if idle {
         None
     } else {
-        Some(Workspace::create(&sources))
+        Some(ChangeFolder::create(&sources))
     };
     let mut reviewer = reviewer.clone();
-    if let Some(Ok(workspace)) = &change {
-        reviewer.review_dir = Some(workspace.change.dir().to_path_buf());
+    if let Some(Ok(change)) = &change {
+        reviewer.review_dir = Some(change.dir().to_path_buf());
     }
     let reviewer = &reviewer;
-    let lenses = setup
-        .selected_lenses()
-        .into_iter()
-        .map(|lens| {
-            let mut run = LensRun {
-                lens: lens.name.clone(),
-                context_error: None,
-                attempts: Vec::new(),
+    let lenses = setup.selected_lenses();
+
+    // An idle reviewer, or a shared folder that failed, starts no worker.
+    let change = match change {
+        None => {
+            return ReviewerRun {
+                reviewer: reviewer.name.clone(),
+                lenses: lens_records(&lenses, None),
+                binding: req.binding.cloned(),
             };
-            let workspace = match &change {
-                None => return run,
-                Some(Err(reason)) => {
-                    run.context_error = Some(reason.clone());
-                    return run;
-                }
-                Some(Ok(workspace)) => workspace,
+        }
+        Some(Err(reason)) => {
+            return ReviewerRun {
+                reviewer: reviewer.name.clone(),
+                lenses: lens_records(&lenses, Some(&reason)),
+                binding: req.binding.cloned(),
             };
-            match review_context::build(lens, &sources) {
-                Err(reason) => run.context_error = Some(reason),
-                Ok(metadata) => {
-                    let file = workspace.change.file().to_string_lossy().into_owned();
-                    let prompt = review_prompt::render(&setup.prompt, lens, &metadata, &file);
-                    let attempts = Attempts {
-                        root: req.root,
-                        config_root: req.config_root,
-                        workdir: workspace.copy.dir(),
-                        reviewer,
-                        prompt: &prompt,
-                        lens,
-                        timeout: setup.timeout,
-                    };
-                    run.attempts = attempts.run();
+        }
+        Some(Ok(change)) => change,
+    };
+
+    // Taken once, just before the workers start: it bounds every lens.
+    let deadline = match deadline_after(setup.total) {
+        Ok(deadline) => deadline,
+        Err(reason) => {
+            return ReviewerRun {
+                reviewer: reviewer.name.clone(),
+                lenses: lenses
+                    .iter()
+                    .map(|lens| could_not_run_lens(lens, reason.clone()))
+                    .collect(),
+                binding: req.binding.cloned(),
+            };
+        }
+    };
+    let count = lenses.len();
+    let workers = setup.concurrency.min(count);
+    // No reviewer reports cost yet, so nothing adds to this counter.
+    let spent = Mutex::new(0.0_f64);
+    let lenses = run_pool(count, workers, &|index| {
+        let lens = *lenses.get(index).expect("index comes from the pool");
+        match setup.cost_ceiling {
+            Some(ceiling) => {
+                let spent = *spent.lock().unwrap_or_else(PoisonError::into_inner);
+                if spent >= ceiling {
+                    could_not_run_lens(lens, cost_ceiling_reached(ceiling))
+                } else {
+                    contain_panic(lens, || {
+                        run_lens(req, setup, reviewer, lens, &sources, &change, deadline)
+                    })
                 }
             }
-            run
-        })
-        .collect();
+            None => contain_panic(lens, || {
+                run_lens(req, setup, reviewer, lens, &sources, &change, deadline)
+            }),
+        }
+    });
     ReviewerRun {
         reviewer: reviewer.name.clone(),
         lenses,
@@ -445,7 +640,9 @@ struct Attempts<'a> {
     reviewer: &'a Reviewer,
     prompt: &'a str,
     lens: &'a Lens,
-    timeout: Duration,
+    per_attempt: Duration,
+    total: Duration,
+    deadline: Instant,
 }
 
 impl Attempts<'_> {
@@ -461,16 +658,28 @@ impl Attempts<'_> {
         attempts
     }
 
-    /// Runs the reviewer once. An answer's findings are redacted here, so
-    /// nothing a reviewer wrote is saved as it was written.
+    /// Runs the reviewer once with whatever time the total limit leaves, or
+    /// records the attempt as not started once that limit has run out. An
+    /// answer's findings are redacted here, so nothing a reviewer wrote is
+    /// saved as it was written.
     fn once(&self, round: u32, critical: bool) -> Attempt {
-        let (outcome, notes) = reviewers::run_one_noted(
-            self.reviewer,
-            self.prompt,
-            self.lens,
-            self.workdir,
-            self.timeout,
-        );
+        let remaining = self.deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Attempt {
+                result: "could-not-run".to_string(),
+                reason: Some(self.scrub(&total_ran_out_while_running(
+                    &self.reviewer.name,
+                    self.total.as_secs(),
+                ))),
+                notes: Vec::new(),
+                round,
+                critical,
+                answer: None,
+            };
+        }
+        let given = self.per_attempt.min(remaining);
+        let (outcome, notes) =
+            reviewers::run_one_noted(self.reviewer, self.prompt, self.lens, self.workdir, given);
         let (result, reason, answer) = match outcome {
             Outcome::Answered(answer) => (
                 "answered",
@@ -478,7 +687,11 @@ impl Attempts<'_> {
                 Some(redact_answer(self.root, self.config_root, answer)),
             ),
             Outcome::Invalid(reason) => ("invalid", Some(self.scrub(&reason)), None),
-            Outcome::CouldNotRun(reason) => ("could-not-run", Some(self.scrub(&reason)), None),
+            Outcome::CouldNotRun(reason) => (
+                "could-not-run",
+                Some(self.scrub(&self.limit_reason(reason, given))),
+                None,
+            ),
         };
         Attempt {
             result: result.to_string(),
@@ -487,6 +700,19 @@ impl Attempts<'_> {
             round,
             critical,
             answer,
+        }
+    }
+
+    /// `reason` with the binding limit named when the attempt timed out;
+    /// every other reason passes through unchanged.
+    fn limit_reason(&self, reason: String, given: Duration) -> String {
+        if !reason.contains("timed out") {
+            return reason;
+        }
+        if given == self.per_attempt {
+            per_attempt_limit(&self.reviewer.name, self.per_attempt.as_secs())
+        } else {
+            total_ran_out_while_running(&self.reviewer.name, self.total.as_secs())
         }
     }
 }
@@ -894,7 +1120,9 @@ fn judge_lens(
         }
         match lens_run {
             Some(run) if run.context_error.is_some() => {
-                context_error = context_error.or_else(|| run.context_error.clone());
+                let reason = run.context_error.clone().unwrap_or_default();
+                judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
+                context_error = context_error.or(Some(reason));
             }
             Some(run) if run.attempts.len() > MAX_ATTEMPTS => judged.push(Judged::missing(
                 reviewer,
@@ -912,7 +1140,7 @@ fn judge_lens(
         }
     }
     if let Some(reason) = context_error {
-        return (LensVerdict::CouldNotRun(reason), Vec::new(), false);
+        return (LensVerdict::CouldNotRun(reason), judged, false);
     }
     for (_, attempts) in ran {
         judged.extend(attempts);
@@ -1121,6 +1349,7 @@ fn now_millis() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lenses::{Runs, SeverityGuide, Trigger};
 
     fn judged(reason: Option<&str>, notes: &[&str]) -> Judged {
         Judged {
@@ -1397,5 +1626,149 @@ mod tests {
         std::fs::write(&path, "not json").expect("writes");
         let e = ReviewerRun::load(&path).expect_err("refused");
         assert!(e.contains("bad.json"), "{e}");
+    }
+
+    fn test_lens(name: &str) -> Lens {
+        Lens {
+            name: name.to_string(),
+            summary: "a lens these tests build by hand".to_string(),
+            criteria: Vec::new(),
+            severity_guide: SeverityGuide {
+                blocker: "loses data".to_string(),
+                major: "a wrong behaviour a user can hit".to_string(),
+                minor: "a small nit".to_string(),
+            },
+            weight: 1.0,
+            runs: Runs::Always,
+            trigger: Trigger::default(),
+            context: Vec::new(),
+        }
+    }
+
+    fn answered(lens: &Lens) -> LensRun {
+        LensRun {
+            lens: lens.name.clone(),
+            context_error: None,
+            attempts: vec![Attempt {
+                result: "answered".to_string(),
+                reason: None,
+                notes: Vec::new(),
+                round: 1,
+                critical: false,
+                answer: None,
+            }],
+        }
+    }
+
+    #[test]
+    fn a_panicking_lens_is_recorded_as_could_not_run_naming_the_panic() {
+        let lens = test_lens("correctness");
+
+        let run = contain_panic(&lens, || panic!("fake command blew up"));
+        assert_eq!(run.attempts.len(), 1);
+        assert_eq!(run.context_error, None);
+        let attempt = run.attempts.first().expect("one attempt");
+        assert_eq!(attempt.result, "could-not-run");
+        assert!(attempt.answer.is_none());
+        let reason = attempt.reason.as_deref().expect("a reason");
+        assert!(reason.contains("fake command blew up"), "{reason}");
+        assert!(reason.contains("correctness"), "{reason}");
+
+        let run = contain_panic(&lens, || {
+            std::panic::panic_any(String::from("owned message"));
+        });
+        assert_eq!(run.context_error, None);
+        let attempt = run.attempts.first().expect("one attempt");
+        assert_eq!(attempt.result, "could-not-run");
+        let reason = attempt.reason.as_deref().expect("a reason");
+        assert!(reason.contains("owned message"), "{reason}");
+
+        let run = contain_panic(&lens, || answered(&lens));
+        assert_eq!(run.attempts.len(), 1);
+        assert_eq!(run.context_error, None);
+        let attempt = run.attempts.first().expect("one attempt");
+        assert_eq!(attempt.result, "answered");
+        assert_eq!(attempt.reason, None);
+    }
+
+    #[test]
+    fn a_run_s_limit_panic_and_context_reasons_all_go_through_the_scrub() {
+        let tmp = crate::test_support::TempDir::new("osf-scrub-run");
+        let req = Request {
+            root: &tmp,
+            config_root: &tmp,
+            base: "HEAD",
+            work_item: None,
+            pull_request: None,
+            builder_family_overrides: &[],
+            binding: None,
+        };
+        let secret = format!("{}{}", "sk-", "ABCDEFGHIJKLMNOPQRSTUVWX0123456789");
+        let secret = secret.as_str();
+        let lens = test_lens("correctness");
+        let mut run = ReviewerRun {
+            reviewer: "synthetic".to_string(),
+            lenses: vec![
+                contain_panic(&lens, || panic!("boom {secret}")),
+                LensRun {
+                    lens: "x".to_string(),
+                    context_error: Some(format!("cannot build context {secret}")),
+                    attempts: Vec::new(),
+                },
+            ],
+            binding: None,
+        };
+        scrub_run(&req, &mut run);
+        let text = serde_json::to_string(&run).expect("serialises");
+        assert!(!text.contains(secret), "{text}");
+    }
+
+    #[test]
+    fn one_panicking_lens_does_not_stop_the_pool() {
+        let lenses = [test_lens("first"), test_lens("second"), test_lens("third")];
+        let work = |index: usize| {
+            let lens = lenses.get(index).expect("index comes from the pool");
+            contain_panic(lens, || {
+                assert!(index != 1, "fake command blew up");
+                answered(lens)
+            })
+        };
+
+        for workers in [2, 1] {
+            let runs = run_pool(3, workers, &work);
+            assert_eq!(runs.len(), 3, "workers = {workers}");
+            let first = runs.first().expect("first");
+            assert_eq!(first.lens, "first");
+            assert_eq!(
+                first.attempts.first().map(|a| a.result.as_str()),
+                Some("answered")
+            );
+            let second = runs.get(1).expect("second");
+            assert_eq!(second.lens, "second");
+            assert_eq!(
+                second.attempts.first().map(|a| a.result.as_str()),
+                Some("could-not-run")
+            );
+            let reason = second
+                .attempts
+                .first()
+                .and_then(|a| a.reason.as_deref())
+                .expect("a reason");
+            assert!(reason.contains("fake command blew up"), "{reason}");
+            assert!(reason.contains("second"), "{reason}");
+            let third = runs.get(2).expect("third");
+            assert_eq!(third.lens, "third");
+            assert_eq!(
+                third.attempts.first().map(|a| a.result.as_str()),
+                Some("answered")
+            );
+        }
+    }
+
+    #[test]
+    fn a_total_too_large_to_count_is_an_error_naming_the_setting() {
+        let err = deadline_after(Duration::MAX).expect_err("no instant is that far away");
+        assert!(err.contains("total_timeout_seconds"), "{err}");
+        assert!(deadline_after(Duration::from_secs(60)).is_ok());
     }
 }

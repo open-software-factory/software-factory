@@ -286,6 +286,37 @@ family answered. This is the interim policy of decision 0016. In every
 other case, `osf review reduce` ignores the critical rounds. The cost is one
 more round for each reviewer for each lens.
 
+A reviewer runs its selected lenses on a fixed pool of threads. It starts
+a lens when a thread is free, up to the configured number at once. Each
+lens runs in its own read-only copy of the change. The `[review]` table
+sets the pool size and the time limits. `concurrency` is how many lenses
+run at once, and its default is 8. `timeout_seconds` is the most the
+attempts for one lens may take, a retry included, and its default is 1800
+seconds. `osf` gives a retry only the time left under both time limits,
+the lens limit and the whole-run limit. `osf` records a retry with no
+time left as could-not-run, and the reason names the limit. `osf` stops a
+lens that goes past that limit and records it as could-not-run, and the
+reason names `timeout_seconds`. `total_timeout_seconds` is the most the
+whole reviewer run may take, counted from the first lens start, and its
+default is 2700 seconds. When it runs out, `osf` stops every running lens
+and records every waiting lens as could-not-run, and the reason names
+`total_timeout_seconds`. `osf` refuses a `timeout_seconds` or
+`total_timeout_seconds` above 86400 seconds (24 hours) and names the
+setting. `osf` checks the cost ceiling before it starts each lens. No
+reviewer reports spend yet, so only a ceiling of 0 stops lenses today. A
+failure on one lens, including a provider rate limit, does not stop the
+other lenses. A panic in one lens is recorded as could-not-run for that
+lens, and the other lenses finish. The journal holds a complete event for
+each lens and attempt, and each event names the lens. The order of events
+does not matter.
+
+```toml
+[review]
+concurrency = 8
+timeout_seconds = 1800
+total_timeout_seconds = 2700
+```
+
 `osf review reduce` treats every saved file as input to check. It checks
 each answer again against the schema and the lens, the same way the
 reviewer job does. The lens name must match. Every criterion needs a
@@ -352,16 +383,20 @@ acceptance lens could-not-run too, with a reason that says the section is
 empty.
 
 The job also reads the lens catalogue from the base branch. It reads the
-`[agents]` and `[review]` settings from the base branch too: the reviewers,
-the threshold, the timeout, the cost ceiling, and the prompt file. A pull
-request cannot turn off a lens, lower the threshold, or rewrite its own
-reviewer's instructions to pass its own review.
+`[agents]` and `[review]` settings from the base branch too. Those settings
+are the reviewers, the threshold, the concurrency, the timeout, the total
+timeout, the cost ceiling, and the prompt file. A pull request cannot turn
+off a lens, lower the threshold, or rewrite its own reviewer's instructions
+to pass its own review.
 
 `osf` checks these numbers when it loads them. The threshold must be a
 number from 0 to 1. A lens weight must be a finite number that is not
-negative. The cost ceiling must be a finite number that is not negative. A
-value that is not a number, is infinite or is out of range stops the
-review as could-not-configure, and the error names the file.
+negative. The cost ceiling must be a finite number that is not negative. The
+`concurrency`, `timeout_seconds` and `total_timeout_seconds` settings must
+each be a whole number greater than zero. A zero or a wrong type for one of
+them stops the review as could-not-configure, and the error names the
+setting. A value that is not a number, is infinite or is out of range stops
+the review as could-not-configure, and the error names the file.
 
 One test starts a real opencode and checks that a plugin file in the change
 does not run. It builds only with the `real-agents` feature. Run it inside

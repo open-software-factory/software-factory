@@ -94,6 +94,42 @@ fn write_lens_overrides(repo: &TempRepo) {
     write_lens_overrides_to(&repo.dir);
 }
 
+/// [`ACTIVE_LENS_TOML`] with its name replaced by `name`: the one always-on
+/// lens shape these tests exercise, under any name.
+#[cfg(unix)]
+fn active_lens_toml(name: &str) -> String {
+    ACTIVE_LENS_TOML.replacen("name = \"correctness\"", &format!("name = \"{name}\""), 1)
+}
+
+/// Writes `active` lenses as always-on overrides under `dir`, and disables
+/// every shipped always-on lens instead, so a run selects exactly `active`.
+#[cfg(unix)]
+fn write_active_lenses_to(dir: &Path, active: &[&str]) {
+    let write = |rel: &str, content: &str| {
+        let full = dir.join(rel);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).expect("fixture parent dir creates");
+        }
+        std::fs::write(&full, content).expect("fixture file writes");
+    };
+    for name in active {
+        write(
+            &format!(".osf/review-lenses/{name}.toml"),
+            &active_lens_toml(name),
+        );
+    }
+    let mut shipped: Vec<&str> = vec!["correctness"];
+    shipped.extend(OTHER_ALWAYS_LENS_NAMES.iter().copied());
+    for name in shipped {
+        if !active.contains(&name) {
+            write(
+                &format!(".osf/review-lenses/{name}.toml"),
+                &disabled_lens_toml(name),
+            );
+        }
+    }
+}
+
 /// A repository with the lens overrides and `osf.toml` committed as part
 /// of its base commit, `origin/main` tracking that commit, and one further
 /// committed change ready to diff against it: only `README.md`, so the
@@ -112,6 +148,39 @@ fn review_repo_with(name: &str, osf_toml: &str, extra: &[(&str, &str)]) -> TempR
     for (path, content) in extra {
         repo.write(path, content);
     }
+    repo.write("osf.toml", osf_toml);
+    repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
+    repo.write("README.md", "base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("README.md", "base\nplus a change to review\n");
+    repo.commit("a small change to review");
+    repo
+}
+
+/// [`review_repo_with`], with `active` lenses selected instead of the usual
+/// single `correctness` lens.
+#[cfg(unix)]
+fn review_repo_with_active_lenses(name: &str, osf_toml: &str, active: &[&str]) -> TempRepo {
+    let repo = TempRepo::new(name);
+    write_active_lenses_to(&repo.dir, active);
+    repo.write("osf.toml", osf_toml);
+    repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
+    repo.write("README.md", "base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("README.md", "base\nplus a change to review\n");
+    repo.commit("a small change to review");
+    repo
+}
+
+/// [`review_repo_with_active_lenses`], with the one active lens's file text
+/// given, so it can declare a context input this repository does not provide.
+#[cfg(unix)]
+fn review_repo_with_lens(name: &str, osf_toml: &str, lens: &str, lens_toml: &str) -> TempRepo {
+    let repo = TempRepo::new(name);
+    write_active_lenses_to(&repo.dir, &[]);
+    repo.write(&format!(".osf/review-lenses/{lens}.toml"), lens_toml);
     repo.write("osf.toml", osf_toml);
     repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
     repo.write("README.md", "base\n");
@@ -194,6 +263,10 @@ enum Fake<'a> {
     /// `@@KEY_HEX@@` replaced by the named environment variable's value in
     /// plain, base64 and hex form, as a reviewer that echoes its own key would.
     Echoes(&'a str, &'a str),
+    /// A raw shell body the test writes itself, so one fake can log and route
+    /// by the lens named in the prompt.
+    #[cfg(unix)]
+    Script(String),
 }
 
 /// `osf.toml` text that selects `reviewers` from the agent list, after `prefix`.
@@ -224,6 +297,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         Fake::Echoes(answer, var) => {
             format!("OSF_FAKE_ANSWER='{answer}' OSF_FAKE_ECHO_ENV='{var}' exec '{harness}'")
         }
+        Fake::Script(body) => body.clone(),
     };
     let program = bin.join(agent);
     std::fs::write(&program, format!("#!/bin/sh\n{body}\n")).expect("fake agent writes");
@@ -944,16 +1018,22 @@ fn a_configured_timeout_governs_how_long_a_reviewer_may_run() {
     assert!(
         // One family enabled earns the interim policy's extra critical
         // round: up to three 1-second timeouts in a row, plus process
-        // overhead, well under the 300-second default this guards against.
+        // overhead, well under the 1800-second per-attempt default this
+        // guards against.
         started.elapsed() < std::time::Duration::from_secs(3 * TIMEOUT_SECS + 12),
         "took {:?}: the configured 1-second timeout should have governed \
-         this run, not the 300-second default; stdout: {}\nstderr: {}",
+         this run, not the 1800-second default; stdout: {}\nstderr: {}",
         started.elapsed(),
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
     let journal = journal_text(&home);
-    assert!(journal.contains("timed out"), "{journal}");
+    assert!(
+        journal.contains(&format!(
+            "per-attempt limit (timeout_seconds = {TIMEOUT_SECS}s)"
+        )),
+        "{journal}"
+    );
 }
 
 #[test]
@@ -3392,5 +3472,690 @@ fn a_threshold_that_is_not_a_number_stops_the_review_before_any_reviewer_starts(
     assert!(
         stderr.contains("threshold must be a number from 0 to 1"),
         "{stderr}"
+    );
+}
+
+/// The shell that reads the reviewer's prompt from standard input and pulls
+/// the lens name out of the answer format, which always ends with
+/// `for lens "<name>"` (`review_prompt::answer_format`). A custom prompt file
+/// need not carry the separate `{lens_name}` text, so that is not used.
+#[cfg(unix)]
+const LENS_FROM_STDIN: &str = r#"prompt=$(cat)
+lens=$(printf '%s' "$prompt" | sed -n 's/.*for lens "\([^"]*\)".*/\1/p' | head -n1)
+[ -n "$lens" ] || exit 1
+"#;
+
+/// Writes one answer file per lens under `dir`, each naming that lens and
+/// scoring the `c1`/`c2` criteria every active lens override declares.
+#[cfg(unix)]
+fn write_lens_answers(dir: &Path, lenses: &[&str]) {
+    for lens in lenses {
+        let answer = serde_json::json!({
+            "lens": lens,
+            "scores": {"c1": 0.9, "c2": 0.9},
+            "findings": []
+        });
+        std::fs::write(dir.join(format!("{lens}.json")), answer.to_string())
+            .expect("answer writes");
+    }
+}
+
+/// Every `review-answer` payload in the journal buffer under `home`, in the
+/// order the journal holds them.
+#[cfg(unix)]
+fn journal_review_answers(home: &Path) -> Vec<serde_json::Value> {
+    let buffer_dir = home.join(".osf/state/buffer");
+    let mut answers = Vec::new();
+    let Ok(entries) = std::fs::read_dir(&buffer_dir) else {
+        return answers;
+    };
+    for entry in entries {
+        let entry = entry.expect("dir entry reads");
+        let text = std::fs::read_to_string(entry.path()).expect("journal buffer reads");
+        for line in text.lines() {
+            let value: serde_json::Value =
+                serde_json::from_str(line).expect("journal line is JSON");
+            if value.get("event_type").and_then(serde_json::Value::as_str) == Some("review-answer")
+            {
+                answers.push(
+                    value
+                        .get("payload")
+                        .cloned()
+                        .expect("review-answer payload"),
+                );
+            }
+        }
+    }
+    answers
+}
+
+/// Five lenses at a concurrency of two overlap, but never more than two at
+/// once, shown by the fake's own nanosecond-timestamped start and end lines.
+#[test]
+#[cfg(unix)]
+fn lenses_overlap_in_time_and_the_concurrency_limit_holds() {
+    let lenses = ["alpha", "bravo", "charlie", "delta", "echo"];
+    let logs = TempDir::new("review-run-parallel-log");
+    let answers = TempDir::new("review-run-parallel-answers");
+    write_lens_answers(&answers, &lenses);
+    let log = logs.join("runs.log");
+    let body = format!(
+        "{LENS_FROM_STDIN}\
+         log='{log}'\n\
+         if ! grep -q \"^start $lens \" \"$log\" 2>/dev/null; then\n\
+         printf 'start %s %s\\n' \"$lens\" \"$(date +%s%N)\" >> \"$log\"\n\
+         sleep 1\n\
+         printf 'end %s %s\\n' \"$lens\" \"$(date +%s%N)\" >> \"$log\"\n\
+         fi\n\
+         cat '{answers}/'\"$lens\"'.json'\n",
+        log = log.display(),
+        answers = answers.display()
+    );
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-overlap",
+        &format!(
+            "[review]\nconcurrency = 2\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-overlap");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = std::fs::read_to_string(&log).expect("the fake log reads");
+    let mut intervals: std::collections::BTreeMap<&str, (Option<u128>, Option<u128>)> =
+        std::collections::BTreeMap::new();
+    let mut events: Vec<(u128, i32)> = Vec::new();
+    for line in text.lines() {
+        let mut fields = line.split_whitespace();
+        let (Some(kind), Some(lens), Some(at)) = (fields.next(), fields.next(), fields.next())
+        else {
+            panic!("a start or end line needs three fields: {line}");
+        };
+        let at: u128 = at.parse().expect("a nanosecond timestamp");
+        let interval = intervals.entry(lens).or_insert((None, None));
+        match kind {
+            "start" => {
+                interval.0 = Some(at);
+                events.push((at, 1));
+            }
+            "end" => {
+                interval.1 = Some(at);
+                events.push((at, -1));
+            }
+            other => panic!("expected a start or end line, got {other}: {line}"),
+        }
+    }
+    assert_eq!(intervals.len(), 5, "one interval per lens: {text}");
+    let spans: Vec<(&str, u128, u128)> = intervals
+        .into_iter()
+        .map(|(lens, (start, end))| {
+            (
+                lens,
+                start.unwrap_or_else(|| panic!("lens {lens} has no start: {text}")),
+                end.unwrap_or_else(|| panic!("lens {lens} has no end: {text}")),
+            )
+        })
+        .collect();
+    let overlaps = spans.iter().enumerate().any(|(i, (a, a_start, a_end))| {
+        spans
+            .iter()
+            .skip(i + 1)
+            .any(|(b, b_start, b_end)| a != b && a_start < b_end && b_start < a_end)
+    });
+    assert!(overlaps, "at least two lenses must overlap in time: {text}");
+    events.sort_unstable();
+    let mut running = 0i32;
+    let mut most = 0i32;
+    for (_, delta) in events {
+        running += delta;
+        most = most.max(running);
+    }
+    assert_eq!(most, 2, "the concurrency limit of two must hold: {text}");
+}
+
+/// Each lens starts in its own read-only copy, and every copy is gone after
+/// the run.
+#[test]
+#[cfg(unix)]
+fn each_lens_runs_in_its_own_read_only_copy() {
+    let lenses = ["alpha", "bravo", "charlie"];
+    let logs = TempDir::new("review-run-copies-log");
+    let answers = TempDir::new("review-run-copies-answers");
+    write_lens_answers(&answers, &lenses);
+    let log = logs.join("copies.log");
+    let body = format!(
+        "{LENS_FROM_STDIN}\
+         printf '%s %s %s\\n' \"$lens\" \"$(pwd -P)\" \"$(stat -c '%a' .)\" >> '{log}'\n\
+         cat '{answers}/'\"$lens\"'.json'\n",
+        log = log.display(),
+        answers = answers.display()
+    );
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-copies",
+        &format!(
+            "[review]\nconcurrency = 3\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-copies");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let text = std::fs::read_to_string(&log).expect("the fake log reads");
+    let mut dirs: Vec<String> = Vec::new();
+    for line in text.lines() {
+        let mut fields = line.split_whitespace();
+        let (Some(_lens), Some(dir), Some(mode)) = (fields.next(), fields.next(), fields.next())
+        else {
+            panic!("a copy line needs three fields: {line}");
+        };
+        assert_eq!(mode, "555", "every copy is read-only: {line}");
+        if !dirs.iter().any(|known| known.as_str() == dir) {
+            dirs.push(dir.to_string());
+        }
+    }
+    assert_eq!(dirs.len(), 3, "one copy per lens: {text}");
+    for dir in dirs {
+        assert!(
+            !Path::new(&dir).exists(),
+            "the copy is removed after the run: {dir}"
+        );
+    }
+}
+
+/// A reviewer that runs past its per-attempt limit is stopped and the journal
+/// names that limit; the other lens still answers.
+#[test]
+#[cfg(unix)]
+fn a_lens_past_the_per_attempt_limit_is_stopped_naming_that_limit() {
+    let lenses = ["quick", "slow"];
+    let answers = TempDir::new("review-run-per-attempt-answers");
+    write_lens_answers(&answers, &lenses);
+    let body = format!(
+        "{LENS_FROM_STDIN}\
+         if [ \"$lens\" = 'slow' ]; then sleep 30; fi\n\
+         cat '{answers}/'\"$lens\"'.json'\n",
+        answers = answers.display()
+    );
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-per-attempt",
+        &format!(
+            "[review]\ntimeout_seconds = 1\ntotal_timeout_seconds = 300\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-per-attempt");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let journal = journal_text(&home);
+    assert!(
+        journal.contains("per-attempt limit (timeout_seconds = 1s)"),
+        "{journal}"
+    );
+    let answers = journal_review_answers(&home);
+    let answered: Vec<&serde_json::Value> = answers
+        .iter()
+        .filter(|answer| answer["result"] == "answered")
+        .collect();
+    assert_eq!(
+        answered.len(),
+        3,
+        "the quick lens still answered: {journal}"
+    );
+    assert!(
+        answered.iter().all(|answer| answer["lens"] == "quick"),
+        "{journal}"
+    );
+}
+
+/// A total limit too large to count from now is refused before any reviewer
+/// starts, naming the setting, rather than panicking while adding it.
+#[test]
+#[cfg(unix)]
+fn a_total_limit_too_large_is_refused_naming_the_setting() {
+    let fakes = Fakes::new("", &[("opencode", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo_with_active_lenses(
+        "too-large-total-limit",
+        &format!(
+            "[review]\ntotal_timeout_seconds = 9223372036854775807\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &["correctness"],
+    );
+    let home = common::isolated_home("review-run-too-large-total-limit");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("total_timeout_seconds"), "{stderr}");
+}
+
+/// The whole-run limit stops the lens that is running and records each lens
+/// that never started, without a context error that would hide its journal
+/// event.
+#[test]
+#[cfg(unix)]
+fn a_short_total_limit_stops_running_lenses_and_records_the_waiting_ones() {
+    let lenses = ["alpha", "bravo", "charlie"];
+    let answers = TempDir::new("review-run-total-limit-answers");
+    write_lens_answers(&answers, &lenses);
+    let body = format!(
+        "{LENS_FROM_STDIN}\
+         sleep 30\n\
+         cat '{answers}/'\"$lens\"'.json'\n",
+        answers = answers.display()
+    );
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-total-limit",
+        &format!(
+            "[review]\nconcurrency = 1\ntimeout_seconds = 30\ntotal_timeout_seconds = 2\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-total-limit");
+    let started = std::time::Instant::now();
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    let elapsed = started.elapsed();
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed < std::time::Duration::from_secs(15),
+        "the two-second total limit must stop the run long before the thirty-second sleep: {elapsed:?}"
+    );
+    assert!(
+        stdout_of(&output).contains("verdict: could-not-run"),
+        "{}",
+        stdout_of(&output)
+    );
+    let answers = journal_review_answers(&home);
+    let running: Vec<&serde_json::Value> = answers
+        .iter()
+        .filter(|answer| {
+            answer["reason"].as_str().is_some_and(|reason| {
+                reason.contains("total_timeout_seconds = 2s")
+                    && reason.contains("ran out")
+                    && reason.contains("while reviewer")
+            })
+        })
+        .collect();
+    assert!(
+        !running.is_empty(),
+        "the lens that was running names the total limit: {answers:?}"
+    );
+    let waiting: Vec<&serde_json::Value> = answers
+        .iter()
+        .filter(|answer| {
+            answer["reason"]
+                .as_str()
+                .is_some_and(|reason| reason.contains("ran out before this lens started"))
+        })
+        .collect();
+    assert_eq!(waiting.len(), 2, "two waiting lenses: {answers:?}");
+    assert!(
+        waiting
+            .iter()
+            .all(|answer| answer["result"] == "could-not-run"),
+        "{answers:?}"
+    );
+    let waiting_lenses: std::collections::BTreeSet<&str> = waiting
+        .iter()
+        .filter_map(|answer| answer["lens"].as_str())
+        .collect();
+    assert_eq!(waiting_lenses.len(), 2, "{answers:?}");
+    for lens in waiting_lenses {
+        assert_eq!(
+            answers
+                .iter()
+                .filter(|answer| answer["lens"] == lens)
+                .count(),
+            1,
+            "the lens {lens} that never started has exactly one event"
+        );
+    }
+}
+
+/// The retry after an invalid answer shares the one time budget the attempt
+/// was given, so it cannot add a whole second sleep past the total limit.
+#[test]
+#[cfg(unix)]
+fn a_retry_cannot_run_past_the_total_limit() {
+    let lenses = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"];
+    let body = "cat >/dev/null\nsleep 5\nprintf 'junk'\n";
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body.to_string()))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-retry-total-limit",
+        &format!(
+            "[review]\nconcurrency = 6\ntimeout_seconds = 30\ntotal_timeout_seconds = 6\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-retry-total-limit");
+    let started = std::time::Instant::now();
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_millis(8500),
+        "a retry must not add a second five-second sleep past the six-second total limit: {elapsed:?}"
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let answers = journal_review_answers(&home);
+    assert!(
+        !answers
+            .iter()
+            .any(|answer| answer["result"] == "invalid"),
+        "an invalid first answer whose retry is cut by the limit is could-not-run, not invalid: {answers:?}"
+    );
+    assert!(
+        answers.iter().any(|answer| {
+            answer["result"] == "could-not-run"
+                && answer["reason"]
+                    .as_str()
+                    .is_some_and(|reason| reason.contains("total_timeout_seconds = 6s"))
+        }),
+        "the retry cut by the total limit is could-not-run naming it: {answers:?}"
+    );
+}
+
+/// A provider failure on one lens is that lens's own failure: the others
+/// still answer.
+#[test]
+#[cfg(unix)]
+fn a_failing_lens_does_not_stop_the_others() {
+    let lenses = ["alpha", "bravo", "broken"];
+    let answers = TempDir::new("review-run-failing-answers");
+    write_lens_answers(&answers, &lenses);
+    let body = format!(
+        "{LENS_FROM_STDIN}\
+         if [ \"$lens\" = 'broken' ]; then echo 'this lens cannot run' 1>&2; exit 9; fi\n\
+         cat '{answers}/'\"$lens\"'.json'\n",
+        answers = answers.display()
+    );
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-failing",
+        &format!(
+            "[review]\nconcurrency = 2\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-failing");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let answers = journal_review_answers(&home);
+    for lens in ["alpha", "bravo"] {
+        assert!(
+            answers
+                .iter()
+                .any(|answer| answer["lens"] == lens && answer["result"] == "answered"),
+            "{lens} still answered: {answers:?}"
+        );
+    }
+    assert!(
+        answers
+            .iter()
+            .any(|answer| answer["lens"] == "broken" && answer["result"] == "could-not-run"),
+        "the broken lens is could-not-run: {answers:?}"
+    );
+}
+
+/// A cost ceiling of zero stops every lens before any fake starts, and each
+/// lens still gets a could-not-run journal event.
+#[test]
+#[cfg(unix)]
+fn a_zero_cost_ceiling_stops_every_lens_before_it_starts() {
+    let lenses = ["alpha", "bravo", "charlie"];
+    let logs = TempDir::new("review-run-ceiling-log");
+    let log = logs.join("started.log");
+    let body = format!(
+        "{LENS_FROM_STDIN}\
+         printf '%s\\n' \"$lens\" >> '{log}'\n\
+         exit 0\n",
+        log = log.display()
+    );
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-cost-ceiling",
+        &format!(
+            "[review]\ncost_ceiling = 0\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-cost-ceiling");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let started = std::fs::read_to_string(&log).unwrap_or_default();
+    assert!(started.is_empty(), "no fake may start: {started}");
+    let answers = journal_review_answers(&home);
+    assert_eq!(answers.len(), 3, "{answers:?}");
+    for answer in &answers {
+        assert_eq!(answer["result"], "could-not-run", "{answer}");
+        let reason = answer["reason"].as_str().unwrap_or_default();
+        assert!(
+            reason.contains("cost ceiling of 0") && reason.contains("before this lens started"),
+            "{reason}"
+        );
+    }
+}
+
+/// A lens whose context cannot be built still gets exactly one could-not-run
+/// journal event, naming the input the context needed.
+#[test]
+#[cfg(unix)]
+fn a_lens_whose_context_cannot_be_built_still_gets_a_could_not_run_event() {
+    let fakes = Fakes::new("", &[("opencode", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo_with_lens(
+        "context-cannot-build",
+        &fakes.osf_toml_with_qwen_opencode(),
+        "spec-and-acceptance",
+        include_str!("../defaults/review-lenses/spec-and-acceptance.toml"),
+    );
+    let home = common::isolated_home("review-run-context-cannot-build");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let answers = journal_review_answers(&home);
+    let for_lens: Vec<&serde_json::Value> = answers
+        .iter()
+        .filter(|answer| answer["lens"] == "spec-and-acceptance")
+        .collect();
+    assert_eq!(for_lens.len(), 1, "one event for the lens: {answers:?}");
+    let event = for_lens.first().expect("one event for the lens");
+    assert_eq!(event["result"], "could-not-run", "{answers:?}");
+    let reason = event["reason"].as_str().unwrap_or_default();
+    assert!(
+        reason.contains("no work item file was given"),
+        "the reason names the missing work item: {reason}"
+    );
+}
+
+/// Every attempt of every lens carries its lens name into the journal.
+#[test]
+#[cfg(unix)]
+fn every_attempt_of_every_lens_carries_its_lens_name_in_the_journal() {
+    let lenses = ["alpha", "bravo", "charlie"];
+    let answers = TempDir::new("review-run-events-answers");
+    write_lens_answers(&answers, &lenses);
+    let body = format!(
+        "{LENS_FROM_STDIN}\
+         cat '{answers}/'\"$lens\"'.json'\n",
+        answers = answers.display()
+    );
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-events",
+        &format!(
+            "[review]\nconcurrency = 3\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-events");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let answers = journal_review_answers(&home);
+    assert_eq!(
+        answers.len(),
+        9,
+        "three attempts for each of three lenses: {answers:?}"
+    );
+    for lens in lenses {
+        assert_eq!(
+            answers
+                .iter()
+                .filter(|answer| answer["lens"] == lens)
+                .count(),
+            3,
+            "{lens} carries its name on all three attempts: {answers:?}"
+        );
+    }
+}
+
+/// A positive cost ceiling is not reached while nothing reports cost, so
+/// every lens still runs.
+#[test]
+#[cfg(unix)]
+fn a_positive_cost_ceiling_still_runs_every_lens() {
+    let lenses = ["alpha", "bravo"];
+    let answers = TempDir::new("review-run-positive-ceiling-answers");
+    write_lens_answers(&answers, &lenses);
+    let body = format!(
+        "{LENS_FROM_STDIN}\
+         cat '{answers}/'\"$lens\"'.json'\n",
+        answers = answers.display()
+    );
+    let fakes = Fakes::new("", &[("opencode", Fake::Script(body))]);
+    let repo = review_repo_with_active_lenses(
+        "parallel-positive-ceiling",
+        &format!(
+            "[review]\ncost_ceiling = 5.0\n\n{}",
+            fakes.osf_toml_with_qwen_opencode()
+        ),
+        &lenses,
+    );
+    let home = common::isolated_home("review-run-parallel-positive-ceiling");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stdout: {}\nstderr: {}",
+        stdout_of(&output),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let answers = journal_review_answers(&home);
+    assert_eq!(
+        answers.len(),
+        6,
+        "three attempts for each of two lenses: {answers:?}"
+    );
+    assert!(
+        answers.iter().all(|answer| answer["result"] == "answered"),
+        "{answers:?}"
     );
 }
