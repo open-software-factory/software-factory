@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "447f52d8c6a7387344ef62084feea4ac72cd9c09",
+    "contentHash": "a487784db299e9094bde74d4b6f80c55"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "journal-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6726f6a6b2b8efa19496bd908f7ef270",
+      "bytes": 26153,
+      "width": 1780,
+      "height": 532,
+      "animated": false,
+      "path": "journal-overview-light-6726f6a6b2b8efa19496bd908f7ef270.svg"
+    },
+    {
+      "id": "journal-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "38978cfb808c1eb173236e57017f0f89",
+      "bytes": 26446,
+      "width": 1780,
+      "height": 532,
+      "animated": false,
+      "path": "journal-overview-dark-38978cfb808c1eb173236e57017f0f89.svg"
+    },
+    {
+      "id": "journal-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8597b047febdc7d1482727e9811d6a55",
+      "bytes": 17260,
+      "width": 941,
+      "height": 418,
+      "animated": false,
+      "path": "journal-internals-light-8597b047febdc7d1482727e9811d6a55.svg"
+    },
+    {
+      "id": "journal-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8c845a990612466d6448c315966fb6f8",
+      "bytes": 17462,
+      "width": 941,
+      "height": 418,
+      "animated": false,
+      "path": "journal-internals-dark-8c845a990612466d6448c315966fb6f8.svg"
+    },
+    {
+      "id": "writer-path-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "writer-path",
+      "mediaType": "image/svg+xml",
+      "contentHash": "019fafc32ac5fbd588753a409be25f5d",
+      "bytes": 14281,
+      "width": 1294,
+      "height": 426,
+      "animated": false,
+      "path": "writer-path-light-019fafc32ac5fbd588753a409be25f5d.svg"
+    },
+    {
+      "id": "writer-path-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "writer-path",
+      "mediaType": "image/svg+xml",
+      "contentHash": "336293bbcfa80d179232b4220a7cc928",
+      "bytes": 14438,
+      "width": 1294,
+      "height": 426,
+      "animated": false,
+      "path": "writer-path-dark-336293bbcfa80d179232b4220a7cc928.svg"
+    },
+    {
+      "id": "read-path-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "read-path",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0996db7bf6beb7b7d17a9b2540a6839b",
+      "bytes": 8815,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "read-path-light-0996db7bf6beb7b7d17a9b2540a6839b.svg"
+    },
+    {
+      "id": "read-path-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "read-path",
+      "mediaType": "image/svg+xml",
+      "contentHash": "42f0ee726277674f31c5f813dc38b93b",
+      "bytes": 8905,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "read-path-dark-42f0ee726277674f31c5f813dc38b93b.svg"
+    }
+  ]
+}
