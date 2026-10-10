@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "3bb7cfb6bd64389b46a2fb9eb1d4a0b2c2895f41",
+    "contentHash": "0971e9f119985dd7be6b022897247bed"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "sandbox-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "sandbox-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0aba5acfefaac2aab6927c2e73d57023",
+      "bytes": 25354,
+      "width": 2172,
+      "height": 874,
+      "animated": false,
+      "path": "sandbox-architecture-light-0aba5acfefaac2aab6927c2e73d57023.svg"
+    },
+    {
+      "id": "sandbox-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "sandbox-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "67c12766acfb2b7bc75fe79e9cedcc29",
+      "bytes": 25663,
+      "width": 2172,
+      "height": 874,
+      "animated": false,
+      "path": "sandbox-architecture-dark-67c12766acfb2b7bc75fe79e9cedcc29.svg"
+    },
+    {
+      "id": "docker-adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "docker-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d516f18a45657aa6570569e3106b0d0d",
+      "bytes": 11299,
+      "width": 910,
+      "height": 532,
+      "animated": false,
+      "path": "docker-adapter-internals-light-d516f18a45657aa6570569e3106b0d0d.svg"
+    },
+    {
+      "id": "docker-adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "docker-adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "27d43e26bd0a960f6f0f48289b6a80df",
+      "bytes": 11410,
+      "width": 910,
+      "height": 532,
+      "animated": false,
+      "path": "docker-adapter-internals-dark-27d43e26bd0a960f6f0f48289b6a80df.svg"
+    },
+    {
+      "id": "seam-and-fake-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "seam-and-fake",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7a51076142de1441a590d26c18447405",
+      "bytes": 9719,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "seam-and-fake-light-7a51076142de1441a590d26c18447405.svg"
+    },
+    {
+      "id": "seam-and-fake-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "seam-and-fake",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e34eb41474f8cac6a488d118b0d80ded",
+      "bytes": 9830,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "seam-and-fake-dark-e34eb41474f8cac6a488d118b0d80ded.svg"
+    }
+  ]
+}
