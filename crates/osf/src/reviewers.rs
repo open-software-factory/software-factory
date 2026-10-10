@@ -164,10 +164,16 @@ const RUN_ENV_VARS: &[&str] = &[
 ];
 
 /// A private, empty home directory for one reviewer run, removed on drop.
-struct RunHome(PathBuf);
+/// With `OSF_KEEP_REVIEW_HOME` set it is kept for local diagnosis instead,
+/// still private (mode 0700), and its seeded login paths are removed on
+/// every path out, spawn and wait failures included.
+struct RunHome {
+    path: PathBuf,
+    login_paths: Vec<String>,
+}
 
 impl RunHome {
-    fn create() -> Result<Self, String> {
+    fn create(login_paths: &[String]) -> Result<Self, String> {
         static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -186,7 +192,10 @@ impl RunHome {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
                 .map_err(|e| format!("cannot protect {}: {e}", path.display()))?;
         }
-        let home = Self(path);
+        let home = Self {
+            path,
+            login_paths: login_paths.to_vec(),
+        };
         std::fs::create_dir(home.temp())
             .map_err(|e| format!("cannot create {}: {e}", home.temp().display()))?;
         #[cfg(windows)]
@@ -201,7 +210,7 @@ impl RunHome {
     /// to set up their sandbox helper when their home sits under the temporary
     /// folder they see, so the child's temporary folder must not hold its home.
     fn temp(&self) -> PathBuf {
-        self.0.join("tmp")
+        self.path.join("tmp")
     }
 
     /// Points the child's temporary folder here, after any variable that
@@ -214,20 +223,20 @@ impl RunHome {
 
     #[cfg(windows)]
     fn roaming(&self) -> PathBuf {
-        self.0.join("AppData").join("Roaming")
+        self.path.join("AppData").join("Roaming")
     }
 
     #[cfg(windows)]
     fn local(&self) -> PathBuf {
-        self.0.join("AppData").join("Local")
+        self.path.join("AppData").join("Local")
     }
 
     /// Points the child's home and, on Windows, its profile variables here.
     fn apply(&self, command: &mut Command) {
-        command.env("HOME", &self.0);
+        command.env("HOME", &self.path);
         #[cfg(windows)]
         command
-            .env("USERPROFILE", &self.0)
+            .env("USERPROFILE", &self.path)
             .env("APPDATA", self.roaming())
             .env("LOCALAPPDATA", self.local());
     }
@@ -259,7 +268,7 @@ impl RunHome {
                 continue;
             }
             let copied = match real_home {
-                Some(real) => copy_login(&real.join(rel_path), &self.0.join(rel_path))
+                Some(real) => copy_login(&real.join(rel_path), &self.path.join(rel_path))
                     .map_err(|e| format!("cannot copy login path \"{rel}\": {e}"))?,
                 None => false,
             };
@@ -327,41 +336,31 @@ fn keep_home() -> bool {
     std::env::var_os("OSF_KEEP_REVIEW_HOME").is_some()
 }
 
-/// Makes a kept home readable by other users: folders 0755, files 0644,
-/// recursively, and symbolic links left alone. The home is created private
-/// by the user osf runs as, and the process that uploads it as an artifact
-/// can be another user. Called only after `forget_login` has removed the
-/// seeded login, so no credential becomes readable. Does nothing off Unix,
-/// where a folder's permissions do not block its owner's other tools.
-#[cfg(unix)]
-fn open_kept_home(path: &Path) {
-    use std::os::unix::fs::PermissionsExt as _;
-    let Ok(meta) = std::fs::symlink_metadata(path) else {
-        return;
-    };
-    if meta.is_dir() {
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755));
-        if let Ok(entries) = std::fs::read_dir(path) {
-            for entry in entries.flatten() {
-                open_kept_home(&entry.path());
+impl RunHome {
+    /// Ends the home's life: removes it, or when `keep` is set removes the
+    /// seeded login paths and leaves the rest, private. A login that cannot
+    /// be removed removes the whole home, so a credential is never left
+    /// behind in a kept one.
+    fn retire(&self, keep: bool) {
+        if keep {
+            let all_gone = self.login_paths.iter().all(|relative| {
+                let path = self.path.join(relative);
+                let _ = std::fs::remove_file(&path);
+                let _ = std::fs::remove_dir_all(&path);
+                std::fs::symlink_metadata(&path).is_err()
+            });
+            if all_gone {
+                eprintln!("osf: kept a reviewer home at {}", self.path.display());
+                return;
             }
         }
-    } else if meta.is_file() {
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644));
+        let _ = std::fs::remove_dir_all(&self.path);
     }
 }
 
-#[cfg(not(unix))]
-fn open_kept_home(_path: &Path) {}
-
 impl Drop for RunHome {
     fn drop(&mut self) {
-        if keep_home() {
-            open_kept_home(&self.0);
-            eprintln!("osf: kept a reviewer home at {}", self.0.display());
-            return;
-        }
-        let _ = std::fs::remove_dir_all(&self.0);
+        self.retire(keep_home());
     }
 }
 
@@ -522,7 +521,7 @@ fn prepare_command(
     workdir: &Path,
     real_home: Option<&Path>,
 ) -> Result<(Command, RunHome, Vec<String>), String> {
-    let home = RunHome::create()?;
+    let home = RunHome::create(&reviewer.login_paths)?;
     // A key in the environment is enough to sign in, so no login file is copied where a read tool could reach it.
     let key_in_environment = reviewer
         .credential_env
@@ -564,20 +563,6 @@ fn prepare_command(
 /// credential, by name). Every other reviewer's credential and login, and
 /// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
 /// process. A missing login path adds a note to `notes`, once.
-/// Takes a seeded login out of a reviewer's home when it is kept, so a
-/// credential never rides out with the reviewer's own record. Nothing is
-/// seeded when a key is in the environment, as in CI.
-fn forget_login(home: &RunHome, reviewer: &Reviewer) {
-    if !keep_home() {
-        return;
-    }
-    for relative in &reviewer.login_paths {
-        let path = home.0.join(relative);
-        let _ = std::fs::remove_file(&path);
-        let _ = std::fs::remove_dir_all(&path);
-    }
-}
-
 /// Why a reviewer that ran past `timeout` failed. The partial output is read
 /// only for a category, never repeated.
 fn timeout_reason(
@@ -712,7 +697,6 @@ fn run_child(
             let partial_err = joined(stderr_reader);
             let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
-            forget_login(&home, reviewer);
             return Err(timeout_reason(
                 reviewer,
                 timeout,
@@ -740,10 +724,9 @@ fn run_child(
     let stdout_text = joined(stdout_reader);
     // Reviewer text never reaches osf's output, the journal or a posted
     // review: `failure::classify` reads it and returns only a category. A kept
-    // home (OSF_KEEP_REVIEW_HOME) is its one record, as its own artifact.
+    // home (OSF_KEEP_REVIEW_HOME) holds only files the harness made.
     let stderr_text = joined(stderr_reader);
     cleanup();
-    forget_login(&home, reviewer);
 
     if !status.success() {
         return Err(exit_reason(
@@ -1344,28 +1327,32 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_kept_home_is_readable_by_other_users_and_links_are_left_alone() {
+    fn a_kept_home_loses_its_login_and_stays_private() {
         use std::os::unix::fs::PermissionsExt as _;
-        let root = crate::test_support::TempDir::new("osf-reviewers-open-home");
-        let home = root.join("home");
-        let nested = home.join("a/b");
-        std::fs::create_dir_all(&nested).expect("dirs");
-        let file = nested.join("log.txt");
-        std::fs::write(&file, "x").expect("file");
-        let outside = root.join("outside.txt");
-        std::fs::write(&outside, "y").expect("outside");
-        std::os::unix::fs::symlink(&outside, home.join("link")).expect("link");
-        for p in [&home, &nested] {
-            std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o700)).expect("chmod");
-        }
-        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).expect("chmod");
-        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o600)).expect("chmod");
-        open_kept_home(&home);
-        let mode = |p: &Path| std::fs::metadata(p).expect("meta").permissions().mode() & 0o777;
-        assert_eq!(mode(&home), 0o755);
-        assert_eq!(mode(&nested), 0o755);
-        assert_eq!(mode(&file), 0o644);
-        assert_eq!(mode(&outside), 0o600, "a link's target is not changed");
+        let logins = vec![
+            ".fake-login/auth.json".to_string(),
+            ".fake-token".to_string(),
+        ];
+        let seed = |home: &RunHome| {
+            std::fs::create_dir_all(home.path.join(".fake-login")).expect("dir");
+            std::fs::write(home.path.join(".fake-login/auth.json"), "secret").expect("login");
+            std::fs::write(home.path.join(".fake-token"), "secret").expect("token");
+            std::fs::write(home.path.join("made-by-harness.txt"), "x").expect("file");
+        };
+        let home = RunHome::create(&logins).expect("home");
+        seed(&home);
+        home.retire(true);
+        assert!(!home.path.join(".fake-login/auth.json").exists());
+        assert!(!home.path.join(".fake-token").exists());
+        assert!(home.path.join("made-by-harness.txt").exists());
+        let mode = std::fs::metadata(&home.path)
+            .expect("meta")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o700, "a kept home stays private");
+        home.retire(false);
+        assert!(!home.path.exists(), "a home that is not kept is removed");
     }
 
     #[cfg(unix)]

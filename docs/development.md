@@ -266,11 +266,14 @@ writes its `--out` file and uploads it first. A reviewer that is off under
 `--if-enabled`, or left out for the builder's family, does not fail. The
 last job runs even after a red reviewer job and decides by quorum.
 
-With `OSF_KEEP_REVIEW_HOME` set, `osf` keeps each reviewer's home and makes
-it readable by other users (folders 0755, files 0644) after it removes the
-seeded login, so the runner can upload it. Each job uploads only
-`out/reviewer-home/osf-review-home-*`. The kept home holds the reviewer's
-own raw output. It is a diagnostic artifact, never the journal.
+With `OSF_KEEP_REVIEW_HOME` set, `osf` keeps each reviewer's home for local
+diagnosis. It removes the seeded login first, on every path out of a run,
+including a command that fails to start. If a login cannot be removed,
+`osf` removes the whole home. A kept home stays private (mode 0700) and
+holds only the files the harness created. It does not hold the harness's
+standard output or standard error. CI never keeps or uploads a reviewer home:
+the only artifact a reviewer job uploads is its saved answers, which pass the
+secret removal described below.
 
 Each reviewer asks for two rounds for each lens. A reviewer that answered
 also runs one more round, the critical round, and saves it marked as

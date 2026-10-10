@@ -6,10 +6,9 @@ use std::path::PathBuf;
 /// The codex version this workflow names.
 const CODEX_VERSION: &str = "0.161.0";
 
-/// Environment a reviewer container needs beyond its own provider credential:
-/// where it keeps its temporary files, and whether to keep the reviewer's home
-/// for diagnosis. Neither carries a key.
-const HOUSEKEEPING_ENV: &[&str] = &["TMPDIR", "OSF_KEEP_REVIEW_HOME"];
+/// Environment a reviewer container needs beyond its own provider credential.
+/// None: a reviewer container passes its provider's key and nothing else.
+const HOUSEKEEPING_ENV: &[&str] = &[];
 
 fn workflow_text() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/review.yml");
@@ -822,20 +821,20 @@ fn the_build_job_reads_only_the_automatic_token() {
 }
 
 #[test]
-fn each_reviewer_uploads_only_its_kept_homes_and_not_the_copies() {
+fn no_reviewer_home_is_kept_or_uploaded_in_ci() {
     let text = workflow_text();
     let reviewers = reviewer_jobs(&text);
     assert!(!reviewers.is_empty(), "no reviewer jobs found");
     for (id, body) in reviewers {
-        let paths: Vec<&str> = body
-            .lines()
-            .filter_map(|l| l.trim().strip_prefix("path: "))
-            .filter(|p| p.starts_with("out/reviewer-home"))
-            .collect();
-        assert_eq!(
-            paths,
-            ["out/reviewer-home/osf-review-home-*"],
-            "{id} must upload only the kept homes"
+        for word in ["OSF_KEEP_REVIEW_HOME", "reviewer-home", "review-home-"] {
+            assert!(
+                !body.contains(word),
+                "{id} must not keep or upload a home: {word}"
+            );
+        }
+        assert!(
+            body.contains("name: review-run-"),
+            "{id} still uploads its saved answers"
         );
     }
 }
@@ -853,7 +852,7 @@ fn a_red_reviewer_job_still_uploads_and_the_last_job_still_decides_by_quorum() {
         let uploads = after.matches("uses: actions/upload-artifact").count();
         let always = after.matches("if: always()").count();
         assert!(
-            uploads >= 2 && always >= uploads,
+            uploads >= 1 && always >= uploads,
             "{id}: every upload runs after a failure"
         );
     }
