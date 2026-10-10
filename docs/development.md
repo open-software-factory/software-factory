@@ -483,7 +483,10 @@ family before it runs any reviewer.
 
 It reads every commit in the reviewed range. It looks for each
 commit's own `Code-Generator:` trailer. It maps the model name in that
-trailer to a family, through a small table this tool ships. A
+trailer to a family, through a small table this tool ships. A commit may
+also carry an `Orchestrator:` trailer naming the model that supervised
+the work; that line is not read here, because this rule concerns the
+model that wrote the change. A
 repository's own `osf.toml` can add more names to that table, under
 `[review] builder_family_aliases`. The `--builder-family` flag skips
 this reading and names the family directly; pass it more than once for
