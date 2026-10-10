@@ -13,6 +13,7 @@ pub mod check;
 pub mod checkpoint;
 pub mod clean_copy;
 pub mod config;
+pub mod docker_sandbox;
 pub mod exclude;
 pub mod git;
 pub use git::{scrub_git_env, scrub_git_env_for_dir};
@@ -34,9 +35,13 @@ pub mod review_context;
 pub mod review_prompt;
 pub mod review_run;
 pub mod reviewers;
+pub mod sandbox;
+pub mod sandbox_cli;
 pub mod scan;
 pub mod secret_values;
 pub mod section;
+#[cfg(unix)]
+pub mod stop_signal;
 #[cfg(test)]
 mod test_support;
 pub mod verify;

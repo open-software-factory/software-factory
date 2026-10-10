@@ -990,6 +990,7 @@ dependencies = [
  "clap",
  "globset",
  "jsonschema",
+ "libc",
  "osf-lint-core",
  "pulldown-cmark",
  "regex",

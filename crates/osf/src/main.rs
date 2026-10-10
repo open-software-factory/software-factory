@@ -1,8 +1,9 @@
+use osf::docker_sandbox::DockerSandbox;
 use osf::pr_status::GhClient;
 use osf::{
     agents, answer, assets, changeset_risk, changeset_tests, check, checkpoint, config, exclude,
     git, githooks, hook, journal, lints, pr_status, pr_tree, reducer, review, review_run,
-    reviewers, scan, section, verify,
+    reviewers, sandbox_cli, scan, section, verify,
 };
 
 use clap::parser::ValueSource;
@@ -131,6 +132,11 @@ enum Command {
         #[command(subcommand)]
         action: AssetsAction,
     },
+    /// Run one command inside a throwaway docker sandbox.
+    Sandbox {
+        #[command(subcommand)]
+        action: SandboxAction,
+    },
     /// Show the agents osf can drive and which this repository uses.
     Agents {
         #[command(subcommand)]
@@ -203,6 +209,65 @@ struct AssetsPublishArgs {
     /// another run pushing to the same branch.
     #[arg(long, default_value_t = 5)]
     max_attempts: u32,
+}
+
+#[derive(Subcommand)]
+enum SandboxAction {
+    /// Create a sandbox, run one command, remove the sandbox, and pass the
+    /// command's exit status through.
+    ///
+    /// Exit codes: the command's own status; 2 when osf refuses the image, the
+    /// user, or the command before any docker call; 124 when the command times
+    /// out; 125 when docker fails or the sandbox cannot be removed; and 128
+    /// plus the signal number (130 for SIGINT, 143 for SIGTERM) when osf is
+    /// stopped, after it removes the sandbox.
+    Run(SandboxRunArgs),
+}
+
+#[derive(Args)]
+struct SandboxRunArgs {
+    /// The container image, pinned to a digest or a non-latest tag.
+    #[arg(long)]
+    image: String,
+    /// The repository folder, mounted read-write at /workspace.
+    #[arg(long)]
+    repo: PathBuf,
+    /// The state folder, mounted read-write at /state.
+    #[arg(long)]
+    state: PathBuf,
+    /// Whether the sandbox may reach the network: none (default) or open.
+    #[arg(long, value_enum, default_value = "none")]
+    network: SandboxNetworkArg,
+    /// The user to run as inside the sandbox.
+    #[arg(long, default_value = "dev")]
+    user: String,
+    /// How long to let the command run before it is killed, in whole seconds, at least 1; the default is 1800.
+    #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+    timeout: Option<u64>,
+    /// The sandbox name. Defaults to a name unique to this process.
+    #[arg(long)]
+    name: Option<String>,
+    /// Print the docker argv as JSON and start nothing.
+    #[arg(long)]
+    dry_run: bool,
+    /// The command after `--`: the first word is the program, the rest its arguments.
+    #[arg(trailing_var_arg = true, required = true, allow_hyphen_values = true)]
+    command: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum SandboxNetworkArg {
+    None,
+    Open,
+}
+
+impl From<SandboxNetworkArg> for osf::sandbox::Network {
+    fn from(value: SandboxNetworkArg) -> Self {
+        match value {
+            SandboxNetworkArg::None => osf::sandbox::Network::Isolated,
+            SandboxNetworkArg::Open => osf::sandbox::Network::Open,
+        }
+    }
 }
 
 #[derive(Subcommand)]
@@ -912,6 +977,9 @@ fn main() -> ExitCode {
         Command::Assets {
             action: AssetsAction::Publish(args),
         } => assets_publish_cmd(args),
+        Command::Sandbox {
+            action: SandboxAction::Run(args),
+        } => sandbox_run_cmd(args),
         Command::Agents {
             action: AgentsAction::List(args),
         } => agents_list_cmd(args),
@@ -2993,6 +3061,81 @@ fn assets_publish_cmd(args: &AssetsPublishArgs) -> ExitCode {
             ExitCode::from(1)
         }
     }
+}
+
+/// Makes `path` absolute without resolving symlinks, then checks it is an
+/// existing folder, naming `flag` when it is not.
+fn absolute_dir(flag: &str, path: &Path) -> Result<PathBuf, ExitCode> {
+    let absolute = match std::path::absolute(path) {
+        Ok(path) => path,
+        Err(e) => {
+            eprintln!("osf: cannot make {flag} absolute: {e}");
+            return Err(ExitCode::from(2));
+        }
+    };
+    if !absolute.is_dir() {
+        eprintln!(
+            "osf: {flag} must be an existing folder: {}",
+            absolute.display()
+        );
+        return Err(ExitCode::from(2));
+    }
+    Ok(absolute)
+}
+
+/// A sandbox name unique to this process and this moment.
+fn default_sandbox_name() -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_nanos());
+    format!("osf-sandbox-{}-{nanos}", std::process::id())
+}
+
+/// Checks the two folders, plans the run, then prints the dry-run JSON or
+/// runs it. Thin: the plan and the execution live in [`sandbox_cli`].
+fn sandbox_run_cmd(args: &SandboxRunArgs) -> ExitCode {
+    let repo = match absolute_dir("--repo", &args.repo) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
+    let state = match absolute_dir("--state", &args.state) {
+        Ok(path) => path,
+        Err(code) => return code,
+    };
+    let request = sandbox_cli::RunRequest {
+        image: args.image.clone(),
+        repo,
+        state,
+        network: args.network.into(),
+        user: args.user.clone(),
+        timeout_secs: args.timeout,
+        name: args.name.clone().unwrap_or_else(default_sandbox_name),
+        command: args.command.clone(),
+    };
+    let plan = match sandbox_cli::plan(&request) {
+        Ok(plan) => plan,
+        Err(error) => {
+            eprintln!("osf: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    if args.dry_run {
+        print!("{}", sandbox_cli::dry_run_json(&plan));
+        return ExitCode::SUCCESS;
+    }
+    let execution = match sandbox_cli::run_plan(std::sync::Arc::new(DockerSandbox::real()), &plan) {
+        Ok(execution) => execution,
+        Err(text) => {
+            eprintln!("osf: {text}");
+            return ExitCode::from(125);
+        }
+    };
+    print!("{}", execution.stdout);
+    eprint!("{}", execution.stderr);
+    if let Some(message) = &execution.message {
+        eprintln!("osf: {message}");
+    }
+    ExitCode::from(execution.exit_code)
 }
 
 #[cfg(test)]
