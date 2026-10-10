@@ -1,0 +1,843 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-10T02:39:17.312Z",
+  "title": "pr-lens workflow: provider fallback and lens retry",
+  "summary": "The pr-lens GitHub Actions workflow gains a fifth column in its provider table (temperature), a new PR_LENS_OPENAI_MODEL repository variable, and a skip path for OpenAI when a key exists but no model is configured. The analyze step is restructured around a try_provider helper that attempts each provider with both lenses first and then with the architecture lens alone, so a long data-flow answer that fails validation no longer costs the whole diagram. Failure notes now carry the skipped-provider reason alongside the per-provider failure reasons.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "18d7582da2ee4c6a888484e15bc6e02c21e34fea",
+      "ref": "18d7582da2ee4c6a888484e15bc6e02c21e34fea"
+    },
+    "head": {
+      "sha": "8b70126718a8efc372a649cdb3a623ea3796325e",
+      "ref": "8b70126718a8efc372a649cdb3a623ea3796325e"
+    },
+    "pullRequest": {
+      "number": 264,
+      "url": "https://github.com/open-software-factory/software-factory/pull/264"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.11.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "trigger",
+      "label": "Trigger",
+      "subtitle": "GitHub event surface",
+      "order": 0,
+      "summary": "What starts the workflow and the repository configuration it reads."
+    },
+    {
+      "id": "runner",
+      "label": "Runner",
+      "subtitle": "ubuntu-latest job steps",
+      "order": 1,
+      "summary": "The shell steps that resolve providers, list files and drive the CLI."
+    },
+    {
+      "id": "cli",
+      "label": "pr-lens CLI",
+      "subtitle": "npx @coldtea/pr-lens-cli",
+      "order": 2,
+      "summary": "The external analyzer that turns a diff into a graph document."
+    },
+    {
+      "id": "providers",
+      "label": "Model providers",
+      "subtitle": "OpenAI-compatible endpoints",
+      "order": 3,
+      "summary": "The LLM endpoints the CLI calls, selected by key availability and model configuration."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "Pull request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "trigger",
+      "subtitle": "opened / synchronize",
+      "summary": "The GitHub event that starts the workflow; unchanged by this diff.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 1,
+          "endLine": 16
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "repo-vars",
+      "label": "Repository variables",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "trigger",
+      "subtitle": "PR_LENS_PROVIDER, PR_LENS_MODEL, PR_LENS_OPENAI_MODEL",
+      "summary": "Repository-level configuration read by the workflow. This change adds PR_LENS_OPENAI_MODEL, the only way to give the openai row a model, since that row has no default.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 19,
+          "endLine": 21
+        },
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 64,
+          "endLine": 64
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "repo-secrets",
+      "label": "Repository secrets",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "trigger",
+      "subtitle": "DEEPSEEK / OPENAI / ANTHROPIC keys",
+      "summary": "The API keys that decide which provider rows are eligible. Unchanged, but now a key without a model is not enough for openai.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 58,
+          "endLine": 63
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "resolve-providers",
+      "label": "Resolve the model providers",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "steps.provider",
+      "summary": "Builds the ordered provider table and emits first_/second_ outputs. Now reads a fifth temperature column, consults OPENAI_MODEL for the openai row, and records a skipped note when openai has a key but no model.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 51,
+          "endLine": 116
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "provider-table",
+      "label": "Provider table",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "runner",
+      "group": "resolve-providers",
+      "subtitle": "cli | base url | model | key var | temperature",
+      "summary": "The case statement mapping provider name to its CLI provider, base URL, default model, key variable and temperature. deepseek and anthropic now pin temperature 0; openai asks for the provider default because reasoning models reject a fixed temperature.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 66,
+          "endLine": 74
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "openai-skip",
+      "label": "OpenAI skip guard",
+      "kind": "function",
+      "delta": "added",
+      "lane": "runner",
+      "group": "resolve-providers",
+      "subtitle": "skipped=\"openai: skipped, no model configured\"",
+      "summary": "New branch: when the openai row has a key but still no model after the override and OPENAI_MODEL checks, the row is skipped and the reason is written to the skipped output instead of silently vanishing.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 92,
+          "endLine": 95
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "list-files",
+      "label": "List the changed files",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "runner",
+      "subtitle": "steps.files",
+      "summary": "Decides whether the diff is docs-only and therefore whether any model call happens at all.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 118,
+          "endLine": 150
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "analyze-step",
+      "label": "Analyze the diff",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "steps.analyze",
+      "summary": "Drives the CLI attempts. Now delegates each provider to try_provider, which tries both lenses then architecture alone, and appends the skipped note to the final failure reason.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 186,
+          "endLine": 275
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "try-provider",
+      "label": "try_provider",
+      "kind": "function",
+      "delta": "added",
+      "lane": "runner",
+      "group": "analyze-step",
+      "subtitle": "both lenses, then --lens architecture",
+      "summary": "New helper: runs attempt with no lens flag, and on failure clears the partial graph and retries with --lens architecture. Returns 0 if either draws, and accumulates the reason text when neither does.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 240,
+          "endLine": 256
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "attempt-fn",
+      "label": "attempt",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "runner",
+      "group": "analyze-step",
+      "subtitle": "npx @coldtea/pr-lens-cli@0.13.0 analyze",
+      "summary": "The single CLI invocation. Now takes temperature as a fifth positional argument, always passes --temperature, and forwards any extra flags such as --lens architecture.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 205,
+          "endLine": 222
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "no-model-note",
+      "label": "No usable model note",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "section.md",
+      "summary": "The comment written when no provider produced a diagram. It now appends the skipped note, so a reader learns that openai was skipped for lack of a model rather than for lack of a key.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 166,
+          "endLine": 174
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "failure-note",
+      "label": "Failure note",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "runner",
+      "subtitle": "analyze-reason.txt",
+      "summary": "The reason file consumed by the follow-up note step. It now concatenates the per-provider reasons with the skipped note.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 272,
+          "endLine": 275
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-lens-cli",
+      "label": "pr-lens CLI",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "@coldtea/pr-lens-cli 0.11.0 → 0.13.0",
+      "summary": "The analyzer invoked via npx. The pinned version moves from 0.11.0 to 0.13.0, which is what makes the --temperature flag and the --lens flag meaningful.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "deepseek-api",
+      "label": "DeepSeek API",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "providers",
+      "subtitle": "api.deepseek.com, deepseek-chat",
+      "summary": "OpenAI-compatible endpoint used as the default provider. Its row now carries temperature 0.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 69,
+          "endLine": 69
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "openai-api",
+      "label": "OpenAI API",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "providers",
+      "subtitle": "no default model, temperature default",
+      "summary": "The openai row has no default model and now asks the CLI to send no fixed temperature, because reasoning models reject one. It is only attempted when a model is configured.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 70,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "anthropic-api",
+      "label": "Anthropic API",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "providers",
+      "subtitle": "api.anthropic.com/v1, claude-sonnet-5",
+      "summary": "OpenAI-compatible endpoint used as the last fallback. Its row now carries temperature 0.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 71,
+          "endLine": 71
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "event-triggers-resolve",
+      "from": "pull-request-event",
+      "to": "resolve-providers",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "workflow_dispatch / pull_request",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "vars-feed-resolve",
+      "from": "repo-vars",
+      "to": "resolve-providers",
+      "kind": "data",
+      "delta": "modified",
+      "label": "PR_LENS_OPENAI_MODEL",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new variable is read into OPENAI_MODEL and consulted only for the openai row.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 64,
+          "endLine": 64
+        }
+      ]
+    },
+    {
+      "id": "secrets-feed-resolve",
+      "from": "repo-secrets",
+      "to": "resolve-providers",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "key presence gates rows",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "resolve-uses-table",
+      "from": "resolve-providers",
+      "to": "provider-table",
+      "kind": "call",
+      "delta": "modified",
+      "label": "table <name>",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The table now returns five fields; the read splits five variables.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 66,
+          "endLine": 74
+        }
+      ]
+    },
+    {
+      "id": "resolve-uses-skip",
+      "from": "resolve-providers",
+      "to": "openai-skip",
+      "kind": "call",
+      "delta": "added",
+      "label": "openai with key, no model",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new guard that turns a keyed-but-modelless openai row into a named skip rather than a silent omission.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 92,
+          "endLine": 95
+        }
+      ]
+    },
+    {
+      "id": "resolve-feeds-analyze",
+      "from": "resolve-providers",
+      "to": "analyze-step",
+      "kind": "data",
+      "delta": "modified",
+      "label": "first_/second_ + temperature + skipped",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The step outputs now include a temperature per slot and the skipped note.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 108,
+          "endLine": 116
+        }
+      ]
+    },
+    {
+      "id": "files-gate-analyze",
+      "from": "list-files",
+      "to": "analyze-step",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "docs_only == false",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "analyze-uses-try",
+      "from": "analyze-step",
+      "to": "try-provider",
+      "kind": "call",
+      "delta": "added",
+      "label": "per provider",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The restructure that gives each provider two chances: both lenses, then architecture alone.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 240,
+          "endLine": 256
+        }
+      ]
+    },
+    {
+      "id": "try-uses-attempt",
+      "from": "try-provider",
+      "to": "attempt-fn",
+      "kind": "call",
+      "delta": "modified",
+      "label": "attempt ... [--lens architecture]",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The helper calls attempt twice, the second time with the extra lens flag.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 205,
+          "endLine": 222
+        }
+      ]
+    },
+    {
+      "id": "attempt-invokes-cli",
+      "from": "attempt-fn",
+      "to": "pr-lens-cli",
+      "kind": "other",
+      "delta": "modified",
+      "label": "npx @coldtea/pr-lens-cli@0.13.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pinned CLI version moves to 0.13.0 and the invocation gains --temperature.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 20,
+          "endLine": 20
+        },
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 211,
+          "endLine": 221
+        }
+      ]
+    },
+    {
+      "id": "cli-calls-deepseek",
+      "from": "pr-lens-cli",
+      "to": "deepseek-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "temperature 0",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cli-calls-openai",
+      "from": "pr-lens-cli",
+      "to": "openai-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "temperature default",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "cli-calls-anthropic",
+      "from": "pr-lens-cli",
+      "to": "anthropic-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "temperature 0",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "analyze-writes-failure",
+      "from": "analyze-step",
+      "to": "failure-note",
+      "kind": "data",
+      "delta": "modified",
+      "label": "reason + skipped",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The final reason string now carries the skipped note appended after the provider reasons.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 272,
+          "endLine": 275
+        }
+      ]
+    },
+    {
+      "id": "resolve-writes-nomodel",
+      "from": "resolve-providers",
+      "to": "no-model-note",
+      "kind": "data",
+      "delta": "modified",
+      "label": "skipped",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The skipped output is consumed by the no-usable-model note so the reader sees why openai was not tried.",
+      "files": [
+        {
+          "path": ".github/workflows/pr-lens.yml",
+          "startLine": 166,
+          "endLine": 174
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "provider-selection",
+      "title": "Provider selection and lens fallback",
+      "summary": "How a pull request event becomes a diagram: the provider table is resolved from keys and variables, each candidate is tried with both lenses and then architecture alone, and the first success ends the run.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "pull-request-event",
+          "label": "PR event"
+        },
+        {
+          "node": "resolve-providers",
+          "label": "Resolve providers"
+        },
+        {
+          "node": "analyze-step",
+          "label": "Analyze"
+        },
+        {
+          "node": "try-provider",
+          "label": "try_provider"
+        },
+        {
+          "node": "pr-lens-cli",
+          "label": "pr-lens CLI"
+        },
+        {
+          "node": "deepseek-api",
+          "label": "DeepSeek"
+        }
+      ],
+      "messages": [
+        {
+          "id": "m-resolve",
+          "from": "pull-request-event",
+          "to": "resolve-providers",
+          "label": "run provider resolution",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 51,
+              "endLine": 116
+            }
+          ]
+        },
+        {
+          "id": "m-skip",
+          "from": "resolve-providers",
+          "to": "resolve-providers",
+          "label": "openai keyed but no model → skipped",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "The new guard records the skip instead of dropping the row silently.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 92,
+              "endLine": 95
+            }
+          ]
+        },
+        {
+          "id": "m-outputs",
+          "from": "resolve-providers",
+          "to": "analyze-step",
+          "label": "first_/second_ name, model, temperature, skipped",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 108,
+              "endLine": 116
+            }
+          ]
+        },
+        {
+          "id": "m-try",
+          "from": "analyze-step",
+          "to": "try-provider",
+          "label": "try_provider FIRST_*",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 258,
+              "endLine": 262
+            }
+          ]
+        },
+        {
+          "id": "m-both",
+          "from": "try-provider",
+          "to": "pr-lens-cli",
+          "label": "analyze, both lenses",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 241,
+              "endLine": 243
+            }
+          ]
+        },
+        {
+          "id": "m-call",
+          "from": "pr-lens-cli",
+          "to": "deepseek-api",
+          "label": "chat completion, temperature 0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 69,
+              "endLine": 69
+            }
+          ]
+        },
+        {
+          "id": "m-fail",
+          "from": "pr-lens-cli",
+          "to": "try-provider",
+          "label": "validation failed",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "A long data-flow answer is the likelier to fail validation, which is why the retry drops to one lens.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 244,
+              "endLine": 247
+            }
+          ]
+        },
+        {
+          "id": "m-arch",
+          "from": "try-provider",
+          "to": "pr-lens-cli",
+          "label": "analyze --lens architecture",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 250,
+              "endLine": 253
+            }
+          ]
+        },
+        {
+          "id": "m-ok",
+          "from": "pr-lens-cli",
+          "to": "try-provider",
+          "label": "graph.json written",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 241,
+              "endLine": 243
+            }
+          ]
+        },
+        {
+          "id": "m-second",
+          "from": "analyze-step",
+          "to": "try-provider",
+          "label": "try_provider SECOND_*",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Only reached when the first provider failed both ways.",
+          "files": [
+            {
+              "path": ".github/workflows/pr-lens.yml",
+              "startLine": 265,
+              "endLine": 271
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 69,
+    "deletions": 21,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "workflow-context",
+      "title": "pr-lens workflow in context",
+      "lens": "architecture",
+      "summary": "The workflow as a container: the event and configuration that start it, the runner steps that resolve providers and drive the CLI, and the model endpoints behind it.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "provider-resolution",
+      "title": "Provider resolution internals",
+      "lens": "architecture",
+      "summary": "Inside the resolve step: the five-column provider table and the new openai skip guard that decides which rows become first_/second_ slots.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "resolve-providers",
+          "provider-table",
+          "openai-skip",
+          "repo-vars",
+          "repo-secrets"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "analyze-retry",
+      "title": "Analyze step and lens retry",
+      "lens": "architecture",
+      "summary": "Inside the analyze step: attempt, try_provider and the CLI invocation, showing where the architecture-only retry is inserted.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "analyze-step",
+          "try-provider",
+          "attempt-fn",
+          "pr-lens-cli",
+          "failure-note"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
