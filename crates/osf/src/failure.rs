@@ -164,7 +164,7 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
     let lower = format!("{stdout}\n{stderr}").to_lowercase();
     let mut found = Category::Unknown;
     for (category, needles) in TEXT_PATTERNS {
-        if needles.iter().any(|n| has_token(&lower, n)) {
+        if needles.iter().any(|n| matches_text(&lower, n)) {
             found = found.min(*category);
         }
     }
@@ -178,7 +178,7 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
         "read-only file system",
     ]
     .iter()
-    .any(|n| has_token(&lower, n));
+    .any(|n| matches_text(&lower, n));
     if explicit_permission && found != Category::SchemaRejected {
         found = Category::Permission;
     }
@@ -190,6 +190,33 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
         found = found.min(Category::Quota);
     }
     found
+}
+
+/// The error codes a system reports. Each counts only as a whole token
+/// outside path-like text: at the start of a message, or after a space or a
+/// bracket, and before a space, a colon or a closing bracket.
+const ERRNO_CODES: &[&str] = &[
+    "eacces",
+    "eperm",
+    "erofs",
+    "enotfound",
+    "econnrefused",
+    "econnreset",
+    "etimedout",
+];
+
+/// Whether `text` holds `needle`, reading an error code as a token and any
+/// other phrase as a plain match.
+fn matches_text(text: &str, needle: &str) -> bool {
+    if !ERRNO_CODES.contains(&needle) {
+        return has_token(text, needle);
+    }
+    text.match_indices(needle).any(|(i, _)| {
+        let before = text[..i].chars().next_back();
+        let after = text[i + needle.len()..].chars().next();
+        before.is_none_or(|c| c.is_whitespace() || "([{,:;".contains(c))
+            && after.is_none_or(|c| c.is_whitespace() || ":,;)]}".contains(c))
+    })
 }
 
 /// Whether `text` holds `needle`. A short needle, such as `401` or `tls`,
@@ -287,6 +314,7 @@ fn mentions_model(value: &Value) -> bool {
 fn from_label(label: &str, object: &Value) -> Option<Category> {
     let l = label.to_lowercase();
     let is = |needles: &[&str]| needles.iter().any(|n| l.contains(n));
+    let exact = |codes: &[&str]| codes.contains(&l.as_str());
     if is(&["invalid_json_schema"]) {
         Some(Category::SchemaRejected)
     } else if is(&[
@@ -299,9 +327,9 @@ fn from_label(label: &str, object: &Value) -> Option<Category> {
         Some(Category::ModelUnavailable)
     } else if is(&["rate_limit", "insufficient_quota", "quota", "billing"]) {
         Some(Category::Quota)
-    } else if is(&["enotfound", "econnrefused", "econnreset", "etimedout"]) {
+    } else if exact(&["enotfound", "econnrefused", "econnreset", "etimedout"]) {
         Some(Category::Unreachable)
-    } else if is(&["eacces", "eperm", "erofs"]) {
+    } else if exact(&["eacces", "eperm", "erofs"]) {
         Some(Category::Permission)
     } else {
         None
@@ -473,6 +501,26 @@ mod tests {
                 Category::Unknown,
             ),
             ("ENOENT: no such file or directory", Category::Unknown),
+            (
+                "ENOENT: no such file or directory, open '/cache/eacces.json'",
+                Category::Unknown,
+            ),
+            (
+                "ENOENT: no such file or directory, open '/cache/econnrefused.json'",
+                Category::Unknown,
+            ),
+            (
+                "ENOENT: no such file or directory, open 'C:\\cache\\eacces.json'",
+                Category::Unknown,
+            ),
+            (
+                "Error: connect ECONNREFUSED 127.0.0.1:443",
+                Category::Unreachable,
+            ),
+            (
+                "getaddrinfo ENOTFOUND provider.invalid",
+                Category::Unreachable,
+            ),
             ("Error: You exceeded your current quota", Category::Quota),
             ("insufficient_quota: add credits", Category::Quota),
             ("TLS handshake failed", Category::Unreachable),
