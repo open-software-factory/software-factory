@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-symlink-resolution",
+    "headSha": "901220d28a6caa4567ca100c82c7f0d930ad11dd",
+    "contentHash": "ce632ae7d4b1968dd3af430088528f61"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "818ebf3481ff79ddc1ef5413f0c8459c",
+      "bytes": 32976,
+      "width": 2266,
+      "height": 1102,
+      "animated": true,
+      "path": "architecture-overview-light-818ebf3481ff79ddc1ef5413f0c8459c.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ea1f9d1e4a69429aae2435e15f5031a9",
+      "bytes": 33312,
+      "width": 2266,
+      "height": 1102,
+      "animated": true,
+      "path": "architecture-overview-dark-ea1f9d1e4a69429aae2435e15f5031a9.svg"
+    },
+    {
+      "id": "resolution-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "resolution-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7c75166a9d6a8bf000ca7fcca14ec7b5",
+      "bytes": 11593,
+      "width": 454,
+      "height": 532,
+      "animated": false,
+      "path": "resolution-internals-light-7c75166a9d6a8bf000ca7fcca14ec7b5.svg"
+    },
+    {
+      "id": "resolution-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "resolution-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "224f86aea7e2f2e50ce85575ce0993d0",
+      "bytes": 11726,
+      "width": 454,
+      "height": 532,
+      "animated": false,
+      "path": "resolution-internals-dark-224f86aea7e2f2e50ce85575ce0993d0.svg"
+    },
+    {
+      "id": "refusal-policy-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "refusal-policy",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7c1d282a0ba7bb73aa221309ee9ece2a",
+      "bytes": 7142,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "refusal-policy-light-7c1d282a0ba7bb73aa221309ee9ece2a.svg"
+    },
+    {
+      "id": "refusal-policy-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "refusal-policy",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8040ca62345b96c1e341f1739e0e774c",
+      "bytes": 7231,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "refusal-policy-dark-8040ca62345b96c1e341f1739e0e774c.svg"
+    }
+  ]
+}
