@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "ee42b11ba09fa5379d9942316f1233803bed5a55",
+    "contentHash": "6e63c9b05e60c3a41870bb97763a7666"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-run-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-run-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "374b550d5fc18481618601746511897b",
+      "bytes": 26194,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "review-run-architecture-light-374b550d5fc18481618601746511897b.svg"
+    },
+    {
+      "id": "review-run-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-run-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "11e114170158216b2854a4f8412559f5",
+      "bytes": 26524,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "review-run-architecture-dark-11e114170158216b2854a4f8412559f5.svg"
+    },
+    {
+      "id": "failure-classification-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "failure-classification",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bf06c93716a08a69eca59247ff6e8169",
+      "bytes": 11697,
+      "width": 880,
+      "height": 418,
+      "animated": false,
+      "path": "failure-classification-light-bf06c93716a08a69eca59247ff6e8169.svg"
+    },
+    {
+      "id": "failure-classification-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "failure-classification",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3aaa06c620d9d7579f118e8807773a10",
+      "bytes": 11822,
+      "width": 880,
+      "height": 418,
+      "animated": false,
+      "path": "failure-classification-dark-3aaa06c620d9d7579f118e8807773a10.svg"
+    },
+    {
+      "id": "verdict-posting-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "verdict-posting",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d2839e8a00246c52c3d02bd944b376a3",
+      "bytes": 8146,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "verdict-posting-light-d2839e8a00246c52c3d02bd944b376a3.svg"
+    },
+    {
+      "id": "verdict-posting-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "verdict-posting",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1d9e355f961b1e1a626471a6c311b68e",
+      "bytes": 8238,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "verdict-posting-dark-1d9e355f961b1e1a626471a6c311b68e.svg"
+    },
+    {
+      "id": "reviewer-failure-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "reviewer-failure-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "deff8e9af80b507951c81707a91168c1",
+      "bytes": 14408,
+      "width": 1542,
+      "height": 449,
+      "animated": true,
+      "path": "reviewer-failure-flow-light-deff8e9af80b507951c81707a91168c1.svg"
+    },
+    {
+      "id": "reviewer-failure-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "reviewer-failure-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "df0fcc7423778b823ee5d661aea0f683",
+      "bytes": 14522,
+      "width": 1542,
+      "height": 449,
+      "animated": true,
+      "path": "reviewer-failure-flow-dark-df0fcc7423778b823ee5d661aea0f683.svg"
+    }
+  ]
+}
