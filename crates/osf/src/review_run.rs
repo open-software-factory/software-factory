@@ -717,18 +717,51 @@ impl Attempts<'_> {
         }
     }
 
-    /// The reason for an attempt that ran past its time: the binding limit,
-    /// the kill result and the category all come from `timeout`'s data, and
-    /// `given` says whether the per-attempt or the total limit bound it.
+    /// The reason for an attempt that ran past its time; see
+    /// [`timeout_reason`].
     fn timeout_reason(&self, timeout: &reviewers::Timeout, given: Duration) -> String {
-        let name = &self.reviewer.name;
-        let core = if given == self.per_attempt {
-            per_attempt_limit(name, self.per_attempt.as_secs(), timeout.kill_failed)
-        } else {
-            total_ran_out_while_running(name, self.total.as_secs(), timeout.kill_failed)
-        };
-        format!("{core}{}", timeout.hint())
+        timeout_reason(
+            &self.reviewer.name,
+            self.per_attempt,
+            self.total,
+            given,
+            timeout,
+        )
     }
+}
+
+/// The reason for an attempt that ran past its time. The binding limit, the
+/// kill result and the category all come from `timeout`'s data, and `given`
+/// says whether the per-attempt or the total limit bound it. A run whose
+/// time ran out before it could start again says so and is never reported
+/// as stopped.
+fn timeout_reason(
+    reviewer: &str,
+    per_attempt: Duration,
+    total: Duration,
+    given: Duration,
+    timeout: &reviewers::Timeout,
+) -> String {
+    let per_attempt_bound = given == per_attempt;
+    if timeout.before_start {
+        return if per_attempt_bound {
+            format!(
+                "the per-attempt limit (timeout_seconds = {}s) ran out before reviewer '{reviewer}' could start again",
+                per_attempt.as_secs()
+            )
+        } else {
+            format!(
+                "the total limit (total_timeout_seconds = {}s) ran out before reviewer '{reviewer}' could start again",
+                total.as_secs()
+            )
+        };
+    }
+    let core = if per_attempt_bound {
+        per_attempt_limit(reviewer, per_attempt.as_secs(), timeout.kill_failed)
+    } else {
+        total_ran_out_while_running(reviewer, total.as_secs(), timeout.kill_failed)
+    };
+    format!("{core}{}", timeout.hint())
 }
 
 impl Attempts<'_> {
@@ -1735,6 +1768,42 @@ mod tests {
         scrub_run(&req, &mut run);
         let text = serde_json::to_string(&run).expect("serialises");
         assert!(!text.contains(secret), "{text}");
+    }
+
+    #[test]
+    fn a_run_whose_time_ran_out_before_it_could_start_is_never_worded_as_stopped() {
+        let timeout = reviewers::Timeout {
+            reviewer: "synthetic".to_string(),
+            waited: Duration::from_secs(5),
+            kill_failed: false,
+            category: crate::failure::Category::Quota,
+            before_start: true,
+        };
+        let per_attempt = Duration::from_secs(5);
+        let total = Duration::from_secs(60);
+        let at_per_attempt = timeout_reason("synthetic", per_attempt, total, per_attempt, &timeout);
+        assert!(
+            at_per_attempt.contains("timeout_seconds = 5s"),
+            "{at_per_attempt}"
+        );
+        let at_total = timeout_reason(
+            "synthetic",
+            per_attempt,
+            total,
+            Duration::from_secs(3),
+            &timeout,
+        );
+        assert!(
+            at_total.contains("total_timeout_seconds = 60s"),
+            "{at_total}"
+        );
+        for reason in [at_per_attempt, at_total] {
+            assert!(
+                reason.contains("before reviewer 'synthetic' could start again"),
+                "{reason}"
+            );
+            assert!(!reason.contains("stopped"), "{reason}");
+        }
     }
 
     #[test]
