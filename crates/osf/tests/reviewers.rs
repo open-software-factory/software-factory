@@ -449,22 +449,14 @@ fn a_claude_code_style_envelope_extracts_structured_output() {
 }
 
 /// This repository's own `osf.toml` picks its reviewers from the agent
-/// list, in this order, and pins the models it names.
+/// list, in this order. It does not pin the models: a model name changes every
+/// few weeks, so asserting one here only records a value that will be stale.
 #[test]
 fn this_repositorys_osf_toml_selects_its_reviewers_from_the_agent_list_in_order() {
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
     let names: Vec<&str> = loaded.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(names, vec!["codex", "claude", "opencode"], "{loaded:?}");
-    let model = |name: &str| {
-        loaded
-            .iter()
-            .find(|r| r.name == name)
-            .and_then(|r| r.model.as_deref())
-    };
-    assert_eq!(model("claude"), Some("claude-sonnet-5"));
-    assert_eq!(model("opencode"), Some("openrouter/qwen/qwen3-coder-next"));
-    assert_eq!(model("codex"), None);
 }
 
 /// A Claude-built range's family (`anthropic`, from its `Code-Generator:`
