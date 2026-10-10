@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "dc07a53ba896d2b41e79b76b7a7f0c85970aedf2",
+    "contentHash": "22dd278868ce6736a87608ad43a9c434"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-failure-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-failure-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "137c71d89cfc616eb2ee406e29365494",
+      "bytes": 23071,
+      "width": 1708,
+      "height": 874,
+      "animated": true,
+      "path": "reviewer-failure-architecture-light-137c71d89cfc616eb2ee406e29365494.svg"
+    },
+    {
+      "id": "reviewer-failure-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-failure-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dbaf7a93d0e3bb660ab64f89f327063f",
+      "bytes": 23359,
+      "width": 1708,
+      "height": 874,
+      "animated": true,
+      "path": "reviewer-failure-architecture-dark-dbaf7a93d0e3bb660ab64f89f327063f.svg"
+    },
+    {
+      "id": "failure-classification-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "failure-classification",
+      "mediaType": "image/svg+xml",
+      "contentHash": "64f661e077cfdb855d410921265ce0ac",
+      "bytes": 10124,
+      "width": 860,
+      "height": 532,
+      "animated": true,
+      "path": "failure-classification-light-64f661e077cfdb855d410921265ce0ac.svg"
+    },
+    {
+      "id": "failure-classification-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "failure-classification",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fab5a70960be187ac60160f9dbc4ed0e",
+      "bytes": 10229,
+      "width": 860,
+      "height": 532,
+      "animated": true,
+      "path": "failure-classification-dark-fab5a70960be187ac60160f9dbc4ed0e.svg"
+    },
+    {
+      "id": "verdict-decision-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "verdict-decision",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bee05d4f0f3b286bf5a9a668373eb232",
+      "bytes": 7959,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "verdict-decision-light-bee05d4f0f3b286bf5a9a668373eb232.svg"
+    },
+    {
+      "id": "verdict-decision-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "verdict-decision",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ab0f4c7a745386b398323f8ae9bf3d76",
+      "bytes": 8051,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "verdict-decision-dark-ab0f4c7a745386b398323f8ae9bf3d76.svg"
+    }
+  ]
+}

@@ -1,0 +1,547 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-10T09:18:49.056Z",
+  "title": "Reviewer failures become named categories, and a run that never answered goes red",
+  "summary": "This change makes a reviewer's failure legible without ever repeating the reviewer's own text. A new `failure` module classifies a failed or timed-out reviewer's stdout/stderr into a fixed category (credential, quota, model unavailable, schema rejected, unreachable, command line, permission, unknown), and `reviewers.rs` puts only that category, the exit code and the elapsed time into the reason. The reviewer home is now always removed on drop — the `OSF_KEEP_REVIEW_HOME` escape hatch and the CI artifact uploads are gone — and every reason and context error is passed through secret redaction. `osf review run` writes its `--out` file first, then exits 2 when a reviewer made attempts and none answered, so a red job still carries its artifact. The posted verdict now follows the run's overall verdict: a run that could not run posts COMMENT, never APPROVE, and an empty lens set is could-not-run rather than a pass.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "fadf144f8a19526c6e298bab18b72587842d802d",
+      "ref": "fadf144f8a19526c6e298bab18b72587842d802d"
+    },
+    "head": {
+      "sha": "dc07a53ba896d2b41e79b76b7a7f0c85970aedf2",
+      "ref": "dc07a53ba896d2b41e79b76b7a7f0c85970aedf2"
+    },
+    "pullRequest": {
+      "number": 272,
+      "url": "https://github.com/open-software-factory/software-factory/pull/272"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "ci",
+      "label": "CI workflow",
+      "subtitle": "GitHub Actions",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The reviewer jobs no longer keep or upload a reviewer home; each still uploads its saved answers, and the final job decides by quorum even after a red reviewer job."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The command that drives one reviewer, writes its run file and turns the job red when nothing answered."
+    },
+    {
+      "id": "review-core",
+      "label": "Review core",
+      "subtitle": "run, reduce, post",
+      "order": 2,
+      "delta": "modified",
+      "summary": "Runs a reviewer's lenses, classifies failures, scrubs reasons, and decides the overall verdict that the posted event follows."
+    },
+    {
+      "id": "harness",
+      "label": "Reviewer harness",
+      "subtitle": "codex / claude / opencode",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The external agent process osf spawns in a private home. Its output is untrusted text and is read only for a category."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "reviewer jobs",
+      "summary": "Each reviewer job drops the `OSF_KEEP_REVIEW_HOME` and `TMPDIR` environment and the 'keep this reviewer's home' artifact upload. It still uploads its saved answers, and the final `review` job runs with `always()` and decides by quorum rather than by a reviewer job's result.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-job",
+      "label": "reviewer job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "one per harness",
+      "summary": "Runs `osf review run` in the review image with only its provider credential. A red job now means the reviewer tried and nothing answered, and the saved `--out` file is uploaded first so the artifact explains the red.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run-cmd",
+      "label": "osf review run",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "review_run_exit_code",
+      "summary": "Writes the run file before deciding the exit code, then returns 2 when `never_answered()` is true, so the artifact is on disk even when the job goes red.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2000,
+          "endLine": 2020
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "post-run-outcome",
+      "label": "post_run_outcome",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-cli",
+      "subtitle": "--post-to",
+      "summary": "Now calls `plan_review_for` with the run's own overall verdict, so the posted event follows the run rather than the findings alone.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2306,
+          "endLine": 2312
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run",
+      "label": "review_run",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "ReviewerRun",
+      "summary": "Gains `never_answered()` — tried at least one attempt or hit a context error, and no attempt answered — and routes every reason and context error through `scrub_run` before the run is saved.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 218,
+          "endLine": 240
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "failure-classifier",
+      "label": "failure::classify",
+      "kind": "module",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "Category",
+      "summary": "New module. Reads a reviewer's stdout and stderr together, JSON fields first (`statusCode`, `status`, `api_error_status`, `error.type`, `error.code`) and plain-text patterns last, and returns one fixed `Category` whose wording osf owns. Harness-independent, so every agent in `AGENTS` is read the same way.",
+      "files": [
+        {
+          "path": "crates/osf/src/failure.rs",
+          "startLine": 1,
+          "endLine": 120
+        }
+      ],
+      "badges": [
+        "new module"
+      ]
+    },
+    {
+      "id": "reviewers",
+      "label": "reviewers",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "run_child",
+      "summary": "Builds the failure reason from the classifier's category plus exit code and elapsed seconds, never from the reviewer's text. `RunHome` is now always removed on drop, and the `OSF_KEEP_REVIEW_HOME` path and `forget_login` are gone.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 557,
+          "endLine": 740
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-home",
+      "label": "RunHome",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "private home, removed on drop",
+      "summary": "A private empty home for one reviewer run. It is removed whole on every path out of a run — answer, failure, timeout, or a command that never starts — and `remove_dir_all` does not follow a link, so a home replaced by a symlink loses the link and not its target.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 163,
+          "endLine": 340
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "redact",
+      "label": "redact_reviewer_text",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "review-core",
+      "subtitle": "secret removal",
+      "summary": "The existing secret scrub. `scrub_run` now applies it to every reason and context error in a saved run, as a last guard behind the fixed wording.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 521,
+          "endLine": 545
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reducer",
+      "label": "reducer::decide",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "weighted_mean",
+      "summary": "An empty lens set now yields `None` from `weighted_mean` and `CouldNotRun` from `decide`, so a review with no selected lens is never a pass at any threshold.",
+      "files": [
+        {
+          "path": "crates/osf/src/reducer.rs",
+          "startLine": 198,
+          "endLine": 240
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-plan",
+      "label": "plan_review_for",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-core",
+      "subtitle": "Verdict",
+      "summary": "New entry point that takes the run's overall verdict. A blocking finding requests changes whatever the run said; a failed run requests changes; a could-not-run run posts COMMENT; a pass or no overall verdict approves. `Verdict` gains `Comment`.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 137,
+          "endLine": 170
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "answer-schema",
+      "label": "answer::schema_for",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-core",
+      "subtitle": "schema sent to a reviewer",
+      "summary": "Strips `$schema` and `$id` from the schema handed to a harness, which some refuse when they cannot resolve the meta-schema. `trusted_location` masks any pointer segment the shipped schema does not declare, so a reviewer-chosen key — even a numeric one — never appears in a validation reason.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 49,
+          "endLine": 210
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-process",
+      "label": "reviewer harness",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "harness",
+      "subtitle": "codex / claude / opencode",
+      "summary": "The agent process osf spawns. Its stdout and stderr are untrusted and may hold a credential; they are read only by the classifier and never repeated in osf's output, journal, SARIF or posted review.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 631,
+          "endLine": 730
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "job-runs-osf",
+      "from": "reviewer-job",
+      "to": "review-run-cmd",
+      "kind": "call",
+      "delta": "modified",
+      "label": "osf review run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The job invokes the CLI with only its provider credential; the removed home-keeping environment is what changed here.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ]
+    },
+    {
+      "id": "osf-spawns-harness",
+      "from": "review-run-cmd",
+      "to": "harness-process",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "spawn in private home",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The CLI spawns the harness in a `RunHome` that is now always removed on drop.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 651,
+          "endLine": 660
+        }
+      ]
+    },
+    {
+      "id": "harness-output-classified",
+      "from": "harness-process",
+      "to": "failure-classifier",
+      "kind": "data",
+      "delta": "added",
+      "label": "stdout + stderr",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The reviewer's combined output is the only input to the classifier. It is read for a category and never repeated; this is the connection the change is really about.",
+      "files": [
+        {
+          "path": "crates/osf/src/failure.rs",
+          "startLine": 120,
+          "endLine": 200
+        }
+      ]
+    },
+    {
+      "id": "classifier-feeds-reason",
+      "from": "failure-classifier",
+      "to": "reviewers",
+      "kind": "call",
+      "delta": "added",
+      "label": "Category::phrase()",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`exit_reason` and `timeout_reason` build the reason from the category's fixed phrase plus exit code and elapsed seconds.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 557,
+          "endLine": 600
+        }
+      ]
+    },
+    {
+      "id": "reviewers-feed-run",
+      "from": "reviewers",
+      "to": "review-run",
+      "kind": "data",
+      "delta": "modified",
+      "label": "ReviewerRun",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The run carries the classified reasons; `scrub_run` then passes every reason and context error through secret redaction before saving.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 521,
+          "endLine": 545
+        }
+      ]
+    },
+    {
+      "id": "run-feeds-exit",
+      "from": "review-run",
+      "to": "review-run-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "never_answered()",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The CLI writes the run file, then asks `never_answered()`; true means exit 2 with the artifact already on disk.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2000,
+          "endLine": 2020
+        }
+      ]
+    },
+    {
+      "id": "run-feeds-plan",
+      "from": "review-run",
+      "to": "review-plan",
+      "kind": "call",
+      "delta": "added",
+      "label": "overall verdict",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`post_run_outcome` passes the run's verdict into `plan_review_for`, so a could-not-run run posts COMMENT.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2306,
+          "endLine": 2312
+        }
+      ]
+    },
+    {
+      "id": "reducer-feeds-plan",
+      "from": "reducer",
+      "to": "review-plan",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "Verdict",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reducer's overall verdict — including the new empty-set could-not-run — is what the posted event follows.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 137,
+          "endLine": 170
+        }
+      ]
+    },
+    {
+      "id": "schema-feeds-harness",
+      "from": "answer-schema",
+      "to": "harness-process",
+      "kind": "data",
+      "delta": "modified",
+      "label": "schema without $schema/$id",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The schema handed to the harness no longer names a meta-schema or id, and a validation reason masks reviewer-chosen keys.",
+      "files": [
+        {
+          "path": "crates/osf/src/answer.rs",
+          "startLine": 49,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "run-home-removed",
+      "from": "run-home",
+      "to": "reviewers",
+      "kind": "other",
+      "delta": "modified",
+      "label": "Drop",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The home is removed whole on every path out of a run; the keep-home escape hatch is gone.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 322,
+          "endLine": 340
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 12,
+    "additions": 1297,
+    "deletions": 122,
+    "chips": [
+      {
+        "label": "Failure categories",
+        "value": "8",
+        "tone": "added"
+      },
+      {
+        "label": "Reviewer home kept in CI",
+        "value": "never",
+        "tone": "removed"
+      },
+      {
+        "label": "Could-not-run verdict",
+        "value": "COMMENT",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "reviewer-failure-architecture",
+      "title": "Reviewer failure path",
+      "lens": "architecture",
+      "summary": "How a reviewer's failure becomes a named category, a red job with an artifact, and a posted verdict that is never an approval.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "failure-classification",
+      "title": "Failure classification",
+      "lens": "architecture",
+      "summary": "The classifier and the reason builders, and the redaction guard behind them.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "failure-classifier",
+          "reviewers",
+          "review-run",
+          "redact",
+          "harness-process"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "verdict-decision",
+          "title": "Verdict decision",
+          "lens": "architecture",
+          "summary": "The reducer and the plan that turns a run's overall verdict into a posted event.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "reducer",
+              "review-plan",
+              "post-run-outcome",
+              "review-run"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
