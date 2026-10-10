@@ -270,7 +270,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: review-home-codex
-          path: out/reviewer-home
+          path: out/reviewer-home/osf-review-home-*
           if-no-files-found: ignore
 
   review-claude:
@@ -387,7 +387,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: review-home-claude
-          path: out/reviewer-home
+          path: out/reviewer-home/osf-review-home-*
           if-no-files-found: ignore
 
   review-opencode:
@@ -506,7 +506,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: review-home-opencode
-          path: out/reviewer-home
+          path: out/reviewer-home/osf-review-home-*
           if-no-files-found: ignore
 
   review:

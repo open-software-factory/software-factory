@@ -820,3 +820,22 @@ fn the_build_job_reads_only_the_automatic_token() {
         provider_secrets(&build)
     );
 }
+
+#[test]
+fn each_reviewer_uploads_only_its_kept_homes_and_not_the_copies() {
+    let text = workflow_text();
+    let reviewers = reviewer_jobs(&text);
+    assert!(!reviewers.is_empty(), "no reviewer jobs found");
+    for (id, body) in reviewers {
+        let paths: Vec<&str> = body
+            .lines()
+            .filter_map(|l| l.trim().strip_prefix("path: "))
+            .filter(|p| p.starts_with("out/reviewer-home"))
+            .collect();
+        assert_eq!(
+            paths,
+            ["out/reviewer-home/osf-review-home-*"],
+            "{id} must upload only the kept homes"
+        );
+    }
+}

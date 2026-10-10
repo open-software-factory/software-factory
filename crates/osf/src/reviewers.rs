@@ -327,9 +327,37 @@ fn keep_home() -> bool {
     std::env::var_os("OSF_KEEP_REVIEW_HOME").is_some()
 }
 
+/// Makes a kept home readable by other users: folders 0755, files 0644,
+/// recursively, and symbolic links left alone. The home is created private
+/// by the user osf runs as, and the process that uploads it as an artifact
+/// can be another user. Called only after `forget_login` has removed the
+/// seeded login, so no credential becomes readable. Does nothing off Unix,
+/// where a folder's permissions do not block its owner's other tools.
+#[cfg(unix)]
+fn open_kept_home(path: &Path) {
+    use std::os::unix::fs::PermissionsExt as _;
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    if meta.is_dir() {
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755));
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.flatten() {
+                open_kept_home(&entry.path());
+            }
+        }
+    } else if meta.is_file() {
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o644));
+    }
+}
+
+#[cfg(not(unix))]
+fn open_kept_home(_path: &Path) {}
+
 impl Drop for RunHome {
     fn drop(&mut self) {
         if keep_home() {
+            open_kept_home(&self.0);
             eprintln!("osf: kept a reviewer home at {}", self.0.display());
             return;
         }
@@ -636,6 +664,7 @@ fn run_child(
                 .unwrap_or_default();
             let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
+            forget_login(&home, reviewer);
             let category = crate::failure::classify(&partial_out, &partial_err);
             let hint = if category == crate::failure::Category::Unknown {
                 String::new()
@@ -1281,6 +1310,32 @@ mod tests {
             !err.contains("SECRET123") && !err.contains("Missing"),
             "{err}"
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_kept_home_is_readable_by_other_users_and_links_are_left_alone() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let root = crate::test_support::TempDir::new("osf-reviewers-open-home");
+        let home = root.join("home");
+        let nested = home.join("a/b");
+        std::fs::create_dir_all(&nested).expect("dirs");
+        let file = nested.join("log.txt");
+        std::fs::write(&file, "x").expect("file");
+        let outside = root.join("outside.txt");
+        std::fs::write(&outside, "y").expect("outside");
+        std::os::unix::fs::symlink(&outside, home.join("link")).expect("link");
+        for p in [&home, &nested] {
+            std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o700)).expect("chmod");
+        }
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).expect("chmod");
+        std::fs::set_permissions(&outside, std::fs::Permissions::from_mode(0o600)).expect("chmod");
+        open_kept_home(&home);
+        let mode = |p: &Path| std::fs::metadata(p).expect("meta").permissions().mode() & 0o777;
+        assert_eq!(mode(&home), 0o755);
+        assert_eq!(mode(&nested), 0o755);
+        assert_eq!(mode(&file), 0o644);
+        assert_eq!(mode(&outside), 0o600, "a link's target is not changed");
     }
 
     #[cfg(unix)]
