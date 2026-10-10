@@ -65,12 +65,15 @@ impl fmt::Display for ReviewError {
 
 impl std::error::Error for ReviewError {}
 
-/// The verdict a set of findings earns: `REQUEST_CHANGES` when a posted
-/// finding's action is in the block list, otherwise `APPROVE`.
+/// The verdict a review earns: `REQUEST_CHANGES` when a posted finding's
+/// action is in the block list or the run failed, `COMMENT` when the run
+/// could not run (no quorum, or no reviewer answered), otherwise `APPROVE`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     RequestChanges,
     Approve,
+    /// A review with no verdict to give. Never an approval.
+    Comment,
 }
 
 impl Verdict {
@@ -80,6 +83,7 @@ impl Verdict {
         match self {
             Verdict::RequestChanges => "REQUEST_CHANGES",
             Verdict::Approve => "APPROVE",
+            Verdict::Comment => "COMMENT",
         }
     }
 }
@@ -134,14 +138,32 @@ pub fn plan_review(
     summary: &str,
     block_on: &[String],
 ) -> Result<Plan, ReviewError> {
+    plan_review_for(findings, summary, block_on, None)
+}
+
+/// [`plan_review`] for a review run that already decided its overall
+/// verdict. The posted event follows that verdict: a run that could not run
+/// posts `COMMENT`, never `APPROVE`, and a failed run requests changes. A
+/// blocking finding requests changes whatever the run said. `None` decides
+/// from the findings alone, as `osf review post` does.
+///
+/// # Errors
+/// Returns [`ReviewError::BodyTooLong`] when the body is over [`BODY_LIMIT`].
+pub fn plan_review_for(
+    findings: &[Finding],
+    summary: &str,
+    block_on: &[String],
+    overall: Option<crate::reducer::Verdict>,
+) -> Result<Plan, ReviewError> {
     let posted: Vec<&Finding> = findings.iter().filter(|f| f.action != "dismiss").collect();
     let blocking = posted
         .iter()
         .any(|f| block_on.iter().any(|b| b == &f.action));
-    let verdict = if blocking {
-        Verdict::RequestChanges
-    } else {
-        Verdict::Approve
+    let verdict = match overall {
+        _ if blocking => Verdict::RequestChanges,
+        Some(crate::reducer::Verdict::Fail) => Verdict::RequestChanges,
+        Some(crate::reducer::Verdict::CouldNotRun) => Verdict::Comment,
+        Some(crate::reducer::Verdict::Pass) | None => Verdict::Approve,
     };
 
     let unanchored: Vec<&&Finding> = posted.iter().filter(|f| f.line.is_none()).collect();
@@ -730,6 +752,61 @@ mod tests {
             next,
             NextStep::Done(Outcome::PostFailed("gh: rate limited".to_string()))
         );
+    }
+
+    // The posted event follows the run's overall verdict: with no reviewer
+    // answers there are no findings, and that must never read as approval.
+    #[test]
+    fn a_run_that_could_not_run_never_approves() {
+        let plan = plan_review_for(
+            &[],
+            "Summary.\n",
+            &default_block_on(),
+            Some(crate::reducer::Verdict::CouldNotRun),
+        )
+        .expect("plans");
+        assert_eq!(plan.verdict, Verdict::Comment);
+        assert_eq!(plan.verdict.as_event(), "COMMENT");
+    }
+
+    #[test]
+    fn a_passing_run_with_no_blocking_finding_approves() {
+        let plan = plan_review_for(
+            &[],
+            "Summary.\n",
+            &default_block_on(),
+            Some(crate::reducer::Verdict::Pass),
+        )
+        .expect("plans");
+        assert_eq!(plan.verdict, Verdict::Approve);
+    }
+
+    #[test]
+    fn a_blocking_finding_requests_changes_whatever_the_run_said() {
+        let findings = vec![finding(
+            "cor-01",
+            "README.md",
+            Some(1),
+            "major",
+            "should-fix",
+        )];
+        for overall in [crate::reducer::Verdict::Pass, crate::reducer::Verdict::Fail] {
+            let plan = plan_review_for(&findings, "Summary.\n", &default_block_on(), Some(overall))
+                .expect("plans");
+            assert_eq!(plan.verdict, Verdict::RequestChanges);
+        }
+    }
+
+    #[test]
+    fn a_failing_run_requests_changes_even_with_no_posted_finding() {
+        let plan = plan_review_for(
+            &[],
+            "Summary.\n",
+            &default_block_on(),
+            Some(crate::reducer::Verdict::Fail),
+        )
+        .expect("plans");
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
     }
 
     #[test]

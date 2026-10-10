@@ -2294,7 +2294,8 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
     let findings = review_findings_for_post(&outcome.findings);
     let summary = review_run_summary(outcome);
     let block_on = resolve_block_on(None);
-    let plan = match review::plan_review(&findings, &summary, &block_on) {
+    let plan = match review::plan_review_for(&findings, &summary, &block_on, Some(outcome.verdict))
+    {
         Ok(plan) => plan,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
