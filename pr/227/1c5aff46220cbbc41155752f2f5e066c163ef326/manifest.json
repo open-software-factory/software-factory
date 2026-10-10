@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "1c5aff46220cbbc41155752f2f5e066c163ef326",
+    "contentHash": "d34dd3476c68be8fe34d22a76e5e19c4"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "282aa6ccaafa624294cc82925d4504c0",
+      "bytes": 26862,
+      "width": 1760,
+      "height": 532,
+      "animated": false,
+      "path": "architecture-overview-light-282aa6ccaafa624294cc82925d4504c0.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7145a32f358657b9130575d5929bc0bd",
+      "bytes": 27178,
+      "width": 1760,
+      "height": 532,
+      "animated": false,
+      "path": "architecture-overview-dark-7145a32f358657b9130575d5929bc0bd.svg"
+    },
+    {
+      "id": "forge-core-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "forge-core-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "aaf9f1e29598f76d72532cf8ce59dbf6",
+      "bytes": 8050,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "forge-core-detail-light-aaf9f1e29598f76d72532cf8ce59dbf6.svg"
+    },
+    {
+      "id": "forge-core-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "forge-core-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a8a3a79c0886d331da6feff6d75024d6",
+      "bytes": 8139,
+      "width": 456,
+      "height": 418,
+      "animated": false,
+      "path": "forge-core-detail-dark-a8a3a79c0886d331da6feff6d75024d6.svg"
+    },
+    {
+      "id": "adapter-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adapter-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d0f9f2b3c56adb963d6c754793722398",
+      "bytes": 6796,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "adapter-detail-light-d0f9f2b3c56adb963d6c754793722398.svg"
+    },
+    {
+      "id": "adapter-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adapter-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a49c8b25de127173fbdd83b9f513fc50",
+      "bytes": 6864,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "adapter-detail-dark-a49c8b25de127173fbdd83b9f513fc50.svg"
+    }
+  ]
+}
