@@ -37,6 +37,7 @@ pub mod reviewers;
 pub mod scan;
 pub mod secret_values;
 pub mod section;
+pub mod symlink;
 #[cfg(test)]
 mod test_support;
 pub mod verify;
