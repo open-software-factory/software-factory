@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "25c9ae55a86604d0e1f70d6818f0edd6f165ecc2",
+    "contentHash": "878b281fccbebcf19fcd6ea0d77ba729"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-config-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-config-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bfec320e51189e3a56e1a1062a058e9e",
+      "bytes": 19106,
+      "width": 1748,
+      "height": 582,
+      "animated": true,
+      "path": "reviewer-config-context-light-bfec320e51189e3a56e1a1062a058e9e.svg"
+    },
+    {
+      "id": "reviewer-config-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-config-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b0841fca7636d7351902c62f8974a97d",
+      "bytes": 19294,
+      "width": 1748,
+      "height": 582,
+      "animated": true,
+      "path": "reviewer-config-context-dark-b0841fca7636d7351902c62f8974a97d.svg"
+    },
+    {
+      "id": "agents-models-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "agents-models-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a87af53aca59077449e690eb90734258",
+      "bytes": 9552,
+      "width": 860,
+      "height": 418,
+      "animated": true,
+      "path": "agents-models-detail-light-a87af53aca59077449e690eb90734258.svg"
+    },
+    {
+      "id": "agents-models-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "agents-models-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ce32841c6479ea49f70831ad52cf4d39",
+      "bytes": 9635,
+      "width": 860,
+      "height": 418,
+      "animated": true,
+      "path": "agents-models-detail-dark-ce32841c6479ea49f70831ad52cf4d39.svg"
+    },
+    {
+      "id": "roster-test-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "roster-test-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d9361e3b8800e73e72e6b75c8f3a6048",
+      "bytes": 5344,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "roster-test-detail-light-d9361e3b8800e73e72e6b75c8f3a6048.svg"
+    },
+    {
+      "id": "roster-test-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "roster-test-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "321200daeac91e7f630c661aeeae5a2d",
+      "bytes": 5391,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "roster-test-detail-dark-321200daeac91e7f630c661aeeae5a2d.svg"
+    },
+    {
+      "id": "roster-load-flow-view-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "roster-load-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "144c8c91907a403cd7365e2bfea33fa2",
+      "bytes": 9755,
+      "width": 1432,
+      "height": 335,
+      "animated": true,
+      "path": "roster-load-flow-view-light-144c8c91907a403cd7365e2bfea33fa2.svg"
+    },
+    {
+      "id": "roster-load-flow-view-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "roster-load-flow-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a0eb22956a89c9b24f1c54f9fdad099c",
+      "bytes": 9838,
+      "width": 1432,
+      "height": 335,
+      "animated": true,
+      "path": "roster-load-flow-view-dark-a0eb22956a89c9b24f1c54f9fdad099c.svg"
+    }
+  ]
+}
