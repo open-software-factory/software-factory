@@ -2,6 +2,9 @@ name: CI
 
 on:
   pull_request:
+  # The merge queue runs the required checks on its own queue branch, and
+  # only a workflow that listens for this event is run there.
+  merge_group:
   push:
     branches: [main]
   # The writing gate reads every tracked Markdown file on every run. These two
