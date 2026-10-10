@@ -153,6 +153,9 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
     let mut found = Category::Unknown;
     for text in [stdout, stderr] {
         for value in json_values(text) {
+            if has_filesystem_errno(&value, 0) {
+                return Category::Permission;
+            }
             if let Some(c) = from_json(&value, 0) {
                 found = found.min(c);
             }
@@ -311,28 +314,47 @@ fn mentions_model(value: &Value) -> bool {
     }
 }
 
+/// The category a provider's or system's complete error label names. Each
+/// label is matched whole, never as part of a longer word. A generic
+/// `not_found_error` names an unavailable model only with model evidence in
+/// the same object.
 fn from_label(label: &str, object: &Value) -> Option<Category> {
     let l = label.to_lowercase();
-    let is = |needles: &[&str]| needles.iter().any(|n| l.contains(n));
-    let exact = |codes: &[&str]| codes.contains(&l.as_str());
-    if is(&["invalid_json_schema"]) {
-        Some(Category::SchemaRejected)
-    } else if is(&[
-        "authentication_error",
-        "invalid_api_key",
-        "permission_error",
-    ]) {
-        Some(Category::Credential)
-    } else if is(&["model_not_found"]) || (is(&["not_found_error"]) && mentions_model(object)) {
-        Some(Category::ModelUnavailable)
-    } else if is(&["rate_limit", "insufficient_quota", "quota", "billing"]) {
-        Some(Category::Quota)
-    } else if exact(&["enotfound", "econnrefused", "econnreset", "etimedout"]) {
-        Some(Category::Unreachable)
-    } else if exact(&["eacces", "eperm", "erofs"]) {
-        Some(Category::Permission)
-    } else {
-        None
+    match l.as_str() {
+        "invalid_json_schema" => Some(Category::SchemaRejected),
+        "authentication_error" | "invalid_api_key" | "permission_error" => {
+            Some(Category::Credential)
+        }
+        "model_not_found" => Some(Category::ModelUnavailable),
+        "not_found_error" if mentions_model(object) => Some(Category::ModelUnavailable),
+        "insufficient_quota"
+        | "rate_limit_error"
+        | "rate_limit_exceeded"
+        | "rate_limit"
+        | "billing_not_active"
+        | "billing_hard_limit_reached" => Some(Category::Quota),
+        "enotfound" | "econnrefused" | "econnreset" | "etimedout" => Some(Category::Unreachable),
+        "eacces" | "eperm" | "erofs" => Some(Category::Permission),
+        _ => None,
+    }
+}
+
+/// Whether a `type` or `code` field anywhere in `value` is a filesystem
+/// error code, which outranks a provider label beside it.
+fn has_filesystem_errno(value: &Value, depth: usize) -> bool {
+    if depth > 6 {
+        return false;
+    }
+    match value {
+        Value::Object(map) => map.iter().any(|(key, v)| {
+            (matches!(key.as_str(), "type" | "code")
+                && v.as_str().is_some_and(|label| {
+                    matches!(label.to_lowercase().as_str(), "eacces" | "eperm" | "erofs")
+                }))
+                || has_filesystem_errno(v, depth + 1)
+        }),
+        Value::Array(items) => items.iter().any(|v| has_filesystem_errno(v, depth + 1)),
+        _ => false,
     }
 }
 
@@ -501,6 +523,18 @@ mod tests {
                 Category::Unknown,
             ),
             ("ENOENT: no such file or directory", Category::Unknown),
+            (
+                r#"{"error":{"type":"billing_config_error","code":"EACCES","message":"permission denied"}}"#,
+                Category::Permission,
+            ),
+            (
+                r#"{"error":{"type":"billing_config_error","message":"x"}}"#,
+                Category::Unknown,
+            ),
+            (
+                r#"{"error":{"type":"rate_limit_error","message":"slow down"}}"#,
+                Category::Quota,
+            ),
             (
                 "ENOENT: no such file or directory, open '/cache/eacces.json'",
                 Category::Unknown,
