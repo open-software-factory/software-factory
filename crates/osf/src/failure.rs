@@ -174,7 +174,6 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
         "eacces",
         "eperm",
         "erofs",
-        "enoent",
         "permission denied",
         "read-only file system",
     ]
@@ -302,7 +301,7 @@ fn from_label(label: &str, object: &Value) -> Option<Category> {
         Some(Category::Quota)
     } else if is(&["enotfound", "econnrefused", "econnreset", "etimedout"]) {
         Some(Category::Unreachable)
-    } else if is(&["eacces", "eperm", "erofs", "enoent"]) {
+    } else if is(&["eacces", "eperm", "erofs"]) {
         Some(Category::Permission)
     } else {
         None
@@ -469,6 +468,11 @@ mod tests {
                 r#"{"error":{"type":"not_found_error","message":"Requested session remodel-17 does not exist"}}"#,
                 Category::Unknown,
             ),
+            (
+                r#"{"error":{"code":"ENOENT","message":"spawn helper ENOENT"}}"#,
+                Category::Unknown,
+            ),
+            ("ENOENT: no such file or directory", Category::Unknown),
             ("Error: You exceeded your current quota", Category::Quota),
             ("insufficient_quota: add credits", Category::Quota),
             ("TLS handshake failed", Category::Unreachable),

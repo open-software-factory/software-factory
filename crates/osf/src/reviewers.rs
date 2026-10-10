@@ -1300,11 +1300,24 @@ mod tests {
     #[test]
     fn the_home_is_gone_after_a_normal_run_and_after_a_failed_spawn() {
         let workdir = std::env::temp_dir(); // osf: temp-dir allowed, nothing is written there
-        let runs = [("true", true), ("osf-no-such-program-for-this-test", false)];
+                                            // This test program itself, asked to list no tests, starts and exits on
+                                            // every platform; the other program does not exist.
+        let this_program = std::env::current_exe()
+            .expect("the test program has a path")
+            .to_string_lossy()
+            .into_owned();
+        let runs = [
+            (this_program.as_str(), true),
+            ("osf-no-such-program-for-this-test", false),
+        ];
+        let args: Vec<String> = ["--list", "--exact", "osf-no-such-test-name"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
         for (program, starts) in runs {
             let r = reviewer("synthetic", vec![program]);
             let (mut command, home, _) =
-                prepare_command(&r, program, &[], &workdir, None).expect("prepares");
+                prepare_command(&r, program, &args, &workdir, None).expect("prepares");
             let path = home.path.clone();
             assert!(path.exists(), "the home exists while the run is prepared");
             let spawned = command.spawn();
