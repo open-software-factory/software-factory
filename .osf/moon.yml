@@ -16,6 +16,7 @@ fileGroups:
     - '!/.osf/out/**'
     - '!/.superpowers/**'
     - '!/.worktrees/**'
+    - '!/temp/**'
     - '!/docs/temp-context/**'
     - '!/docs/research/source/archive/**'
     - '!/docs/superpowers/**'
