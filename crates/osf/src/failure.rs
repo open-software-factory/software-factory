@@ -63,7 +63,6 @@ const TEXT_PATTERNS: &[(Category, &[&str])] = &[
     (
         Category::Credential,
         &[
-            "unauthorized",
             "invalid api key",
             "incorrect api key",
             "invalid bearer token",
@@ -169,24 +168,27 @@ pub fn classify(stdout: &str, stderr: &str) -> Category {
             found = found.min(*category);
         }
     }
-    if has_status(&lower, &[401, 403]) {
-        found = found.min(Category::Credential);
-    }
-    if has_status(&lower, &[402, 429]) {
-        found = found.min(Category::Quota);
-    }
-    // An explicit permission refusal outranks a quota or network phrase, which
-    // can come from a path or a message that only mentions such a word.
+    // An explicit filesystem error code or message outranks a word that only
+    // appears in a path or a name; a rejected schema still wins.
     let explicit_permission = [
         "eacces",
         "eperm",
+        "erofs",
+        "enoent",
         "permission denied",
         "read-only file system",
     ]
     .iter()
     .any(|n| has_token(&lower, n));
-    if explicit_permission && matches!(found, Category::Quota | Category::Unreachable) {
+    if explicit_permission && found != Category::SchemaRejected {
         found = Category::Permission;
+    }
+    // An HTTP status, read with its context, is the provider's own answer.
+    if has_status(&lower, &[401, 403]) {
+        found = found.min(Category::Credential);
+    }
+    if has_status(&lower, &[402, 429]) {
+        found = found.min(Category::Quota);
     }
     found
 }
@@ -292,7 +294,6 @@ fn from_label(label: &str, object: &Value) -> Option<Category> {
         "authentication_error",
         "invalid_api_key",
         "permission_error",
-        "unauthorized",
     ]) {
         Some(Category::Credential)
     } else if is(&["model_not_found"]) || (is(&["not_found_error"]) && mentions_model(object)) {
@@ -301,7 +302,7 @@ fn from_label(label: &str, object: &Value) -> Option<Category> {
         Some(Category::Quota)
     } else if is(&["enotfound", "econnrefused", "econnreset", "etimedout"]) {
         Some(Category::Unreachable)
-    } else if is(&["eacces", "eperm", "erofs"]) {
+    } else if is(&["eacces", "eperm", "erofs", "enoent"]) {
         Some(Category::Permission)
     } else {
         None
@@ -329,7 +330,7 @@ fn from_json(value: &Value, depth: usize) -> Option<Category> {
                             .or_else(|| v.as_str().and_then(|s| s.parse().ok()));
                         take(code.and_then(|c| from_status(c, value)));
                     }
-                    "type" | "code" | "name" | "subtype" => {
+                    "type" | "code" => {
                         take(v.as_str().and_then(|label| from_label(label, value)));
                     }
                     _ => {}
@@ -447,6 +448,33 @@ mod tests {
             (
                 r#"{"error":{"type":"model_not_found"}}"#,
                 Category::ModelUnavailable,
+            ),
+            (
+                "EACCES: permission denied, open '/cache/unauthorized/config'",
+                Category::Permission,
+            ),
+            (
+                r#"{"error":{"code":"EACCES","name":"billing.json","message":"permission denied"}}"#,
+                Category::Permission,
+            ),
+            (
+                "EACCES: permission denied, open '/cache/credits.json'",
+                Category::Permission,
+            ),
+            (
+                "permission denied opening '/cache/tls/config'",
+                Category::Permission,
+            ),
+            (
+                r#"{"error":{"type":"not_found_error","message":"Requested session remodel-17 does not exist"}}"#,
+                Category::Unknown,
+            ),
+            ("Error: You exceeded your current quota", Category::Quota),
+            ("insufficient_quota: add credits", Category::Quota),
+            ("TLS handshake failed", Category::Unreachable),
+            (
+                "the credits screen rendered the tls and dns docs",
+                Category::Unknown,
             ),
         ];
         for (text, want) in cases {
