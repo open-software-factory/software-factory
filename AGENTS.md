@@ -29,8 +29,20 @@ Everything in this repository is cross-platform, cross-operating-system, cross-s
 - Get a person's written approval, with a reason, recorded on the change, before a change makes a check catch fewer real problems. Never hide a real failure behind a suppression flag, an ignored error, or a narrowed scope with no reason given.
 - When a tool must run at a fixed moment, such as before a commit or a push, add it to the git hook or agent hook for that moment. Do not write it as a step in an `AGENTS.md` file or a skill.
 
+## Act as the factory, never as its owner
+
+- Make every GitHub write as the factory app for the role: the builder app, `opensoftwarefactory-builder[bot]`, to push, open a pull request, file or edit an issue, reply, or resolve a thread, and the verifier app, `opensoftwarefactory-verifier[bot]`, to review. A write covers an issue, a comment, a review, a project field, and a push.
+- Never write as the owner's login, as the host's signed-in `gh` account, or through an ssh key. A pull request cannot be approved by its own author, and the ruleset also reads the account that pushed last, so the owner cannot approve a pull request the owner authored or pushed.
+- Open the pull request as the builder app, from a branch the builder app pushed over https with its token. Read back the author after the first write. If it is not the app, stop and fix it before any other write. A pull request opened under the wrong account is closed and reopened, not repaired.
+- Set the app token in the same shell call as each write. An environment variable does not carry over between calls, and a write without it falls back to the owner's login.
+- Set the commit identity in every new worktree: run `git config --worktree user.name` and `user.email` to the builder app and its noreply address, `<bot user id>+<slug>[bot]@users.noreply.github.com`. The bot user id is not the app id; with the app id the commit shows as unattributed and needs a second approval. Before you push, check `git log origin/main..HEAD --format=%ae | sort | uniq -c`.
+- Never use the owner's provider login for a model call: not a copied login file, not the owner's key. Use the factory's own key, a CI secret, or the harness's own credentials. When none covers the call, stop and say so.
+- Carry one `Code-Generator:` trailer in each commit and no `Co-Authored-By` line, as the `opening-a-pull-request` skill says.
+- Fill in `.github/PULL_REQUEST_TEMPLATE.md` for every pull request description, and never invent another layout. The tools write the pr-lens, status, and tree blocks, so do not write those by hand.
+
 ## Sub-agents
 
+- Name the role, and repeat the rules in "Act as the factory, never as its owner", in every sub-agent prompt that writes to GitHub.
 - Tell a sub-agent to run every command in the foreground. A command left running in the background can stall it.
 - Report a sub-agent's status only from evidence it leaves, such as files, logs, or command output.
 
