@@ -391,15 +391,32 @@ fn run_with_retry(
     real_home: Option<&Path>,
     notes: &mut Vec<String>,
 ) -> Outcome {
+    let started = std::time::Instant::now();
     if reviewer.read_only.is_none() {
         return Outcome::CouldNotRun(format!(
             "reviewer '{}' has no read-only mode",
             reviewer.name
         ));
     }
+    // The first run and its retry share `timeout`.
+    let left = || {
+        let remaining = timeout.saturating_sub(started.elapsed());
+        if remaining.is_zero() {
+            Err(format!(
+                "reviewer '{}' timed out after {timeout:?} before it could start again",
+                reviewer.name
+            ))
+        } else {
+            Ok(remaining)
+        }
+    };
     let schema = answer::schema_for(lens);
+    let remaining = match left() {
+        Ok(remaining) => remaining,
+        Err(reason) => return Outcome::CouldNotRun(reason),
+    };
     let raw = match run_child(
-        reviewer, prompt, &schema, workdir, timeout, real_home, notes,
+        reviewer, prompt, &schema, workdir, remaining, real_home, notes,
     ) {
         Ok(text) => text,
         Err(reason) => return Outcome::CouldNotRun(reason),
@@ -408,12 +425,16 @@ fn run_with_retry(
         Ok(answer) => Outcome::Answered(answer),
         Err(reason) => {
             let retry_prompt = format!("{prompt}\n\nThe previous answer was invalid: {reason}");
+            let remaining = match left() {
+                Ok(remaining) => remaining,
+                Err(reason) => return Outcome::CouldNotRun(reason),
+            };
             match run_child(
                 reviewer,
                 &retry_prompt,
                 &schema,
                 workdir,
-                timeout,
+                remaining,
                 real_home,
                 notes,
             ) {
