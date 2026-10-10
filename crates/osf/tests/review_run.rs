@@ -256,6 +256,8 @@ enum Fake<'a> {
     Fails(&'a str),
     /// Exits 1 after printing this text to standard error.
     FailsWithText(&'a str),
+    /// Prints this text to standard error, then sleeps this many seconds.
+    TextThenSleep(&'a str, u64),
     /// Prints the answer file's text, and records its prompt, arguments and
     /// environment under the folder, plus a `started` file.
     Records(&'a str, &'a Path),
@@ -288,6 +290,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         }
         Fake::Fails(secret) => format!("echo '{secret}' 1>&2\nexit 9"),
         Fake::FailsWithText(text) => format!("echo '{text}' 1>&2\nexit 1"),
+        Fake::TextThenSleep(text, secs) => format!("echo '{text}' 1>&2\nsleep {secs}"),
         Fake::Records(answer, dir) => format!(
             "env > '{d}/env'\nOSF_FAKE_ANSWER='{answer}' OSF_FAKE_PROMPT_CAPTURE='{d}/prompt' \
             OSF_FAKE_ARGS_CAPTURE='{d}/args' OSF_FAKE_HARNESS_LOG='{d}/started' OSF_FAKE_CHANGE_CAPTURE='{d}/change' \
@@ -323,6 +326,10 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         Fake::Slow(answer, secs) => run(answer, &format!("set \"OSF_FAKE_SLEEP_SECS={secs}\"\r\n")),
         Fake::Fails(secret) => format!("@echo off\r\necho {secret} 1>&2\r\nexit /b 9\r\n"),
         Fake::FailsWithText(text) => format!("@echo off\r\necho {text} 1>&2\r\nexit /b 1\r\n"),
+        Fake::TextThenSleep(text, secs) => format!(
+            "@echo off\r\necho {text} 1>&2\r\nping -n {} 127.0.0.1 >nul\r\n",
+            secs + 1
+        ),
     };
     std::fs::write(bin.join(format!("{agent}.cmd")), &body).expect("fake agent writes");
     if agent == "dsh" {
@@ -4160,26 +4167,22 @@ fn a_positive_cost_ceiling_still_runs_every_lens() {
     );
 }
 
-/// A fake reviewer that prints an HTTP 429 shape to standard error and then
-/// sleeps far past any limit the test sets.
-#[cfg(unix)]
-const QUOTA_THEN_SLEEP: &str =
-    "echo 'ERROR: stream error: 429 Too Many Requests: exceeded your current quota' 1>&2\nsleep 30\n";
+/// The HTTP 429 shape a fake reviewer prints before it sleeps far past any
+/// limit the test sets. It holds no quote or percent sign, so it is the same
+/// text in a shell script and a command file.
+const QUOTA_SHAPE: &str = "ERROR: stream error: 429 Too Many Requests: exceeded your current quota";
 
-/// Runs the whole review, then one reviewer's saved run, under `review_toml`,
-/// and returns the journal text and the saved `--out` JSON.
-#[cfg(unix)]
-fn limit_run(tag: &str, review_toml: &str) -> (String, String) {
+/// Runs the whole review, then one reviewer's saved run, with `agent` as the
+/// reviewer under `review_toml`, and returns the journal text and the saved
+/// `--out` JSON.
+fn limit_run(agent: &str, tag: &str, review_toml: &str) -> (String, String) {
     let fakes = Fakes::new(
-        "",
-        &[("opencode", Fake::Script(QUOTA_THEN_SLEEP.to_string()))],
+        &format!("{review_toml}\n\n"),
+        &[(agent, Fake::TextThenSleep(QUOTA_SHAPE, 30))],
     );
-    let repo = review_repo_with_active_lenses(
-        tag,
-        &format!("{review_toml}\n\n{}", fakes.osf_toml_with_qwen_opencode()),
-        &["slow"],
-    );
-    let home = common::isolated_home(&format!("review-run-{tag}"));
+    let repo =
+        review_repo_with_active_lenses(&format!("{tag}-{agent}"), &fakes.osf_toml, &["slow"]);
+    let home = common::isolated_home(&format!("review-run-{tag}-{agent}"));
     fakes.run(
         &repo.dir,
         &home,
@@ -4187,7 +4190,7 @@ fn limit_run(tag: &str, review_toml: &str) -> (String, String) {
     );
     let journal = journal_text(&home);
     let out_json = repo.dir.join("run.json");
-    let home = common::isolated_home(&format!("review-run-{tag}-out"));
+    let home = common::isolated_home(&format!("review-run-{tag}-out-{agent}"));
     fakes.run(
         &repo.dir,
         &home,
@@ -4195,7 +4198,7 @@ fn limit_run(tag: &str, review_toml: &str) -> (String, String) {
             "review",
             "run",
             "--reviewer",
-            "opencode",
+            agent,
             "--base",
             "origin/main",
             "--out",
@@ -4207,30 +4210,37 @@ fn limit_run(tag: &str, review_toml: &str) -> (String, String) {
 }
 
 #[test]
-#[cfg(unix)]
 fn a_timeout_at_the_per_attempt_limit_keeps_its_category_and_names_the_limit() {
-    let (journal, saved) = limit_run(
-        "limit-category-per-attempt",
-        "[review]\ntimeout_seconds = 1\ntotal_timeout_seconds = 300\n",
-    );
-    for text in [&journal, &saved] {
-        assert!(
-            text.contains("per-attempt limit (timeout_seconds = 1s)"),
-            "{text}"
+    for agent in reviewer_agents() {
+        let (journal, saved) = limit_run(
+            agent,
+            "limit-category-per-attempt",
+            "[review]\ntimeout_seconds = 1\ntotal_timeout_seconds = 300\n",
         );
-        assert!(text.contains("quota or rate limit"), "{text}");
+        for text in [&journal, &saved] {
+            assert!(
+                text.contains("per-attempt limit (timeout_seconds = 1s)"),
+                "{agent}: {text}"
+            );
+            assert!(text.contains("quota or rate limit"), "{agent}: {text}");
+        }
     }
 }
 
 #[test]
-#[cfg(unix)]
 fn a_timeout_at_the_total_limit_keeps_its_category_and_names_the_limit() {
-    let (journal, saved) = limit_run(
-        "limit-category-total",
-        "[review]\nconcurrency = 1\ntimeout_seconds = 30\ntotal_timeout_seconds = 2\n",
-    );
-    for text in [&journal, &saved] {
-        assert!(text.contains("total_timeout_seconds = 2s"), "{text}");
-        assert!(text.contains("quota or rate limit"), "{text}");
+    for agent in reviewer_agents() {
+        let (journal, saved) = limit_run(
+            agent,
+            "limit-category-total",
+            "[review]\nconcurrency = 1\ntimeout_seconds = 30\ntotal_timeout_seconds = 2\n",
+        );
+        for text in [&journal, &saved] {
+            assert!(
+                text.contains("total_timeout_seconds = 2s"),
+                "{agent}: {text}"
+            );
+            assert!(text.contains("quota or rate limit"), "{agent}: {text}");
+        }
     }
 }
