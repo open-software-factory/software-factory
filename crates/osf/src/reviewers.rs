@@ -336,25 +336,86 @@ fn keep_home() -> bool {
     std::env::var_os("OSF_KEEP_REVIEW_HOME").is_some()
 }
 
-impl RunHome {
-    /// Ends the home's life: removes it, or when `keep` is set removes the
-    /// seeded login paths and leaves the rest, private. A login that cannot
-    /// be removed removes the whole home, so a credential is never left
-    /// behind in a kept one.
-    fn retire(&self, keep: bool) {
-        if keep {
-            let all_gone = self.login_paths.iter().all(|relative| {
-                let path = self.path.join(relative);
-                let _ = std::fs::remove_file(&path);
-                let _ = std::fs::remove_dir_all(&path);
-                std::fs::symlink_metadata(&path).is_err()
-            });
-            if all_gone {
-                eprintln!("osf: kept a reviewer home at {}", self.path.display());
-                return;
+/// Removes the login at `relative` inside `root` without following a link in
+/// any component. Returns whether it is confirmed gone: only a missing path
+/// counts. A link or non-folder ancestor, or any error other than "not found",
+/// returns false so the caller removes the whole home instead.
+fn remove_login(root: &Path, relative: &str) -> bool {
+    use std::io::ErrorKind::NotFound;
+    let parts: Vec<_> = Path::new(relative).components().collect();
+    let mut current = root.to_path_buf();
+    for (index, part) in parts.iter().enumerate() {
+        current.push(part);
+        match std::fs::symlink_metadata(&current) {
+            Err(e) if e.kind() == NotFound => return true,
+            Err(_) => return false,
+            Ok(meta) if index + 1 < parts.len() => {
+                if meta.file_type().is_symlink() || !meta.is_dir() {
+                    return false;
+                }
+            }
+            Ok(meta) => {
+                let removed = if meta.is_dir() {
+                    std::fs::remove_dir_all(&current)
+                } else {
+                    std::fs::remove_file(&current)
+                };
+                if removed.is_err() {
+                    return false;
+                }
             }
         }
-        let _ = std::fs::remove_dir_all(&self.path);
+    }
+    matches!(std::fs::symlink_metadata(&current), Err(e) if e.kind() == NotFound)
+}
+
+/// Gives the owner back access to every folder under `path`, without
+/// following links, so a folder the harness locked cannot block removal.
+#[cfg(unix)]
+fn restore_owner_access(path: &Path) {
+    use std::os::unix::fs::PermissionsExt as _;
+    let Ok(meta) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    if meta.is_dir() {
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700));
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.flatten() {
+                restore_owner_access(&entry.path());
+            }
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn restore_owner_access(_path: &Path) {}
+
+impl RunHome {
+    /// Ends the home's life: removes it, or when `keep` is set removes the
+    /// seeded login paths and leaves the rest, private. A login that is not
+    /// confirmed gone removes the whole home instead, so a credential is
+    /// never left behind in a kept one. Says so when even that fails.
+    fn retire(&self, keep: bool) {
+        if keep
+            && self
+                .login_paths
+                .iter()
+                .all(|rel| remove_login(&self.path, rel))
+        {
+            eprintln!("osf: kept a reviewer home at {}", self.path.display());
+            return;
+        }
+        if std::fs::remove_dir_all(&self.path).is_err() {
+            restore_owner_access(&self.path);
+            if let Err(e) = std::fs::remove_dir_all(&self.path) {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    eprintln!(
+                        "osf: could not remove the reviewer home at {}; a login may remain there",
+                        self.path.display()
+                    );
+                }
+            }
+        }
     }
 }
 
@@ -1353,6 +1414,45 @@ mod tests {
         assert_eq!(mode, 0o700, "a kept home stays private");
         home.retire(false);
         assert!(!home.path.exists(), "a home that is not kept is removed");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_login_under_a_replaced_ancestor_never_touches_files_outside_the_home() {
+        let outside = crate::test_support::TempDir::new("osf-reviewers-outside");
+        let decoy = outside.join("auth.json");
+        std::fs::write(&decoy, "decoy").expect("decoy");
+        let home = RunHome::create(&[".fake-login/auth.json".to_string()]).expect("home");
+        std::os::unix::fs::symlink(&*outside, home.path.join(".fake-login")).expect("link");
+        home.retire(true);
+        assert!(decoy.exists(), "a file outside the home must survive");
+        assert!(!home.path.exists(), "the home must be gone");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_login_that_cannot_be_inspected_removes_the_whole_home() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let locked = std::fs::Permissions::from_mode(0o000);
+        let probe = crate::test_support::TempDir::new("osf-reviewers-root-probe");
+        let dir = probe.join("d");
+        std::fs::create_dir(&dir).expect("dir");
+        std::fs::set_permissions(&dir, locked.clone()).expect("lock");
+        let is_root = std::fs::read_dir(&dir).is_ok();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).expect("unlock");
+        if is_root {
+            eprintln!("skipped: running as root, a mode 000 folder is still readable");
+            return;
+        }
+        let home = RunHome::create(&[".fake-login/auth.json".to_string()]).expect("home");
+        std::fs::create_dir_all(home.path.join(".fake-login")).expect("dir");
+        std::fs::write(home.path.join(".fake-login/auth.json"), "secret").expect("login");
+        std::fs::set_permissions(home.path.join(".fake-login"), locked).expect("lock");
+        home.retire(true);
+        assert!(
+            !home.path.exists(),
+            "the home must not be kept with a login in it"
+        );
     }
 
     #[cfg(unix)]
