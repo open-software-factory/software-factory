@@ -637,7 +637,7 @@ fn run_child(
         return Err(format!("reviewer '{}' has an empty command", reviewer.name));
     };
 
-    let (mut command, home, home_notes) =
+    let (mut command, _home, home_notes) =
         match prepare_command(reviewer, program, rest, workdir, real_home) {
             Ok(prepared) => prepared,
             Err(e) => {
@@ -1293,7 +1293,7 @@ mod tests {
     #[test]
     fn a_failed_reviewer_names_its_exit_code_time_and_category_but_not_its_text() {
         let r = reviewer(
-            "opencode",
+            "synthetic",
             vec![
                 "sh",
                 "-c",
@@ -1312,7 +1312,7 @@ mod tests {
         )
         .expect_err("the reviewer fails");
         assert!(
-            err.starts_with("reviewer 'opencode' exited with code 1 after "),
+            err.starts_with("reviewer 'synthetic' exited with code 1 after "),
             "{err}"
         );
         assert!(

@@ -149,7 +149,52 @@ fn fenced_blocks(raw: &str) -> Vec<String> {
     found.into_iter().map(|(_, content)| content).collect()
 }
 
-/// The instance path plus a fixed, value-free description of why `error`
+/// Every property name the shipped schema declares, at any depth. These are
+/// osf's own words, so they are safe to print.
+fn trusted_names() -> &'static std::collections::BTreeSet<String> {
+    static CELL: OnceLock<std::collections::BTreeSet<String>> = OnceLock::new();
+    fn walk(value: &serde_json::Value, out: &mut std::collections::BTreeSet<String>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                if let Some(serde_json::Value::Object(props)) = map.get("properties") {
+                    out.extend(props.keys().cloned());
+                }
+                map.values().for_each(|v| walk(v, out));
+            }
+            serde_json::Value::Array(items) => items.iter().for_each(|v| walk(v, out)),
+            _ => {}
+        }
+    }
+    CELL.get_or_init(|| {
+        let schema: serde_json::Value =
+            serde_json::from_str(SCHEMA).expect("the review answer schema is valid JSON");
+        let mut names = std::collections::BTreeSet::new();
+        walk(&schema, &mut names);
+        names
+    })
+}
+
+/// `pointer` with every segment that is not a number or a name the schema
+/// declares replaced by `<field>`: a segment under `scores` is a key the
+/// reviewer chose, and that text must not be repeated.
+fn trusted_location(pointer: &str) -> String {
+    pointer
+        .split('/')
+        .map(|segment| {
+            if segment.is_empty()
+                || segment.bytes().all(|b| b.is_ascii_digit())
+                || trusted_names().contains(segment)
+            {
+                segment
+            } else {
+                "<field>"
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// The instance path, with reviewer-chosen names hidden, plus a fixed, value-free description of why `error`
 /// failed, safe to journal or print: [`jsonschema::ValidationError::masked`]
 /// already replaces the failing value itself with a placeholder, but an
 /// unexpected-field error also names the field the reviewer chose, which is
@@ -165,7 +210,7 @@ fn schema_error_reason(error: &jsonschema::ValidationError) -> String {
     };
     format!(
         "the answer does not match its schema at \"{}\": {detail}",
-        error.instance_path
+        trusted_location(&error.instance_path.to_string())
     )
 }
 
@@ -434,6 +479,15 @@ mod tests {
         for lens in shipped_lenses() {
             assert_structured_output_rules(&schema_for(&lens));
         }
+    }
+
+    #[test]
+    fn an_invalid_answer_reason_never_repeats_a_name_the_reviewer_chose() {
+        let lens = test_lens();
+        let raw = r#"{"lens":"correctness","scores":{"SECRET_VALUE":"invalid"},"findings":[]}"#;
+        let reason = extract_and_validate(raw, &lens).expect_err("the answer is invalid");
+        assert!(!reason.contains("SECRET_VALUE"), "{reason}");
+        assert!(reason.contains("/scores/<field>"), "{reason}");
     }
 
     #[test]
