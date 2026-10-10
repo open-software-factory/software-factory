@@ -198,16 +198,18 @@ fn as_f64(n: usize) -> f64 {
 }
 
 /// The weighted mean of every lens's own score, weighted by each lens's own
-/// `weight`, or `None` when any lens could not run: a could-not-run lens
-/// has no score to weigh in, and the review it belongs to was never
-/// actually scored against a threshold. The sole source of this formula;
+/// `weight`, or `None` when any lens could not run, or when there is no
+/// lens at all: a could-not-run lens has no score to weigh in, an empty set
+/// has nothing to score, and either way the review was never actually
+/// scored against a threshold. The sole source of this formula;
 /// [`decide`] and a review run's own reporting both call it rather than
 /// each keeping their own copy.
 #[must_use]
 pub fn weighted_mean(lenses: &[(&Lens, LensVerdict)]) -> Option<f64> {
-    if lenses
-        .iter()
-        .any(|(_, verdict)| matches!(verdict, LensVerdict::CouldNotRun(_)))
+    if lenses.is_empty()
+        || lenses
+            .iter()
+            .any(|(_, verdict)| matches!(verdict, LensVerdict::CouldNotRun(_)))
     {
         return None;
     }
@@ -231,7 +233,7 @@ pub fn weighted_mean(lenses: &[(&Lens, LensVerdict)]) -> Option<f64> {
 
 /// Decides the whole review from every lens's verdict.
 ///
-/// Any lens still could-not-run makes the whole review
+/// No selected lens, or any lens still could-not-run, makes the whole review
 /// [`Verdict::CouldNotRun`], whatever the others say: a could-not-run lens
 /// is never folded into a pass. Otherwise, any lens that failed, or
 /// [`weighted_mean`] of the lens scores under `threshold`, is
@@ -706,5 +708,14 @@ mod tests {
             (&lens_a, LensVerdict::Pass { score: 0.9 }),
         ];
         assert_eq!(decide(&forward, 0.7), decide(&backward, 0.7));
+    }
+
+    // An empty review is not a pass, at any threshold.
+    #[test]
+    fn a_review_with_no_selected_lens_could_not_run_at_every_threshold() {
+        for threshold in [0.7, 0.0, -1.0] {
+            assert_eq!(decide(&[], threshold), Verdict::CouldNotRun, "{threshold}");
+        }
+        assert_eq!(weighted_mean(&[]), None);
     }
 }
