@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "a5f52d0f6a679d6167f275e005a043ac2adb8418",
+    "contentHash": "d6adce04e33eea73b4151d8bf1437773"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "view-dependency-boundary-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-dependency-boundary",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6a8b9b75905334832fde87197523cb93",
+      "bytes": 13115,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "view-dependency-boundary-light-6a8b9b75905334832fde87197523cb93.svg"
+    },
+    {
+      "id": "view-dependency-boundary-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-dependency-boundary",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0a348074bc2eec54c48707f9ba7db208",
+      "bytes": 13230,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "view-dependency-boundary-dark-0a348074bc2eec54c48707f9ba7db208.svg"
+    },
+    {
+      "id": "view-agnix-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-agnix-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "aa30f570b08b34272cd12c47b7fe522b",
+      "bytes": 9453,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "view-agnix-internals-light-aa30f570b08b34272cd12c47b7fe522b.svg"
+    },
+    {
+      "id": "view-agnix-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-agnix-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "80cd0cc5592d83559ad2423851bccadf",
+      "bytes": 9534,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "view-agnix-internals-dark-80cd0cc5592d83559ad2423851bccadf.svg"
+    }
+  ]
+}
