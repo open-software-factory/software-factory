@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-review-failure-classification",
+    "headSha": "46235be809f9fec71afd2ecfd14a67a7df1bc5eb",
+    "contentHash": "a6e7ab0fb7ef0f6b5adc1ec339021ec7"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-failure-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-failure-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "460505fed402cffc7b53bdc6dacf0b4e",
+      "bytes": 23554,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "review-failure-architecture-light-460505fed402cffc7b53bdc6dacf0b4e.svg"
+    },
+    {
+      "id": "review-failure-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-failure-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ff883657ab39fa454806bc8cdeb9b2a5",
+      "bytes": 23817,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "review-failure-architecture-dark-ff883657ab39fa454806bc8cdeb9b2a5.svg"
+    },
+    {
+      "id": "verdict-decision-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "verdict-decision",
+      "mediaType": "image/svg+xml",
+      "contentHash": "76f7773b3cd5fc80af1f44ed4e7c7fba",
+      "bytes": 9165,
+      "width": 446,
+      "height": 418,
+      "animated": false,
+      "path": "verdict-decision-light-76f7773b3cd5fc80af1f44ed4e7c7fba.svg"
+    },
+    {
+      "id": "verdict-decision-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "verdict-decision",
+      "mediaType": "image/svg+xml",
+      "contentHash": "571a86053a0d11597fc382f796e16caf",
+      "bytes": 9258,
+      "width": 446,
+      "height": 418,
+      "animated": false,
+      "path": "verdict-decision-dark-571a86053a0d11597fc382f796e16caf.svg"
+    }
+  ]
+}
