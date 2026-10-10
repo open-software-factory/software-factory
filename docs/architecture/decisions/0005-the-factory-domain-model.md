@@ -2,7 +2,7 @@
 
 Status: accepted. Amended by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md) to add the checkpoint-complete and gap event types, and by [decision 0019 (what ready means)](0019-what-ready-means.md). Amended 2026-10-05 to take verifying out of the work item's list of states.
 
-Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below, amended 2026-09-26: the work item's flat lifecycle-states list below is superseded by the two-level Status and Step fields and the Draft, Proposed ready, Ready path in decision 0019. Amended again 2026-10-05: verifying is a step and no longer a Status value. The journal records the step, and the projections and the console show it. No forge field holds the step. The project board's Status stays coarse and has no Verifying option.
+Date: 2026-09-15, amended 2026-09-23 to add the checkpoint-complete and gap event types below, amended 2026-09-26: the work item's flat lifecycle-states list below is superseded by the two-level Status and Step fields and the Draft, Proposed ready, Ready path in decision 0019. Amended again 2026-10-05: verifying is a step and no longer a Status value. The journal records the step, and the projections and the console show it. No forge field holds the step. The project board's Status stays coarse and has no Verifying option. Amended 2026-10-05 to add the `system` actor kind and to say the replay digest, not the chain hash, proves a replay. Amended 2026-10-07 to name the review-answer and review-decision event types.
 
 ## Context
 
@@ -17,7 +17,7 @@ The engine owns one domain model. Provider schemas are translated to it at the e
 | Entity | Holds |
 |---|---|
 | Work item | The durable unit. Lifecycle states: ready, in progress, in review, deploying, deployed, signed off, blocked, failed, recovering, and the explicit stops aborted, rolled back, paused. A blocked item names its cause: dependency, human, clarification, ambiguous, capacity. This flat list is superseded by the two-level Status and Step fields in [decision 0019](0019-what-ready-means.md). Verifying is a step and no longer a state. The journal records the step, and the projections and the console show it. No forge field holds the step. The project board's Status has no Verifying option. [open-software-factory/software-factory#118 (projections and queries)](https://github.com/open-software-factory/software-factory/issues/118) covers the projections. |
-| Run | One execution against a work item by one actor. An actor is a harness, a model and a model family, or a person. |
+| Run | One execution against a work item by one actor. An actor is a harness, a model and a model family, a person, or `system`. |
 | Verifier run | One deterministic check inside a run: command, tool version, environment, timing, exit status, and whether it ran at all. |
 | Review run | One judgment pass: harness, model family, round number, the scope it read. |
 | Finding | A located claim from a verifier or a review, with severity, an action bucket, and an evidence grade. |
@@ -45,12 +45,14 @@ A state change is an event. The entity tables in this record are projections of 
 | Field | Holds |
 |---|---|
 | schema version | The envelope version, required. |
-| event type | One of: run started, verification, review, finding, state change, run complete, attention, checkpoint-complete, gap. The checkpoint-complete and gap types are added by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md). |
+| event type | One of: run started, verification, review, review-answer, review-decision, finding, state change, run complete, attention, checkpoint-complete, gap. The checkpoint-complete and gap types are added by [decision 0014 (the journal at every checkpoint)](0014-the-journal-at-every-checkpoint.md). A review event is the summary of one review round. A review-answer event is one reviewer's outcome for one lens (its scores and kept and dropped finding counts). A review-decision event is the verdict for the whole review (each lens's outcome, the weighted score, the threshold). The review run writes each review-answer first and then one review-decision. |
 | run, work item, change | Identifiers, provider-qualified. |
-| actor | Harness, model, model family, or the person. |
+| actor | The actor kind: harness, person or `system`. A harness names a model and a model family. |
 | timestamp | Wall-clock time, excluded from the run hash below. |
 | cost | Money and tokens, when known. |
 | payload | The event type's own fields. A verification carries the check name, the check type, the result, the duration, a summary, and the evidence grade. |
+
+The `system` kind is used for events the engine itself produces, such as run start and run complete.
 
 A reporter validates every event against the schema and rejects an invalid one loudly. An event is never dropped silently.
 
@@ -60,7 +62,7 @@ A finding that names a file and a line is written in SARIF, the static-analysis 
 
 ### Runs are replayable
 
-A run's event journal is hash-chained: each event carries the hash of the one before, with wall-clock time excluded. Two runs with identical inputs and identical decisions produce an identical head hash, which is how a replay proves it replayed.
+A run's event journal is hash-chained: each event carries the hash of the one before, with wall-clock time excluded. The chain hash proves the journal is intact. A second hash, the replay digest, covers the decision fields only: the event type, the work item, the actor, the inputs, the results and the verdicts. It leaves out timestamps, durations, cache outcomes, cost and run ids. Two runs with identical inputs and identical decisions produce an identical replay digest, which is how a replay proves it replayed.
 
 ## Consequences
 

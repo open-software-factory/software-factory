@@ -29,7 +29,7 @@
 use crate::answer::{self, Answer, AnswerFinding};
 use crate::builder;
 use crate::clean_copy::CleanCopy;
-use crate::journal::{Journal, Payload, ReviewAnswer, ReviewDecision};
+use crate::journal::{Actor, Journal, Payload, ReviewAnswer, ReviewDecision};
 use crate::lenses::{self, Catalogue, Lens};
 use crate::quotes;
 use crate::reducer::{self, LensAnswer, LensVerdict, Verdict};
@@ -654,8 +654,11 @@ fn reduce_with(
         for attempt in judged {
             if let Some(journal) = journal.as_mut() {
                 let event = attempt.into_event(&lens.name);
-                if let Err(e) = journal.append(ACTOR, now_millis(), Payload::ReviewAnswer(event.0))
-                {
+                if let Err(e) = journal.append(
+                    &Actor::system(ACTOR),
+                    now_millis(),
+                    Payload::ReviewAnswer(event.0),
+                ) {
                     journal_error.get_or_insert(e);
                 }
                 findings.extend(event.1);
@@ -675,7 +678,7 @@ fn reduce_with(
 
     if let Some(journal) = journal.as_mut() {
         if let Err(e) = journal.append(
-            ACTOR,
+            &Actor::system(ACTOR),
             now_millis(),
             Payload::ReviewDecision(ReviewDecision {
                 verdict: verdict_word(verdict).to_string(),
