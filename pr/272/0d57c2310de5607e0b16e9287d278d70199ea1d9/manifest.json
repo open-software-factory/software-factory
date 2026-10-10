@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "0d57c2310de5607e0b16e9287d278d70199ea1d9",
+    "contentHash": "c335e7ef9d1f6482cfacf43c655ca976"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-failure-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-failure-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "77939cfb98b3c80d3d89aa4e542fef52",
+      "bytes": 21283,
+      "width": 1708,
+      "height": 646,
+      "animated": true,
+      "path": "reviewer-failure-architecture-light-77939cfb98b3c80d3d89aa4e542fef52.svg"
+    },
+    {
+      "id": "reviewer-failure-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-failure-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "77063db2e62505ac8d9f0b53982624d2",
+      "bytes": 21511,
+      "width": 1708,
+      "height": 646,
+      "animated": true,
+      "path": "reviewer-failure-architecture-dark-77063db2e62505ac8d9f0b53982624d2.svg"
+    },
+    {
+      "id": "failure-classifier-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "failure-classifier-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "73f4cb71b36130444e8f7bf8638610f7",
+      "bytes": 8086,
+      "width": 860,
+      "height": 304,
+      "animated": true,
+      "path": "failure-classifier-detail-light-73f4cb71b36130444e8f7bf8638610f7.svg"
+    },
+    {
+      "id": "failure-classifier-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "failure-classifier-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4ede6f6b5815c2961ba5c95e1f6f8a2d",
+      "bytes": 8155,
+      "width": 860,
+      "height": 304,
+      "animated": true,
+      "path": "failure-classifier-detail-dark-4ede6f6b5815c2961ba5c95e1f6f8a2d.svg"
+    }
+  ]
+}
