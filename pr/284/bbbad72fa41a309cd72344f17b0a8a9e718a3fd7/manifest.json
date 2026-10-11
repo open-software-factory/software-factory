@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "harden-runner-v2-22-1-bump",
+    "headSha": "bbbad72fa41a309cd72344f17b0a8a9e718a3fd7",
+    "contentHash": "c10c295b566ed6703515ff0e72736e7c"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "ci-egress-boundary-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "ci-egress-boundary",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4ef6f2645ab30235bf8e30c5503b9d18",
+      "bytes": 16413,
+      "width": 1768,
+      "height": 760,
+      "animated": false,
+      "path": "ci-egress-boundary-light-4ef6f2645ab30235bf8e30c5503b9d18.svg"
+    },
+    {
+      "id": "ci-egress-boundary-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "ci-egress-boundary",
+      "mediaType": "image/svg+xml",
+      "contentHash": "78d41af5f438c3b07b51ace5cbc681a4",
+      "bytes": 16561,
+      "width": 1768,
+      "height": 760,
+      "animated": false,
+      "path": "ci-egress-boundary-dark-78d41af5f438c3b07b51ace5cbc681a4.svg"
+    },
+    {
+      "id": "review-jobs-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-jobs-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6248d4acd75acd9d5705c1f0e251cc29",
+      "bytes": 10409,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "review-jobs-detail-light-6248d4acd75acd9d5705c1f0e251cc29.svg"
+    },
+    {
+      "id": "review-jobs-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-jobs-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d93407a7fc1c7df4ff448a9f6b3b9d98",
+      "bytes": 10501,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "review-jobs-detail-dark-d93407a7fc1c7df4ff448a9f6b3b9d98.svg"
+    },
+    {
+      "id": "pin-resolution-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "pin-resolution-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "489e51376960c1cc73ee633ea7f883a9",
+      "bytes": 12534,
+      "width": 1466,
+      "height": 337,
+      "animated": true,
+      "path": "pin-resolution-flow-light-489e51376960c1cc73ee633ea7f883a9.svg"
+    },
+    {
+      "id": "pin-resolution-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "pin-resolution-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "566ea046e78596ad47bf3bb322abf50f",
+      "bytes": 12658,
+      "width": 1466,
+      "height": 337,
+      "animated": true,
+      "path": "pin-resolution-flow-dark-566ea046e78596ad47bf3bb322abf50f.svg"
+    }
+  ]
+}
