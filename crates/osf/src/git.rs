@@ -223,6 +223,19 @@ pub fn commit_hashes(dir: &Path, range: &str) -> Result<Vec<String>, GitError> {
     Ok(text.lines().map(str::to_string).collect())
 }
 
+/// Every non-merge commit hash in `range`, oldest first. A merge commit
+/// that only brings in other work carries no attribution of its own.
+///
+/// # Errors
+/// Returns an error if git cannot run in `dir`, such as when `range` does not resolve.
+pub fn non_merge_commit_hashes(dir: &Path, range: &str) -> Result<Vec<String>, GitError> {
+    let text = run_text(
+        dir,
+        &["log", "--format=%H", "--reverse", "--no-merges", range],
+    )?;
+    Ok(text.lines().map(str::to_string).collect())
+}
+
 /// One commit's full message.
 ///
 /// # Errors

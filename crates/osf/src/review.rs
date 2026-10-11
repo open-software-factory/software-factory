@@ -124,35 +124,39 @@ impl DiffLines {
     pub fn parse(diff: &str) -> Self {
         let mut files: BTreeMap<String, Vec<(u64, u64)>> = BTreeMap::new();
         let mut current: Option<String> = None;
+        // Lines of the current hunk still to read, on the old and new side.
+        let (mut old_left, mut new_left) = (0_u64, 0_u64);
         for line in diff.lines() {
-            if let Some(path) = line.strip_prefix("+++ ") {
-                let path = path.split('\t').next().unwrap_or(path);
-                current = path.strip_prefix("b/").map(str::to_string);
+            if old_left > 0 || new_left > 0 {
+                // Inside a hunk every line is content, whatever it looks like.
+                match line.chars().next() {
+                    Some('+') => new_left = new_left.saturating_sub(1),
+                    Some('-') => old_left = old_left.saturating_sub(1),
+                    Some('\\') => {}
+                    _ => {
+                        old_left = old_left.saturating_sub(1);
+                        new_left = new_left.saturating_sub(1);
+                    }
+                }
                 continue;
             }
             if line.starts_with("diff --git ") {
                 current = None;
-                continue;
-            }
-            let (Some(path), Some(rest)) = (&current, line.strip_prefix("@@ ")) else {
-                continue;
-            };
-            let Some(new_side) = rest.split_whitespace().find(|w| w.starts_with('+')) else {
-                continue;
-            };
-            let mut numbers = new_side.trim_start_matches('+').split(',');
-            let Some(start) = numbers.next().and_then(|n| n.parse::<u64>().ok()) else {
-                continue;
-            };
-            let count = numbers
-                .next()
-                .map_or(Some(1), |n| n.parse::<u64>().ok())
-                .unwrap_or(0);
-            if count > 0 {
-                files
-                    .entry(path.clone())
-                    .or_default()
-                    .push((start, start + count - 1));
+            } else if let Some(path) = line.strip_prefix("+++ ") {
+                let path = path.split('\t').next().unwrap_or(path);
+                current = path.strip_prefix("b/").map(str::to_string);
+            } else if let Some(rest) = line.strip_prefix("@@ ") {
+                let (old, new) = hunk_counts(rest);
+                old_left = old.unwrap_or(0);
+                new_left = new.map_or(0, |(_, count)| count);
+                if let (Some(path), Some((start, count))) = (&current, new) {
+                    if count > 0 {
+                        files
+                            .entry(path.clone())
+                            .or_default()
+                            .push((start, start + count - 1));
+                    }
+                }
             }
         }
         DiffLines { files }
@@ -165,6 +169,22 @@ impl DiffLines {
             .get(path)
             .is_some_and(|ranges| ranges.iter().any(|(a, b)| (*a..=*b).contains(&line)))
     }
+}
+
+/// The old line count, and the new start and count, of a hunk header's text
+/// after `@@ `: `-a,b +c,d @@`. A count left out means one.
+fn hunk_counts(rest: &str) -> (Option<u64>, Option<(u64, u64)>) {
+    let side = |sign: char| {
+        let word = rest.split_whitespace().find(|w| w.starts_with(sign))?;
+        let mut numbers = word.trim_start_matches(sign).split(',');
+        let start = numbers.next()?.parse::<u64>().ok()?;
+        let count = match numbers.next() {
+            Some(n) => n.parse::<u64>().ok()?,
+            None => 1,
+        };
+        Some((start, count))
+    };
+    (side('-').map(|(_, count)| count), side('+'))
 }
 
 /// Splits a comma-separated block list into trimmed, non-empty entries.
@@ -192,13 +212,68 @@ fn unanchored_line(f: &Finding) -> String {
     )
 }
 
+/// The heading over the findings that cannot be inline comments.
+const OUTSIDE_HEADING: &str = "\n\n**Findings outside the diff**\n";
+
+/// The line that says how many findings did not fit.
+fn more_findings_line(count: usize) -> String {
+    let noun = if count == 1 {
+        "finding is"
+    } else {
+        "findings are"
+    };
+    format!("\n- {count} more {noun} in the run's saved artifact")
+}
+
+/// `summary`, then as many of `findings` under [`OUTSIDE_HEADING`] as fit in
+/// [`BODY_LIMIT`], then a line counting the rest. Where a finding points
+/// never stops a review from posting.
+///
+/// # Errors
+/// Returns [`ReviewError::BodyTooLong`] when the summary leaves no room for
+/// the heading and the count line.
+fn append_outside_findings(summary: &str, findings: &[&&Finding]) -> Result<String, ReviewError> {
+    let reserve = OUTSIDE_HEADING.len() + more_findings_line(findings.len()).len();
+    if summary.len() + reserve > BODY_LIMIT {
+        return Err(ReviewError::BodyTooLong {
+            len: summary.len() + reserve,
+            limit: BODY_LIMIT,
+        });
+    }
+    let mut body = format!("{summary}{OUTSIDE_HEADING}");
+    let mut shown = 0;
+    for finding in findings {
+        let line = unanchored_line(finding);
+        let remaining = findings.len() - shown - 1;
+        let tail = if remaining == 0 {
+            0
+        } else {
+            more_findings_line(remaining).len()
+        };
+        let needed = usize::from(shown != 0) + line.len() + tail;
+        if body.len() + needed > BODY_LIMIT {
+            break;
+        }
+        if shown > 0 {
+            body.push('\n');
+        }
+        body.push_str(&line);
+        shown += 1;
+    }
+    if shown < findings.len() {
+        body.push_str(&more_findings_line(findings.len() - shown));
+    }
+    Ok(body)
+}
+
 /// Decides the verdict, builds the final body, and lays out the inline
 /// comments for `findings`. A finding whose action is `dismiss` is dropped
 /// before any of this runs; it is never posted anywhere.
 ///
 /// # Errors
-/// Returns [`ReviewError::BodyTooLong`] when the summary, with any
-/// unanchored findings appended, is over [`BODY_LIMIT`] characters.
+/// Returns [`ReviewError::BodyTooLong`] when the summary alone, or with room
+/// for the findings notice, is over [`BODY_LIMIT`] characters. Findings that
+/// do not fit are counted in the body, never refused.
 pub fn plan_review(
     findings: &[Finding],
     summary: &str,
@@ -258,9 +333,7 @@ pub fn plan_review_in_diff(
     let unanchored: Vec<&&Finding> = posted.iter().filter(|f| !anchored(f)).collect();
     let mut body = summary.trim_end_matches('\n').to_string();
     if !unanchored.is_empty() {
-        let lines: Vec<String> = unanchored.iter().map(|f| unanchored_line(f)).collect();
-        body.push_str("\n\n**Findings outside the diff**\n");
-        body.push_str(&lines.join("\n"));
+        body = append_outside_findings(&body, &unanchored)?;
     }
     if body.len() > BODY_LIMIT {
         return Err(ReviewError::BodyTooLong {
@@ -701,22 +774,55 @@ mod tests {
         assert!(!plan.body.contains("hyg-09"), "{}", plan.body);
     }
 
-    // The limit applies to the final body, unanchored findings included.
+    // The limit applies to the final body: a finding that does not fit is
+    // counted, and the review still posts with its verdict.
     #[test]
-    fn an_oversized_final_body_is_refused_with_the_reason_named() {
-        let long_body = "x".repeat(1900);
+    fn findings_that_do_not_fit_are_counted_not_refused() {
+        let mut findings = vec![finding("in-1", "README.md", Some(1), "major", "should-fix")];
+        for n in 0..5 {
+            findings.push(Finding {
+                id: format!("big-{n}"),
+                path: "README.md".to_string(),
+                line: None,
+                severity: "minor".to_string(),
+                action: "maybe-fix".to_string(),
+                body: "x".repeat(700),
+            });
+        }
+        let summary = "A short review summary. ".repeat(4);
+        let plan = plan_review(&findings, &summary, &default_block_on()).expect("plans");
+        assert!(plan.body.len() <= BODY_LIMIT, "{}", plan.body.len());
+        assert!(plan.body.contains("big-0"), "{}", plan.body);
+        assert!(!plan.body.contains("big-4"), "{}", plan.body);
+        assert!(
+            plan.body
+                .contains("more findings are in the run's saved artifact"),
+            "{}",
+            plan.body
+        );
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
+        assert_eq!(plan.comments.len(), 1);
+    }
+
+    #[test]
+    fn a_single_finding_too_long_to_fit_is_counted() {
         let findings = vec![Finding {
             id: "big-01".to_string(),
             path: "README.md".to_string(),
             line: None,
             severity: "minor".to_string(),
             action: "maybe-fix".to_string(),
-            body: long_body,
+            body: "x".repeat(1900),
         }];
-        let summary = "A short review summary, well under the limit on its own. ".repeat(4);
-        let err =
-            plan_review(&findings, &summary, &default_block_on()).expect_err("body is too long");
-        assert!(err.to_string().contains("review body is"), "{err}");
+        let summary = "A short review summary. ".repeat(4);
+        let plan = plan_review(&findings, &summary, &default_block_on()).expect("plans");
+        assert!(plan.body.len() <= BODY_LIMIT);
+        assert!(
+            plan.body
+                .contains("1 more finding is in the run's saved artifact"),
+            "{}",
+            plan.body
+        );
     }
 
     // A summary over 2,000 characters is refused with the limit named.
@@ -978,5 +1084,20 @@ mod tests {
         assert!(!plan.body.contains("in-1"), "{}", plan.body);
         // Still blocks: moving a finding to the body never lowers the verdict.
         assert_eq!(plan.verdict, Verdict::RequestChanges);
+    }
+
+    #[test]
+    fn header_like_added_text_is_content_not_a_file_header() {
+        let diff = "diff --git a/a.rs b/a.rs\n--- a/a.rs\n+++ b/a.rs\n@@ -1,2 +1,2 @@\n x\n+++ b/other.rs\n-- old\n@@ -10 +11 @@\n-z\n+w\n";
+        let lines = DiffLines::parse(diff);
+        assert!(lines.contains("a.rs", 1));
+        assert!(lines.contains("a.rs", 2));
+        assert!(!lines.contains("a.rs", 3));
+        assert!(
+            lines.contains("a.rs", 11),
+            "the second hunk still belongs to a.rs"
+        );
+        assert!(!lines.contains("other.rs", 1));
+        assert!(!lines.contains("other.rs", 11));
     }
 }

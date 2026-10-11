@@ -1653,6 +1653,74 @@ fn a_skipped_reviewer_s_saved_run_records_the_reason() {
     );
 }
 
+/// A secret in an unrecognised trailer reaches no output: not the saved run,
+/// the journal, the console, nor the posted review summary.
+#[test]
+#[cfg(unix)]
+fn a_secret_in_an_unrecognised_trailer_reaches_no_destination() {
+    let secret = format!("{}{}", "sk-", "ABCDEFGHIJKLMNOPQRSTUVWX0123456789");
+    let trailer = format!("Some New Model {secret}");
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo_built_by("unknown-secret", &fakes.osf_toml, &trailer);
+    let home = common::isolated_home("review-run-unknown-secret");
+    let gh_holder = TempDir::new("review-run-unknown-secret-gh");
+    let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    let path = path_with_dir_first(&gh_dir);
+    let payload_file = gh_holder.join("payload.json");
+    let payload_path = payload_file.display().to_string();
+
+    // Saved JSON.
+    let file = repo.dir.join("codex.json").display().to_string();
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        job.status.success(),
+        "{}",
+        String::from_utf8_lossy(&job.stderr)
+    );
+    let saved = std::fs::read_to_string(&file).expect("saved run reads");
+    assert!(saved.contains("redacted"), "{saved}");
+    assert!(!saved.contains(&secret), "saved JSON: {saved}");
+
+    // Console, journal and posted summary.
+    let output = fakes.run_with_env(
+        &repo.dir,
+        &home,
+        &[("PATH", &path), ("FAKE_GH_PAYLOAD", &payload_path)],
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--post-to",
+            "open-software-factory/widgets#7",
+        ],
+    );
+    let console = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(console.contains("redacted"), "{console}");
+    assert!(!console.contains(&secret), "console: {console}");
+    assert!(!journal_text(&home).contains(&secret), "journal");
+    let payload = std::fs::read_to_string(&payload_file).expect("the fake gh saved the payload");
+    assert!(payload.contains("redacted"), "{payload}");
+    assert!(!payload.contains(&secret), "posted summary: {payload}");
+}
+
 /// A saved run of a reviewer that fails closed on an unknown builder family
 /// names the trailer text in its own record.
 #[test]

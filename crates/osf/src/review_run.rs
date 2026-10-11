@@ -1117,7 +1117,10 @@ fn detect_builder_families(
                 .collect::<Vec<_>>()
                 .join("; ")
         };
-        Some(detail)
+        // Commit-message text reaches saved files, the journal, the console and
+        // the posted review, so it goes through the same redaction as any
+        // other text from the change.
+        Some(redact_reviewer_text(req.root, req.config_root, &detail))
     } else {
         None
     };

@@ -73,23 +73,24 @@ fn trailer_model_name(line: &str) -> Option<String> {
     }
 }
 
-/// Every `Code-Generator:` trailer's model name across every commit in
-/// `range`, however many commits repeat one.
+/// Each non-merge commit in `range` with the model names of its own
+/// `Code-Generator:` trailers, oldest first. A commit with none, or whose
+/// trailer names nothing, has an empty list.
 ///
 /// # Errors
 /// Returns an error when git cannot read `range`'s commits.
-fn trailer_model_names(root: &Path, range: &str) -> Result<Vec<String>, String> {
-    let hashes = git::commit_hashes(root, range).map_err(|e| e.to_string())?;
-    let mut names = Vec::new();
+fn trailer_model_names_per_commit(
+    root: &Path,
+    range: &str,
+) -> Result<Vec<(String, Vec<String>)>, String> {
+    let hashes = git::non_merge_commit_hashes(root, range).map_err(|e| e.to_string())?;
+    let mut commits = Vec::new();
     for hash in hashes {
         let message = git::commit_message(root, &hash).map_err(|e| e.to_string())?;
-        for line in message.lines() {
-            if let Some(name) = trailer_model_name(line) {
-                names.push(name);
-            }
-        }
+        let names = message.lines().filter_map(trailer_model_name).collect();
+        commits.push((hash, names));
     }
-    Ok(names)
+    Ok(commits)
 }
 
 /// What [`detect_detailed`] found: the distinct families, and why any of
@@ -100,7 +101,7 @@ pub struct Detected {
     /// lack of one, that names no family.
     pub families: Vec<String>,
     /// One entry per reason a family is unknown: the trailer as written, or
-    /// a note that the range carries no trailer. Empty when every family is
+    /// the commit that carries none. Empty when every family is
     /// known, and always empty for an override.
     pub unknown: Vec<String>,
 }
@@ -112,8 +113,9 @@ pub struct Detected {
 /// mapped through `aliases` and the shipped table.
 ///
 /// A trailer whose model maps to nothing contributes [`UNKNOWN`] and is
-/// named in [`Detected::unknown`]. No trailer at all in the whole range is
-/// reported the same way, as `[UNKNOWN]`.
+/// named in [`Detected::unknown`]. So does each non-merge commit with no
+/// trailer, or an empty one, even when other commits carry good ones; a
+/// range with no commit at all is reported the same way.
 ///
 /// # Errors
 /// Returns an error when git cannot read `range`'s commits.
@@ -132,22 +134,34 @@ pub fn detect_detailed(
             unknown: Vec::new(),
         });
     }
-    let names = trailer_model_names(root, range)?;
-    if names.is_empty() {
+    let commits = trailer_model_names_per_commit(root, range)?;
+    if commits.is_empty() {
         return Ok(Detected {
             families: vec![UNKNOWN.to_string()],
-            unknown: vec!["no Code-Generator trailer in the reviewed commits".to_string()],
+            unknown: vec!["no commits with a Code-Generator trailer to read".to_string()],
         });
     }
     let mut families = Vec::new();
     let mut unknown: Vec<String> = Vec::new();
-    for name in &names {
-        let family = family_of(name, aliases);
-        let described = format!("Code-Generator: {name}");
-        if family == UNKNOWN && !unknown.contains(&described) {
+    for (hash, names) in &commits {
+        if names.is_empty() {
+            // One commit without attribution leaves the builder unknown, whatever
+            // the other commits say.
+            let described = format!(
+                "commit {} has no Code-Generator trailer",
+                hash.chars().take(12).collect::<String>()
+            );
             unknown.push(described);
+            families.push(UNKNOWN.to_string());
         }
-        families.push(family);
+        for name in names {
+            let family = family_of(name, aliases);
+            let described = format!("Code-Generator: {name}");
+            if family == UNKNOWN && !unknown.contains(&described) {
+                unknown.push(described);
+            }
+            families.push(family);
+        }
     }
     families.sort();
     families.dedup();
@@ -389,6 +403,83 @@ mod tests {
         let range = format!("{base}..HEAD");
         let found = detect_detailed(&root, &range, &[], &[]).expect("detect runs");
         assert_eq!(found.families, vec!["anthropic".to_string()]);
-        assert!(found.unknown.is_empty());
+        assert_eq!(found.unknown, Vec::<String>::new());
+    }
+
+    #[test]
+    fn one_commit_without_a_trailer_makes_a_mixed_history_unknown() {
+        let root = TempDir::new("osf-builder-mixed-missing");
+        init_repo(&root);
+        commit(&root, "root commit");
+        let base = commit_hash(&root);
+        commit(
+            &root,
+            "first change\n\nCode-Generator: Claude Sonnet 5 <noreply@anthropic.com>\n",
+        );
+        commit(&root, "second change with no attribution");
+        let range = format!("{base}..HEAD");
+        let found = detect_detailed(&root, &range, &[], &[]).expect("detect runs");
+        assert_eq!(
+            found.families,
+            vec!["anthropic".to_string(), UNKNOWN.to_string()]
+        );
+        assert_eq!(found.unknown.len(), 1);
+        assert!(
+            found
+                .unknown
+                .first()
+                .is_some_and(|u| u.contains("has no Code-Generator trailer")),
+            "{:?}",
+            found.unknown
+        );
+    }
+
+    #[test]
+    fn a_commit_with_an_empty_trailer_makes_a_mixed_history_unknown() {
+        let root = TempDir::new("osf-builder-mixed-empty");
+        init_repo(&root);
+        commit(&root, "root commit");
+        let base = commit_hash(&root);
+        commit(
+            &root,
+            "first change\n\nCode-Generator: GPT-5 <noreply@example.com>\n",
+        );
+        commit(
+            &root,
+            "second change\n\nCode-Generator: <noreply@example.com>\n",
+        );
+        let range = format!("{base}..HEAD");
+        let found = detect_detailed(&root, &range, &[], &[]).expect("detect runs");
+        assert!(found.families.contains(&UNKNOWN.to_string()));
+        assert!(found.families.contains(&"openai".to_string()));
+        assert_eq!(found.unknown.len(), 1);
+    }
+
+    #[test]
+    fn a_merge_commit_needs_no_trailer_of_its_own() {
+        let root = TempDir::new("osf-builder-merge");
+        init_repo(&root);
+        commit(&root, "root commit");
+        let base = commit_hash(&root);
+        let run = |args: &[&str]| {
+            let mut c = Command::new("git");
+            c.args(args).current_dir(&root);
+            git::scrub_git_env(&mut c);
+            assert!(c.status().expect("git runs").success(), "{args:?}");
+        };
+        run(&["checkout", "--quiet", "-b", "side"]);
+        commit(
+            &root,
+            "side change\n\nCode-Generator: Claude Sonnet 5 <noreply@anthropic.com>\n",
+        );
+        run(&["checkout", "--quiet", "-"]);
+        commit(
+            &root,
+            "main change\n\nCode-Generator: Claude Sonnet 5 <noreply@anthropic.com>\n",
+        );
+        run(&["merge", "--quiet", "--no-ff", "-m", "Merge side", "side"]);
+        let range = format!("{base}..HEAD");
+        let found = detect_detailed(&root, &range, &[], &[]).expect("detect runs");
+        assert_eq!(found.families, vec!["anthropic".to_string()]);
     }
 }
