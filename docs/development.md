@@ -719,7 +719,9 @@ read error.
 | `private-factory-repo` | A private repository in the adopter's organisation that holds the org-wide config, private lenses and prompts, the pinned osf release, and the list of watched repositories | Reading the list of watched repositories, which is not built yet. The factory vendored into one repository, which has no value yet. |
 
 Every command that loads the config, such as `osf config show`, checks
-the key and stops on an unsupported value. Code reads the key through
+the key and stops on an unsupported value. A `--gate` run does the same
+for the repository's own `osf.toml`, though it takes no setting from it.
+Code reads the key through
 `config::adoption_mode`. A command that depends on the mode calls
 `config::require_adoption_mode` with the modes it supports. No command
 depends on the mode yet, so no command calls it yet.
