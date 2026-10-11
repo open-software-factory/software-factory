@@ -1,0 +1,938 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-11T11:49:34.985Z",
+  "title": "Adoption mode becomes a checked key on every osf.toml read",
+  "summary": "This change introduces a top-level `adoption_mode` key in a repository's own `osf.toml` and funnels every reader of that file through a single parse step, `config::repo_document`, which refuses an unsupported value. Previously each reader (`review_config`, `agents_config`, `changeset_risk::hot_paths`, `review_context::scan_config`) read and parsed the file on its own and silently fell back to defaults on a malformed file; now a bad value or an unreadable file stops the command with a message naming the key and the supported values. The layered `config::load` and the `--gate` load share the same parser, so `osf config show`, `lint writing --gate`, `agents list`, `review run` and `changeset risk` all refuse an unknown mode. `AdoptionMode` currently has one variant, `private-factory-repo`, and `require_adoption_mode` is added for commands that will depend on the mode, though none call it yet.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "1adbff6b4a64f416e1fd89994a840ee2b205b853",
+      "ref": "1adbff6b4a64f416e1fd89994a840ee2b205b853"
+    },
+    "pullRequest": {
+      "number": 291,
+      "url": "https://github.com/open-software-factory/software-factory/pull/291"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "CLI commands",
+      "subtitle": "osf binary entry points",
+      "order": 0,
+      "summary": "The user-facing commands that read a repository's osf.toml, directly or through a helper."
+    },
+    {
+      "id": "config",
+      "label": "Config layer",
+      "subtitle": "crates/osf/src/config.rs",
+      "order": 1,
+      "summary": "The single parse-and-check step every reader of a repository's own osf.toml now goes through."
+    },
+    {
+      "id": "consumers",
+      "label": "Config consumers",
+      "subtitle": "review, risk, redaction",
+      "order": 2,
+      "summary": "The modules that previously parsed osf.toml themselves and now delegate to the config layer."
+    },
+    {
+      "id": "repo",
+      "label": "Repository files",
+      "subtitle": "on disk",
+      "order": 3,
+      "summary": "The osf.toml a repository ships and the layered config files merged on top of it."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "cli-config-show",
+      "label": "osf config show",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "prints the layered config",
+      "summary": "Reads the layered config through `config::load`, which now parses the repository's own osf.toml with `parse_repo_document` and refuses an unsupported adoption_mode.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 14,
+          "endLine": 28
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cli-lint-gate",
+      "label": "osf lint writing --gate",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "gate_must_explain_names",
+      "summary": "The gate takes no setting from the repository's osf.toml but still parses it through `parse_repo_document`, so an unsupported adoption_mode stops the gate run.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 868,
+          "endLine": 884
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cli-agents-list",
+      "label": "osf agents list",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "agents_config",
+      "summary": "Reads the `[agents]` table through `agents_config`, which now delegates to `repo_document` and so inherits the adoption_mode check.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 57,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cli-review-run",
+      "label": "osf review run",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "review pipeline",
+      "summary": "Reads `[review]` through `review_config` and redacts lens context through `review_context::scan_config`; both now refuse an unsupported adoption_mode.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_run.rs",
+          "startLine": 4248,
+          "endLine": 4267
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "cli-changeset-risk",
+      "label": "osf changeset risk",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "assess",
+      "summary": "`assess` calls `hot_paths`, which now returns a Result and propagates a config error instead of silently returning an empty glob list.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 641,
+          "endLine": 644
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "repo-document",
+      "label": "config::repo_document",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "subtitle": "fn repo_document(root: &Path) -> Result<Option<toml::Value>, ConfigError>",
+      "summary": "The one entry point for reading a repository's own osf.toml outside the layered load. Returns None when the file is absent, an error when it cannot be read or parsed, and otherwise the parsed document after `adoption_mode_of` has checked the key.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 251,
+          "endLine": 277
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "parse-repo-document",
+      "label": "parse_repo_document",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "subtitle": "fn parse_repo_document(text: &str, path: &Path) -> Result<toml::Value, ConfigError>",
+      "summary": "Parses osf.toml text and runs the adoption_mode check on the result. Shared by `repo_document` and the layered `load`, so neither path can skip the check.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 251,
+          "endLine": 258
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode",
+      "label": "AdoptionMode",
+      "kind": "module",
+      "delta": "added",
+      "lane": "config",
+      "subtitle": "enum AdoptionMode { PrivateFactoryRepo }",
+      "summary": "The top-level adoption_mode key of a repository's own osf.toml. One variant exists so far, `private-factory-repo`; `ALL` lists every supported mode and `name` gives the value written in the file.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 298,
+          "endLine": 325
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode-of",
+      "label": "adoption_mode_of",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "subtitle": "fn adoption_mode_of(value: &toml::Value, path: &Path) -> Result<Option<AdoptionMode>, ConfigError>",
+      "summary": "Checks the adoption_mode entry of an already parsed osf.toml. An absent key yields None; a value that is not a supported mode yields an error naming the key and the supported values.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 345,
+          "endLine": 362
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "require-adoption-mode",
+      "label": "config::require_adoption_mode",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "subtitle": "fn require_adoption_mode(root, command, supported) -> Result<AdoptionMode, ConfigError>",
+      "summary": "The mode a command needs: reads the key and checks it against the modes the command supports. An unset key is refused too, so a command never runs on a guessed mode. No command calls it yet.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 364,
+          "endLine": 383
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "layered-load",
+      "label": "config::load",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "layered config merge",
+      "summary": "Now parses the explicit config file with `parse_repo_document` and removes the adoption_mode key before merging, so the key never trips the struct's deny_unknown_fields.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 753,
+          "endLine": 768
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-config",
+      "label": "review_config",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "consumers",
+      "subtitle": "[review] table reader",
+      "summary": "Delegates to `repo_document` instead of reading and parsing osf.toml itself, so an unsupported adoption_mode now stops it rather than being ignored.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 453,
+          "endLine": 462
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-config",
+      "label": "agents_config",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "consumers",
+      "subtitle": "[agents] table reader",
+      "summary": "Delegates to `repo_document`; an absent file still yields the default AgentsConfig, but an unreadable or invalid file is now an error.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 283,
+          "endLine": 295
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hot-paths",
+      "label": "changeset_risk::hot_paths",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "consumers",
+      "subtitle": "fn hot_paths(root: &Path) -> Result<Vec<String>, String>",
+      "summary": "Returns a Result now: an absent file yields an empty glob list, but an unreadable file, invalid TOML or unsupported adoption_mode propagates as an error to `assess`.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 556,
+          "endLine": 578
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-config",
+      "label": "review_context::scan_config",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "consumers",
+      "subtitle": "fn scan_config(config_root: &Path) -> Result<ScanConfig, String>",
+      "summary": "Returns a Result now, so redaction stops on an unreadable or invalid osf.toml or an unsupported adoption_mode instead of falling back to compiled defaults.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs",
+          "startLine": 411,
+          "endLine": 428
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "redact-secrets",
+      "label": "redact_secrets",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "consumers",
+      "subtitle": "lens context redaction",
+      "summary": "Propagates the `scan_config` error with `?`, so a bad adoption_mode stops redaction before any lens context is built.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs",
+          "startLine": 457,
+          "endLine": 460
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "repo",
+      "subtitle": "repository's own config",
+      "summary": "The file that now carries the top-level adoption_mode key. Absent means no mode; present but unreadable or invalid means an error.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 17,
+          "endLine": 17
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "layered-files",
+      "label": "layered config files",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "repo",
+      "subtitle": "--config, user, project layers",
+      "summary": "The other layers merged by `config::load`. They share the parser with the repository's own file, so an unsupported adoption_mode in any of them is refused.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 753,
+          "endLine": 768
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode-tests",
+      "label": "adoption_mode integration tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "repo",
+      "subtitle": "crates/osf/tests/adoption_mode.rs",
+      "summary": "Drives the CLI end to end: an unsupported mode stops `config show`, the gate path and `agents list`, naming the key and every supported value; a supported mode loads.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 1,
+          "endLine": 77
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "config-show-reads-layered",
+      "from": "cli-config-show",
+      "to": "layered-load",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "loads config",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`osf config show` renders the layered config, which parses the repository's own osf.toml through `parse_repo_document`.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 753,
+          "endLine": 768
+        }
+      ]
+    },
+    {
+      "id": "gate-reads-parse",
+      "from": "cli-lint-gate",
+      "to": "parse-repo-document",
+      "kind": "call",
+      "delta": "added",
+      "label": "checks the mode",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The gate takes no setting from the file but still parses it, so an unsupported adoption_mode stops the gate run.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 868,
+          "endLine": 884
+        }
+      ]
+    },
+    {
+      "id": "agents-reads-repo-document",
+      "from": "cli-agents-list",
+      "to": "agents-config",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`osf agents list` reads the `[agents]` table through `agents_config`.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 57,
+          "endLine": 70
+        }
+      ]
+    },
+    {
+      "id": "review-reads-review-config",
+      "from": "cli-review-run",
+      "to": "review-config",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`osf review run` reads `[review]` through `review_config`.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_run.rs",
+          "startLine": 4248,
+          "endLine": 4267
+        }
+      ]
+    },
+    {
+      "id": "review-reads-scan-config",
+      "from": "cli-review-run",
+      "to": "redact-secrets",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`osf review run` redacts lens context through `redact_secrets`, which reads `[scan]` through `scan_config`.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs",
+          "startLine": 457,
+          "endLine": 460
+        }
+      ]
+    },
+    {
+      "id": "risk-reads-hot-paths",
+      "from": "cli-changeset-risk",
+      "to": "hot-paths",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`assess` reads the `[review] hot_paths` globs through `hot_paths`.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 641,
+          "endLine": 644
+        }
+      ]
+    },
+    {
+      "id": "repo-document-reads-osf-toml",
+      "from": "repo-document",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "added",
+      "label": "reads",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "`repo_document` reads `<root>/osf.toml`, returning None when it is absent and an error when it cannot be read.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 264,
+          "endLine": 277
+        }
+      ]
+    },
+    {
+      "id": "repo-document-calls-parse",
+      "from": "repo-document",
+      "to": "parse-repo-document",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`repo_document` hands the file text to `parse_repo_document`, which parses it and checks the mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 276,
+          "endLine": 276
+        }
+      ]
+    },
+    {
+      "id": "parse-calls-adoption-mode-of",
+      "from": "parse-repo-document",
+      "to": "adoption-mode-of",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every parse runs the adoption_mode check, so no reader can skip it.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 255,
+          "endLine": 255
+        }
+      ]
+    },
+    {
+      "id": "adoption-mode-of-uses-adoption-mode",
+      "from": "adoption-mode-of",
+      "to": "adoption-mode",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The check parses the raw value against `AdoptionMode::ALL` and names the supported values in the error.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 345,
+          "endLine": 362
+        }
+      ]
+    },
+    {
+      "id": "require-uses-adoption-mode",
+      "from": "require-adoption-mode",
+      "to": "adoption-mode",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`require_adoption_mode` reads the key and checks it against the modes the calling command supports.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 364,
+          "endLine": 383
+        }
+      ]
+    },
+    {
+      "id": "layered-load-calls-parse",
+      "from": "layered-load",
+      "to": "parse-repo-document",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The layered load shares the parser, so an unsupported mode in any layer is refused.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 756,
+          "endLine": 756
+        }
+      ]
+    },
+    {
+      "id": "layered-load-reads-layered-files",
+      "from": "layered-load",
+      "to": "layered-files",
+      "kind": "data",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The layered load merges the explicit, user and project config files.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 753,
+          "endLine": 768
+        }
+      ]
+    },
+    {
+      "id": "review-config-calls-repo-document",
+      "from": "review-config",
+      "to": "repo-document",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`review_config` now delegates to `repo_document` instead of parsing the file itself.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 455,
+          "endLine": 458
+        }
+      ]
+    },
+    {
+      "id": "agents-config-calls-repo-document",
+      "from": "agents-config",
+      "to": "repo-document",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`agents_config` now delegates to `repo_document`.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 286,
+          "endLine": 289
+        }
+      ]
+    },
+    {
+      "id": "hot-paths-calls-repo-document",
+      "from": "hot-paths",
+      "to": "repo-document",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`hot_paths` now delegates to `repo_document` and propagates its error.",
+      "files": [
+        {
+          "path": "crates/osf/src/changeset_risk.rs",
+          "startLine": 563,
+          "endLine": 566
+        }
+      ]
+    },
+    {
+      "id": "scan-config-calls-repo-document",
+      "from": "scan-config",
+      "to": "repo-document",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`scan_config` now delegates to `repo_document` and propagates its error.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs",
+          "startLine": 418,
+          "endLine": 421
+        }
+      ]
+    },
+    {
+      "id": "redact-calls-scan-config",
+      "from": "redact-secrets",
+      "to": "scan-config",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`redact_secrets` propagates the `scan_config` error with `?`.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_context.rs",
+          "startLine": 460,
+          "endLine": 460
+        }
+      ]
+    },
+    {
+      "id": "tests-drive-cli",
+      "from": "adoption-mode-tests",
+      "to": "cli-config-show",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration tests run the CLI against a repository whose osf.toml names an unsupported mode.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 14,
+          "endLine": 28
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "adoption-mode-check",
+      "title": "Reading osf.toml and checking adoption_mode",
+      "summary": "Every reader of a repository's own osf.toml now goes through one parse step that checks the adoption_mode key. An absent file yields no mode; an unsupported value stops the command with a message naming the key and the supported values.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "cli-config-show",
+          "label": "osf config show"
+        },
+        {
+          "node": "layered-load",
+          "label": "config::load"
+        },
+        {
+          "node": "repo-document",
+          "label": "repo_document"
+        },
+        {
+          "node": "parse-repo-document",
+          "label": "parse_repo_document"
+        },
+        {
+          "node": "adoption-mode-of",
+          "label": "adoption_mode_of"
+        },
+        {
+          "node": "osf-toml",
+          "label": "osf.toml"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-load",
+          "from": "cli-config-show",
+          "to": "layered-load",
+          "label": "load config",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 753,
+              "endLine": 768
+            }
+          ]
+        },
+        {
+          "id": "step-read-file",
+          "from": "layered-load",
+          "to": "osf-toml",
+          "label": "read osf.toml",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 753,
+              "endLine": 768
+            }
+          ]
+        },
+        {
+          "id": "step-parse",
+          "from": "layered-load",
+          "to": "parse-repo-document",
+          "label": "parse_repo_document(text, path)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 756,
+              "endLine": 756
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "&str",
+              "shape": "text: &str, path: &Path",
+              "sample": {
+                "text": "adoption_mode = \"vendored\"\n"
+              },
+              "source": {
+                "path": "crates/osf/tests/adoption_mode.rs",
+                "startLine": 17,
+                "endLine": 17
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-check-mode",
+          "from": "parse-repo-document",
+          "to": "adoption-mode-of",
+          "label": "adoption_mode_of(value, path)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 255,
+              "endLine": 255
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "toml::Value",
+              "shape": "value: &toml::Value, path: &Path",
+              "sample": {
+                "adoption_mode": "vendored"
+              },
+              "source": {
+                "path": "crates/osf/src/config.rs",
+                "startLine": 345,
+                "endLine": 362
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "step-refuse",
+          "from": "adoption-mode-of",
+          "to": "parse-repo-document",
+          "label": "Err: adoption_mode is vendored, not supported; supported values: private-factory-repo",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 352,
+              "endLine": 362
+            }
+          ]
+        },
+        {
+          "id": "step-propagate",
+          "from": "parse-repo-document",
+          "to": "layered-load",
+          "label": "Err(ConfigError)",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 255,
+              "endLine": 255
+            }
+          ]
+        },
+        {
+          "id": "step-stop",
+          "from": "layered-load",
+          "to": "cli-config-show",
+          "label": "command stops",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/adoption_mode.rs",
+              "startLine": 14,
+              "endLine": 28
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 6,
+    "additions": 390,
+    "deletions": 37,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Adoption mode check across osf.toml readers",
+      "lens": "architecture",
+      "summary": "Every reader of a repository's own osf.toml now funnels through `config::repo_document`, which parses the file and checks the adoption_mode key. The layered load and the gate share the same parser.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "config-layer-detail",
+      "title": "Inside the config layer",
+      "lens": "architecture",
+      "summary": "The parse-and-check step: `repo_document` reads the file, `parse_repo_document` parses it, `adoption_mode_of` checks the key against `AdoptionMode::ALL`, and `require_adoption_mode` is the entry point for commands that depend on the mode.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "repo-document",
+          "parse-repo-document",
+          "adoption-mode",
+          "adoption-mode-of",
+          "require-adoption-mode",
+          "layered-load",
+          "osf-toml"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

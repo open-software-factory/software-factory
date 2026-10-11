@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "1adbff6b4a64f416e1fd89994a840ee2b205b853",
+    "contentHash": "42a20acc9352cc6f549c5ba8c2c89187"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "48088336302ea73fb252a96be50d24ca",
+      "bytes": 27865,
+      "width": 1798,
+      "height": 874,
+      "animated": false,
+      "path": "architecture-overview-light-48088336302ea73fb252a96be50d24ca.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "25d4582a6b040ba99fa1905d2edc5d35",
+      "bytes": 28225,
+      "width": 1798,
+      "height": 874,
+      "animated": false,
+      "path": "architecture-overview-dark-25d4582a6b040ba99fa1905d2edc5d35.svg"
+    },
+    {
+      "id": "config-layer-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "config-layer-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d9a710b2e0612664a5544efc5207f04b",
+      "bytes": 12301,
+      "width": 878,
+      "height": 646,
+      "animated": false,
+      "path": "config-layer-detail-light-d9a710b2e0612664a5544efc5207f04b.svg"
+    },
+    {
+      "id": "config-layer-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "config-layer-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9712a888b2032ccea2808b3b005d9dc1",
+      "bytes": 12458,
+      "width": 878,
+      "height": 646,
+      "animated": false,
+      "path": "config-layer-detail-dark-9712a888b2032ccea2808b3b005d9dc1.svg"
+    }
+  ]
+}
