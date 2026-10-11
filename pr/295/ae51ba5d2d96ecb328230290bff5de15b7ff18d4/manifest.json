@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "ae51ba5d2d96ecb328230290bff5de15b7ff18d4",
+    "contentHash": "49adfda243730c652b3978a6ae80716c"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "architecture-overview-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6dfe3c058e3b9e749a18e1563949746a",
+      "bytes": 22568,
+      "width": 1928,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-light-6dfe3c058e3b9e749a18e1563949746a.svg"
+    },
+    {
+      "id": "architecture-overview-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "architecture-overview",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d1314271ac23606cdc406c26507168f6",
+      "bytes": 22806,
+      "width": 1928,
+      "height": 760,
+      "animated": false,
+      "path": "architecture-overview-dark-d1314271ac23606cdc406c26507168f6.svg"
+    },
+    {
+      "id": "builder-detection-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "builder-detection-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "4f6139ca0290a31c4d4952a9f30d010b",
+      "bytes": 11796,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "builder-detection-detail-light-4f6139ca0290a31c4d4952a9f30d010b.svg"
+    },
+    {
+      "id": "builder-detection-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "builder-detection-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c784529aed6884ed60d8899609451ebf",
+      "bytes": 11922,
+      "width": 1284,
+      "height": 646,
+      "animated": false,
+      "path": "builder-detection-detail-dark-c784529aed6884ed60d8899609451ebf.svg"
+    },
+    {
+      "id": "diff-posting-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "diff-posting-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "67816eb775c7a14d9551ea9062684e62",
+      "bytes": 12352,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "diff-posting-detail-light-67816eb775c7a14d9551ea9062684e62.svg"
+    },
+    {
+      "id": "diff-posting-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "diff-posting-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ce8fa9dbd8cb91d8ebfc5a4d06cff2a4",
+      "bytes": 12465,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "diff-posting-detail-dark-ce8fa9dbd8cb91d8ebfc5a4d06cff2a4.svg"
+    },
+    {
+      "id": "builder-family-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "builder-family-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "afa67049c0a7e116c445fd06b0edc9c5",
+      "bytes": 15724,
+      "width": 1581,
+      "height": 471,
+      "animated": true,
+      "path": "builder-family-flow-light-afa67049c0a7e116c445fd06b0edc9c5.svg"
+    },
+    {
+      "id": "builder-family-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "builder-family-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f6d11e080cb5998d885a8cd2239b11cd",
+      "bytes": 15883,
+      "width": 1581,
+      "height": 471,
+      "animated": true,
+      "path": "builder-family-flow-dark-f6d11e080cb5998d885a8cd2239b11cd.svg"
+    },
+    {
+      "id": "diff-posting-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "diff-posting-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "970b374efc5f7da07036d7b3fc8a9160",
+      "bytes": 14879,
+      "width": 1866,
+      "height": 375,
+      "animated": true,
+      "path": "diff-posting-flow-light-970b374efc5f7da07036d7b3fc8a9160.svg"
+    },
+    {
+      "id": "diff-posting-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "diff-posting-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "089277cab4fab9b0be5052af47230048",
+      "bytes": 15047,
+      "width": 1866,
+      "height": 375,
+      "animated": true,
+      "path": "diff-posting-flow-dark-089277cab4fab9b0be5052af47230048.svg"
+    }
+  ]
+}
