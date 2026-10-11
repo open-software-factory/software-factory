@@ -627,7 +627,13 @@ family before it runs any reviewer.
 
 It reads every commit in the reviewed range. It looks for each
 commit's own `Code-Generator:` trailer. It maps the model name in that
-trailer to a family, through a small table this tool ships. A commit may
+trailer to a family, through the model-family table this tool ships. Any
+word of the model name can decide the family: a vendor name or a model
+id, such as `Acme Coder acme-code-2`, which a repository maps with an
+`[[review.builder_family_aliases]]` entry of prefix `acme` and family
+`acme-labs`. The shipped table covers each family it lists, and every
+form works the same way for each. A name whose words point to two
+families is unknown. A commit may
 also carry an `Orchestrator:` trailer naming the model that supervised
 the work; that line is not read here, because this rule concerns the
 model that wrote the change. A
@@ -639,8 +645,27 @@ more than one family.
 A reviewer whose family matches does not run for this change. The
 review's decision still names every family it found, so a person
 reading the result can see why a reviewer sat out. When no trailer
-names a known family, `osf` records `unknown` and runs the roster the
-way it always did: nothing is left out.
+names a known family, or any one commit has none, `osf`
+records `unknown` and fails closed: no
+reviewer counts, the outcome is could-not-run, and the reason names each
+unknown commit by its short hash and a fixed cause. It never repeats any
+text from a trailer, so an author's text cannot reach a saved run, the
+journal, the console or a posted review. A reviewer left out for its family records
+`skipped: same model family as the builder (<family>)` in its saved run
+and in the posted summary. Findings that point outside the pull request's
+diff are posted in the review body, not as inline comments; the body
+stays within its limit by listing what fits and counting the rest.
+
+One commit is exempt without a trailer: a merge commit that introduces
+nothing of its own. It must have exactly two parents, and
+`git merge-tree --write-tree <parent1> <parent2>` must merge them with no
+conflict into the same tree as the merge commit. A conflict resolved
+either way, a dropped change and an extra edit all fail that test. A merge
+with a trailer counts like any commit. Any other merge without a trailer
+makes the family unknown, and the reason names the commit. A git older
+than 2.38 has no `merge-tree --write-tree`: every merge without a trailer
+then counts as unknown, so the check fails closed. The reason lists up to
+three commits and counts the rest.
 
 Too few other families can then mean the review could-not-run.
 `decide_lens` still needs answers from two families to score a lens.
