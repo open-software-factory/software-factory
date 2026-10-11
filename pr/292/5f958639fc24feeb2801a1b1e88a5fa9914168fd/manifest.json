@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "5f958639fc24feeb2801a1b1e88a5fa9914168fd",
+    "contentHash": "5f551b547b52ee09daefcfd405fc5ecf"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-check-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-check-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "9b9bd972e27d9c60c8a6b1bf58003ea5",
+      "bytes": 29790,
+      "width": 1758,
+      "height": 874,
+      "animated": true,
+      "path": "review-check-architecture-light-9b9bd972e27d9c60c8a6b1bf58003ea5.svg"
+    },
+    {
+      "id": "review-check-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-check-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5d3d61166c45e78c35ce6415669dd6e8",
+      "bytes": 30118,
+      "width": 1758,
+      "height": 874,
+      "animated": true,
+      "path": "review-check-architecture-dark-5d3d61166c45e78c35ce6415669dd6e8.svg"
+    },
+    {
+      "id": "build-job-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-job-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ca067c26fb86852b12d027657b9c7be4",
+      "bytes": 11532,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "build-job-components-light-ca067c26fb86852b12d027657b9c7be4.svg"
+    },
+    {
+      "id": "build-job-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-job-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "aee2ff346582029bf1c1e2072bba3753",
+      "bytes": 11633,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "build-job-components-dark-aee2ff346582029bf1c1e2072bba3753.svg"
+    },
+    {
+      "id": "caller-contract-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "caller-contract",
+      "mediaType": "image/svg+xml",
+      "contentHash": "da173bb2162a17e3d773688ef1b0def9",
+      "bytes": 10537,
+      "width": 860,
+      "height": 418,
+      "animated": true,
+      "path": "caller-contract-light-da173bb2162a17e3d773688ef1b0def9.svg"
+    },
+    {
+      "id": "caller-contract-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "caller-contract",
+      "mediaType": "image/svg+xml",
+      "contentHash": "580a6a50ef29578a7ec0a32c9b2de8ff",
+      "bytes": 10652,
+      "width": 860,
+      "height": 418,
+      "animated": true,
+      "path": "caller-contract-dark-580a6a50ef29578a7ec0a32c9b2de8ff.svg"
+    },
+    {
+      "id": "review-check-run-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "review-check-run-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0979396df7197ff60118ca8d517d7304",
+      "bytes": 22170,
+      "width": 2766,
+      "height": 505,
+      "animated": true,
+      "path": "review-check-run-flow-light-0979396df7197ff60118ca8d517d7304.svg"
+    },
+    {
+      "id": "review-check-run-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "review-check-run-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "629025d19db989d83caffb86c947db5b",
+      "bytes": 22406,
+      "width": 2766,
+      "height": 505,
+      "animated": true,
+      "path": "review-check-run-flow-dark-629025d19db989d83caffb86c947db5b.svg"
+    }
+  ]
+}
