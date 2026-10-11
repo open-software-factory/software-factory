@@ -16,7 +16,7 @@
     "react-aria-components": "1.21.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "6.1.1",
+    "@vitejs/plugin-react": "6.1.2",
     "vite": "8.3.1",
     "vite-plugin-singlefile": "2.3.3"
   },
