@@ -223,17 +223,20 @@ pub fn commit_hashes(dir: &Path, range: &str) -> Result<Vec<String>, GitError> {
     Ok(text.lines().map(str::to_string).collect())
 }
 
-/// Every non-merge commit hash in `range`, oldest first. A merge commit
-/// that only brings in other work carries no attribution of its own.
+/// Whether `hash` is a merge commit that introduces nothing of its own: it
+/// has two or more parents, and `git diff-tree --cc` prints nothing for it,
+/// so its result equals what its parents give with no conflict resolution
+/// and no extra edit. A commit with fewer than two parents is never one.
 ///
 /// # Errors
-/// Returns an error if git cannot run in `dir`, such as when `range` does not resolve.
-pub fn non_merge_commit_hashes(dir: &Path, range: &str) -> Result<Vec<String>, GitError> {
-    let text = run_text(
-        dir,
-        &["log", "--format=%H", "--reverse", "--no-merges", range],
-    )?;
-    Ok(text.lines().map(str::to_string).collect())
+/// Returns an error if git cannot run in `dir`, or `hash` does not resolve.
+pub fn is_clean_merge(dir: &Path, hash: &str) -> Result<bool, GitError> {
+    let parents = run_text(dir, &["rev-list", "--parents", "-n", "1", hash])?;
+    if parents.split_whitespace().count() < 3 {
+        return Ok(false);
+    }
+    let changes = run_text(dir, &["diff-tree", "--cc", "--no-commit-id", "-r", hash])?;
+    Ok(changes.trim().is_empty())
 }
 
 /// One commit's full message.

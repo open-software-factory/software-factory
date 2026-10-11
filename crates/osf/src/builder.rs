@@ -73,9 +73,11 @@ fn trailer_model_name(line: &str) -> Option<String> {
     }
 }
 
-/// Each non-merge commit in `range` with the model names of its own
-/// `Code-Generator:` trailers, oldest first. A commit with none, or whose
-/// trailer names nothing, has an empty list.
+/// Each commit in `range` with the model names of its own `Code-Generator:`
+/// trailers, oldest first, except a clean merge with no trailer (see
+/// [`git::is_clean_merge`]), which carries no work of its own and is left
+/// out. A merge with a trailer counts like any commit. Any other commit with
+/// none, or whose trailer names nothing, has an empty list.
 ///
 /// # Errors
 /// Returns an error when git cannot read `range`'s commits.
@@ -83,11 +85,14 @@ fn trailer_model_names_per_commit(
     root: &Path,
     range: &str,
 ) -> Result<Vec<(String, Vec<String>)>, String> {
-    let hashes = git::non_merge_commit_hashes(root, range).map_err(|e| e.to_string())?;
+    let hashes = git::commit_hashes(root, range).map_err(|e| e.to_string())?;
     let mut commits = Vec::new();
     for hash in hashes {
         let message = git::commit_message(root, &hash).map_err(|e| e.to_string())?;
-        let names = message.lines().filter_map(trailer_model_name).collect();
+        let names: Vec<String> = message.lines().filter_map(trailer_model_name).collect();
+        if names.is_empty() && git::is_clean_merge(root, &hash).map_err(|e| e.to_string())? {
+            continue;
+        }
         commits.push((hash, names));
     }
     Ok(commits)
@@ -113,8 +118,9 @@ pub struct Detected {
 /// mapped through `aliases` and the shipped table.
 ///
 /// A trailer whose model maps to nothing contributes [`UNKNOWN`] and is
-/// named in [`Detected::unknown`]. So does each non-merge commit with no
-/// trailer, or an empty one, even when other commits carry good ones; a
+/// named in [`Detected::unknown`]. So does each commit with no
+/// trailer, or an empty one, even when other commits carry good ones, except
+/// a clean merge with none; a
 /// range with no commit at all is reported the same way.
 ///
 /// # Errors
@@ -455,31 +461,118 @@ mod tests {
         assert_eq!(found.unknown.len(), 1);
     }
 
-    #[test]
-    fn a_merge_commit_needs_no_trailer_of_its_own() {
-        let root = TempDir::new("osf-builder-merge");
+    /// Runs `git <args>` in `dir`, which must succeed.
+    fn git_ok(dir: &Path, args: &[&str]) {
+        let mut c = Command::new("git");
+        c.args(args).current_dir(dir);
+        git::scrub_git_env(&mut c);
+        assert!(c.status().expect("git runs").success(), "{args:?}");
+    }
+
+    fn write_file(dir: &Path, name: &str, text: &str) {
+        std::fs::write(dir.join(name), text).expect("file writes");
+    }
+
+    /// A repository with a base commit holding `shared.txt`, then a `side`
+    /// branch and the original branch each with one commit built by
+    /// `Claude Sonnet 5`; returns the base hash. The checked-out branch is
+    /// the original one. `side` and `main` set the new text of `shared.txt`
+    /// on each branch, or `None` to add a separate file instead.
+    fn forked(name: &str, side: Option<&str>, main: Option<&str>) -> (TempDir, String) {
+        let root = TempDir::new(name);
         init_repo(&root);
+        write_file(&root, "shared.txt", "one\ntwo\nthree\n");
+        git_ok(&root, &["add", "-A"]);
         commit(&root, "root commit");
         let base = commit_hash(&root);
-        let run = |args: &[&str]| {
-            let mut c = Command::new("git");
-            c.args(args).current_dir(&root);
-            git::scrub_git_env(&mut c);
-            assert!(c.status().expect("git runs").success(), "{args:?}");
-        };
-        run(&["checkout", "--quiet", "-b", "side"]);
-        commit(
+        let message = "change\n\nCode-Generator: Claude Sonnet 5 <noreply@anthropic.com>\n";
+        git_ok(&root, &["checkout", "--quiet", "-b", "side"]);
+        match side {
+            Some(text) => write_file(&root, "shared.txt", text),
+            None => write_file(&root, "side.txt", "side\n"),
+        }
+        git_ok(&root, &["add", "-A"]);
+        git_ok(&root, &["commit", "--quiet", "-m", message]);
+        git_ok(&root, &["checkout", "--quiet", "-"]);
+        match main {
+            Some(text) => write_file(&root, "shared.txt", text),
+            None => write_file(&root, "main.txt", "main\n"),
+        }
+        git_ok(&root, &["add", "-A"]);
+        git_ok(&root, &["commit", "--quiet", "-m", message]);
+        (root, base)
+    }
+
+    #[test]
+    fn a_clean_merge_without_a_trailer_is_exempt() {
+        let (root, base) = forked("osf-builder-merge-clean", None, None);
+        git_ok(
             &root,
-            "side change\n\nCode-Generator: Claude Sonnet 5 <noreply@anthropic.com>\n",
+            &["merge", "--quiet", "--no-ff", "-m", "Merge side", "side"],
         );
-        run(&["checkout", "--quiet", "-"]);
-        commit(
-            &root,
-            "main change\n\nCode-Generator: Claude Sonnet 5 <noreply@anthropic.com>\n",
-        );
-        run(&["merge", "--quiet", "--no-ff", "-m", "Merge side", "side"]);
-        let range = format!("{base}..HEAD");
-        let found = detect_detailed(&root, &range, &[], &[]).expect("detect runs");
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
         assert_eq!(found.families, vec!["anthropic".to_string()]);
+        assert_eq!(found.unknown, Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_merge_with_a_conflict_resolution_and_no_trailer_is_unknown() {
+        let (root, base) = forked(
+            "osf-builder-merge-conflict",
+            Some("one\nSIDE\nthree\n"),
+            Some("one\nMAIN\nthree\n"),
+        );
+        let mut merge = Command::new("git");
+        merge
+            .args(["merge", "--no-ff", "--no-commit", "side"])
+            .current_dir(&root);
+        git::scrub_git_env(&mut merge);
+        assert!(
+            !merge.status().expect("git runs").success(),
+            "must conflict"
+        );
+        write_file(&root, "shared.txt", "one\nRESOLVED\nthree\n");
+        git_ok(&root, &["add", "-A"]);
+        git_ok(&root, &["commit", "--quiet", "-m", "Merge side"]);
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
+        assert!(found.families.contains(&UNKNOWN.to_string()), "{found:?}");
+        assert_eq!(found.unknown.len(), 1);
+    }
+
+    #[test]
+    fn a_merge_with_an_extra_edit_and_no_trailer_is_unknown() {
+        let (root, base) = forked("osf-builder-merge-extra", None, None);
+        git_ok(
+            &root,
+            &["merge", "--quiet", "--no-ff", "--no-commit", "side"],
+        );
+        write_file(&root, "extra.txt", "slipped in\n");
+        git_ok(&root, &["add", "-A"]);
+        git_ok(&root, &["commit", "--quiet", "-m", "Merge side"]);
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
+        assert!(found.families.contains(&UNKNOWN.to_string()), "{found:?}");
+        assert_eq!(found.unknown.len(), 1);
+    }
+
+    #[test]
+    fn a_merge_carrying_another_familys_trailer_is_counted() {
+        let (root, base) = forked("osf-builder-merge-trailer", None, None);
+        git_ok(
+            &root,
+            &[
+                "merge",
+                "--quiet",
+                "--no-ff",
+                "-m",
+                "Merge side\n\nCode-Generator: GPT-5 <noreply@example.com>",
+                "side",
+            ],
+        );
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
+        assert_eq!(
+            found.families,
+            vec!["anthropic".to_string(), "openai".to_string()]
+        );
+        assert_eq!(found.unknown, Vec::<String>::new());
     }
 }

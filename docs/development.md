@@ -645,13 +645,20 @@ more than one family.
 A reviewer whose family matches does not run for this change. The
 review's decision still names every family it found, so a person
 reading the result can see why a reviewer sat out. When no trailer
-names a known family, or any one non-merge commit has none, `osf`
+names a known family, or any one commit has none, `osf`
 records `unknown` and fails closed: no
 reviewer counts, the outcome is could-not-run, and the reason quotes the
 offending trailer. A reviewer left out for its family records
 `skipped: same model family as the builder (<family>)` in its saved run
 and in the posted summary. Findings that point outside the pull request's
-diff are posted in the review body, not as inline comments.
+diff are posted in the review body, not as inline comments; the body
+stays within its limit by listing what fits and counting the rest.
+
+One commit is exempt without a trailer: a merge commit that introduces
+nothing of its own. `git diff-tree --cc` must print nothing for it, so it
+holds no conflict resolution and no extra edit. A merge with a trailer
+counts like any commit. Any other merge without a trailer makes the family
+unknown, and the reason names the commit.
 
 Too few other families can then mean the review could-not-run.
 `decide_lens` still needs answers from two families to score a lens.

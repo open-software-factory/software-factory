@@ -225,22 +225,30 @@ fn more_findings_line(count: usize) -> String {
     format!("\n- {count} more {noun} in the run's saved artifact")
 }
 
+/// Bytes kept for the findings when a long summary has to be cut.
+const FINDINGS_BUDGET: usize = 500;
+
+/// Marks a summary that was cut so the findings notice could fit.
+const SUMMARY_CUT: &str = "\n(summary shortened to fit)";
+
 /// `summary`, then as many of `findings` under [`OUTSIDE_HEADING`] as fit in
-/// [`BODY_LIMIT`], then a line counting the rest. Where a finding points
-/// never stops a review from posting.
-///
-/// # Errors
-/// Returns [`ReviewError::BodyTooLong`] when the summary leaves no room for
-/// the heading and the count line.
-fn append_outside_findings(summary: &str, findings: &[&&Finding]) -> Result<String, ReviewError> {
-    let reserve = OUTSIDE_HEADING.len() + more_findings_line(findings.len()).len();
-    if summary.len() + reserve > BODY_LIMIT {
-        return Err(ReviewError::BodyTooLong {
-            len: summary.len() + reserve,
-            limit: BODY_LIMIT,
-        });
-    }
-    let mut body = format!("{summary}{OUTSIDE_HEADING}");
+/// [`BODY_LIMIT`], then a line counting the rest. A summary that leaves no
+/// room for the heading and the count line is cut at a character boundary
+/// and marked, so where a finding points never stops a review from posting.
+fn append_outside_findings(summary: &str, findings: &[&&Finding]) -> String {
+    let reserve =
+        OUTSIDE_HEADING.len() + FINDINGS_BUDGET.max(more_findings_line(findings.len()).len());
+    let room = BODY_LIMIT.saturating_sub(reserve);
+    let mut body = if summary.len() <= room {
+        summary.to_string()
+    } else {
+        let mut end = room.saturating_sub(SUMMARY_CUT.len());
+        while !summary.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}{SUMMARY_CUT}", summary.get(..end).unwrap_or_default())
+    };
+    body.push_str(OUTSIDE_HEADING);
     let mut shown = 0;
     for finding in findings {
         let line = unanchored_line(finding);
@@ -263,7 +271,7 @@ fn append_outside_findings(summary: &str, findings: &[&&Finding]) -> Result<Stri
     if shown < findings.len() {
         body.push_str(&more_findings_line(findings.len() - shown));
     }
-    Ok(body)
+    body
 }
 
 /// Decides the verdict, builds the final body, and lays out the inline
@@ -271,9 +279,9 @@ fn append_outside_findings(summary: &str, findings: &[&&Finding]) -> Result<Stri
 /// before any of this runs; it is never posted anywhere.
 ///
 /// # Errors
-/// Returns [`ReviewError::BodyTooLong`] when the summary alone, or with room
-/// for the findings notice, is over [`BODY_LIMIT`] characters. Findings that
-/// do not fit are counted in the body, never refused.
+/// Returns [`ReviewError::BodyTooLong`] when the summary alone is over
+/// [`BODY_LIMIT`] characters. Findings that do not fit are counted in the
+/// body, and a summary too long to leave room for that is cut and marked.
 pub fn plan_review(
     findings: &[Finding],
     summary: &str,
@@ -333,7 +341,7 @@ pub fn plan_review_in_diff(
     let unanchored: Vec<&&Finding> = posted.iter().filter(|f| !anchored(f)).collect();
     let mut body = summary.trim_end_matches('\n').to_string();
     if !unanchored.is_empty() {
-        body = append_outside_findings(&body, &unanchored)?;
+        body = append_outside_findings(&body, &unanchored);
     }
     if body.len() > BODY_LIMIT {
         return Err(ReviewError::BodyTooLong {
@@ -1099,5 +1107,37 @@ mod tests {
         );
         assert!(!lines.contains("other.rs", 1));
         assert!(!lines.contains("other.rs", 11));
+    }
+
+    // A summary that posts with an inline finding still posts when that
+    // finding moves outside the diff: the summary is cut, the verdict stays.
+    #[test]
+    fn a_near_limit_summary_still_posts_when_the_finding_moves_outside_the_diff() {
+        let summary = "s".repeat(BODY_LIMIT - 10);
+        let findings = vec![finding("in-1", "src/a.rs", Some(2), "major", "should-fix")];
+        let inside = DiffLines::parse(DIFF);
+        let outside = DiffLines::parse("");
+        let a = plan_review_in_diff(
+            &findings,
+            &summary,
+            &default_block_on(),
+            None,
+            Some(&inside),
+        )
+        .expect("plans inside");
+        let b = plan_review_in_diff(
+            &findings,
+            &summary,
+            &default_block_on(),
+            None,
+            Some(&outside),
+        )
+        .expect("plans outside");
+        assert_eq!(a.comments.len(), 1);
+        assert_eq!(b.comments.len(), 0);
+        assert!(b.body.len() <= BODY_LIMIT, "{}", b.body.len());
+        assert!(b.body.contains("in-1"), "{}", b.body);
+        assert!(b.body.contains("summary shortened"), "{}", b.body);
+        assert_eq!(a.verdict, b.verdict);
     }
 }
