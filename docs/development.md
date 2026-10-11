@@ -736,8 +736,19 @@ jobs:
     with:
       osf-ref: <the same 40-character SHA>
       verifier-app-id: ${{ vars.VERIFIER_APP_ID }}
-    secrets: inherit
+    secrets:
+      VERIFIER_APP_PRIVATE_KEY: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
 ```
+
+Map each secret by name, as above, and leave out the key of a reviewer that
+`[agents]` does not select. `secrets: inherit` passes every secret of the
+caller, but GitHub allows it only within one organization or enterprise. A
+caller in another organization than the workflow cannot use it. It suits a
+caller in the same organization, such as an adopter's own factory repo that
+calls a shared workflow for its watched repositories. osf's own caller uses it.
 
 Two references pin the check, and both name the same commit. The `@<SHA>` after
 the file name pins the jobs. The `osf-ref` input pins the `osf` that the `build`
@@ -782,8 +793,8 @@ Left out on purpose:
 The workflow declares its keys as `workflow_call` secrets. GitHub gives a called
 workflow a secret only when the caller passes it. A key that exists only in the
 caller's environment and is not passed becomes an empty string, and the run shows
-no error. A caller therefore writes `secrets: inherit`, or passes each secret by
-name. GitHub accepts a secret passed by name even when it exists only in the
+no error. A caller therefore passes each secret by name, or writes `secrets: inherit`
+within one organization. GitHub accepts a secret passed by name even when it exists only in the
 environment.
 
 | Secret | Required | Read by |
@@ -796,7 +807,9 @@ environment.
 A reviewer key is not required, because a repository can leave a reviewer out of
 `[agents]`. A reviewer that is selected and has an empty key still runs. It
 cannot sign in, so `osf review run` records a note that names the empty
-variable, the run counts as could-not-run, and the review never passes.
+variable. That reviewer's attempts and job fail, and the aggregate verdict
+follows the existing quorum policy, so the other reviewers can still reach
+quorum and approve.
 
 The jobs that read a key still name the `review` environment, or `fork-review`
 for a fork, so the environment's protection and its limit to the `main` branch

@@ -614,7 +614,7 @@ fn prepare_command(
     };
     if !key_in_environment && !reviewer.credential_env.is_empty() {
         notes.push(format!(
-            "no credential: {} is empty or not set",
+            "credential variable {} is empty or not set",
             reviewer.credential_env.join(" or ")
         ));
     }
@@ -1002,7 +1002,30 @@ mod tests {
         assert!(
             notes
                 .iter()
-                .any(|n| n == "no credential: OSF_TEST_EMPTY_KEY is empty or not set"),
+                .any(|n| n == "credential variable OSF_TEST_EMPTY_KEY is empty or not set"),
+            "{notes:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_unset_key_note_does_not_claim_no_credential_when_a_login_was_seeded() {
+        let real = stand_in_home();
+        let mut lister = file_lister(&[".a-login/auth.json"]);
+        lister.credential_env = vec!["OSF_TEST_UNSET_KEY".to_string()];
+        std::env::remove_var("OSF_TEST_UNSET_KEY");
+        let (out, notes, result) = run_lister(&lister, &real);
+        result.expect("the lister runs");
+        let (_, files) = out.split_once('|').expect("home and files");
+        assert_eq!(files.trim(), "./.a-login/auth.json", "the login was seeded");
+        assert!(
+            notes
+                .iter()
+                .any(|n| n == "credential variable OSF_TEST_UNSET_KEY is empty or not set"),
+            "{notes:?}"
+        );
+        assert!(
+            notes.iter().all(|n| !n.contains("no credential")),
             "{notes:?}"
         );
     }

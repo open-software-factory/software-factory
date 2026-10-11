@@ -1380,4 +1380,11 @@ fn the_guide_documents_each_input_and_the_organisation_setting() {
     }
     assert!(guide.contains("Accessible from repositories in the organization"));
     assert!(guide.contains("breaking change"));
+    for (name, _) in declared_secrets(&workflow_text()) {
+        assert!(
+            guide.contains(&format!("{name}: ${{{{ secrets.{name} }}}}")),
+            "the adopter example maps {name} by name"
+        );
+    }
+    assert!(guide.contains("only within one organization or enterprise"));
 }
