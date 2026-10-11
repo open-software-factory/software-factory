@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-builder-family-and-post-placement",
+    "headSha": "38569135200c44a52ec5d09f715a277e5471b518",
+    "contentHash": "d5c370892e51fa219f93e545f40cd882"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "86dd61f91fadd8e05948b820de3efc6f",
+      "bytes": 32626,
+      "width": 1718,
+      "height": 988,
+      "animated": false,
+      "path": "review-pipeline-light-86dd61f91fadd8e05948b820de3efc6f.svg"
+    },
+    {
+      "id": "review-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "236874966b408733186e671b62987c6d",
+      "bytes": 33033,
+      "width": 1718,
+      "height": 988,
+      "animated": false,
+      "path": "review-pipeline-dark-236874966b408733186e671b62987c6d.svg"
+    },
+    {
+      "id": "builder-family-detection-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "builder-family-detection-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3242b896a164b3450ea3f022d71f335d",
+      "bytes": 16169,
+      "width": 860,
+      "height": 760,
+      "animated": false,
+      "path": "builder-family-detection-view-light-3242b896a164b3450ea3f022d71f335d.svg"
+    },
+    {
+      "id": "builder-family-detection-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "builder-family-detection-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "91bf18da604717681471c6b8cbb138f6",
+      "bytes": 16374,
+      "width": 860,
+      "height": 760,
+      "animated": false,
+      "path": "builder-family-detection-view-dark-91bf18da604717681471c6b8cbb138f6.svg"
+    },
+    {
+      "id": "post-placement-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "post-placement-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e17a5da1981ed47f13eb0d0f85ea08e7",
+      "bytes": 13130,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "post-placement-view-light-e17a5da1981ed47f13eb0d0f85ea08e7.svg"
+    },
+    {
+      "id": "post-placement-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "post-placement-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cbfa49ec5b620c2ce11b380725027718",
+      "bytes": 13264,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "post-placement-view-dark-cbfa49ec5b620c2ce11b380725027718.svg"
+    },
+    {
+      "id": "builder-family-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "builder-family-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fa3c8d8ba191a6308989ea5f4b4b877e",
+      "bytes": 14874,
+      "width": 1526,
+      "height": 433,
+      "animated": true,
+      "path": "builder-family-flow-light-fa3c8d8ba191a6308989ea5f4b4b877e.svg"
+    },
+    {
+      "id": "builder-family-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "builder-family-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8d84c49c8f77b01c11398bead78e2a2c",
+      "bytes": 15033,
+      "width": 1526,
+      "height": 433,
+      "animated": true,
+      "path": "builder-family-flow-dark-8d84c49c8f77b01c11398bead78e2a2c.svg"
+    },
+    {
+      "id": "post-placement-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "post-placement-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fa9575ac3520f124d2a180e7a8e18de7",
+      "bytes": 15155,
+      "width": 1696,
+      "height": 483,
+      "animated": true,
+      "path": "post-placement-flow-light-fa9575ac3520f124d2a180e7a8e18de7.svg"
+    },
+    {
+      "id": "post-placement-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "post-placement-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "56e3ae4a0d736b60edf35886c4a04191",
+      "bytes": 15288,
+      "width": 1696,
+      "height": 483,
+      "animated": true,
+      "path": "post-placement-flow-dark-56e3ae4a0d736b60edf35886c4a04191.svg"
+    }
+  ]
+}
