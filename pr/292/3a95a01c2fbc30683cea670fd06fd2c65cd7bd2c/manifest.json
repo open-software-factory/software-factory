@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "review-check-reusable-workflow",
+    "headSha": "3a95a01c2fbc30683cea670fd06fd2c65cd7bd2c",
+    "contentHash": "b67c1ab583c7b7dd3dbb9ba386df88a5"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-check-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-check-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d7ffb9330bca26e8924b74ebeec0fe19",
+      "bytes": 25541,
+      "width": 1748,
+      "height": 646,
+      "animated": false,
+      "path": "review-check-containers-light-d7ffb9330bca26e8924b74ebeec0fe19.svg"
+    },
+    {
+      "id": "review-check-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-check-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b37cc91c8a9dffa1e6ccee21362ccc8f",
+      "bytes": 25861,
+      "width": 1748,
+      "height": 646,
+      "animated": false,
+      "path": "review-check-containers-dark-b37cc91c8a9dffa1e6ccee21362ccc8f.svg"
+    },
+    {
+      "id": "build-job-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-job-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1d1e11f871e99da9d84542feaa63a7c4",
+      "bytes": 8669,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "build-job-internals-light-1d1e11f871e99da9d84542feaa63a7c4.svg"
+    },
+    {
+      "id": "build-job-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-job-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "69095b3e77e3c65bbf978896b8b3f13c",
+      "bytes": 8749,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "build-job-internals-dark-69095b3e77e3c65bbf978896b8b3f13c.svg"
+    },
+    {
+      "id": "reduce-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reduce-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "30769c7b00ad17df05bad593e0d523d2",
+      "bytes": 10934,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "reduce-internals-light-30769c7b00ad17df05bad593e0d523d2.svg"
+    },
+    {
+      "id": "reduce-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reduce-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ca0616e3f69572961c9a18c92dc86c56",
+      "bytes": 11060,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "reduce-internals-dark-ca0616e3f69572961c9a18c92dc86c56.svg"
+    }
+  ]
+}

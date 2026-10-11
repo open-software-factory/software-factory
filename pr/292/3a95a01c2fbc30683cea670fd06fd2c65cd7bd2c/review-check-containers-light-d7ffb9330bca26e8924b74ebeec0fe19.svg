@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1748 646" width="1748" height="646" role="img" aria-label="The review check as containers" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>The review check as containers</title>
+<desc>The caller, the reusable workflow's jobs, the osf binary they share, and the external services they reach.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1748" height="646" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1748" height="646" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="586" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">CALLER · PULL_REQUEST_TARGET, DEFAULT BRANCH</text>
+<rect class="lanebox" x="440" y="44" width="404" height="586" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="456" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">REVIEW CHECK · REUSABLE WORKFLOW JOBS</text>
+<rect class="lanebox" x="904" y="44" width="404" height="586" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="920" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">OSF BINARY · RUST CLI, BUILT FROM THE PINNED COMMIT</text>
+<rect class="lanebox" x="1328" y="44" width="404" height="586" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="1344" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">REVIEWERS AND CODE HOST · EXTERNAL SERVICES</text></g>
+<g><path class="glow" stroke="#1f883d" d="M404,253 L425,253 C436.6,253 446,262.4 446,274 L446,346 C446,348.76 448.24,351 451,351 L456,351" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M404,253 L425,253 C436.6,253 446,262.4 446,274 L446,346 C446,348.76 448.24,351 451,351 L456,351" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25"/>
+<path class="glow" stroke="#1f883d" d="M404,237 L417,237 C424.18,237 430,242.82 430,250 L430,257.5 C430,268.82 439.18,278 450.5,278 L717,278 C728.6,278 738,287.4 738,299 L738,320" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-added hero" d="M404,237 L417,237 C424.18,237 430,242.82 430,250 L430,257.5 C430,268.82 439.18,278 450.5,278 L717,278 C728.6,278 738,287.4 738,299 L738,320" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25"/>
+<path class="edge edge-modified" d="M828,359 L880,359 C898.78,359 914,374.22 914,393 L914,592 C914,593.66 915.34,595 917,595 L920,595" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M828,343 L881.5,343 C893.93,343 904,353.07 904,365.5 C904,377.93 914.07,388 926.5,388 L1304,388 C1322.78,388 1338,403.22 1338,422 L1338,454 C1338,455.66 1339.34,457 1341,457 L1344,457" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M828,131 L841,131 C848.18,131 854,136.82 854,144 L854,530 C854,548.23 868.77,563 887,563 L920,563" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M828,115 L831,115 C832.66,115 834,116.34 834,118 L834,143.5 C834,159.24 846.76,172 862.5,172 L1278.83,172 C1296.78,172 1311.33,186.55 1311.33,204.5 L1311.33,220.67 C1311.33,229.69 1318.65,237 1327.67,237 L1344,237" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-modified" d="M828,245 L861,245 C879.23,245 894,259.77 894,278 L894,566 C894,573.18 899.82,579 907,579 L920,579" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M828,229 L851,229 C863.7,229 874,239.3 874,252 L874,367.33 C874,386.11 889.22,401.33 908,401.33 L1290.67,401.33 C1309.44,401.33 1324.67,416.56 1324.67,435.33 L1324.67,463.33 C1324.67,468.67 1328.99,473 1334.33,473 L1344,473" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-added" d="M1054,382 L1054,434" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M1158,382 L1158,434" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-added" d="M920,131 L892,131 C876.54,131 864,143.54 864,159 L864,260 C864,278.78 848.78,294 830,294 L551,294 C543.82,294 538,299.82 538,307 L538,320" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M920,115 L878,115 C859.22,115 844,130.22 844,149 L844,154 C844,172.78 828.78,188 810,188 L430.5,188 C421.39,188 414,195.39 414,204.5 L414,216 C414,218.76 411.76,221 409,221 L404,221" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M1292,123 L1295,123 C1296.66,123 1298,124.34 1298,126 L1298,348 C1298,349.66 1296.66,351 1295,351 L1292,351" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/>
+<path class="edge edge-added" d="M920,237 L902,237 C892.06,237 884,245.06 884,255 L884,276 C884,294.78 868.78,310 850,310 L559,310 C556.24,310 554,312.24 554,315 L554,320" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M52,233 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52,241 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="57" cy="233" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="62" cy="241" r="2.2"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#1f2328">review.yml</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">pull_request_target caller</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="456" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="483" cy="123" r="6.5"/>
+<path class="glyph-stroke" d="M483,119.5 V123 H486" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="119" font-size="11.5" font-weight="600" fill="#1f2328">review-fork-disabled</text>
+<text class="nsub" x="506" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">fails loudly for fo…</text>
+<g class="bdg bdg-modified"><rect x="562.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="595.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="648" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="662" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="675" cy="123" r="6.5"/>
+<path class="glyph-stroke" d="M675,119.5 V123 H678" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="119" font-size="11.5" font-weight="600" fill="#1f2328">reviewer jobs</text>
+<text class="nsub" x="698" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">codex, claude, open…</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="787.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="456" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="470" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="483" cy="237" r="6.5"/>
+<path class="glyph-stroke" d="M483,233.5 V237 H486" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="506" y="233" font-size="13" font-weight="600" fill="#1f2328">review job</text>
+<text class="nsub" x="506" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">collects, decides, posts</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="787.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="456" y="320" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="470" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M476,347 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M476,355 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="481" cy="347" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="486" cy="355" r="2.2"/></g>
+<text class="ntitle" x="506" y="347" font-size="11.5" font-weight="600" fill="#1f2328">review-check.yml</text>
+<text class="nsub" x="506" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">on: workflow_call</text>
+<g class="bdg bdg-added"><rect x="588.45" y="312" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="608.73" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="648" y="320" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="662" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph-stroke" stroke="#59636e" stroke-width="1.4" fill="none" cx="675" cy="351" r="6.5"/>
+<path class="glyph-stroke" d="M675,347.5 V351 H678" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="698" y="347" font-size="11.5" font-weight="600" fill="#1f2328">build job</text>
+<text class="nsub" x="698" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">builds the pinned o…</text>
+<g class="bdg bdg-modified"><rect x="754.38" y="312" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="787.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="920" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="934" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M941,123 l4,4 l8,-8" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="970" y="119" font-size="11.5" font-weight="600" fill="#1f2328">review_workflow.rs</text>
+<text class="nsub" x="970" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">checks the workflow…</text>
+<g class="bdg bdg-modified"><rect x="1026.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1059.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1112" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1126" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1133,123 l4,4 l8,-8" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1162" y="119" font-size="11.5" font-weight="600" fill="#1f2328">review_run.rs</text>
+<text class="nsub" x="1162" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">folder argument</text>
+<g class="bdg bdg-modified"><rect x="1218.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1251.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="920" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="934" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><circle class="glyph" fill="#59636e" cx="942" cy="237" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="947" cy="237" r="1.8"/>
+<circle class="glyph" fill="#59636e" cx="952" cy="237" r="1.8"/></g>
+<text class="ntitle" x="970" y="233" font-size="13" font-weight="600" fill="#1f2328">development.md</text>
+<text class="nsub" x="970" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">adopter guide</text>
+<g class="bdg bdg-modified"><rect x="1218.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1251.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="920" y="320" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="934" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="947" y="355.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="970" y="347" font-size="13" font-weight="600" fill="#1f2328">osf review reduce</text>
+<text class="nsub" x="970" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">decides and posts</text>
+<g class="bdg bdg-modified"><rect x="1218.38" y="312" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1251.69" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="920" y="434" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="934" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="947" y="469.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="970" y="461" font-size="11.5" font-weight="600" fill="#1f2328">expand_saved_runs</text>
+<text class="nsub" x="970" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">folder to file list</text>
+<g class="bdg bdg-added"><rect x="1052.45" y="426" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="1072.73" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1112" y="434" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1126" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="1139" y="469.5" text-anchor="middle" fill="#59636e" font-size="14" font-style="italic" font-family="Georgia,serif">ƒ</text></g>
+<text class="ntitle" x="1162" y="461" font-size="11.5" font-weight="600" fill="#1f2328">load_pull_request</text>
+<text class="nsub" x="1162" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">event file or bare…</text>
+<g class="bdg bdg-modified"><rect x="1218.38" y="426" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1251.69" y="437" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="920" y="548" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="934" y="566" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M947,572 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M940.5,575.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M947,579 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="970" y="575" font-size="13" font-weight="600" fill="#1f2328">osf binary</text>
+<text class="nsub" x="970" y="593" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">crates/osf</text>
+<g class="bdg bdg-modified"><rect x="1218.38" y="540" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1251.69" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="1344" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="1358" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="1363" y="231" width="16" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1363,233 l8,6 8,-6" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1394" y="233" font-size="13" font-weight="600" fill="#1f2328">Model providers</text>
+<text class="nsub" x="1394" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">OpenAI, Anthropic, OpenRouter</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="1344" y="434" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="1358" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="1363" y="459" width="16" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1363,461 l8,6 8,-6" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1394" y="461" font-size="13" font-weight="600" fill="#1f2328">GitHub API</text>
+<text class="nsub" x="1394" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">issues, pull requests, checks</text></g></g>
+<g><g><rect class="lpill" x="383.17" y="293" width="125.67" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="446" y="304" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">uses: ./review-check.yml</text></g>
+<g><rect class="lpill" x="518.84" y="281" width="147.24" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="592.46" y="292" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">osf-ref = github.workflow_sha</text></g>
+<g><rect class="lpill" x="900.11" y="508" width="107.78" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="954" y="519" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">cargo build --release</text></g>
+<g><rect class="lpill" x="1158.24" y="391" width="107.76" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1212.12" y="402" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">osf review work-item</text></g>
+<g><rect class="lpill" x="814.66" y="402.33" width="78.68" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="854" y="413.33" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">osf review run</text></g>
+<g><rect class="lpill" x="1013.13" y="164.5" width="115.07" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="1070.67" y="175.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">one provider key each</text></g>
+<g><rect class="lpill" x="884" y="293" width="94.91" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="931.46" y="304" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">osf review reduce</text></g>
+<g><rect class="lpill" x="1055" y="393.83" width="93.24" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1101.62" y="404.83" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">verifier app token</text></g></g>
+</svg>

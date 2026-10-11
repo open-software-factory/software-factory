@@ -1,0 +1,959 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "review-check-reusable-workflow",
+  "generatedAt": "2026-10-11T11:39:47.164Z",
+  "title": "The review check becomes a reusable workflow",
+  "summary": "The review check's jobs move out of `.github/workflows/review.yml` into a new reusable workflow, `.github/workflows/review-check.yml`, which any repository can call. osf's own `review.yml` shrinks to a single caller job that passes `osf-ref: github.workflow_sha`, so the osf binary is built from the commit of the workflow itself rather than from the pull request's base branch. The build job now checks out that pinned commit into `osf-src` read-only and writes to a separate `build-out`, refuses any `osf-ref` that is not the workflow's own commit, and refuses any event but `pull_request_target`. Fork review moves from the `OSF_REVIEW_FORKS` repository variable to an `allow-forks` input the caller passes. On the osf side, `review reduce` now accepts a folder of saved reviewer files and expands it to the `.json` files inside, and `load_pull_request` accepts a whole code-host event file as well as a bare pull-request object.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "3a95a01c2fbc30683cea670fd06fd2c65cd7bd2c",
+      "ref": "3a95a01c2fbc30683cea670fd06fd2c65cd7bd2c"
+    },
+    "pullRequest": {
+      "number": 292,
+      "url": "https://github.com/open-software-factory/software-factory/pull/292"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "caller",
+      "label": "Caller",
+      "subtitle": "pull_request_target, default branch",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The workflow GitHub reads from the default branch. It holds no step of its own and only names the reusable workflow and the inputs."
+    },
+    {
+      "id": "check",
+      "label": "Review check",
+      "subtitle": "reusable workflow jobs",
+      "order": 1,
+      "delta": "added",
+      "summary": "The reusable workflow that holds every job: build, one job per reviewer, the deciding job, and the fork-disabled job."
+    },
+    {
+      "id": "osf",
+      "label": "osf binary",
+      "subtitle": "Rust CLI, built from the pinned commit",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The osf command line the jobs run. Built once in the build job and handed to every later job as an artifact."
+    },
+    {
+      "id": "providers",
+      "label": "Reviewers and code host",
+      "subtitle": "external services",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The model providers each reviewer job reaches, and the GitHub API the deciding job posts through."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-yml",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "caller",
+      "subtitle": "pull_request_target caller",
+      "summary": "osf's own caller. It keeps the `pull_request_target` trigger and the union of the permissions its jobs need, and replaces every job with one `uses:` of the local reusable workflow. It passes `osf-ref: github.workflow_sha` and `osf-repository: github.repository`, so osf comes from the commit of the caller, never from the pull request's base.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-check-yml",
+      "label": "review-check.yml",
+      "kind": "config",
+      "delta": "added",
+      "lane": "check",
+      "subtitle": "on: workflow_call",
+      "summary": "The new reusable workflow. It declares five inputs (`osf-ref`, `osf-repository`, `runs-on`, `verifier-app-id`, `allow-forks`), no `workflow_call` secret, and reads no repository variable. Every job starts with the harden-runner egress block and every action is pinned by full commit SHA.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-job",
+      "label": "build job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "check",
+      "subtitle": "builds the pinned osf",
+      "summary": "Checks out `inputs.osf-ref` from `inputs.osf-repository` into `osf-src` read-only, refuses any ref that is not a full 40-character SHA or that differs from `job.workflow_sha`/`job.workflow_repository`, refuses any event but `pull_request_target`, and builds with `cargo build --release --bin osf` into a separate writable `build-out`. It also runs `osf review work-item` with a read-only token.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 60,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-jobs",
+      "label": "reviewer jobs",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "check",
+      "subtitle": "codex, claude, opencode",
+      "summary": "One job per agent in the agent list, each named `review-<agent>`. Each mounts `base` and `pr` read-only, holds only its own provider key from the `review` environment, and runs `osf review run --reviewer <name> --if-enabled`. Each uploads its saved answers as `review-run-<name>` even when it fails.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 161,
+          "endLine": 520
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reduce-job",
+      "label": "review job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "check",
+      "subtitle": "collects, decides, posts",
+      "summary": "The last job. It downloads every `review-run-*` artifact into `out/runs`, mints the verifier app token, and runs `osf review reduce` with the folder as its file argument. It runs even when a reviewer job failed, because a reviewer with no saved answers counts as could-not-run.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 521,
+          "endLine": 640
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fork-disabled-job",
+      "label": "review-fork-disabled",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "check",
+      "subtitle": "fails loudly for forks",
+      "summary": "Runs when the head repository is not this repository and `allow-forks` is false. It blocks all egress and exits non-zero, so a fork's pull request cannot pass the check by leaving fork review unconfigured.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 641,
+          "endLine": 697
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-binary",
+      "label": "osf binary",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "crates/osf",
+      "summary": "The CLI the jobs run. Built once in the build job from the pinned commit and passed to every later job as the `osf-binary` artifact.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-reduce",
+      "label": "osf review reduce",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "decides and posts",
+      "summary": "Reads the saved reviewer files, checks findings against the pull request's files, journals, and posts. It now expands a folder argument to the `.json` files directly inside it, sorted by name, so a workflow can pass the folder it downloaded.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2149,
+          "endLine": 2175
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "expand-saved-runs",
+      "label": "expand_saved_runs",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf",
+      "subtitle": "folder to file list",
+      "summary": "Turns each path into itself when it is a file, or into the `.json` files directly inside it, sorted by name, when it is a folder. Non-JSON entries and subfolders are skipped.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2080,
+          "endLine": 2105
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "load-pull-request",
+      "label": "load_pull_request",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "event file or bare object",
+      "summary": "Parses the pull request's number, title and body. It now unwraps a `pull_request` key first, so a whole code-host event file such as the one `GITHUB_EVENT_PATH` names loads as well as a bare object.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2067,
+          "endLine": 2078
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-workflow-tests",
+      "label": "review_workflow.rs",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "checks the workflow text",
+      "summary": "Reads both workflow files as text and asserts the shape of the check: the stable input list, no `workflow_call` secret, no repository variable, the pinned-commit guard, the fixed environment names, the single verifier token mint, and that the caller is thin and passes only declared inputs.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-run-tests",
+      "label": "review_run.rs",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "folder argument",
+      "summary": "Adds a test that `review reduce` given a folder of saved runs produces the same output as the same files listed explicitly.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_run.rs",
+          "startLine": 879,
+          "endLine": 908
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "development-guide",
+      "label": "development.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "adopter guide",
+      "summary": "Documents how another repository calls the review check: the caller shape, the five inputs, why no key is a `workflow_call` secret, what is stable, and the organisation setting a private factory repo needs.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 704,
+          "endLine": 810
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "github-api",
+      "label": "GitHub API",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "providers",
+      "subtitle": "issues, pull requests, checks",
+      "summary": "Read by the build job with a read-only token to find the work item, and written by the last job through the verifier app's token to post the review.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "model-providers",
+      "label": "Model providers",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "providers",
+      "subtitle": "OpenAI, Anthropic, OpenRouter",
+      "summary": "Each reviewer job reaches only its own provider's host, plus the hosts its agent needs to start. The egress allow-list is per job.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "caller-calls-check",
+      "from": "review-yml",
+      "to": "review-check-yml",
+      "kind": "call",
+      "delta": "added",
+      "label": "uses: ./review-check.yml",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The caller names the reusable workflow by a local path, which GitHub reads at the same commit as the caller. An adopter names it by a full commit SHA instead.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 30,
+          "endLine": 40
+        }
+      ]
+    },
+    {
+      "id": "caller-pins-osf-ref",
+      "from": "review-yml",
+      "to": "build-job",
+      "kind": "data",
+      "delta": "added",
+      "label": "osf-ref = github.workflow_sha",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The commit osf is built from is the commit of the workflow itself, not the pull request's base. The build job refuses any other value.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 33,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "build-builds-osf",
+      "from": "build-job",
+      "to": "osf-binary",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "cargo build --release",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The build job compiles the pinned osf into `build-out` and uploads it as the `osf-binary` artifact.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 120,
+          "endLine": 140
+        }
+      ]
+    },
+    {
+      "id": "build-finds-work-item",
+      "from": "build-job",
+      "to": "github-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "osf review work-item",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "With a read-only token, the build job finds the issue the pull request names and saves it as the `work-item` artifact.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 141,
+          "endLine": 160
+        }
+      ]
+    },
+    {
+      "id": "reviewers-run-osf",
+      "from": "reviewer-jobs",
+      "to": "osf-binary",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "osf review run",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each reviewer job downloads the one binary the build job made and runs it against the read-only `base` and `pr` checkouts.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 300,
+          "endLine": 330
+        }
+      ]
+    },
+    {
+      "id": "reviewers-call-providers",
+      "from": "reviewer-jobs",
+      "to": "model-providers",
+      "kind": "http",
+      "delta": "unchanged",
+      "label": "one provider key each",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each reviewer job holds only its own provider's key and reaches only that provider's host.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 200,
+          "endLine": 215
+        }
+      ]
+    },
+    {
+      "id": "reduce-runs-osf",
+      "from": "reduce-job",
+      "to": "osf-binary",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "osf review reduce",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The last job runs the same binary to collect the saved answers, decide, and post.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 600,
+          "endLine": 625
+        }
+      ]
+    },
+    {
+      "id": "reduce-posts-review",
+      "from": "reduce-job",
+      "to": "github-api",
+      "kind": "http",
+      "delta": "modified",
+      "label": "verifier app token",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The last job alone mints the verifier app's token and posts the review and check run.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 580,
+          "endLine": 600
+        }
+      ]
+    },
+    {
+      "id": "reduce-uses-expand",
+      "from": "review-reduce",
+      "to": "expand-saved-runs",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`review reduce` expands its file arguments before reading them, so a folder stands for the `.json` files inside it.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2149,
+          "endLine": 2160
+        }
+      ]
+    },
+    {
+      "id": "reduce-uses-load-pr",
+      "from": "review-reduce",
+      "to": "load-pull-request",
+      "kind": "call",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The pull request is loaded from either a bare object or a whole event file.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2067,
+          "endLine": 2078
+        }
+      ]
+    },
+    {
+      "id": "workflow-tests-read-check",
+      "from": "review-workflow-tests",
+      "to": "review-check-yml",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The tests read the reusable workflow as text and assert its inputs, guards and job shapes.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 920,
+          "endLine": 1100
+        }
+      ]
+    },
+    {
+      "id": "workflow-tests-read-caller",
+      "from": "review-workflow-tests",
+      "to": "review-yml",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The tests read the caller as text and assert it is thin, passes only declared inputs, and grants no write permission.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1100,
+          "endLine": 1332
+        }
+      ]
+    },
+    {
+      "id": "run-tests-exercise-reduce",
+      "from": "review-run-tests",
+      "to": "review-reduce",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new test runs `review reduce` with a folder and with the same files listed, and asserts the outputs match.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_run.rs",
+          "startLine": 879,
+          "endLine": 908
+        }
+      ]
+    },
+    {
+      "id": "guide-documents-check",
+      "from": "development-guide",
+      "to": "review-check-yml",
+      "kind": "other",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The guide documents the caller shape, the five inputs, the secrets model and what is stable.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 704,
+          "endLine": 810
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "review-check-run",
+      "title": "One review run, from caller to posted review",
+      "summary": "A pull request event reaches the caller, which hands the pinned commit to the reusable workflow. The build job compiles that osf and finds the work item; each reviewer job runs it with its own key; the last job collects the saved answers and posts.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-yml",
+          "label": "review.yml"
+        },
+        {
+          "node": "build-job",
+          "label": "build"
+        },
+        {
+          "node": "reviewer-jobs",
+          "label": "reviewers"
+        },
+        {
+          "node": "reduce-job",
+          "label": "review"
+        },
+        {
+          "node": "github-api",
+          "label": "GitHub"
+        }
+      ],
+      "messages": [
+        {
+          "id": "pr-event",
+          "from": "review-yml",
+          "to": "review-yml",
+          "label": "pull_request_target event",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "note": "GitHub reads the caller from the default branch, so a pull request cannot change it.",
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 15,
+              "endLine": 20
+            }
+          ]
+        },
+        {
+          "id": "call-check",
+          "from": "review-yml",
+          "to": "build-job",
+          "label": "workflow_call: osf-ref, verifier-app-id, allow-forks",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review.yml",
+              "startLine": 30,
+              "endLine": 40
+            }
+          ]
+        },
+        {
+          "id": "guard-ref",
+          "from": "build-job",
+          "to": "build-job",
+          "label": "refuse osf-ref != job.workflow_sha",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "A moving reference, or any commit but the workflow's own, fails the job before anything is built.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 100,
+              "endLine": 118
+            }
+          ]
+        },
+        {
+          "id": "build-osf",
+          "from": "build-job",
+          "to": "build-job",
+          "label": "cargo build --release --bin osf",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "The pinned checkout is mounted read-only at /osf-src; the build writes only to build-out.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 120,
+              "endLine": 140
+            }
+          ]
+        },
+        {
+          "id": "find-work-item",
+          "from": "build-job",
+          "to": "github-api",
+          "label": "osf review work-item",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 141,
+              "endLine": 160
+            }
+          ]
+        },
+        {
+          "id": "hand-binary",
+          "from": "build-job",
+          "to": "reviewer-jobs",
+          "label": "osf-binary artifact",
+          "kind": "async",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 130,
+              "endLine": 140
+            }
+          ]
+        },
+        {
+          "id": "run-reviewer",
+          "from": "reviewer-jobs",
+          "to": "reviewer-jobs",
+          "label": "osf review run --reviewer <name> --if-enabled",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "Each job holds only its own provider key and mounts base and pr read-only.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 300,
+              "endLine": 330
+            }
+          ]
+        },
+        {
+          "id": "save-answers",
+          "from": "reviewer-jobs",
+          "to": "reduce-job",
+          "label": "review-run-<name> artifact",
+          "kind": "async",
+          "delta": "modified",
+          "animated": true,
+          "note": "Uploaded with if: always(), so a failed reviewer still contributes a could-not-run.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 330,
+              "endLine": 345
+            }
+          ]
+        },
+        {
+          "id": "reduce-decide",
+          "from": "reduce-job",
+          "to": "reduce-job",
+          "label": "osf review reduce /out/runs",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "The folder is expanded to the .json files inside it, sorted by name.",
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 2149,
+              "endLine": 2175
+            }
+          ]
+        },
+        {
+          "id": "post-review",
+          "from": "reduce-job",
+          "to": "github-api",
+          "label": "check run and review",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The last job alone mints the verifier app's token.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 580,
+              "endLine": 625
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 7,
+    "additions": 1429,
+    "deletions": 652,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-check-containers",
+      "title": "The review check as containers",
+      "lens": "architecture",
+      "summary": "The caller, the reusable workflow's jobs, the osf binary they share, and the external services they reach.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "build-job-internals",
+      "title": "Inside the build job",
+      "lens": "architecture",
+      "summary": "What the build job checks out, what it refuses, and what it hands on.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "build-job",
+          "review-check-yml",
+          "osf-binary",
+          "github-api"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "reduce-internals",
+          "title": "Inside the deciding job",
+          "lens": "architecture",
+          "summary": "How the last job turns a folder of saved answers into a posted review.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "reduce-job",
+              "review-reduce",
+              "expand-saved-runs",
+              "load-pull-request",
+              "osf-binary",
+              "github-api"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "caller",
+        "heading": "A thin caller",
+        "body": "review.yml keeps only the trigger and the permissions.",
+        "stage": {
+          "kind": "view",
+          "view": "review-check-containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "review-yml",
+            "review-check-yml"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "The caller review.yml names the reusable workflow by a local path and passes osf-ref as github.workflow_sha.",
+          "cites": [
+            {
+              "text": "review.yml",
+              "ref": {
+                "kind": "node",
+                "node": "review-yml"
+              }
+            },
+            {
+              "text": "osf-ref",
+              "ref": {
+                "kind": "file",
+                "path": ".github/workflows/review.yml"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "pin",
+        "heading": "The pinned commit",
+        "body": "The build job refuses any osf that is not the workflow's own commit.",
+        "stage": {
+          "kind": "view",
+          "view": "build-job-internals"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "build-job",
+            "review-check-yml"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "The guard in the build job compares osf-ref and osf-repository with job.workflow_sha and job.workflow_repository.",
+          "cites": [
+            {
+              "text": "build job",
+              "ref": {
+                "kind": "node",
+                "node": "build-job"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "reviewers",
+        "heading": "One job per reviewer",
+        "body": "Each reviewer holds only its own key and reads the tree as data.",
+        "stage": {
+          "kind": "view",
+          "view": "review-check-containers"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "reviewer-jobs",
+            "model-providers"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "Every reviewer jobs entry mounts base and pr read-only and uploads its saved answers even when it fails.",
+          "cites": [
+            {
+              "text": "reviewer jobs",
+              "ref": {
+                "kind": "node",
+                "node": "reviewer-jobs"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "reduce",
+        "heading": "The folder of answers",
+        "body": "The last job passes the downloaded folder straight to review reduce.",
+        "stage": {
+          "kind": "flow",
+          "flow": "review-check-run"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "save-answers",
+            "reduce-decide",
+            "post-review"
+          ]
+        },
+        "detail": {
+          "text": "expand_saved_runs turns the folder into the .json files inside it, sorted by name, before review reduce reads them.",
+          "cites": [
+            {
+              "text": "expand_saved_runs",
+              "ref": {
+                "kind": "node",
+                "node": "expand-saved-runs"
+              }
+            },
+            {
+              "text": "review reduce",
+              "ref": {
+                "kind": "node",
+                "node": "review-reduce"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
