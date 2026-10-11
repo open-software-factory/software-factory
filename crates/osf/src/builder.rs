@@ -7,52 +7,57 @@
 //! than the builder's. This module only names the families; leaving them
 //! out of the roster is `review_run`'s own job.
 
+use crate::agents;
 use crate::config::BuilderFamilyAlias;
 use crate::git;
+use std::collections::BTreeSet;
 use std::path::Path;
 
 /// A model whose name matches nothing in the family table.
 pub const UNKNOWN: &str = "unknown";
 
-/// Model-name prefixes this binary ships, matched case-insensitively
-/// against the first word of a model's name. A repository's own
-/// `osf.toml` can add more through `[review] builder_family_aliases`,
-/// tried first.
-const SHIPPED_FAMILIES: &[(&str, &str)] = &[
-    ("claude", "anthropic"),
-    ("gpt", "openai"),
-    ("o1", "openai"),
-    ("o3", "openai"),
-    ("o4", "openai"),
-    ("deepseek", "deepseek"),
-    ("gemini", "google"),
-    ("qwen", "qwen"),
-    ("llama", "meta"),
-    ("mistral", "mistral"),
-    ("codestral", "mistral"),
-];
-
-/// The family a `Code-Generator:` trailer's model name maps to: `aliases`
-/// first, then the shipped table, matched case-insensitively against
-/// `model_name`'s first word by prefix. [`UNKNOWN`] when nothing matches,
-/// including an empty name.
+/// The family a `Code-Generator:` trailer's model name maps to.
+///
+/// Every whitespace-separated word of `model_name`, and every `/`-separated
+/// part of one, is matched case-insensitively by prefix. `aliases` are tried
+/// first; when none matches, the shipped [`agents::MODEL_FAMILIES`] table is
+/// used. A vendor name (`Anthropic`, `OpenAI`, `Google`) or a model id
+/// (`claude-...`, `gpt-...`) anywhere in the name therefore decides the
+/// family, so `Anthropic Claude Code claude-sonnet-5-5` and
+/// `Claude Sonnet 5.5` both give `anthropic`.
+///
+/// [`UNKNOWN`] when nothing matches, when the name is empty, and when words
+/// of one name point to different families: a name that cannot be told
+/// apart is not guessed.
 #[must_use]
 pub fn family_of(model_name: &str, aliases: &[BuilderFamilyAlias]) -> String {
-    let Some(first_word) = model_name.split_whitespace().next() else {
-        return UNKNOWN.to_string();
-    };
-    let first_word = first_word.to_lowercase();
+    let words: Vec<String> = model_name
+        .split_whitespace()
+        .flat_map(|word| {
+            let word = word.to_lowercase();
+            let parts: Vec<String> = word.split('/').map(str::to_string).collect();
+            std::iter::once(word).chain(parts)
+        })
+        .collect();
+    let mut families: BTreeSet<String> = BTreeSet::new();
     for alias in aliases {
-        if first_word.starts_with(&alias.prefix.to_lowercase()) {
-            return alias.family.clone();
+        let prefix = alias.prefix.to_lowercase();
+        if words.iter().any(|w| w.starts_with(&prefix)) {
+            families.insert(alias.family.clone());
         }
     }
-    for (prefix, family) in SHIPPED_FAMILIES {
-        if first_word.starts_with(prefix) {
-            return (*family).to_string();
+    if families.is_empty() {
+        for (prefix, family) in agents::MODEL_FAMILIES {
+            if words.iter().any(|w| w.starts_with(prefix)) {
+                families.insert((*family).to_string());
+            }
         }
     }
-    UNKNOWN.to_string()
+    let mut found = families.into_iter();
+    match (found.next(), found.next()) {
+        (Some(family), None) => family,
+        _ => UNKNOWN.to_string(),
+    }
 }
 
 /// The model name in one `Code-Generator:` trailer line: the text before
@@ -87,16 +92,69 @@ fn trailer_model_names(root: &Path, range: &str) -> Result<Vec<String>, String> 
     Ok(names)
 }
 
+/// What [`detect_detailed`] found: the distinct families, and why any of
+/// them is [`UNKNOWN`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Detected {
+    /// Sorted and deduplicated. [`UNKNOWN`] stands for a trailer, or the
+    /// lack of one, that names no family.
+    pub families: Vec<String>,
+    /// One entry per reason a family is unknown: the trailer as written, or
+    /// a note that the range carries no trailer. Empty when every family is
+    /// known, and always empty for an override.
+    pub unknown: Vec<String>,
+}
+
 /// The distinct builder families for `range`'s own commits (`base..HEAD`
 /// when `range` is built that way): `overrides` verbatim, sorted and
 /// deduplicated, when the caller named at least one with
 /// `--builder-family`; otherwise every commit's `Code-Generator:` trailer,
 /// mapped through `aliases` and the shipped table.
 ///
-/// A trailer whose model maps to nothing contributes [`UNKNOWN`]. No
-/// trailer at all in the whole range is reported the same way, as
-/// `[UNKNOWN]`, rather than as an empty list: a review with no known
-/// builder family still needs to record that plainly, not say nothing.
+/// A trailer whose model maps to nothing contributes [`UNKNOWN`] and is
+/// named in [`Detected::unknown`]. No trailer at all in the whole range is
+/// reported the same way, as `[UNKNOWN]`.
+///
+/// # Errors
+/// Returns an error when git cannot read `range`'s commits.
+pub fn detect_detailed(
+    root: &Path,
+    range: &str,
+    aliases: &[BuilderFamilyAlias],
+    overrides: &[String],
+) -> Result<Detected, String> {
+    if !overrides.is_empty() {
+        let mut families = overrides.to_vec();
+        families.sort();
+        families.dedup();
+        return Ok(Detected {
+            families,
+            unknown: Vec::new(),
+        });
+    }
+    let names = trailer_model_names(root, range)?;
+    if names.is_empty() {
+        return Ok(Detected {
+            families: vec![UNKNOWN.to_string()],
+            unknown: vec!["no Code-Generator trailer in the reviewed commits".to_string()],
+        });
+    }
+    let mut families = Vec::new();
+    let mut unknown: Vec<String> = Vec::new();
+    for name in &names {
+        let family = family_of(name, aliases);
+        let described = format!("Code-Generator: {name}");
+        if family == UNKNOWN && !unknown.contains(&described) {
+            unknown.push(described);
+        }
+        families.push(family);
+    }
+    families.sort();
+    families.dedup();
+    Ok(Detected { families, unknown })
+}
+
+/// [`detect_detailed`]'s families alone.
 ///
 /// # Errors
 /// Returns an error when git cannot read `range`'s commits.
@@ -106,20 +164,7 @@ pub fn detect(
     aliases: &[BuilderFamilyAlias],
     overrides: &[String],
 ) -> Result<Vec<String>, String> {
-    if !overrides.is_empty() {
-        let mut families = overrides.to_vec();
-        families.sort();
-        families.dedup();
-        return Ok(families);
-    }
-    let names = trailer_model_names(root, range)?;
-    if names.is_empty() {
-        return Ok(vec![UNKNOWN.to_string()]);
-    }
-    let mut families: Vec<String> = names.iter().map(|n| family_of(n, aliases)).collect();
-    families.sort();
-    families.dedup();
-    Ok(families)
+    detect_detailed(root, range, aliases, overrides).map(|d| d.families)
 }
 
 #[cfg(test)]
@@ -180,6 +225,40 @@ mod tests {
         assert_eq!(family_of("Llama 3.1", &[]), "meta");
         assert_eq!(family_of("Mistral Large", &[]), "mistral");
         assert_eq!(family_of("Codestral", &[]), "mistral");
+    }
+
+    #[test]
+    fn family_of_finds_the_family_anywhere_in_the_name() {
+        for (name, family) in [
+            ("Anthropic Claude Code claude-sonnet-5-5", "anthropic"),
+            ("Claude Sonnet 5.5", "anthropic"),
+            ("DeepSeek dsh deepseek-v4", "deepseek"),
+            ("DeepSeek dsh", "deepseek"),
+            ("OpenAI Codex gpt-5.1", "openai"),
+            ("Codex", "openai"),
+            ("Google Gemini 3 Pro", "google"),
+            ("Google Antigravity", "google"),
+            ("Alibaba Qwen Code qwen3-coder", "qwen"),
+            ("openrouter/qwen/qwen3-coder-next", "qwen"),
+            ("Meta Llama 4", "meta"),
+            ("Mistral Vibe devstral", "mistral"),
+        ] {
+            assert_eq!(family_of(name, &[]), family, "{name}");
+        }
+    }
+
+    #[test]
+    fn family_of_does_not_guess_between_families() {
+        assert_eq!(family_of("Claude via gpt-5 router", &[]), UNKNOWN);
+    }
+
+    #[test]
+    fn an_alias_matches_a_later_word() {
+        let aliases = [BuilderFamilyAlias {
+            prefix: "acme".to_string(),
+            family: "acme-labs".to_string(),
+        }];
+        assert_eq!(family_of("Vendor Acme Coder", &aliases), "acme-labs");
     }
 
     #[test]
@@ -277,5 +356,39 @@ mod tests {
         let range = format!("{base}..HEAD");
         let families = detect(&root, &range, &[], &[]).expect("detect runs");
         assert_eq!(families, vec![UNKNOWN.to_string()]);
+    }
+
+    #[test]
+    fn an_unrecognised_trailer_is_named_in_the_detail() {
+        let root = TempDir::new("osf-builder-detail");
+        init_repo(&root);
+        commit(&root, "root commit");
+        let base = commit_hash(&root);
+        commit(
+            &root,
+            "a change\n\nCode-Generator: Some New Model <noreply@example.com>\n",
+        );
+        let range = format!("{base}..HEAD");
+        let found = detect_detailed(&root, &range, &[], &[]).expect("detect runs");
+        assert_eq!(
+            found.unknown,
+            vec!["Code-Generator: Some New Model".to_string()]
+        );
+    }
+
+    #[test]
+    fn a_vendor_first_trailer_in_a_commit_gives_anthropic() {
+        let root = TempDir::new("osf-builder-vendor-first");
+        init_repo(&root);
+        commit(&root, "root commit");
+        let base = commit_hash(&root);
+        commit(
+            &root,
+            "a change\n\nCode-Generator: Anthropic Claude Code claude-sonnet-5-5 <noreply@anthropic.com>\n",
+        );
+        let range = format!("{base}..HEAD");
+        let found = detect_detailed(&root, &range, &[], &[]).expect("detect runs");
+        assert_eq!(found.families, vec!["anthropic".to_string()]);
+        assert!(found.unknown.is_empty());
     }
 }

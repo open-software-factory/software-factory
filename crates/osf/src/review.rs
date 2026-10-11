@@ -9,6 +9,7 @@
 //! and holds no network call; only [`fetch_head_sha`] and [`post_via_gh`]
 //! run an external command.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Write as _;
 use std::path::Path;
@@ -105,6 +106,67 @@ pub struct Plan {
     pub comments: Vec<Comment>,
 }
 
+/// The lines of each file that a pull request's diff shows on its right
+/// (new) side, the only lines GitHub accepts an inline review comment on.
+/// A comment on any other path or line makes the whole review fail with
+/// HTTP 422.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DiffLines {
+    files: BTreeMap<String, Vec<(u64, u64)>>,
+}
+
+impl DiffLines {
+    /// Reads a unified diff, such as `git diff` or `gh pr diff` prints. Each
+    /// hunk header `@@ -a,b +c,d @@` makes lines `c` to `c+d-1` of the new
+    /// file commentable, context lines included. A deleted file has no new
+    /// side. Renames count under the new path.
+    #[must_use]
+    pub fn parse(diff: &str) -> Self {
+        let mut files: BTreeMap<String, Vec<(u64, u64)>> = BTreeMap::new();
+        let mut current: Option<String> = None;
+        for line in diff.lines() {
+            if let Some(path) = line.strip_prefix("+++ ") {
+                let path = path.split('\t').next().unwrap_or(path);
+                current = path.strip_prefix("b/").map(str::to_string);
+                continue;
+            }
+            if line.starts_with("diff --git ") {
+                current = None;
+                continue;
+            }
+            let (Some(path), Some(rest)) = (&current, line.strip_prefix("@@ ")) else {
+                continue;
+            };
+            let Some(new_side) = rest.split_whitespace().find(|w| w.starts_with('+')) else {
+                continue;
+            };
+            let mut numbers = new_side.trim_start_matches('+').split(',');
+            let Some(start) = numbers.next().and_then(|n| n.parse::<u64>().ok()) else {
+                continue;
+            };
+            let count = numbers
+                .next()
+                .map_or(Some(1), |n| n.parse::<u64>().ok())
+                .unwrap_or(0);
+            if count > 0 {
+                files
+                    .entry(path.clone())
+                    .or_default()
+                    .push((start, start + count - 1));
+            }
+        }
+        DiffLines { files }
+    }
+
+    /// Whether `line` of `path` is on the diff's right side.
+    #[must_use]
+    pub fn contains(&self, path: &str, line: u64) -> bool {
+        self.files
+            .get(path)
+            .is_some_and(|ranges| ranges.iter().any(|(a, b)| (*a..=*b).contains(&line)))
+    }
+}
+
 /// Splits a comma-separated block list into trimmed, non-empty entries.
 #[must_use]
 pub fn parse_block_on(raw: &str) -> Vec<String> {
@@ -116,12 +178,16 @@ pub fn parse_block_on(raw: &str) -> Vec<String> {
 }
 
 fn unanchored_line(f: &Finding) -> String {
+    let place = match f.line {
+        Some(line) => format!("{}:{line}", f.path),
+        None => f.path.clone(),
+    };
     format!(
         "- **{}** ({}, {}) `{}`: {}",
         f.id,
         f.severity,
         f.action,
-        f.path,
+        place,
         f.body.replace('\n', " ")
     )
 }
@@ -155,6 +221,24 @@ pub fn plan_review_for(
     block_on: &[String],
     overall: Option<crate::reducer::Verdict>,
 ) -> Result<Plan, ReviewError> {
+    plan_review_in_diff(findings, summary, block_on, overall, None)
+}
+
+/// [`plan_review_for`], with `diff` naming the lines the pull request's diff
+/// shows. A finding whose path or line is not in `diff` cannot be an inline
+/// comment, because GitHub refuses the whole review for one; it goes into the
+/// body under "Findings outside the diff" with its place named. `None` takes
+/// every finding with a line as anchored.
+///
+/// # Errors
+/// Returns [`ReviewError::BodyTooLong`] when the body is over [`BODY_LIMIT`].
+pub fn plan_review_in_diff(
+    findings: &[Finding],
+    summary: &str,
+    block_on: &[String],
+    overall: Option<crate::reducer::Verdict>,
+    diff: Option<&DiffLines>,
+) -> Result<Plan, ReviewError> {
     let posted: Vec<&Finding> = findings.iter().filter(|f| f.action != "dismiss").collect();
     let blocking = posted
         .iter()
@@ -166,7 +250,12 @@ pub fn plan_review_for(
         Some(crate::reducer::Verdict::Pass) | None => Verdict::Approve,
     };
 
-    let unanchored: Vec<&&Finding> = posted.iter().filter(|f| f.line.is_none()).collect();
+    let anchored = |f: &Finding| match (f.line, diff) {
+        (None, _) => false,
+        (Some(_), None) => true,
+        (Some(line), Some(diff)) => diff.contains(&f.path, line),
+    };
+    let unanchored: Vec<&&Finding> = posted.iter().filter(|f| !anchored(f)).collect();
     let mut body = summary.trim_end_matches('\n').to_string();
     if !unanchored.is_empty() {
         let lines: Vec<String> = unanchored.iter().map(|f| unanchored_line(f)).collect();
@@ -182,6 +271,7 @@ pub fn plan_review_for(
 
     let comments = posted
         .iter()
+        .filter(|f| anchored(f))
         .filter_map(|f| {
             f.line.map(|line| Comment {
                 path: f.path.clone(),
@@ -433,6 +523,25 @@ pub fn fetch_head_sha(repo: &str, pr: u64) -> Result<String, String> {
     }
     parse_head_sha_json(&String::from_utf8_lossy(&output.stdout))
         .map_err(|e| format!("{e} ({repo}#{pr})"))
+}
+
+/// The diff of a pull request, as GitHub shows it.
+///
+/// # Errors
+/// Returns an error if `gh` cannot run or fails.
+pub fn fetch_diff(repo: &str, pr: u64) -> Result<DiffLines, String> {
+    let output = Command::new("gh")
+        .args(["pr", "diff", &pr.to_string(), "--repo", repo])
+        .output()
+        .map_err(|e| format!("cannot run gh: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "could not read the diff of {repo}#{pr}: {}",
+            stderr.trim()
+        ));
+    }
+    Ok(DiffLines::parse(&String::from_utf8_lossy(&output.stdout)))
 }
 
 /// Posts one review or comment payload to a pull request. Thin: it only
@@ -823,5 +932,51 @@ mod tests {
         let err = load_findings(&path).expect_err("not an array");
         assert!(err.contains("must be a JSON array"), "{err}");
         std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    const DIFF: &str = "diff --git a/src/a.rs b/src/a.rs\n--- a/src/a.rs\n+++ b/src/a.rs\n@@ -1,3 +1,4 @@\n x\n+y\n z\n w\n@@ -20 +21,2 @@\n-a\n+b\n+c\ndiff --git a/gone.rs b/gone.rs\n--- a/gone.rs\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-a\n-b\n";
+
+    #[test]
+    fn diff_lines_reads_the_right_side_of_each_hunk() {
+        let diff = DiffLines::parse(DIFF);
+        assert!(diff.contains("src/a.rs", 1));
+        assert!(diff.contains("src/a.rs", 4));
+        assert!(!diff.contains("src/a.rs", 5));
+        assert!(!diff.contains("src/a.rs", 20));
+        assert!(diff.contains("src/a.rs", 21));
+        assert!(diff.contains("src/a.rs", 22));
+        assert!(!diff.contains("gone.rs", 1));
+        assert!(!diff.contains("other.rs", 1));
+    }
+
+    #[test]
+    fn a_finding_outside_the_diff_goes_into_the_body_not_an_inline_comment() {
+        let diff = DiffLines::parse(DIFF);
+        let findings = vec![
+            finding("in-1", "src/a.rs", Some(2), "major", "should-fix"),
+            finding("line-2", "src/a.rs", Some(99), "major", "should-fix"),
+            finding("path-3", "src/untouched.rs", Some(1), "minor", "maybe-fix"),
+        ];
+        let plan = plan_review_in_diff(
+            &findings,
+            "Summary.",
+            &default_block_on(),
+            None,
+            Some(&diff),
+        )
+        .expect("plans");
+        assert_eq!(plan.comments.len(), 1);
+        assert_eq!(plan.comments.first().map(|c| c.line), Some(2));
+        assert!(
+            plan.body.contains("Findings outside the diff"),
+            "{}",
+            plan.body
+        );
+        assert!(plan.body.contains("line-2"), "{}", plan.body);
+        assert!(plan.body.contains("src/a.rs:99"), "{}", plan.body);
+        assert!(plan.body.contains("path-3"), "{}", plan.body);
+        assert!(!plan.body.contains("in-1"), "{}", plan.body);
+        // Still blocks: moving a finding to the body never lowers the verdict.
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
     }
 }

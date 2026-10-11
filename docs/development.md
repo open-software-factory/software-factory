@@ -627,7 +627,10 @@ family before it runs any reviewer.
 
 It reads every commit in the reviewed range. It looks for each
 commit's own `Code-Generator:` trailer. It maps the model name in that
-trailer to a family, through a small table this tool ships. A commit may
+trailer to a family, through the model-family table this tool ships. Any
+word of the model name can decide the family: a vendor name or a model
+id, such as `Anthropic Claude Code claude-sonnet-5-5` or `Claude Sonnet
+5.5`. A name whose words point to two families is unknown. A commit may
 also carry an `Orchestrator:` trailer naming the model that supervised
 the work; that line is not read here, because this rule concerns the
 model that wrote the change. A
@@ -639,8 +642,12 @@ more than one family.
 A reviewer whose family matches does not run for this change. The
 review's decision still names every family it found, so a person
 reading the result can see why a reviewer sat out. When no trailer
-names a known family, `osf` records `unknown` and runs the roster the
-way it always did: nothing is left out.
+names a known family, `osf` records `unknown` and fails closed: no
+reviewer counts, the outcome is could-not-run, and the reason quotes the
+offending trailer. A reviewer left out for its family records
+`skipped: same model family as the builder (<family>)` in its saved run
+and in the posted summary. Findings that point outside the pull request's
+diff are posted in the review body, not as inline comments.
 
 Too few other families can then mean the review could-not-run.
 `decide_lens` still needs answers from two families to score a lens.

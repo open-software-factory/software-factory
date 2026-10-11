@@ -2045,6 +2045,7 @@ fn review_slot_off(args: &ReviewRunArgs) -> u8 {
             reviewer: name.clone(),
             lenses: Vec::new(),
             binding: None,
+            not_run: None,
         };
         return match empty.save(out) {
             Ok(()) => 0,
@@ -2306,8 +2307,20 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
     let findings = review_findings_for_post(&outcome.findings);
     let summary = review_run_summary(outcome);
     let block_on = resolve_block_on(None);
-    let plan = match review::plan_review_for(&findings, &summary, &block_on, Some(outcome.verdict))
-    {
+    let diff = match review::fetch_diff(&repo, pr) {
+        Ok(diff) => diff,
+        Err(e) => {
+            eprintln!("osf review run --post-to: {e}");
+            return false;
+        }
+    };
+    let plan = match review::plan_review_in_diff(
+        &findings,
+        &summary,
+        &block_on,
+        Some(outcome.verdict),
+        Some(&diff),
+    ) {
         Ok(plan) => plan,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
@@ -2858,7 +2871,15 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
         }
     };
     let block_on = resolve_block_on(args.block_on.as_deref());
-    let plan = match review::plan_review(&findings, &summary, &block_on) {
+    let diff = match review::fetch_diff(&args.repo, args.pr) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("osf: {e}");
+            return ExitCode::from(2);
+        }
+    };
+    let plan = match review::plan_review_in_diff(&findings, &summary, &block_on, None, Some(&diff))
+    {
         Ok(p) => p,
         Err(e) => {
             eprintln!("osf: {e}");

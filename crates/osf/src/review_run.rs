@@ -215,6 +215,12 @@ pub struct ReviewerRun {
     /// binding it was given.
     #[serde(default)]
     pub binding: Option<Binding>,
+    /// Why this reviewer made no attempt at all, when it was left out on
+    /// purpose: its family built the change, or the builder's family is
+    /// unknown. An empty `attempts` list without this reads as "nothing was
+    /// looked at" and "looked at, clean" alike.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_run: Option<String>,
 }
 
 impl ReviewerRun {
@@ -274,6 +280,24 @@ struct Setup {
     prompt: String,
     builder_families: Vec<String>,
     skip_families: BTreeSet<String>,
+    /// Why the builder's family is unknown, when it is: the trailer text
+    /// that named none, or that the commits carry none. While set, no
+    /// reviewer can be shown independent of the builder, so none counts.
+    unknown_builder: Option<String>,
+}
+
+/// The reason a reviewer sits out because its family built the change.
+fn same_family_reason(family: &str) -> String {
+    format!("skipped: same model family as the builder ({family})")
+}
+
+/// The reason no reviewer counts while the builder's family is unknown.
+fn unknown_builder_reason(detail: &str) -> String {
+    format!(
+        "could not run: the builder's model family is unknown ({detail}), \
+         so no reviewer can be shown to be a different family; name the family \
+         with --builder-family or fix the Code-Generator trailer"
+    )
 }
 
 impl Setup {
@@ -306,7 +330,11 @@ fn setup(req: &Request) -> Result<Setup, String> {
     let roster = reviewers::roster(req.config_root)?;
     let review_config = config::review_config(req.config_root).map_err(|e| e.to_string())?;
     let prompt = review_prompt::load(req.config_root, review_config.prompt_file.as_deref())?;
-    let (builder_families, skip_families) = detect_builder_families(req, &review_config)?;
+    let BuilderFamilies {
+        all: builder_families,
+        skip: skip_families,
+        unknown: unknown_builder,
+    } = detect_builder_families(req, &review_config)?;
     Ok(Setup {
         catalogue,
         selected,
@@ -319,6 +347,7 @@ fn setup(req: &Request) -> Result<Setup, String> {
         prompt,
         builder_families,
         skip_families,
+        unknown_builder,
     })
 }
 
@@ -567,7 +596,16 @@ fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) ->
             head: &binding.head,
         }),
     };
-    let idle = reviewer.family_error.is_some() || reviewer.is_excluded_by(&setup.skip_families);
+    let not_run = if let Some(detail) = &setup.unknown_builder {
+        Some(unknown_builder_reason(detail))
+    } else if let Some(reason) = &reviewer.family_error {
+        Some(format!("could not run: {reason}"))
+    } else if reviewer.is_excluded_by(&setup.skip_families) {
+        Some(same_family_reason(&reviewer.family))
+    } else {
+        None
+    };
+    let idle = not_run.is_some();
     // Written once per reviewer run, and removed when this run ends.
     let change = if idle {
         None
@@ -588,6 +626,7 @@ fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) ->
                 reviewer: reviewer.name.clone(),
                 lenses: lens_records(&lenses, None),
                 binding: req.binding.cloned(),
+                not_run,
             };
         }
         Some(Err(reason)) => {
@@ -595,6 +634,7 @@ fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) ->
                 reviewer: reviewer.name.clone(),
                 lenses: lens_records(&lenses, Some(&reason)),
                 binding: req.binding.cloned(),
+                not_run: None,
             };
         }
         Some(Ok(change)) => change,
@@ -611,6 +651,7 @@ fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) ->
                     .map(|lens| could_not_run_lens(lens, reason.clone()))
                     .collect(),
                 binding: req.binding.cloned(),
+                not_run: None,
             };
         }
     };
@@ -640,6 +681,7 @@ fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) ->
         reviewer: reviewer.name.clone(),
         lenses,
         binding: req.binding.cloned(),
+        not_run: None,
     }
 }
 
@@ -930,9 +972,10 @@ fn reduce_with(
     setup: &Setup,
     runs: &[ReviewerRun],
     refused: &BTreeMap<String, String>,
-    notes: Vec<String>,
+    mut notes: Vec<String>,
     state_dir: &Path,
 ) -> RunOutcome {
+    notes.extend(left_out_notes(setup));
     let run_id = format!("review-{}-{}", now_millis(), std::process::id());
     let mut journal_error = None;
     let mut journal = match Journal::open(state_dir, &run_id) {
@@ -1008,30 +1051,81 @@ fn reduce_with(
     }
 }
 
+/// One note per roster reviewer the run left out on purpose, so a posted
+/// summary says who did not look and why. An unknown builder family is one
+/// note for the whole roster.
+fn left_out_notes(setup: &Setup) -> Vec<String> {
+    if let Some(detail) = &setup.unknown_builder {
+        return vec![unknown_builder_reason(detail)];
+    }
+    setup
+        .roster
+        .iter()
+        .filter(|r| r.family_error.is_none() && r.is_excluded_by(&setup.skip_families))
+        .map(|r| {
+            format!(
+                "reviewer {} {}",
+                plain(&r.name),
+                same_family_reason(&r.family)
+            )
+        })
+        .collect()
+}
+
+/// What [`detect_builder_families`] found.
+struct BuilderFamilies {
+    all: Vec<String>,
+    skip: BTreeSet<String>,
+    unknown: Option<String>,
+}
+
 /// The builder families for `req`'s own reviewed range (see
-/// [`builder::detect`]), and the subset of them a roster entry is left out
-/// for: every detected family other than [`builder::UNKNOWN`], which names
-/// no real family to leave a reviewer out for.
+/// [`builder::detect_detailed`]), the subset of them a roster entry is left
+/// out for (every detected family other than [`builder::UNKNOWN`], which
+/// names no real family to leave a reviewer out for), and, when any family
+/// is unknown, the trailer text that names none. An unknown family fails
+/// the run closed: see [`Setup::unknown_builder`].
 ///
 /// # Errors
 /// Returns an error when git cannot read the reviewed range's own commits.
 fn detect_builder_families(
     req: &Request,
     review_config: &config::ReviewConfig,
-) -> Result<(Vec<String>, BTreeSet<String>), String> {
+) -> Result<BuilderFamilies, String> {
     let range = format!("{}..HEAD", req.base);
-    let families = builder::detect(
+    let found = builder::detect_detailed(
         req.root,
         &range,
         &review_config.builder_family_aliases,
         req.builder_family_overrides,
     )?;
-    let skip: BTreeSet<String> = families
+    let skip: BTreeSet<String> = found
+        .families
         .iter()
         .filter(|family| family.as_str() != builder::UNKNOWN)
         .cloned()
         .collect();
-    Ok((families, skip))
+    let unknown = if found.families.iter().any(|f| f == builder::UNKNOWN) {
+        // The trailer text is the author's own, so it is cut to one short line.
+        let detail = if found.unknown.is_empty() {
+            "no family named".to_string()
+        } else {
+            found
+                .unknown
+                .iter()
+                .map(|t| t.chars().take(120).collect::<String>().replace('\n', " "))
+                .collect::<Vec<_>>()
+                .join("; ")
+        };
+        Some(detail)
+    } else {
+        None
+    };
+    Ok(BuilderFamilies {
+        all: found.families,
+        skip,
+        unknown,
+    })
 }
 
 /// One attempt after its findings are checked against the files, ready for
@@ -1138,12 +1232,17 @@ fn judge_lens(
     let mut context_error: Option<String> = None;
     let mut ran: Vec<(&Reviewer, Vec<Judged>)> = Vec::new();
     for reviewer in &setup.roster {
+        if let Some(detail) = &setup.unknown_builder {
+            let reason = unknown_builder_reason(detail);
+            judged.push(Judged::missing(reviewer, "could-not-run", reason));
+            continue;
+        }
         if let Some(reason) = &reviewer.family_error {
             judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
             continue;
         }
         if reviewer.is_excluded_by(&setup.skip_families) {
-            let reason = format!("the builder's own family ({})", reviewer.family);
+            let reason = same_family_reason(&reviewer.family);
             judged.push(Judged::missing(reviewer, "skipped", reason));
             continue;
         }
@@ -1423,6 +1522,7 @@ mod tests {
             reviewer: "x".to_string(),
             lenses,
             binding: None,
+            not_run: None,
         }
     }
 
@@ -1495,6 +1595,7 @@ mod tests {
                 }],
             }],
             binding: Some(binding()),
+            not_run: None,
         };
         let path = dir.join("codex.json");
         run.save(&path).expect("saves");
@@ -1516,6 +1617,7 @@ mod tests {
             run: ReviewerRun {
                 reviewer: reviewer.to_string(),
                 lenses: Vec::new(),
+                not_run: None,
                 binding,
             },
         }
@@ -1764,6 +1866,7 @@ mod tests {
                 },
             ],
             binding: None,
+            not_run: None,
         };
         scrub_run(&req, &mut run);
         let text = serde_json::to_string(&run).expect("serialises");

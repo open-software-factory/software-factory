@@ -141,6 +141,27 @@ fn review_repo(name: &str, osf_toml: &str) -> TempRepo {
     review_repo_with(name, osf_toml, &[])
 }
 
+/// The reviewed commit's message in the repositories these tests build. Its
+/// trailer names a family (mistral) that no fake reviewer here belongs to, so
+/// a known builder family leaves every fake reviewer in the run.
+const BUILT_BY_UNUSED_FAMILY: &str =
+    "a small change to review\n\nCode-Generator: Mistral Vibe devstral <noreply@example.com>\n";
+
+/// [`review_repo`], except the reviewed commit carries no
+/// `Code-Generator:` trailer at all.
+fn review_repo_without_trailer(name: &str, osf_toml: &str) -> TempRepo {
+    let repo = TempRepo::new(name);
+    write_lens_overrides(&repo);
+    repo.write("osf.toml", osf_toml);
+    repo.write("src/lib.rs", "fn one() {}\nfn broken() {}\n");
+    repo.write("README.md", "base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    repo.write("README.md", "base\nplus a change to review\n");
+    repo.commit("a small change to review");
+    repo
+}
+
 /// [`review_repo`], with `extra` files committed in the base commit too.
 fn review_repo_with(name: &str, osf_toml: &str, extra: &[(&str, &str)]) -> TempRepo {
     let repo = TempRepo::new(name);
@@ -154,7 +175,7 @@ fn review_repo_with(name: &str, osf_toml: &str, extra: &[(&str, &str)]) -> TempR
     repo.commit("base");
     repo.track_origin_main();
     repo.write("README.md", "base\nplus a change to review\n");
-    repo.commit("a small change to review");
+    repo.commit(BUILT_BY_UNUSED_FAMILY);
     repo
 }
 
@@ -170,7 +191,7 @@ fn review_repo_with_active_lenses(name: &str, osf_toml: &str, active: &[&str]) -
     repo.commit("base");
     repo.track_origin_main();
     repo.write("README.md", "base\nplus a change to review\n");
-    repo.commit("a small change to review");
+    repo.commit(BUILT_BY_UNUSED_FAMILY);
     repo
 }
 
@@ -187,7 +208,7 @@ fn review_repo_with_lens(name: &str, osf_toml: &str, lens: &str, lens_toml: &str
     repo.commit("base");
     repo.track_origin_main();
     repo.write("README.md", "base\nplus a change to review\n");
-    repo.commit("a small change to review");
+    repo.commit(BUILT_BY_UNUSED_FAMILY);
     repo
 }
 
@@ -214,7 +235,7 @@ fn review_repo_linked(
     repo.commit("base");
     repo.track_origin_main();
     repo.write("README.md", "base\nplus a change to review\n");
-    repo.commit("a small change to review");
+    repo.commit(BUILT_BY_UNUSED_FAMILY);
     repo
 }
 
@@ -1474,11 +1495,11 @@ fn opencode_on_an_unknown_model_is_could_not_run_and_never_started() {
     assert!(!opencode.contains("\"result\":\"answered\""), "{opencode}");
 }
 
-/// No `Code-Generator:` trailer at all on the reviewed commit records the
-/// builder family as `unknown`, and every enabled reviewer still runs, the
-/// same as before this module knew about builder families at all.
+/// No `Code-Generator:` trailer at all on the reviewed commit leaves the
+/// builder family unknown. The run fails closed: no reviewer counts, the
+/// outcome is could-not-run (exit 2), and the output says why.
 #[test]
-fn no_builder_family_detected_records_unknown_and_runs_every_reviewer() {
+fn no_builder_family_detected_fails_closed_as_could_not_run() {
     let fakes = Fakes::new(
         "",
         &[
@@ -1486,18 +1507,20 @@ fn no_builder_family_detected_records_unknown_and_runs_every_reviewer() {
             ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
         ],
     );
-    let repo = review_repo("no-builder-family", &fakes.osf_toml);
+    let repo = review_repo_without_trailer("no-builder-family", &fakes.osf_toml);
     let home = common::isolated_home("review-run-no-builder-family");
     let output = fakes.run(
         &repo.dir,
         &home,
         &["review", "run", "--base", "origin/main"],
     );
+    assert_eq!(output.status.code(), Some(2));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("verdict: could-not-run"), "{stdout}");
     assert!(
-        output.status.success(),
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+        stdout.contains("builder's model family is unknown")
+            && stdout.contains("no Code-Generator trailer"),
+        "{stdout}"
     );
     let decision = journal_review_decision(&home);
     let builder_families: Vec<&str> = decision
@@ -1508,6 +1531,171 @@ fn no_builder_family_detected_records_unknown_and_runs_every_reviewer() {
         .map(|v| v.as_str().expect("a family name"))
         .collect();
     assert_eq!(builder_families, vec!["unknown"]);
+}
+
+/// A trailer that names no family fails the run closed, and the reason
+/// quotes the trailer text so the author can fix it.
+#[test]
+fn an_unrecognised_trailer_fails_closed_naming_the_trailer() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo_built_by("unknown-trailer", &fakes.osf_toml, "Some New Model");
+    let home = common::isolated_home("review-run-unknown-trailer");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(output.status.code(), Some(2));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("verdict: could-not-run"), "{stdout}");
+    assert!(
+        stdout.contains("Code-Generator: Some New Model"),
+        "{stdout}"
+    );
+}
+
+/// Whichever way a trailer names its model, the family is read from it:
+/// each form leaves claude (anthropic) out, and the run says so.
+#[test]
+fn vendor_first_and_model_first_trailers_both_leave_the_same_family_out() {
+    for (index, trailer) in [
+        "Anthropic Claude Code claude-sonnet-5-5",
+        "Claude Sonnet 5.5",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let fakes = Fakes::new(
+            "",
+            &[
+                ("codex", Fake::Answers(&fixture("valid.json"))),
+                ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+                ("opencode", Fake::Answers(&fixture("valid.json"))),
+            ],
+        );
+        let repo = review_repo_built_by(
+            &format!("trailer-forms-{index}"),
+            &fakes.osf_toml_with_qwen_opencode(),
+            trailer,
+        );
+        let home = common::isolated_home(&format!("review-run-trailer-forms-{index}"));
+        let output = fakes.run(
+            &repo.dir,
+            &home,
+            &["review", "run", "--base", "origin/main"],
+        );
+        assert!(
+            output.status.success(),
+            "{trailer}: stdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            stdout.contains(
+                "note: reviewer claude skipped: same model family as the builder (anthropic)"
+            ),
+            "{trailer}: {stdout}"
+        );
+    }
+}
+
+/// A reviewer left out as the builder's family records why in its saved run,
+/// instead of an empty attempt list that reads like a clean result.
+#[test]
+fn a_skipped_reviewer_s_saved_run_records_the_reason() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo_built_by(
+        "skipped-reason",
+        &fakes.osf_toml,
+        "Anthropic Claude Code claude-sonnet-5-5",
+    );
+    let home = common::isolated_home("review-run-skipped-reason");
+    let file = repo.dir.join("claude.json").display().to_string();
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "claude",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        job.status.success(),
+        "{}",
+        String::from_utf8_lossy(&job.stderr)
+    );
+    let run: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&file).expect("saved run reads"))
+            .expect("saved run is JSON");
+    assert_eq!(
+        run.get("not_run").and_then(serde_json::Value::as_str),
+        Some("skipped: same model family as the builder (anthropic)"),
+        "{run}"
+    );
+}
+
+/// A saved run of a reviewer that fails closed on an unknown builder family
+/// names the trailer text in its own record.
+#[test]
+fn an_unknown_builder_family_is_recorded_in_each_saved_run() {
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = review_repo_built_by("unknown-saved", &fakes.osf_toml, "Some New Model");
+    let home = common::isolated_home("review-run-unknown-saved");
+    let file = repo.dir.join("codex.json").display().to_string();
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        job.status.success(),
+        "{}",
+        String::from_utf8_lossy(&job.stderr)
+    );
+    let text = std::fs::read_to_string(&file).expect("saved run reads");
+    let run: serde_json::Value = serde_json::from_str(&text).expect("saved run is JSON");
+    let reason = run
+        .get("not_run")
+        .and_then(serde_json::Value::as_str)
+        .expect("a reason");
+    assert!(
+        reason.contains("Code-Generator: Some New Model"),
+        "{reason}"
+    );
+    assert!(
+        run.pointer("/lenses/0/attempts")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(Vec::is_empty),
+        "{run}"
+    );
 }
 
 /// `--builder-family` overrides detection entirely: the family it names is
@@ -1722,8 +1910,9 @@ fn write_fake_gh(dir: &Path, head_sha: &str) -> PathBuf {
         "#!/bin/sh\n\
          case \"$1 $2\" in\n\
          \x20\x20'pr view') echo '{{\"headRefOid\":\"{head_sha}\"}}' ;;\n\
+         \x20\x20'pr diff') printf 'diff --git a/README.md b/README.md\\n--- a/README.md\\n+++ b/README.md\\n@@ -1 +1,2 @@\\n base\\n+plus a change to review\\n' ;;\n\
          \x20\x20'api -X')\n\
-         \x20\x20\x20\x20cat > /dev/null\n\
+         \x20\x20\x20\x20cat > \"${{FAKE_GH_PAYLOAD:-/dev/null}}\"\n\
          \x20\x20\x20\x20if [ \"$FAKE_GH_MODE\" = 'refuse' ]; then\n\
          \x20\x20\x20\x20\x20\x20echo 'gh: Review cannot be requested on your own pull \
          request (HTTP 422)' 1>&2\n\
@@ -1755,6 +1944,60 @@ fn write_fake_gh(dir: &Path, head_sha: &str) -> PathBuf {
 fn path_with_dir_first(dir: &Path) -> String {
     let ambient = std::env::var("PATH").unwrap_or_default();
     format!("{}:{ambient}", dir.display())
+}
+
+/// A finding on a file the pull request's diff does not touch is posted in
+/// the review body, never as an inline comment: GitHub refuses a review with
+/// an inline comment outside the diff (HTTP 422). The fake `gh` shows a diff
+/// of `README.md` alone, and the blocker finding points into `src/lib.rs`.
+#[test]
+#[cfg(unix)]
+fn post_to_puts_a_finding_outside_the_diff_in_the_body() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("blocker.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("post-to-outside-diff", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-post-to-outside-diff");
+    let gh_holder = TempDir::new("review-run-post-to-outside-diff-gh");
+    let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    let path = path_with_dir_first(&gh_dir);
+    let payload_file = gh_holder.join("payload.json");
+    let payload_path = payload_file.display().to_string();
+    let output = fakes.run_with_env(
+        &repo.dir,
+        &home,
+        &[("PATH", &path), ("FAKE_GH_PAYLOAD", &payload_path)],
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--post-to",
+            "open-software-factory/widgets#7",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let payload: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&payload_file).expect("the fake gh saved the payload"),
+    )
+    .expect("payload is JSON");
+    assert_eq!(
+        payload
+            .get("comments")
+            .and_then(serde_json::Value::as_array),
+        Some(&Vec::new()),
+        "{payload}"
+    );
+    let body = payload
+        .get("body")
+        .and_then(serde_json::Value::as_str)
+        .expect("a body");
+    assert!(body.contains("Findings outside the diff"), "{body}");
+    assert!(body.contains("src/lib.rs:2"), "{body}");
 }
 
 /// `--post-to` posts the kept findings by reusing `osf review post`'s own
