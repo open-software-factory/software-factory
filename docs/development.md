@@ -740,22 +740,26 @@ jobs:
 Two references pin the check, and both name the same commit. The `@<SHA>` after
 the file name pins the jobs. The `osf-ref` input pins the `osf` that the `build`
 job compiles and that the reviewer jobs later run next to their keys. A moving
-reference, such as a branch name, is refused for `osf-ref`. GitHub gives a
-called workflow no way to read its own reference, so the two cannot be checked
-against each other. Change them together.
+reference, such as a branch name, is refused for `osf-ref`. The `build` job also
+compares `osf-ref` and `osf-repository` with the workflow's own commit and
+repository, which GitHub reports as `job.workflow_sha` and
+`job.workflow_repository`, and fails when they differ. Change the two references
+together. GitHub Enterprise Server does not report these two values yet, so there the check fails and a caller there needs a different pin.
 
 osf's own caller names the file by a local path. GitHub reads a local path at
-the same commit as the caller, which is the base commit for
+the same commit as the caller, which is the head of the default branch for
 `pull_request_target`. It passes `osf-repository` as its own repository and
-`osf-ref` as the pull request's base commit. A pull request therefore cannot
+`osf-ref` as `github.workflow_sha`, the commit of the caller. A pull request's
+base can be any branch, so the base commit is never where `osf` comes from. It
+is only the commit the reviewers diff against. A pull request therefore cannot
 change the caller, the called jobs, or the `osf` that runs them.
 
 ### Inputs
 
 | Input | Required | Default | Why it is an input |
 | --- | --- | --- | --- |
-| `osf-ref` | yes | none | The commit of osf to build. The workflow cannot see its own reference, and this value decides which code runs next to the keys. It must be a full commit SHA. |
-| `osf-repository` | no | `open-software-factory/software-factory` | The repository that holds that commit. Only osf's own caller, and a fork of osf, set it. |
+| `osf-ref` | yes | none | The commit of osf to build. This value decides which code runs next to the keys. It must be a full commit SHA, and the `build` job refuses any commit but the workflow's own. |
+| `osf-repository` | no | `open-software-factory/software-factory` | The repository that holds that commit. It must be the repository of the workflow. Only osf's own caller, and a fork of osf, set it. |
 | `runs-on` | no | `"ubuntu-latest"` | The runner label, written as JSON: a string or an array of labels. It must name a Linux runner with Docker. The adopter's own settings choose it, so the caller reads its variable and passes the value. |
 | `verifier-app-id` | yes | none | The id of the app that posts the review. It is not a secret. |
 | `allow-forks` | no | `false` | Review a fork's pull request too. A fork's pull request fails the check on purpose while this is `false`. |

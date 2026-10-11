@@ -1,11 +1,13 @@
 name: review
 
 # The caller of the review check. pull_request_target always runs this file
-# from the base branch, so a pull request cannot change it. The local path
-# below is read at that same base commit, so osf's own pull requests are judged
-# by the review check on the base branch, built from the base commit.
-# The job logic lives in review-check.yml. An adopter's caller names that file
-# in this repository by a full commit SHA instead; docs/development.md says how.
+# from the repository's default branch, so a pull request cannot change it. A
+# pull request's base can be any branch, so osf is built from the commit of
+# this workflow (`github.workflow_sha`), never from the pull request's base.
+# The base commit is only what the reviewers diff against.
+# The job logic lives in review-check.yml, which the local path below reads at
+# the same commit as this file. An adopter's caller names that file in this
+# repository by a full commit SHA instead; docs/development.md says how.
 #
 # This check is advisory. It posts a check run and a review, and no branch
 # protection or ruleset requires it.
@@ -28,7 +30,7 @@ jobs:
     uses: ./.github/workflows/review-check.yml
     with:
       osf-repository: ${{ github.repository }}
-      osf-ref: ${{ github.event.pull_request.base.sha }}
+      osf-ref: ${{ github.workflow_sha }}
       runs-on: ${{ vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"' }}
       verifier-app-id: ${{ vars.VERIFIER_APP_ID }}
       allow-forks: ${{ vars.OSF_REVIEW_FORKS == 'true' }}

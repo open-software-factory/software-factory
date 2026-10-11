@@ -6,13 +6,15 @@ name: review check
 # what is stable.
 #
 # It is called from a `pull_request_target` workflow. GitHub reads that
-# caller from the base branch, so a pull request cannot change the caller,
-# and a called workflow runs from the commit its caller names. A caller in
-# osf's own repository names this file by a local path, which GitHub reads
-# at the same base commit. A caller in another repository names it by a
-# full commit SHA. That SHA and the `osf-ref` input are the same commit.
-# The first pins the workflow, and the second pins the osf this workflow
-# builds.
+# caller from the default branch, so a pull request cannot change the caller.
+# A pull request's base can be any branch, so nothing here trusts the base
+# branch: the osf this workflow builds is the commit the `osf-ref` input names,
+# and the build job refuses it unless it is the commit of this workflow itself
+# (`job.workflow_sha`, in the repository `job.workflow_repository`). A caller
+# in osf's own repository names this file by a local path and passes
+# `github.workflow_sha`. A caller in another repository names this file by a
+# full commit SHA and passes the same SHA. The pull request's base commit is
+# used only as the commit to diff against.
 #
 # One job builds osf from that pinned commit. It holds no provider key, and
 # a read-only token finds the work item. Each reviewer runs in its own job
@@ -35,11 +37,11 @@ on:
   workflow_call:
     inputs:
       osf-ref:
-        description: The full commit SHA of osf to build and run. Pin it to the same commit as this workflow.
+        description: The full commit SHA of osf to build and run. It must be the commit of this workflow, and the build job refuses any other.
         type: string
         required: true
       osf-repository:
-        description: The repository that holds osf at osf-ref.
+        description: The repository that holds osf at osf-ref. It must be the repository of this workflow.
         type: string
         required: false
         default: open-software-factory/software-factory
@@ -133,13 +135,22 @@ jobs:
 
       # The build runs the pinned osf, and nothing else. The binary it makes
       # later runs next to the reviewer keys, so a moving reference such as a
-      # branch name is refused.
-      - name: Refuse an osf reference that is not a full commit SHA
+      # branch name is refused, and so is any commit other than the one this
+      # workflow itself runs from. This guard stays in the workflow because
+      # osf is not built yet.
+      - name: Refuse an osf that is not the commit of this workflow
         env:
           OSF_REF: ${{ inputs.osf-ref }}
+          OSF_REPOSITORY: ${{ inputs.osf-repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
         run: |
           if ! printf '%s' "$OSF_REF" | grep -Eq '^[0-9a-f]{40}$'; then
             echo "osf review: the osf-ref input must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          if [ "$OSF_REF" != "$WORKFLOW_SHA" ] || [ "$OSF_REPOSITORY" != "$WORKFLOW_REPOSITORY" ]; then
+            echo "osf review: osf-ref and osf-repository must name this workflow's own commit, ${WORKFLOW_REPOSITORY}@${WORKFLOW_SHA}" >&2
             exit 1
           fi
 
@@ -182,7 +193,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p work-item
-          jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > work-item/pull-request.json
+          cp "$GITHUB_EVENT_PATH" work-item/event.json
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             -e GH_TOKEN \
@@ -192,7 +203,7 @@ jobs:
             -w /work-item \
             ${{ env.REVIEW_IMAGE }} \
             /build-out/target/release/osf review work-item \
-            --pull-request /work-item/pull-request.json \
+            --pull-request /work-item/event.json \
             --repository ${{ github.repository }} \
             --head ${{ github.event.pull_request.head.sha }} \
             --out /work-item/work-item.json
@@ -265,12 +276,12 @@ jobs:
           name: osf-binary
           path: bin
 
-      - name: Save the pull request's number, title and body
+      - name: Save the pull request's event
         run: |
           mkdir -p out
           chmod -R a+rwX out
           chmod +x bin/osf
-          jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
+          cp "$GITHUB_EVENT_PATH" out/event.json
           printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
 
       - name: Fetch the work item that the build job saved
@@ -308,7 +319,7 @@ jobs:
           --if-enabled
           --base ${{ github.event.pull_request.base.sha }}
           --config-root /base
-          --pull-request /out/pull-request.json
+          --pull-request /out/event.json
           --repository ${{ github.repository }}
           --pull-request-number ${{ github.event.pull_request.number }}
           --head ${{ github.event.pull_request.head.sha }}
@@ -382,12 +393,12 @@ jobs:
           name: osf-binary
           path: bin
 
-      - name: Save the pull request's number, title and body
+      - name: Save the pull request's event
         run: |
           mkdir -p out
           chmod -R a+rwX out
           chmod +x bin/osf
-          jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
+          cp "$GITHUB_EVENT_PATH" out/event.json
           printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
 
       - name: Fetch the work item that the build job saved
@@ -415,7 +426,7 @@ jobs:
           --if-enabled
           --base ${{ github.event.pull_request.base.sha }}
           --config-root /base
-          --pull-request /out/pull-request.json
+          --pull-request /out/event.json
           --repository ${{ github.repository }}
           --pull-request-number ${{ github.event.pull_request.number }}
           --head ${{ github.event.pull_request.head.sha }}
@@ -491,12 +502,12 @@ jobs:
           name: osf-binary
           path: bin
 
-      - name: Save the pull request's number, title and body
+      - name: Save the pull request's event
         run: |
           mkdir -p out
           chmod -R a+rwX out
           chmod +x bin/osf
-          jq '.pull_request | {number, title, body}' "$GITHUB_EVENT_PATH" > out/pull-request.json
+          cp "$GITHUB_EVENT_PATH" out/event.json
           printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
 
       - name: Fetch the work item that the build job saved
@@ -524,7 +535,7 @@ jobs:
           --if-enabled
           --base ${{ github.event.pull_request.base.sha }}
           --config-root /base
-          --pull-request /out/pull-request.json
+          --pull-request /out/event.json
           --repository ${{ github.repository }}
           --pull-request-number ${{ github.event.pull_request.number }}
           --head ${{ github.event.pull_request.head.sha }}
@@ -631,11 +642,6 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.verifier-token.outputs.token }}
         run: |
-          set -euo pipefail
-          files=()
-          while IFS= read -r -d '' file; do
-            files+=("/out/${file#out/}")
-          done < <(find out/runs -type f -name '*.json' -print0 | sort -z)
           docker run --rm \
             -v "${{ github.workspace }}/bin:/osf-bin:ro" \
             -v "${{ github.workspace }}/base:/base:ro" \
@@ -655,7 +661,7 @@ jobs:
             --ci-run-id ${{ github.run_id }} \
             --sarif-out /out/review.sarif \
             --post-to ${{ github.repository }}#${{ github.event.pull_request.number }} \
-            "${files[@]}"
+            /out/runs
 
       - name: Keep the review findings
         if: always()

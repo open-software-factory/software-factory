@@ -386,6 +386,28 @@ fn the_review_check_is_advisory_in_the_workflow_and_the_guide() {
     );
 }
 
+/// The id of every reviewer job, then the last job. A reviewer job is the one
+/// that runs `osf review run --reviewer <name>`. Each is named `review-<name>`
+/// for an agent in the single agent list, so a roster change in that list
+/// needs no edit here.
+fn reviewer_and_last_job_ids(text: &str) -> Vec<String> {
+    let reviewers = reviewer_jobs(text);
+    assert!(!reviewers.is_empty(), "the workflow has a reviewer job");
+    let mut ids: Vec<String> = Vec::new();
+    for (id, _) in reviewers {
+        let name = id
+            .strip_prefix("review-")
+            .unwrap_or_else(|| panic!("reviewer job {id} is named review-<agent>"));
+        assert!(
+            osf::agents::AGENTS.iter().any(|a| a.name == name),
+            "reviewer job {id} names no agent in the agent list"
+        );
+        ids.push(id);
+    }
+    ids.push("review".to_string());
+    ids
+}
+
 /// A fork's pull request is reviewed only when the repository variable says
 /// so, and nothing in the file sets that variable.
 #[test]
@@ -394,14 +416,10 @@ fn reviews_are_off_for_forks_unless_the_variable_is_set_and_it_is_never_set_here
     let all = jobs(&text);
     let same_or_enabled =
         "github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks";
-    for id in [
-        "build",
-        "review-codex",
-        "review-claude",
-        "review-opencode",
-        "review",
-    ] {
-        let body = job_body(&text, id);
+    let mut ids = reviewer_and_last_job_ids(&text);
+    ids.insert(0, "build".to_string());
+    for id in ids {
+        let body = job_body(&text, &id);
         assert!(
             condition_of(&body).contains(same_or_enabled),
             "job {id} runs for a fork only when allow-forks is true"
@@ -1027,7 +1045,16 @@ fn an_input_reaches_no_script_text() {
         }
         let key = line.trim().split(':').next().unwrap_or("");
         assert!(
-            ["runs-on", "if", "OSF_REF", "repository", "ref", "app-id"].contains(&key),
+            [
+                "runs-on",
+                "if",
+                "OSF_REF",
+                "OSF_REPOSITORY",
+                "repository",
+                "ref",
+                "app-id"
+            ]
+            .contains(&key),
             "an input is used in a place other than a key, a condition or an env value: {}",
             line.trim()
         );
@@ -1046,6 +1073,14 @@ fn the_build_job_builds_only_the_pinned_osf_and_refuses_a_moving_reference() {
     assert!(
         build.contains("^[0-9a-f]{40}$") && build.contains("OSF_REF: ${{ inputs.osf-ref }}"),
         "the build job refuses a reference that is not a full commit SHA: {build}"
+    );
+    assert!(
+        build.contains("WORKFLOW_SHA: ${{ job.workflow_sha }}")
+            && build.contains("WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}")
+            && build.contains("OSF_REPOSITORY: ${{ inputs.osf-repository }}")
+            && build.contains("\"$OSF_REF\" != \"$WORKFLOW_SHA\"")
+            && build.contains("\"$OSF_REPOSITORY\" != \"$WORKFLOW_REPOSITORY\""),
+        "the build job refuses an osf that is not the workflow's own commit and repository: {build}"
     );
     assert_eq!(
         build.matches("uses: actions/checkout@").count(),
@@ -1077,8 +1112,8 @@ fn the_build_job_refuses_any_event_but_pull_request_target() {
 #[test]
 fn the_later_jobs_read_the_callers_base_and_the_head_as_data() {
     let text = workflow_text();
-    for id in ["review-codex", "review-claude", "review-opencode", "review"] {
-        let body = job_body(&text, id);
+    for id in reviewer_and_last_job_ids(&text) {
+        let body = job_body(&text, &id);
         assert!(
             body.contains(
                 "path: base\n          fetch-depth: 0\n          persist-credentials: false"
@@ -1102,8 +1137,8 @@ fn the_later_jobs_read_the_callers_base_and_the_head_as_data() {
 fn the_environment_names_are_fixed_in_every_job_that_holds_a_key() {
     let text = workflow_text();
     let expected = "    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}";
-    for id in ["review-codex", "review-claude", "review-opencode", "review"] {
-        let body = job_body(&text, id);
+    for id in reviewer_and_last_job_ids(&text) {
+        let body = job_body(&text, &id);
         assert!(
             body.contains(expected),
             "job {id} lacks the fixed environment"
@@ -1202,15 +1237,55 @@ fn the_caller_is_thin_and_runs_from_the_base_branch() {
         );
     }
     assert!(
-        caller.contains("osf-ref: ${{ github.event.pull_request.base.sha }}")
+        caller.contains("osf-ref: ${{ github.workflow_sha }}")
             && caller.contains("osf-repository: ${{ github.repository }}"),
-        "osf's own review builds osf from the pull request's base commit"
+        "osf's own review builds osf from the commit of the caller"
     );
     assert!(
         caller.contains("runs-on: ${{ vars.OSF_REVIEW_RUNS_ON || '\"ubuntu-latest\"' }}"),
         "the runner comes from the adopter's variable, with the hosted default"
     );
     assert!(caller.contains("verifier-app-id: ${{ vars.VERIFIER_APP_ID }}"));
+}
+
+/// A pull request's base can be any branch, and a contributor who can push a
+/// branch controls what is on it. osf must come from the commit of the
+/// workflow, which `pull_request_target` takes from the default branch, and
+/// never from the pull request's base. The base commit may only be a diff
+/// target.
+#[test]
+fn osf_is_never_built_from_the_pull_requests_base_even_when_the_base_is_not_the_default_branch() {
+    let caller = caller_text();
+    let passed: Vec<&str> = caller
+        .lines()
+        .filter(|l| {
+            l.trim_start().starts_with("osf-ref:") || l.trim_start().starts_with("osf-repository:")
+        })
+        .collect();
+    assert_eq!(passed.len(), 2, "{caller}");
+    for line in passed {
+        assert!(
+            !line.contains("pull_request")
+                && !line.contains("github.base_ref")
+                && !line.contains("github.ref"),
+            "an osf input is taken from the pull request or its base: {line}"
+        );
+    }
+    let text = workflow_text();
+    let build = job_body(&text, "build");
+    assert!(
+        !build.contains("pull_request.base") && !build.contains("base_ref"),
+        "the build job reads nothing from the pull request's base: {build}"
+    );
+    for (id, body) in jobs(&text) {
+        for line in body.lines().filter(|l| l.contains("pull_request.base.sha")) {
+            let line = line.trim();
+            assert!(
+                line.starts_with("run: git -C pr fetch") || line.starts_with("--base "),
+                "job {id} uses the base commit for something other than a diff target: {line}"
+            );
+        }
+    }
 }
 
 #[test]

@@ -879,6 +879,33 @@ fn reduce_saved_files(
     fakes.run(&repo.dir, &home, &args)
 }
 
+/// A folder given to `review reduce` stands for the reviewer files inside it,
+/// so a workflow passes the folder it downloaded and lists no file.
+#[test]
+fn reduce_takes_a_folder_of_saved_runs_as_its_files() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo("reduce-folder", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-reduce-folder");
+    let codex = save_run(&fakes, &repo, &saved, "codex");
+    let claude = save_run(&fakes, &repo, &saved, "claude");
+    let listed = reduce_saved_files(&fakes, &repo, "folder-listed", &[&claude, &codex]);
+    let folder = saved.to_string_lossy().into_owned();
+    let by_folder = reduce_saved_files(&fakes, &repo, "folder-given", &[&folder]);
+    assert_eq!(
+        listed.status.code(),
+        by_folder.status.code(),
+        "{}",
+        stdout_of(&by_folder)
+    );
+    assert_eq!(stdout_of(&listed), stdout_of(&by_folder));
+}
+
 /// Two families that each saved a single answered round do not reach the
 /// quorum: a family needs two answered rounds, so the lens is could-not-run.
 #[test]
