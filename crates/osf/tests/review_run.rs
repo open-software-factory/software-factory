@@ -2496,39 +2496,6 @@ fn the_reviewer_reads_the_diff_and_log_from_a_read_only_file() {
     );
 }
 
-/// An agent with no documented read-only mode is could-not-run with that
-/// reason, and its harness never starts.
-#[test]
-#[cfg(unix)]
-fn an_agent_with_no_read_only_mode_is_could_not_run_and_never_starts() {
-    let rec = TempDir::new("review-run-no-read-only-rec");
-    let fakes = Fakes::new("", &[("dsh", Fake::Records(&fixture("valid.json"), &rec))]);
-    let repo = review_repo("no-read-only", &fakes.osf_toml);
-    let home = common::isolated_home("review-run-no-read-only");
-    let output = fakes.run(
-        &repo.dir,
-        &home,
-        &["review", "run", "--base", "origin/main"],
-    );
-    assert_eq!(
-        output.status.code(),
-        Some(2),
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let journal = journal_lines_of(&home, "dsh");
-    assert!(journal.contains("no read-only mode"), "{journal}");
-    assert!(
-        journal.contains("\"result\":\"could-not-run\""),
-        "{journal}"
-    );
-    assert!(
-        !rec.join("started").exists(),
-        "the harness must never start"
-    );
-}
-
 /// The text a run prints, which names each lens's verdict and the whole one.
 fn stdout_of(output: &std::process::Output) -> String {
     String::from_utf8_lossy(&output.stdout).into_owned()

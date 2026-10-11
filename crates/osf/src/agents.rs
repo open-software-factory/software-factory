@@ -279,8 +279,11 @@ pub const AGENTS: &[Agent] = &[
                 args: &[],
                 env: &[],
             },
-            // `dsh --help` and `dsh --profile headless --help` document no read-only or permission mode.
-            read_only: None,
+            // The base profile reads `DSH_PERMISSION_MODE` (dsh-base's `cordis.patch.yml`, and the `dsh-sandbox-policy` README). `read-only` denies every file write and edit and every file write from the shell tool, and an escalation to a wider mode finds no approval channel in a headless run. Checked against dsh 0.2.0-rc.2 with a stand-in model server: a `write` call and a shell redirect both failed and left no file, and an escalation request was refused. The shell tool and the web and subagent tools stay in the tool list, and dsh's sandbox does not confine the network, so the review job's network allow-list bounds them. `dsh --help` lists none of this.
+            read_only: Some(ReadOnly {
+                args: &[],
+                env: &[("DSH_PERMISSION_MODE", "read-only")],
+            }),
             in_container: None,
             schema_flag: None,
             schema_as: SchemaArg::Path,
@@ -963,10 +966,38 @@ mod tests {
         assert!(switches("claude").args.contains(&"--strict-mcp-config"));
     }
 
+    /// The refusal of a reviewer with no mode stays tested in `reviewers.rs`
+    /// with a hand-built reviewer; this keeps the list from holding one.
     #[test]
-    fn dsh_documents_no_read_only_mode() {
-        assert!(AGENTS.iter().any(|a| a.name == "dsh" && a.review.is_some()));
-        assert_eq!(read_only_of("dsh"), None);
+    fn every_agent_that_reviews_documents_a_read_only_or_container_mode() {
+        for a in AGENTS {
+            if let Some(review) = &a.review {
+                assert!(
+                    review.read_only.is_some() || review.in_container.is_some(),
+                    "{}: a reviewer with neither mode is refused at run time",
+                    a.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn dsh_is_held_to_a_read_only_sandbox_by_its_permission_mode() {
+        let mode = read_only_of("dsh").expect("dsh documents a read-only mode");
+        assert_eq!(mode.args, &[] as &[&str]);
+        assert_eq!(mode.env, &[("DSH_PERMISSION_MODE", "read-only")]);
+        assert_eq!(in_container_of("dsh"), None);
+    }
+
+    #[test]
+    fn dsh_reviews_through_its_headless_profile_and_answers_on_standard_output() {
+        let dsh = AGENTS.iter().find(|a| a.name == "dsh").expect("dsh");
+        assert!(dsh.command.join(" ").contains("--profile headless"));
+        let review = dsh.review.as_ref().expect("dsh reviews");
+        assert_eq!(review.schema_flag, None);
+        assert_eq!(review.answer_pointer, "");
+        assert_eq!(review.model_flag, None);
+        assert_eq!(review.credential_env, &["DEEPSEEK_API_KEY"]);
     }
 
     #[test]
