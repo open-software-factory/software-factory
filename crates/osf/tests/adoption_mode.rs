@@ -61,3 +61,17 @@ fn an_unsupported_adoption_mode_stops_the_gate_path_too() {
     let ok = run_osf(&repo.dir, &home, &["lint", "writing", "--gate", "clean.md"]);
     assert!(ok.status.success(), "{}", output_text(&ok));
 }
+
+#[test]
+fn an_unsupported_adoption_mode_stops_agents_list() {
+    let repo = TempRepo::new("adoption-mode-agents");
+    let home = isolated_home("adoption-mode-agents");
+    repo.write("osf.toml", "adoption_mode = \"vendored\"\n");
+    let out = run_osf(&repo.dir, &home, &["agents", "list", "--json"]);
+    assert!(!out.status.success(), "{}", output_text(&out));
+    let text = output_text(&out);
+    assert!(text.contains(AdoptionMode::KEY), "{text}");
+    for mode in AdoptionMode::ALL {
+        assert!(text.contains(mode.name()), "{text}");
+    }
+}

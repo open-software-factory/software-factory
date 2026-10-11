@@ -248,6 +248,33 @@ pub struct AgentsConfig {
     pub models: BTreeMap<String, String>,
 }
 
+/// Parses the text of an `osf.toml` and checks its `adoption_mode`. Every
+/// reader of that file goes through here, so none can skip the check.
+fn parse_repo_document(text: &str, path: &Path) -> Result<toml::Value, ConfigError> {
+    let value: toml::Value = toml::from_str(text)
+        .map_err(|e| ConfigError::new(format!("config {} is not valid: {e}", path.display())))?;
+    adoption_mode_of(&value, path)?;
+    Ok(value)
+}
+
+/// Reads and parses `<root>/osf.toml`, or `None` when the file is absent.
+/// Any other read error, invalid TOML, or an unsupported `adoption_mode` is
+/// an error. The one entry point for a reader of a repository's own
+/// `osf.toml` that is not the layered [`load`].
+///
+/// # Errors
+/// Returns an error naming the file when it cannot be read or parsed, or
+/// naming the key and the supported values when `adoption_mode` is not one.
+pub fn repo_document(root: &Path) -> Result<Option<toml::Value>, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(ConfigError::new(format!("{}: {e}", path.display()))),
+    };
+    parse_repo_document(&text, &path).map(Some)
+}
+
 /// Reads the `[agents]` table of `<root>/osf.toml`, or
 /// [`AgentsConfig::default`] when the file, or the table, is absent.
 ///
@@ -256,11 +283,9 @@ pub struct AgentsConfig {
 /// table does not match [`AgentsConfig`]'s shape.
 pub fn agents_config(root: &Path) -> Result<AgentsConfig, ConfigError> {
     let path = root.join(REPO_CONFIG_FILE);
-    let Ok(text) = std::fs::read_to_string(&path) else {
+    let Some(value) = repo_document(root)? else {
         return Ok(AgentsConfig::default());
     };
-    let value: toml::Value =
-        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
     let Some(agents) = value.get("agents") else {
         return Ok(AgentsConfig::default());
     };
@@ -312,15 +337,10 @@ fn mode_names(modes: &[AdoptionMode]) -> String {
 /// Returns an error naming the key and the supported values when the file is
 /// not valid TOML or the value is not a supported mode.
 pub fn adoption_mode(root: &Path) -> Result<Option<AdoptionMode>, ConfigError> {
-    let path = root.join(REPO_CONFIG_FILE);
-    let text = match std::fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(ConfigError::new(format!("{}: {e}", path.display()))),
+    let Some(value) = repo_document(root)? else {
+        return Ok(None);
     };
-    let value: toml::Value =
-        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
-    adoption_mode_of(&value, &path)
+    adoption_mode_of(&value, &root.join(REPO_CONFIG_FILE))
 }
 
 /// Checks the `adoption_mode` entry of an already parsed `osf.toml`.
@@ -433,11 +453,9 @@ pub struct BuilderFamilyAlias {
 /// table does not match [`ReviewConfig`]'s shape.
 pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
     let path = root.join(REPO_CONFIG_FILE);
-    let Ok(text) = std::fs::read_to_string(&path) else {
+    let Some(value) = repo_document(root)? else {
         return Ok(ReviewConfig::default());
     };
-    let value: toml::Value =
-        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
     let Some(review) = value.get("review") else {
         return Ok(ReviewConfig::default());
     };
@@ -735,16 +753,12 @@ pub fn load(
     let mut file = None;
     if let Some(p) = &path {
         if let Some(text) = osf_lint_core::read_config_file(p, explicit)? {
-            let mut value: toml::Value = toml::from_str(&text).map_err(|e| {
-                ConfigError::new(format!("config {} is not valid: {e}", p.display()))
-            })?;
+            let mut value = parse_repo_document(&text, p)?;
             // `[review]`, `[agents]` and `adoption_mode` are this same file's own
             // entries, read separately by `review_config`, `agents_config` and
             // `adoption_mode`. Drop them here so their presence never trips
-            // this struct's `deny_unknown_fields`. `adoption_mode` is checked
-            // first, so an unsupported value stops every command that loads
-            // the config.
-            adoption_mode_of(&value, p)?;
+            // this struct's `deny_unknown_fields`. `parse_repo_document` has
+            // already checked `adoption_mode`.
             if let Some(table) = value.as_table_mut() {
                 table.remove("review");
                 table.remove("agents");
@@ -862,11 +876,9 @@ fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
     let Some(text) = osf_lint_core::read_config_file(&path, false)? else {
         return Ok(Vec::new());
     };
-    let value: toml::Value = toml::from_str(&text)
-        .map_err(|e| ConfigError::new(format!("config {} is not valid: {e}", path.display())))?;
-    // Only checked, never merged: the gate takes no setting from this file
-    // but must still refuse an unsupported mode.
-    adoption_mode_of(&value, &path)?;
+    // The mode is only checked, never merged: the gate takes no setting
+    // from this file but must still refuse an unsupported mode.
+    let value = parse_repo_document(&text, &path)?;
     let names = value
         .get("writing")
         .and_then(|w| w.get("must_explain_names"))

@@ -554,17 +554,18 @@ fn repeated_logic(diffs: &[FileDiff]) -> bool {
 }
 
 /// The `[review] hot_paths` glob list from `root`'s own `osf.toml`, empty
-/// when the file, the table or the key is missing or malformed: a
-/// high-traffic path needs telemetry a diff cannot supply on its own, so
-/// with nothing configured, this signal never fires.
-fn hot_paths(root: &Path) -> Vec<String> {
-    let Ok(text) = std::fs::read_to_string(root.join("osf.toml")) else {
-        return Vec::new();
+/// when the file, the table or the key is missing: a high-traffic path
+/// needs telemetry a diff cannot supply on its own, so with nothing
+/// configured, this signal never fires.
+///
+/// # Errors
+/// Returns an error when the file cannot be read or parsed, or names an
+/// unsupported `adoption_mode`.
+fn hot_paths(root: &Path) -> Result<Vec<String>, String> {
+    let Some(value) = crate::config::repo_document(root).map_err(|e| e.to_string())? else {
+        return Ok(Vec::new());
     };
-    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
-        return Vec::new();
-    };
-    value
+    Ok(value
         .get("review")
         .and_then(|t| t.get("hot_paths"))
         .and_then(toml::Value::as_array)
@@ -574,7 +575,7 @@ fn hot_paths(root: &Path) -> Vec<String> {
                 .filter_map(|v| v.as_str().map(str::to_string))
                 .collect()
         })
-        .unwrap_or_default()
+        .unwrap_or_default())
 }
 
 /// Whether any changed path matches one of `hot_paths`'s own globs.
@@ -640,7 +641,7 @@ pub fn assess(dir: &Path, config_root: &Path, base: &str) -> Result<Report, Stri
     let (tier, reasons) = tier_for(&file_refs, files.len(), line_count, &high);
     let axes_add = axes_for(&file_refs);
     let diffs = collect_diffs(dir, base, &files, &untracked)?;
-    let signal_list = signals_for(&diffs, &hot_paths(config_root));
+    let signal_list = signals_for(&diffs, &hot_paths(config_root)?);
 
     Ok(Report {
         tier,
@@ -896,5 +897,15 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn hot_paths_refuses_an_unsupported_adoption_mode() {
+        let dir = crate::test_support::TempDir::new("osf-risk-adoption-bad");
+        std::fs::write(dir.join("osf.toml"), "adoption_mode = \"vendored\"\n")
+            .expect("osf.toml writes");
+        let err = hot_paths(&dir).expect_err("refused");
+        assert!(err.contains("adoption_mode"), "{err}");
+        assert!(err.contains("private-factory-repo"), "{err}");
     }
 }

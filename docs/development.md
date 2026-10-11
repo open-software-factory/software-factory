@@ -711,16 +711,21 @@ The key is a top-level string. Leave it out and osf reads no mode. A
 command that needs a mode stops with a message that names the key, the
 command and the modes the command supports. A value osf does not know
 stops osf with a message that names the key and lists the supported
-values. An `osf.toml` that exists but cannot be read stops osf with the
-read error.
+values. An `osf.toml` that exists but cannot be read, or is not valid TOML,
+stops osf with the error. The `[scan]` and `[review] hot_paths` readers
+once used defaults in those cases; they now stop too.
 
 | Value | Covers | Does not cover |
 |---|---|---|
 | `private-factory-repo` | A private repository in the adopter's organisation that holds the org-wide config, private lenses and prompts, the pinned osf release, and the list of watched repositories | Reading the list of watched repositories, which is not built yet. The factory vendored into one repository, which has no value yet. |
 
-Every command that loads the config, such as `osf config show`, checks
-the key and stops on an unsupported value. A `--gate` run does the same
-for the repository's own `osf.toml`, though it takes no setting from it.
+Every reader of the repository's own `osf.toml` goes through one parse
+step, `config::repo_document` (the layered `config::load` and the `--gate`
+load share its parser), and that step stops on an unsupported value. This
+covers `osf config show`, the lint and scan commands, `osf agents list`,
+`osf review run`, `osf changeset risk` and the review context redaction.
+A `--gate` run checks the file too, though it takes no setting from it.
+A new reader calls `config::repo_document` and so cannot skip the check.
 Code reads the key through
 `config::adoption_mode`. A command that depends on the mode calls
 `config::require_adoption_mode` with the modes it supports. No command
