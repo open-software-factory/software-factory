@@ -215,6 +215,9 @@ fn unanchored_line(f: &Finding) -> String {
 /// The heading over the findings that cannot be inline comments.
 const OUTSIDE_HEADING: &str = "\n\n**Findings outside the diff**\n";
 
+/// The words every line counting unshown findings ends with.
+const MORE_FINDINGS_MARK: &str = "in the run's saved artifact";
+
 /// The line that says how many findings did not fit.
 fn more_findings_line(count: usize) -> String {
     let noun = if count == 1 {
@@ -222,7 +225,7 @@ fn more_findings_line(count: usize) -> String {
     } else {
         "findings are"
     };
-    format!("\n- {count} more {noun} in the run's saved artifact")
+    format!("\n- {count} more {noun} {MORE_FINDINGS_MARK}")
 }
 
 /// Bytes kept for the findings when a long summary has to be cut.
@@ -509,25 +512,38 @@ pub fn classify_post_result(success: bool, output_text: &str) -> PostAttempt {
 /// as `COMMENT` instead of `REQUEST_CHANGES` or `APPROVE`.
 ///
 /// # Errors
-/// Returns [`ReviewError::AdvisoryTooLong`] when the advisory prefix pushes
-/// the body over [`BODY_LIMIT`].
+/// Never fails today: the advisory prefix counts against [`BODY_LIMIT`], and a
+/// body that no longer fits is cut and marked.
 pub fn build_advisory_payload(
     plan: &Plan,
     verdict: Verdict,
     head_sha: &str,
 ) -> Result<Value, ReviewError> {
-    let advisory_body = format!(
+    let prefix = format!(
         "**Verdict (advisory): {}** — posted as a comment, because the reviewer and the author \
-         share one GitHub identity.\n\n{}",
-        verdict.as_event(),
-        plan.body
+         share one GitHub identity.\n\n",
+        verdict.as_event()
     );
-    if advisory_body.len() > BODY_LIMIT {
-        return Err(ReviewError::AdvisoryTooLong {
-            len: advisory_body.len(),
-            limit: BODY_LIMIT,
-        });
-    }
+    // The prefix counts against the limit. A body that no longer fits is cut
+    // on a character boundary, keeping its last line when that is the notice
+    // counting findings that did not fit.
+    let (head, tail) = match plan.body.rsplit_once('\n') {
+        Some((head, last)) if last.contains(MORE_FINDINGS_MARK) => (head, format!("\n{last}")),
+        _ => (plan.body.as_str(), String::new()),
+    };
+    let room = BODY_LIMIT.saturating_sub(prefix.len() + tail.len());
+    let advisory_body = if prefix.len() + plan.body.len() <= BODY_LIMIT {
+        format!("{prefix}{}", plan.body)
+    } else {
+        let mut end = room.saturating_sub(SUMMARY_CUT.len());
+        while !head.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!(
+            "{prefix}{}{SUMMARY_CUT}{tail}",
+            head.get(..end).unwrap_or_default()
+        )
+    };
     Ok(payload(head_sha, &advisory_body, "COMMENT", &plan.comments))
 }
 
@@ -949,23 +965,44 @@ mod tests {
         );
     }
 
+    // The advisory prefix counts against the limit: the same finding inside
+    // and outside the diff still falls back to a comment, with the verdict
+    // and the omission notice kept.
     #[test]
-    fn an_advisory_body_over_the_limit_is_rejected_before_a_retry() {
-        let findings = vec![Finding {
-            id: "cor-01".to_string(),
-            path: "README.md".to_string(),
-            line: Some(1),
-            severity: "major".to_string(),
-            action: "should-fix".to_string(),
-            body: "x".to_string(),
-        }];
-        let long_summary = "x".repeat(1990);
-        let plan = plan_review(&findings, &long_summary, &default_block_on()).expect("plans");
-        let next = after_first_attempt(PostAttempt::RefusedSelfReview, &plan, "deadbeef");
-        assert!(
-            matches!(next, NextStep::Done(Outcome::Rejected(_))),
-            "{next:?}"
-        );
+    fn an_advisory_body_near_the_limit_is_cut_not_rejected() {
+        let findings = vec![
+            finding("in-1", "src/a.rs", Some(2), "major", "should-fix"),
+            Finding {
+                id: "big-2".to_string(),
+                path: "src/a.rs".to_string(),
+                line: Some(99),
+                severity: "minor".to_string(),
+                action: "maybe-fix".to_string(),
+                body: "y".repeat(3000),
+            },
+        ];
+        let summary = "s".repeat(1900);
+        let inside = DiffLines::parse(DIFF);
+        let outside = DiffLines::parse("");
+        for diff in [&inside, &outside] {
+            let plan =
+                plan_review_in_diff(&findings, &summary, &default_block_on(), None, Some(diff))
+                    .expect("plans");
+            let next = after_first_attempt(PostAttempt::RefusedSelfReview, &plan, "deadbeef");
+            let NextStep::RetryAsComment(payload) = next else {
+                panic!("expected a comment retry, got {next:?}");
+            };
+            let body = payload.get("body").and_then(Value::as_str).expect("a body");
+            assert!(body.len() <= BODY_LIMIT, "{}", body.len());
+            assert!(
+                body.contains("Verdict (advisory): REQUEST_CHANGES"),
+                "{body}"
+            );
+            assert!(
+                body.contains(MORE_FINDINGS_MARK) || plan.body.len() + 130 <= BODY_LIMIT,
+                "{body}"
+            );
+        }
     }
 
     #[test]

@@ -1096,14 +1096,38 @@ fn unknown_detail(reasons: &[String], redact: &dyn Fn(&str) -> String) -> String
                 .collect::<String>()
         })
         .collect();
-    let count = (reasons.len() > UNKNOWN_REASONS_SHOWN).then(|| {
+    // A reason is one distinct unrecognised trailer or one commit without a
+    // trailer, not always one commit. The count names what it counts and
+    // covers every reason not displayed in full, cut ones included.
+    let tail_for = |shown_count: usize| {
+        let rest = reasons.len() - shown_count;
         format!(
-            "and {} more commits without a family",
-            reasons.len() - UNKNOWN_REASONS_SHOWN
+            "and {rest} more unrecognised trailer{} or commit{} without one",
+            if rest == 1 { "" } else { "s" },
+            if rest == 1 { "" } else { "s" }
         )
-    });
-    let room = UNKNOWN_DETAIL_BYTES.saturating_sub(count.as_ref().map_or(0, |c| c.len() + 2));
+    };
+    let mut shown_count = shown.len();
     let mut list = shown.join("; ");
+    let reserve = |n: usize| {
+        if n < reasons.len() {
+            tail_for(n).len() + 2
+        } else {
+            0
+        }
+    };
+    // Drop whole reasons from the end until the list fits with its count.
+    while shown_count > 1 && list.len() > UNKNOWN_DETAIL_BYTES.saturating_sub(reserve(shown_count))
+    {
+        shown_count -= 1;
+        list = shown
+            .iter()
+            .take(shown_count)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("; ");
+    }
+    let room = UNKNOWN_DETAIL_BYTES.saturating_sub(reserve(shown_count));
     if list.len() > room {
         let mut end = room.saturating_sub(3);
         while !list.is_char_boundary(end) {
@@ -1112,9 +1136,10 @@ fn unknown_detail(reasons: &[String], redact: &dyn Fn(&str) -> String) -> String
         list.truncate(end);
         list.push_str("...");
     }
-    let detail = match count {
-        Some(count) => format!("{list}; {count}"),
-        None => list,
+    let detail = if shown_count < reasons.len() {
+        format!("{list}; {}", tail_for(shown_count))
+    } else {
+        list
     };
     redact(&detail)
 }
@@ -2021,22 +2046,26 @@ mod tests {
             .map(|n| format!("commit {n:012} has no Code-Generator trailer"))
             .collect();
         let detail = unknown_detail(&reasons, &same);
-        assert!(detail.contains("and 47 more commits"), "{detail}");
+        assert!(
+            detail.contains("and 47 more unrecognised trailers"),
+            "{detail}"
+        );
         assert!(detail.len() < 400, "{}", detail.len());
         assert_eq!(unknown_detail(&[], &same), "no family named");
         let wide: Vec<String> = (0..5).map(|n| format!("{n}{}", "😀".repeat(200))).collect();
         let detail = unknown_detail(&wide, &same);
         assert!(detail.len() <= UNKNOWN_DETAIL_BYTES, "{}", detail.len());
         assert!(
-            detail.ends_with("and 2 more commits without a family"),
+            detail.ends_with("and 4 more unrecognised trailers or commits without one"),
             "{detail}"
         );
         let long = vec!["x".repeat(500); 6];
         let detail = unknown_detail(&long, &same);
         assert!(
-            detail.ends_with("and 3 more commits without a family"),
+            detail.ends_with("and 4 more unrecognised trailers or commits without one"),
             "{detail}"
         );
+        assert!(detail.len() <= UNKNOWN_DETAIL_BYTES, "{}", detail.len());
     }
 
     #[test]

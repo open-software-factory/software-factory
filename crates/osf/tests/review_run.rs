@@ -1762,7 +1762,7 @@ fn many_commits_without_a_trailer_still_post_a_review_within_the_limit() {
         .and_then(serde_json::Value::as_str)
         .expect("a body");
     assert!(body.len() <= 2000, "{}", body.len());
-    assert!(body.contains("more commits without a family"), "{body}");
+    assert!(body.contains("more unrecognised trailer"), "{body}");
     assert_eq!(
         payload.get("event").and_then(serde_json::Value::as_str),
         Some("COMMENT")
