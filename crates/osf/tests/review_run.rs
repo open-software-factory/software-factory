@@ -1826,6 +1826,74 @@ fn long_wide_character_trailers_with_every_lens_still_post_within_the_limit() {
     );
 }
 
+/// The saved run of `codex` for a repository whose commits carry these
+/// trailer names, one commit each, oldest first.
+#[cfg(unix)]
+fn saved_not_run_for_trailers(name: &str, trailers: &[String]) -> String {
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let (first, rest) = trailers.split_first().expect("at least one trailer");
+    let repo = review_repo_built_by(name, &fakes.osf_toml, first);
+    for (n, trailer) in rest.iter().enumerate() {
+        repo.write("README.md", &format!("base\nchange {n}\n"));
+        repo.commit(&format!(
+            "change {n}\n\nCode-Generator: {trailer} <noreply@example.com>\n"
+        ));
+    }
+    let home = common::isolated_home(&format!("review-run-{name}"));
+    let file = repo.dir.join("codex.json").display().to_string();
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(
+        job.status.success(),
+        "{}",
+        String::from_utf8_lossy(&job.stderr)
+    );
+    let text = std::fs::read_to_string(&file).expect("saved run reads");
+    let run: serde_json::Value = serde_json::from_str(&text).expect("saved run is JSON");
+    run.get("not_run")
+        .and_then(serde_json::Value::as_str)
+        .expect("a reason")
+        .to_string()
+}
+
+/// A quoted credential whose closing quote sits just past the 120-character
+/// cut of one reason is redacted before the cut, so no part of it is shown.
+#[test]
+#[cfg(unix)]
+fn a_credential_cut_at_the_per_reason_limit_is_not_shown() {
+    // "Code-Generator: " (16) + `PASSWORD="` (10) + 94 value characters = 120.
+    let value = format!("{}Ab3d", "Ab3dE6gH9k".repeat(9));
+    let trailer = format!("PASSWORD=\"{value}\"");
+    let reason = saved_not_run_for_trailers("cut-per-reason", &[trailer]);
+    assert!(!reason.contains("Ab3dE6gH9k"), "{reason}");
+}
+
+/// The same for the 400-byte cap on the joined detail: the credential ends at
+/// byte 400, with its closing quote just past the cut.
+#[test]
+#[cfg(unix)]
+fn a_credential_cut_at_the_detail_cap_is_not_shown() {
+    let first = "😀".repeat(40);
+    let second = "🙂".repeat(40);
+    // Two 176-byte reasons and their separators put the third at byte 356;
+    // `Code-Generator: PASSWORD="` is 26 bytes, so 18 value bytes end at 400.
+    let third = "PASSWORD=\"Zq7Zq7Zq7Zq7Zq7Zq7\"".to_string();
+    let reason = saved_not_run_for_trailers("cut-detail-cap", &[first, second, third]);
+    assert!(!reason.contains("Zq7Zq7"), "{reason}");
+}
+
 /// A saved run of a reviewer that fails closed on an unknown builder family
 /// names the trailer text in its own record.
 #[test]

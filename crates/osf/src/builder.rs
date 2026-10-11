@@ -585,6 +585,22 @@ mod tests {
         assert!(found.families.contains(&UNKNOWN.to_string()), "{found:?}");
     }
 
+    /// The platform's separator for a list of paths in a git variable.
+    const LIST_SEPARATOR: char = if cfg!(windows) { ';' } else { ':' };
+
+    #[cfg(unix)]
+    #[test]
+    fn a_clean_merge_is_exempt_in_a_repository_path_holding_the_list_separator() {
+        let prefix = format!("osf-builder-sep{LIST_SEPARATOR}dir");
+        let (root, base) = forked(&prefix, None, None);
+        git_ok(
+            &root,
+            &["merge", "--quiet", "--no-ff", "-m", "Merge side", "side"],
+        );
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
+        assert_eq!(found.families, vec!["anthropic".to_string()], "{found:?}");
+    }
+
     /// Makes every file under `path` read-only, or writable again.
     #[cfg(unix)]
     fn set_tree_writable(path: &Path, writable: bool) {

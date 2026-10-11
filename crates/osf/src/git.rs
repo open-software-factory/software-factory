@@ -249,6 +249,18 @@ pub fn is_clean_merge(dir: &Path, hash: &str) -> Result<bool, GitError> {
     Ok(merged.lines().next().map(str::trim) == Some(tree.trim()))
 }
 
+/// `path` as one entry of `GIT_ALTERNATE_OBJECT_DIRECTORIES`, a list split on
+/// `:` (`;` on Windows). git reads an entry in double quotes C-style, so a
+/// path holding the separator, a quote or a backslash is quoted and escaped.
+fn alternate_entry(path: &str) -> String {
+    let separator = if cfg!(windows) { ';' } else { ':' };
+    if !path.contains([separator, '"', '\\']) {
+        return path.to_string();
+    }
+    let escaped = path.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{escaped}\"")
+}
+
 /// The output of `git merge-tree --write-tree <first> <second>`, or `None`
 /// when it conflicts or fails. The merge writes its objects, and a checkout
 /// may be read-only, so they go to a scratch object store that is removed
@@ -283,9 +295,10 @@ fn merge_tree_in_scratch_store(
         .current_dir(dir)
         .args(["merge-tree", "--write-tree", first, second]);
     scrub_git_env_for_dir(&mut command, dir);
-    command
-        .env("GIT_OBJECT_DIRECTORY", &scratch)
-        .env("GIT_ALTERNATE_OBJECT_DIRECTORIES", objects.trim());
+    command.env("GIT_OBJECT_DIRECTORY", &scratch).env(
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        alternate_entry(objects.trim()),
+    );
     let output = command.output();
     let removed = std::fs::remove_dir_all(&scratch);
     let output = output.map_err(|e| GitError(format!("cannot run git: {e}")))?;

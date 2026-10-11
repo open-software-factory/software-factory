@@ -1075,33 +1075,48 @@ fn left_out_notes(setup: &Setup) -> Vec<String> {
 /// How many unknown-builder reasons the note names before counting the rest.
 const UNKNOWN_REASONS_SHOWN: usize = 3;
 
-/// The reasons the builder family is unknown as one short line: the first few
-/// cut to 120 characters each, then a count of the rest, so the note fits
-/// the posted review's body however many commits lack a trailer.
-fn unknown_detail(reasons: &[String]) -> String {
+/// The reasons the builder family is unknown as one short line. Each
+/// complete reason is redacted first, so no cut can split a secret from the
+/// closing quote that lets it be found. The first few are then cut to 120
+/// characters each and joined, the joined reasons are cut to fit
+/// [`UNKNOWN_DETAIL_BYTES`] with room kept for the count of the rest, and the
+/// whole is redacted once more.
+fn unknown_detail(reasons: &[String], redact: &dyn Fn(&str) -> String) -> String {
     if reasons.is_empty() {
         return "no family named".to_string();
     }
-    let mut parts: Vec<String> = reasons
+    let shown: Vec<String> = reasons
         .iter()
         .take(UNKNOWN_REASONS_SHOWN)
-        .map(|t| t.chars().take(120).collect::<String>().replace('\n', " "))
+        .map(|t| {
+            redact(t)
+                .replace('\n', " ")
+                .chars()
+                .take(120)
+                .collect::<String>()
+        })
         .collect();
-    if reasons.len() > UNKNOWN_REASONS_SHOWN {
-        parts.push(format!(
+    let count = (reasons.len() > UNKNOWN_REASONS_SHOWN).then(|| {
+        format!(
             "and {} more commits without a family",
             reasons.len() - UNKNOWN_REASONS_SHOWN
-        ));
+        )
+    });
+    let room = UNKNOWN_DETAIL_BYTES.saturating_sub(count.as_ref().map_or(0, |c| c.len() + 2));
+    let mut list = shown.join("; ");
+    if list.len() > room {
+        let mut end = room.saturating_sub(3);
+        while !list.is_char_boundary(end) {
+            end -= 1;
+        }
+        list.truncate(end);
+        list.push_str("...");
     }
-    let joined = parts.join("; ");
-    if joined.len() <= UNKNOWN_DETAIL_BYTES {
-        return joined;
-    }
-    let mut end = UNKNOWN_DETAIL_BYTES;
-    while !joined.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}...", joined.get(..end).unwrap_or_default())
+    let detail = match count {
+        Some(count) => format!("{list}; {count}"),
+        None => list,
+    };
+    redact(&detail)
 }
 
 /// The most bytes the unknown-builder detail may take, whatever characters it holds.
@@ -1142,11 +1157,12 @@ fn detect_builder_families(
         .collect();
     let unknown = if found.families.iter().any(|f| f == builder::UNKNOWN) {
         // The trailer text is the author's own, so it is cut to one short line.
-        let detail = unknown_detail(&found.unknown);
+        let redact = |text: &str| redact_reviewer_text(req.root, req.config_root, text);
+        let detail = unknown_detail(&found.unknown, &redact);
         // Commit-message text reaches saved files, the journal, the console and
         // the posted review, so it goes through the same redaction as any
         // other text from the change.
-        Some(redact_reviewer_text(req.root, req.config_root, &detail))
+        Some(detail)
     } else {
         None
     };
@@ -2000,15 +2016,27 @@ mod tests {
 
     #[test]
     fn many_unknown_reasons_are_counted_not_listed() {
+        let same = |t: &str| t.to_string();
         let reasons: Vec<String> = (0..50)
             .map(|n| format!("commit {n:012} has no Code-Generator trailer"))
             .collect();
-        let detail = unknown_detail(&reasons);
+        let detail = unknown_detail(&reasons, &same);
         assert!(detail.contains("and 47 more commits"), "{detail}");
         assert!(detail.len() < 400, "{}", detail.len());
-        assert_eq!(unknown_detail(&[]), "no family named");
+        assert_eq!(unknown_detail(&[], &same), "no family named");
         let wide: Vec<String> = (0..5).map(|n| format!("{n}{}", "😀".repeat(200))).collect();
-        assert!(unknown_detail(&wide).len() <= UNKNOWN_DETAIL_BYTES + 3);
+        let detail = unknown_detail(&wide, &same);
+        assert!(detail.len() <= UNKNOWN_DETAIL_BYTES, "{}", detail.len());
+        assert!(
+            detail.ends_with("and 2 more commits without a family"),
+            "{detail}"
+        );
+        let long = vec!["x".repeat(500); 6];
+        let detail = unknown_detail(&long, &same);
+        assert!(
+            detail.ends_with("and 3 more commits without a family"),
+            "{detail}"
+        );
     }
 
     #[test]
