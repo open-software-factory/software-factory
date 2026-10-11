@@ -1,0 +1,714 @@
+name: review check
+
+# A reusable workflow: the review check, for osf's own repository and for any
+# repository an adopter's factory repo watches. Read docs/development.md,
+# "Calling the review check from another workflow", for the inputs and
+# what is stable.
+#
+# It is called from a `pull_request_target` workflow. GitHub reads that
+# caller from the default branch, so a pull request cannot change the caller.
+# A pull request's base can be any branch, so nothing here trusts the base
+# branch: the osf this workflow builds is the commit the `osf-ref` input names,
+# and the build job refuses it unless it is the commit of this workflow itself
+# (`job.workflow_sha`, in the repository `job.workflow_repository`). A caller
+# in osf's own repository names this file by a local path and passes
+# `github.workflow_sha`. A caller in another repository names this file by a
+# full commit SHA and passes the same SHA. The pull request's base commit is
+# used only as the commit to diff against.
+#
+# One job builds osf from that pinned commit. It holds no provider key, and
+# a read-only token finds the work item. Each reviewer runs in its own job
+# with only its own provider's key and a network list of its provider's
+# host plus the hosts it needs to run. The last job collects the saved
+# answers, decides, and posts: it alone mints the verifier app's token.
+#
+# The reviewer keys and the verifier app's private key are `workflow_call`
+# secrets, because GitHub resolves a secret in a called workflow only when the
+# caller passes it, and an environment secret the caller does not pass becomes an
+# empty string with no error. They still live as environment secrets of the
+# `review` environment in the repository that holds the calling workflow, and
+# the jobs that read them still name that environment, so its limit to the main
+# branch still applies. A caller passes them by name, or with `secrets: inherit`.
+# A reviewer key is not required, because a reviewer can be disabled; a
+# reviewer whose key is empty runs, cannot sign in, and counts as could-not-run.
+#
+# This check is advisory. It posts a check run and a review, and no branch
+# protection or ruleset requires it. It becomes a required check when the key
+# proxy and the network split in open-software-factory/software-factory#208
+# land. Reviews run for same-repository pull requests only, and a fork's pull
+# request is reviewed only when the caller passes `allow-forks: true`.
+on:
+  workflow_call:
+    inputs:
+      osf-ref:
+        description: The full commit SHA of osf to build and run. It must be the commit of this workflow, and the build job refuses any other.
+        type: string
+        required: true
+      osf-repository:
+        description: The repository that holds osf at osf-ref. It must be the repository of this workflow.
+        type: string
+        required: false
+        default: open-software-factory/software-factory
+      runs-on:
+        description: The runner label as a JSON string, or a JSON array of labels. It must name a Linux runner with a Docker daemon.
+        type: string
+        required: false
+        default: '"ubuntu-latest"'
+      verifier-app-id:
+        description: The id of the verifier app that posts the review.
+        type: string
+        required: true
+      allow-forks:
+        description: Review a fork's pull request too, once a maintainer approves the fork-review environment.
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      VERIFIER_APP_PRIVATE_KEY:
+        description: The private key of the verifier app. Only the last job reads it.
+        required: true
+      OPENAI_API_KEY:
+        description: The key of the codex reviewer. Leave it out when codex is not a selected reviewer.
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: The key of the claude reviewer. Leave it out when claude is not a selected reviewer.
+        required: false
+      OPENROUTER_API_KEY:
+        description: The key of the opencode reviewer. Leave it out when opencode is not a selected reviewer.
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  # The one place the review image is named. Every job runs this exact image,
+  # pinned by digest, and never a moving tag. To change it, open a pull
+  # request that edits this value. Take the digest of the manifest list from
+  # the build log of the "devcontainer image" workflow run for the commit you
+  # want, and have the change reviewed like any workflow change. This image
+  # was built from commit e40b471d55747c7ab88a2ea92e3e080c51631317.
+  REVIEW_IMAGE: ghcr.io/open-software-factory/devcontainer@sha256:d2f538092f64a75d49b2e31d03ee5d9b3aadbeab61e47690326e5f9cb8864d09
+  # The version of codex the review image carries, which the codex job checks.
+  CODEX_VERSION: "0.161.0"
+
+concurrency:
+  group: review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: review build
+    # A same-repository pull request runs on a workflow the pull request
+    # cannot change. A fork's pull request runs only once the caller turns
+    # fork review on with the allow-forks input. This job holds no
+    # secret, so it needs no environment. Its token reads issues and pull
+    # requests only, to find the work item.
+    if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions:
+      contents: read
+      packages: read
+      issues: read
+      pull-requests: read
+    steps:
+      # Blocks this job's own outbound network to the hosts below; runs
+      # directly on the runner (no job-level container), so this actually
+      # covers every step's own network calls, including from docker run.
+      - name: Restrict this job's outbound network access
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            ghcr.io:443
+            pkg-containers.githubusercontent.com:443
+            index.crates.io:443
+            static.crates.io:443
+            crates.io:443
+
+      # The runs-on input lets an adopter name any runner, but every step
+      # below assumes a Linux runner with a Docker daemon: docker run, and
+      # Unix paths such as /base and /pr. State that requirement here,
+      # loudly, instead of failing later on the first docker command.
+      - name: Require the Linux runner with Docker this workflow assumes
+        if: runner.os != 'Linux'
+        run: |
+          echo "osf review: the runs-on input must name a Linux runner; every step after this one assumes docker run and Unix paths such as /base and /pr" >&2
+          exit 1
+
+      # A caller that runs on any other event could run a workflow that the
+      # pull request changed. Fail loudly instead of reviewing.
+      - name: Require the pull_request_target event
+        if: github.event_name != 'pull_request_target'
+        run: |
+          echo "osf review: call this workflow from a pull_request_target workflow, which GitHub reads from the base branch" >&2
+          exit 1
+
+      - name: Log in to ghcr.io to pull the devcontainer image
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      # The build runs the pinned osf, and nothing else. The binary it makes
+      # later runs next to the reviewer keys, so a moving reference such as a
+      # branch name is refused, and so is any commit other than the one this
+      # workflow itself runs from. This guard stays in the workflow because
+      # osf is not built yet.
+      - name: Refuse an osf that is not the commit of this workflow
+        env:
+          OSF_REF: ${{ inputs.osf-ref }}
+          OSF_REPOSITORY: ${{ inputs.osf-repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+        run: |
+          if ! printf '%s' "$OSF_REF" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "osf review: the osf-ref input must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          if [ "$OSF_REF" != "$WORKFLOW_SHA" ] || [ "$OSF_REPOSITORY" != "$WORKFLOW_REPOSITORY" ]; then
+            echo "osf review: osf-ref and osf-repository must name this workflow's own commit, ${WORKFLOW_REPOSITORY}@${WORKFLOW_SHA}" >&2
+            exit 1
+          fi
+
+      - name: Check out the pinned osf, the only code this job runs
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: osf-src
+          repository: ${{ inputs.osf-repository }}
+          ref: ${{ inputs.osf-ref }}
+          persist-credentials: false
+
+      # The runner owns the checkout and the image user does not, so the build writes only here.
+      - name: Make the folder the build writes to
+        run: mkdir build-out
+
+      - name: Build the pinned osf only, with no cache
+        run: >-
+          docker run --rm
+          --user "$(id -u):$(id -g)"
+          -v "${{ github.workspace }}/osf-src:/osf-src:ro"
+          -v "${{ github.workspace }}/build-out:/build-out"
+          -e CARGO_HOME=/build-out/cargo-home
+          -e CARGO_TARGET_DIR=/build-out/target
+          -w /osf-src
+          ${{ env.REVIEW_IMAGE }}
+          cargo build --release --bin osf
+
+      - name: Keep the built osf for the reviewer jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: osf-binary
+          path: build-out/target/release/osf
+          if-no-files-found: error
+
+      # The work item is the issue the pull request names on its Issue line,
+      # or one it closes. The issue's text is untrusted data, like the pull
+      # request's own text, and reviewers receive it only as data.
+      - name: Find the work item the pull request names, with read-only access
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p work-item
+          cp "$GITHUB_EVENT_PATH" work-item/event.json
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e GH_TOKEN \
+            -v "${{ github.workspace }}/osf-src:/osf-src:ro" \
+            -v "${{ github.workspace }}/build-out:/build-out:ro" \
+            -v "${{ github.workspace }}/work-item:/work-item" \
+            -w /work-item \
+            ${{ env.REVIEW_IMAGE }} \
+            /build-out/target/release/osf review work-item \
+            --pull-request /work-item/event.json \
+            --repository ${{ github.repository }} \
+            --head ${{ github.event.pull_request.head.sha }} \
+            --out /work-item/work-item.json
+
+      - name: Keep the work item for the reviewer jobs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: work-item
+          path: work-item/work-item.json
+          if-no-files-found: error
+
+  review-codex:
+    name: review codex
+    needs: build
+    if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    # The environment holds this reviewer's key. Only main can deploy to
+    # `review`, and a maintainer approves `fork-review`, so a branch cannot
+    # widen what a review run can see.
+    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Restrict this job's outbound network access
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            ghcr.io:443
+            pkg-containers.githubusercontent.com:443
+            api.openai.com:443
+            chatgpt.com:443
+
+      - name: Require the Linux runner with Docker this workflow assumes
+        if: runner.os != 'Linux'
+        run: |
+          echo "osf review: the runs-on input must name a Linux runner; every step after this one assumes docker run and Unix paths such as /base and /pr" >&2
+          exit 1
+
+      - name: Log in to ghcr.io to pull the devcontainer image
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Check out the base branch, which holds the trusted configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the pull request's head, as data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pr
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the base commit into the pull request's own checkout
+        run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
+
+      - name: Fetch the osf that the build job made
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: osf-binary
+          path: bin
+
+      - name: Save the pull request's event
+        run: |
+          mkdir -p out
+          chmod -R a+rwX out
+          chmod +x bin/osf
+          cp "$GITHUB_EVENT_PATH" out/event.json
+          printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
+
+      - name: Fetch the work item that the build job saved
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: work-item
+          path: work-item
+
+      - name: Check that the review image carries the pinned codex
+        run: |
+          set -euo pipefail
+          version=$(docker run --rm ${{ env.REVIEW_IMAGE }} codex --version)
+          if [ "$version" != "codex-cli ${CODEX_VERSION}" ]; then
+            echo "osf review: codex --version printed ${version}, expected codex-cli ${CODEX_VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Run this reviewer, reading the pull request's tree as data
+        env:
+          # `codex exec` signs in with CODEX_API_KEY; it does not read OPENAI_API_KEY.
+          CODEX_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: >-
+          docker run --rm
+          -v "${{ github.workspace }}/bin:/osf-bin:ro"
+          -v "${{ github.workspace }}/base:/base:ro"
+          -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/work-item:/work-item:ro"
+          -v "${{ github.workspace }}/out:/out"
+          -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
+          -w /pr
+          -e CODEX_API_KEY
+          ${{ env.REVIEW_IMAGE }}
+          /osf-bin/osf review run
+          --reviewer codex
+          --if-enabled
+          --base ${{ github.event.pull_request.base.sha }}
+          --config-root /base
+          --pull-request /out/event.json
+          --repository ${{ github.repository }}
+          --pull-request-number ${{ github.event.pull_request.number }}
+          --head ${{ github.event.pull_request.head.sha }}
+          --ci-run-id ${{ github.run_id }}
+          --work-item /work-item/work-item.json
+          --out /out/codex.json
+
+      - name: Keep this reviewer's saved answers
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-run-codex
+          path: out/codex.json
+          if-no-files-found: ignore
+
+
+  review-claude:
+    name: review claude
+    needs: build
+    if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Restrict this job's outbound network access
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            ghcr.io:443
+            pkg-containers.githubusercontent.com:443
+            api.anthropic.com:443
+
+      - name: Require the Linux runner with Docker this workflow assumes
+        if: runner.os != 'Linux'
+        run: |
+          echo "osf review: the runs-on input must name a Linux runner; every step after this one assumes docker run and Unix paths such as /base and /pr" >&2
+          exit 1
+
+      - name: Log in to ghcr.io to pull the devcontainer image
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Check out the base branch, which holds the trusted configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the pull request's head, as data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pr
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the base commit into the pull request's own checkout
+        run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
+
+      - name: Fetch the osf that the build job made
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: osf-binary
+          path: bin
+
+      - name: Save the pull request's event
+        run: |
+          mkdir -p out
+          chmod -R a+rwX out
+          chmod +x bin/osf
+          cp "$GITHUB_EVENT_PATH" out/event.json
+          printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
+
+      - name: Fetch the work item that the build job saved
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: work-item
+          path: work-item
+
+      - name: Run this reviewer, reading the pull request's tree as data
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: >-
+          docker run --rm
+          -v "${{ github.workspace }}/bin:/osf-bin:ro"
+          -v "${{ github.workspace }}/base:/base:ro"
+          -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/work-item:/work-item:ro"
+          -v "${{ github.workspace }}/out:/out"
+          -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
+          -w /pr
+          -e CLAUDE_CODE_OAUTH_TOKEN
+          ${{ env.REVIEW_IMAGE }}
+          /osf-bin/osf review run
+          --reviewer claude
+          --if-enabled
+          --base ${{ github.event.pull_request.base.sha }}
+          --config-root /base
+          --pull-request /out/event.json
+          --repository ${{ github.repository }}
+          --pull-request-number ${{ github.event.pull_request.number }}
+          --head ${{ github.event.pull_request.head.sha }}
+          --ci-run-id ${{ github.run_id }}
+          --work-item /work-item/work-item.json
+          --out /out/claude.json
+
+      - name: Keep this reviewer's saved answers
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-run-claude
+          path: out/claude.json
+          if-no-files-found: ignore
+
+
+  review-opencode:
+    name: review opencode
+    needs: build
+    if: github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      # opencode reads its model catalogue from models.opencode.ai at start.
+      - name: Restrict this job's outbound network access
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            ghcr.io:443
+            pkg-containers.githubusercontent.com:443
+            openrouter.ai:443
+            models.opencode.ai:443
+
+      - name: Require the Linux runner with Docker this workflow assumes
+        if: runner.os != 'Linux'
+        run: |
+          echo "osf review: the runs-on input must name a Linux runner; every step after this one assumes docker run and Unix paths such as /base and /pr" >&2
+          exit 1
+
+      - name: Log in to ghcr.io to pull the devcontainer image
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Check out the base branch, which holds the trusted configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the pull request's head, as data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pr
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the base commit into the pull request's own checkout
+        run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
+
+      - name: Fetch the osf that the build job made
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: osf-binary
+          path: bin
+
+      - name: Save the pull request's event
+        run: |
+          mkdir -p out
+          chmod -R a+rwX out
+          chmod +x bin/osf
+          cp "$GITHUB_EVENT_PATH" out/event.json
+          printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
+
+      - name: Fetch the work item that the build job saved
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: work-item
+          path: work-item
+
+      - name: Run this reviewer, reading the pull request's tree as data
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: >-
+          docker run --rm
+          -v "${{ github.workspace }}/bin:/osf-bin:ro"
+          -v "${{ github.workspace }}/base:/base:ro"
+          -v "${{ github.workspace }}/pr:/pr:ro"
+          -v "${{ github.workspace }}/work-item:/work-item:ro"
+          -v "${{ github.workspace }}/out:/out"
+          -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
+          -w /pr
+          -e OPENROUTER_API_KEY
+          ${{ env.REVIEW_IMAGE }}
+          /osf-bin/osf review run
+          --reviewer opencode
+          --if-enabled
+          --base ${{ github.event.pull_request.base.sha }}
+          --config-root /base
+          --pull-request /out/event.json
+          --repository ${{ github.repository }}
+          --pull-request-number ${{ github.event.pull_request.number }}
+          --head ${{ github.event.pull_request.head.sha }}
+          --ci-run-id ${{ github.run_id }}
+          --work-item /work-item/work-item.json
+          --out /out/opencode.json
+
+      - name: Keep this reviewer's saved answers
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-run-opencode
+          path: out/opencode.json
+          if-no-files-found: ignore
+
+
+  review:
+    name: review
+    # The last job: it collects every reviewer's saved answers, checks the
+    # findings against the pull request's files, decides, and posts. It
+    # holds no provider key. It alone mints the verifier app's token. It runs
+    # even when a reviewer job failed: a reviewer with no saved answers
+    # counts as could-not-run, which never passes.
+    needs: [build, review-codex, review-claude, review-opencode]
+    if: ${{ always() && needs.build.result == 'success' && (github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks) }}
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Restrict this job's outbound network access
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+            objects.githubusercontent.com:443
+            ghcr.io:443
+            pkg-containers.githubusercontent.com:443
+
+      - name: Require the Linux runner with Docker this workflow assumes
+        if: runner.os != 'Linux'
+        run: |
+          echo "osf review: the runs-on input must name a Linux runner; every step after this one assumes docker run and Unix paths such as /base and /pr" >&2
+          exit 1
+
+      - name: Log in to ghcr.io to pull the devcontainer image
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Check out the base branch, which holds the trusted configuration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the pull request's head, as data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: pr
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch the base commit into the pull request's own checkout
+        run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
+
+      - name: Fetch the osf that the build job made
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: osf-binary
+          path: bin
+
+      - name: Fetch every reviewer's saved answers
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: review-run-*
+          path: out/runs
+          merge-multiple: true
+
+      - name: Make a writable folder for the review's own output
+        run: |
+          mkdir -p out/runs
+          chmod -R a+rwX out
+          chmod +x bin/osf
+          printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
+
+      - name: Mint the verifier's own token
+        id: verifier-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ inputs.verifier-app-id }}
+          private-key: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+          permission-contents: read
+
+      # `pr` and `base` are mounted read-only: the pull request's tree is
+      # data, never a place this job writes to.
+      - name: Decide the review and post it
+        env:
+          GH_TOKEN: ${{ steps.verifier-token.outputs.token }}
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/bin:/osf-bin:ro" \
+            -v "${{ github.workspace }}/base:/base:ro" \
+            -v "${{ github.workspace }}/pr:/pr:ro" \
+            -v "${{ github.workspace }}/out:/out" \
+            -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro" \
+            -w /pr \
+            -e GH_TOKEN \
+            -e OSF_STATE_DIR=/out/state \
+            ${{ env.REVIEW_IMAGE }} \
+            /osf-bin/osf review reduce \
+            --base ${{ github.event.pull_request.base.sha }} \
+            --config-root /base \
+            --repository ${{ github.repository }} \
+            --pull-request-number ${{ github.event.pull_request.number }} \
+            --head ${{ github.event.pull_request.head.sha }} \
+            --ci-run-id ${{ github.run_id }} \
+            --sarif-out /out/review.sarif \
+            --post-to ${{ github.repository }}#${{ github.event.pull_request.number }} \
+            /out/runs
+
+      - name: Keep the review findings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: review-findings
+          path: out/review.sarif
+          if-no-files-found: ignore
+
+  review-fork-disabled:
+    name: review
+    # GitHub creates a missing environment on demand, with no protection
+    # at all. Gating on the `fork-review` environment alone would let an
+    # adopter who never set it up run a fork's pull request anyway, with
+    # whatever secrets that auto-created environment inherits. This job
+    # instead requires an explicit repository variable, and fails loudly
+    # rather than skipping, so a fork's pull request cannot pass this
+    # check by leaving fork review unconfigured.
+    if: github.event.pull_request.head.repo.full_name != github.repository && !inputs.allow-forks
+    runs-on: ${{ fromJSON(inputs.runs-on) }}
+    permissions: {}
+    steps:
+      # Blocks this job's own outbound network access; there is nothing
+      # this job needs to reach, so every endpoint stays blocked.
+      - name: Restrict this job's outbound network access
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+
+      - name: Fail because fork review is not enabled
+        run: |
+          echo "review: could-not-run, fork review is not enabled (pass allow-forks: true and protect the fork-review environment)"
+          exit 1
