@@ -4244,3 +4244,24 @@ fn a_timeout_at_the_total_limit_keeps_its_category_and_names_the_limit() {
         }
     }
 }
+
+#[test]
+fn an_unsupported_adoption_mode_stops_review_run() {
+    let repo = review_repo("adoption-mode-bad", "adoption_mode = \"vendored\"\n");
+    let home = common::isolated_home("review-run-adoption-mode-bad");
+    let output = common::run_osf(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains(osf::config::AdoptionMode::KEY), "{text}");
+    for mode in osf::config::AdoptionMode::ALL {
+        assert!(text.contains(mode.name()), "{text}");
+    }
+}

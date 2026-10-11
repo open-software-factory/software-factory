@@ -409,21 +409,22 @@ fn decision_record_links(patch: &str) -> Vec<String> {
 // --- redaction -----------------------------------------------------------
 
 /// The `[scan]` table of `config_root`'s own `osf.toml`, or the compiled
-/// defaults when the file, the table, or a field in it is missing or
+/// defaults when the file or the table is missing, or a field in it is
 /// malformed: a lens's context is always redacted, whether or not a
 /// repository has configured anything extra for it to catch.
-fn scan_config(config_root: &Path) -> ScanConfig {
-    let Ok(text) = std::fs::read_to_string(config_root.join("osf.toml")) else {
-        return ScanConfig::default();
+///
+/// # Errors
+/// Returns an error when the file cannot be read or parsed, or names an
+/// unsupported `adoption_mode`.
+fn scan_config(config_root: &Path) -> Result<ScanConfig, String> {
+    let Some(value) = crate::config::repo_document(config_root).map_err(|e| e.to_string())? else {
+        return Ok(ScanConfig::default());
     };
-    let Ok(value) = toml::from_str::<toml::Value>(&text) else {
-        return ScanConfig::default();
-    };
-    value
+    Ok(value
         .get("scan")
         .cloned()
         .and_then(|scan| scan.try_into().ok())
-        .unwrap_or_default()
+        .unwrap_or_default())
 }
 
 /// `text`, with every match of `osf scan`'s own rules replaced by a marker
@@ -456,7 +457,7 @@ pub(crate) fn redact_secrets(
     config_root: &Path,
     text: &str,
 ) -> Result<(String, usize), String> {
-    let cfg = scan_config(config_root);
+    let cfg = scan_config(config_root)?;
     let rules = crate::scan::Rules::build(root, &cfg)?;
     let findings = rules.scan_text(text, osf_lint_core::Context::Document);
     if findings.is_empty() {
@@ -755,5 +756,24 @@ mod tests {
     fn append_redaction_note_names_the_count() {
         let text = append_redaction_note("body".to_string(), 3);
         assert!(text.contains("3 line"), "{text}");
+    }
+
+    #[test]
+    fn scan_config_refuses_an_unsupported_adoption_mode() {
+        let dir = crate::test_support::TempDir::new("osf-context-adoption-bad");
+        std::fs::write(dir.join("osf.toml"), "adoption_mode = \"vendored\"\n")
+            .expect("osf.toml writes");
+        let err = scan_config(&dir).map(|_| ()).expect_err("refused");
+        assert!(err.contains("adoption_mode"), "{err}");
+        assert!(err.contains("private-factory-repo"), "{err}");
+    }
+
+    #[test]
+    fn scan_config_stops_on_a_malformed_or_unreadable_osf_toml() {
+        let dir = crate::test_support::TempDir::new("osf-context-malformed");
+        std::fs::write(dir.join("osf.toml"), "[scan\n").expect("osf.toml writes");
+        assert!(scan_config(&dir).is_err(), "a syntax error is an error");
+        std::fs::write(dir.join("osf.toml"), [0xff, 0xfe]).expect("osf.toml writes");
+        assert!(scan_config(&dir).is_err(), "invalid UTF-8 is an error");
     }
 }

@@ -700,6 +700,37 @@ files, checks the findings against the files, journals, and decides. Both
 reach the same decision. Pass `--pull-request <file>`, a JSON file with
 the `number`, `title` and `body`, to put the pull request in the prompt.
 
+## The adoption mode
+
+The `adoption_mode` key in `osf.toml` says how osf is placed in an
+organisation. [Decision 0006 (distribution and packaging)](architecture/decisions/0006-distribution-and-packaging.md)
+allows two shapes and says neither is a step toward the other. The key
+makes a command state which shape it supports.
+
+The key is a top-level string. Leave it out and osf reads no mode. A
+command that needs a mode stops with a message that names the key, the
+command and the modes the command supports. A value osf does not know
+stops osf with a message that names the key and lists the supported
+values. An `osf.toml` that exists but cannot be read, or is not valid TOML,
+stops osf with the error. The `[scan]` and `[review] hot_paths` readers
+once used defaults in those cases; they now stop too.
+
+| Value | Covers | Does not cover |
+|---|---|---|
+| `private-factory-repo` | A private repository in the adopter's organisation that holds the org-wide config, private lenses and prompts, the pinned osf release, and the list of watched repositories | Reading the list of watched repositories, which is not built yet. The factory vendored into one repository, which has no value yet. |
+
+Every reader of the repository's own `osf.toml` goes through one parse
+step, `config::repo_document` (the layered `config::load` and the `--gate`
+load share its parser), and that step stops on an unsupported value. This
+covers `osf config show`, the lint and scan commands, `osf agents list`,
+`osf review run`, `osf changeset risk` and the review context redaction.
+A `--gate` run checks the file too, though it takes no setting from it.
+A new reader calls `config::repo_document` and so cannot skip the check.
+Code reads the key through
+`config::adoption_mode`. A command that depends on the mode calls
+`config::require_adoption_mode` with the modes it supports. No command
+depends on the mode yet, so no command calls it yet.
+
 ## Which osf a check uses
 
 The git hooks always call `/opt/factory/bin/osf`, the version pinned and

@@ -248,6 +248,33 @@ pub struct AgentsConfig {
     pub models: BTreeMap<String, String>,
 }
 
+/// Parses the text of an `osf.toml` and checks its `adoption_mode`. Every
+/// reader of that file goes through here, so none can skip the check.
+fn parse_repo_document(text: &str, path: &Path) -> Result<toml::Value, ConfigError> {
+    let value: toml::Value = toml::from_str(text)
+        .map_err(|e| ConfigError::new(format!("config {} is not valid: {e}", path.display())))?;
+    adoption_mode_of(&value, path)?;
+    Ok(value)
+}
+
+/// Reads and parses `<root>/osf.toml`, or `None` when the file is absent.
+/// Any other read error, invalid TOML, or an unsupported `adoption_mode` is
+/// an error. The one entry point for a reader of a repository's own
+/// `osf.toml` that is not the layered [`load`].
+///
+/// # Errors
+/// Returns an error naming the file when it cannot be read or parsed, or
+/// naming the key and the supported values when `adoption_mode` is not one.
+pub fn repo_document(root: &Path) -> Result<Option<toml::Value>, ConfigError> {
+    let path = root.join(REPO_CONFIG_FILE);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(ConfigError::new(format!("{}: {e}", path.display()))),
+    };
+    parse_repo_document(&text, &path).map(Some)
+}
+
 /// Reads the `[agents]` table of `<root>/osf.toml`, or
 /// [`AgentsConfig::default`] when the file, or the table, is absent.
 ///
@@ -256,11 +283,9 @@ pub struct AgentsConfig {
 /// table does not match [`AgentsConfig`]'s shape.
 pub fn agents_config(root: &Path) -> Result<AgentsConfig, ConfigError> {
     let path = root.join(REPO_CONFIG_FILE);
-    let Ok(text) = std::fs::read_to_string(&path) else {
+    let Some(value) = repo_document(root)? else {
         return Ok(AgentsConfig::default());
     };
-    let value: toml::Value =
-        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
     let Some(agents) = value.get("agents") else {
         return Ok(AgentsConfig::default());
     };
@@ -268,6 +293,95 @@ pub fn agents_config(root: &Path) -> Result<AgentsConfig, ConfigError> {
         .clone()
         .try_into()
         .map_err(|e| ConfigError::new(format!("{}: [agents]: {e}", path.display())))
+}
+
+/// The top-level `adoption_mode` key of a repository's own `osf.toml`: how
+/// osf is placed in the adopter's organisation (decision 0006). One value
+/// exists so far; a later mode adds a variant and a name in [`AdoptionMode::ALL`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdoptionMode {
+    /// A private repository in the adopter's organisation holds the org-wide
+    /// config, private lenses and prompts, the pinned osf release and the
+    /// list of watched repositories.
+    PrivateFactoryRepo,
+}
+
+impl AdoptionMode {
+    /// The config key.
+    pub const KEY: &'static str = "adoption_mode";
+    /// Every supported mode.
+    pub const ALL: &'static [AdoptionMode] = &[AdoptionMode::PrivateFactoryRepo];
+
+    /// The value written in `osf.toml`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            AdoptionMode::PrivateFactoryRepo => "private-factory-repo",
+        }
+    }
+
+    fn parse(raw: &str) -> Option<AdoptionMode> {
+        Self::ALL.iter().copied().find(|m| m.name() == raw)
+    }
+}
+
+fn mode_names(modes: &[AdoptionMode]) -> String {
+    let names: Vec<&str> = modes.iter().map(|m| m.name()).collect();
+    names.join(", ")
+}
+
+/// Reads the top-level `adoption_mode` key of `<root>/osf.toml`, or `None`
+/// when the file, or the key, is absent.
+///
+/// # Errors
+/// Returns an error naming the key and the supported values when the file is
+/// not valid TOML or the value is not a supported mode.
+pub fn adoption_mode(root: &Path) -> Result<Option<AdoptionMode>, ConfigError> {
+    let Some(value) = repo_document(root)? else {
+        return Ok(None);
+    };
+    adoption_mode_of(&value, &root.join(REPO_CONFIG_FILE))
+}
+
+/// Checks the `adoption_mode` entry of an already parsed `osf.toml`.
+fn adoption_mode_of(value: &toml::Value, path: &Path) -> Result<Option<AdoptionMode>, ConfigError> {
+    let Some(raw) = value.get(AdoptionMode::KEY) else {
+        return Ok(None);
+    };
+    raw.as_str()
+        .and_then(AdoptionMode::parse)
+        .map(Some)
+        .ok_or_else(|| {
+            ConfigError::new(format!(
+                "{}: {} is {raw}, which is not supported; supported values: {}",
+                path.display(),
+                AdoptionMode::KEY,
+                mode_names(AdoptionMode::ALL)
+            ))
+        })
+}
+
+/// The mode a command needs: reads the key and checks it against the modes
+/// `command` supports. An unset key is refused too, so a command never runs
+/// on a guessed mode.
+///
+/// # Errors
+/// Returns an error naming the key, the command and the modes it supports
+/// when the key is unset or names a mode the command does not support.
+pub fn require_adoption_mode(
+    root: &Path,
+    command: &str,
+    supported: &[AdoptionMode],
+) -> Result<AdoptionMode, ConfigError> {
+    match adoption_mode(root)? {
+        Some(mode) if supported.contains(&mode) => Ok(mode),
+        other => Err(ConfigError::new(format!(
+            "{command} needs {} set to one of: {}; found {}",
+            AdoptionMode::KEY,
+            mode_names(supported),
+            other.map_or("no value", AdoptionMode::name)
+        ))),
+    }
 }
 
 /// The `[review]` section of a repository's own `osf.toml`: the pass
@@ -339,11 +453,9 @@ pub struct BuilderFamilyAlias {
 /// table does not match [`ReviewConfig`]'s shape.
 pub fn review_config(root: &Path) -> Result<ReviewConfig, ConfigError> {
     let path = root.join(REPO_CONFIG_FILE);
-    let Ok(text) = std::fs::read_to_string(&path) else {
+    let Some(value) = repo_document(root)? else {
         return Ok(ReviewConfig::default());
     };
-    let value: toml::Value =
-        toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
     let Some(review) = value.get("review") else {
         return Ok(ReviewConfig::default());
     };
@@ -641,16 +753,16 @@ pub fn load(
     let mut file = None;
     if let Some(p) = &path {
         if let Some(text) = osf_lint_core::read_config_file(p, explicit)? {
-            let mut value: toml::Value = toml::from_str(&text).map_err(|e| {
-                ConfigError::new(format!("config {} is not valid: {e}", p.display()))
-            })?;
-            // `[review]` and `[agents]` are this same file's own tables, read
-            // separately by `review_config` and `agents_config`. Drop them
-            // here so their presence never trips this struct's
-            // `deny_unknown_fields`.
+            let mut value = parse_repo_document(&text, p)?;
+            // `[review]`, `[agents]` and `adoption_mode` are this same file's own
+            // entries, read separately by `review_config`, `agents_config` and
+            // `adoption_mode`. Drop them here so their presence never trips
+            // this struct's `deny_unknown_fields`. `parse_repo_document` has
+            // already checked `adoption_mode`.
             if let Some(table) = value.as_table_mut() {
                 table.remove("review");
                 table.remove("agents");
+                table.remove(AdoptionMode::KEY);
             }
             layered.merge_document(&value, Layer::File);
             file = Some(p.clone());
@@ -756,6 +868,7 @@ fn gate_loaded() -> Result<Loaded, ConfigError> {
 /// from `--config`, since `flag` is always `None` here), or returns an
 /// empty list when no such file exists. The gate currently reads this field
 /// for config parity; its `undefined-name` rule remains disabled by policy.
+/// It also refuses an unsupported `adoption_mode` in that file.
 fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
     let Some(path) = resolve_path(None) else {
         return Ok(Vec::new());
@@ -763,8 +876,9 @@ fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
     let Some(text) = osf_lint_core::read_config_file(&path, false)? else {
         return Ok(Vec::new());
     };
-    let value: toml::Value = toml::from_str(&text)
-        .map_err(|e| ConfigError::new(format!("config {} is not valid: {e}", path.display())))?;
+    // The mode is only checked, never merged: the gate takes no setting
+    // from this file but must still refuse an unsupported mode.
+    let value = parse_repo_document(&text, &path)?;
     let names = value
         .get("writing")
         .and_then(|w| w.get("must_explain_names"))
@@ -1736,5 +1850,113 @@ mod tests {
             .expect("osf.toml writes");
         let err = agents_config(&dir).expect_err("an unknown key is refused");
         assert!(err.to_string().contains("reviewer"), "{err}");
+    }
+
+    #[test]
+    fn adoption_mode_is_unset_when_osf_toml_is_absent_or_names_none() {
+        let dir = TempDir::new("osf-config-test-adoption-unset");
+        assert_eq!(adoption_mode(&dir).expect("no file loads"), None);
+        std::fs::write(dir.join("osf.toml"), "[writing]\nmax_numerals = 3\n").expect("writes");
+        assert_eq!(adoption_mode(&dir).expect("loads"), None);
+    }
+
+    #[test]
+    fn adoption_mode_reads_the_private_factory_repo_value() {
+        let dir = TempDir::new("osf-config-test-adoption-value");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "adoption_mode = \"private-factory-repo\"\n",
+        )
+        .expect("osf.toml writes");
+        assert_eq!(
+            adoption_mode(&dir).expect("loads"),
+            Some(AdoptionMode::PrivateFactoryRepo)
+        );
+    }
+
+    #[test]
+    fn an_unsupported_adoption_mode_is_refused_naming_the_key_and_the_values() {
+        let dir = TempDir::new("osf-config-test-adoption-bad");
+        std::fs::write(dir.join("osf.toml"), "adoption_mode = \"vendored\"\n")
+            .expect("osf.toml writes");
+        let err = adoption_mode(&dir).expect_err("an unsupported value is refused");
+        let text = err.to_string();
+        assert!(text.contains("adoption_mode"), "{text}");
+        assert!(text.contains("private-factory-repo"), "{text}");
+        assert!(text.contains("vendored"), "{text}");
+    }
+
+    #[test]
+    fn require_adoption_mode_refuses_a_command_whose_modes_do_not_include_the_configured_one() {
+        let dir = TempDir::new("osf-config-test-adoption-require");
+        std::fs::write(
+            dir.join("osf.toml"),
+            "adoption_mode = \"private-factory-repo\"\n",
+        )
+        .expect("osf.toml writes");
+        assert_eq!(
+            require_adoption_mode(&dir, "osf demo", &[AdoptionMode::PrivateFactoryRepo])
+                .expect("supported"),
+            AdoptionMode::PrivateFactoryRepo
+        );
+        let err = require_adoption_mode(&dir, "osf demo", &[]).expect_err("unsupported");
+        assert!(err.to_string().contains("osf demo"), "{err}");
+        assert!(err.to_string().contains("adoption_mode"), "{err}");
+        let unset = TempDir::new("osf-config-test-adoption-require-unset");
+        let err = require_adoption_mode(&unset, "osf demo", &[AdoptionMode::PrivateFactoryRepo])
+            .expect_err("unset is refused");
+        assert!(err.to_string().contains("adoption_mode"), "{err}");
+    }
+
+    #[test]
+    fn the_layered_load_ignores_the_adoption_mode_key() {
+        let dir = TempDir::new("osf-config-test-adoption-layered");
+        let file = dir.join("osf.toml");
+        std::fs::write(&file, "adoption_mode = \"private-factory-repo\"\n")
+            .expect("osf.toml writes");
+        serial(&[], || {
+            load(Some(&file), &[], &[], false).expect("the key does not trip the layered load");
+        });
+    }
+
+    #[test]
+    fn an_unreadable_osf_toml_is_an_error_not_an_unset_mode() {
+        let dir = TempDir::new("osf-config-test-adoption-unreadable");
+        std::fs::write(dir.join("osf.toml"), [0xff, 0xfe, 0xfd]).expect("osf.toml writes");
+        let err = adoption_mode(&dir).expect_err("invalid UTF-8 is not an absent file");
+        assert!(err.to_string().contains("osf.toml"), "{err}");
+    }
+
+    #[test]
+    fn the_layered_load_refuses_an_unsupported_adoption_mode() {
+        let dir = TempDir::new("osf-config-test-adoption-layered-bad");
+        let file = dir.join("osf.toml");
+        std::fs::write(&file, "adoption_mode = \"vendored\"\n").expect("osf.toml writes");
+        serial(&[], || {
+            let err = load(Some(&file), &[], &[], false).expect_err("refused");
+            let text = err.to_string();
+            assert!(text.contains("adoption_mode"), "{text}");
+            assert!(text.contains("private-factory-repo"), "{text}");
+        });
+    }
+
+    #[test]
+    fn review_config_refuses_an_unsupported_adoption_mode() {
+        let dir = TempDir::new("osf-config-test-review-adoption-bad");
+        std::fs::write(dir.join("osf.toml"), "adoption_mode = \"vendored\"\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("refused");
+        let text = err.to_string();
+        assert!(text.contains("adoption_mode"), "{text}");
+        assert!(text.contains("private-factory-repo"), "{text}");
+    }
+
+    #[test]
+    fn agents_config_refuses_an_unsupported_adoption_mode() {
+        let dir = TempDir::new("osf-config-test-agents-adoption-bad");
+        std::fs::write(dir.join("osf.toml"), "adoption_mode = \"vendored\"\n")
+            .expect("osf.toml writes");
+        let err = agents_config(&dir).expect_err("refused");
+        assert!(err.to_string().contains("adoption_mode"), "{err}");
     }
 }
