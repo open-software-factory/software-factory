@@ -55,10 +55,6 @@ impl FakeTracker {
                         capability: Capability::Supported,
                     },
                     StateWrite {
-                        state: WorkState::Verifying,
-                        capability: Capability::Supported,
-                    },
-                    StateWrite {
                         state: WorkState::InReview,
                         capability: Capability::Supported,
                     },
@@ -282,7 +278,6 @@ mod tests {
             states,
             vec![
                 WorkState::InProgress,
-                WorkState::Verifying,
                 WorkState::InReview,
                 WorkState::Blocked(BlockedCause::Dependency),
                 WorkState::Blocked(BlockedCause::Human),
@@ -336,21 +331,21 @@ mod tests {
 
     #[test]
     fn unsupported_marks_only_the_named_state() {
-        let tracker = FakeTracker::new().unsupported(&WorkState::Verifying, "no verifying");
+        let tracker = FakeTracker::new().unsupported(&WorkState::InReview, "no in-review");
         let capabilities = tracker.capabilities();
-        let verifying = capabilities
+        let in_review = capabilities
             .state_writes
             .iter()
-            .find(|write| write.state == WorkState::Verifying)
-            .expect("verifying is listed");
+            .find(|write| write.state == WorkState::InReview)
+            .expect("in-review is listed");
         assert_eq!(
-            verifying.capability,
-            Capability::Unsupported("no verifying".to_string())
+            in_review.capability,
+            Capability::Unsupported("no in-review".to_string())
         );
         assert!(capabilities
             .state_writes
             .iter()
-            .filter(|write| write.state != WorkState::Verifying)
+            .filter(|write| write.state != WorkState::InReview)
             .all(|write| write.capability == Capability::Supported));
     }
 
@@ -359,13 +354,13 @@ mod tests {
     fn unsupported_panics_for_a_state_that_is_not_listed() {
         let mut tracker = FakeTracker::new();
         tracker.capabilities.state_writes.clear();
-        let _ = tracker.unsupported(&WorkState::Verifying, "no verifying");
+        let _ = tracker.unsupported(&WorkState::InReview, "no in-review");
     }
 
     #[test]
     fn fail_state_fails_only_the_named_state_after_recording_it() {
         let tracker = FakeTracker::new().fail_state(
-            WorkState::Verifying,
+            WorkState::InReview,
             TrackerError::Failed("refused".to_string()),
         );
         let item = id();
@@ -373,7 +368,7 @@ mod tests {
             .write_state(&item, &WorkState::InProgress)
             .expect("writes");
         let error = tracker
-            .write_state(&item, &WorkState::Verifying)
+            .write_state(&item, &WorkState::InReview)
             .expect_err("fails");
         assert_eq!(error, TrackerError::Failed("refused".to_string()));
         tracker.write_recap(&item, "done").expect("writes");
@@ -386,7 +381,7 @@ mod tests {
                 },
                 Call::WriteState {
                     id: item.clone(),
-                    state: WorkState::Verifying,
+                    state: WorkState::InReview,
                 },
                 Call::WriteRecap {
                     id: item.clone(),

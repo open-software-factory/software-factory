@@ -43,7 +43,6 @@ impl std::error::Error for FinishError {}
 fn state_name(state: &WorkState) -> String {
     match state {
         WorkState::InProgress => "in-progress".to_string(),
-        WorkState::Verifying => "verifying".to_string(),
         WorkState::InReview => "in-review".to_string(),
         WorkState::Failed => "failed".to_string(),
         WorkState::Blocked(cause) => format!("blocked ({})", cause.as_str()),
@@ -316,11 +315,7 @@ mod tests {
         let tracker = FakeTracker::new();
         require_capabilities(
             &tracker,
-            &[
-                WorkState::InProgress,
-                WorkState::Verifying,
-                WorkState::InReview,
-            ],
+            &[WorkState::InProgress, WorkState::InReview],
             true,
         )
         .expect("supported");

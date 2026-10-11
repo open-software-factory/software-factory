@@ -138,7 +138,6 @@ impl BlockedCause {
 #[serde(rename_all = "kebab-case")]
 pub enum WorkState {
     InProgress,
-    Verifying,
     InReview,
     Blocked(BlockedCause),
     Failed,
@@ -278,10 +277,6 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&WorkState::InProgress).expect("serializes"),
             r#""in-progress""#
-        );
-        assert_eq!(
-            serde_json::to_string(&WorkState::Verifying).expect("serializes"),
-            r#""verifying""#
         );
         assert_eq!(
             serde_json::to_string(&WorkState::InReview).expect("serializes"),

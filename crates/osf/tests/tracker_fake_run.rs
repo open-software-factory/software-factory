@@ -49,21 +49,10 @@ fn run_one(tracker: &dyn Tracker) -> Result<WorkItemId, String> {
         }
     };
     let chosen = item.id;
-    require_capabilities(
-        tracker,
-        &[
-            WorkState::InProgress,
-            WorkState::Verifying,
-            WorkState::InReview,
-        ],
-        true,
-    )
-    .map_err(|error| error.to_string())?;
-    tracker
-        .write_state(&chosen, &WorkState::InProgress)
+    require_capabilities(tracker, &[WorkState::InProgress, WorkState::InReview], true)
         .map_err(|error| error.to_string())?;
     tracker
-        .write_state(&chosen, &WorkState::Verifying)
+        .write_state(&chosen, &WorkState::InProgress)
         .map_err(|error| error.to_string())?;
     finish_run(tracker, &chosen, &WorkState::InReview, RECAP).map_err(|error| error.to_string())?;
     Ok(chosen)
@@ -84,10 +73,6 @@ fn a_full_run_reads_a_ready_item_and_writes_state_then_recap() {
             Call::WriteState {
                 id: chosen.clone(),
                 state: WorkState::InProgress,
-            },
-            Call::WriteState {
-                id: chosen.clone(),
-                state: WorkState::Verifying,
             },
             Call::Capabilities,
             Call::WriteState {
@@ -216,36 +201,36 @@ fn a_failed_state_write_stops_the_run_with_its_step_named() {
 }
 
 #[test]
-fn a_run_stops_before_any_write_when_verifying_is_unsupported() {
-    let mut tracker = FakeTracker::new().unsupported(&WorkState::Verifying, "no verifying");
+fn a_run_stops_before_any_write_when_in_progress_is_unsupported() {
+    let mut tracker = FakeTracker::new().unsupported(&WorkState::InProgress, "no in-progress");
     tracker.ready = ReadOutcome::Found(vec![work_item("1", Vec::new())]);
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("check capabilities"), "{error}");
-    assert!(error.contains("verifying"), "{error}");
+    assert!(error.contains("in-progress"), "{error}");
     assert_eq!(tracker.calls(), vec![Call::ReadReady, Call::Capabilities]);
 }
 
 #[test]
-fn a_run_stops_before_any_write_when_verifying_is_unknown() {
+fn a_run_stops_before_any_write_when_in_progress_is_unknown() {
     let mut tracker = FakeTracker::new();
     let entry = tracker
         .capabilities
         .state_writes
         .iter_mut()
-        .find(|write| write.state == WorkState::Verifying)
-        .expect("verifying is listed");
+        .find(|write| write.state == WorkState::InProgress)
+        .expect("in-progress is listed");
     entry.capability = Capability::Unknown("maybe".to_string());
     tracker.ready = ReadOutcome::Found(vec![work_item("1", Vec::new())]);
     let error = run_one(&tracker).expect_err("fails");
     assert!(error.contains("check capabilities"), "{error}");
-    assert!(error.contains("verifying"), "{error}");
+    assert!(error.contains("in-progress"), "{error}");
     assert_eq!(tracker.calls(), vec![Call::ReadReady, Call::Capabilities]);
 }
 
 #[test]
-fn a_run_stops_at_a_refused_verifying_write_and_never_reviews() {
+fn a_run_stops_at_a_refused_in_progress_write_and_never_reviews() {
     let mut tracker = FakeTracker::new().fail_state(
-        WorkState::Verifying,
+        WorkState::InProgress,
         TrackerError::Failed("refused".to_string()),
     );
     tracker.ready = ReadOutcome::Found(vec![work_item("1", Vec::new())]);
@@ -260,10 +245,6 @@ fn a_run_stops_at_a_refused_verifying_write_and_never_reviews() {
             Call::WriteState {
                 id: chosen.clone(),
                 state: WorkState::InProgress,
-            },
-            Call::WriteState {
-                id: chosen.clone(),
-                state: WorkState::Verifying,
             },
         ]
     );
@@ -294,10 +275,6 @@ fn a_full_run_succeeds_when_an_unneeded_state_is_unsupported() {
             Call::WriteState {
                 id: chosen.clone(),
                 state: WorkState::InProgress,
-            },
-            Call::WriteState {
-                id: chosen.clone(),
-                state: WorkState::Verifying,
             },
             Call::Capabilities,
             Call::WriteState {

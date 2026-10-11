@@ -141,7 +141,6 @@ impl GhRunner for RealGhRunner {
 pub struct StateOptions {
     pub ready: String,
     pub in_progress: String,
-    pub verifying: Option<String>,
     pub in_review: String,
     pub blocked: String,
     pub failed: String,
@@ -154,7 +153,6 @@ impl StateOptions {
         Self {
             ready: "Ready".to_string(),
             in_progress: "In progress".to_string(),
-            verifying: Some("Verifying".to_string()),
             in_review: "In review".to_string(),
             blocked: "Blocked".to_string(),
             failed: "Failed".to_string(),
@@ -168,7 +166,6 @@ impl StateOptions {
     pub fn option_for(&self, state: &WorkState) -> Option<&str> {
         match state {
             WorkState::InProgress => Some(self.in_progress.as_str()),
-            WorkState::Verifying => self.verifying.as_deref(),
             WorkState::InReview => Some(self.in_review.as_str()),
             WorkState::Blocked(_) => Some(self.blocked.as_str()),
             WorkState::Failed => Some(self.failed.as_str()),
@@ -1004,11 +1001,10 @@ fn option_capability(name: &str, project: &ProjectStatus) -> Capability {
     }
 }
 
-/// The nine state writes, in the order the capability report lists them.
+/// The eight state writes, in the order the capability report lists them.
 fn state_write_states() -> Vec<WorkState> {
     vec![
         WorkState::InProgress,
-        WorkState::Verifying,
         WorkState::InReview,
         WorkState::Blocked(BlockedCause::Dependency),
         WorkState::Blocked(BlockedCause::Human),
@@ -1040,7 +1036,6 @@ fn state_writes(options: &StateOptions, project: &ProjectStatus) -> Vec<StateWri
 fn state_name(state: &WorkState) -> &'static str {
     match state {
         WorkState::InProgress => "in-progress",
-        WorkState::Verifying => "verifying",
         WorkState::InReview => "in-review",
         WorkState::Blocked(_) => "blocked",
         WorkState::Failed => "failed",
@@ -1356,7 +1351,6 @@ mod tests {
         json!([
             {"id": "opt-ready", "name": "Ready"},
             {"id": "opt-in-progress", "name": "In progress"},
-            {"id": "opt-verifying", "name": "Verifying"},
             {"id": "opt-in-review", "name": "In review"},
             {"id": "opt-blocked", "name": "Blocked"},
             {"id": "opt-failed", "name": "Failed"},
@@ -2119,7 +2113,6 @@ mod tests {
             vec![
                 ("Ready".to_string(), "opt-ready".to_string()),
                 ("In progress".to_string(), "opt-in-progress".to_string()),
-                ("Verifying".to_string(), "opt-verifying".to_string()),
                 ("In review".to_string(), "opt-in-review".to_string()),
                 ("Blocked".to_string(), "opt-blocked".to_string()),
                 ("Failed".to_string(), "opt-failed".to_string()),
@@ -2215,25 +2208,9 @@ mod tests {
     }
 
     #[test]
-    fn write_state_rejects_an_unconfigured_verifying_option_without_calling() {
-        let mut config = config();
-        config.options.verifying = None;
-        let tracker = GitHubTracker::new(ScriptedRunner::new(Vec::new()), config);
-        let error = tracker
-            .write_state(&github_item("42"), &WorkState::Verifying)
-            .expect_err("rejected");
-        assert_eq!(
-            error,
-            TrackerError::Rejected("this project has no option for verifying".to_string())
-        );
-        assert_eq!(tracker.runner.calls().len(), 0);
-    }
-
-    #[test]
     fn write_state_rejects_a_missing_project_option_before_the_mutation() {
         let options = json!([
             {"id": "opt-ready", "name": "Ready"},
-            {"id": "opt-verifying", "name": "Verifying"},
             {"id": "opt-in-review", "name": "In review"},
             {"id": "opt-blocked", "name": "Blocked"},
             {"id": "opt-failed", "name": "Failed"},
@@ -2435,7 +2412,7 @@ mod tests {
     }
 
     #[test]
-    fn capabilities_support_all_nine_states_with_a_full_project() {
+    fn capabilities_support_all_eight_states_with_a_full_project() {
         let tracker = tracker(vec![Ok(project_response(all_options()))]);
         let capabilities = tracker.capabilities();
         assert_eq!(capabilities.title, Capability::Supported);
@@ -2459,11 +2436,10 @@ mod tests {
     }
 
     #[test]
-    fn capabilities_report_verifying_unsupported_when_the_project_lacks_it() {
+    fn capabilities_report_in_review_unsupported_when_the_project_lacks_it() {
         let options = json!([
             {"id": "opt-ready", "name": "Ready"},
             {"id": "opt-in-progress", "name": "In progress"},
-            {"id": "opt-in-review", "name": "In review"},
             {"id": "opt-blocked", "name": "Blocked"},
             {"id": "opt-failed", "name": "Failed"},
         ]);
@@ -2473,9 +2449,9 @@ mod tests {
             capabilities
                 .state_writes
                 .get(1)
-                .expect("verifying is listed")
+                .expect("in review is listed")
                 .capability,
-            Capability::Unsupported("the project has no option named Verifying".to_string())
+            Capability::Unsupported("the project has no option named In review".to_string())
         );
         assert_eq!(
             capabilities
@@ -2491,7 +2467,6 @@ mod tests {
     fn capabilities_report_the_ready_mark_unsupported_when_the_option_is_missing() {
         let options = json!([
             {"id": "opt-in-progress", "name": "In progress"},
-            {"id": "opt-verifying", "name": "Verifying"},
             {"id": "opt-in-review", "name": "In review"},
             {"id": "opt-blocked", "name": "Blocked"},
             {"id": "opt-failed", "name": "Failed"},
@@ -2519,7 +2494,7 @@ mod tests {
             .state_writes
             .iter()
             .all(|write| write.capability == Capability::Unknown("boom".to_string())));
-        assert_eq!(capabilities.state_writes.len(), 9);
+        assert_eq!(capabilities.state_writes.len(), 8);
     }
 
     #[test]
@@ -2539,7 +2514,6 @@ mod tests {
         let options = StateOptions::standard();
         assert_eq!(options.ready, "Ready");
         assert_eq!(options.in_progress, "In progress");
-        assert_eq!(options.verifying, Some("Verifying".to_string()));
         assert_eq!(options.in_review, "In review");
         assert_eq!(options.blocked, "Blocked");
         assert_eq!(options.failed, "Failed");
@@ -2552,7 +2526,6 @@ mod tests {
             options.option_for(&WorkState::InProgress),
             Some("In progress")
         );
-        assert_eq!(options.option_for(&WorkState::Verifying), Some("Verifying"));
         assert_eq!(options.option_for(&WorkState::InReview), Some("In review"));
         assert_eq!(options.option_for(&WorkState::Failed), Some("Failed"));
         for cause in [
@@ -2567,11 +2540,6 @@ mod tests {
                 Some("Blocked")
             );
         }
-        let no_verifying = StateOptions {
-            verifying: None,
-            ..StateOptions::standard()
-        };
-        assert_eq!(no_verifying.option_for(&WorkState::Verifying), None);
     }
 
     #[test]
