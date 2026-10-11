@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "502cf599f9c085440ef88830990d6809ef633209",
+    "contentHash": "e9e4a11520060f0871de62137ef7640a"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "sandbox-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "sandbox-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dd482519394cf27800551de3bd49ac20",
+      "bytes": 25672,
+      "width": 2183,
+      "height": 874,
+      "animated": false,
+      "path": "sandbox-architecture-light-dd482519394cf27800551de3bd49ac20.svg"
+    },
+    {
+      "id": "sandbox-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "sandbox-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6cbeff3a4d42e4a49581e2f9be126d3c",
+      "bytes": 25982,
+      "width": 2183,
+      "height": 874,
+      "animated": false,
+      "path": "sandbox-architecture-dark-6cbeff3a4d42e4a49581e2f9be126d3c.svg"
+    },
+    {
+      "id": "seam-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "seam-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "76fe7c1db007fd60c545503caf8307c0",
+      "bytes": 7350,
+      "width": 436,
+      "height": 418,
+      "animated": false,
+      "path": "seam-components-light-76fe7c1db007fd60c545503caf8307c0.svg"
+    },
+    {
+      "id": "seam-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "seam-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1db299d3af02cf68b9ea1f1c8c054ac6",
+      "bytes": 7439,
+      "width": 436,
+      "height": 418,
+      "animated": false,
+      "path": "seam-components-dark-1db299d3af02cf68b9ea1f1c8c054ac6.svg"
+    },
+    {
+      "id": "docker-provider-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "docker-provider-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e8ab07ab9b21af93570a7ec92e3a57ab",
+      "bytes": 10124,
+      "width": 921,
+      "height": 418,
+      "animated": false,
+      "path": "docker-provider-components-light-e8ab07ab9b21af93570a7ec92e3a57ab.svg"
+    },
+    {
+      "id": "docker-provider-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "docker-provider-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a868364a7060677f62c0d7c9a7cacf85",
+      "bytes": 10224,
+      "width": 921,
+      "height": 418,
+      "animated": false,
+      "path": "docker-provider-components-dark-a868364a7060677f62c0d7c9a7cacf85.svg"
+    }
+  ]
+}
