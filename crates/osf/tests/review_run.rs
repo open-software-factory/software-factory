@@ -3507,18 +3507,18 @@ fn write_lens_answers(dir: &Path, lenses: &[&str]) {
     }
 }
 
-/// Every `review-answer` payload in the journal buffer under `home`, in the
+/// Every `review-answer` payload in the journal under `home`, in the
 /// order the journal holds them.
 #[cfg(unix)]
 fn journal_review_answers(home: &Path) -> Vec<serde_json::Value> {
-    let buffer_dir = home.join(".osf/state/buffer");
+    let runs_dir = home.join(".osf/state/runs");
     let mut answers = Vec::new();
-    let Ok(entries) = std::fs::read_dir(&buffer_dir) else {
+    let Ok(entries) = std::fs::read_dir(&runs_dir) else {
         return answers;
     };
     for entry in entries {
         let entry = entry.expect("dir entry reads");
-        let text = std::fs::read_to_string(entry.path()).expect("journal buffer reads");
+        let text = std::fs::read_to_string(entry.path()).expect("journal reads");
         for line in text.lines() {
             let value: serde_json::Value =
                 serde_json::from_str(line).expect("journal line is JSON");
