@@ -48,6 +48,8 @@ pub struct NewPullRequest {
 pub enum Verdict {
     Approve,
     RequestChanges,
+    /// A review with no verdict to give, such as a run that could not run.
+    Comment,
 }
 
 impl Verdict {
@@ -57,6 +59,7 @@ impl Verdict {
         match self {
             Verdict::Approve => "APPROVE",
             Verdict::RequestChanges => "REQUEST_CHANGES",
+            Verdict::Comment => "COMMENT",
         }
     }
 }
@@ -244,6 +247,7 @@ mod tests {
     fn verdict_as_event_names_the_forge_event() {
         assert_eq!(Verdict::Approve.as_event(), "APPROVE");
         assert_eq!(Verdict::RequestChanges.as_event(), "REQUEST_CHANGES");
+        assert_eq!(Verdict::Comment.as_event(), "COMMENT");
     }
 
     #[test]

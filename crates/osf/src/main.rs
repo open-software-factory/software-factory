@@ -2515,6 +2515,7 @@ fn to_forge_verdict(verdict: review::Verdict) -> forge::Verdict {
     match verdict {
         review::Verdict::Approve => forge::Verdict::Approve,
         review::Verdict::RequestChanges => forge::Verdict::RequestChanges,
+        review::Verdict::Comment => forge::Verdict::Comment,
     }
 }
 
@@ -3062,6 +3063,81 @@ fn assets_publish_cmd(args: &AssetsPublishArgs) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A forge that records the verdict of each posted review.
+    struct RecordingForge {
+        posted: std::sync::Mutex<Vec<forge::Verdict>>,
+    }
+
+    impl forge::Forge for RecordingForge {
+        fn create_branch(&self, _: &forge::NewBranch) -> Result<forge::Branch, forge::ForgeError> {
+            Err(forge::ForgeError::Failed("unused".to_string()))
+        }
+        fn open_pull_request(
+            &self,
+            _: &forge::NewPullRequest,
+        ) -> Result<forge::PullRequestId, forge::ForgeError> {
+            Err(forge::ForgeError::Failed("unused".to_string()))
+        }
+        fn write_status_block(
+            &self,
+            _: &forge::PullRequestId,
+            _: &str,
+        ) -> Result<(), forge::ForgeError> {
+            Err(forge::ForgeError::Failed("unused".to_string()))
+        }
+        fn post_review(
+            &self,
+            request: &forge::NewReview,
+        ) -> Result<forge::PostedReview, forge::ForgeError> {
+            self.posted.lock().expect("lock").push(request.verdict);
+            Ok(forge::PostedReview {
+                verdict: request.verdict,
+                advisory: false,
+                inline: request.comments.len(),
+                id: "1".to_string(),
+                state: "COMMENTED".to_string(),
+                url: "https://example.invalid/r/1".to_string(),
+            })
+        }
+        fn read_check_status(
+            &self,
+            _: &forge::PullRequestId,
+        ) -> forge::ReadOutcome<forge::CheckStatus> {
+            forge::ReadOutcome::Unknown("unused".to_string())
+        }
+        fn capabilities(&self, _: &forge::PullRequestId) -> forge::Capabilities {
+            forge::Capabilities {
+                verdicts: forge::VerdictCapability::Unknown("unused".to_string()),
+                check_status: forge::ReadCapability::Unknown("unused".to_string()),
+            }
+        }
+    }
+
+    #[test]
+    fn a_could_not_run_outcome_posts_comment_through_the_forge() {
+        let plan = review::plan_review_for(
+            &[],
+            "Summary.\n",
+            &review::parse_block_on("must-fix,should-fix"),
+            Some(reducer::Verdict::CouldNotRun),
+        )
+        .expect("plans");
+        let forge = RecordingForge {
+            posted: std::sync::Mutex::new(Vec::new()),
+        };
+        let pull_request = forge::PullRequestId {
+            repo: "o/r".to_string(),
+            pr: "1".to_string(),
+        };
+        let posted = post_plan(&forge, &pull_request, &plan, "abc123").expect("posts");
+        assert_eq!(posted.verdict, forge::Verdict::Comment);
+        assert_eq!(
+            *forge.posted.lock().expect("lock"),
+            vec![forge::Verdict::Comment]
+        );
+        assert_eq!(forge::Verdict::Comment.as_event(), "COMMENT");
+    }
 
     const FIXTURE_PATH: &str = "crates/osf/tests/fixtures/bad.md";
     const REAL_PATH: &str = "docs/real.md";

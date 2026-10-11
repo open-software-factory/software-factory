@@ -465,6 +465,7 @@ fn to_review_verdict(verdict: Verdict) -> review::Verdict {
     match verdict {
         Verdict::Approve => review::Verdict::Approve,
         Verdict::RequestChanges => review::Verdict::RequestChanges,
+        Verdict::Comment => review::Verdict::Comment,
     }
 }
 
@@ -472,6 +473,7 @@ fn from_review_verdict(verdict: review::Verdict) -> Verdict {
     match verdict {
         review::Verdict::Approve => Verdict::Approve,
         review::Verdict::RequestChanges => Verdict::RequestChanges,
+        review::Verdict::Comment => Verdict::Comment,
     }
 }
 
@@ -1247,6 +1249,14 @@ mod tests {
             from_review_verdict(review::Verdict::RequestChanges),
             Verdict::RequestChanges
         );
+        assert_eq!(
+            to_review_verdict(Verdict::Comment),
+            review::Verdict::Comment
+        );
+        assert_eq!(
+            from_review_verdict(review::Verdict::Comment),
+            Verdict::Comment
+        );
     }
 
     #[test]
@@ -1676,6 +1686,26 @@ mod tests {
         assert_eq!(calls.len(), 1, "one run call: {calls:?}");
         let (args, _stdin) = calls.first().expect("one run call");
         assert_eq!(args, &review_argv());
+    }
+
+    #[test]
+    fn post_review_posts_a_comment_verdict_as_a_comment_review() {
+        let github = GitHub::new(fake_with_runs(vec![Ok(gh_ok(
+            r#"{"id":44,"state":"COMMENTED","html_url":"https://example.invalid/r/44"}"#,
+        ))]));
+        let mut request = new_review();
+        request.verdict = Verdict::Comment;
+        let posted = github.post_review(&request).expect("posts");
+        assert_eq!(posted.verdict, Verdict::Comment);
+        assert!(!posted.advisory);
+        let calls = lock(&github.client.run_calls);
+        assert_eq!(calls.len(), 1, "one run call: {calls:?}");
+        let (_args, stdin) = calls.first().expect("one run call");
+        let payload = stdin.clone().unwrap_or_default();
+        assert!(
+            payload.contains("\"event\":\"COMMENT\""),
+            "payload: {payload}"
+        );
     }
 
     #[test]
