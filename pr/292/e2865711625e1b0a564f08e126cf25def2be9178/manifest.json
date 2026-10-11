@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "review-check-reusable-workflow",
+    "headSha": "e2865711625e1b0a564f08e126cf25def2be9178",
+    "contentHash": "06dc1cb66b602624fac7dad28ce4cef5"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-check-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-check-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "260c45ef590d5e954fee73bea6dbeb69",
+      "bytes": 24605,
+      "width": 1748,
+      "height": 532,
+      "animated": false,
+      "path": "review-check-architecture-light-260c45ef590d5e954fee73bea6dbeb69.svg"
+    },
+    {
+      "id": "review-check-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-check-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b9a8e6cd8a1f3af3527b82fd1f22f1bb",
+      "bytes": 24901,
+      "width": 1748,
+      "height": 532,
+      "animated": false,
+      "path": "review-check-architecture-dark-b9a8e6cd8a1f3af3527b82fd1f22f1bb.svg"
+    },
+    {
+      "id": "build-job-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "build-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f86bb641f54443527192314d7bfa2bb6",
+      "bytes": 8642,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "build-job-detail-light-f86bb641f54443527192314d7bfa2bb6.svg"
+    },
+    {
+      "id": "build-job-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "build-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d2fd587029e1a4aad64111312dbaded7",
+      "bytes": 8710,
+      "width": 1284,
+      "height": 304,
+      "animated": false,
+      "path": "build-job-detail-dark-d2fd587029e1a4aad64111312dbaded7.svg"
+    },
+    {
+      "id": "reduce-job-detail-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reduce-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "557e2f16484fcef8493c0b3456b30141",
+      "bytes": 8841,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "reduce-job-detail-light-557e2f16484fcef8493c0b3456b30141.svg"
+    },
+    {
+      "id": "reduce-job-detail-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reduce-job-detail",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ff9abc26271c87d88a55a4e9e4fac8b6",
+      "bytes": 8921,
+      "width": 1284,
+      "height": 418,
+      "animated": false,
+      "path": "reduce-job-detail-dark-ff9abc26271c87d88a55a4e9e4fac8b6.svg"
+    },
+    {
+      "id": "review-check-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "review-check-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3f4444ced66c161b545b6d7714c45965",
+      "bytes": 15502,
+      "width": 1441,
+      "height": 515,
+      "animated": true,
+      "path": "review-check-flow-light-3f4444ced66c161b545b6d7714c45965.svg"
+    },
+    {
+      "id": "review-check-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "review-check-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "574e8d50051927ae665377e6653581a6",
+      "bytes": 15625,
+      "width": 1441,
+      "height": 515,
+      "animated": true,
+      "path": "review-check-flow-dark-574e8d50051927ae665377e6653581a6.svg"
+    }
+  ]
+}
