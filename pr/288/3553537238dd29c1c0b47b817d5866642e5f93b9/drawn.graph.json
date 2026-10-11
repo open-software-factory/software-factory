@@ -1,0 +1,592 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "open-software-factory-software-factory/artifact-upload-v7-0-2",
+  "generatedAt": "2026-10-11T00:19:27.114Z",
+  "title": "Bump upload-artifact to v7.0.2 across CI and review workflows",
+  "summary": "A dependency-only change: every `actions/upload-artifact` step in `.github/workflows/ci.yml` and `.github/workflows/review.yml` is repinned from commit `043fb46d` (v7.0.1) to `cf430e03` (v7.0.2). No step names, inputs, paths, conditions or job wiring change — only the action revision that receives the artifacts. The blast radius is therefore the whole artifact hand-off surface: the CI jobs that persist lint findings and checkpoint evidence, and the review pipeline that publishes the built `osf` binary, the work item, each reviewer's saved answers, and the aggregated SARIF findings.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "3553537238dd29c1c0b47b817d5866642e5f93b9",
+      "ref": "3553537238dd29c1c0b47b817d5866642e5f93b9"
+    },
+    "pullRequest": {
+      "number": 288,
+      "url": "https://github.com/open-software-factory/software-factory/pull/288"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The events that start the two workflows."
+    },
+    {
+      "id": "ci-jobs",
+      "label": "CI jobs",
+      "subtitle": "ci.yml",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "Lint and checkpoint jobs that produce evidence files."
+    },
+    {
+      "id": "review-jobs",
+      "label": "Review jobs",
+      "subtitle": "review.yml",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "Build, work-item, per-reviewer and aggregation jobs."
+    },
+    {
+      "id": "artifact-store",
+      "label": "Artifact store",
+      "subtitle": "actions/upload-artifact v7.0.2",
+      "order": 3,
+      "delta": "modified",
+      "summary": "The pinned action revision that all upload steps now call."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "push-pr-events",
+      "label": "Push / PR events",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "summary": "GitHub events that trigger the CI and review workflows.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "ci-jobs",
+      "subtitle": "2 upload steps repinned",
+      "summary": "Continuous integration workflow. Two upload-artifact steps were repinned to v7.0.2; nothing else changed.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 303,
+          "endLine": 310
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "writing-lint-job",
+      "label": "Writing lint job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci-jobs",
+      "summary": "Runs the writing lint and emits osf.sarif when findings are present.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "checkpoint-job",
+      "label": "Checkpoint job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "ci-jobs",
+      "summary": "Produces checkpoint evidence files that are kept regardless of job outcome.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-workflow",
+      "label": "review.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "review-jobs",
+      "subtitle": "6 upload steps repinned",
+      "summary": "Review pipeline workflow. Six upload-artifact steps were repinned to v7.0.2; job graph and inputs are untouched.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 106,
+          "endLine": 112
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-osf-job",
+      "label": "Build osf job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-jobs",
+      "summary": "Compiles the release osf binary that downstream reviewer jobs consume.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "work-item-job",
+      "label": "Work item job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-jobs",
+      "summary": "Materialises work-item.json for the reviewer jobs.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "reviewer-jobs",
+      "label": "Reviewer jobs",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-jobs",
+      "group": "reviewers",
+      "summary": "Codex, Claude and opencode reviewers, each saving its own answers JSON.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "aggregate-job",
+      "label": "Aggregate findings job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "review-jobs",
+      "summary": "Collects reviewer output into out/review.sarif.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "upload-artifact-action",
+      "label": "actions/upload-artifact",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "artifact-store",
+      "subtitle": "cf430e03 · v7.0.2",
+      "summary": "The pinned third-party action every upload step invokes. The only substantive change in this PR is its revision: 043fb46d (v7.0.1) to cf430e03 (v7.0.2).",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 306,
+          "endLine": 306
+        },
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 109,
+          "endLine": 109
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "artifact-storage",
+      "label": "Workflow artifacts",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "artifact-store",
+      "summary": "GitHub-hosted artifact storage where the uploaded files land and from which later jobs download them.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "events-to-ci",
+      "from": "push-pr-events",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "events-to-review",
+      "from": "push-pr-events",
+      "to": "review-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "triggers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "ci-to-lint",
+      "from": "ci-workflow",
+      "to": "writing-lint-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "ci-to-checkpoint",
+      "from": "ci-workflow",
+      "to": "checkpoint-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-build",
+      "from": "review-workflow",
+      "to": "build-osf-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-workitem",
+      "from": "review-workflow",
+      "to": "work-item-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-reviewers",
+      "from": "review-workflow",
+      "to": "reviewer-jobs",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "review-to-aggregate",
+      "from": "review-workflow",
+      "to": "aggregate-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-uploads",
+      "from": "writing-lint-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "osf.sarif",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The lint job's findings upload now goes through v7.0.2 instead of v7.0.1.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 303,
+          "endLine": 310
+        }
+      ]
+    },
+    {
+      "id": "checkpoint-uploads",
+      "from": "checkpoint-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "checkpoint-evidence",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 375,
+          "endLine": 382
+        }
+      ]
+    },
+    {
+      "id": "build-uploads",
+      "from": "build-osf-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "osf-binary",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 106,
+          "endLine": 112
+        }
+      ]
+    },
+    {
+      "id": "workitem-uploads",
+      "from": "work-item-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "work-item",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 136,
+          "endLine": 142
+        }
+      ]
+    },
+    {
+      "id": "reviewers-upload",
+      "from": "reviewer-jobs",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "review-run-*.json",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 256,
+          "endLine": 262
+        }
+      ]
+    },
+    {
+      "id": "aggregate-uploads",
+      "from": "aggregate-job",
+      "to": "upload-artifact-action",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "review-findings",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 597,
+          "endLine": 603
+        }
+      ]
+    },
+    {
+      "id": "upload-to-storage",
+      "from": "upload-artifact-action",
+      "to": "artifact-storage",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "PUT artifact",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The action revision that performs the actual artifact write; the destination is unchanged.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "artifact-upload-path",
+      "title": "Artifact upload through the repinned action",
+      "summary": "Every upload step in both workflows follows the same shape: a job produces a file, hands it to the pinned upload-artifact action, and the action writes it to workflow artifact storage. This PR changes only the middle hop's revision.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "writing-lint-job",
+          "label": "Lint job"
+        },
+        {
+          "node": "upload-artifact-action",
+          "label": "upload-artifact v7.0.2"
+        },
+        {
+          "node": "artifact-storage",
+          "label": "Artifact storage"
+        }
+      ],
+      "messages": [
+        {
+          "id": "lint-produces-sarif",
+          "from": "writing-lint-job",
+          "to": "writing-lint-job",
+          "label": "write osf.sarif",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 303,
+              "endLine": 310
+            }
+          ]
+        },
+        {
+          "id": "lint-hands-to-action",
+          "from": "writing-lint-job",
+          "to": "upload-artifact-action",
+          "label": "upload osf.sarif",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Same step name, same path input; only the action revision moved from 043fb46d to cf430e03.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 303,
+              "endLine": 310
+            }
+          ]
+        },
+        {
+          "id": "action-writes-artifact",
+          "from": "upload-artifact-action",
+          "to": "artifact-storage",
+          "label": "store writing-lint-findings",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "action-returns",
+          "from": "artifact-storage",
+          "to": "upload-artifact-action",
+          "label": "artifact id / url",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "action-returns-to-job",
+          "from": "upload-artifact-action",
+          "to": "writing-lint-job",
+          "label": "upload result",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 8,
+    "deletions": 8,
+    "chips": [
+      {
+        "label": "Upload steps repinned",
+        "value": "8",
+        "tone": "modified"
+      },
+      {
+        "label": "Action revision",
+        "value": "v7.0.1 → v7.0.2",
+        "tone": "hero"
+      },
+      {
+        "label": "Workflows touched",
+        "value": "2",
+        "tone": "modified"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "artifact-upload-surface",
+      "title": "Artifact upload surface",
+      "lens": "architecture",
+      "summary": "The two workflows, the jobs that produce artifacts, and the single pinned action revision they all now share.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "ci-uploads",
+      "title": "ci.yml uploads",
+      "lens": "architecture",
+      "summary": "The two CI upload steps that were repinned.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "ci-workflow",
+          "writing-lint-job",
+          "checkpoint-job",
+          "upload-artifact-action",
+          "artifact-storage"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "review-uploads",
+          "title": "review.yml uploads",
+          "lens": "architecture",
+          "summary": "The six review-pipeline upload steps that were repinned, from the built binary through to the aggregated findings.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [
+              "review-workflow",
+              "build-osf-job",
+              "work-item-job",
+              "reviewer-jobs",
+              "aggregate-job",
+              "upload-artifact-action",
+              "artifact-storage"
+            ],
+            "edges": [],
+            "flows": []
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "artifact-upload-flow",
+      "title": "Artifact upload flow",
+      "lens": "data-flow",
+      "summary": "One representative upload sequence, showing that only the action revision in the middle hop changed.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "artifact-upload-path"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
