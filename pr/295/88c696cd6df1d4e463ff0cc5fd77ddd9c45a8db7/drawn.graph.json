@@ -1,0 +1,1231 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-11T13:26:48.387Z",
+  "title": "Builder-family detection and diff-aware review posting",
+  "summary": "This change makes two parts of the review pipeline stricter and more honest. Builder-family detection now reads every word of a `Code-Generator:` trailer (so `Anthropic Claude Code claude-sonnet-5-5` and `Claude Sonnet 5.5` both resolve to `anthropic`), refuses to guess when words point at two families, and fails the whole run closed as could-not-run when any commit has no trailer — except a clean merge, which `git merge-tree --write-tree` proves introduces nothing of its own. Separately, review posting now fetches the PR diff and only places inline comments on lines the diff actually shows; findings outside it move into the body, which is cut to the 2000-byte limit and counts what did not fit instead of refusing to post.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "88c696cd6df1d4e463ff0cc5fd77ddd9c45a8db7",
+      "ref": "88c696cd6df1d4e463ff0cc5fd77ddd9c45a8db7"
+    },
+    "pullRequest": {
+      "number": 295,
+      "url": "https://github.com/open-software-factory/software-factory/pull/295"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf/src",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The command surface: `review run`, `review post`, and the shared review planning code they call."
+    },
+    {
+      "id": "detection",
+      "label": "Builder detection",
+      "subtitle": "agents.rs, builder.rs, git.rs",
+      "order": 1,
+      "delta": "modified",
+      "summary": "Reads the reviewed range's commits, maps trailer model names to families, and decides whether the builder is knowable at all."
+    },
+    {
+      "id": "review-run",
+      "label": "Review run",
+      "subtitle": "review_run.rs",
+      "order": 2,
+      "delta": "modified",
+      "summary": "Runs the roster, records why a reviewer sat out, and reduces the outcome and its notes."
+    },
+    {
+      "id": "github",
+      "label": "GitHub",
+      "subtitle": "gh CLI",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The pull request and its diff, read and written through the `gh` command."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-run-cmd",
+      "label": "review run",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "main.rs",
+      "summary": "The `osf review run` entry point. Now also posts through the diff-aware planner when `--post-to` is given.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2306,
+          "endLine": 2325
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-post-cmd",
+      "label": "review post",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "cli",
+      "subtitle": "main.rs",
+      "summary": "The `osf review post` entry point. Fetches the PR diff before planning, so a finding outside it is never sent as an inline comment.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2871,
+          "endLine": 2885
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "plan-review",
+      "label": "plan_review_in_diff",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "review.rs",
+      "summary": "Builds the review body and inline comments. A finding whose path or line is not in the diff goes into the body under \"Findings outside the diff\"; the body is cut to the limit and counts findings that did not fit.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 320,
+          "endLine": 380
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "diff-lines",
+      "label": "DiffLines",
+      "kind": "module",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "review.rs",
+      "summary": "Parses a unified diff's hunk headers into the set of new-side line ranges GitHub accepts inline comments on. Deleted files have no new side; renames count under the new path.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 109,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fetch-diff",
+      "label": "fetch_diff",
+      "kind": "function",
+      "delta": "added",
+      "lane": "cli",
+      "subtitle": "review.rs",
+      "summary": "Shells out to `gh pr diff` and hands the output to `DiffLines::parse`.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 617,
+          "endLine": 636
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "detect-detailed",
+      "label": "detect_detailed",
+      "kind": "function",
+      "delta": "added",
+      "lane": "detection",
+      "subtitle": "builder.rs",
+      "summary": "Walks the range's commits, collects each commit's trailer model names, and returns the distinct families plus one reason per unknown. A commit with no trailer contributes `unknown` unless it is a clean merge.",
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs",
+          "startLine": 130,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "family-of",
+      "label": "family_of",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "detection",
+      "subtitle": "builder.rs",
+      "summary": "Matches every whitespace- and slash-separated word of a model name against aliases then the shipped table. Two families from one name give `unknown` rather than a guess.",
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs",
+          "startLine": 40,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "model-families",
+      "label": "MODEL_FAMILIES",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "detection",
+      "subtitle": "agents.rs",
+      "summary": "The shipped prefix-to-family table, now shared with `builder::family_of` and widened to bare vendor names (`anthropic`, `openai`, `google`) and `codex`.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 185,
+          "endLine": 200
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "is-clean-merge",
+      "label": "is_clean_merge",
+      "kind": "function",
+      "delta": "added",
+      "lane": "detection",
+      "subtitle": "git.rs",
+      "summary": "True when a commit has exactly two parents and `git merge-tree --write-tree` merges them, with no conflict, into the commit's own tree. Fails closed on anything else, including git older than 2.38.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 226,
+          "endLine": 245
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scratch-store",
+      "label": "merge_tree_in_scratch_store",
+      "kind": "function",
+      "delta": "added",
+      "lane": "detection",
+      "subtitle": "git.rs",
+      "summary": "Runs `merge-tree` with `GIT_OBJECT_DIRECTORY` pointed at a temporary scratch store and the repository's objects as an alternate, so a read-only checkout is never written to.",
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 262,
+          "endLine": 305
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "detect-builder-families",
+      "label": "detect_builder_families",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-run",
+      "subtitle": "review_run.rs",
+      "summary": "Turns detection into the run's skip set and, when any family is unknown, a redacted one-line reason that fails the run closed.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1140,
+          "endLine": 1180
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unknown-detail",
+      "label": "unknown_detail",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-run",
+      "subtitle": "review_run.rs",
+      "summary": "Joins the first three unknown reasons, cuts each to 120 characters and the whole to 400 bytes, counts the rest, and redacts before and after cutting so no credential is split across a cut.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1085,
+          "endLine": 1130
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-reviewer",
+      "label": "run_reviewer_unscrubbed",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-run",
+      "subtitle": "review_run.rs",
+      "summary": "Records `not_run` on a reviewer's saved run: the unknown-builder reason, a family error, or `skipped: same model family as the builder (<family>)`.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 596,
+          "endLine": 690
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "left-out-notes",
+      "label": "left_out_notes",
+      "kind": "function",
+      "delta": "added",
+      "lane": "review-run",
+      "subtitle": "review_run.rs",
+      "summary": "One note per roster reviewer the run left out on purpose, so the posted summary says who did not look and why.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1054,
+          "endLine": 1075
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "judge-lens",
+      "label": "judge_lens",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "review-run",
+      "subtitle": "review_run.rs",
+      "summary": "An unknown builder family now marks every reviewer could-not-run before any lens is judged, instead of running the roster as before.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1277,
+          "endLine": 1300
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "gh-cli",
+      "label": "gh CLI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "github",
+      "subtitle": "pr view / pr diff / api",
+      "summary": "Reads the pull request's head sha and diff, and posts the review payload.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 617,
+          "endLine": 636
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-diff",
+      "label": "Pull request diff",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "github",
+      "subtitle": "unified diff",
+      "summary": "The diff GitHub shows for the pull request; the only lines an inline review comment may target.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 109,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "run-cmd-plans",
+      "from": "review-run-cmd",
+      "to": "plan-review",
+      "kind": "call",
+      "delta": "modified",
+      "label": "findings + summary + diff",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2306,
+          "endLine": 2325
+        }
+      ]
+    },
+    {
+      "id": "post-cmd-plans",
+      "from": "review-post-cmd",
+      "to": "plan-review",
+      "kind": "call",
+      "delta": "modified",
+      "label": "findings + summary + diff",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2871,
+          "endLine": 2885
+        }
+      ]
+    },
+    {
+      "id": "plans-fetch-diff",
+      "from": "plan-review",
+      "to": "fetch-diff",
+      "kind": "call",
+      "delta": "added",
+      "label": "DiffLines",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The change's core move: planning now knows which lines the diff shows, so a finding outside it is never sent as an inline comment.",
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 320,
+          "endLine": 380
+        }
+      ]
+    },
+    {
+      "id": "fetch-diff-gh",
+      "from": "fetch-diff",
+      "to": "gh-cli",
+      "kind": "other",
+      "delta": "added",
+      "label": "gh pr diff",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 617,
+          "endLine": 636
+        }
+      ]
+    },
+    {
+      "id": "gh-diff",
+      "from": "gh-cli",
+      "to": "pr-diff",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "unified diff",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "fetch-diff-parses",
+      "from": "fetch-diff",
+      "to": "diff-lines",
+      "kind": "call",
+      "delta": "added",
+      "label": "parse",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review.rs",
+          "startLine": 617,
+          "endLine": 636
+        }
+      ]
+    },
+    {
+      "id": "detect-builder-calls",
+      "from": "detect-builder-families",
+      "to": "detect-detailed",
+      "kind": "call",
+      "delta": "modified",
+      "label": "range, aliases, overrides",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1140,
+          "endLine": 1180
+        }
+      ]
+    },
+    {
+      "id": "detect-detailed-family",
+      "from": "detect-detailed",
+      "to": "family-of",
+      "kind": "call",
+      "delta": "modified",
+      "label": "model name",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs",
+          "startLine": 130,
+          "endLine": 190
+        }
+      ]
+    },
+    {
+      "id": "family-of-table",
+      "from": "family-of",
+      "to": "model-families",
+      "kind": "data",
+      "delta": "modified",
+      "label": "prefix table",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs",
+          "startLine": 40,
+          "endLine": 70
+        }
+      ]
+    },
+    {
+      "id": "detect-detailed-merge",
+      "from": "detect-detailed",
+      "to": "is-clean-merge",
+      "kind": "call",
+      "delta": "added",
+      "label": "commit with no trailer",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "A merge with no trailer is exempt only when `merge-tree` proves it introduces nothing of its own; every other untrailed commit makes the builder unknown.",
+      "files": [
+        {
+          "path": "crates/osf/src/builder.rs",
+          "startLine": 130,
+          "endLine": 190
+        }
+      ]
+    },
+    {
+      "id": "clean-merge-scratch",
+      "from": "is-clean-merge",
+      "to": "scratch-store",
+      "kind": "call",
+      "delta": "added",
+      "label": "merge-tree --write-tree",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/git.rs",
+          "startLine": 226,
+          "endLine": 245
+        }
+      ]
+    },
+    {
+      "id": "detect-builder-unknown",
+      "from": "detect-builder-families",
+      "to": "unknown-detail",
+      "kind": "call",
+      "delta": "added",
+      "label": "unknown reasons",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1140,
+          "endLine": 1180
+        }
+      ]
+    },
+    {
+      "id": "run-reviewer-notes",
+      "from": "run-reviewer",
+      "to": "left-out-notes",
+      "kind": "data",
+      "delta": "added",
+      "label": "not_run reason",
+      "emphasis": "muted",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 596,
+          "endLine": 690
+        }
+      ]
+    },
+    {
+      "id": "judge-lens-unknown",
+      "from": "judge-lens",
+      "to": "detect-builder-families",
+      "kind": "data",
+      "delta": "modified",
+      "label": "unknown_builder",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 1277,
+          "endLine": 1300
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "builder-family-detection",
+      "title": "Deciding the builder's family for a reviewed range",
+      "summary": "How a range's commits become a family list, a skip set, and — when the builder cannot be told apart — a could-not-run reason.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "detect-builder-families",
+          "label": "detect_builder_families"
+        },
+        {
+          "node": "detect-detailed",
+          "label": "detect_detailed"
+        },
+        {
+          "node": "is-clean-merge",
+          "label": "is_clean_merge"
+        },
+        {
+          "node": "family-of",
+          "label": "family_of"
+        },
+        {
+          "node": "unknown-detail",
+          "label": "unknown_detail"
+        }
+      ],
+      "messages": [
+        {
+          "id": "ask-range",
+          "from": "detect-builder-families",
+          "to": "detect-detailed",
+          "label": "base..HEAD, aliases, overrides",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 1140,
+              "endLine": 1180
+            }
+          ]
+        },
+        {
+          "id": "read-commits",
+          "from": "detect-detailed",
+          "to": "detect-detailed",
+          "label": "commit hashes and messages",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/builder.rs",
+              "startLine": 130,
+              "endLine": 190
+            }
+          ]
+        },
+        {
+          "id": "check-merge",
+          "from": "detect-detailed",
+          "to": "is-clean-merge",
+          "label": "commit with no trailer",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "repeat": 1,
+          "note": "Only reached for a commit whose message carries no `Code-Generator:` trailer.",
+          "files": [
+            {
+              "path": "crates/osf/src/builder.rs",
+              "startLine": 130,
+              "endLine": 190
+            }
+          ]
+        },
+        {
+          "id": "merge-verdict",
+          "from": "is-clean-merge",
+          "to": "detect-detailed",
+          "label": "true when the merge introduces nothing",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/git.rs",
+              "startLine": 226,
+              "endLine": 245
+            }
+          ]
+        },
+        {
+          "id": "map-name",
+          "from": "detect-detailed",
+          "to": "family-of",
+          "label": "model name",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "repeat": 1,
+          "note": "Once per trailer name; a name whose words point at two families gives `unknown`.",
+          "files": [
+            {
+              "path": "crates/osf/src/builder.rs",
+              "startLine": 130,
+              "endLine": 190
+            }
+          ]
+        },
+        {
+          "id": "family-back",
+          "from": "family-of",
+          "to": "detect-detailed",
+          "label": "family or unknown",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/builder.rs",
+              "startLine": 40,
+              "endLine": 70
+            }
+          ]
+        },
+        {
+          "id": "detail-unknown",
+          "from": "detect-detailed",
+          "to": "unknown-detail",
+          "label": "unknown reasons",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Only when at least one family is `unknown`; the detail is redacted and cut to one short line.",
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 1140,
+              "endLine": 1180
+            }
+          ]
+        },
+        {
+          "id": "detail-back",
+          "from": "unknown-detail",
+          "to": "detect-builder-families",
+          "label": "one-line reason",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 1085,
+              "endLine": 1130
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "posting-a-review",
+      "title": "Posting a review with diff-aware anchoring",
+      "summary": "How findings become inline comments or body text once the pull request's diff is known.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-run-cmd",
+          "label": "review run"
+        },
+        {
+          "node": "fetch-diff",
+          "label": "fetch_diff"
+        },
+        {
+          "node": "gh-cli",
+          "label": "gh"
+        },
+        {
+          "node": "diff-lines",
+          "label": "DiffLines"
+        },
+        {
+          "node": "plan-review",
+          "label": "plan_review_in_diff"
+        }
+      ],
+      "messages": [
+        {
+          "id": "post-request",
+          "from": "review-run-cmd",
+          "to": "fetch-diff",
+          "label": "repo, pr",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 2306,
+              "endLine": 2325
+            }
+          ]
+        },
+        {
+          "id": "gh-diff-call",
+          "from": "fetch-diff",
+          "to": "gh-cli",
+          "label": "gh pr diff",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review.rs",
+              "startLine": 617,
+              "endLine": 636
+            }
+          ]
+        },
+        {
+          "id": "diff-return",
+          "from": "gh-cli",
+          "to": "fetch-diff",
+          "label": "unified diff",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "parse-diff",
+          "from": "fetch-diff",
+          "to": "diff-lines",
+          "label": "DiffLines::parse",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review.rs",
+              "startLine": 617,
+              "endLine": 636
+            }
+          ]
+        },
+        {
+          "id": "plan-with-diff",
+          "from": "review-run-cmd",
+          "to": "plan-review",
+          "label": "findings, summary, diff",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/main.rs",
+              "startLine": 2306,
+              "endLine": 2325
+            }
+          ]
+        },
+        {
+          "id": "anchor-check",
+          "from": "plan-review",
+          "to": "diff-lines",
+          "label": "contains(path, line)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "repeat": 1,
+          "note": "Once per finding; a miss moves the finding into the body under \"Findings outside the diff\".",
+          "files": [
+            {
+              "path": "crates/osf/src/review.rs",
+              "startLine": 320,
+              "endLine": 380
+            }
+          ]
+        },
+        {
+          "id": "plan-return",
+          "from": "plan-review",
+          "to": "review-run-cmd",
+          "label": "Plan { body, comments, verdict }",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review.rs",
+              "startLine": 320,
+              "endLine": 380
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 9,
+    "additions": 1639,
+    "deletions": 118,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-pipeline",
+      "title": "Review pipeline",
+      "lens": "architecture",
+      "summary": "The containers this change touches: the CLI, builder detection, the review run, and GitHub.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "builder-detection",
+      "title": "Builder detection internals",
+      "lens": "architecture",
+      "summary": "Inside detection: the family table, the per-word matcher, and the clean-merge check that decides whether an untrailed commit counts.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "detect-detailed",
+          "family-of",
+          "model-families",
+          "is-clean-merge",
+          "scratch-store",
+          "unknown-detail"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "posting",
+      "title": "Diff-aware posting",
+      "lens": "architecture",
+      "summary": "Inside posting: fetching the diff, parsing its right-side lines, and planning comments and body around them.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "review-run-cmd",
+          "review-post-cmd",
+          "fetch-diff",
+          "diff-lines",
+          "plan-review",
+          "gh-cli",
+          "pr-diff"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "builder-family-detection-flow",
+      "title": "Builder family detection",
+      "lens": "data-flow",
+      "summary": "The ordered steps that turn a reviewed range into a family list or a could-not-run reason.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "builder-family-detection"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "posting-a-review-flow",
+      "title": "Posting a review",
+      "lens": "data-flow",
+      "summary": "The ordered steps that turn findings and a diff into inline comments and a body.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "posting-a-review"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "detect",
+        "heading": "Read the range",
+        "body": "Every commit's trailer names are collected, oldest first.",
+        "stage": {
+          "kind": "flow",
+          "flow": "builder-family-detection"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "ask-range",
+            "read-commits"
+          ]
+        },
+        "detail": {
+          "text": "Detection starts from the reviewed range and reads each commit's own message.",
+          "cites": [
+            {
+              "text": "reviewed range",
+              "ref": {
+                "kind": "node",
+                "node": "detect-builder-families"
+              }
+            },
+            {
+              "text": "each commit's own message",
+              "ref": {
+                "kind": "node",
+                "node": "detect-detailed"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "merge",
+        "heading": "Exempt a clean merge",
+        "body": "A merge with no trailer is skipped only when merge-tree proves it adds nothing.",
+        "stage": {
+          "kind": "flow",
+          "flow": "builder-family-detection"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "check-merge",
+            "merge-verdict"
+          ]
+        },
+        "detail": {
+          "text": "The clean-merge check runs merge-tree in a scratch object store so a read-only checkout is never written to.",
+          "cites": [
+            {
+              "text": "clean-merge check",
+              "ref": {
+                "kind": "node",
+                "node": "is-clean-merge"
+              }
+            },
+            {
+              "text": "scratch object store",
+              "ref": {
+                "kind": "node",
+                "node": "scratch-store"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "match",
+        "heading": "Match every word",
+        "body": "Each word of a model name is matched, and two families mean unknown.",
+        "stage": {
+          "kind": "flow",
+          "flow": "builder-family-detection"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "map-name",
+            "family-back"
+          ]
+        },
+        "detail": {
+          "text": "The matcher reads the shipped table and any repository aliases, and refuses to guess between families.",
+          "cites": [
+            {
+              "text": "shipped table",
+              "ref": {
+                "kind": "node",
+                "node": "model-families"
+              }
+            },
+            {
+              "text": "refuses to guess",
+              "ref": {
+                "kind": "node",
+                "node": "family-of"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "fail-closed",
+        "heading": "Fail closed",
+        "body": "An unknown builder becomes one short, redacted reason for the whole run.",
+        "stage": {
+          "kind": "flow",
+          "flow": "builder-family-detection"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "detail-unknown",
+            "detail-back"
+          ]
+        },
+        "detail": {
+          "text": "The reason is cut to one line and redacted before and after cutting, then fails the run closed.",
+          "cites": [
+            {
+              "text": "cut to one line",
+              "ref": {
+                "kind": "node",
+                "node": "unknown-detail"
+              }
+            },
+            {
+              "text": "fails the run closed",
+              "ref": {
+                "kind": "node",
+                "node": "detect-builder-families"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "fetch",
+        "heading": "Fetch the diff",
+        "body": "Posting now reads the pull request's diff before planning.",
+        "stage": {
+          "kind": "flow",
+          "flow": "posting-a-review"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "post-request",
+            "gh-diff-call",
+            "diff-return"
+          ]
+        },
+        "detail": {
+          "text": "The diff comes from the gh CLI and is parsed into the lines GitHub accepts comments on.",
+          "cites": [
+            {
+              "text": "gh CLI",
+              "ref": {
+                "kind": "node",
+                "node": "gh-cli"
+              }
+            },
+            {
+              "text": "parsed",
+              "ref": {
+                "kind": "node",
+                "node": "diff-lines"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "anchor",
+        "heading": "Anchor or move",
+        "body": "A finding outside the diff goes into the body, never an inline comment.",
+        "stage": {
+          "kind": "flow",
+          "flow": "posting-a-review"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [],
+          "edges": [],
+          "messages": [
+            "plan-with-diff",
+            "anchor-check",
+            "plan-return"
+          ]
+        },
+        "detail": {
+          "text": "Planning checks each finding against the diff's right side and keeps the verdict unchanged either way.",
+          "cites": [
+            {
+              "text": "checks each finding",
+              "ref": {
+                "kind": "node",
+                "node": "plan-review"
+              }
+            },
+            {
+              "text": "diff's right side",
+              "ref": {
+                "kind": "node",
+                "node": "diff-lines"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
