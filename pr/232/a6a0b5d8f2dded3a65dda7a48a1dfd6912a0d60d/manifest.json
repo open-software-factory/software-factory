@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-harness-adapter",
+    "headSha": "a6a0b5d8f2dded3a65dda7a48a1dfd6912a0d60d",
+    "contentHash": "664bc835edc8f4bf9792459c0084375e"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "harness-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7d1ce2ef04a65767fd02871fd2ee16ad",
+      "bytes": 29318,
+      "width": 2152,
+      "height": 666,
+      "animated": false,
+      "path": "harness-architecture-light-7d1ce2ef04a65767fd02871fd2ee16ad.svg"
+    },
+    {
+      "id": "harness-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "harness-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1a4a8bf286119c4aad7d902e8934cd2e",
+      "bytes": 29732,
+      "width": 2152,
+      "height": 666,
+      "animated": false,
+      "path": "harness-architecture-dark-1a4a8bf286119c4aad7d902e8934cd2e.svg"
+    },
+    {
+      "id": "adapter-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5b21624f988fba9244eb398e38453b42",
+      "bytes": 14428,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "adapter-internals-light-5b21624f988fba9244eb398e38453b42.svg"
+    },
+    {
+      "id": "adapter-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "adapter-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "05dd997466d2d068483f1102db976354",
+      "bytes": 14641,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "adapter-internals-dark-05dd997466d2d068483f1102db976354.svg"
+    },
+    {
+      "id": "test-coverage-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "test-coverage",
+      "mediaType": "image/svg+xml",
+      "contentHash": "1cd10d4b987f41754d97f41a34436b37",
+      "bytes": 13033,
+      "width": 1294,
+      "height": 418,
+      "animated": false,
+      "path": "test-coverage-light-1cd10d4b987f41754d97f41a34436b37.svg"
+    },
+    {
+      "id": "test-coverage-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "test-coverage",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ca10dcd35aa4a5b4f83588da140f237f",
+      "bytes": 13216,
+      "width": 1294,
+      "height": 418,
+      "animated": false,
+      "path": "test-coverage-dark-ca10dcd35aa4a5b4f83588da140f237f.svg"
+    }
+  ]
+}
