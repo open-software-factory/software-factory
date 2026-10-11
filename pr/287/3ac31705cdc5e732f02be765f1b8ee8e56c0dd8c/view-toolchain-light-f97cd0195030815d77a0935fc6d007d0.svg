@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1778 874" width="1778" height="874" role="img" aria-label="Dev toolchain and lockfile graph" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Dev toolchain and lockfile graph</title>
+<desc>The three integration manifests, the shared dev toolchain they resolve against, and the lockfile that pins it all.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1778" height="874" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1778" height="874" rx="12" fill="url(#dots)"/>
+<g><rect class="lanebox" x="16" y="44" width="404" height="814" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="32" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">INTEGRATION PACKAGES · WORKSPACE PACKAGES UNDE…</text>
+<rect class="lanebox" x="480" y="44" width="404" height="814" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="496" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">DEV TOOLCHAIN · TYPECHECK, LINT, FORMAT, BUILD</text>
+<rect class="lanebox" x="934" y="44" width="404" height="814" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="950" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">LOCKFILE GRAPH · PNPM-LOCK.YAML</text>
+<rect class="lanebox" x="1358" y="44" width="404" height="814" rx="12" fill="rgba(255,255,255,.55)"/>
+<text class="lanelabel" x="1374" y="68" font-size="10" font-weight="700" letter-spacing=".12em" fill="#59636e">NPM REGISTRY · EXTERNAL</text></g>
+<g><path class="glow" stroke="#bf8700" d="M114,154 L114,157 C114,158.66 115.34,160 117,160 L396,160 C414.78,160 430,175.22 430,194 L430,765.5 C430,783.73 444.77,798.5 463,798.5 L496,798.5" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-modified hero" d="M114,154 L114,157 C114,158.66 115.34,160 117,160 L396,160 C414.78,160 430,175.22 430,194 L430,765.5 C430,783.73 444.77,798.5 463,798.5 L496,798.5" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="2.25"/>
+<path class="glow" stroke="#bf8700" d="M404,131 L412,131 C416.42,131 420,134.58 420,139 L420,756 C420,774.78 435.22,790 454,790 L496,790" fill="none" stroke-width="7" opacity="0.14"/>
+<path class="edge edge-modified hero" d="M404,131 L412,131 C416.42,131 420,134.58 420,139 L420,756 C420,774.78 435.22,790 454,790 L496,790" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="2.25"/>
+<path class="edge edge-modified" d="M404,245 L432,245 C447.46,245 460,257.54 460,273 L460,789 C460,798.94 468.06,807 478,807 L496,807" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M130,154 L130,163.67 C130,169.01 134.33,173.33 139.67,173.33 L483.33,173.33 C487.02,173.33 490,176.32 490,180 C490,183.68 492.98,186.67 496.67,186.67 L867.33,186.67 C876.54,186.67 884,194.13 884,203.33 C884,212.54 891.46,220 900.67,220 L950,220" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M404,115 L407,115 C408.66,115 410,116.34 410,118 L410,166 C410,184.78 425.22,200 444,200 L859.75,200 C867.62,200 874,206.38 874,214.25 C874,222.12 880.38,228.5 888.25,228.5 L950,228.5" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M404,229 L422,229 C431.94,229 440,237.06 440,247 L440,261.5 C440,279.45 454.55,294 472.5,294 L895.5,294 C911.24,294 924,281.24 924,265.5 L924,250 C924,242.82 929.82,237 937,237 L950,237" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M950,254 L927,254 C914.3,254 904,264.3 904,277 L904,773 C904,782.94 895.94,791 886,791 L868,791" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-neutral context" d="M868,807 L910,807 C928.78,807 944,791.78 944,773 L944,556 C944,537.22 959.22,522 978,522 L1319.5,522 C1335.24,522 1348,509.24 1348,493.5 L1348,478 C1348,470.82 1353.82,465 1361,465 L1374,465" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-neutral context" d="M496,465 L483,465 C475.82,465 470,470.82 470,478 L470,802.5 C470,809.68 475.82,815.5 483,815.5 L496,815.5" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5" opacity="0.82"/>
+<path class="edge edge-modified" d="M682,724 L682,776" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M496,237 L473,237 C460.3,237 450,247.3 450,260 L450,670 C450,682.7 460.3,693 473,693 L496,693" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M868,237 L881,237 C888.18,237 894,242.82 894,250 L894,680 C894,687.18 888.18,693 881,693 L868,693" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M868,579 L891,579 C903.7,579 914,589.3 914,602 L914,800 C914,812.7 903.7,823 891,823 L868,823" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-modified" d="M496,579 L488,579 C483.58,579 480,582.58 480,587 L480,816 C480,820.42 483.58,824 488,824 L496,824" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<path class="edge edge-added" d="M868,351 L901,351 C919.23,351 934,336.23 934,318 L934,253.5 C934,249.08 937.58,245.5 942,245.5 L950,245.5" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="1.5"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M59,116 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52.5,119.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M59,123 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="119" font-size="11.5" font-weight="600" fill="#1f2328">integrations/dsh</text>
+<text class="nsub" x="82" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">@types/node 26.6.4</text>
+<g class="bdg bdg-modified"><rect x="138.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="171.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="224" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="238" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M251,116 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M244.5,119.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M251,123 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="274" y="119" font-size="11.5" font-weight="600" fill="#1f2328">integrations/omp</text>
+<text class="nsub" x="274" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">@types/node 26.6.4</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="84" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="95" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="32" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="46" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M59,230 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M52.5,233.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M59,237 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="82" y="233" font-size="13" font-weight="600" fill="#1f2328">integrations/opencode</text>
+<text class="nsub" x="82" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">@types/node 26.6.4</text>
+<g class="bdg bdg-modified"><rect x="330.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="363.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="496" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="510" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M523,116 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M516.5,119.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M523,123 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="546" y="119" font-size="11.5" font-weight="600" fill="#1f2328">oxlint 1.85.0</text>
+<text class="nsub" x="546" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">lint</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="688" y="92" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="702" y="110" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M715,116 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M708.5,119.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M715,123 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="738" y="119" font-size="11.5" font-weight="600" fill="#1f2328">oxfmt 0.71.0</text>
+<text class="nsub" x="738" y="137" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">format</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="496" y="206" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="510" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M523,230 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M516.5,233.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M523,237 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="546" y="233" font-size="10.5" font-weight="600" fill="#1f2328">vite-plugin-singlefile 2…</text>
+<text class="nsub" x="546" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">peer-keyed on vite</text>
+<g class="bdg bdg-modified"><rect x="602.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="635.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="688" y="206" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="702" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M715,230 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M708.5,233.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M715,237 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="738" y="233" font-size="10.5" font-weight="600" fill="#1f2328">@vitejs/plugin-react 6…</text>
+<text class="nsub" x="738" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">peer-keyed on vite</text>
+<g class="bdg bdg-modified"><rect x="794.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="827.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="496" y="320" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="510" y="338" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M523,344 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M516.5,347.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M523,351 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="546" y="347" font-size="13" font-weight="600" fill="#1f2328">@babel/runtime</text>
+<text class="nsub" x="546" y="365" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">7.29.10</text>
+<g class="bdg bdg-added"><rect x="820.45" y="312" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="840.73" y="323" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="496" y="434" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="510" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M523,458 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M516.5,461.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M523,465 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="546" y="461" font-size="13" font-weight="600" fill="#1f2328">TypeScript 7.0.2</text>
+<text class="nsub" x="546" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">typecheck</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="496" y="548" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="510" y="566" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M523,572 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M516.5,575.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M523,579 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="546" y="575" font-size="11.5" font-weight="600" fill="#1f2328">sharp 0.35.5</text>
+<text class="nsub" x="546" y="593" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">optional, peer-keyed</text>
+<g class="bdg bdg-modified"><rect x="602.38" y="540" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="635.69" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="688" y="548" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="702" y="566" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M715,572 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M708.5,575.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M715,579 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="738" y="575" font-size="10.5" font-weight="600" fill="#1f2328">@huggingface/transfo…</text>
+<text class="nsub" x="738" y="593" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">optional, peer-keyed</text>
+<g class="bdg bdg-modified"><rect x="794.38" y="540" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="827.69" y="551" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="496" y="662" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="510" y="680" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M523,686 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M516.5,689.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M523,693 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="546" y="689" font-size="13" font-weight="600" fill="#1f2328">vite 8.3.1</text>
+<text class="nsub" x="546" y="707" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">peer-keyed on @types/node</text>
+<g class="bdg bdg-modified"><rect x="794.38" y="654" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="827.69" y="665" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="496" y="776" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="510" y="794" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M523,800 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M516.5,803.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M523,807 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="546" y="803" font-size="13" font-weight="600" fill="#1f2328">@types/node</text>
+<text class="nsub" x="546" y="821" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">26.6.2 → 26.6.4</text>
+<g class="bdg bdg-modified"><rect x="794.38" y="768" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="827.69" y="779" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="950" y="206" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="964" y="224" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M970,233 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M970,241 h14" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#59636e" cx="975" cy="233" r="2.2"/>
+<circle class="glyph" fill="#59636e" cx="980" cy="241" r="2.2"/></g>
+<text class="ntitle" x="1000" y="233" font-size="13" font-weight="600" fill="#1f2328">pnpm-lock.yaml</text>
+<text class="nsub" x="1000" y="251" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">importers + packages + snapshots</text>
+<g class="bdg bdg-modified"><rect x="1248.38" y="198" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1281.69" y="209" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="1374" y="434" width="372" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="1388" y="452" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="1393" y="459" width="16" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1393,461 l8,6 8,-6" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1424" y="461" font-size="13" font-weight="600" fill="#1f2328">npm registry</text>
+<text class="nsub" x="1424" y="479" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">tarballs + integrity</text></g></g>
+<g><g><rect class="lpill" x="330.22" y="472.25" width="119.56" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="390" y="483.25" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">devDependency 26.6.4</text></g>
+<g><rect class="lpill" x="310.44" y="440" width="119.56" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="370.22" y="451" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">devDependency 26.6.4</text></g>
+<g><rect class="lpill" x="450" y="407" width="119.56" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="509.78" y="418" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">devDependency 26.6.4</text></g>
+<g><rect class="lpill" x="681" y="179.17" width="79.23" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="720.62" y="190.17" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">importer block</text></g>
+<g><rect class="lpill" x="511.15" y="182" width="79.23" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="550.77" y="193" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">importer block</text></g>
+<g><rect class="lpill" x="644.39" y="286.5" width="79.23" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="684" y="297.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">importer block</text></g>
+<g><rect class="lpill" x="894" y="517.5" width="43.99" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="916" y="528.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">26.6.4</text></g>
+<g><rect class="lpill" x="1127.04" y="514.5" width="43.42" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="1148.75" y="525.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">tarball</text></g>
+<g><rect class="lpill" x="459.89" y="521" width="60.22" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="490" y="532" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">type roots</text></g>
+<g><rect class="lpill" x="654.69" y="742.5" width="54.62" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="682" y="753.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">peer key</text></g>
+<g><rect class="lpill" x="432.69" y="447.25" width="54.62" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="460" y="458.25" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">peer key</text></g>
+<g><rect class="lpill" x="849.38" y="407" width="54.62" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="876.69" y="418" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">peer key</text></g>
+<g><rect class="lpill" x="886.69" y="693.5" width="54.62" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="914" y="704.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">peer key</text></g>
+<g><rect class="lpill" x="470" y="736" width="54.62" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="497.31" y="747" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">peer key</text></g>
+<g><rect class="lpill" x="919.21" y="280" width="49.59" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="944" y="291" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">7.29.10</text></g></g>
+</svg>
