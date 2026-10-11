@@ -224,19 +224,29 @@ pub fn commit_hashes(dir: &Path, range: &str) -> Result<Vec<String>, GitError> {
 }
 
 /// Whether `hash` is a merge commit that introduces nothing of its own: it
-/// has two or more parents, and `git diff-tree --cc` prints nothing for it,
-/// so its result equals what its parents give with no conflict resolution
-/// and no extra edit. A commit with fewer than two parents is never one.
+/// has exactly two parents, `git merge-tree --write-tree` merges them with no
+/// conflict, and the tree that gives is the merge commit's own tree. A
+/// conflict resolved either way, a dropped change and an extra edit all make
+/// the trees differ or the merge conflict.
+///
+/// Anything else is `false`, so a caller fails closed: more than two
+/// parents, a merge that conflicts, and a git too old for `merge-tree
+/// --write-tree` (before 2.38) or one that errors. A commit with fewer than
+/// two parents is never a merge.
 ///
 /// # Errors
-/// Returns an error if git cannot run in `dir`, or `hash` does not resolve.
+/// Returns an error if git cannot read `hash`'s parents or tree in `dir`.
 pub fn is_clean_merge(dir: &Path, hash: &str) -> Result<bool, GitError> {
-    let parents = run_text(dir, &["rev-list", "--parents", "-n", "1", hash])?;
-    if parents.split_whitespace().count() < 3 {
+    let line = run_text(dir, &["rev-list", "--parents", "-n", "1", hash])?;
+    let ids: Vec<&str> = line.split_whitespace().collect();
+    let [_, first, second] = ids.as_slice() else {
         return Ok(false);
-    }
-    let changes = run_text(dir, &["diff-tree", "--cc", "--no-commit-id", "-r", hash])?;
-    Ok(changes.trim().is_empty())
+    };
+    let tree = run_text(dir, &["rev-parse", &format!("{hash}^{{tree}}")])?;
+    let Ok(merged) = run_text(dir, &["merge-tree", "--write-tree", first, second]) else {
+        return Ok(false);
+    };
+    Ok(merged.lines().next().map(str::trim) == Some(tree.trim()))
 }
 
 /// One commit's full message.

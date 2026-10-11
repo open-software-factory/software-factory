@@ -1072,6 +1072,30 @@ fn left_out_notes(setup: &Setup) -> Vec<String> {
         .collect()
 }
 
+/// How many unknown-builder reasons the note names before counting the rest.
+const UNKNOWN_REASONS_SHOWN: usize = 3;
+
+/// The reasons the builder family is unknown as one short line: the first few
+/// cut to 120 characters each, then a count of the rest, so the note fits
+/// the posted review's body however many commits lack a trailer.
+fn unknown_detail(reasons: &[String]) -> String {
+    if reasons.is_empty() {
+        return "no family named".to_string();
+    }
+    let mut parts: Vec<String> = reasons
+        .iter()
+        .take(UNKNOWN_REASONS_SHOWN)
+        .map(|t| t.chars().take(120).collect::<String>().replace('\n', " "))
+        .collect();
+    if reasons.len() > UNKNOWN_REASONS_SHOWN {
+        parts.push(format!(
+            "and {} more commits without a family",
+            reasons.len() - UNKNOWN_REASONS_SHOWN
+        ));
+    }
+    parts.join("; ")
+}
+
 /// What [`detect_builder_families`] found.
 struct BuilderFamilies {
     all: Vec<String>,
@@ -1107,16 +1131,7 @@ fn detect_builder_families(
         .collect();
     let unknown = if found.families.iter().any(|f| f == builder::UNKNOWN) {
         // The trailer text is the author's own, so it is cut to one short line.
-        let detail = if found.unknown.is_empty() {
-            "no family named".to_string()
-        } else {
-            found
-                .unknown
-                .iter()
-                .map(|t| t.chars().take(120).collect::<String>().replace('\n', " "))
-                .collect::<Vec<_>>()
-                .join("; ")
-        };
+        let detail = unknown_detail(&found.unknown);
         // Commit-message text reaches saved files, the journal, the console and
         // the posted review, so it goes through the same redaction as any
         // other text from the change.
@@ -1967,6 +1982,17 @@ mod tests {
                 Some("answered")
             );
         }
+    }
+
+    #[test]
+    fn many_unknown_reasons_are_counted_not_listed() {
+        let reasons: Vec<String> = (0..50)
+            .map(|n| format!("commit {n:012} has no Code-Generator trailer"))
+            .collect();
+        let detail = unknown_detail(&reasons);
+        assert!(detail.contains("and 47 more commits"), "{detail}");
+        assert!(detail.len() < 400, "{}", detail.len());
+        assert_eq!(unknown_detail(&[]), "no family named");
     }
 
     #[test]

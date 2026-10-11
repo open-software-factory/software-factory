@@ -655,10 +655,15 @@ diff are posted in the review body, not as inline comments; the body
 stays within its limit by listing what fits and counting the rest.
 
 One commit is exempt without a trailer: a merge commit that introduces
-nothing of its own. `git diff-tree --cc` must print nothing for it, so it
-holds no conflict resolution and no extra edit. A merge with a trailer
-counts like any commit. Any other merge without a trailer makes the family
-unknown, and the reason names the commit.
+nothing of its own. It must have exactly two parents, and
+`git merge-tree --write-tree <parent1> <parent2>` must merge them with no
+conflict into the same tree as the merge commit. A conflict resolved
+either way, a dropped change and an extra edit all fail that test. A merge
+with a trailer counts like any commit. Any other merge without a trailer
+makes the family unknown, and the reason names the commit. A git older
+than 2.38 has no `merge-tree --write-tree`: every merge without a trailer
+then counts as unknown, so the check fails closed. The reason lists the
+first three commits and counts the rest.
 
 Too few other families can then mean the review could-not-run.
 `decide_lens` still needs answers from two families to score a lens.

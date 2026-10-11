@@ -75,7 +75,7 @@ fn trailer_model_name(line: &str) -> Option<String> {
 
 /// Each commit in `range` with the model names of its own `Code-Generator:`
 /// trailers, oldest first, except a clean merge with no trailer (see
-/// [`git::is_clean_merge`]), which carries no work of its own and is left
+/// [`git::is_clean_merge`], which compares the merge's tree with a fresh merge of its parents), which carries no work of its own and is left
 /// out. A merge with a trailer counts like any commit. Any other commit with
 /// none, or whose trailer names nothing, has an empty list.
 ///
@@ -537,6 +537,52 @@ mod tests {
         let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
         assert!(found.families.contains(&UNKNOWN.to_string()), "{found:?}");
         assert_eq!(found.unknown.len(), 1);
+    }
+
+    /// Conflicts `side` and `main` on `shared.txt`, then resolves by
+    /// checking out `pick` (`--ours` or `--theirs`) and commits the merge.
+    fn conflict_resolved_by(name: &str, pick: &str) -> (TempDir, String) {
+        let (root, base) = forked(name, Some("one\nSIDE\nthree\n"), Some("one\nMAIN\nthree\n"));
+        let mut merge = Command::new("git");
+        merge
+            .args(["merge", "--no-ff", "--no-commit", "side"])
+            .current_dir(&root);
+        git::scrub_git_env(&mut merge);
+        assert!(
+            !merge.status().expect("git runs").success(),
+            "must conflict"
+        );
+        git_ok(&root, &["checkout", pick, "shared.txt"]);
+        git_ok(&root, &["add", "-A"]);
+        git_ok(&root, &["commit", "--quiet", "-m", "Merge side"]);
+        (root, base)
+    }
+
+    #[test]
+    fn a_conflict_resolved_by_taking_the_first_parents_side_is_unknown() {
+        let (root, base) = conflict_resolved_by("osf-builder-merge-ours", "--ours");
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
+        assert!(found.families.contains(&UNKNOWN.to_string()), "{found:?}");
+    }
+
+    #[test]
+    fn a_conflict_resolved_by_taking_the_second_parents_side_is_unknown() {
+        let (root, base) = conflict_resolved_by("osf-builder-merge-theirs", "--theirs");
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
+        assert!(found.families.contains(&UNKNOWN.to_string()), "{found:?}");
+    }
+
+    #[test]
+    fn a_merge_that_drops_an_incoming_change_is_unknown() {
+        let (root, base) = forked("osf-builder-merge-drop", None, None);
+        git_ok(
+            &root,
+            &["merge", "--quiet", "--no-ff", "--no-commit", "side"],
+        );
+        git_ok(&root, &["rm", "--quiet", "-f", "side.txt"]);
+        git_ok(&root, &["commit", "--quiet", "-m", "Merge side"]);
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]).expect("runs");
+        assert!(found.families.contains(&UNKNOWN.to_string()), "{found:?}");
     }
 
     #[test]
