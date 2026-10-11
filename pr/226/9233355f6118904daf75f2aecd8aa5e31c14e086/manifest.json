@@ -1,0 +1,93 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-journal-event-model",
+    "headSha": "9233355f6118904daf75f2aecd8aa5e31c14e086",
+    "contentHash": "de49269e5f1282f03f8289606c5bc127"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "journal-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f9bc25c4549efa355de0497136be3baf",
+      "bytes": 23813,
+      "width": 1780,
+      "height": 646,
+      "animated": false,
+      "path": "journal-containers-light-f9bc25c4549efa355de0497136be3baf.svg"
+    },
+    {
+      "id": "journal-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ece6e92d533ceaea3926c14ad485137a",
+      "bytes": 24083,
+      "width": 1780,
+      "height": 646,
+      "animated": false,
+      "path": "journal-containers-dark-ece6e92d533ceaea3926c14ad485137a.svg"
+    },
+    {
+      "id": "journal-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d36344ff2e9f23930a69e9678dbb31c1",
+      "bytes": 13808,
+      "width": 963,
+      "height": 532,
+      "animated": false,
+      "path": "journal-internals-light-d36344ff2e9f23930a69e9678dbb31c1.svg"
+    },
+    {
+      "id": "journal-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f9f8101319bff32e06713590bee843f5",
+      "bytes": 13965,
+      "width": 963,
+      "height": 532,
+      "animated": false,
+      "path": "journal-internals-dark-f9f8101319bff32e06713590bee843f5.svg"
+    },
+    {
+      "id": "journal-reader-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "journal-reader-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b0004ede30022107222df220a9f78418",
+      "bytes": 8780,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "journal-reader-view-light-b0004ede30022107222df220a9f78418.svg"
+    },
+    {
+      "id": "journal-reader-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "journal-reader-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b48c216d803de66edc961f1e6983d222",
+      "bytes": 8870,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "journal-reader-view-dark-b48c216d803de66edc961f1e6983d222.svg"
+    }
+  ]
+}
