@@ -1,0 +1,697 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "console-lab-vite-react-plugin-bump",
+  "generatedAt": "2026-10-11T00:20:50.050Z",
+  "title": "console-lab: @vitejs/plugin-react 6.1.1 → 6.1.2",
+  "summary": "A dependency-only change: the console-lab app's dev dependency @vitejs/plugin-react moves from 6.1.1 to 6.1.2, and pnpm-lock.yaml is regenerated to match. The new plugin release widens its optional peer range for oxc-transform-react (^0.145.0 → ^0.152.0) and pulls a newer @babel/runtime (7.29.10) into the tree, which the lockfile now resolves for @testing-library/dom as well. No application source, build config or runtime behavior is touched — the blast radius is the dev/build toolchain of one app plus the shared lockfile that every workspace package installs from.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "286e6db04407aa99f4792493beddd32f4ed83b8c",
+      "ref": "286e6db04407aa99f4792493beddd32f4ed83b8c"
+    },
+    "pullRequest": {
+      "number": 289,
+      "url": "https://github.com/open-software-factory/software-factory/pull/289"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace",
+      "subtitle": "pnpm monorepo root",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The repository root that owns the single pnpm-lock.yaml every package installs from."
+    },
+    {
+      "id": "apps",
+      "label": "Applications",
+      "subtitle": "apps/*",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "Runnable apps in the monorepo; only console-lab's manifest changes here."
+    },
+    {
+      "id": "toolchain",
+      "label": "Build toolchain",
+      "subtitle": "dev dependencies",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The Vite-based dev/build stack that compiles and bundles the console-lab app."
+    },
+    {
+      "id": "registry",
+      "label": "Package registry",
+      "subtitle": "npmjs.com",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "External source of the tarballs and metadata that pnpm resolves against."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pnpm-workspace",
+      "label": "pnpm workspace",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "workspace",
+      "subtitle": "root package.json + pnpm-workspace.yaml",
+      "summary": "Defines the workspace and the shared lockfile. The lockfile is the only file at this level the change touches, and it is touched only to record the new resolution.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 27,
+          "endLine": 35
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-lockfile",
+      "label": "pnpm-lock.yaml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workspace",
+      "subtitle": "lockfileVersion resolution graph",
+      "summary": "Regenerated: the console-lab importer now pins @vitejs/plugin-react 6.1.2, a new @babel/runtime@7.29.10 package entry and snapshot appear, and @testing-library/dom's transitive @babel/runtime moves from 7.29.7 to 7.29.10.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 27,
+          "endLine": 35
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 151,
+          "endLine": 158
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1216,
+          "endLine": 1228
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2756,
+          "endLine": 2762
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-lab",
+      "label": "console-lab",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "apps",
+      "subtitle": "apps/console-lab",
+      "summary": "The only app whose manifest changes. Its source is untouched; it consumes the plugin purely through its Vite config at dev/build time.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 16,
+          "endLine": 21
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-lab-manifest",
+      "label": "console-lab package.json",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "apps",
+      "subtitle": "devDependencies",
+      "summary": "One line changes: the @vitejs/plugin-react dev dependency is bumped from 6.1.1 to 6.1.2. Nothing else in the manifest moves.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 18,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "vite",
+      "label": "Vite 8.3.1",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "dev server + bundler",
+      "summary": "Unchanged. It remains the peer the plugin attaches to, and the lockfile still resolves it to the same 8.3.1 instance for console-lab.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 31,
+          "endLine": 33
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "plugin-react",
+      "label": "@vitejs/plugin-react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "toolchain",
+      "subtitle": "6.1.1 → 6.1.2",
+      "summary": "The changed artifact. 6.1.2 keeps the same dependency set (@rolldown/pluginutils 1.0.1, vite peer) but widens the optional oxc-transform-react peer range from ^0.145.0 to ^0.152.0, so the plugin now accepts a newer transform backend.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1219,
+          "endLine": 1228
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2844,
+          "endLine": 2848
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "babel-runtime",
+      "label": "@babel/runtime",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "toolchain",
+      "subtitle": "7.29.7 → 7.29.10 for @testing-library/dom",
+      "summary": "A second, indirect effect of the regeneration: a new 7.29.10 entry is added and @testing-library/dom's snapshot is repointed from 7.29.7 to 7.29.10. The old 7.29.7 entry remains for other consumers.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 154,
+          "endLine": 158
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2027,
+          "endLine": 2029
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2756,
+          "endLine": 2762
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "testing-library-dom",
+      "label": "@testing-library/dom",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "toolchain",
+      "subtitle": "10.4.2",
+      "summary": "Unchanged in version, but its resolved @babel/runtime dependency shifts to 7.29.10 in the lockfile — the clearest sign that this is a lockfile-wide re-resolution, not a single-package swap.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2756,
+          "endLine": 2762
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "npm-registry",
+      "label": "npm registry",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "registry.npmjs.org",
+      "summary": "Source of the @vitejs/plugin-react 6.1.2 tarball and its integrity hash recorded in the lockfile.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1219,
+          "endLine": 1221
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "console-lab-depends-plugin",
+      "from": "console-lab-manifest",
+      "to": "plugin-react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "6.1.2",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The one authored change: console-lab's dev dependency specifier moves to 6.1.2.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 19,
+          "endLine": 19
+        }
+      ]
+    },
+    {
+      "id": "plugin-peers-vite",
+      "from": "plugin-react",
+      "to": "vite",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "peer ^8.0.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The plugin still attaches to the same Vite 8.3.1 instance; the peer range is unchanged.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1223,
+          "endLine": 1228
+        }
+      ]
+    },
+    {
+      "id": "lockfile-resolves-plugin",
+      "from": "pnpm-lockfile",
+      "to": "plugin-react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "resolution + integrity",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lockfile records the new version, its integrity hash and the widened oxc-transform-react peer range.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1219,
+          "endLine": 1228
+        }
+      ]
+    },
+    {
+      "id": "lockfile-resolves-babel",
+      "from": "pnpm-lockfile",
+      "to": "babel-runtime",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "7.29.10",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A new @babel/runtime entry and snapshot are added, and @testing-library/dom is repointed to it.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 154,
+          "endLine": 158
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2756,
+          "endLine": 2762
+        }
+      ]
+    },
+    {
+      "id": "workspace-owns-lockfile",
+      "from": "pnpm-workspace",
+      "to": "pnpm-lockfile",
+      "kind": "data",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workspace root owns the single lockfile that all importers resolve through.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1,
+          "endLine": 10
+        }
+      ]
+    },
+    {
+      "id": "registry-serves-plugin",
+      "from": "npm-registry",
+      "to": "plugin-react",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "tarball",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "pnpm fetches the 6.1.2 tarball from the registry when the lockfile is applied.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1219,
+          "endLine": 1221
+        }
+      ]
+    },
+    {
+      "id": "testing-library-uses-babel",
+      "from": "testing-library-dom",
+      "to": "babel-runtime",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "7.29.10",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unchanged package, changed transitive resolution — the lockfile now points it at the newer runtime.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2756,
+          "endLine": 2762
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "install-resolution",
+      "title": "How the bump reaches a developer's node_modules",
+      "summary": "From the edited manifest through the lockfile to the registry and back into the installed tree.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "console-lab-manifest",
+          "label": "package.json"
+        },
+        {
+          "node": "pnpm-lockfile",
+          "label": "pnpm-lock.yaml"
+        },
+        {
+          "node": "npm-registry",
+          "label": "npm registry"
+        },
+        {
+          "node": "plugin-react",
+          "label": "plugin-react 6.1.2"
+        }
+      ],
+      "messages": [
+        {
+          "id": "edit-specifier",
+          "from": "console-lab-manifest",
+          "to": "console-lab-manifest",
+          "label": "bump devDependency to 6.1.2",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "apps/console-lab/package.json",
+              "startLine": 19,
+              "endLine": 19
+            }
+          ]
+        },
+        {
+          "id": "resolve-lockfile",
+          "from": "console-lab-manifest",
+          "to": "pnpm-lockfile",
+          "label": "pnpm install re-resolves importer",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 27,
+              "endLine": 35
+            }
+          ]
+        },
+        {
+          "id": "fetch-tarball",
+          "from": "pnpm-lockfile",
+          "to": "npm-registry",
+          "label": "fetch @vitejs/plugin-react@6.1.2",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1219,
+              "endLine": 1221
+            }
+          ]
+        },
+        {
+          "id": "record-integrity",
+          "from": "npm-registry",
+          "to": "pnpm-lockfile",
+          "label": "tarball + integrity hash",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1219,
+              "endLine": 1221
+            }
+          ]
+        },
+        {
+          "id": "install-plugin",
+          "from": "pnpm-lockfile",
+          "to": "plugin-react",
+          "label": "link into node_modules",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2844,
+              "endLine": 2848
+            }
+          ]
+        },
+        {
+          "id": "install-babel",
+          "from": "pnpm-lockfile",
+          "to": "plugin-react",
+          "label": "@babel/runtime 7.29.10 for @testing-library/dom",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2756,
+              "endLine": 2762
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 14,
+    "deletions": 8,
+    "chips": [
+      {
+        "label": "Dependency bump",
+        "value": "1 dev dep",
+        "tone": "modified"
+      },
+      {
+        "label": "Lockfile entries",
+        "value": "+2 packages",
+        "tone": "added"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "view-toolchain",
+      "title": "console-lab build toolchain",
+      "lens": "architecture",
+      "summary": "The dev/build stack around console-lab, with the bumped plugin and the lockfile that pins it.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [
+          "workspace",
+          "apps",
+          "toolchain",
+          "registry"
+        ],
+        "nodes": [],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-lockfile-resolution",
+      "title": "Lockfile resolution detail",
+      "lens": "architecture",
+      "summary": "The lockfile's view of the change: the plugin resolution, the widened peer range, and the @babel/runtime re-pointing.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "pnpm-lockfile",
+          "plugin-react",
+          "vite",
+          "babel-runtime",
+          "testing-library-dom"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ],
+  "walkthrough": {
+    "steps": [
+      {
+        "id": "step-manifest",
+        "heading": "One line in the manifest",
+        "body": "console-lab's dev dependency moves to 6.1.2.",
+        "stage": {
+          "kind": "view",
+          "view": "view-toolchain"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "console-lab-manifest",
+            "plugin-react"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "The only authored change is the version specifier in console-lab's package.json.",
+          "cites": [
+            {
+              "text": "console-lab's package.json",
+              "ref": {
+                "kind": "node",
+                "node": "console-lab-manifest"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "step-lockfile",
+        "heading": "Lockfile follows",
+        "body": "pnpm re-resolves the importer and records the new plugin.",
+        "stage": {
+          "kind": "view",
+          "view": "view-lockfile-resolution"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "pnpm-lockfile",
+            "plugin-react"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "The lockfile pins the new version, its integrity hash and the widened oxc-transform-react peer range.",
+          "cites": [
+            {
+              "text": "lockfile",
+              "ref": {
+                "kind": "node",
+                "node": "pnpm-lockfile"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "step-babel",
+        "heading": "A transitive shift",
+        "body": "@testing-library/dom repoints to @babel/runtime 7.29.10.",
+        "stage": {
+          "kind": "view",
+          "view": "view-lockfile-resolution"
+        },
+        "focus": {
+          "kind": "selection",
+          "lanes": [],
+          "nodes": [
+            "babel-runtime",
+            "testing-library-dom"
+          ],
+          "edges": [],
+          "messages": []
+        },
+        "detail": {
+          "text": "The regeneration also adds a new @babel/runtime entry and moves @testing-library/dom onto it.",
+          "cites": [
+            {
+              "text": "@babel/runtime",
+              "ref": {
+                "kind": "node",
+                "node": "babel-runtime"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "step-install",
+        "heading": "Install path",
+        "body": "A fresh install fetches the tarball and links it.",
+        "stage": {
+          "kind": "flow",
+          "flow": "install-resolution"
+        },
+        "focus": {
+          "kind": "all"
+        },
+        "detail": {
+          "text": "pnpm fetches the 6.1.2 tarball from the registry and links it into node_modules.",
+          "cites": [
+            {
+              "text": "registry",
+              "ref": {
+                "kind": "node",
+                "node": "npm-registry"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
