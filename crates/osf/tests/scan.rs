@@ -6,7 +6,7 @@ mod common;
 
 use common::{
     coauthor_trailer, fake_secret_assignment, isolated_home, run_osf, session_link,
-    suppress_marker, windows_user_path, TempRepo,
+    suppress_marker, windows_user_path, TempDir, TempRepo,
 };
 use osf::config::ScanConfig;
 use osf::exclude::Excluder;
@@ -92,11 +92,10 @@ fn a_repo_of_only_a_symlink_reports_it_excluded_not_clean() {
     assert!(stdout.contains("1 excluded"), "{stdout}");
 }
 
-/// An explicit scan path that is itself a symlinked directory is skipped and
-/// counted as excluded. A path named on the command line follows the same
-/// rule as a tracked file, so the result depends only on the files in the tree.
+/// An explicit scan path that is itself a symlinked directory is followed to
+/// the real files behind it, so the finding in the target is reported.
 #[test]
-fn an_explicit_path_that_is_a_symlinked_directory_is_not_followed() {
+fn an_explicit_path_that_is_a_symlinked_directory_is_followed() {
     let repo = TempRepo::new("explicit-path-symlinked-dir");
     repo.write(
         "real/file.md",
@@ -113,58 +112,55 @@ fn an_explicit_path_that_is_a_symlinked_directory_is_not_followed() {
         false,
     )
     .expect("scan runs");
-    assert!(found.files.is_empty(), "{found:?}");
-    assert_eq!(found.excluded, 1, "{found:?}");
+    assert_eq!(found.files.len(), 1, "{found:?}");
+    let (label, findings) = found.files.first().expect("one file scanned");
+    assert!(label.ends_with("link/file.md"), "{label}");
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert_eq!(found.excluded, 0, "{found:?}");
 }
 
-/// A symlinked directory found while walking a scanned folder is skipped
-/// and counted. Its target belongs to another folder, or to no folder in
-/// this repository, so the walk stays inside the folder it was given.
+/// A symlinked directory found while walking a scanned folder, pointing
+/// outside the repository, is refused with an error that names the link.
 #[test]
-fn a_symlinked_directory_inside_a_scanned_folder_is_not_followed() {
+fn a_symlinked_directory_inside_a_scanned_folder_pointing_outside_is_refused() {
     let repo = TempRepo::new("nested-symlinked-dir");
-    repo.write(
-        "outside/secret.md",
-        &format!("{}\n", coauthor_trailer("Someone", "someone@example.com")),
-    );
+    let outside = TempDir::new("nested-symlinked-outside");
+    std::fs::write(outside.join("secret.md"), "Nothing to see here.\n").expect("secret writes");
     repo.write("scanned/plain.md", "Nothing to see here.\n");
-    repo.symlink("scanned/link", "../outside");
+    repo.symlink("scanned/link", &outside.to_string_lossy());
 
     let target = repo.dir.join("scanned");
-    let found = scan_paths(
+    let err = scan_paths(
         &repo.dir,
         std::slice::from_ref(&target),
         &rules(&repo),
         &no_exclude(),
         false,
     )
-    .expect("scan runs");
-    assert!(
-        found.files.iter().all(|(_, f)| f.is_empty()),
-        "the file behind the symlink must never be read: {found:?}"
-    );
-    assert_eq!(found.excluded, 1, "{found:?}");
+    .expect_err("refused");
+    assert!(err.contains("symlink refused"), "{err}");
+    assert!(err.contains("outside"), "{err}");
 }
 
-/// A symlink that cycles back on an ancestor directory is skipped the
-/// first time it is seen, instead of recursing forever.
+/// A symlink that cycles back on an ancestor directory is refused, and the
+/// walk terminates.
 #[test]
-fn a_symlink_cycle_is_skipped_once_not_followed_forever() {
+fn a_symlink_cycle_is_refused() {
     let repo = TempRepo::new("symlink-cycle");
     repo.write("real/sub/file.md", "Nothing to see here.\n");
     repo.symlink("real/sub/loop", "..");
 
     let target = repo.dir.join("real");
-    let found = scan_paths(
+    let err = scan_paths(
         &repo.dir,
         std::slice::from_ref(&target),
         &rules(&repo),
         &no_exclude(),
         false,
     )
-    .expect("scan runs");
-    assert!(found.files.iter().all(|(_, f)| f.is_empty()), "{found:?}");
-    assert_eq!(found.excluded, 1, "{found:?}");
+    .expect_err("refused");
+    assert!(err.contains("symlink refused"), "{err}");
+    assert!(err.contains("loops"), "{err}");
 }
 
 #[test]

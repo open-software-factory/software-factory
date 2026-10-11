@@ -18,64 +18,6 @@ use std::path::{Path, PathBuf};
 /// The agent a repository builds with when `[agents]` names none.
 pub const DEFAULT_BUILDER: &str = "dsh";
 
-/// The file the container image installs osf to. Its presence is how osf
-/// tells that it runs inside the factory container.
-pub const FACTORY_CONTAINER_MARKER: &str = "/opt/factory/bin/osf";
-
-/// The file Docker mounts to mark a container.
-pub const DOCKER_MARKER: &str = "/.dockerenv";
-
-/// The facts about the marker path that decide whether to trust it.
-#[cfg(unix)]
-struct MarkerFacts {
-    /// Whether the path is a regular file rather than a symlink.
-    regular_file: bool,
-    /// The user that owns the path.
-    owner_uid: u32,
-    /// The path's permission bits.
-    mode: u32,
-}
-
-/// Whether the marker facts and the Docker marker mean the factory container.
-#[cfg(unix)]
-#[must_use]
-fn marker_trusted(facts: Option<MarkerFacts>, dockerenv_exists: bool) -> bool {
-    let Some(facts) = facts else {
-        return false;
-    };
-    facts.regular_file && facts.owner_uid == 0 && (facts.mode & 0o022) == 0 && dockerenv_exists
-}
-
-/// The marker facts for `path`, or `None` when it cannot be read.
-#[cfg(unix)]
-#[must_use]
-fn facts_of(path: &Path) -> Option<MarkerFacts> {
-    use std::os::unix::fs::MetadataExt;
-    let meta = std::fs::symlink_metadata(path).ok()?;
-    Some(MarkerFacts {
-        regular_file: meta.is_file(),
-        owner_uid: meta.uid(),
-        mode: meta.mode(),
-    })
-}
-
-/// Whether osf runs inside the factory container.
-#[cfg(unix)]
-#[must_use]
-pub fn in_factory_container() -> bool {
-    marker_trusted(
-        facts_of(Path::new(FACTORY_CONTAINER_MARKER)),
-        Path::new(DOCKER_MARKER).exists(),
-    )
-}
-
-/// Whether osf runs inside the factory container.
-#[cfg(not(unix))]
-#[must_use]
-pub fn in_factory_container() -> bool {
-    false
-}
-
 /// Where an agent's sessions can be reached from outside the machine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sessions {
@@ -163,12 +105,6 @@ pub struct Review {
     /// Paths, relative to the real home, that the agent's own login lives
     /// in. A reviewer's fresh home holds a copy of only these.
     pub login_paths: &'static [&'static str],
-    /// A command, program first, that starts the agent's read-only sandbox
-    /// around a harmless command. It exits 0 only when the sandbox works where
-    /// osf runs. Used only outside the factory container, where the agent's
-    /// own sandbox is on. Empty when the read-only mode has no sandbox to
-    /// start. A reviewer whose check fails never starts.
-    pub sandbox_check: &'static [&'static str],
 }
 
 /// Where and how an agent's stop hook, and its prompt hook when it has one,
@@ -352,7 +288,6 @@ pub const AGENTS: &[Agent] = &[
             model_flag: None,
             credential_env: &["DEEPSEEK_API_KEY"],
             login_paths: &[".dsh/.credentials.yaml"],
-            sandbox_check: &[],
         }),
     },
     // omp is built on pi, and covers it. It keeps conversations under
@@ -389,7 +324,6 @@ pub const AGENTS: &[Agent] = &[
             model_flag: None,
             credential_env: &[],
             login_paths: &[".omp/agent/agent.db"],
-            sandbox_check: &[],
         }),
     },
     // opencode keeps configuration in one place and its data, including
@@ -436,7 +370,6 @@ pub const AGENTS: &[Agent] = &[
             model_flag: Some("--model"),
             credential_env: &["OPENROUTER_API_KEY"],
             login_paths: &[".local/share/opencode/auth.json"],
-            sandbox_check: &[],
         }),
     },
     // codex keeps live and archived sessions, a history file, and logs
@@ -458,21 +391,18 @@ pub const AGENTS: &[Agent] = &[
             path: "/codex/",
         },
         review: Some(Review {
-            // `codex exec --help`: the first three ignore user configuration, rules files and saved sessions; the folder is not a git repository.
+            // `codex exec --help`: the first two ignore user configuration and rules files; the folder is not a git repository.
             clean_copy: Switches {
                 args: &[
                     "--ignore-user-config",
                     "--ignore-rules",
-                    "--ephemeral",
                     "--skip-git-repo-check",
                 ],
                 env: &[],
             },
-            // `codex exec --help`: `--sandbox read-only`, which limits file writes and commands.
-            read_only: Some(ReadOnly {
-                args: &["--sandbox", "read-only"],
-                env: &[],
-            }),
+            // Codex has no read-only mode of its own: it always runs in the
+            // factory container, where the container is the wall.
+            read_only: None,
             // `codex exec --help`: the container is the wall, so codex's own sandbox is off.
             in_container: Some(ReadOnly {
                 args: &["--dangerously-bypass-approvals-and-sandbox"],
@@ -486,7 +416,6 @@ pub const AGENTS: &[Agent] = &[
             credential_env: &["CODEX_API_KEY"],
             login_paths: &[".codex/auth.json"],
             // `codex sandbox --help` runs a command under the same Linux sandbox, and exits non-zero when the sandbox cannot start.
-            sandbox_check: &["codex", "sandbox", "--", "true"],
         }),
     },
     // claude keeps transcripts under `projects`, one folder per working
@@ -534,7 +463,6 @@ pub const AGENTS: &[Agent] = &[
             model_flag: Some("--model"),
             credential_env: &["CLAUDE_CODE_OAUTH_TOKEN"],
             login_paths: &[".claude/.credentials.json"],
-            sandbox_check: &[],
         }),
     },
 ];
@@ -909,13 +837,6 @@ mod tests {
     }
 
     #[test]
-    fn codex_runs_in_its_read_only_sandbox_outside_the_container() {
-        let mode = read_only_of("codex").expect("codex documents a read-only mode");
-        assert_eq!(mode.args, &["--sandbox", "read-only"]);
-        assert_eq!(mode.env, &[]);
-    }
-
-    #[test]
     fn codex_runs_with_its_sandbox_off_inside_the_container() {
         let mode = in_container_of("codex").expect("codex documents an in-container mode");
         assert_eq!(mode.args, &["--dangerously-bypass-approvals-and-sandbox"]);
@@ -930,116 +851,6 @@ mod tests {
             .map(|a| a.name)
             .collect();
         assert_eq!(names, vec!["codex"]);
-    }
-
-    #[test]
-    fn the_container_marker_is_the_installed_osf() {
-        assert_eq!(FACTORY_CONTAINER_MARKER, "/opt/factory/bin/osf");
-    }
-
-    #[cfg(unix)]
-    fn root_file(mode: u32) -> MarkerFacts {
-        MarkerFacts {
-            regular_file: true,
-            owner_uid: 0,
-            mode,
-        }
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_root_owned_regular_file_with_no_group_or_other_write_is_trusted() {
-        assert!(marker_trusted(Some(root_file(0o555)), true));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn the_docker_marker_must_exist_for_the_marker_to_be_trusted() {
-        assert!(!marker_trusted(Some(root_file(0o555)), false));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_marker_owned_by_a_user_other_than_root_is_not_trusted() {
-        assert!(!marker_trusted(
-            Some(MarkerFacts {
-                regular_file: true,
-                owner_uid: 1000,
-                mode: 0o755,
-            }),
-            true
-        ));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_marker_a_group_or_another_user_can_write_is_not_trusted() {
-        assert!(!marker_trusted(Some(root_file(0o775)), true));
-        assert!(!marker_trusted(Some(root_file(0o757)), true));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_marker_only_its_owner_can_write_is_trusted() {
-        assert!(marker_trusted(Some(root_file(0o755)), true));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_path_that_is_not_a_regular_file_is_not_trusted() {
-        assert!(!marker_trusted(
-            Some(MarkerFacts {
-                regular_file: false,
-                owner_uid: 0,
-                mode: 0o555,
-            }),
-            true
-        ));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_marker_whose_facts_cannot_be_read_is_not_trusted() {
-        assert!(!marker_trusted(None, true));
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn facts_of_reads_a_regular_file_owned_by_the_current_user() {
-        use std::os::unix::fs::MetadataExt;
-        let dir = crate::test_support::TempDir::new("osf-agents-facts");
-        let file = dir.join("osf");
-        std::fs::write(&file, "").expect("marker writes");
-        let facts = facts_of(&file).expect("facts");
-        assert!(facts.regular_file);
-        let uid = std::fs::metadata(&*dir).expect("dir metadata").uid();
-        assert_eq!(facts.owner_uid, uid);
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn facts_of_is_none_for_a_path_that_cannot_be_read() {
-        let dir = crate::test_support::TempDir::new("osf-agents-facts-missing");
-        assert!(facts_of(&dir.join("missing")).is_none());
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn facts_of_does_not_follow_a_symlink() {
-        use std::os::unix::fs::symlink;
-        let dir = crate::test_support::TempDir::new("osf-agents-facts-symlink");
-        let file = dir.join("osf");
-        std::fs::write(&file, "").expect("marker writes");
-        let link = dir.join("link");
-        symlink(&file, &link).expect("symlink creates");
-        let facts = facts_of(&link).expect("facts");
-        assert!(!facts.regular_file);
-    }
-
-    #[test]
-    #[cfg(not(unix))]
-    fn in_factory_container_is_false_off_unix() {
-        assert!(!in_factory_container());
     }
 
     #[test]
@@ -1132,32 +943,6 @@ mod tests {
             .and_then(|a| a.review.as_ref())
             .expect("codex reviews");
         assert_eq!(review.credential_env, &["CODEX_API_KEY"]);
-    }
-
-    #[test]
-    fn codex_has_a_sandbox_check_and_a_check_always_starts_the_agents_own_program() {
-        let check_of = |name: &str| {
-            AGENTS
-                .iter()
-                .find(|a| a.name == name)
-                .and_then(|a| a.review.as_ref())
-                .map(|r| r.sandbox_check)
-                .expect("agent reviews")
-        };
-        assert_eq!(check_of("codex"), &["codex", "sandbox", "--", "true"]);
-        for agent in AGENTS {
-            let Some(review) = &agent.review else {
-                continue;
-            };
-            if let Some(program) = review.sandbox_check.first() {
-                assert_eq!(
-                    Some(program),
-                    agent.command.first(),
-                    "{}: the check starts the agent's own program",
-                    agent.name
-                );
-            }
-        }
     }
 
     #[test]

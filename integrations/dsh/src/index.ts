@@ -53,6 +53,12 @@ export interface HarnessAgent {
   steer(message: UserMessage): void;
 }
 
+declare module "@deepseek-ai/dsh-llm" {
+  interface MessageSourceMap {
+    "osf-writing-check": { kind: "osf-writing-check" };
+  }
+}
+
 declare module "@deepseek-ai/cordis" {
   interface Events {
     /** Fired once a turn has finished producing its reply, before the next begins. */
@@ -61,7 +67,7 @@ declare module "@deepseek-ai/cordis" {
 }
 
 /** Marks a steering message as this plugin's, not a person's. */
-const PLUGIN_SOURCE = { kind: "plugin", plugin: "osf-writing-check" } as const;
+const PLUGIN_SOURCE = { kind: "osf-writing-check" } as const;
 
 /** Long enough for a real check, short enough not to hold a turn open. */
 const DEFAULT_TIMEOUT_MS = 10_000;

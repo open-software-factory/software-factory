@@ -17,6 +17,7 @@ pub mod docker_sandbox;
 pub mod exclude;
 pub mod git;
 pub use git::{scrub_git_env, scrub_git_env_for_dir};
+pub mod failure;
 pub mod githooks;
 pub mod hook;
 pub mod journal;
@@ -42,6 +43,7 @@ pub mod secret_values;
 pub mod section;
 #[cfg(unix)]
 pub mod stop_signal;
+pub mod symlink;
 #[cfg(test)]
 mod test_support;
 pub mod verify;

@@ -96,7 +96,7 @@ pub fn resolve(dir: &Path, cfg: &ScanConfig) -> Resolved {
 
     if repo.visibility == Visibility::Unknown {
         notes.push(
-            "repository visibility is unknown; every rule applies regardless, and `[scan] repository_visibility` states it without a lookup"
+            "repository visibility is unknown; every rule applies regardless. Set GH_TOKEN so `gh` can look it up, or set `[scan] repository_visibility` (a gate run ignores that setting)"
                 .to_string(),
         );
     }
@@ -125,6 +125,14 @@ fn visibility_from_config(cfg: &ScanConfig, notes: &mut Vec<String>) -> Option<V
         ));
     }
     parsed
+}
+
+/// The note for a failed lookup: the command's own words, then what to set.
+fn lookup_failed_note(stderr: &str) -> String {
+    format!(
+        "the host's command line could not report the visibility: {}. Set GH_TOKEN to a token that can read this repository, or run `gh auth login`.",
+        stderr.trim().trim_end_matches('.')
+    )
 }
 
 /// Asks the host's command line for the visibility, where a client for
@@ -164,10 +172,7 @@ fn visibility_from_host(repo: &Repository, notes: &mut Vec<String>) -> Visibilit
             }
         }
         Ok(out) => {
-            notes.push(format!(
-                "the host's command line could not report the visibility: {}",
-                String::from_utf8_lossy(&out.stderr).trim()
-            ));
+            notes.push(lookup_failed_note(&String::from_utf8_lossy(&out.stderr)));
             Visibility::Unknown
         }
         Err(e) => {
@@ -182,6 +187,13 @@ fn visibility_from_host(repo: &Repository, notes: &mut Vec<String>) -> Visibilit
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failed_lookup_note_says_what_to_set() {
+        let note = lookup_failed_note("gh: not logged in\n");
+        assert!(note.contains("gh: not logged in."), "{note}");
+        assert!(note.contains("GH_TOKEN"), "{note}");
+    }
 
     #[test]
     fn the_host_words_map_to_the_two_states() {
