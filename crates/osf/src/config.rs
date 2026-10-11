@@ -1939,4 +1939,24 @@ mod tests {
             assert!(text.contains("private-factory-repo"), "{text}");
         });
     }
+
+    #[test]
+    fn review_config_refuses_an_unsupported_adoption_mode() {
+        let dir = TempDir::new("osf-config-test-review-adoption-bad");
+        std::fs::write(dir.join("osf.toml"), "adoption_mode = \"vendored\"\n")
+            .expect("osf.toml writes");
+        let err = review_config(&dir).expect_err("refused");
+        let text = err.to_string();
+        assert!(text.contains("adoption_mode"), "{text}");
+        assert!(text.contains("private-factory-repo"), "{text}");
+    }
+
+    #[test]
+    fn agents_config_refuses_an_unsupported_adoption_mode() {
+        let dir = TempDir::new("osf-config-test-agents-adoption-bad");
+        std::fs::write(dir.join("osf.toml"), "adoption_mode = \"vendored\"\n")
+            .expect("osf.toml writes");
+        let err = agents_config(&dir).expect_err("refused");
+        assert!(err.to_string().contains("adoption_mode"), "{err}");
+    }
 }

@@ -767,4 +767,13 @@ mod tests {
         assert!(err.contains("adoption_mode"), "{err}");
         assert!(err.contains("private-factory-repo"), "{err}");
     }
+
+    #[test]
+    fn scan_config_stops_on_a_malformed_or_unreadable_osf_toml() {
+        let dir = crate::test_support::TempDir::new("osf-context-malformed");
+        std::fs::write(dir.join("osf.toml"), "[scan\n").expect("osf.toml writes");
+        assert!(scan_config(&dir).is_err(), "a syntax error is an error");
+        std::fs::write(dir.join("osf.toml"), [0xff, 0xfe]).expect("osf.toml writes");
+        assert!(scan_config(&dir).is_err(), "invalid UTF-8 is an error");
+    }
 }
