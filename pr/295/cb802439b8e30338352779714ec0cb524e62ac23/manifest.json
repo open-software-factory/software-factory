@@ -1,0 +1,118 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "cb802439b8e30338352779714ec0cb524e62ac23",
+    "contentHash": "e93a36b9167560dee8a85bfbac090876"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-pipeline-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "8925759709cbf43beac694f4db5f66e3",
+      "bytes": 25936,
+      "width": 1738,
+      "height": 998,
+      "animated": false,
+      "path": "review-pipeline-light-8925759709cbf43beac694f4db5f66e3.svg"
+    },
+    {
+      "id": "review-pipeline-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-pipeline",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ded55620e4cea1841f8a3526373ab970",
+      "bytes": 26262,
+      "width": 1738,
+      "height": 998,
+      "animated": false,
+      "path": "review-pipeline-dark-ded55620e4cea1841f8a3526373ab970.svg"
+    },
+    {
+      "id": "builder-family-detection-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "builder-family-detection-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "16f1c9ee87d0319351ebc39d3f342a55",
+      "bytes": 9597,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "builder-family-detection-view-light-16f1c9ee87d0319351ebc39d3f342a55.svg"
+    },
+    {
+      "id": "builder-family-detection-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "builder-family-detection-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "56c6341d483710e181ac322582e3d3ae",
+      "bytes": 9711,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "builder-family-detection-view-dark-56c6341d483710e181ac322582e3d3ae.svg"
+    },
+    {
+      "id": "family-of-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "family-of-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a861a21911eee84310d4083fab6c83bb",
+      "bytes": 5484,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "family-of-internals-light-a861a21911eee84310d4083fab6c83bb.svg"
+    },
+    {
+      "id": "family-of-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "family-of-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "046c6f25e4d1950d8f5490758ac7b3f2",
+      "bytes": 5531,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "family-of-internals-dark-046c6f25e4d1950d8f5490758ac7b3f2.svg"
+    },
+    {
+      "id": "diff-aware-posting-view-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "diff-aware-posting-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "041d47abf4f6972b638c58b7cf73a311",
+      "bytes": 9398,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "diff-aware-posting-view-light-041d47abf4f6972b638c58b7cf73a311.svg"
+    },
+    {
+      "id": "diff-aware-posting-view-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "diff-aware-posting-view",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e1296871fd4e17c0c1b08d3fac69541a",
+      "bytes": 9498,
+      "width": 860,
+      "height": 304,
+      "animated": false,
+      "path": "diff-aware-posting-view-dark-e1296871fd4e17c0c1b08d3fac69541a.svg"
+    }
+  ]
+}
