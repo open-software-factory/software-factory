@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "f24030c43a8a1b97571257bf6bb037ef3585121b",
+    "contentHash": "6564fafdbc9b47d27042ee565cc5e630"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "dependency-blast-radius-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dependency-blast-radius",
+      "mediaType": "image/svg+xml",
+      "contentHash": "14a9624c5a3faa87b1dd4f4f32f48c05",
+      "bytes": 28012,
+      "width": 1738,
+      "height": 646,
+      "animated": false,
+      "path": "dependency-blast-radius-light-14a9624c5a3faa87b1dd4f4f32f48c05.svg"
+    },
+    {
+      "id": "dependency-blast-radius-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dependency-blast-radius",
+      "mediaType": "image/svg+xml",
+      "contentHash": "950977af7251fe753b1fdddd3b65f7b7",
+      "bytes": 28348,
+      "width": 1738,
+      "height": 646,
+      "animated": false,
+      "path": "dependency-blast-radius-dark-950977af7251fe753b1fdddd3b65f7b7.svg"
+    }
+  ]
+}
