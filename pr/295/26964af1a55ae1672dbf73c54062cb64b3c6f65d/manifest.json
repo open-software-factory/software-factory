@@ -1,0 +1,145 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-builder-attribution-and-diff-anchoring",
+    "headSha": "26964af1a55ae1672dbf73c54062cb64b3c6f65d",
+    "contentHash": "f9dd9bdd92bc304dd61bd98bb216f47b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-run-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-run-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "d2504c44fffa7e87d6f23c91bf91c581",
+      "bytes": 32274,
+      "width": 1708,
+      "height": 988,
+      "animated": true,
+      "path": "review-run-architecture-light-d2504c44fffa7e87d6f23c91bf91c581.svg"
+    },
+    {
+      "id": "review-run-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-run-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ae9f89ca9fc311bd05b1adb7e65add0a",
+      "bytes": 32648,
+      "width": 1708,
+      "height": 988,
+      "animated": true,
+      "path": "review-run-architecture-dark-ae9f89ca9fc311bd05b1adb7e65add0a.svg"
+    },
+    {
+      "id": "builder-detection-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "builder-detection-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "21b05dc181d0d1656956df21b2f5e173",
+      "bytes": 20041,
+      "width": 1284,
+      "height": 760,
+      "animated": true,
+      "path": "builder-detection-components-light-21b05dc181d0d1656956df21b2f5e173.svg"
+    },
+    {
+      "id": "builder-detection-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "builder-detection-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f8cd0a9787455a6267fa6759f361f65b",
+      "bytes": 20268,
+      "width": 1284,
+      "height": 760,
+      "animated": true,
+      "path": "builder-detection-components-dark-f8cd0a9787455a6267fa6759f361f65b.svg"
+    },
+    {
+      "id": "posting-components-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "posting-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "77d1fb08189b60621f3c425507614f44",
+      "bytes": 11302,
+      "width": 1284,
+      "height": 418,
+      "animated": true,
+      "path": "posting-components-light-77d1fb08189b60621f3c425507614f44.svg"
+    },
+    {
+      "id": "posting-components-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "posting-components",
+      "mediaType": "image/svg+xml",
+      "contentHash": "bc46edb85deac2a07078c6c4fac31bc7",
+      "bytes": 11404,
+      "width": 1284,
+      "height": 418,
+      "animated": true,
+      "path": "posting-components-dark-bc46edb85deac2a07078c6c4fac31bc7.svg"
+    },
+    {
+      "id": "builder-family-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "builder-family-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f490eae0fa021f47826312175bdfe8c9",
+      "bytes": 14818,
+      "width": 1401,
+      "height": 413,
+      "animated": true,
+      "path": "builder-family-flow-light-f490eae0fa021f47826312175bdfe8c9.svg"
+    },
+    {
+      "id": "builder-family-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "builder-family-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "14fe90dfb8e8e9051743cfe6ef4fe386",
+      "bytes": 14977,
+      "width": 1401,
+      "height": 413,
+      "animated": true,
+      "path": "builder-family-flow-dark-14fe90dfb8e8e9051743cfe6ef4fe386.svg"
+    },
+    {
+      "id": "post-findings-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "post-findings-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b0577a24f5138f66120b4ee52e55f376",
+      "bytes": 14575,
+      "width": 1286,
+      "height": 413,
+      "animated": true,
+      "path": "post-findings-flow-light-b0577a24f5138f66120b4ee52e55f376.svg"
+    },
+    {
+      "id": "post-findings-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "post-findings-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "067664cdd28efc3bcb8773b4da970d77",
+      "bytes": 14732,
+      "width": 1286,
+      "height": 413,
+      "animated": true,
+      "path": "post-findings-flow-dark-067664cdd28efc3bcb8773b4da970d77.svg"
+    }
+  ]
+}
