@@ -198,7 +198,7 @@ jobs:
         run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
 
       - name: Fetch the osf that the build job made
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: osf-binary
           path: bin
@@ -212,7 +212,7 @@ jobs:
           printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
 
       - name: Fetch the work item that the build job saved
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: work-item
           path: work-item
@@ -315,7 +315,7 @@ jobs:
         run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
 
       - name: Fetch the osf that the build job made
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: osf-binary
           path: bin
@@ -329,7 +329,7 @@ jobs:
           printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
 
       - name: Fetch the work item that the build job saved
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: work-item
           path: work-item
@@ -424,7 +424,7 @@ jobs:
         run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
 
       - name: Fetch the osf that the build job made
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: osf-binary
           path: bin
@@ -438,7 +438,7 @@ jobs:
           printf '[safe]\n\tdirectory = /pr\n\tdirectory = /base\n' > out/gitconfig
 
       - name: Fetch the work item that the build job saved
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: work-item
           path: work-item
@@ -535,13 +535,13 @@ jobs:
         run: git -C pr fetch --quiet ${{ github.workspace }}/base ${{ github.event.pull_request.base.sha }}
 
       - name: Fetch the osf that the build job made
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: osf-binary
           path: bin
 
       - name: Fetch every reviewer's saved answers
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: review-run-*
           path: out/runs
