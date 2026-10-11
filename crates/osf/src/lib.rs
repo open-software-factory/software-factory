@@ -16,6 +16,7 @@ pub mod config;
 pub mod exclude;
 pub mod git;
 pub use git::{scrub_git_env, scrub_git_env_for_dir};
+pub mod failure;
 pub mod githooks;
 pub mod hook;
 pub mod journal;
@@ -37,6 +38,7 @@ pub mod reviewers;
 pub mod scan;
 pub mod secret_values;
 pub mod section;
+pub mod symlink;
 #[cfg(test)]
 mod test_support;
 pub mod verify;

@@ -679,18 +679,25 @@ pub fn is_binary(bytes: &[u8]) -> bool {
     bytes.iter().take(8000).any(|&b| b == 0)
 }
 
-/// Walks `path` into `out`, never through a symlink: a link is counted in
-/// `skipped` instead of being read as the file or directory it points at,
-/// so a link that cycles back on itself cannot recurse forever.
-fn collect_files(path: &Path, out: &mut Vec<PathBuf>, skipped: &mut usize) -> Result<(), String> {
+/// Walks `path` into `out` as `(label, real)` pairs. A link inside the
+/// repository is followed to the real files behind it by
+/// [`crate::symlink::resolve_link`], which also refuses one that points
+/// outside the repository, at nothing, or in a loop. `label` is the path as
+/// walked through the link; `real` is the file to read.
+fn collect_files(root: &Path, path: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<(), String> {
     let meta = std::fs::symlink_metadata(path)
         .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     if meta.file_type().is_symlink() {
-        *skipped += 1;
+        for (label, real) in crate::symlink::resolve_link(root, path)? {
+            out.push((label.to_string_lossy().replace('\\', "/"), real));
+        }
         return Ok(());
     }
     if !meta.is_dir() {
-        out.push(path.to_path_buf());
+        out.push((
+            path.to_string_lossy().replace('\\', "/"),
+            path.to_path_buf(),
+        ));
         return Ok(());
     }
     let entries =
@@ -701,17 +708,17 @@ fn collect_files(path: &Path, out: &mut Vec<PathBuf>, skipped: &mut usize) -> Re
         if child.file_name().is_some_and(|n| n == ".git") {
             continue;
         }
-        collect_files(&child, out, skipped)?;
+        collect_files(root, &child, out)?;
     }
     Ok(())
 }
 
-/// Files to scan: a display label, and the real path to read from disk, plus
-/// how many symlinks among the given paths were skipped rather than walked.
-/// With no paths, every file git tracks in `dir`, labelled by its
-/// git-relative name; otherwise the given paths, walking any directory
-/// among them, each labelled as given. A symlink is never walked, whether
-/// it is one of the given paths or found while walking one.
+/// Files to scan: a display label, and the real path to read from disk. With
+/// no paths, every file git tracks in `dir`, labelled by its git-relative
+/// name and counted unchanged, so a tracked symlink is still excluded later.
+/// Otherwise the given paths, walking any directory among them, each
+/// labelled as walked. A link inside the repository is followed; one that
+/// points outside it, at nothing, or in a loop is refused.
 fn resolve_scan_targets(
     dir: &Path,
     paths: &[PathBuf],
@@ -728,24 +735,20 @@ fn resolve_scan_targets(
         return Ok((targets, 0));
     }
     let mut files = Vec::new();
-    let mut skipped = 0usize;
     for path in paths {
-        collect_files(path, &mut files, &mut skipped)?;
+        collect_files(dir, path, &mut files)?;
     }
-    let targets = files
-        .into_iter()
-        .map(|f| (f.to_string_lossy().replace('\\', "/"), f))
-        .collect();
-    Ok((targets, skipped))
+    Ok((files, 0))
 }
 
 /// Scans every target file, named relative to `dir` when it came from git,
 /// or as given on the command line otherwise. A binary file is skipped. A
-/// file matching `excluder` is never even read. A symlink is never read
-/// either; it is counted as excluded instead, so a scan of nothing but
-/// symlinks is never reported as clean. With `no_suppress`, every
-/// `osf-disable`-family marker is ignored, so every finding it would have
-/// silenced is reported; continuous integration runs with this set.
+/// file matching `excluder` is never even read. A tracked symlink in
+/// git-tracked mode is never read either; it is counted as excluded, so a
+/// scan of nothing but symlinks is never reported as clean. With
+/// `no_suppress`, every `osf-disable`-family marker is ignored, so every
+/// finding it would have silenced is reported; continuous integration runs
+/// with this set.
 ///
 /// # Errors
 /// Returns an error if git cannot run, or a named path cannot be read.
