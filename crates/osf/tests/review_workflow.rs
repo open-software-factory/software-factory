@@ -4,7 +4,11 @@
 use std::path::PathBuf;
 
 /// The codex version this workflow names.
-const CODEX_VERSION: &str = "0.154.0";
+const CODEX_VERSION: &str = "0.161.0";
+
+/// Environment a reviewer container needs beyond its own provider credential.
+/// None: a reviewer container passes its provider's key and nothing else.
+const HOUSEKEEPING_ENV: &[&str] = &[];
 
 fn workflow_text() -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/review.yml");
@@ -295,6 +299,10 @@ fn each_reviewer_job_passes_only_the_credential_its_agent_names() {
             body.lines()
                 .filter_map(|line| line.trim().strip_prefix("-e "))
                 .map(str::trim)
+                .filter(|var| {
+                    let name = var.split('=').next().unwrap_or(var);
+                    !HOUSEKEEPING_ENV.contains(&name)
+                })
                 .collect()
         } else {
             env_secret_names(body)
@@ -523,11 +531,15 @@ fn the_codex_job_runs_in_the_review_container() {
         .lines()
         .filter_map(|line| line.trim().strip_prefix("-e "))
         .map(str::trim)
+        .filter(|var| {
+            let name = var.split('=').next().unwrap_or(var);
+            !HOUSEKEEPING_ENV.contains(&name)
+        })
         .collect();
     assert_eq!(
         envs,
         vec!["CODEX_API_KEY"],
-        "the container gets exactly one -e line"
+        "the container gets its one credential and the housekeeping variables"
     );
     for mount in ["/pr:/pr:ro", "/base:/base:ro", "/work-item:/work-item:ro"] {
         assert!(body.contains(mount), "the codex job mounts {mount}: {body}");
@@ -602,7 +614,7 @@ fn the_codex_job_uses_no_privileged_setting() {
 }
 
 #[test]
-fn the_codex_command_runs_with_the_bypass_flag_only_inside_the_container() {
+fn the_codex_command_runs_with_the_bypass_flag_in_the_container() {
     let codex = osf::agents::AGENTS
         .iter()
         .find(|a| a.name == "codex")
@@ -615,23 +627,11 @@ fn the_codex_command_runs_with_the_bypass_flag_only_inside_the_container() {
     assert_eq!(
         in_container.args,
         &["--dangerously-bypass-approvals-and-sandbox"],
-        "inside the container codex runs with its own sandbox off"
+        "codex runs with its own sandbox off, because the container is the wall"
     );
-    let outside = review
-        .read_only
-        .as_ref()
-        .expect("codex documents a read-only mode");
-    assert_eq!(outside.args, &["--sandbox", "read-only"]);
     assert!(
-        !outside
-            .args
-            .contains(&"--dangerously-bypass-approvals-and-sandbox"),
-        "the bypass flag is only for the container"
-    );
-    assert_eq!(
-        review.sandbox_check,
-        &["codex", "sandbox", "--", "true"],
-        "outside the container osf checks the sandbox first"
+        review.read_only.is_none(),
+        "codex has no read-only mode of its own"
     );
 }
 
@@ -817,5 +817,52 @@ fn the_build_job_reads_only_the_automatic_token() {
         provider_secrets(&build).is_empty(),
         "the build job reads only the automatic token: {:?}",
         provider_secrets(&build)
+    );
+}
+
+#[test]
+fn no_reviewer_home_is_kept_or_uploaded_in_ci() {
+    let text = workflow_text();
+    let reviewers = reviewer_jobs(&text);
+    assert!(!reviewers.is_empty(), "no reviewer jobs found");
+    for (id, body) in reviewers {
+        for word in ["OSF_KEEP_REVIEW_HOME", "reviewer-home", "review-home-"] {
+            assert!(
+                !body.contains(word),
+                "{id} must not keep or upload a home: {word}"
+            );
+        }
+        assert!(
+            body.contains("name: review-run-"),
+            "{id} still uploads its saved answers"
+        );
+    }
+}
+
+#[test]
+fn a_red_reviewer_job_still_uploads_and_the_last_job_still_decides_by_quorum() {
+    let text = workflow_text();
+    for (id, body) in reviewer_jobs(&text) {
+        let run_at = body.find("osf review run").expect("runs a reviewer");
+        let after = &body[run_at..];
+        assert!(
+            !after.contains("--warn-only"),
+            "{id} must be able to go red"
+        );
+        let uploads = after.matches("uses: actions/upload-artifact").count();
+        let always = after.matches("if: always()").count();
+        assert!(
+            uploads >= 1 && always >= uploads,
+            "{id}: every upload runs after a failure"
+        );
+    }
+    let last = job_body(&text, "review");
+    assert!(
+        last.contains("always() &&"),
+        "the last job must run after a red reviewer job"
+    );
+    assert!(
+        !last.contains("needs.review-"),
+        "the last job decides by quorum, not by a reviewer job's result"
     );
 }

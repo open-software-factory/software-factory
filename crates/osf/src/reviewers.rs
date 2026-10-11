@@ -68,11 +68,6 @@ pub struct Reviewer {
     /// reviewer's login, goes in. A path that is missing is left out and
     /// named in the run's notes.
     pub login_paths: Vec<String>,
-    /// A command, program first, that starts this agent's read-only sandbox
-    /// around a harmless command. [`run_one`] runs it before the agent
-    /// reviews, and reports could-not-run when it fails. Empty when the
-    /// read-only mode has no sandbox to start.
-    pub sandbox_check: Vec<String>,
     /// The read-only folder that holds the change's diff and log. It takes
     /// the place of `{review_dir}` in the read-only arguments and environment.
     pub review_dir: Option<PathBuf>,
@@ -97,24 +92,14 @@ impl Reviewer {
     /// `agent` as a reviewer running `model`, with `in_container`'s
     /// container mode when osf runs inside the factory container; `None` when
     /// `agent` never reviews.
-    fn from_agent(agent: &Agent, model: Option<&str>, in_container: bool) -> Option<Self> {
+    fn from_agent(agent: &Agent, model: Option<&str>) -> Option<Self> {
         let review = agent.review.as_ref()?;
         let owned = |items: &[&str]| items.iter().map(ToString::to_string).collect();
         let (family, family_error) = match agent.family_for(model) {
             Ok(family) => (family.to_string(), None),
             Err(reason) => (crate::builder::UNKNOWN.to_string(), Some(reason)),
         };
-        let container_mode = if in_container {
-            review.in_container
-        } else {
-            None
-        };
-        let read_only = container_mode.or(review.read_only);
-        let sandbox_check: &[&str] = if container_mode.is_some() {
-            &[]
-        } else {
-            review.sandbox_check
-        };
+        let read_only = review.in_container.or(review.read_only);
         Some(Reviewer {
             name: agent.name.to_string(),
             family,
@@ -129,7 +114,6 @@ impl Reviewer {
             model_flag: review.model_flag.map(str::to_string),
             credential_env: owned(review.credential_env),
             login_paths: owned(review.login_paths),
-            sandbox_check: owned(sandbox_check),
             review_dir: None,
         })
     }
@@ -142,33 +126,105 @@ pub enum Outcome {
     Answered(Answer),
     /// The reviewer answered twice, and neither answer validated. Counts as missing.
     Invalid(String),
-    /// The reviewer's harness could not be started, timed out, or exited non-zero.
+    /// The reviewer's harness could not be started, or exited non-zero.
     CouldNotRun(String),
+    /// The reviewer ran past its time. Carried as data, so the caller names
+    /// the limit that bound it without reading the reason's wording.
+    TimedOut(Timeout),
+}
+
+/// How a reviewer's run ended past its time: what osf knows, never what the
+/// reviewer printed.
+#[derive(Debug, Clone)]
+pub struct Timeout {
+    pub reviewer: String,
+    /// How long the run was given.
+    pub waited: Duration,
+    /// Whether killing the reviewer's process tree failed.
+    pub kill_failed: bool,
+    /// The category its partial output points to.
+    pub category: crate::failure::Category,
+    /// Whether the time ran out before the run could start at all.
+    pub before_start: bool,
+}
+
+impl Timeout {
+    /// The category as a hint to append to a reason; empty when unknown.
+    #[must_use]
+    pub fn hint(&self) -> String {
+        if self.category == crate::failure::Category::Unknown {
+            String::new()
+        } else {
+            format!("; its output points to: {}", self.category.phrase())
+        }
+    }
+
+    /// The reason with no limit named, as `osf review post` style callers see it.
+    fn reason(&self) -> String {
+        let name = &self.reviewer;
+        if self.before_start {
+            format!(
+                "reviewer '{name}' timed out after {:?} before it could start again",
+                self.waited
+            )
+        } else if self.kill_failed {
+            format!(
+                "reviewer '{name}' timed out and could not be stopped{}",
+                self.hint()
+            )
+        } else {
+            format!(
+                "reviewer '{name}' timed out after {:?} and was stopped{}",
+                self.waited,
+                self.hint()
+            )
+        }
+    }
+}
+
+/// Why one run of a reviewer's command failed.
+#[derive(Debug)]
+enum Failure {
+    Plain(String),
+    TimedOut(Timeout),
+}
+
+impl From<String> for Failure {
+    fn from(reason: String) -> Self {
+        Failure::Plain(reason)
+    }
+}
+
+impl std::fmt::Display for Failure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Failure::Plain(reason) => f.write_str(reason),
+            Failure::TimedOut(timeout) => f.write_str(&timeout.reason()),
+        }
+    }
+}
+
+impl From<Failure> for Outcome {
+    fn from(failure: Failure) -> Self {
+        match failure {
+            Failure::Plain(reason) => Outcome::CouldNotRun(reason),
+            Failure::TimedOut(timeout) => Outcome::TimedOut(timeout),
+        }
+    }
 }
 
 /// The reviewers `<root>/osf.toml` selects under `[agents]`, in the order it
-/// names them, with the container mode chosen by
-/// [`agents::in_factory_container`]. None when it names none.
+/// names them, each in its own container mode. None when it names none.
 ///
 /// # Errors
 /// Returns an error when `<root>/osf.toml` is not valid TOML, or its
 /// `[agents]` table does not match the shape [`agents::resolve`] accepts.
 pub fn roster(root: &Path) -> Result<Vec<Reviewer>, String> {
-    roster_in(root, agents::in_factory_container())
-}
-
-/// [`roster`] with the container detection given rather than read from the
-/// machine.
-///
-/// # Errors
-/// Returns an error when `<root>/osf.toml` is not valid TOML, or its
-/// `[agents]` table does not match the shape [`agents::resolve`] accepts.
-pub fn roster_in(root: &Path, in_container: bool) -> Result<Vec<Reviewer>, String> {
     let selection = agents::selection(root)?;
     Ok(selection
         .reviewers
         .iter()
-        .filter_map(|agent| Reviewer::from_agent(agent, selection.model(agent), in_container))
+        .filter_map(|agent| Reviewer::from_agent(agent, selection.model(agent)))
         .collect())
 }
 
@@ -190,8 +246,12 @@ const RUN_ENV_VARS: &[&str] = &[
     "WINDIR",
 ];
 
-/// A private, empty home directory for one reviewer run, removed on drop.
-struct RunHome(PathBuf);
+/// A private, empty home directory for one reviewer run. It is removed whole
+/// when it is dropped, on every path out of a run: an answer, a failure, a
+/// timeout and a command that never starts.
+struct RunHome {
+    path: PathBuf,
+}
 
 impl RunHome {
     fn create() -> Result<Self, String> {
@@ -213,7 +273,7 @@ impl RunHome {
             std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700))
                 .map_err(|e| format!("cannot protect {}: {e}", path.display()))?;
         }
-        let home = Self(path);
+        let home = Self { path };
         std::fs::create_dir(home.temp())
             .map_err(|e| format!("cannot create {}: {e}", home.temp().display()))?;
         #[cfg(windows)]
@@ -228,7 +288,7 @@ impl RunHome {
     /// to set up their sandbox helper when their home sits under the temporary
     /// folder they see, so the child's temporary folder must not hold its home.
     fn temp(&self) -> PathBuf {
-        self.0.join("tmp")
+        self.path.join("tmp")
     }
 
     /// Points the child's temporary folder here, after any variable that
@@ -241,20 +301,20 @@ impl RunHome {
 
     #[cfg(windows)]
     fn roaming(&self) -> PathBuf {
-        self.0.join("AppData").join("Roaming")
+        self.path.join("AppData").join("Roaming")
     }
 
     #[cfg(windows)]
     fn local(&self) -> PathBuf {
-        self.0.join("AppData").join("Local")
+        self.path.join("AppData").join("Local")
     }
 
     /// Points the child's home and, on Windows, its profile variables here.
     fn apply(&self, command: &mut Command) {
-        command.env("HOME", &self.0);
+        command.env("HOME", &self.path);
         #[cfg(windows)]
         command
-            .env("USERPROFILE", &self.0)
+            .env("USERPROFILE", &self.path)
             .env("APPDATA", self.roaming())
             .env("LOCALAPPDATA", self.local());
     }
@@ -286,7 +346,7 @@ impl RunHome {
                 continue;
             }
             let copied = match real_home {
-                Some(real) => copy_login(&real.join(rel_path), &self.0.join(rel_path))
+                Some(real) => copy_login(&real.join(rel_path), &self.path.join(rel_path))
                     .map_err(|e| format!("cannot copy login path \"{rel}\": {e}"))?,
                 None => false,
             };
@@ -347,7 +407,16 @@ fn copy_dir(source: &Path, dest: &Path) -> std::io::Result<()> {
 
 impl Drop for RunHome {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        // `remove_dir_all` does not follow a link: a home replaced by a link
+        // loses the link, never the folder it points at.
+        if let Err(e) = std::fs::remove_dir_all(&self.path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                eprintln!(
+                    "osf: could not remove the reviewer home at {}",
+                    self.path.display()
+                );
+            }
+        }
     }
 }
 
@@ -405,32 +474,53 @@ fn run_with_retry(
     real_home: Option<&Path>,
     notes: &mut Vec<String>,
 ) -> Outcome {
+    let started = std::time::Instant::now();
     if reviewer.read_only.is_none() {
         return Outcome::CouldNotRun(format!(
             "reviewer '{}' has no read-only mode",
             reviewer.name
         ));
     }
-    if let Err(reason) = check_sandbox(reviewer, workdir, timeout, real_home) {
-        return Outcome::CouldNotRun(reason);
-    }
+    // The first run and its retry share `timeout`.
+    let left = || {
+        let remaining = timeout.saturating_sub(started.elapsed());
+        if remaining.is_zero() {
+            Err(Timeout {
+                reviewer: reviewer.name.clone(),
+                waited: timeout,
+                kill_failed: false,
+                category: crate::failure::Category::Unknown,
+                before_start: true,
+            })
+        } else {
+            Ok(remaining)
+        }
+    };
     let schema = answer::schema_for(lens);
+    let remaining = match left() {
+        Ok(remaining) => remaining,
+        Err(timeout) => return Outcome::TimedOut(timeout),
+    };
     let raw = match run_child(
-        reviewer, prompt, &schema, workdir, timeout, real_home, notes,
+        reviewer, prompt, &schema, workdir, remaining, real_home, notes,
     ) {
         Ok(text) => text,
-        Err(reason) => return Outcome::CouldNotRun(reason),
+        Err(failure) => return failure.into(),
     };
     match validate_stage(&raw, reviewer, lens) {
         Ok(answer) => Outcome::Answered(answer),
         Err(reason) => {
             let retry_prompt = format!("{prompt}\n\nThe previous answer was invalid: {reason}");
+            let remaining = match left() {
+                Ok(remaining) => remaining,
+                Err(timeout) => return Outcome::TimedOut(timeout),
+            };
             match run_child(
                 reviewer,
                 &retry_prompt,
                 &schema,
                 workdir,
-                timeout,
+                remaining,
                 real_home,
                 notes,
             ) {
@@ -438,93 +528,10 @@ fn run_with_retry(
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
                 },
-                Err(reason) => Outcome::CouldNotRun(reason),
+                Err(failure) => failure.into(),
             }
         }
     }
-}
-
-/// The longest the sandbox check may run, whatever the reviewer's own timeout is.
-const SANDBOX_CHECK_LIMIT: Duration = Duration::from_secs(30);
-
-/// Runs `reviewer`'s sandbox check, when it has one: the command starts the
-/// agent's read-only sandbox around a harmless command, with the same
-/// environment and home the reviewer itself gets. A reviewer whose sandbox
-/// cannot start where osf runs never reviews.
-///
-/// # Errors
-/// Names the reviewer and the reason when the check cannot start, times
-/// out, or exits non-zero. The reason holds the last line the check printed
-/// to its error output, which comes from the sandbox tool and never from a model.
-fn check_sandbox(
-    reviewer: &Reviewer,
-    workdir: &Path,
-    timeout: Duration,
-    real_home: Option<&Path>,
-) -> Result<(), String> {
-    let Some((program, rest)) = reviewer.sandbox_check.split_first() else {
-        return Ok(());
-    };
-    let name = &reviewer.name;
-    let (mut command, _home, _notes) =
-        prepare_command(reviewer, program, rest, workdir, real_home)?;
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped());
-    #[cfg(unix)]
-    command.process_group(0);
-    let mut child = command
-        .spawn()
-        .map_err(|e| format!("reviewer '{name}' cannot start its sandbox check: {e}"))?;
-    let stderr_reader = child
-        .stderr
-        .take()
-        .map(|mut pipe| std::thread::spawn(move || read_all(&mut pipe)));
-    let limit = timeout.min(SANDBOX_CHECK_LIMIT);
-    let status = match child.wait_timeout(limit) {
-        Ok(Some(status)) => status,
-        Ok(None) => {
-            let _ = crate::process::kill_tree(&child);
-            let _ = child.kill();
-            let _ = child.wait();
-            let _ = stderr_reader.map(std::thread::JoinHandle::join);
-            return Err(format!(
-                "reviewer '{name}' sandbox check timed out after {limit:?}, so its read-only sandbox is not known to work here"
-            ));
-        }
-        Err(e) => {
-            return Err(format!(
-                "cannot wait for reviewer '{name}' sandbox check: {e}"
-            ))
-        }
-    };
-    let stderr = stderr_reader
-        .map(|h| h.join().unwrap_or_default())
-        .unwrap_or_default();
-    if status.success() {
-        return Ok(());
-    }
-    let code = status
-        .code()
-        .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
-    let line: String = stderr
-        .lines()
-        .rev()
-        .find(|l| !l.trim().is_empty())
-        .unwrap_or_default()
-        .trim()
-        .chars()
-        .take(200)
-        .collect();
-    let detail = if line.is_empty() {
-        String::new()
-    } else {
-        format!(": {line}")
-    };
-    Err(format!(
-        "reviewer '{name}' cannot start its read-only sandbox here (exit code {code}){detail}"
-    ))
 }
 
 /// `raw`'s answer text, pulled out of `reviewer.answer_pointer` when it
@@ -636,6 +643,31 @@ fn prepare_command(
 /// credential, by name). Every other reviewer's credential and login, and
 /// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
 /// process. A missing login path adds a note to `notes`, once.
+/// Why a reviewer that exited with an error failed: its name, exit code,
+/// seconds run, and the category its output points to, never that output.
+fn exit_reason(
+    reviewer: &Reviewer,
+    code: Option<i32>,
+    elapsed: Duration,
+    stdout: &str,
+    stderr: &str,
+) -> String {
+    let code = code.map_or_else(|| "no exit code".to_string(), |c| c.to_string());
+    format!(
+        "reviewer '{}' exited with code {code} after {:.1} s: {}",
+        reviewer.name,
+        elapsed.as_secs_f64(),
+        crate::failure::classify(stdout, stderr).phrase()
+    )
+}
+
+/// The text a pipe-draining thread read, or nothing when it never started.
+fn joined(reader: Option<std::thread::JoinHandle<String>>) -> String {
+    reader
+        .map(|h| h.join().unwrap_or_default())
+        .unwrap_or_default()
+}
+
 fn run_child(
     reviewer: &Reviewer,
     prompt: &str,
@@ -644,7 +676,7 @@ fn run_child(
     timeout: Duration,
     real_home: Option<&Path>,
     notes: &mut Vec<String>,
-) -> Result<String, String> {
+) -> Result<String, Failure> {
     let prompt_file = write_temp_file("osf-review-prompt", prompt)?;
     let schema_file = write_temp_file("osf-review-schema", schema)?;
     let cleanup = || {
@@ -655,7 +687,7 @@ fn run_child(
     let args = build_args(reviewer, &prompt_file, &schema_file, schema);
     let Some((program, rest)) = args.split_first() else {
         cleanup();
-        return Err(format!("reviewer '{}' has an empty command", reviewer.name));
+        return Err(format!("reviewer '{}' has an empty command", reviewer.name).into());
     };
 
     let (mut command, _home, home_notes) =
@@ -663,7 +695,7 @@ fn run_child(
             Ok(prepared) => prepared,
             Err(e) => {
                 cleanup();
-                return Err(e);
+                return Err(e.into());
             }
         };
     for note in home_notes {
@@ -678,11 +710,12 @@ fn run_child(
     #[cfg(unix)]
     command.process_group(0);
 
+    let started = std::time::Instant::now();
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(e) => {
             cleanup();
-            return Err(format!("cannot run reviewer '{}': {e}", reviewer.name));
+            return Err(format!("cannot run reviewer '{}': {e}", reviewer.name).into());
         }
     };
 
@@ -713,24 +746,21 @@ fn run_child(
             let killed = crate::process::kill_tree(&child);
             let _ = child.kill();
             let _ = child.wait();
-            let _ = stdout_reader.map(std::thread::JoinHandle::join);
-            let _ = stderr_reader.map(std::thread::JoinHandle::join);
+            let partial_out = joined(stdout_reader);
+            let partial_err = joined(stderr_reader);
             let _ = stdin_writer.map(std::thread::JoinHandle::join);
             cleanup();
-            return Err(match killed {
-                Ok(()) => format!(
-                    "reviewer '{}' timed out after {timeout:?} and was killed",
-                    reviewer.name
-                ),
-                Err(e) => format!(
-                    "reviewer '{}' timed out and could not be killed: {e}",
-                    reviewer.name
-                ),
-            });
+            return Err(Failure::TimedOut(Timeout {
+                reviewer: reviewer.name.clone(),
+                waited: timeout,
+                kill_failed: killed.is_err(),
+                category: crate::failure::classify(&partial_out, &partial_err),
+                before_start: false,
+            }));
         }
         Err(e) => {
             cleanup();
-            return Err(format!("cannot wait for reviewer '{}': {e}", reviewer.name));
+            return Err(format!("cannot wait for reviewer '{}': {e}", reviewer.name).into());
         }
     };
 
@@ -744,25 +774,21 @@ fn run_child(
         h.join()
             .unwrap_or_else(|_| Err(std::io::Error::other("the stdin writer thread panicked")))
     });
-    let stdout_text = stdout_reader
-        .map(|h| h.join().unwrap_or_default())
-        .unwrap_or_default();
-    // Drained and joined so the reader thread always finishes cleanly, but
-    // never read: a reviewer's stderr is reviewer-controlled text, and this
-    // function's own errors are journalled, so it must never appear in one.
-    let _stderr_text = stderr_reader
-        .map(|h| h.join().unwrap_or_default())
-        .unwrap_or_default();
+    let stdout_text = joined(stdout_reader);
+    // Reviewer text never reaches osf's output, the journal or a posted
+    // review: `failure::classify` reads it and returns only a category.
+    let stderr_text = joined(stderr_reader);
     cleanup();
 
     if !status.success() {
-        let code = status
-            .code()
-            .map_or_else(|| "no exit code".to_string(), |c| c.to_string());
-        return Err(format!(
-            "reviewer '{}' exited with code {code}",
-            reviewer.name
-        ));
+        return Err(exit_reason(
+            reviewer,
+            status.code(),
+            started.elapsed(),
+            &stdout_text,
+            &stderr_text,
+        )
+        .into());
     }
     Ok(stdout_text)
 }
@@ -858,7 +884,6 @@ mod tests {
             model_flag: None,
             credential_env: Vec::new(),
             login_paths: Vec::new(),
-            sandbox_check: Vec::new(),
             review_dir: None,
         }
     }
@@ -912,7 +937,7 @@ mod tests {
         );
         match out {
             Ok(text) => (text, notes, Ok(())),
-            Err(e) => (String::new(), notes, Err(e)),
+            Err(e) => (String::new(), notes, Err(e.to_string())),
         }
     }
 
@@ -1101,32 +1126,11 @@ mod tests {
     }
 
     #[test]
-    fn the_codex_reviewer_inside_the_container_runs_with_its_own_sandbox_off() {
-        let r = Reviewer::from_agent(agent("codex"), None, true).expect("codex reviews");
+    fn the_codex_reviewer_runs_with_its_own_sandbox_off() {
+        let r = Reviewer::from_agent(agent("codex"), None).expect("codex reviews");
         let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
         assert!(args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
         assert!(!args.contains(&"--sandbox".to_string()));
-        assert_eq!(r.sandbox_check, Vec::<String>::new());
-    }
-
-    #[test]
-    fn the_codex_reviewer_outside_the_container_runs_in_its_read_only_sandbox() {
-        let r = Reviewer::from_agent(agent("codex"), None, false).expect("codex reviews");
-        let args = build_args(&r, Path::new("/tmp/p"), Path::new("/tmp/s"), answer::SCHEMA);
-        let pair = args
-            .windows(2)
-            .any(|w| matches!(w, [a, b] if a == "--sandbox" && b == "read-only"));
-        assert!(pair, "{args:?}");
-        assert!(!args.contains(&"--dangerously-bypass-approvals-and-sandbox".to_string()));
-        assert_eq!(r.sandbox_check, vec!["codex", "sandbox", "--", "true"]);
-    }
-
-    #[test]
-    fn an_agent_without_an_in_container_mode_is_the_same_in_and_out_of_the_container() {
-        let inside = Reviewer::from_agent(agent("claude"), None, true).expect("claude reviews");
-        let outside = Reviewer::from_agent(agent("claude"), None, false).expect("claude reviews");
-        assert_eq!(inside.read_only, outside.read_only);
-        assert_eq!(inside.sandbox_check, outside.sandbox_check);
     }
 
     #[test]
@@ -1336,6 +1340,94 @@ mod tests {
         )
         .expect("the reporter runs");
         assert_eq!(out, "locked");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_failed_reviewer_names_its_exit_code_time_and_category_but_not_its_text() {
+        let r = reviewer(
+            "synthetic",
+            vec![
+                "sh",
+                "-c",
+                "echo '{\"type\":\"error\",\"message\":\"Missing Authentication header sk-SECRET123\",\"statusCode\":401}'; exit 1",
+            ],
+        );
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints
+        let err = run_child(
+            &r,
+            "",
+            answer::SCHEMA,
+            &workdir,
+            Duration::from_secs(30),
+            None,
+            &mut Vec::new(),
+        )
+        .expect_err("the reviewer fails")
+        .to_string();
+        assert!(
+            err.starts_with("reviewer 'synthetic' exited with code 1 after "),
+            "{err}"
+        );
+        assert!(
+            err.contains("the provider rejected the credential"),
+            "{err}"
+        );
+        assert!(
+            !err.contains("SECRET123") && !err.contains("Missing"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn the_home_is_gone_after_a_normal_run_and_after_a_failed_spawn() {
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, nothing is written there
+                                            // This test program itself, asked to list no tests, starts and exits on
+                                            // every platform; the other program does not exist.
+        let this_program = std::env::current_exe()
+            .expect("the test program has a path")
+            .to_string_lossy()
+            .into_owned();
+        let runs = [
+            (this_program.as_str(), true),
+            ("osf-no-such-program-for-this-test", false),
+        ];
+        let args: Vec<String> = ["--list", "--exact", "osf-no-such-test-name"]
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        for (program, starts) in runs {
+            let r = reviewer("synthetic", vec![program]);
+            let (mut command, home, _) =
+                prepare_command(&r, program, &args, &workdir, None).expect("prepares");
+            let path = home.path.clone();
+            assert!(path.exists(), "the home exists while the run is prepared");
+            let spawned = command.spawn();
+            assert_eq!(spawned.is_ok(), starts, "{program}");
+            if let Ok(mut child) = spawned {
+                let _ = child.wait();
+            }
+            drop(home);
+            assert!(!path.exists(), "the home must be gone: {program}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_home_replaced_by_a_link_loses_the_link_and_not_the_folder_it_points_at() {
+        let outside = crate::test_support::TempDir::new("osf-reviewers-outside");
+        let decoy = outside.join("auth.json");
+        std::fs::write(&decoy, "decoy").expect("decoy");
+        let home = RunHome::create().expect("home");
+        let path = home.path.clone();
+        std::fs::remove_dir_all(&path).expect("the harness removes its home");
+        std::os::unix::fs::symlink(&*outside, &path).expect("link");
+        drop(home);
+        assert!(decoy.exists(), "a file outside the home must survive");
+        assert!(
+            std::fs::symlink_metadata(&path).is_err(),
+            "the link is gone"
+        );
     }
 
     #[cfg(unix)]

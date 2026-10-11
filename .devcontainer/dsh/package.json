@@ -1,0 +1,7 @@
+{
+  "name": "osf-devcontainer-dsh",
+  "private": true,
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.2.0-rc.2"
+  }
+}
