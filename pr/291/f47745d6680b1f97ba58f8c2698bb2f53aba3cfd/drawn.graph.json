@@ -1,0 +1,734 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-11T11:29:37.517Z",
+  "title": "Adoption mode: a new top-level osf.toml key",
+  "summary": "Adds an `adoption_mode` key to a repository's own `osf.toml`, describing how osf is placed in the adopter's organisation (decision 0006). `config::adoption_mode` reads the key and returns `None` when the file or key is absent; `config::require_adoption_mode` lets a command declare which modes it supports and refuses to run on an unset or unsupported one. The layered config loader now validates the key before stripping it, so an unsupported value stops every command that loads the config, not just the ones that ask for a mode. Only one mode exists so far, `private-factory-repo`; no command depends on it yet.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "f47745d6680b1f97ba58f8c2698bb2f53aba3cfd",
+      "ref": "f47745d6680b1f97ba58f8c2698bb2f53aba3cfd"
+    },
+    "pullRequest": {
+      "number": 291,
+      "url": "https://github.com/open-software-factory/software-factory/pull/291"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "Command line",
+      "subtitle": "osf binary",
+      "order": 0,
+      "summary": "The user-facing entry point: argument parsing, the `config show` subcommand, and the error text printed back to the terminal."
+    },
+    {
+      "id": "config",
+      "label": "Config layer",
+      "subtitle": "crates/osf/src/config.rs",
+      "order": 1,
+      "summary": "Reads and validates osf.toml: the layered loader, the per-section readers, and the new adoption-mode reader and gate."
+    },
+    {
+      "id": "repo",
+      "label": "Repository files",
+      "subtitle": "adopter's working tree",
+      "order": 2,
+      "summary": "The files osf reads from the adopter's repository, chiefly the repository's own osf.toml."
+    },
+    {
+      "id": "tests",
+      "label": "Tests",
+      "subtitle": "unit and CLI",
+      "order": 3,
+      "summary": "Unit tests inside config.rs and the new end-to-end test that drives the binary against a temporary repository."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "clap entry point",
+      "summary": "Parses arguments and dispatches subcommands. Every subcommand that loads config now passes through the adoption-mode check.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-show",
+      "label": "osf config show",
+      "kind": "route",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "subcommand",
+      "summary": "The command the new integration test drives; it loads the layered config and therefore validates adoption_mode.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 20,
+          "endLine": 45
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-error",
+      "label": "ConfigError",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "message names key, command, supported values",
+      "summary": "The error type carrying the human-readable refusal. New messages name the adoption_mode key, the offending value, and the list of supported modes.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 270,
+          "endLine": 370
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode-enum",
+      "label": "AdoptionMode",
+      "kind": "module",
+      "delta": "added",
+      "lane": "config",
+      "group": "adoption-mode",
+      "subtitle": "KEY, ALL, name(), parse()",
+      "summary": "The enum of supported placement shapes. One variant today, `PrivateFactoryRepo`, with the config key `adoption_mode` and the wire value `private-factory-repo`. A later mode adds a variant and a name in ALL.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 273,
+          "endLine": 305
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode-reader",
+      "label": "adoption_mode()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "group": "adoption-mode",
+      "subtitle": "root -> Option<AdoptionMode>",
+      "summary": "Reads `<root>/osf.toml`, returns None when the file or the key is absent, and errors when the file is unreadable, not valid TOML, or names an unsupported mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 318,
+          "endLine": 340
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode-of",
+      "label": "adoption_mode_of()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "group": "adoption-mode",
+      "subtitle": "&toml::Value -> Option<AdoptionMode>",
+      "summary": "Checks the key on an already-parsed osf.toml. Shared by the standalone reader and the layered loader so both reject the same values with the same message.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 342,
+          "endLine": 360
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "require-adoption-mode",
+      "label": "require_adoption_mode()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "config",
+      "group": "adoption-mode",
+      "subtitle": "root, command, supported -> AdoptionMode",
+      "summary": "The gate a mode-dependent command calls: reads the key and checks it against the modes the command supports. An unset key is refused too, so a command never runs on a guessed mode. No command calls it yet.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 362,
+          "endLine": 380
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "layered-load",
+      "label": "config::load()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "config",
+      "subtitle": "layered osf.toml merge",
+      "summary": "The layered loader now calls adoption_mode_of before stripping the key, so an unsupported value stops every command that loads config. The key is then removed from the table so it never trips deny_unknown_fields.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 738,
+          "endLine": 755
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "repo",
+      "subtitle": "adoption_mode = \"private-factory-repo\"",
+      "summary": "The repository's own config file. It gains an optional top-level string key; absent means no mode is declared.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 318,
+          "endLine": 340
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-unit-tests",
+      "label": "config.rs unit tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "subtitle": "7 new cases",
+      "summary": "Cover the unset key, the supported value, an unsupported value, the require gate on supported/unsupported/unset, the layered load ignoring and refusing the key, and an unreadable file being an error rather than an unset mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1838,
+          "endLine": 1926
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode-it",
+      "label": "adoption_mode.rs",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests",
+      "subtitle": "CLI integration test",
+      "summary": "Drives the real binary against a temporary repository: an unsupported mode stops osf naming the key and every supported value, and a supported mode loads.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 1,
+          "endLine": 45
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "development-doc",
+      "label": "docs/development.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "repo",
+      "subtitle": "The adoption mode",
+      "summary": "Documents the key, the two shapes decision 0006 allows, the value table, and the rule that every command loading config checks the key.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 703,
+          "endLine": 726
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "cli-loads-config",
+      "from": "osf-cli",
+      "to": "layered-load",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "loads config",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every subcommand that needs configuration goes through the layered loader.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 738,
+          "endLine": 755
+        }
+      ]
+    },
+    {
+      "id": "load-validates-mode",
+      "from": "layered-load",
+      "to": "adoption-mode-of",
+      "kind": "call",
+      "delta": "added",
+      "label": "validates before stripping",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new call that makes an unsupported adoption_mode fatal for every command, not only the ones that ask for a mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 745,
+          "endLine": 752
+        }
+      ]
+    },
+    {
+      "id": "load-reads-toml",
+      "from": "layered-load",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "reads",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The loader reads the repository's own osf.toml as one layer of the merge.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 738,
+          "endLine": 755
+        }
+      ]
+    },
+    {
+      "id": "reader-reads-toml",
+      "from": "adoption-mode-reader",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "added",
+      "label": "reads",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The standalone reader opens the same file directly and treats a missing file as no mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 318,
+          "endLine": 340
+        }
+      ]
+    },
+    {
+      "id": "reader-uses-of",
+      "from": "adoption-mode-reader",
+      "to": "adoption-mode-of",
+      "kind": "call",
+      "delta": "added",
+      "label": "parses value",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "After parsing TOML, the reader delegates the key check to the shared helper.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 336,
+          "endLine": 340
+        }
+      ]
+    },
+    {
+      "id": "of-uses-enum",
+      "from": "adoption-mode-of",
+      "to": "adoption-mode-enum",
+      "kind": "call",
+      "delta": "added",
+      "label": "parse / name",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Looks the raw string up against ALL and formats the supported names into the error.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 342,
+          "endLine": 360
+        }
+      ]
+    },
+    {
+      "id": "require-uses-reader",
+      "from": "require-adoption-mode",
+      "to": "adoption-mode-reader",
+      "kind": "call",
+      "delta": "added",
+      "label": "reads mode",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The gate reads the key first, then checks the result against the modes the command supports.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 362,
+          "endLine": 380
+        }
+      ]
+    },
+    {
+      "id": "require-uses-enum",
+      "from": "require-adoption-mode",
+      "to": "adoption-mode-enum",
+      "kind": "call",
+      "delta": "added",
+      "label": "supported set",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Compares the configured mode against the caller-supplied slice of supported modes.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 362,
+          "endLine": 380
+        }
+      ]
+    },
+    {
+      "id": "of-raises-error",
+      "from": "adoption-mode-of",
+      "to": "config-error",
+      "kind": "call",
+      "delta": "added",
+      "label": "unsupported value",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "An unknown value produces a ConfigError naming the key, the value and the supported list.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 350,
+          "endLine": 360
+        }
+      ]
+    },
+    {
+      "id": "require-raises-error",
+      "from": "require-adoption-mode",
+      "to": "config-error",
+      "kind": "call",
+      "delta": "added",
+      "label": "unset or unsupported",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "An unset key or a mode the command does not support produces a ConfigError naming the command and the key.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 370,
+          "endLine": 380
+        }
+      ]
+    },
+    {
+      "id": "error-surfaces-cli",
+      "from": "config-error",
+      "to": "osf-cli",
+      "kind": "other",
+      "delta": "modified",
+      "label": "message to stderr",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The refusal text reaches the terminal, which is what the integration test asserts on.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 20,
+          "endLine": 45
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-reader",
+      "from": "config-unit-tests",
+      "to": "adoption-mode-reader",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "covers",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unit tests exercise the reader directly against temporary directories.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1838,
+          "endLine": 1926
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-load",
+      "from": "config-unit-tests",
+      "to": "layered-load",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "covers",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Two cases assert the layered load ignores a supported key and refuses an unsupported one.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1900,
+          "endLine": 1926
+        }
+      ]
+    },
+    {
+      "id": "it-drives-cli",
+      "from": "adoption-mode-it",
+      "to": "config-show",
+      "kind": "call",
+      "delta": "added",
+      "label": "runs binary",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration test spawns osf with `config show` against a temporary repository and asserts on the combined output.",
+      "files": [
+        {
+          "path": "crates/osf/tests/adoption_mode.rs",
+          "startLine": 20,
+          "endLine": 45
+        }
+      ]
+    },
+    {
+      "id": "doc-describes-key",
+      "from": "development-doc",
+      "to": "adoption-mode-enum",
+      "kind": "other",
+      "delta": "added",
+      "label": "documents",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The development guide documents the key, its values and the rule that every config-loading command checks it.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 703,
+          "endLine": 726
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "adoption-mode-check",
+      "title": "Reading and gating adoption_mode",
+      "summary": "How a command that loads config reaches the adoption_mode key and what happens on each outcome.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "osf-cli",
+          "label": "osf CLI"
+        },
+        {
+          "node": "layered-load",
+          "label": "config::load"
+        },
+        {
+          "node": "osf-toml",
+          "label": "osf.toml"
+        },
+        {
+          "node": "adoption-mode-of",
+          "label": "adoption_mode_of"
+        },
+        {
+          "node": "config-error",
+          "label": "ConfigError"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-load",
+          "from": "osf-cli",
+          "to": "layered-load",
+          "label": "load config",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 738,
+              "endLine": 755
+            }
+          ]
+        },
+        {
+          "id": "step-read",
+          "from": "layered-load",
+          "to": "osf-toml",
+          "label": "read osf.toml",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 738,
+              "endLine": 755
+            }
+          ]
+        },
+        {
+          "id": "step-parse",
+          "from": "layered-load",
+          "to": "adoption-mode-of",
+          "label": "check adoption_mode",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Runs before the key is stripped from the table, so an unsupported value stops every command that loads config.",
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 745,
+              "endLine": 752
+            }
+          ]
+        },
+        {
+          "id": "step-absent",
+          "from": "adoption-mode-of",
+          "to": "adoption-mode-of",
+          "label": "key absent -> None",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 342,
+              "endLine": 360
+            }
+          ]
+        },
+        {
+          "id": "step-unsupported",
+          "from": "adoption-mode-of",
+          "to": "config-error",
+          "label": "unsupported value",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "Message names the key, the offending value and every supported mode.",
+          "files": [
+            {
+              "path": "crates/osf/src/config.rs",
+              "startLine": 350,
+              "endLine": 360
+            }
+          ]
+        },
+        {
+          "id": "step-refuse",
+          "from": "config-error",
+          "to": "osf-cli",
+          "label": "refusal to stderr",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/tests/adoption_mode.rs",
+              "startLine": 20,
+              "endLine": 45
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 259,
+    "deletions": 4,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "view-containers",
+      "title": "Containers touched by the adoption-mode key",
+      "lens": "architecture",
+      "summary": "The osf binary, the config module it loads through, the repository file the key lives in, and the tests that pin the behaviour.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-adoption-mode-components",
+      "title": "Inside the config module",
+      "lens": "architecture",
+      "summary": "The new adoption-mode reader, the shared key check, the require gate, and the layered loader that now calls the check.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "adoption-mode-enum",
+          "adoption-mode-reader",
+          "adoption-mode-of",
+          "require-adoption-mode",
+          "layered-load",
+          "config-error"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "view-adoption-mode-flow",
+          "title": "Reading and gating adoption_mode",
+          "lens": "data-flow",
+          "summary": "The ordered path from a command loading config to the key check and its outcomes.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [],
+            "edges": [],
+            "flows": [
+              "adoption-mode-check"
+            ]
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
