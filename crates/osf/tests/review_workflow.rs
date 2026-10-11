@@ -1,5 +1,7 @@
-//! Checks on the review workflow file itself: what each job passes to `osf`.
-//! The file is read as text, split into its jobs, and each job's text is checked.
+//! Checks on the review check's workflow files: the reusable workflow
+//! `review-check.yml`, which holds every job, and `review.yml`, osf's own thin
+//! caller of it. A file is read as text, split into its jobs, and each job's
+//! text is checked.
 
 use std::path::PathBuf;
 
@@ -10,9 +12,21 @@ const CODEX_VERSION: &str = "0.161.0";
 /// None: a reviewer container passes its provider's key and nothing else.
 const HOUSEKEEPING_ENV: &[&str] = &[];
 
-fn workflow_text() -> String {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../.github/workflows/review.yml");
+fn read_workflow(name: &str) -> String {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../.github/workflows")
+        .join(name);
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
+/// The reusable workflow, which holds every job.
+fn workflow_text() -> String {
+    read_workflow("review-check.yml")
+}
+
+/// osf's own caller of the reusable workflow.
+fn caller_text() -> String {
+    read_workflow("review.yml")
 }
 
 /// Each job in `text` as its id and its own lines, in file order.
@@ -143,7 +157,7 @@ fn trigger_types(text: &str) -> Vec<String> {
 
 #[test]
 fn the_workflow_runs_again_when_the_pull_request_text_is_edited() {
-    let types = trigger_types(&workflow_text());
+    let types = trigger_types(&caller_text());
     for name in [
         "opened",
         "synchronize",
@@ -379,7 +393,7 @@ fn reviews_are_off_for_forks_unless_the_variable_is_set_and_it_is_never_set_here
     let text = workflow_text();
     let all = jobs(&text);
     let same_or_enabled =
-        "github.event.pull_request.head.repo.full_name == github.repository || vars.OSF_REVIEW_FORKS == 'true'";
+        "github.event.pull_request.head.repo.full_name == github.repository || inputs.allow-forks";
     for id in [
         "build",
         "review-codex",
@@ -390,20 +404,39 @@ fn reviews_are_off_for_forks_unless_the_variable_is_set_and_it_is_never_set_here
         let body = job_body(&text, id);
         assert!(
             condition_of(&body).contains(same_or_enabled),
-            "job {id} runs for a fork only when OSF_REVIEW_FORKS is true"
+            "job {id} runs for a fork only when allow-forks is true"
         );
     }
     let disabled = job_body(&text, "review-fork-disabled");
     let condition = condition_of(&disabled);
     assert!(
         condition.contains("head.repo.full_name != github.repository")
-            && condition.contains("vars.OSF_REVIEW_FORKS != 'true'"),
+            && condition.contains("!inputs.allow-forks"),
         "{condition}"
     );
     assert!(all.len() >= 6);
     assert!(
-        !text.contains("OSF_REVIEW_FORKS ||") && !text.contains("OSF_REVIEW_FORKS: "),
-        "the workflow gives the variable no default"
+        !text.contains("OSF_REVIEW_FORKS"),
+        "the reusable workflow reads no repository variable; the caller passes it"
+    );
+    let caller = caller_text();
+    assert!(
+        caller.contains("allow-forks: ${{ vars.OSF_REVIEW_FORKS == 'true' }}"),
+        "the caller turns fork review on only from the variable being true"
+    );
+    assert!(
+        !caller.contains("OSF_REVIEW_FORKS ||") && !caller.contains("OSF_REVIEW_FORKS: "),
+        "the caller gives the variable no default"
+    );
+    let inputs = input_blocks(&text);
+    let allow = inputs
+        .iter()
+        .find(|(name, _)| name == "allow-forks")
+        .unwrap_or_else(|| panic!("no allow-forks input"));
+    assert!(
+        allow.1.contains("type: boolean") && allow.1.contains("default: false"),
+        "fork review is off unless the caller asks: {}",
+        allow.1
     );
 }
 
@@ -729,7 +762,7 @@ fn the_build_job_builds_as_the_runner_user_into_a_writable_build_out() {
     let cargo = unquoted(&container_before(&build, "cargo build"));
     for expected in [
         "--user $(id -u):$(id -g)",
-        "${{ github.workspace }}/base:/base:ro",
+        "${{ github.workspace }}/osf-src:/osf-src:ro",
         "${{ github.workspace }}/build-out:/build-out",
         "-e CARGO_HOME=/build-out/cargo-home",
         "-e CARGO_TARGET_DIR=/build-out/target",
@@ -766,22 +799,25 @@ fn the_build_job_runs_the_work_item_command_from_the_read_only_build_out() {
     }
 }
 
-/// Every container sees the runner's checkout as read-only.
+/// Every container sees the runner's checkouts as read-only.
 #[test]
 fn no_job_mounts_the_base_checkout_writable() {
     let text = workflow_text();
-    let mut mounts = 0;
-    for line in text.lines() {
-        if let Some(rest) = line.split(":/base").nth(1) {
-            mounts += 1;
-            assert!(
-                rest.starts_with(":ro"),
-                "a mount of /base is writable: {}",
-                line.trim()
-            );
+    for target in [":/base", ":/osf-src"] {
+        let mut mounts = 0;
+        for line in text.lines() {
+            if let Some(rest) = line.split(target).nth(1) {
+                mounts += 1;
+                assert!(
+                    rest.starts_with(":ro"),
+                    "a mount of {target} is writable: {}",
+                    line.trim()
+                );
+            }
         }
+        let least = if target == ":/base" { 4 } else { 2 };
+        assert!(mounts >= least, "found {mounts} mounts of {target}");
     }
-    assert!(mounts >= 6, "found {mounts} mounts of /base");
 }
 
 /// A job that mounts a writable `out` must make it writable for the image user.
@@ -865,4 +901,356 @@ fn a_red_reviewer_job_still_uploads_and_the_last_job_still_decides_by_quorum() {
         !last.contains("needs.review-"),
         "the last job decides by quorum, not by a reviewer job's result"
     );
+}
+
+/// The inputs under `on: workflow_call: inputs:`, each as its name and its own lines.
+fn input_blocks(text: &str) -> Vec<(String, String)> {
+    let mut blocks: Vec<(String, String)> = Vec::new();
+    let mut in_inputs = false;
+    for line in text.lines() {
+        if line == "    inputs:" {
+            in_inputs = true;
+            continue;
+        }
+        if !in_inputs {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        if !line.trim().is_empty() && indent < 6 {
+            break;
+        }
+        if indent == 6 && line.trim_end().ends_with(':') {
+            blocks.push((line.trim().trim_end_matches(':').to_string(), String::new()));
+        } else if let Some((_, body)) = blocks.last_mut() {
+            body.push_str(line.trim());
+            body.push('\n');
+        }
+    }
+    blocks
+}
+
+/// The keys under a caller job's `with:`.
+fn with_names(text: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut in_with = false;
+    for line in text.lines() {
+        if line == "    with:" {
+            in_with = true;
+            continue;
+        }
+        if !in_with {
+            continue;
+        }
+        if line.starts_with("      ") && !line.starts_with("       ") {
+            if let Some((name, _)) = line.trim().split_once(':') {
+                names.push(name.to_string());
+            }
+        } else if !line.trim().is_empty() {
+            break;
+        }
+    }
+    names
+}
+
+/// The stable input list. A change to a name or a meaning is a breaking change.
+const STABLE_INPUTS: &[&str] = &[
+    "osf-ref",
+    "osf-repository",
+    "runs-on",
+    "verifier-app-id",
+    "allow-forks",
+];
+
+#[test]
+fn the_reusable_workflow_is_called_only_and_declares_the_stable_inputs() {
+    let text = workflow_text();
+    let on: Vec<&str> = text
+        .lines()
+        .skip_while(|line| *line != "on:")
+        .skip(1)
+        .take_while(|line| line.starts_with(' '))
+        .filter(|line| line.starts_with("  ") && !line.starts_with("   "))
+        .collect();
+    assert_eq!(
+        on,
+        vec!["  workflow_call:"],
+        "only workflow_call triggers it"
+    );
+    let mut declared: Vec<String> = input_blocks(&text).into_iter().map(|(n, _)| n).collect();
+    declared.sort();
+    let mut expected: Vec<String> = STABLE_INPUTS.iter().map(ToString::to_string).collect();
+    expected.sort();
+    assert_eq!(declared, expected, "the input list is the stable list");
+    for (name, body) in input_blocks(&text) {
+        assert!(body.contains("description:"), "input {name} is described");
+        assert!(body.contains("type:"), "input {name} has a type");
+    }
+    for required in ["osf-ref", "verifier-app-id"] {
+        let body = input_blocks(&text)
+            .into_iter()
+            .find(|(n, _)| n == required)
+            .expect("declared")
+            .1;
+        assert!(
+            body.contains("required: true") && !body.contains("default:"),
+            "{required} has no default, so a caller cannot forget it: {body}"
+        );
+    }
+}
+
+#[test]
+fn the_reusable_workflow_takes_no_secret_and_reads_no_repository_variable() {
+    let text = workflow_text();
+    assert!(
+        !text.lines().any(|line| line == "    secrets:"),
+        "no key is a workflow_call secret: the keys stay environment secrets"
+    );
+    assert!(!text.contains("secrets: inherit"));
+    assert!(
+        !text.contains("vars."),
+        "a setting enters as an input, never as an ambient variable"
+    );
+    assert!(
+        text.contains("environment secrets of the `review` environment"),
+        "the header says where the keys live"
+    );
+}
+
+/// An input is data. It may reach a key, a condition or an environment
+/// variable, and never a shell script's text.
+#[test]
+fn an_input_reaches_no_script_text() {
+    let text = workflow_text();
+    for line in text.lines() {
+        if !line.contains("inputs.") || line.trim_start().starts_with('#') {
+            continue;
+        }
+        let key = line.trim().split(':').next().unwrap_or("");
+        assert!(
+            ["runs-on", "if", "OSF_REF", "repository", "ref", "app-id"].contains(&key),
+            "an input is used in a place other than a key, a condition or an env value: {}",
+            line.trim()
+        );
+    }
+}
+
+#[test]
+fn the_build_job_builds_only_the_pinned_osf_and_refuses_a_moving_reference() {
+    let build = job_body(&workflow_text(), "build");
+    assert!(
+        build.contains("path: osf-src")
+            && build.contains("repository: ${{ inputs.osf-repository }}")
+            && build.contains("ref: ${{ inputs.osf-ref }}"),
+        "the build job checks out osf at the pinned reference: {build}"
+    );
+    assert!(
+        build.contains("^[0-9a-f]{40}$") && build.contains("OSF_REF: ${{ inputs.osf-ref }}"),
+        "the build job refuses a reference that is not a full commit SHA: {build}"
+    );
+    assert_eq!(
+        build.matches("uses: actions/checkout@").count(),
+        1,
+        "the build job checks out one tree"
+    );
+    assert!(
+        build.contains("persist-credentials: false"),
+        "the checkout keeps no credential"
+    );
+    assert!(
+        !build.contains("pull_request.head") || !build.contains("path: pr"),
+        "the build job checks out no pull request code"
+    );
+}
+
+#[test]
+fn the_build_job_refuses_any_event_but_pull_request_target() {
+    let build = job_body(&workflow_text(), "build");
+    assert!(
+        build.contains("if: github.event_name != 'pull_request_target'")
+            && build.contains("name: Require the pull_request_target event"),
+        "{build}"
+    );
+}
+
+/// Reviewer jobs and the last job read the trusted configuration from the
+/// calling repository's base checkout, and the pull request's head as data.
+#[test]
+fn the_later_jobs_read_the_callers_base_and_the_head_as_data() {
+    let text = workflow_text();
+    for id in ["review-codex", "review-claude", "review-opencode", "review"] {
+        let body = job_body(&text, id);
+        assert!(
+            body.contains(
+                "path: base\n          fetch-depth: 0\n          persist-credentials: false"
+            ),
+            "job {id} checks out the calling repository's base with no default override: {body}"
+        );
+        assert!(
+            body.contains("repository: ${{ github.event.pull_request.head.repo.full_name }}")
+                && body.contains("ref: ${{ github.event.pull_request.head.sha }}"),
+            "job {id} checks out the head as data: {body}"
+        );
+        assert!(
+            !body.contains("inputs.osf-"),
+            "job {id} runs the built binary, never a checkout of osf"
+        );
+    }
+}
+
+/// The environment is fixed, never an input, in every job that holds a key.
+#[test]
+fn the_environment_names_are_fixed_in_every_job_that_holds_a_key() {
+    let text = workflow_text();
+    let expected = "    environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}";
+    for id in ["review-codex", "review-claude", "review-opencode", "review"] {
+        let body = job_body(&text, id);
+        assert!(
+            body.contains(expected),
+            "job {id} lacks the fixed environment"
+        );
+    }
+    for id in ["build", "review-fork-disabled"] {
+        let body = job_body(&text, id);
+        assert!(
+            !body.contains("environment:") && provider_secrets(&body).is_empty(),
+            "job {id} holds no environment and no key"
+        );
+    }
+    assert_eq!(text.matches("environment:").count(), 4);
+}
+
+#[test]
+fn the_verifier_identity_is_minted_in_the_last_job_only() {
+    let text = workflow_text();
+    assert_eq!(text.matches("create-github-app-token").count(), 1);
+    let last = job_body(&text, "review");
+    assert!(
+        last.contains("create-github-app-token")
+            && last.contains("app-id: ${{ inputs.verifier-app-id }}")
+            && last.contains("private-key: ${{ secrets.VERIFIER_APP_PRIVATE_KEY }}")
+            && last.contains("permission-pull-requests: write"),
+        "{last}"
+    );
+    assert_eq!(
+        text.matches("VERIFIER_APP_PRIVATE_KEY").count(),
+        1,
+        "only the last job reads the verifier key"
+    );
+}
+
+#[test]
+fn every_job_starts_with_the_egress_block_and_every_action_is_pinned_by_sha() {
+    let text = workflow_text();
+    for (id, body) in jobs(&text) {
+        let first_action = body
+            .lines()
+            .find(|line| line.trim_start().starts_with("uses: "))
+            .unwrap_or_else(|| panic!("job {id} uses an action"));
+        assert!(
+            first_action.contains("step-security/harden-runner@"),
+            "job {id} starts with the egress step: {first_action}"
+        );
+        assert!(
+            body.contains("egress-policy: block"),
+            "job {id} blocks egress"
+        );
+    }
+    for line in text
+        .lines()
+        .filter(|l| l.trim_start().starts_with("uses:") || l.contains("- uses:"))
+    {
+        let at = line
+            .split('@')
+            .nth(1)
+            .unwrap_or_else(|| panic!("unpinned: {line}"));
+        let sha: String = at.chars().take_while(char::is_ascii_hexdigit).collect();
+        assert_eq!(sha.len(), 40, "pin by full commit SHA: {line}");
+    }
+}
+
+#[test]
+fn the_caller_is_thin_and_runs_from_the_base_branch() {
+    let caller = caller_text();
+    assert!(caller.contains("on:\n  pull_request_target:"), "{caller}");
+    for forbidden in [
+        "\n  pull_request:",
+        "\n  workflow_dispatch",
+        "\n  push:",
+        "\n  schedule:",
+    ] {
+        assert!(
+            !caller.contains(forbidden),
+            "the caller has no `{}` trigger",
+            forbidden.trim()
+        );
+    }
+    assert!(
+        caller.contains("    uses: ./.github/workflows/review-check.yml\n"),
+        "osf's own pull requests use the reusable workflow at the base commit by a local path"
+    );
+    assert!(
+        !caller.contains("actions/checkout")
+            && !caller.contains("run:")
+            && !caller.contains("steps:"),
+        "the caller has no step of its own"
+    );
+    assert_eq!(jobs(&caller).len(), 1, "one job, which only calls");
+    for forbidden in ["secrets:", "environment:", "secrets: inherit"] {
+        assert!(
+            !caller.contains(forbidden),
+            "the caller passes no secret: `{forbidden}`"
+        );
+    }
+    assert!(
+        caller.contains("osf-ref: ${{ github.event.pull_request.base.sha }}")
+            && caller.contains("osf-repository: ${{ github.repository }}"),
+        "osf's own review builds osf from the pull request's base commit"
+    );
+    assert!(
+        caller.contains("runs-on: ${{ vars.OSF_REVIEW_RUNS_ON || '\"ubuntu-latest\"' }}"),
+        "the runner comes from the adopter's variable, with the hosted default"
+    );
+    assert!(caller.contains("verifier-app-id: ${{ vars.VERIFIER_APP_ID }}"));
+}
+
+#[test]
+fn the_caller_passes_every_input_and_only_inputs_the_workflow_declares() {
+    let mut passed = with_names(&caller_text());
+    passed.sort();
+    let mut declared: Vec<String> = input_blocks(&workflow_text())
+        .into_iter()
+        .map(|(n, _)| n)
+        .collect();
+    declared.sort();
+    assert_eq!(passed, declared);
+}
+
+#[test]
+fn the_caller_grants_the_called_jobs_their_permissions_and_no_write() {
+    let caller = caller_text();
+    let body = job_body(&caller, "review");
+    assert_eq!(
+        permissions_of(&body),
+        vec![
+            "contents: read".to_string(),
+            "packages: read".to_string(),
+            "issues: read".to_string(),
+            "pull-requests: read".to_string()
+        ]
+    );
+    assert!(!caller.contains(": write"));
+}
+
+#[test]
+fn the_guide_documents_each_input_and_the_organisation_setting() {
+    let guide = docs_text("development.md");
+    assert!(guide.contains("## Calling the review check from another workflow"));
+    for name in STABLE_INPUTS {
+        assert!(
+            guide.contains(&format!("`{name}`")),
+            "the guide names `{name}`"
+        );
+    }
+    assert!(guide.contains("Accessible from repositories in the organization"));
+    assert!(guide.contains("breaking change"));
 }

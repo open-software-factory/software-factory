@@ -210,10 +210,14 @@ separate job.
 GitHub always reads a `pull_request_target` workflow from the base
 branch. That is why `.github/workflows/review.yml` is the real gate, and
 a pull request cannot change what this job does. The workflow runs again
-when the pull request text is edited.
+when the pull request text is edited. `review.yml` holds no step. It calls
+the reusable workflow `.github/workflows/review-check.yml`, which holds
+every job below. See [Calling the review check from another
+workflow](#calling-the-review-check-from-another-workflow).
 
 The workflow has one job for each step. A `build` job builds the `osf`
-tool from the base branch only, with no secrets. Each reviewer then runs
+tool from the pinned commit only, with no secrets. For osf's own pull
+requests that commit is the base commit. Each reviewer then runs
 in its own job: `review codex`, `review claude` and `review opencode`.
 All three reviewer jobs run `osf` in the container.
 A reviewer job gets only its own provider's key. Its network list holds
@@ -473,7 +477,7 @@ Most jobs run directly on the runner and log in to `ghcr.io` with their
 own token first. That login works whether the image behind it stays
 public or turns private later. Every job that uses a container pulls
 the same image, named once by digest in the `REVIEW_IMAGE` variable at
-the top of `.github/workflows/review.yml`. No job names a moving tag.
+the top of `.github/workflows/review-check.yml`. No job names a moving tag.
 This is the image that the development container workflow builds from the
 `.devcontainer` folder in this repository. It already carries a pinned
 Rust toolchain, moon, and every reviewer tool the agent list can enable.
@@ -484,8 +488,8 @@ is reviewed like any other workflow change.
 
 Each step that runs `osf` in a container goes through `docker run` against
 that image. Each docker run gets its own fresh, disposable container. The
-`build` job mounts `base` read-write, and `cargo build` writes its own
-output there. It uploads the `osf` binary as an artifact, and every later
+`build` job mounts the pinned osf checkout, `osf-src`, read-only, and
+`cargo build` writes its own output to a separate `build-out` folder. It uploads the `osf` binary as an artifact, and every later
 job downloads that one binary. A reviewer job, and the last job, mount
 `base` and `pr` read-only. The pull request's tree is
 only ever data. A third mount,
@@ -699,6 +703,106 @@ and saves what it did. `osf review reduce <files...>` takes the saved
 files, checks the findings against the files, journals, and decides. Both
 reach the same decision. Pass `--pull-request <file>`, a JSON file with
 the `number`, `title` and `body`, to put the pull request in the prompt.
+
+## Calling the review check from another workflow
+
+The review check is a reusable workflow, `.github/workflows/review-check.yml`
+in this repository. osf's own `review.yml` calls it, and so does a caller in
+any other repository. Both run the same jobs, so osf tests what an adopter
+runs.
+
+### The caller
+
+A caller is one job that has no step of its own. It must sit in a workflow
+triggered by `pull_request_target`, because GitHub reads that workflow from the
+base branch and a pull request cannot change it. Any other event fails the
+`build` job with a message.
+
+```yaml
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+permissions:
+  contents: read
+jobs:
+  review:
+    permissions:
+      contents: read
+      packages: read
+      issues: read
+      pull-requests: read
+    uses: <owner>/<repo>/.github/workflows/review-check.yml@<40-character SHA>
+    with:
+      osf-ref: <the same 40-character SHA>
+      verifier-app-id: ${{ vars.VERIFIER_APP_ID }}
+```
+
+Two references pin the check, and both name the same commit. The `@<SHA>` after
+the file name pins the jobs. The `osf-ref` input pins the `osf` that the `build`
+job compiles and that the reviewer jobs later run next to their keys. A moving
+reference, such as a branch name, is refused for `osf-ref`. GitHub gives a
+called workflow no way to read its own reference, so the two cannot be checked
+against each other. Change them together.
+
+osf's own caller names the file by a local path. GitHub reads a local path at
+the same commit as the caller, which is the base commit for
+`pull_request_target`. It passes `osf-repository` as its own repository and
+`osf-ref` as the pull request's base commit. A pull request therefore cannot
+change the caller, the called jobs, or the `osf` that runs them.
+
+### Inputs
+
+| Input | Required | Default | Why it is an input |
+| --- | --- | --- | --- |
+| `osf-ref` | yes | none | The commit of osf to build. The workflow cannot see its own reference, and this value decides which code runs next to the keys. It must be a full commit SHA. |
+| `osf-repository` | no | `open-software-factory/software-factory` | The repository that holds that commit. Only osf's own caller, and a fork of osf, set it. |
+| `runs-on` | no | `"ubuntu-latest"` | The runner label, written as JSON: a string or an array of labels. It must name a Linux runner with Docker. The adopter's own settings choose it, so the caller reads its variable and passes the value. |
+| `verifier-app-id` | yes | none | The id of the app that posts the review. It is not a secret. |
+| `allow-forks` | no | `false` | Review a fork's pull request too. A fork's pull request fails the check on purpose while this is `false`. |
+
+Left out on purpose:
+
+- The image. It is pinned by digest inside the workflow, together with the
+  codex version it carries, so a caller cannot choose what runs beside the keys.
+  An osf release moves it.
+- The environment names. The jobs that hold a key use `review`, or
+  `fork-review` for a fork. A caller cannot name another environment.
+- The reviewer list. `[agents]` in the watched repository's `osf.toml` on its
+  base branch chooses reviewers, and `osf review run --if-enabled` reads it.
+- The repository under review. It is the repository of the calling workflow.
+
+### Secrets
+
+The workflow declares no `workflow_call` secret. The reviewer keys
+(`OPENAI_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `OPENROUTER_API_KEY`) and
+`VERIFIER_APP_PRIVATE_KEY` are environment secrets. The jobs that read them
+name the `review` environment, so GitHub reads them from the `review`
+environment of the repository that holds the calling workflow. A secret that a
+caller passed in would reach a job through no environment, and so past the
+environment's limit to the `main` branch. [Required setup](#required-setup)
+lists what the `review` environment holds.
+
+### What is stable
+
+The input names, their types, and their meaning are stable. A change to an
+input's name or meaning is a breaking change, and osf releases it under a new
+major version. Adding an optional input is not breaking. The job names and
+the artifact names are not part of the contract.
+
+### Private factory repo and its other repositories
+
+A private repository can share its workflows with other private repositories
+of the same organisation only after an organisation setting allows it. In the
+private factory repo, open Settings, then Actions, then General, and under
+"Access" choose "Accessible from repositories in the organization". Without
+it, a watched repository's caller cannot use a reusable workflow stored there.
+The setting applies to a workflow in the factory repo. The workflow in this
+public repository needs no setting.
+
+This slice makes the check callable. Who holds the keys when a factory repo
+wraps the check for several watched repositories is not decided here. The
+environment secrets above live in the repository that holds the calling
+workflow.
 
 ## Which osf a check uses
 
