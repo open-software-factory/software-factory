@@ -129,7 +129,6 @@ pub enum Severity {
 pub enum WorkItemState {
     Ready,
     InProgress,
-    Verifying,
     InReview,
     Deploying,
     Deployed,
@@ -584,7 +583,6 @@ mod tests {
         let states = [
             (WorkItemState::Ready, "ready"),
             (WorkItemState::InProgress, "in-progress"),
-            (WorkItemState::Verifying, "verifying"),
             (WorkItemState::InReview, "in-review"),
             (WorkItemState::Deploying, "deploying"),
             (WorkItemState::Deployed, "deployed"),

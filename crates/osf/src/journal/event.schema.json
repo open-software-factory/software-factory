@@ -138,7 +138,6 @@
       "enum": [
         "ready",
         "in-progress",
-        "verifying",
         "in-review",
         "deploying",
         "deployed",
@@ -290,7 +289,6 @@
                 "enum": [
                   "ready",
                   "in-progress",
-                  "verifying",
                   "in-review",
                   "deploying",
                   "deployed",
