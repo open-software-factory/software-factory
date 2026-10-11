@@ -31,6 +31,8 @@ env:
   REVIEW_IMAGE: ghcr.io/open-software-factory/devcontainer@sha256:d2f538092f64a75d49b2e31d03ee5d9b3aadbeab61e47690326e5f9cb8864d09
   # The version of codex the review image carries, which the codex job checks.
   CODEX_VERSION: "0.161.0"
+  # The version of dsh the review image carries, which the dsh job checks.
+  DSH_VERSION: "0.2.0-rc.2"
 
 concurrency:
   group: review-${{ github.event.pull_request.number }}
@@ -370,8 +372,8 @@ jobs:
           if-no-files-found: ignore
 
 
-  review-opencode:
-    name: review opencode
+  review-dsh:
+    name: review dsh
     needs: build
     if: github.event.pull_request.head.repo.full_name == github.repository || vars.OSF_REVIEW_FORKS == 'true'
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
@@ -380,7 +382,10 @@ jobs:
       contents: read
       packages: read
     steps:
-      # opencode reads its model catalogue from models.opencode.ai at start.
+      # dsh calls its model provider at api.deepseek.com, the default base URL
+      # of its DeepSeek route. Its telemetry exporter uploads only after
+      # explicit feedback, per its package documentation, so no telemetry
+      # host is listed.
       - name: Restrict this job's outbound network access
         uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
@@ -392,8 +397,7 @@ jobs:
             objects.githubusercontent.com:443
             ghcr.io:443
             pkg-containers.githubusercontent.com:443
-            openrouter.ai:443
-            models.opencode.ai:443
+            api.deepseek.com:443
 
       - name: Require the Linux runner with Docker this workflow assumes
         if: runner.os != 'Linux'
@@ -443,9 +447,18 @@ jobs:
           name: work-item
           path: work-item
 
+      - name: Check that the review image carries the pinned dsh
+        run: |
+          set -euo pipefail
+          version=$(docker run --rm ${{ env.REVIEW_IMAGE }} dsh --version)
+          if [ "$version" != "${DSH_VERSION}" ]; then
+            echo "osf review: dsh --version printed ${version}, expected ${DSH_VERSION}" >&2
+            exit 1
+          fi
+
       - name: Run this reviewer, reading the pull request's tree as data
         env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: >-
           docker run --rm
           -v "${{ github.workspace }}/bin:/osf-bin:ro"
@@ -455,10 +468,10 @@ jobs:
           -v "${{ github.workspace }}/out:/out"
           -v "${{ github.workspace }}/out/gitconfig:/home/dev/.gitconfig:ro"
           -w /pr
-          -e OPENROUTER_API_KEY
+          -e DEEPSEEK_API_KEY
           ${{ env.REVIEW_IMAGE }}
           /osf-bin/osf review run
-          --reviewer opencode
+          --reviewer dsh
           --if-enabled
           --base ${{ github.event.pull_request.base.sha }}
           --config-root /base
@@ -468,14 +481,14 @@ jobs:
           --head ${{ github.event.pull_request.head.sha }}
           --ci-run-id ${{ github.run_id }}
           --work-item /work-item/work-item.json
-          --out /out/opencode.json
+          --out /out/dsh.json
 
       - name: Keep this reviewer's saved answers
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: review-run-opencode
-          path: out/opencode.json
+          name: review-run-dsh
+          path: out/dsh.json
           if-no-files-found: ignore
 
 
@@ -486,7 +499,7 @@ jobs:
     # holds no provider key. It alone mints the verifier app's token. It runs
     # even when a reviewer job failed: a reviewer with no saved answers
     # counts as could-not-run, which never passes.
-    needs: [build, review-codex, review-claude, review-opencode]
+    needs: [build, review-codex, review-claude, review-dsh]
     if: ${{ always() && needs.build.result == 'success' && (github.event.pull_request.head.repo.full_name == github.repository || vars.OSF_REVIEW_FORKS == 'true') }}
     runs-on: ${{ fromJSON(vars.OSF_REVIEW_RUNS_ON || '"ubuntu-latest"') }}
     environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}

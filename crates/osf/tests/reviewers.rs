@@ -465,7 +465,7 @@ fn this_repositorys_osf_toml_selects_its_reviewers_from_the_agent_list_in_order(
     let repo_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let loaded = roster(&repo_root).expect("this repository's osf.toml roster loads");
     let names: Vec<&str> = loaded.iter().map(|r| r.name.as_str()).collect();
-    assert_eq!(names, vec!["codex", "claude", "opencode"], "{loaded:?}");
+    assert_eq!(names, vec!["codex", "claude", "dsh"], "{loaded:?}");
 }
 
 /// A Claude-built range's family (`anthropic`, from its `Code-Generator:`
@@ -501,6 +501,20 @@ fn the_codex_reviewer_in_the_roster_runs_with_its_own_sandbox_off() {
         read_only.args,
         &["--dangerously-bypass-approvals-and-sandbox"]
     );
+}
+
+/// A roster built from a repository's own osf.toml starts dsh as a reviewer,
+/// in dsh's read-only permission mode.
+#[test]
+fn the_dsh_reviewer_in_the_roster_runs_in_dsh_read_only_permission_mode() {
+    let root = TempDir::new("osf-reviewers-roster-dsh");
+    std::fs::write(root.join("osf.toml"), "[agents]\nreviewers = [\"dsh\"]\n")
+        .expect("osf.toml writes");
+    let reviewers = roster(&root).expect("roster loads");
+    let dsh = reviewers.first().expect("dsh is in the roster");
+    let read_only = dsh.read_only.as_ref().expect("dsh has a read-only mode");
+    assert_eq!(read_only.env, &[("DSH_PERMISSION_MODE", "read-only")]);
+    assert_eq!(dsh.family, "deepseek");
 }
 
 /// A reviewer's temporary folder is inside its own home, so that an agent that

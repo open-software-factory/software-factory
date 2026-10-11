@@ -6,6 +6,9 @@ use std::path::PathBuf;
 /// The codex version this workflow names.
 const CODEX_VERSION: &str = "0.161.0";
 
+/// The dsh version this workflow names.
+const DSH_VERSION: &str = "0.2.0-rc.2";
+
 /// Environment a reviewer container needs beyond its own provider credential.
 /// None: a reviewer container passes its provider's key and nothing else.
 const HOUSEKEEPING_ENV: &[&str] = &[];
@@ -239,7 +242,7 @@ fn every_job_that_runs_a_container_runs_the_pinned_image() {
         .collect();
     assert!(
         running.len() >= 5,
-        "the build job, the codex, claude and opencode reviewer jobs and the last job: {:?}",
+        "the build job, the codex, claude and dsh reviewer jobs and the last job: {:?}",
         running.iter().map(|(id, _)| id).collect::<Vec<_>>()
     );
     for (id, body) in &running {
@@ -384,7 +387,7 @@ fn reviews_are_off_for_forks_unless_the_variable_is_set_and_it_is_never_set_here
         "build",
         "review-codex",
         "review-claude",
-        "review-opencode",
+        "review-dsh",
         "review",
     ] {
         let body = job_body(&text, id);
@@ -653,6 +656,157 @@ fn the_codex_job_checks_the_image_carries_the_pinned_codex() {
     assert!(
         body.contains("exit 1"),
         "the codex job fails on a version mismatch: {body}"
+    );
+}
+
+/// The reviewer jobs, by the agent each one runs.
+fn reviewer_job_ids(text: &str) -> Vec<String> {
+    reviewer_jobs(text)
+        .iter()
+        .map(|(_, body)| reviewer_of(body))
+        .collect()
+}
+
+#[test]
+fn the_reviewer_jobs_are_codex_claude_and_dsh_and_the_last_job_waits_for_each() {
+    let text = workflow_text();
+    assert_eq!(
+        reviewer_job_ids(&text),
+        vec!["codex", "claude", "dsh"],
+        "the workflow runs the reviewers osf.toml names"
+    );
+    assert!(
+        !text.contains("review-opencode") && !text.contains("review opencode"),
+        "the opencode reviewer job is gone"
+    );
+    let last = job_body(&text, "review");
+    let needs = last
+        .lines()
+        .find(|line| line.trim_start().starts_with("needs:"))
+        .unwrap_or_else(|| panic!("the last job has no needs: {last}"));
+    assert!(
+        needs.contains("review-codex")
+            && needs.contains("review-claude")
+            && needs.contains("review-dsh")
+            && !needs.contains("review-opencode"),
+        "{needs}"
+    );
+}
+
+#[test]
+fn the_dsh_version_is_pinned_in_one_place_and_the_dsh_job_checks_the_image_carries_it() {
+    let text = workflow_text();
+    assert!(
+        text.contains(&format!("DSH_VERSION: \"{DSH_VERSION}\"")),
+        "the top-level env pins the dsh version"
+    );
+    let body = job_body(&text, "review-dsh");
+    assert!(
+        body.contains("name: Check that the review image carries the pinned dsh"),
+        "{body}"
+    );
+    assert!(
+        body.contains("docker run --rm ${{ env.REVIEW_IMAGE }} dsh --version"),
+        "the dsh job asks the image for its dsh version: {body}"
+    );
+    assert!(
+        body.contains("\"$version\" != \"${DSH_VERSION}\""),
+        "the dsh job compares against the pinned version: {body}"
+    );
+    assert!(body.contains("exit 1"), "{body}");
+    assert!(
+        text.contains("\"0.2.0-rc.2\"") && !text.contains("DSH_VERSION: \"0.1"),
+        "the pin is the version the image's lockfile installs"
+    );
+}
+
+#[test]
+fn the_dsh_job_runs_in_the_review_container_with_only_its_own_key() {
+    let body = job_body(&workflow_text(), "review-dsh");
+    assert!(
+        body.contains("docker run --rm") && body.contains("${{ env.REVIEW_IMAGE }}"),
+        "{body}"
+    );
+    assert!(body.contains("docker login ghcr.io"), "{body}");
+    assert_eq!(
+        permissions_of(&body),
+        vec!["contents: read".to_string(), "packages: read".to_string()]
+    );
+    assert_eq!(
+        provider_secrets(&body),
+        vec!["DEEPSEEK_API_KEY".to_string()],
+        "the dsh job reads exactly one provider secret"
+    );
+    assert!(
+        body.contains("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}"),
+        "{body}"
+    );
+    assert!(body.contains("environment: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'review' || 'fork-review' }}"));
+    assert!(body.contains("needs: build"));
+    let envs: Vec<&str> = body
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("-e "))
+        .map(str::trim)
+        .collect();
+    assert_eq!(envs, vec!["DEEPSEEK_API_KEY"]);
+    for mount in ["/pr:/pr:ro", "/base:/base:ro", "/work-item:/work-item:ro"] {
+        assert!(body.contains(mount), "the dsh job mounts {mount}: {body}");
+    }
+    assert!(body.contains("--config-root /base"));
+    assert!(body.contains("--out /out/dsh.json"));
+    assert!(body.contains("name: review-run-dsh"));
+    assert!(
+        !body.contains("docker.sock"),
+        "the dsh job mounts no container runtime socket"
+    );
+    for forbidden in [
+        "sudo",
+        "sysctl",
+        "--privileged",
+        "--cap-add",
+        "--security-opt",
+        "--device",
+    ] {
+        assert!(
+            !body.contains(forbidden),
+            "the dsh job holds no `{forbidden}`: {body}"
+        );
+    }
+}
+
+#[test]
+fn the_dsh_job_allows_exactly_the_github_hosts_and_the_deepseek_api() {
+    let body = job_body(&workflow_text(), "review-dsh");
+    let mut hosts = endpoints_of(&body);
+    hosts.sort();
+    let mut expected: Vec<String> = [
+        "github.com:443",
+        "api.github.com:443",
+        "codeload.github.com:443",
+        "objects.githubusercontent.com:443",
+        "ghcr.io:443",
+        "pkg-containers.githubusercontent.com:443",
+        "api.deepseek.com:443",
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    expected.sort();
+    assert_eq!(hosts, expected, "the dsh job names its seven hosts");
+    assert!(
+        body.contains("egress-policy: block"),
+        "the dsh job blocks every other host: {body}"
+    );
+}
+
+#[test]
+fn the_dsh_job_starts_the_dsh_reviewer_without_the_bypass_of_the_codex_job() {
+    let body = job_body(&workflow_text(), "review-dsh");
+    assert_eq!(reviewer_of(&body), "dsh");
+    assert!(body.contains("--if-enabled"));
+    assert!(
+        !body.contains("dangerously-bypass"),
+        "dsh runs in its own read-only permission mode: {body}"
     );
 }
 
