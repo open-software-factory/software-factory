@@ -1,8 +1,8 @@
 use osf::pr_status::GhClient;
 use osf::{
     agents, answer, assets, changeset_risk, changeset_tests, check, checkpoint, config, exclude,
-    git, githooks, hook, journal, lints, pr_status, pr_tree, reducer, review, review_run,
-    reviewers, scan, section, verify,
+    forge, git, githooks, github, hook, journal, lints, pr_status, pr_tree, reducer, review,
+    review_run, reviewers, scan, section, verify,
 };
 
 use clap::parser::ValueSource;
@@ -2292,9 +2292,9 @@ fn review_run_summary(outcome: &review_run::RunOutcome) -> String {
 }
 
 /// `--post-to`'s whole job: build the findings and the summary from
-/// `outcome`, then post through the same [`post_plan`] `osf review post`
-/// uses. Returns whether the post landed: a caller that cannot post has no
-/// review evidence on the pull request, whatever the run's own verdict was.
+/// `outcome`, then post through the forge. Returns whether the post landed:
+/// a caller that cannot post has no review evidence on the pull request,
+/// whatever the run's own verdict was.
 fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
     let (repo, pr) = match parse_post_to(post_to) {
         Ok(parsed) => parsed,
@@ -2314,48 +2314,51 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
             return false;
         }
     };
-    let head_sha = match review::fetch_head_sha(&repo, pr) {
+    let github = github_adapter();
+    let head_sha = match github.head_commit(&repo, pr) {
         Ok(sha) => sha,
         Err(e) => {
             eprintln!("osf review run --post-to: {e}");
             return false;
         }
     };
-    match post_plan(&repo, pr, &plan, &head_sha) {
-        review::Outcome::Reviewed {
+    let pull_request = forge::PullRequestId {
+        repo: repo.clone(),
+        pr: pr.to_string(),
+    };
+    match post_plan(&github, &pull_request, &plan, &head_sha) {
+        Ok(forge::PostedReview {
             verdict,
-            n_inline,
+            advisory: false,
+            inline,
             id,
             state,
             url,
-        } => {
+        }) => {
             println!("posted review {id}: {state}, {url}");
             println!(
-                "osf review run --post-to: {} with {n_inline} inline comment(s) on {repo}#{pr}",
+                "osf review run --post-to: {} with {inline} inline comment(s) on {repo}#{pr}",
                 verdict.as_event()
             );
             true
         }
-        review::Outcome::FallbackComment {
+        Ok(forge::PostedReview {
             verdict,
-            n_inline,
+            advisory: true,
+            inline,
             id,
             state,
             url,
-        } => {
+        }) => {
             println!("posted comment {id}: {state}, {url}");
             println!(
-                "osf review run --post-to: COMMENT (advisory {}) with {n_inline} inline \
+                "osf review run --post-to: COMMENT (advisory {}) with {inline} inline \
                  comment(s) on {repo}#{pr}",
                 verdict.as_event()
             );
             true
         }
-        review::Outcome::Rejected(e) => {
-            eprintln!("osf review run --post-to: {e}");
-            false
-        }
-        review::Outcome::PostFailed(e) => {
+        Err(e) => {
             eprintln!("osf review run --post-to: {e}");
             false
         }
@@ -2426,6 +2429,11 @@ fn read_to_string_or_exit(path: &Path) -> Result<String, ExitCode> {
     })
 }
 
+/// The only place that builds the GitHub adapter.
+fn github_adapter() -> github::GitHub<github::RealGh> {
+    github::GitHub::real()
+}
+
 fn pr_status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
     let tier_text = match read_to_string_or_exit(&args.tier_json) {
         Ok(t) => t,
@@ -2441,7 +2449,7 @@ fn pr_status_render_cmd(args: &StatusRenderArgs) -> ExitCode {
             eprintln!("osf pr status render: needs --repo and --pr, or --review-json");
             return ExitCode::from(2);
         };
-        match pr_status::RealGh.view_review(repo, pr) {
+        match github_adapter().client().view_review(repo, pr) {
             Ok(t) => t,
             Err(e) => {
                 eprintln!("osf: {e}");
@@ -2502,30 +2510,38 @@ fn resolve_block_on(flag: Option<&str>) -> Vec<String> {
     review::parse_block_on("must-fix,should-fix")
 }
 
-/// Posts `plan` to `repo`#`pr`, retrying once as an advisory comment when
-/// GitHub refuses the formal review. Thin: the decision at each step lives
-/// in [`review::after_first_attempt`] and [`review::after_fallback_attempt`].
-fn post_plan(repo: &str, pr: u64, plan: &review::Plan, head_sha: &str) -> review::Outcome {
-    let payload = review::payload(
-        head_sha,
-        &plan.body,
-        plan.verdict.as_event(),
-        &plan.comments,
-    );
-    let attempt = review::post_via_gh(repo, pr, &payload);
-    match review::after_first_attempt(attempt, plan, head_sha) {
-        review::NextStep::Done(outcome) => outcome,
-        review::NextStep::RetryAsComment(advisory_payload) => {
-            eprintln!(
-                "osf review post: GitHub refuses {} from the pull request's own author; posting \
-                 as COMMENT with the verdict marked advisory. reviewDecision stays empty until \
-                 the reviewer has its own identity.",
-                plan.verdict.as_event()
-            );
-            let second_attempt = review::post_via_gh(repo, pr, &advisory_payload);
-            review::after_fallback_attempt(second_attempt, plan)
-        }
+/// The forge verdict matching a review plan's verdict.
+fn to_forge_verdict(verdict: review::Verdict) -> forge::Verdict {
+    match verdict {
+        review::Verdict::Approve => forge::Verdict::Approve,
+        review::Verdict::RequestChanges => forge::Verdict::RequestChanges,
     }
+}
+
+/// The forge inline comment matching a review plan's comment.
+fn to_forge_comment(comment: &review::Comment) -> forge::ReviewComment {
+    forge::ReviewComment {
+        path: comment.path.clone(),
+        line: comment.line,
+        body: comment.body.clone(),
+    }
+}
+
+/// Posts `plan` through `forge`; the adapter prints the self-review warning.
+fn post_plan(
+    forge: &dyn forge::Forge,
+    pull_request: &forge::PullRequestId,
+    plan: &review::Plan,
+    head_sha: &str,
+) -> Result<forge::PostedReview, forge::ForgeError> {
+    let request = forge::NewReview {
+        pull_request: pull_request.clone(),
+        head_sha: head_sha.to_string(),
+        verdict: to_forge_verdict(plan.verdict),
+        body: plan.body.clone(),
+        comments: plan.comments.iter().map(to_forge_comment).collect(),
+    };
+    forge.post_review(&request)
 }
 
 /// Prints the dry-run preview of `plan`: the verdict it would send and the
@@ -2612,26 +2628,32 @@ fn pr_status_apply_cmd(args: &StatusApplyArgs) -> ExitCode {
         eprintln!("osf pr status apply: needs --repo and --pr, or --body-file and --out");
         return ExitCode::from(2);
     };
-    let client = pr_status::RealGh;
-    let body = match client.view_body(repo, pr) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
-    let new_body = match pr_status::apply(&body, &block_text) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
     if args.dry_run {
+        let github = github_adapter();
+        let body = match github.client().view_body(repo, pr) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        };
+        let new_body = match pr_status::apply(&body, &block_text) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("osf: {e}");
+                return ExitCode::from(2);
+            }
+        };
         print!("{new_body}");
         return ExitCode::SUCCESS;
     }
-    match client.edit_body(repo, pr, &new_body) {
+    let pull_request = forge::PullRequestId {
+        repo: repo.clone(),
+        pr: pr.clone(),
+    };
+    let github = github_adapter();
+    let forge: &dyn forge::Forge = &github;
+    match forge.write_status_block(&pull_request, &block_text) {
         Ok(()) => {
             println!("osf pr status apply: applied to {repo}#{pr}");
             ExitCode::SUCCESS
@@ -2678,26 +2700,37 @@ fn pr_status_refresh_base(base: Option<&String>, base_ref: &str) -> Result<Strin
     Ok(format!("origin/{base_ref}"))
 }
 
-/// The gate spec for `render`: from `checks_json` when given, else from
-/// `gh pr checks`, with the check running this refresh left out.
+/// The gate spec for `render` from a forge check-status read.
+fn gates_from_forge_checks(status: &forge::CheckStatus) -> String {
+    let checks: Vec<(String, String, String)> = status
+        .checks
+        .iter()
+        .map(|c| (c.name.clone(), c.state.clone(), c.bucket.clone()))
+        .collect();
+    pr_status::gates_from_checks(&checks, STATUS_CHECK_NAME)
+}
+
+/// The gate spec for `render` from `checks_json` or the forge's check-status read.
 fn pr_status_refresh_gates(
-    client: &dyn pr_status::GhClient,
-    repo: &str,
-    pr: &str,
+    forge: &dyn forge::Forge,
+    pull_request: &forge::PullRequestId,
     checks_json: Option<&PathBuf>,
 ) -> Result<String, ExitCode> {
-    let checks_text = if let Some(path) = checks_json {
-        read_to_string_or_exit(path)?
-    } else {
-        client.view_checks(repo, pr).map_err(|e| {
+    if let Some(path) = checks_json {
+        let checks_text = read_to_string_or_exit(path)?;
+        return pr_status::gates_from_checks_json(&checks_text, STATUS_CHECK_NAME).map_err(|e| {
             eprintln!("osf: {e}");
             ExitCode::from(2)
-        })?
-    };
-    pr_status::gates_from_checks_json(&checks_text, STATUS_CHECK_NAME).map_err(|e| {
-        eprintln!("osf: {e}");
-        ExitCode::from(2)
-    })
+        });
+    }
+    match forge.read_check_status(pull_request) {
+        forge::ReadOutcome::Found(status) => Ok(gates_from_forge_checks(&status)),
+        forge::ReadOutcome::Empty => Ok(String::new()),
+        forge::ReadOutcome::Unknown(reason) => {
+            eprintln!("osf: {reason}");
+            Err(ExitCode::from(2))
+        }
+    }
 }
 
 /// The review JSON for `render`: from `review_json` when given, else from `gh pr view`.
@@ -2718,11 +2751,13 @@ fn pr_status_refresh_review(
 }
 
 fn pr_status_refresh_cmd(args: &StatusRefreshArgs) -> ExitCode {
-    pr_status_refresh_run(&pr_status::RealGh, args).unwrap_or_else(|code| code)
+    let github = github_adapter();
+    pr_status_refresh_run(github.client(), &github, args).unwrap_or_else(|code| code)
 }
 
 fn pr_status_refresh_run(
     client: &dyn pr_status::GhClient,
+    forge: &dyn forge::Forge,
     args: &StatusRefreshArgs,
 ) -> Result<ExitCode, ExitCode> {
     let to_exit = |e: pr_status::StatusError| {
@@ -2743,7 +2778,11 @@ fn pr_status_refresh_run(
         ExitCode::from(2)
     })?;
     let tier_text = report.to_json().to_string();
-    let gates = pr_status_refresh_gates(client, &args.repo, &args.pr, args.checks_json.as_ref())?;
+    let pull_request = forge::PullRequestId {
+        repo: args.repo.clone(),
+        pr: args.pr.clone(),
+    };
+    let gates = pr_status_refresh_gates(forge, &pull_request, args.checks_json.as_ref())?;
     let review_text =
         pr_status_refresh_review(client, &args.repo, &args.pr, args.review_json.as_ref())?;
     let tests_summary = changeset_tests::summarize(Path::new("."), &base, "HEAD").map_err(|e| {
@@ -2781,44 +2820,51 @@ fn pr_status_refresh_run(
         return Ok(ExitCode::SUCCESS);
     }
 
-    let new_body = pr_status::apply(&pr_info.body, &block).map_err(to_exit)?;
-    client
-        .edit_body(&args.repo, &args.pr, &new_body)
-        .map_err(to_exit)?;
+    forge
+        .write_status_block(&pull_request, &block)
+        .map_err(|e| {
+            eprintln!("osf: {e}");
+            ExitCode::from(2)
+        })?;
     println!("osf pr status refresh: updated");
     Ok(ExitCode::SUCCESS)
 }
 
-/// Reports one of [`review::Outcome`]'s four cases: a formal review
-/// landed, it landed as a fallback comment, or nothing landed and why.
-fn report_outcome(outcome: review::Outcome, args: &ReviewPostArgs, head_sha: &str) -> ExitCode {
+/// Reports a forge review post's result as output and an exit code.
+fn report_outcome(
+    outcome: Result<forge::PostedReview, forge::ForgeError>,
+    args: &ReviewPostArgs,
+    head_sha: &str,
+) -> ExitCode {
     match outcome {
-        review::Outcome::Reviewed {
+        Ok(forge::PostedReview {
             verdict,
-            n_inline,
+            advisory: false,
+            inline,
             id,
             state,
             url,
-        } => {
+        }) => {
             println!("posted review {id}: {state}, {url}");
             println!(
-                "osf review post: {} with {n_inline} inline comment(s) on {}#{} at {head_sha}",
+                "osf review post: {} with {inline} inline comment(s) on {}#{} at {head_sha}",
                 verdict.as_event(),
                 args.repo,
                 args.pr
             );
             ExitCode::SUCCESS
         }
-        review::Outcome::FallbackComment {
+        Ok(forge::PostedReview {
             verdict,
-            n_inline,
+            advisory: true,
+            inline,
             id,
             state,
             url,
-        } => {
+        }) => {
             println!("posted comment {id}: {state}, {url}");
             println!(
-                "osf review post: COMMENT (advisory {}) with {n_inline} inline comment(s) on \
+                "osf review post: COMMENT (advisory {}) with {inline} inline comment(s) on \
                  {}#{} at {head_sha}",
                 verdict.as_event(),
                 args.repo,
@@ -2826,11 +2872,11 @@ fn report_outcome(outcome: review::Outcome, args: &ReviewPostArgs, head_sha: &st
             );
             ExitCode::SUCCESS
         }
-        review::Outcome::Rejected(e) => {
+        Err(forge::ForgeError::Rejected(e)) => {
             eprintln!("osf: {e}");
             ExitCode::from(2)
         }
-        review::Outcome::PostFailed(e) => {
+        Err(forge::ForgeError::Failed(e)) => {
             eprintln!("osf: {e}");
             ExitCode::from(1)
         }
@@ -2865,7 +2911,8 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let head_sha = match review::fetch_head_sha(&args.repo, args.pr) {
+    let github = github_adapter();
+    let head_sha = match github.head_commit(&args.repo, args.pr) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("osf: {e}");
@@ -2876,7 +2923,11 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
     if args.dry_run {
         return print_dry_run(args, &plan, &head_sha);
     }
-    let outcome = post_plan(&args.repo, args.pr, &plan, &head_sha);
+    let pull_request = forge::PullRequestId {
+        repo: args.repo.clone(),
+        pr: args.pr.to_string(),
+    };
+    let outcome = post_plan(&github, &pull_request, &plan, &head_sha);
     report_outcome(outcome, args, &head_sha)
 }
 

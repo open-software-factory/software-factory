@@ -10,7 +10,6 @@ use crate::marker;
 use regex::Regex;
 use serde_json::Value;
 use std::fmt::{self, Write as _};
-use std::process::Command;
 
 const NAME: &str = "status";
 const SHORT_SHA_LEN: usize = 7;
@@ -622,23 +621,19 @@ pub fn is_unchanged(body: &str, rendered: &str) -> Result<bool, StatusError> {
     Ok(current_block(body)?.as_deref() == Some(rendered))
 }
 
-/// Turns `gh pr checks --json name,state,bucket` output into the
-/// comma-separated gate spec [`render`] understands: `name: passed` when
-/// the bucket is `pass`, `name: failed: <state>` when it is `fail`, and
-/// left out of the list entirely for any other bucket (pending, skipping,
-/// or cancel). `skip_name` is left out too, so the check running this very
-/// refresh never reports on itself.
+/// Reads `gh pr checks --json name,state,bucket` output into one
+/// `(name, state, bucket)` triple per entry, in order.
 ///
 /// # Errors
 /// Returns an error when the JSON is not an array of objects each with a
 /// string `name`, `state`, and `bucket`.
-pub fn gates_from_checks_json(text: &str, skip_name: &str) -> Result<String, StatusError> {
+pub fn parse_checks(text: &str) -> Result<Vec<(String, String, String)>, StatusError> {
     let value: Value = serde_json::from_str(text)
         .map_err(|e| StatusError(format!("the checks data is not valid JSON: {e}")))?;
     let Some(items) = value.as_array() else {
         return Err(checks_shape_error());
     };
-    let mut parts = Vec::new();
+    let mut checks = Vec::new();
     for item in items {
         let obj = item.as_object().ok_or_else(checks_shape_error)?;
         let name = obj
@@ -653,16 +648,39 @@ pub fn gates_from_checks_json(text: &str, skip_name: &str) -> Result<String, Sta
             .get("bucket")
             .and_then(Value::as_str)
             .ok_or_else(checks_shape_error)?;
-        if name == skip_name {
+        checks.push((name.to_string(), state.to_string(), bucket.to_string()));
+    }
+    Ok(checks)
+}
+
+/// The gate spec for [`render`] from `(name, state, bucket)` triples, skipping `skip_name`.
+#[must_use]
+pub fn gates_from_checks(checks: &[(String, String, String)], skip_name: &str) -> String {
+    let mut parts = Vec::new();
+    for (name, state, bucket) in checks {
+        if name.as_str() == skip_name {
             continue;
         }
-        match bucket {
+        match bucket.as_str() {
             "pass" => parts.push(format!("{name}: passed")),
             "fail" => parts.push(format!("{name}: failed: {state}")),
             _ => {}
         }
     }
-    Ok(parts.join(", "))
+    parts.join(", ")
+}
+
+/// Turns `gh pr checks --json name,state,bucket` output into the
+/// comma-separated gate spec [`render`] understands: `name: passed` when
+/// the bucket is `pass`, `name: failed: <state>` when it is `fail`, and
+/// left out of the list entirely for any other bucket (pending, skipping,
+/// or cancel). `skip_name` is left out too, so the check running this very
+/// refresh never reports on itself.
+///
+/// # Errors
+/// Returns an error when [`parse_checks`] cannot read the checks data.
+pub fn gates_from_checks_json(text: &str, skip_name: &str) -> Result<String, StatusError> {
+    Ok(gates_from_checks(&parse_checks(text)?, skip_name))
 }
 
 fn checks_shape_error() -> StatusError {
@@ -712,11 +730,26 @@ pub fn parse_pr_info(text: &str) -> Result<PrInfo, StatusError> {
     })
 }
 
+/// The raw result of one `gh` command that ran: exit success, status, stdout, stderr.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GhOutput {
+    pub success: bool,
+    pub status: String,
+    pub stdout: String,
+    pub stderr: String,
+}
+
 /// What [`apply`] and `osf pr status refresh` need from GitHub: reading a
 /// pull request's description and metadata, its checks, its review state,
 /// and writing a new description back. A trait so a test can supply a fake
 /// instead of shelling out to `gh`.
 pub trait GhClient {
+    /// Runs one `gh` command, writes `stdin` to its standard input when given, and returns the raw result of a command that ran; the error is only for a command that could not start or could not be fed.
+    ///
+    /// # Errors
+    /// Returns an error when `gh` cannot start, or its standard input cannot be written.
+    fn run(&self, args: &[String], stdin: Option<&str>) -> Result<GhOutput, StatusError>;
+
     /// # Errors
     /// Returns an error when `gh` cannot run or exits non-zero.
     fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError>;
@@ -752,121 +785,79 @@ pub fn apply_via_gh(
     Ok(new_body)
 }
 
-/// Calls the real `gh` command line tool.
-pub struct RealGh;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[allow(clippy::unused_self)]
-impl GhClient for RealGh {
-    fn view_body(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-        let output = Command::new("gh")
-            .args([
-                "pr", "view", pr, "--repo", repo, "--json", "body", "-q", ".body",
-            ])
-            .output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            return Err(StatusError(format!(
-                "gh pr view failed for {repo}#{pr}; nothing was changed"
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    const CHECKS: &str = r#"[
+        {"name":"hygiene","state":"SUCCESS","bucket":"pass"},
+        {"name":"rust","state":"FAILURE","bucket":"fail"},
+        {"name":"slow-check","state":"PENDING","bucket":"pending"}
+    ]"#;
+
+    #[test]
+    fn parse_checks_reads_every_entry_in_order() {
+        let checks = parse_checks(CHECKS).expect("valid checks JSON");
+        assert_eq!(
+            checks,
+            vec![
+                (
+                    "hygiene".to_string(),
+                    "SUCCESS".to_string(),
+                    "pass".to_string()
+                ),
+                (
+                    "rust".to_string(),
+                    "FAILURE".to_string(),
+                    "fail".to_string()
+                ),
+                (
+                    "slow-check".to_string(),
+                    "PENDING".to_string(),
+                    "pending".to_string()
+                ),
+            ]
+        );
     }
 
-    fn view_review(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-        let output = Command::new("gh")
-            .args([
-                "pr",
-                "view",
-                pr,
-                "--repo",
-                repo,
-                "--json",
-                "reviewDecision,reviews,comments",
-            ])
-            .output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(StatusError(format!(
-                "gh pr view failed for {repo}#{pr}: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    #[test]
+    fn parse_checks_refuses_a_bad_shape_with_the_existing_text() {
+        let err = parse_checks(r#"{"name":"only-one-object"}"#).expect_err("not an array");
+        assert_eq!(
+            err.to_string(),
+            "the checks data must have the shape of `gh pr checks --json name,state,bucket`"
+        );
     }
 
-    fn view_pr_info(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-        let output = Command::new("gh")
-            .args([
-                "pr",
-                "view",
-                pr,
-                "--repo",
-                repo,
-                "--json",
-                "body,baseRefName,headRefName",
-            ])
-            .output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(StatusError(format!(
-                "gh pr view failed for {repo}#{pr}: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    #[test]
+    fn parse_checks_refuses_a_missing_field_with_the_existing_text() {
+        let err = parse_checks(r#"[{"name":"a","state":"SUCCESS"}]"#).expect_err("no bucket");
+        assert_eq!(
+            err.to_string(),
+            "the checks data must have the shape of `gh pr checks --json name,state,bucket`"
+        );
     }
 
-    fn view_checks(&self, repo: &str, pr: &str) -> Result<String, StatusError> {
-        let output = Command::new("gh")
-            .args([
-                "pr",
-                "checks",
-                pr,
-                "--repo",
-                repo,
-                "--json",
-                "name,state,bucket",
-            ])
-            .output()
-            .map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            if stderr.to_lowercase().contains("no checks reported") {
-                return Ok("[]".to_string());
-            }
-            return Err(StatusError(format!(
-                "gh pr checks failed for {repo}#{pr}: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    #[test]
+    fn gates_from_checks_json_still_maps_buckets_and_skips_the_self_check() {
+        let gates = gates_from_checks_json(CHECKS, "hygiene").expect("valid checks JSON");
+        assert_eq!(gates, "rust: failed: FAILURE");
     }
 
-    fn edit_body(&self, repo: &str, pr: &str, body: &str) -> Result<(), StatusError> {
-        let base = std::env::temp_dir(); // osf: temp-dir allowed, gh needs a real file path
-        let tmp = base.join(format!("osf-status-{}.md", std::process::id()));
-        std::fs::write(&tmp, body)
-            .map_err(|e| StatusError(format!("cannot write a temporary file: {e}")))?;
-        let run = Command::new("gh")
-            .arg("pr")
-            .arg("edit")
-            .arg(pr)
-            .arg("--repo")
-            .arg(repo)
-            .arg("--body-file")
-            .arg(&tmp)
-            .output();
-        let _ = std::fs::remove_file(&tmp);
-        let output = run.map_err(|e| StatusError(format!("cannot run gh: {e}")))?;
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(StatusError(format!(
-                "gh pr edit failed for {repo}#{pr}: {}",
-                stderr.trim()
-            )));
-        }
-        Ok(())
+    #[test]
+    fn gates_from_checks_json_still_reads_an_empty_array_as_empty() {
+        let gates = gates_from_checks_json("[]", "status block").expect("valid checks JSON");
+        assert_eq!(gates, "");
+    }
+
+    #[test]
+    fn the_module_text_names_no_process_command() {
+        let text = include_str!("pr_status.rs");
+        let word = ["Com", "mand"].concat();
+        let words: Vec<&str> = text.split(|c: char| !c.is_alphanumeric()).collect();
+        assert!(
+            !words.contains(&word.as_str()),
+            "the pure status module must hold no process-starting code"
+        );
     }
 }
