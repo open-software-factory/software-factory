@@ -1,0 +1,754 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-jsonschema-0-58-upgrade",
+  "generatedAt": "2026-10-11T00:15:48.143Z",
+  "title": "osf: jsonschema 0.30 → 0.58.6",
+  "summary": "The `osf` crate's JSON Schema validator is bumped from 0.30.0 to 0.58.6, a major-version jump that swaps the validator's internals: the old `base64`/`idna`/`once_cell`/`futures-util`/`uuid` stack is replaced by `jsonschema-regex`, `jsonschema-value`, `data-encoding`, `micromap`, `hashbrown` and `unicode-general-category`. No source file in the workspace changes — only the pinned dependency in `crates/osf/Cargo.toml` and the resolved graph in `Cargo.lock`. The reviewer's question is therefore not 'what code changed' but 'what does the osf lint pipeline now validate schemas with', and whether the new validator still sits behind the same call site.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "ec0ace1e90964cac6b3feb747077662a5d0967d5",
+      "ref": "ec0ace1e90964cac6b3feb747077662a5d0967d5"
+    },
+    "pullRequest": {
+      "number": 285,
+      "url": "https://github.com/open-software-factory/software-factory/pull/285"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The command-line entry point that drives linting; unchanged in this diff but the consumer of the upgraded validator."
+    },
+    {
+      "id": "lint",
+      "label": "Lint core",
+      "subtitle": "osf-lint-core",
+      "order": 1,
+      "delta": "unchanged",
+      "summary": "Rule evaluation and schema-backed checks; unchanged, but it is what the validator is wired into."
+    },
+    {
+      "id": "validator",
+      "label": "Schema validation",
+      "subtitle": "jsonschema crate",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The JSON Schema engine itself, upgraded across many major versions."
+    },
+    {
+      "id": "deps",
+      "label": "Resolved crates",
+      "subtitle": "Cargo.lock",
+      "order": 3,
+      "delta": "modified",
+      "summary": "The transitive dependency set that the lockfile now pins."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "cli",
+      "subtitle": "clap-based binary",
+      "summary": "Parses arguments and dispatches lint runs. It does not name the validator directly; it reaches it through osf-lint-core.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 23,
+          "endLine": 30
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-lint-core",
+      "label": "osf-lint-core",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "lint",
+      "subtitle": "rule engine",
+      "summary": "The crate that owns lint rules and schema-backed checks. Its dependency on the jsonschema crate is what this change re-pins.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 23,
+          "endLine": 23
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "jsonschema-crate",
+      "label": "jsonschema 0.58.6",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "validator",
+      "subtitle": "was =0.30.0",
+      "summary": "The JSON Schema validator, moved from 0.30.0 to 0.58.6 with default features off. This is the single behavioural change in the diff.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 26,
+          "endLine": 26
+        }
+      ],
+      "badges": [
+        "default-features = false"
+      ]
+    },
+    {
+      "id": "jsonschema-regex",
+      "label": "jsonschema-regex",
+      "kind": "package",
+      "delta": "added",
+      "lane": "validator",
+      "subtitle": "0.58.6",
+      "summary": "New companion crate carrying the regex-syntax-backed pattern engine, split out of the main validator in the 0.58 line.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "jsonschema-value",
+      "label": "jsonschema-value",
+      "kind": "package",
+      "delta": "added",
+      "lane": "validator",
+      "subtitle": "0.58.6",
+      "summary": "New companion crate holding the JSON value model and numeric handling (fraction, num-cmp, zmij) used by the validator.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fancy-regex",
+      "label": "fancy-regex 0.19.2",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "was 0.14.0",
+      "summary": "Regex engine behind schema patterns, bumped alongside the validator.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "referencing",
+      "label": "referencing 0.58.6",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "was 0.30.0",
+      "summary": "$ref resolution, re-versioned in lockstep with the validator and now backed by hashbrown and micromap.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fraction",
+      "label": "fraction 0.17.0",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "was 0.15.4",
+      "summary": "Exact rational arithmetic for numeric schema keywords; drops lazy_static and gains num-bigint.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fluent-uri",
+      "label": "fluent-uri 0.4.1",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "was 0.3.2",
+      "summary": "URI parsing used for schema identifiers and $id resolution.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "hashbrown",
+      "label": "hashbrown 0.17.1",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "deps",
+      "subtitle": "gains allocator-api2, foldhash",
+      "summary": "Hash map backing the new referencing crate; now pulls allocator-api2 and foldhash.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "data-encoding",
+      "label": "data-encoding 2.11.1",
+      "kind": "package",
+      "delta": "added",
+      "lane": "deps",
+      "subtitle": "new",
+      "summary": "Base64/hex codec that replaces the removed base64 0.22.1 dependency.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "unicode-general-category",
+      "label": "unicode-general-category 1.1.0",
+      "kind": "package",
+      "delta": "added",
+      "lane": "deps",
+      "subtitle": "new",
+      "summary": "Unicode category tables used by the new validator for string keyword checks.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "micromap",
+      "label": "micromap 0.3.0",
+      "kind": "package",
+      "delta": "added",
+      "lane": "deps",
+      "subtitle": "new",
+      "summary": "Small map type introduced by the new referencing crate.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "base64-0-22",
+      "label": "base64 0.22.1",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "deps",
+      "subtitle": "dropped",
+      "summary": "No longer required; the validator now uses data-encoding.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "futures-util",
+      "label": "futures-util 0.3.34",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "deps",
+      "subtitle": "dropped",
+      "summary": "Removed from the graph along with futures-core, futures-task, pin-project-lite and slab.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "uuid-1-26",
+      "label": "uuid 1.26.1",
+      "kind": "package",
+      "delta": "removed",
+      "lane": "deps",
+      "subtitle": "dropped",
+      "summary": "uuid-simd no longer pulls the uuid crate, so it leaves the lockfile.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "strum-0-28",
+      "label": "strum 0.28.0",
+      "kind": "package",
+      "delta": "added",
+      "lane": "deps",
+      "subtitle": "new, alongside strum 0.27.2",
+      "summary": "The validator now depends on strum 0.28.0 while the rest of the workspace stays on 0.27.2, so both versions coexist.",
+      "files": [
+        {
+          "path": "Cargo.lock"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-cli-to-lint-core",
+      "from": "osf-cli",
+      "to": "osf-lint-core",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "lint run",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-core-to-jsonschema",
+      "from": "osf-lint-core",
+      "to": "jsonschema-crate",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "=0.58.6",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The one line that changed: osf-lint-core's schema validation now resolves to jsonschema 0.58.6 instead of 0.30.0.",
+      "files": [
+        {
+          "path": "crates/osf/Cargo.toml",
+          "startLine": 26,
+          "endLine": 26
+        }
+      ]
+    },
+    {
+      "id": "jsonschema-to-regex",
+      "from": "jsonschema-crate",
+      "to": "jsonschema-regex",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "pattern engine",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-to-value",
+      "from": "jsonschema-crate",
+      "to": "jsonschema-value",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "value model",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-to-referencing",
+      "from": "jsonschema-crate",
+      "to": "referencing",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "$ref resolution",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-to-fancy-regex",
+      "from": "jsonschema-crate",
+      "to": "fancy-regex",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.19.2",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-to-fraction",
+      "from": "jsonschema-crate",
+      "to": "fraction",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.17.0",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-to-fluent-uri",
+      "from": "jsonschema-crate",
+      "to": "fluent-uri",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.4.1",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-to-data-encoding",
+      "from": "jsonschema-crate",
+      "to": "data-encoding",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "replaces base64",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-to-unicode-cat",
+      "from": "jsonschema-crate",
+      "to": "unicode-general-category",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "string keywords",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-to-strum",
+      "from": "jsonschema-crate",
+      "to": "strum-0-28",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "0.28.0",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "referencing-to-hashbrown",
+      "from": "referencing",
+      "to": "hashbrown",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "map backend",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "referencing-to-micromap",
+      "from": "referencing",
+      "to": "micromap",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "0.3.0",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-drops-base64",
+      "from": "jsonschema-crate",
+      "to": "base64-0-22",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "no longer used",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-drops-futures",
+      "from": "jsonschema-crate",
+      "to": "futures-util",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "no longer used",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jsonschema-drops-uuid",
+      "from": "jsonschema-crate",
+      "to": "uuid-1-26",
+      "kind": "dependency",
+      "delta": "removed",
+      "label": "no longer used",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "schema-validation-run",
+      "title": "Validating a document against a schema",
+      "summary": "How a lint run reaches the upgraded validator and what the new crate split does with the schema.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "osf-cli",
+          "label": "osf CLI"
+        },
+        {
+          "node": "osf-lint-core",
+          "label": "lint core"
+        },
+        {
+          "node": "jsonschema-crate",
+          "label": "jsonschema 0.58.6"
+        },
+        {
+          "node": "jsonschema-regex",
+          "label": "jsonschema-regex"
+        },
+        {
+          "node": "referencing",
+          "label": "referencing"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-invoke-lint",
+          "from": "osf-cli",
+          "to": "osf-lint-core",
+          "label": "run lint",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 23,
+              "endLine": 23
+            }
+          ]
+        },
+        {
+          "id": "step-compile-schema",
+          "from": "osf-lint-core",
+          "to": "jsonschema-crate",
+          "label": "compile schema",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Same call site, but the validator behind it is now 0.58.6 with default features off.",
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 26,
+              "endLine": 26
+            }
+          ]
+        },
+        {
+          "id": "step-resolve-refs",
+          "from": "jsonschema-crate",
+          "to": "referencing",
+          "label": "resolve $ref / $id",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "referencing 0.58.6 now backs this with hashbrown and micromap instead of once_cell.",
+          "files": [
+            {
+              "path": "Cargo.lock"
+            }
+          ]
+        },
+        {
+          "id": "step-compile-patterns",
+          "from": "jsonschema-crate",
+          "to": "jsonschema-regex",
+          "label": "compile pattern keywords",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Pattern compilation moved into its own crate in the 0.58 line.",
+          "files": [
+            {
+              "path": "Cargo.lock"
+            }
+          ]
+        },
+        {
+          "id": "step-validate",
+          "from": "jsonschema-crate",
+          "to": "jsonschema-crate",
+          "label": "validate instance",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "Instance checking now runs against the jsonschema-value model, with data-encoding and unicode-general-category supplying codec and category tables.",
+          "files": [
+            {
+              "path": "Cargo.lock"
+            }
+          ]
+        },
+        {
+          "id": "step-result",
+          "from": "jsonschema-crate",
+          "to": "osf-lint-core",
+          "label": "validation errors",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/Cargo.toml",
+              "startLine": 26,
+              "endLine": 26
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 108,
+    "deletions": 74,
+    "chips": [
+      {
+        "label": "jsonschema",
+        "value": "0.30 → 0.58.6",
+        "tone": "hero"
+      },
+      {
+        "label": "Source files touched",
+        "value": "0",
+        "tone": "neutral"
+      },
+      {
+        "label": "Crates added",
+        "value": "6",
+        "tone": "added"
+      },
+      {
+        "label": "Crates removed",
+        "value": "6",
+        "tone": "removed"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "view-dependency-graph",
+      "title": "Dependency graph around the validator",
+      "lens": "architecture",
+      "summary": "The osf CLI reaches schema validation through osf-lint-core; the only changed link is the pinned jsonschema version, which drags a new set of companion crates with it.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-validator-internals",
+      "title": "Inside jsonschema 0.58.6",
+      "lens": "architecture",
+      "summary": "The 0.58 line splits the validator into jsonschema-regex and jsonschema-value, and re-bases $ref resolution on referencing 0.58.6.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "jsonschema-crate",
+          "jsonschema-regex",
+          "jsonschema-value",
+          "referencing",
+          "fancy-regex",
+          "fraction",
+          "fluent-uri",
+          "data-encoding",
+          "unicode-general-category",
+          "strum-0-28",
+          "hashbrown",
+          "micromap"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "view-removed-crates",
+      "title": "What left the lockfile",
+      "lens": "architecture",
+      "summary": "base64 0.22.1, the futures-util family and uuid 1.26.1 are no longer reachable from the validator.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "jsonschema-crate",
+          "base64-0-22",
+          "futures-util",
+          "uuid-1-26"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "view-validation-flow",
+      "title": "Schema validation sequence",
+      "lens": "data-flow",
+      "summary": "A lint run compiles a schema, resolves its references, compiles its patterns and validates an instance — the same shape as before, with new crates doing the work.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "schema-validation-run"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

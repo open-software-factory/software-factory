@@ -1,0 +1,119 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "id": "osf-jsonschema-0-58-upgrade",
+    "headSha": "ec0ace1e90964cac6b3feb747077662a5d0967d5",
+    "contentHash": "663a45f5317850832b102d7585c59491"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "view-dependency-graph-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-dependency-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "44221a1247f4236dc2b333a3f8654394",
+      "bytes": 33178,
+      "width": 1758,
+      "height": 1216,
+      "animated": true,
+      "path": "view-dependency-graph-light-44221a1247f4236dc2b333a3f8654394.svg"
+    },
+    {
+      "id": "view-dependency-graph-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-dependency-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b241fa6beb5b3b9000e5e1a96808cb33",
+      "bytes": 33554,
+      "width": 1758,
+      "height": 1216,
+      "animated": true,
+      "path": "view-dependency-graph-dark-b241fa6beb5b3b9000e5e1a96808cb33.svg"
+    },
+    {
+      "id": "view-validator-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-validator-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "0aa91fbc97e7a753c139ba72029a1725",
+      "bytes": 23380,
+      "width": 880,
+      "height": 760,
+      "animated": false,
+      "path": "view-validator-internals-light-0aa91fbc97e7a753c139ba72029a1725.svg"
+    },
+    {
+      "id": "view-validator-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-validator-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "19c585219c242e8ba943a1bdff438ec6",
+      "bytes": 23665,
+      "width": 880,
+      "height": 760,
+      "animated": false,
+      "path": "view-validator-internals-dark-19c585219c242e8ba943a1bdff438ec6.svg"
+    },
+    {
+      "id": "view-removed-crates-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "view-removed-crates",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6c178ab51aaa0d1695c0933a07e90a2f",
+      "bytes": 9980,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "view-removed-crates-light-6c178ab51aaa0d1695c0933a07e90a2f.svg"
+    },
+    {
+      "id": "view-removed-crates-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "view-removed-crates",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5ffa94e020fdceb5a80afd0e4d1ad48b",
+      "bytes": 10087,
+      "width": 860,
+      "height": 418,
+      "animated": false,
+      "path": "view-removed-crates-dark-5ffa94e020fdceb5a80afd0e4d1ad48b.svg"
+    },
+    {
+      "id": "view-validation-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "view-validation-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e4dd2bb5c78ffa3b80526942f9895691",
+      "bytes": 13901,
+      "width": 1276,
+      "height": 391,
+      "animated": true,
+      "path": "view-validation-flow-light-e4dd2bb5c78ffa3b80526942f9895691.svg"
+    },
+    {
+      "id": "view-validation-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "view-validation-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "5efa2e59cde23bba1004a67df474bb42",
+      "bytes": 14036,
+      "width": 1276,
+      "height": 391,
+      "animated": true,
+      "path": "view-validation-flow-dark-5efa2e59cde23bba1004a67df474bb42.svg"
+    }
+  ]
+}

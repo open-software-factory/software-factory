@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1276 391" width="1276" height="391" role="img" aria-label="Schema validation sequence" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>Schema validation sequence</title>
+<desc>A lint run compiles a schema, resolves its references, compiles its patterns and validates an instance — the same shape as before, with new crates doing the work.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1276" height="391" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1276" height="391" rx="12" fill="url(#dots)"/>
+<g transform="translate(12,10)"><g><rect class="lanebox" x="4" y="6" width="204" height="359" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="264" y="6" width="204" height="359" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="524" y="6" width="204" height="359" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="784" y="6" width="204" height="359" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="1044" y="6" width="204" height="359" rx="12" fill="rgba(255,255,255,.55)"/></g>
+<g><line class="lifeline" x1="106" y1="82" x2="106" y2="353" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="366" y1="82" x2="366" y2="353" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="360" y="123" width="12" height="218.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="626" y1="82" x2="626" y2="353" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="620" y="161" width="12" height="168" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="886" y1="82" x2="886" y2="353" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="880" y="237" width="12" height="12.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="1146" y1="82" x2="1146" y2="353" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="1140" y="199" width="12" height="12.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/></g>
+<g><g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="16" y="18" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="30" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="36" y="43" width="14" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M36,47 h14" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="66" y="45" font-size="13" font-weight="600" fill="#1f2328">osf CLI</text>
+<text class="nsub" x="66" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">clap-based binary</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))" opacity="0.82"><rect class="card" x="276" y="18" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#d1d9e0"/>
+<rect class="chip" x="290" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><text class="glyph" x="303" y="53.5" text-anchor="middle" fill="#59636e" font-size="11" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">{ }</text></g>
+<text class="ntitle" x="326" y="45" font-size="13" font-weight="600" fill="#1f2328">lint core</text>
+<text class="nsub" x="326" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">rule engine</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="536" y="18" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="550" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M563,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M556.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M563,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="586" y="45" font-size="13" font-weight="600" fill="#1f2328">jsonschema 0.58.6</text>
+<text class="nsub" x="586" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">was =0.30.0</text>
+<g class="bdg bdg-modified"><rect x="642.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="675.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-added" x="796" y="18" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#1f883d" stroke-opacity="0.55"/>
+<rect class="chip" x="810" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M823,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M816.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M823,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="846" y="45" font-size="13" font-weight="600" fill="#1f2328">jsonschema-regex</text>
+<text class="nsub" x="846" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">0.58.6</text>
+<g class="bdg bdg-added"><rect x="928.45" y="10" width="40.55" height="16" rx="8" fill="#b9f0c4" stroke="rgba(31,136,61,.55)" stroke-width="1"/><text x="948.73" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#116329">NEW</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1056" y="18" width="180" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1070" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1083,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1076.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1083,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1106" y="45" font-size="13" font-weight="600" fill="#1f2328">referencing</text>
+<text class="nsub" x="1106" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">was 0.30.0</text>
+<g class="bdg bdg-modified"><rect x="1162.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1195.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g></g>
+<g><path class="msg edge-neutral" d="M106,123 L355,123" marker-end="url(#mk-neutral)" fill="none" stroke="#8c959f" stroke-width="1.5"/>
+<circle r="2.6" fill="#8c959f" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0;0.1667;1" calcMode="linear" path="M106,123 L355,123"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0;0.0133;0.1533;0.1667;1"/></circle>
+<path class="msg edge-modified" d="M372,161 L615,161" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.1667;0.3333;1" calcMode="linear" path="M372,161 L615,161"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.1667;0.18;0.32;0.3333;1"/></circle>
+<path class="msg edge-modified" d="M632,199 L1135,199" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.3333;0.5;1" calcMode="linear" path="M632,199 L1135,199"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.3333;0.3467;0.4867;0.5;1"/></circle>
+<path class="msg edge-added msg-strong" d="M632,237 L875,237" marker-end="url(#mk-added)" fill="none" stroke="#1f883d" stroke-width="2.25"/>
+<circle r="2.6" fill="#1f883d" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.5;0.6667;1" calcMode="linear" path="M632,237 L875,237"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.5;0.5133;0.6533;0.6667;1"/></circle>
+<path class="msg edge-modified" d="M632,275 h52 a7,7 0 0 1 7,7 v6 a7,7 0 0 1 -7,7 h-47" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.6667;0.8333;1" calcMode="linear" path="M632,275 h52 a7,7 0 0 1 7,7 v6 a7,7 0 0 1 -7,7 h-47"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.6667;0.68;0.82;0.8333;1"/></circle>
+<path class="msg edge-modified msg-return" d="M620,329 L377,329" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="8.4s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.8333;1;1" calcMode="linear" path="M620,329 L377,329"/><animate attributeName="opacity" dur="8.4s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.8333;0.8467;0.9867;1;1"/></circle></g>
+<g><g><rect class="lpill" x="207.39" y="115.5" width="46.22" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext" x="230.5" y="126.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#59636e">run lint</text></g>
+<g><rect class="lpill" x="449.13" y="153.5" width="88.75" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="493.5" y="164.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">compile schema</text></g>
+<g><rect class="lpill" x="838.28" y="191.5" width="90.44" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="883.5" y="202.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">resolve $ref / $id</text></g>
+<g><rect class="lpill" x="688.42" y="229.5" width="130.16" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-added" x="753.5" y="240.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#116329">compile pattern keywords</text></g>
+<g><rect class="lpill" x="699" y="277.5" width="91" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="744.5" y="288.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">validate instance</text></g>
+<g><rect class="lpill" x="454.69" y="321.5" width="87.63" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="498.5" y="332.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">validation errors</text></g></g></g>
+</svg>
