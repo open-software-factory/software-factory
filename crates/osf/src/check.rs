@@ -48,20 +48,23 @@ pub fn run_check(
 ) -> Result<Vec<(String, Finding)>, String> {
     match name {
         CheckName::Scan => {
-            ensure_files_exist(opts.dir, files)?;
-            scan_files(opts, files, false, gate)
+            let files = crate::symlink::expand_links(opts.dir, files)?;
+            ensure_files_exist(opts.dir, &files)?;
+            scan_files(opts, &files, false, gate)
         }
         CheckName::ScanStaged => {
             ensure_staged_files_exist(opts.dir, files)?;
             scan_files(opts, files, true, gate)
         }
         CheckName::LintWriting => {
-            ensure_files_exist(opts.dir, files)?;
-            lint_writing_files(opts, files, gate)
+            let files = crate::symlink::expand_links(opts.dir, files)?;
+            ensure_files_exist(opts.dir, &files)?;
+            lint_writing_files(opts, &files, gate)
         }
         CheckName::LintSkill => {
-            ensure_files_exist(opts.dir, files)?;
-            lint_skill_files(opts, files)
+            let files = crate::symlink::expand_links(opts.dir, files)?;
+            ensure_files_exist(opts.dir, &files)?;
+            lint_skill_files(opts, &files)
         }
         CheckName::ScanCommits => scan_commits(opts),
     }

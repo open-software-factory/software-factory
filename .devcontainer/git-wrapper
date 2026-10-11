@@ -1,25 +1,36 @@
 #!/bin/sh
-# Honest git wrapper.
+# Git wrapper: raises the bar on known argument spellings.
 #
-# This is a speed bump, not a seal. It refuses --no-verify and -n on
-# "git commit", and --no-verify on "git push", then explains why. It also
-# refuses a "-c" that sets core.hooksPath, core.fsmonitor, or core.editor,
-# because each of those can run an arbitrary command as part of a commit,
-# checked and confirmed in docs/development.md. It does nothing else that
-# git's own settings cannot already do without it.
+# This is not a guard. It catches some spellings of a skipped hook and
+# some routes to a hooks path the caller chose. One thing defeats it:
+# calling the real git binary at its full path, /usr/bin/git.
 #
-# One thing defeats this wrapper, and it cannot stop it: calling the real
-# git binary at its full path, /usr/bin/git.
+# The authority is the check that runs on the pull request, per decision
+# 0003 (docs/architecture/decisions/0003-deterministic-verification-is-authoritative.md).
+# A contributor does not control that check.
+#
+# Known limit: a git worktree added outside the workspace root is not
+# covered by the forced hooks path, so a commit there runs no hooks.
+# This is deliberate, because osf's own scratch repositories live
+# outside the workspace.
 #
 # git push also takes a short flag -n, but there it means --dry-run, a
 # different and harmless option, so this wrapper does not block it.
 #
-# The real authority is the check that runs on a pull request, which a
-# contributor does not control. This wrapper only saves the two minutes
-# between a forgotten check and that pull-request check catching it.
 # See docs/development.md.
 
 REAL_GIT="/usr/bin/git"
+HOOKS_DIR="/opt/factory/githooks"
+
+# The workspace mount's root. Overridable with OSF_WORKSPACE_ROOT so a
+# container started with a different bind mount (a wider host folder that
+# holds several worktrees, say) still gets the forced hooks path under
+# it; the default matches devcontainer.json's own workspaceFolder.
+WORKSPACE_ROOT="${OSF_WORKSPACE_ROOT:-/workspace}"
+resolved_root=$(cd "$WORKSPACE_ROOT" 2>/dev/null && pwd -P)
+if [ -n "$resolved_root" ]; then
+  WORKSPACE_ROOT="$resolved_root"
+fi
 
 refuse() {
   flag="$1"
@@ -40,25 +51,188 @@ refuse_option() {
 
 refuse_config() {
   key="$1"
-  echo "git: refused. '-c $key=...' is not allowed for one call." >&2
-  echo "This wrapper blocks core.hooksPath, core.fsmonitor, and core.editor" >&2
-  echo "here, because each can run an arbitrary command as part of a commit." >&2
-  echo "Other -c values, such as user.email, are not blocked. See docs/development.md." >&2
+  source="$2"
+  echo "git: refused. '$source' sets '$key', which this wrapper does not allow." >&2
+  echo "This wrapper blocks core.hooksPath, core.fsmonitor, core.editor," >&2
+  echo "and alias.* here. Each can skip a check or run an arbitrary command." >&2
+  echo "Other config values, such as user.email, are not blocked. See docs/development.md." >&2
   exit 1
 }
 
-# Checks a "-c" value ("name=value" or a bare "name") against the small
-# set of keys this wrapper does not allow to be set for one call. Git
-# treats a config key's section and name as case-insensitive, so this
-# compares in lower case.
+refuse_alias() {
+  why="$1"
+  echo "git: refused. An alias hides the real command from this wrapper's check: $why." >&2
+  echo "The wrapper expands a repository alias before it applies its rules." >&2
+  echo "Run the command without the alias. See docs/development.md." >&2
+  exit 1
+}
+
+refuse_repo_option() {
+  opt="$1"
+  echo "git: refused. '$opt' is a route this wrapper blocks." >&2
+  echo "It can point git at a repository or hooks path the caller chose." >&2
+  echo "Run the command without it. See docs/development.md." >&2
+  exit 1
+}
+
+refuse_env() {
+  name="$1"
+  echo "git: refused. The environment variable '$name' is set." >&2
+  echo "This wrapper blocks these git environment overrides:" >&2
+  echo "GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR, GIT_CONFIG_COUNT," >&2
+  echo "GIT_CONFIG_KEY_*, GIT_CONFIG_VALUE_*, GIT_CONFIG_PARAMETERS," >&2
+  echo "GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM." >&2
+  echo "GIT_CONFIG_COUNT may carry only core.fsmonitor=false, which" >&2
+  echo "the build tool moon needs. GIT_DIR may name the repository's" >&2
+  echo "own git directory, which git exports to hooks." >&2
+  echo "Unset it and run the command again. See docs/development.md." >&2
+  exit 1
+}
+
+# Checks a "-c" or "--config-env" value ("name=value" or a bare "name")
+# against the small set of keys this wrapper does not allow to be set for
+# one call. Git treats a config key's section and name as
+# case-insensitive, so this compares in lower case.
 check_config_value() {
   key="${1%%=*}"
   key_lc=$(printf '%s' "$key" | tr '[:upper:]' '[:lower:]')
+  source="$2"
   case "$key_lc" in
-    core.hookspath | core.fsmonitor | core.editor)
-      refuse_config "$key"
+    core.hookspath | core.fsmonitor | core.editor | alias.*)
+      refuse_config "$key" "$source"
       ;;
   esac
+}
+
+# The allow-list for GIT_CONFIG_KEY_n/VALUE_n: one pair, exact value.
+config_pair_allowed() {
+  key_lc=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  [ "$key_lc" = "core.fsmonitor" ] && [ "$2" = "false" ]
+}
+
+# Accepts GIT_CONFIG_COUNT only when every pair it names is allow-listed.
+check_config_count() {
+  count="$GIT_CONFIG_COUNT"
+  case "$count" in
+    '' | *[!0-9]*) refuse_env GIT_CONFIG_COUNT ;;
+  esac
+  if [ "${#count}" -gt 4 ]; then
+    refuse_env GIT_CONFIG_COUNT
+  fi
+  case "$count" in
+    *[1-9]*) : ;;
+    *) refuse_env GIT_CONFIG_COUNT ;;
+  esac
+  while [ "${count#0}" != "$count" ]; do
+    count="${count#0}"
+  done
+
+  expected=""
+  n=0
+  while [ "$n" -lt "$count" ]; do
+    expected="$expected GIT_CONFIG_KEY_$n GIT_CONFIG_VALUE_$n"
+    n=$((n + 1))
+  done
+
+  for name in $(env | LC_ALL=C sed -n \
+    -e 's/^\(GIT_CONFIG_KEY_[0-9A-Za-z_]*\)=.*/\1/p' \
+    -e 's/^\(GIT_CONFIG_VALUE_[0-9A-Za-z_]*\)=.*/\1/p'); do
+    case " $expected " in
+      *" $name "*) : ;;
+      *) refuse_env "$name" ;;
+    esac
+  done
+
+  n=0
+  while [ "$n" -lt "$count" ]; do
+    eval "key_set=\${GIT_CONFIG_KEY_$n+x}"
+    eval "value_set=\${GIT_CONFIG_VALUE_$n+x}"
+    if [ -z "$key_set" ] || [ -z "$value_set" ]; then
+      refuse_env GIT_CONFIG_COUNT
+    fi
+    eval "key=\${GIT_CONFIG_KEY_$n}"
+    eval "value=\${GIT_CONFIG_VALUE_$n}"
+    config_pair_allowed "$key" "$value" || refuse_config "$key" "GIT_CONFIG_KEY_$n"
+    n=$((n + 1))
+  done
+}
+
+# Refuses every git config environment override this wrapper does not
+# allow, run once before anything else: unlike "-c", these are set on
+# the process environment, so no amount of argument parsing finds them.
+check_config_env_overrides() {
+  if [ -n "${GIT_CONFIG_COUNT+x}" ]; then
+    check_config_count
+  fi
+  [ -n "${GIT_CONFIG_PARAMETERS+x}" ] && refuse_env GIT_CONFIG_PARAMETERS
+  [ -n "${GIT_CONFIG_GLOBAL+x}" ] && refuse_env GIT_CONFIG_GLOBAL
+  [ -n "${GIT_CONFIG_SYSTEM+x}" ] && refuse_env GIT_CONFIG_SYSTEM
+  if [ -z "${GIT_CONFIG_COUNT+x}" ]; then
+    for name in $(env | LC_ALL=C sed -n 's/^\(GIT_CONFIG_KEY_[0-9A-Za-z_]*\)=.*/\1/p'); do
+      refuse_env "$name"
+    done
+    for name in $(env | LC_ALL=C sed -n 's/^\(GIT_CONFIG_VALUE_[0-9A-Za-z_]*\)=.*/\1/p'); do
+      refuse_env "$name"
+    done
+  fi
+}
+
+# True when a short-flag bundle carries "n" before a value-taking flag.
+bundle_has_n() {
+  rest="$1"
+  while [ -n "$rest" ]; do
+    case "$rest" in
+      n*) return 0 ;;
+      m* | F* | c* | C* | t* | u* | S*) return 1 ;;
+      *) rest="${rest#?}" ;;
+    esac
+  done
+  return 1
+}
+
+# Refuses a git environment override that moves the repository.
+check_repo_env_overrides() {
+  [ -n "${GIT_WORK_TREE+x}" ] && refuse_env GIT_WORK_TREE
+  [ -n "${GIT_COMMON_DIR+x}" ] && refuse_env GIT_COMMON_DIR
+  [ -n "${GIT_DIR+x}" ] || return 0
+  found=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR \
+    "$REAL_GIT" rev-parse --absolute-git-dir 2>/dev/null) || refuse_env GIT_DIR
+  here=$(cd "$GIT_DIR" 2>/dev/null && pwd -P) || refuse_env GIT_DIR
+  [ "$found" = "$here" ] || refuse_env GIT_DIR
+}
+
+# Refuses a git option that names a repository or a hooks path.
+check_repo_options() {
+  for arg in "$@"; do
+    case "$arg" in
+      --git-dir | --git-dir=* | --work-tree | --work-tree=*)
+        refuse_repo_option "$arg" ;;
+      --no-hooks | --skip-hooks | --hooks-path | --hooks-path=*)
+        refuse_repo_option "$arg" ;;
+    esac
+  done
+}
+
+# Refuses every --no-verify spelling of length six or more, before a "--".
+check_no_verify() {
+  for arg in "$@"; do
+    [ "$arg" = "--" ] && break
+    case "$arg" in
+      --no-v | --no-ve | --no-ver | --no-veri | --no-verif | --no-verify)
+        refuse "$arg" ;;
+    esac
+  done
+}
+
+# Refuses a short-flag bundle with "n" on commit and merge, before a "--".
+check_short_n() {
+  for arg in "$@"; do
+    [ "$arg" = "--" ] && break
+    case "$arg" in
+      --* | -) continue ;;
+      -*) bundle_has_n "${arg#-}" && refuse "$arg" ;;
+    esac
+  done
 }
 
 # Git accepts its own options before the subcommand (commit, push, and so
@@ -73,8 +247,19 @@ find_subcommand() {
         if [ "$#" -lt 2 ]; then
           refuse_option "$1"
         fi
-        check_config_value "$2"
+        check_config_value "$2" "-c $2"
         shift 2
+        ;;
+      --config-env)
+        if [ "$#" -lt 2 ]; then
+          refuse_option "$1"
+        fi
+        check_config_value "$2" "--config-env $2"
+        shift 2
+        ;;
+      --config-env=*)
+        check_config_value "${1#--config-env=}" "$1"
+        shift
         ;;
       -C)
         if [ "$#" -lt 2 ]; then
@@ -82,16 +267,16 @@ find_subcommand() {
         fi
         shift 2
         ;;
-      --git-dir | --work-tree | --namespace)
+      --namespace)
         if [ "$#" -lt 2 ]; then
           refuse_option "$1"
         fi
         shift 2
         ;;
-      --git-dir=* | --work-tree=* | --namespace=* | --exec-path=*)
+      --namespace=* | --exec-path=*)
         shift
         ;;
-      --exec-path | --no-pager | --paginate | -p | -P | --bare | --literal-pathspecs)
+      --exec-path | --html-path | --version | --help | --no-pager | --paginate | -p | -P | --bare | --literal-pathspecs)
         shift
         ;;
       --)
@@ -113,24 +298,98 @@ find_subcommand() {
   SUB=""
 }
 
+# Where this git call starts looking for a repository, tracking each "-C"
+# the same way git chains them: relative to the previous one, not to
+# $PWD. Called only after find_subcommand has already validated that
+# every "-C" here has a value, so it does not repeat that check.
+resolve_target_dir() {
+  dir="$PWD"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -C)
+        dir=$(cd "$dir/$2" 2>/dev/null && pwd -P) || dir="$dir/$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  printf '%s\n' "$dir"
+}
+
+# True when "$1" is $WORKSPACE_ROOT or a path under it.
+in_workspace() {
+  case "$1" in
+    "$WORKSPACE_ROOT" | "$WORKSPACE_ROOT"/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Applies the subcommand rules to the arguments it is given.
+apply_rules() {
+  case "$SUB" in
+    commit | merge)
+      check_no_verify "$@"
+      check_short_n "$@"
+      ;;
+    push)
+      check_no_verify "$@"
+      ;;
+  esac
+}
+
+# Expands a repository alias, then applies the rules to the result.
+resolve_aliases() {
+  rounds=0
+  while [ "$rounds" -lt 10 ]; do
+    [ -n "$SUB" ] || return 0
+    rounds=$((rounds + 1))
+    expansion=$(env -u GIT_DIR -u GIT_WORK_TREE -u GIT_COMMON_DIR \
+      "$REAL_GIT" -C "$TARGET_DIR" config --get "alias.$SUB")
+    status=$?
+    case "$status" in
+      0) : ;;
+      1) return 0 ;;
+      *) refuse_alias "git cannot read 'alias.$SUB'" ;;
+    esac
+    case "$expansion" in
+      '!'*) refuse_alias "'alias.$SUB' runs a shell command" ;;
+    esac
+    exp=$(printf '%s' "$expansion" | tr -d "\"'\\\\")
+    set -f
+    for word in $exp; do
+      if [ "$word" = "-C" ]; then
+        set +f
+        refuse_alias "'alias.$SUB' moves the target directory with -C"
+      fi
+    done
+    set -- $exp "$@"
+    find_subcommand $exp
+    set +f
+    check_repo_options "$@"
+    apply_rules "$@"
+  done
+  refuse_alias "the alias chain for '$SUB' does not end"
+}
+
+check_config_env_overrides
+check_repo_env_overrides
+check_repo_options "$@"
+
 SUB=""
 find_subcommand "$@"
+apply_rules "$@"
 
-case "$SUB" in
-  commit)
-    for arg in "$@"; do
-      case "$arg" in
-        --no-verify | -n) refuse "$arg" ;;
-      esac
-    done
-    ;;
-  push)
-    for arg in "$@"; do
-      case "$arg" in
-        --no-verify) refuse "$arg" ;;
-      esac
-    done
-    ;;
-esac
+# The alias lookup needs the directory the original arguments name.
+TARGET_DIR=$(resolve_target_dir "$@")
+resolve_aliases "$@"
+
+# Forces the container's hooks for every repository under the workspace
+# mount; a repository outside it, such as a test's own scratch repository
+# under /tmp, is left alone, so osf's own tests keep working unchanged.
+if in_workspace "$TARGET_DIR"; then
+  exec "$REAL_GIT" -c "core.hooksPath=$HOOKS_DIR" "$@"
+fi
 
 exec "$REAL_GIT" "$@"

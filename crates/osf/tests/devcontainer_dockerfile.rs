@@ -21,9 +21,12 @@ fn dockerfile_text() -> String {
 fn the_moon_install_branches_on_targetarch_for_both_known_architectures() {
     let text = dockerfile_text();
     let moon_block_start = text
-        .find("# moon runs every factory check")
+        .find("# moon, the task runner")
         .expect("the moon install comment block is present");
-    let moon_block = &text[moon_block_start..];
+    let moon_block_end = text[moon_block_start..]
+        .find("# GitHub CLI")
+        .expect("the GitHub CLI install follows the moon install");
+    let moon_block = &text[moon_block_start..moon_block_start + moon_block_end];
     assert!(
         moon_block.contains("${TARGETARCH}"),
         "the moon install must branch on TARGETARCH: {moon_block}"
@@ -36,4 +39,12 @@ fn the_moon_install_branches_on_targetarch_for_both_known_architectures() {
         !moon_block.contains("moon_cli-x86_64-unknown-linux-gnu.tar.xz\""),
         "the moon download URL must not hardcode the x86_64 artifact name: {moon_block}"
     );
+}
+
+/// One moon install only, so no second copy can shadow the first on `PATH`.
+#[test]
+fn moon_is_installed_once() {
+    let text = dockerfile_text();
+    assert_eq!(text.matches("moonrepo/moon/releases/download").count(), 1);
+    assert_eq!(text.matches("ARG MOON_VERSION=").count(), 1);
 }
