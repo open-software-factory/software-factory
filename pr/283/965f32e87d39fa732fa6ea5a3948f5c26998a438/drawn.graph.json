@@ -1,0 +1,638 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "ci-setup-node-pin-bump",
+  "generatedAt": "2026-10-11T00:15:46.073Z",
+  "title": "CI: setup-node action pin bumped across all jobs",
+  "summary": "A single-file change to the GitHub Actions CI workflow: the pinned commit SHA for actions/setup-node is advanced from 8207627 to 949feb2 in all three places it is used — the two pnpm-based jobs that install Node 22 and the integration matrix job that reads each integration's .nvmrc. No job structure, trigger, matrix, cache key or step ordering changes; only the action revision the runner downloads changes.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "965f32e87d39fa732fa6ea5a3948f5c26998a438",
+      "ref": "965f32e87d39fa732fa6ea5a3948f5c26998a438"
+    },
+    "pullRequest": {
+      "number": 283,
+      "url": "https://github.com/open-software-factory/software-factory/pull/283"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0,
+      "delta": "unchanged",
+      "summary": "The events that start the workflow. Untouched by this change."
+    },
+    {
+      "id": "workflow",
+      "label": "CI workflow",
+      "subtitle": ".github/workflows/ci.yml",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The workflow definition itself. Three step references to actions/setup-node were repointed at a newer pinned commit."
+    },
+    {
+      "id": "actions",
+      "label": "Pinned actions",
+      "subtitle": "Third-party action revisions",
+      "order": 2,
+      "delta": "modified",
+      "summary": "The external actions the jobs resolve by commit SHA. setup-node moves to a new revision; pnpm/action-setup stays put."
+    },
+    {
+      "id": "runners",
+      "label": "Runners & toolchain",
+      "subtitle": "GitHub-hosted execution",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "Where the jobs actually execute and the Node/pnpm toolchain they end up with."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "push-pr-events",
+      "label": "push / pull_request",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "subtitle": "workflow triggers",
+      "summary": "The repository events that queue the CI workflow. Not part of this diff.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 1,
+          "endLine": 10
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "ci-workflow",
+      "label": "ci.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "workflow definition",
+      "summary": "The CI workflow. Its job graph is unchanged; three `uses:` lines for actions/setup-node now point at commit 949feb2 instead of 8207627.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 1,
+          "endLine": 160
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "job-lint-test",
+      "label": "lint / test job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "group": "pnpm-jobs",
+      "subtitle": "Node 22 + pnpm cache",
+      "summary": "A pnpm-based job that installs Node 22 with the pnpm cache enabled. Its setup-node step was repointed to the new action revision.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 41,
+          "endLine": 47
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "job-build",
+      "label": "build job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "group": "pnpm-jobs",
+      "subtitle": "Node 22 + pnpm cache",
+      "summary": "The second pnpm-based job, structurally identical to the first. Same setup-node revision bump.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 70,
+          "endLine": 76
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "job-integrations",
+      "label": "integrations matrix job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "group": "matrix-job",
+      "subtitle": "matrix.folder, .nvmrc",
+      "summary": "A matrix job that derives the Node version per integration from integrations/<folder>/.nvmrc rather than a fixed 22. Its setup-node step was repointed to the same new revision.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 146,
+          "endLine": 152
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "action-setup-node",
+      "label": "actions/setup-node",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "actions",
+      "subtitle": "949feb2 (was 8207627)",
+      "summary": "The action that installs Node and restores the pnpm cache. This change advances the pinned commit SHA; the `with:` inputs (node-version, node-version-file, cache) are untouched.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 44,
+          "endLine": 44
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 73,
+          "endLine": 73
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 149,
+          "endLine": 149
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "action-pnpm-setup",
+      "label": "pnpm/action-setup",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "actions",
+      "subtitle": "ea17c68 # v6.1.0",
+      "summary": "Installs pnpm before Node is set up. Present in all three jobs and deliberately left at its existing revision.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 41,
+          "endLine": 41
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "runner-hosted",
+      "label": "GitHub-hosted runner",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "runners",
+      "subtitle": "ubuntu-latest",
+      "summary": "The ephemeral machine each job runs on. Unaffected by the action revision bump.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 20,
+          "endLine": 20
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "node-toolchain",
+      "label": "Node toolchain",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "runners",
+      "subtitle": "Node 22 / .nvmrc",
+      "summary": "The Node runtime the jobs end up with. The requested versions are unchanged; only the action that installs them moved.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 45,
+          "endLine": 47
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pnpm-store",
+      "label": "pnpm cache",
+      "kind": "cache",
+      "delta": "unchanged",
+      "lane": "runners",
+      "subtitle": "cache: pnpm",
+      "summary": "The dependency cache keyed by the lockfile, restored by setup-node. The cache configuration is unchanged.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 46,
+          "endLine": 46
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "events-trigger-workflow",
+      "from": "push-pr-events",
+      "to": "ci-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "queue run",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-runs-lint-test",
+      "from": "ci-workflow",
+      "to": "job-lint-test",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-runs-build",
+      "from": "ci-workflow",
+      "to": "job-build",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-runs-integrations",
+      "from": "ci-workflow",
+      "to": "job-integrations",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "lint-test-uses-setup-node",
+      "from": "job-lint-test",
+      "to": "action-setup-node",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "949feb2",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The first of the three repointed references.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 44,
+          "endLine": 44
+        }
+      ]
+    },
+    {
+      "id": "build-uses-setup-node",
+      "from": "job-build",
+      "to": "action-setup-node",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "949feb2",
+      "emphasis": "hero",
+      "animated": true,
+      "summary": "The second repointed reference, identical in shape to the first.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 73,
+          "endLine": 73
+        }
+      ]
+    },
+    {
+      "id": "integrations-uses-setup-node",
+      "from": "job-integrations",
+      "to": "action-setup-node",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "949feb2",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The third repointed reference, in the matrix job.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 149,
+          "endLine": 149
+        }
+      ]
+    },
+    {
+      "id": "lint-test-uses-pnpm-setup",
+      "from": "job-lint-test",
+      "to": "action-pnpm-setup",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-uses-pnpm-setup",
+      "from": "job-build",
+      "to": "action-pnpm-setup",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "integrations-uses-pnpm-setup",
+      "from": "job-integrations",
+      "to": "action-pnpm-setup",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "setup-node-installs-toolchain",
+      "from": "action-setup-node",
+      "to": "node-toolchain",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "node-version / .nvmrc",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "setup-node-restores-cache",
+      "from": "action-setup-node",
+      "to": "pnpm-store",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "cache: pnpm",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "jobs-run-on-runner",
+      "from": "job-lint-test",
+      "to": "runner-hosted",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "build-runs-on-runner",
+      "from": "job-build",
+      "to": "runner-hosted",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "integrations-run-on-runner",
+      "from": "job-integrations",
+      "to": "runner-hosted",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "muted",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "setup-node-resolution",
+      "title": "How a job resolves setup-node",
+      "summary": "The path a CI job takes from being queued to having a Node toolchain and a warm pnpm cache, with the changed action revision in the middle.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "push-pr-events",
+          "label": "push / PR"
+        },
+        {
+          "node": "ci-workflow",
+          "label": "ci.yml"
+        },
+        {
+          "node": "job-lint-test",
+          "label": "lint / test job"
+        },
+        {
+          "node": "action-setup-node",
+          "label": "setup-node"
+        },
+        {
+          "node": "node-toolchain",
+          "label": "Node toolchain"
+        },
+        {
+          "node": "pnpm-store",
+          "label": "pnpm cache"
+        }
+      ],
+      "messages": [
+        {
+          "id": "msg-queue-run",
+          "from": "push-pr-events",
+          "to": "ci-workflow",
+          "label": "queue workflow run",
+          "kind": "async",
+          "delta": "unchanged",
+          "animated": false,
+          "files": []
+        },
+        {
+          "id": "msg-dispatch-job",
+          "from": "ci-workflow",
+          "to": "job-lint-test",
+          "label": "start job",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": false,
+          "files": []
+        },
+        {
+          "id": "msg-resolve-action",
+          "from": "job-lint-test",
+          "to": "action-setup-node",
+          "label": "uses: setup-node@949feb2",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The only behavioural change in the diff: the commit SHA the runner downloads.",
+          "files": [
+            {
+              "path": ".github/workflows/ci.yml",
+              "startLine": 44,
+              "endLine": 44
+            }
+          ]
+        },
+        {
+          "id": "msg-install-node",
+          "from": "action-setup-node",
+          "to": "node-toolchain",
+          "label": "install Node 22",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "SetupNodeInputs",
+              "shape": "{ node-version: '22'; cache: 'pnpm' }",
+              "sample": {
+                "node-version": "22",
+                "cache": "pnpm"
+              },
+              "source": {
+                "path": ".github/workflows/ci.yml",
+                "startLine": 45,
+                "endLine": 47
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "NodeRuntime",
+              "shape": "{ node: string; npm: string }",
+              "sample": {
+                "node": "22.x",
+                "npm": "10.x"
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "msg-restore-cache",
+          "from": "action-setup-node",
+          "to": "pnpm-store",
+          "label": "restore pnpm cache",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "CacheKey",
+              "shape": "{ key: string; path: string }",
+              "sample": {
+                "key": "pnpm-Linux-pnpm-lock.yaml",
+                "path": "~/.pnpm-store"
+              },
+              "source": {
+                "path": ".github/workflows/ci.yml",
+                "startLine": 46,
+                "endLine": 46
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "CacheHit",
+              "shape": "{ hit: boolean }",
+              "sample": {
+                "hit": true
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "msg-job-ready",
+          "from": "node-toolchain",
+          "to": "job-lint-test",
+          "label": "toolchain ready",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": false,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 3,
+    "deletions": 3,
+    "chips": [
+      {
+        "label": "setup-node references",
+        "value": "3 updated",
+        "tone": "modified"
+      },
+      {
+        "label": "Job structure",
+        "value": "unchanged",
+        "tone": "neutral"
+      },
+      {
+        "label": "pnpm/action-setup",
+        "value": "untouched",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "view-ci-containers",
+      "title": "CI workflow and its pinned actions",
+      "lens": "architecture",
+      "summary": "The workflow, its three jobs, the actions they resolve and the runner they execute on. Only the setup-node revision moved.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "view-setup-node-resolution",
+      "title": "setup-node resolution sequence",
+      "lens": "data-flow",
+      "summary": "The ordered path from a queued run to a job with Node installed and the pnpm cache restored.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "setup-node-resolution"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

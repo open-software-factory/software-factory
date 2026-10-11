@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1560 375" width="1560" height="375" role="img" aria-label="setup-node resolution sequence" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>setup-node resolution sequence</title>
+<desc>The ordered path from a queued run to a job with Node installed and the pnpm cache restored.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(110,118,129,.22)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#3fb950"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#3fb950" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d29922"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#d29922" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#f85149"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#f85149" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#6e7681"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#6e7681" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1560" height="375" rx="12" fill="#0d1117"/>
+<rect x="0" y="0" width="1560" height="375" rx="12" fill="url(#dots)"/>
+<g transform="translate(12,10)"><g><rect class="lanebox" x="4" y="6" width="208" height="343" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="268" y="6" width="208" height="343" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="532" y="6" width="208" height="343" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="796" y="6" width="208" height="343" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="1060" y="6" width="208" height="343" rx="12" fill="rgba(110,118,129,.07)"/>
+<rect class="lanebox" x="1324" y="6" width="208" height="343" rx="12" fill="rgba(110,118,129,.07)"/></g>
+<g><line class="lifeline" x1="108" y1="82" x2="108" y2="337" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="372" y1="82" x2="372" y2="337" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="636" y1="82" x2="636" y2="337" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="630" y="161" width="12" height="164.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/>
+<line class="lifeline" x1="900" y1="82" x2="900" y2="337" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="894" y="199" width="12" height="88.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/>
+<line class="lifeline" x1="1164" y1="82" x2="1164" y2="337" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="1158" y="237" width="12" height="88.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/>
+<line class="lifeline" x1="1428" y1="82" x2="1428" y2="337" stroke="#30363d" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="1422" y="275" width="12" height="12.67" rx="4" fill="rgba(46,160,67,.15)" stroke="rgba(63,185,80,.4)"/></g>
+<g><g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="16" y="18" width="184" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="30" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="35" y="43" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M35,45 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="66" y="45" font-size="13" font-weight="600" fill="#e6edf3">push / PR</text>
+<text class="nsub" x="66" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">workflow triggers</text></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="280" y="18" width="184" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="294" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph-stroke" d="M300,45 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M300,53 h14" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<circle class="glyph" fill="#9198a1" cx="305" cy="45" r="2.2"/>
+<circle class="glyph" fill="#9198a1" cx="310" cy="53" r="2.2"/></g>
+<text class="ntitle" x="330" y="45" font-size="13" font-weight="600" fill="#e6edf3">ci.yml</text>
+<text class="nsub" x="330" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">workflow definition</text>
+<g class="bdg bdg-modified"><rect x="390.38" y="10" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="423.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="544" y="18" width="184" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="558" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph-stroke" stroke="#9198a1" stroke-width="1.4" fill="none" cx="571" cy="49" r="6.5"/>
+<path class="glyph-stroke" d="M571,45.5 V49 H574" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="594" y="45" font-size="13" font-weight="600" fill="#e6edf3">lint / test job</text>
+<text class="nsub" x="594" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">Node 22 + pnpm cache</text>
+<g class="bdg bdg-modified"><rect x="654.38" y="10" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="687.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))"><rect class="card card-modified" x="808" y="18" width="184" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#d29922" stroke-opacity="0.5"/>
+<rect class="chip" x="822" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><rect class="glyph-stroke" x="827" y="43" width="16" height="12" rx="2" stroke="#9198a1" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M827,45 l8,6 8,-6" stroke="#9198a1" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="858" y="45" font-size="13" font-weight="600" fill="#e6edf3">setup-node</text>
+<text class="nsub" x="858" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">949feb2 (was 8207627)</text>
+<g class="bdg bdg-modified"><rect x="918.38" y="10" width="66.62" height="16" rx="8" fill="rgba(187,128,9,.15)" stroke="rgba(210,153,34,.4)" stroke-width="1"/><text x="951.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#d29922">CHANGED</text></g></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1072" y="18" width="184" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1086" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><circle class="glyph" fill="#9198a1" cx="1094" cy="49" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="1099" cy="49" r="1.8"/>
+<circle class="glyph" fill="#9198a1" cx="1104" cy="49" r="1.8"/></g>
+<text class="ntitle" x="1122" y="45" font-size="13" font-weight="600" fill="#e6edf3">Node toolchain</text>
+<text class="nsub" x="1122" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">Node 22 / .nvmrc</text></g>
+<g class="cardsh context" filter="drop-shadow(0 1px 2px rgba(0,0,0,.28))" opacity="0.82"><rect class="card" x="1336" y="18" width="184" height="62" rx="10" fill="#1c2128" stroke-width="1" stroke="#3d444d"/>
+<rect class="chip" x="1350" y="36" width="26" height="26" rx="7" fill="rgba(110,118,129,.18)"/><g><path class="glyph" fill="#9198a1" d="M1364,42 L1357,50 H1362 L1362,56 L1369,48 H1364 Z"/></g>
+<text class="ntitle" x="1386" y="45" font-size="13" font-weight="600" fill="#e6edf3">pnpm cache</text>
+<text class="nsub" x="1386" y="63" font-size="9.5" fill="#9198a1" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">cache: pnpm</text></g></g>
+<g><path class="msg edge-neutral" d="M108,123 L367,123" marker-end="url(#mko-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5"/>
+<path class="msg edge-neutral" d="M372,161 L625,161" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5"/>
+<path class="msg edge-modified" d="M642,199 L889,199" marker-end="url(#mk-modified)" fill="none" stroke="#d29922" stroke-width="1.5"/>
+<circle r="2.6" fill="#d29922" opacity="0"><animateMotion dur="4.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0;0.3333;1" calcMode="linear" path="M642,199 L889,199"/><animate attributeName="opacity" dur="4.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0;0.0267;0.3067;0.3333;1"/></circle>
+<path class="msg edge-neutral" d="M906,237 L1153,237" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5"/>
+<circle r="2.6" fill="#6e7681" opacity="0"><animateMotion dur="4.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.3333;0.6667;1" calcMode="linear" path="M906,237 L1153,237"/><animate attributeName="opacity" dur="4.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.3333;0.36;0.64;0.6667;1"/></circle>
+<path class="msg edge-neutral" d="M906,275 L1417,275" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5"/>
+<circle r="2.6" fill="#6e7681" opacity="0"><animateMotion dur="4.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.6667;1;1" calcMode="linear" path="M906,275 L1417,275"/><animate attributeName="opacity" dur="4.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.6667;0.6933;0.9733;1;1"/></circle>
+<path class="msg edge-neutral msg-return" d="M1158,313 L647,313" marker-end="url(#mk-neutral)" fill="none" stroke="#6e7681" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.8"/></g>
+<g><g><rect class="lpill" x="185.85" y="115.5" width="103.31" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="237.5" y="126.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">queue workflow run</text></g>
+<g><rect class="lpill" x="472.59" y="153.5" width="51.82" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="498.5" y="164.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">start job</text></g>
+<g><rect class="lpill" x="695.57" y="191.5" width="139.86" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext ltext-modified" x="765.5" y="202.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#d29922">uses: setup-node@949feb2</text></g>
+<g><rect class="lpill" x="988.2" y="229.5" width="82.6" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1029.5" y="240.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">install Node 22</text></g>
+<g><rect class="lpill" x="1109.01" y="267.5" width="104.99" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="1161.5" y="278.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">restore pnpm cache</text></g>
+<g><rect class="lpill" x="860.36" y="305.5" width="84.28" height="15" rx="7.5" fill="#0d1117" stroke="#21262d" stroke-width="1"/><text class="ltext" x="902.5" y="316.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#9198a1">toolchain ready</text></g></g></g>
+</svg>
