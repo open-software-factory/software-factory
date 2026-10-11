@@ -1016,21 +1016,67 @@ fn the_reusable_workflow_is_called_only_and_declares_the_stable_inputs() {
     }
 }
 
+/// The `workflow_call` secret names, in file order.
+fn declared_secrets(text: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut in_secrets = false;
+    for line in text.lines() {
+        if line == "    secrets:" {
+            in_secrets = true;
+            continue;
+        }
+        if !in_secrets {
+            continue;
+        }
+        if line.starts_with("      ") && !line.starts_with("       ") && line.ends_with(':') {
+            out.push((line.trim().trim_end_matches(':').to_string(), String::new()));
+        } else if line.starts_with("       ") {
+            if let Some((_, body)) = out.last_mut() {
+                body.push_str(line);
+                body.push('\n');
+            }
+        } else {
+            break;
+        }
+    }
+    out
+}
+
+/// GitHub gives a called workflow a secret only when the caller passes it,
+/// so every secret a job reads is declared, and only the verifier key is
+/// required: a reviewer can be disabled.
 #[test]
-fn the_reusable_workflow_takes_no_secret_and_reads_no_repository_variable() {
+fn the_reusable_workflow_declares_every_secret_it_reads_and_reads_no_repository_variable() {
     let text = workflow_text();
-    assert!(
-        !text.lines().any(|line| line == "    secrets:"),
-        "no key is a workflow_call secret: the keys stay environment secrets"
+    let declared = declared_secrets(&text);
+    let code: String = text
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut read: Vec<String> = provider_secrets(&code);
+    read.sort();
+    let mut names: Vec<String> = declared.iter().map(|(n, _)| n.clone()).collect();
+    names.sort();
+    assert_eq!(
+        names, read,
+        "every secret a job reads is declared, and no other"
     );
-    assert!(!text.contains("secrets: inherit"));
+    for (name, body) in &declared {
+        assert!(body.contains("description:"), "secret {name} is described");
+        assert_eq!(
+            body.contains("required: true"),
+            name == "VERIFIER_APP_PRIVATE_KEY",
+            "only the verifier key is required: {name}"
+        );
+    }
     assert!(
         !text.contains("vars."),
         "a setting enters as an input, never as an ambient variable"
     );
     assert!(
-        text.contains("environment secrets of the `review` environment"),
-        "the header says where the keys live"
+        text.contains("`secrets: inherit`") && text.contains("`review` environment"),
+        "the header says how a caller passes them and where they live"
     );
 }
 
@@ -1151,7 +1197,11 @@ fn the_environment_names_are_fixed_in_every_job_that_holds_a_key() {
             "job {id} holds no environment and no key"
         );
     }
-    assert_eq!(text.matches("environment:").count(), 4);
+    assert_eq!(
+        text.matches("environment:").count(),
+        reviewer_and_last_job_ids(&text).len(),
+        "one environment for each reviewer job and the last job, and no other job"
+    );
 }
 
 #[test]
@@ -1167,7 +1217,7 @@ fn the_verifier_identity_is_minted_in_the_last_job_only() {
         "{last}"
     );
     assert_eq!(
-        text.matches("VERIFIER_APP_PRIVATE_KEY").count(),
+        text.matches("secrets.VERIFIER_APP_PRIVATE_KEY").count(),
         1,
         "only the last job reads the verifier key"
     );
@@ -1230,12 +1280,14 @@ fn the_caller_is_thin_and_runs_from_the_base_branch() {
         "the caller has no step of its own"
     );
     assert_eq!(jobs(&caller).len(), 1, "one job, which only calls");
-    for forbidden in ["secrets:", "environment:", "secrets: inherit"] {
-        assert!(
-            !caller.contains(forbidden),
-            "the caller passes no secret: `{forbidden}`"
-        );
-    }
+    assert!(
+        caller.contains("    secrets: inherit\n"),
+        "the caller passes its secrets on, because an environment secret reaches a called workflow only that way"
+    );
+    assert!(
+        !caller.contains("environment:"),
+        "the environment is named in the called jobs, which a caller cannot change"
+    );
     assert!(
         caller.contains("osf-ref: ${{ github.workflow_sha }}")
             && caller.contains("osf-repository: ${{ github.repository }}"),

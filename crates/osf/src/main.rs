@@ -2065,40 +2065,8 @@ fn review_slot_off(args: &ReviewRunArgs) -> u8 {
 }
 
 /// The pull request's number, title and body, from the JSON file at `path`.
-/// The file is either those three fields, or a code host event file, such as
-/// the one `GITHUB_EVENT_PATH` names, which holds them under `pull_request`.
 fn load_pull_request(path: &Path) -> Result<osf::review_context::PullRequest, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let mut value: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))?;
-    if let Some(inner) = value.get_mut("pull_request").map(serde_json::Value::take) {
-        value = inner;
-    }
-    serde_json::from_value(value).map_err(|e| format!("{}: {e}", path.display()))
-}
-
-/// Each saved reviewer file named in `paths`, in order. A folder stands for
-/// the `.json` files directly inside it, sorted by name.
-fn expand_saved_runs(paths: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
-    let mut files = Vec::with_capacity(paths.len());
-    for path in paths {
-        if !path.is_dir() {
-            files.push(path.clone());
-            continue;
-        }
-        let mut inside = Vec::new();
-        let entries = std::fs::read_dir(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("{}: {e}", path.display()))?;
-            let file = entry.path();
-            if file.is_file() && file.extension().is_some_and(|ext| ext == "json") {
-                inside.push(file);
-            }
-        }
-        inside.sort();
-        files.extend(inside);
-    }
-    Ok(files)
+    osf::review_context::PullRequest::load(path)
 }
 
 /// Prints `outcome`, writes SARIF and posts as asked, and returns the exit
@@ -2149,7 +2117,7 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
         eprintln!("osf review reduce: a base is required: pass --base or set OSF_BASE");
         return 2;
     };
-    let files = match expand_saved_runs(&args.files) {
+    let files = match review_run::expand_saved_runs(&args.files) {
         Ok(files) => files,
         Err(e) => {
             eprintln!("osf review reduce: {e}");
@@ -3050,42 +3018,6 @@ fn assets_publish_cmd(args: &AssetsPublishArgs) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_pull_request_file_may_be_an_event_file_that_nests_the_pull_request() {
-        let dir = std::env::temp_dir().join(format!("osf-load-pr-{}", std::process::id())); // osf: temp-dir allowed, a test folder named by this process id and removed at the end
-        std::fs::create_dir_all(&dir).expect("temp folder");
-        let flat = dir.join("flat.json");
-        let event = dir.join("event.json");
-        std::fs::write(&flat, r#"{"number":7,"title":"t","body":"b"}"#).expect("write");
-        std::fs::write(
-            &event,
-            r#"{"action":"opened","pull_request":{"number":7,"title":"t","body":"b","draft":false}}"#,
-        )
-        .expect("write");
-        for path in [&flat, &event] {
-            let pr = load_pull_request(path).expect("loads");
-            assert_eq!((pr.number, pr.title.as_str()), (7, "t"));
-            assert_eq!(pr.body.as_deref(), Some("b"));
-        }
-        std::fs::write(&flat, r#"{"action":"opened"}"#).expect("write");
-        assert!(load_pull_request(&flat).is_err(), "no pull request in it");
-        std::fs::remove_dir_all(&dir).expect("clean up");
-    }
-
-    #[test]
-    fn a_folder_of_saved_runs_expands_to_its_json_files_in_name_order() {
-        let dir = std::env::temp_dir().join(format!("osf-expand-runs-{}", std::process::id())); // osf: temp-dir allowed, a test folder named by this process id and removed at the end
-        std::fs::create_dir_all(dir.join("sub")).expect("temp folder");
-        for name in ["b.json", "a.json", "note.txt"] {
-            std::fs::write(dir.join(name), "{}").expect("write");
-        }
-        let single = PathBuf::from("single.json");
-        let files = expand_saved_runs(&[single.clone(), dir.clone()]).expect("expands");
-        assert_eq!(files, vec![single, dir.join("a.json"), dir.join("b.json")]);
-        assert!(expand_saved_runs(&[dir.join("sub").join("missing")]).is_ok());
-        std::fs::remove_dir_all(&dir).expect("clean up");
-    }
 
     const FIXTURE_PATH: &str = "crates/osf/tests/fixtures/bad.md";
     const REAL_PATH: &str = "docs/real.md";

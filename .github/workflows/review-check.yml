@@ -22,11 +22,15 @@ name: review check
 # host plus the hosts it needs to run. The last job collects the saved
 # answers, decides, and posts: it alone mints the verifier app's token.
 #
-# No key is a `workflow_call` secret. The reviewer keys and the verifier
-# app's private key are environment secrets of the `review` environment in
-# the repository that holds the calling workflow. A repository secret that a
-# caller passed in would reach a job without the environment, and so
-# without the environment's limit to the main branch.
+# The reviewer keys and the verifier app's private key are `workflow_call`
+# secrets, because GitHub resolves a secret in a called workflow only when the
+# caller passes it, and an environment secret the caller does not pass becomes an
+# empty string with no error. They still live as environment secrets of the
+# `review` environment in the repository that holds the calling workflow, and
+# the jobs that read them still name that environment, so its limit to the main
+# branch still applies. A caller passes them by name, or with `secrets: inherit`.
+# A reviewer key is not required, because a reviewer can be disabled; a
+# reviewer whose key is empty runs, cannot sign in, and counts as could-not-run.
 #
 # This check is advisory. It posts a check run and a review, and no branch
 # protection or ruleset requires it. It becomes a required check when the key
@@ -59,6 +63,19 @@ on:
         type: boolean
         required: false
         default: false
+    secrets:
+      VERIFIER_APP_PRIVATE_KEY:
+        description: The private key of the verifier app. Only the last job reads it.
+        required: true
+      OPENAI_API_KEY:
+        description: The key of the codex reviewer. Leave it out when codex is not a selected reviewer.
+        required: false
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: The key of the claude reviewer. Leave it out when claude is not a selected reviewer.
+        required: false
+      OPENROUTER_API_KEY:
+        description: The key of the opencode reviewer. Leave it out when opencode is not a selected reviewer.
+        required: false
 
 permissions:
   contents: read

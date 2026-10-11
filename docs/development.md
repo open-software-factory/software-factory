@@ -207,7 +207,7 @@ the verdict, and the push always continues. Pre-push runs inside your
 own workspace, so you could change its result there. The real gate is a
 separate job.
 
-GitHub always reads a `pull_request_target` workflow from the base
+GitHub always reads a `pull_request_target` workflow from the default
 branch. That is why `.github/workflows/review.yml` is the real gate, and
 a pull request cannot change what this job does. The workflow runs again
 when the pull request text is edited. `review.yml` holds no step. It calls
@@ -216,8 +216,9 @@ every job below. See [Calling the review check from another
 workflow](#calling-the-review-check-from-another-workflow).
 
 The workflow has one job for each step. A `build` job builds the `osf`
-tool from the pinned commit only, with no secrets. For osf's own pull
-requests that commit is the base commit. Each reviewer then runs
+tool from the trusted commit of the workflow itself, with no secrets. The
+pull request's base commit is used only as what the reviewers diff against.
+Each reviewer then runs
 in its own job: `review codex`, `review claude` and `review opencode`.
 All three reviewer jobs run `osf` in the container.
 A reviewer job gets only its own provider's key. Its network list holds
@@ -735,6 +736,7 @@ jobs:
     with:
       osf-ref: <the same 40-character SHA>
       verifier-app-id: ${{ vars.VERIFIER_APP_ID }}
+    secrets: inherit
 ```
 
 Two references pin the check, and both name the same commit. The `@<SHA>` after
@@ -777,14 +779,29 @@ Left out on purpose:
 
 ### Secrets
 
-The workflow declares no `workflow_call` secret. The reviewer keys
-(`OPENAI_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `OPENROUTER_API_KEY`) and
-`VERIFIER_APP_PRIVATE_KEY` are environment secrets. The jobs that read them
-name the `review` environment, so GitHub reads them from the `review`
-environment of the repository that holds the calling workflow. A secret that a
-caller passed in would reach a job through no environment, and so past the
-environment's limit to the `main` branch. [Required setup](#required-setup)
-lists what the `review` environment holds.
+The workflow declares its keys as `workflow_call` secrets. GitHub gives a called
+workflow a secret only when the caller passes it. A key that exists only in the
+caller's environment and is not passed becomes an empty string, and the run shows
+no error. A caller therefore writes `secrets: inherit`, or passes each secret by
+name. GitHub accepts a secret passed by name even when it exists only in the
+environment.
+
+| Secret | Required | Read by |
+| --- | --- | --- |
+| `VERIFIER_APP_PRIVATE_KEY` | yes | The last job, which mints the verifier token. |
+| `OPENAI_API_KEY` | no | The codex reviewer job. |
+| `CLAUDE_CODE_OAUTH_TOKEN` | no | The claude reviewer job. |
+| `OPENROUTER_API_KEY` | no | The opencode reviewer job. |
+
+A reviewer key is not required, because a repository can leave a reviewer out of
+`[agents]`. A reviewer that is selected and has an empty key still runs. It
+cannot sign in, so `osf review run` records a note that names the empty
+variable, the run counts as could-not-run, and the review never passes.
+
+The jobs that read a key still name the `review` environment, or `fork-review`
+for a fork, so the environment's protection and its limit to the `main` branch
+still apply. [Required setup](#required-setup) lists what the `review`
+environment holds.
 
 ### What is stable
 
