@@ -854,6 +854,7 @@ fn gate_loaded() -> Result<Loaded, ConfigError> {
 /// from `--config`, since `flag` is always `None` here), or returns an
 /// empty list when no such file exists. The gate currently reads this field
 /// for config parity; its `undefined-name` rule remains disabled by policy.
+/// It also refuses an unsupported `adoption_mode` in that file.
 fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
     let Some(path) = resolve_path(None) else {
         return Ok(Vec::new());
@@ -863,6 +864,9 @@ fn gate_must_explain_names() -> Result<Vec<String>, ConfigError> {
     };
     let value: toml::Value = toml::from_str(&text)
         .map_err(|e| ConfigError::new(format!("config {} is not valid: {e}", path.display())))?;
+    // Only checked, never merged: the gate takes no setting from this file
+    // but must still refuse an unsupported mode.
+    adoption_mode_of(&value, &path)?;
     let names = value
         .get("writing")
         .and_then(|w| w.get("must_explain_names"))

@@ -43,3 +43,21 @@ fn a_supported_adoption_mode_loads() {
     );
     assert!(out.status.success(), "{}", output_text(&out));
 }
+
+#[test]
+fn an_unsupported_adoption_mode_stops_the_gate_path_too() {
+    let repo = TempRepo::new("adoption-mode-gate");
+    let home = isolated_home("adoption-mode-gate");
+    repo.write("osf.toml", "adoption_mode = \"vendored\"\n");
+    repo.write("clean.md", "Run the tests.\n");
+    let out = run_osf(&repo.dir, &home, &["lint", "writing", "--gate", "clean.md"]);
+    assert!(!out.status.success(), "{}", output_text(&out));
+    let text = output_text(&out);
+    assert!(text.contains(AdoptionMode::KEY), "{text}");
+    for mode in AdoptionMode::ALL {
+        assert!(text.contains(mode.name()), "{text}");
+    }
+    repo.write("osf.toml", "adoption_mode = \"private-factory-repo\"\n");
+    let ok = run_osf(&repo.dir, &home, &["lint", "writing", "--gate", "clean.md"]);
+    assert!(ok.status.success(), "{}", output_text(&ok));
+}
