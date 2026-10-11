@@ -243,10 +243,58 @@ pub fn is_clean_merge(dir: &Path, hash: &str) -> Result<bool, GitError> {
         return Ok(false);
     };
     let tree = run_text(dir, &["rev-parse", &format!("{hash}^{{tree}}")])?;
-    let Ok(merged) = run_text(dir, &["merge-tree", "--write-tree", first, second]) else {
+    let Some(merged) = merge_tree_in_scratch_store(dir, first, second)? else {
         return Ok(false);
     };
     Ok(merged.lines().next().map(str::trim) == Some(tree.trim()))
+}
+
+/// The output of `git merge-tree --write-tree <first> <second>`, or `None`
+/// when it conflicts or fails. The merge writes its objects, and a checkout
+/// may be read-only, so they go to a scratch object store that is removed
+/// afterwards, while the repository's own objects are only read through an
+/// alternate.
+fn merge_tree_in_scratch_store(
+    dir: &Path,
+    first: &str,
+    second: &str,
+) -> Result<Option<String>, GitError> {
+    let objects = run_text(
+        dir,
+        &[
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "objects",
+        ],
+    )?;
+    let base = std::env::temp_dir(); // osf: temp-dir allowed, unique per call (pid and time) and removed after
+    let scratch = base.join(format!(
+        "osf-merge-tree-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos())
+    ));
+    std::fs::create_dir_all(&scratch)
+        .map_err(|e| GitError(format!("cannot create {}: {e}", scratch.display())))?;
+    let mut command = Command::new("git");
+    command
+        .current_dir(dir)
+        .args(["merge-tree", "--write-tree", first, second]);
+    scrub_git_env_for_dir(&mut command, dir);
+    command
+        .env("GIT_OBJECT_DIRECTORY", &scratch)
+        .env("GIT_ALTERNATE_OBJECT_DIRECTORIES", objects.trim());
+    let output = command.output();
+    let removed = std::fs::remove_dir_all(&scratch);
+    let output = output.map_err(|e| GitError(format!("cannot run git: {e}")))?;
+    removed.map_err(|e| GitError(format!("cannot remove {}: {e}", scratch.display())))?;
+    if output.status.success() {
+        Ok(Some(String::from_utf8_lossy(&output.stdout).into_owned()))
+    } else {
+        Ok(None)
+    }
 }
 
 /// One commit's full message.

@@ -585,6 +585,47 @@ mod tests {
         assert!(found.families.contains(&UNKNOWN.to_string()), "{found:?}");
     }
 
+    /// Makes every file under `path` read-only, or writable again.
+    #[cfg(unix)]
+    fn set_tree_writable(path: &Path, writable: bool) {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = std::fs::metadata(path)
+            .expect("metadata")
+            .permissions()
+            .mode();
+        let mode = if writable {
+            mode | 0o200
+        } else {
+            mode & !0o222
+        };
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+            .expect("permissions set");
+        if path.is_dir() {
+            for entry in std::fs::read_dir(path).expect("dir reads") {
+                set_tree_writable(&entry.expect("entry").path(), writable);
+            }
+        }
+    }
+
+    /// A review job mounts the checkout read-only, and `merge-tree` writes
+    /// objects, so the check must not write into the repository.
+    #[cfg(unix)]
+    #[test]
+    fn a_clean_merge_is_exempt_in_a_read_only_checkout() {
+        let (root, base) = forked("osf-builder-merge-readonly", None, None);
+        git_ok(
+            &root,
+            &["merge", "--quiet", "--no-ff", "-m", "Merge side", "side"],
+        );
+        let git_dir = root.join(".git");
+        set_tree_writable(&git_dir, false);
+        let found = detect_detailed(&root, &format!("{base}..HEAD"), &[], &[]);
+        set_tree_writable(&git_dir, true);
+        let found = found.expect("runs");
+        assert_eq!(found.families, vec!["anthropic".to_string()], "{found:?}");
+        assert_eq!(found.unknown, Vec::<String>::new());
+    }
+
     #[test]
     fn a_merge_with_an_extra_edit_and_no_trailer_is_unknown() {
         let (root, base) = forked("osf-builder-merge-extra", None, None);

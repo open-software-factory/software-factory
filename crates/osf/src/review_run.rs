@@ -1093,8 +1093,19 @@ fn unknown_detail(reasons: &[String]) -> String {
             reasons.len() - UNKNOWN_REASONS_SHOWN
         ));
     }
-    parts.join("; ")
+    let joined = parts.join("; ");
+    if joined.len() <= UNKNOWN_DETAIL_BYTES {
+        return joined;
+    }
+    let mut end = UNKNOWN_DETAIL_BYTES;
+    while !joined.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}...", joined.get(..end).unwrap_or_default())
 }
+
+/// The most bytes the unknown-builder detail may take, whatever characters it holds.
+const UNKNOWN_DETAIL_BYTES: usize = 400;
 
 /// What [`detect_builder_families`] found.
 struct BuilderFamilies {
@@ -1251,7 +1262,10 @@ fn judge_lens(
     let mut ran: Vec<(&Reviewer, Vec<Judged>)> = Vec::new();
     for reviewer in &setup.roster {
         if let Some(detail) = &setup.unknown_builder {
-            let reason = unknown_builder_reason(detail);
+            // The lens line repeats this per reviewer, so it stays short; the
+            // detail is in the run's notes.
+            let _ = detail;
+            let reason = "the builder's model family is unknown (see the note)".to_string();
             judged.push(Judged::missing(reviewer, "could-not-run", reason));
             continue;
         }
@@ -1993,6 +2007,8 @@ mod tests {
         assert!(detail.contains("and 47 more commits"), "{detail}");
         assert!(detail.len() < 400, "{}", detail.len());
         assert_eq!(unknown_detail(&[]), "no family named");
+        let wide: Vec<String> = (0..5).map(|n| format!("{n}{}", "😀".repeat(200))).collect();
+        assert!(unknown_detail(&wide).len() <= UNKNOWN_DETAIL_BYTES + 3);
     }
 
     #[test]

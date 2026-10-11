@@ -1769,6 +1769,63 @@ fn many_commits_without_a_trailer_still_post_a_review_within_the_limit() {
     );
 }
 
+/// Long trailers made of four-byte characters, many commits and the standard
+/// lenses together still post the explanatory review within the body limit.
+#[test]
+#[cfg(unix)]
+fn long_wide_character_trailers_with_every_lens_still_post_within_the_limit() {
+    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
+    let repo = TempRepo::new("wide-untrailed");
+    let mut shipped = vec!["correctness"];
+    shipped.extend(OTHER_ALWAYS_LENS_NAMES.iter().copied());
+    write_active_lenses_to(&repo.dir, &shipped);
+    repo.write("osf.toml", &fakes.osf_toml);
+    repo.write("README.md", "base\n");
+    repo.commit("base");
+    repo.track_origin_main();
+    for n in 0..5 {
+        repo.write("README.md", &format!("base\nchange {n}\n"));
+        repo.commit(&format!(
+            "change {n}\n\nCode-Generator: {n} {} <noreply@example.com>\n",
+            "😀".repeat(200)
+        ));
+    }
+    let home = common::isolated_home("review-run-wide-untrailed");
+    let gh_holder = TempDir::new("review-run-wide-untrailed-gh");
+    let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    let path = path_with_dir_first(&gh_dir);
+    let payload_file = gh_holder.join("payload.json");
+    let payload_path = payload_file.display().to_string();
+    let output = fakes.run_with_env(
+        &repo.dir,
+        &home,
+        &[("PATH", &path), ("FAKE_GH_PAYLOAD", &payload_path)],
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--post-to",
+            "open-software-factory/widgets#7",
+        ],
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("posted review"), "{stdout}");
+    let payload: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&payload_file).expect("the fake gh saved the payload"),
+    )
+    .expect("payload is JSON");
+    let body = payload
+        .get("body")
+        .and_then(serde_json::Value::as_str)
+        .expect("a body");
+    assert!(body.len() <= 2000, "{}", body.len());
+    assert_eq!(
+        payload.get("event").and_then(serde_json::Value::as_str),
+        Some("COMMENT")
+    );
+}
+
 /// A saved run of a reviewer that fails closed on an unknown builder family
 /// names the trailer text in its own record.
 #[test]

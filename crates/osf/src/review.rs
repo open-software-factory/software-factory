@@ -228,6 +228,18 @@ fn more_findings_line(count: usize) -> String {
 /// Bytes kept for the findings when a long summary has to be cut.
 const FINDINGS_BUDGET: usize = 500;
 
+/// `text` cut on a character boundary to [`BODY_LIMIT`] bytes, marked when cut.
+fn cut_to_limit(text: &str) -> String {
+    if text.len() <= BODY_LIMIT {
+        return text.to_string();
+    }
+    let mut end = BODY_LIMIT.saturating_sub(SUMMARY_CUT.len());
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}{SUMMARY_CUT}", text.get(..end).unwrap_or_default())
+}
+
 /// Marks a summary that was cut so the findings notice could fit.
 const SUMMARY_CUT: &str = "\n(summary shortened to fit)";
 
@@ -279,9 +291,9 @@ fn append_outside_findings(summary: &str, findings: &[&&Finding]) -> String {
 /// before any of this runs; it is never posted anywhere.
 ///
 /// # Errors
-/// Returns [`ReviewError::BodyTooLong`] when the summary alone is over
-/// [`BODY_LIMIT`] characters. Findings that do not fit are counted in the
-/// body, and a summary too long to leave room for that is cut and marked.
+/// Never fails today: a body over [`BODY_LIMIT`] bytes is cut on a character
+/// boundary and marked, and findings that do not fit are counted. The `Result`
+/// stays so a caller handles a future refusal.
 pub fn plan_review(
     findings: &[Finding],
     summary: &str,
@@ -297,7 +309,7 @@ pub fn plan_review(
 /// from the findings alone, as `osf review post` does.
 ///
 /// # Errors
-/// Returns [`ReviewError::BodyTooLong`] when the body is over [`BODY_LIMIT`].
+/// Never fails today; see [`plan_review_in_diff`].
 pub fn plan_review_for(
     findings: &[Finding],
     summary: &str,
@@ -314,7 +326,7 @@ pub fn plan_review_for(
 /// every finding with a line as anchored.
 ///
 /// # Errors
-/// Returns [`ReviewError::BodyTooLong`] when the body is over [`BODY_LIMIT`].
+/// Never fails today; see [`plan_review_in_diff`].
 pub fn plan_review_in_diff(
     findings: &[Finding],
     summary: &str,
@@ -343,12 +355,8 @@ pub fn plan_review_in_diff(
     if !unanchored.is_empty() {
         body = append_outside_findings(&body, &unanchored);
     }
-    if body.len() > BODY_LIMIT {
-        return Err(ReviewError::BodyTooLong {
-            len: body.len(),
-            limit: BODY_LIMIT,
-        });
-    }
+    // Whatever made the summary long, the review posts: it is cut to the limit.
+    body = cut_to_limit(&body);
 
     let comments = posted
         .iter()
@@ -833,9 +841,9 @@ mod tests {
         );
     }
 
-    // A summary over 2,000 characters is refused with the limit named.
+    // A summary over 2,000 bytes is cut, never refused.
     #[test]
-    fn a_long_summary_alone_is_refused_with_the_limit_named() {
+    fn a_long_summary_alone_is_cut_to_the_limit() {
         let findings = vec![finding(
             "cor-01",
             "README.md",
@@ -844,9 +852,13 @@ mod tests {
             "should-fix",
         )];
         let long_summary = "x".repeat(2100);
-        let err = plan_review(&findings, &long_summary, &default_block_on())
-            .expect_err("summary is too long");
-        assert!(err.to_string().contains("limit is 2000"), "{err}");
+        let plan = plan_review(&findings, &long_summary, &default_block_on()).expect("plans");
+        assert!(plan.body.len() <= BODY_LIMIT, "{}", plan.body.len());
+        assert!(plan.body.contains("summary shortened"), "{}", plan.body);
+        let wide = "😀".repeat(900);
+        let plan = plan_review(&findings, &wide, &default_block_on()).expect("plans");
+        assert!(plan.body.len() <= BODY_LIMIT, "{}", plan.body.len());
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
     }
 
     // Nothing in the specification exercises the self-review fallback
