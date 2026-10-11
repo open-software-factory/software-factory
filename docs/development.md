@@ -711,15 +711,18 @@ The key is a top-level string. Leave it out and osf reads no mode. A
 command that needs a mode stops with a message that names the key, the
 command and the modes the command supports. A value osf does not know
 stops osf with a message that names the key and lists the supported
-values.
+values. An `osf.toml` that exists but cannot be read stops osf with the
+read error.
 
 | Value | Covers | Does not cover |
 |---|---|---|
 | `private-factory-repo` | A private repository in the adopter's organisation that holds the org-wide config, private lenses and prompts, the pinned osf release, and the list of watched repositories | Reading the list of watched repositories, which is not built yet. The factory vendored into one repository, which has no value yet. |
 
-Code reads the key through `config::adoption_mode`. A command that
-depends on the mode calls `config::require_adoption_mode` with the modes
-it supports. No command depends on the mode yet.
+Every command that loads the config, such as `osf config show`, checks
+the key and stops on an unsupported value. Code reads the key through
+`config::adoption_mode`. A command that depends on the mode calls
+`config::require_adoption_mode` with the modes it supports. No command
+depends on the mode yet, so no command calls it yet.
 
 ## Which osf a check uses
 

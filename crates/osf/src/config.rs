@@ -313,11 +313,18 @@ fn mode_names(modes: &[AdoptionMode]) -> String {
 /// not valid TOML or the value is not a supported mode.
 pub fn adoption_mode(root: &Path) -> Result<Option<AdoptionMode>, ConfigError> {
     let path = root.join(REPO_CONFIG_FILE);
-    let Ok(text) = std::fs::read_to_string(&path) else {
-        return Ok(None);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(ConfigError::new(format!("{}: {e}", path.display()))),
     };
     let value: toml::Value =
         toml::from_str(&text).map_err(|e| ConfigError::new(format!("{}: {e}", path.display())))?;
+    adoption_mode_of(&value, &path)
+}
+
+/// Checks the `adoption_mode` entry of an already parsed `osf.toml`.
+fn adoption_mode_of(value: &toml::Value, path: &Path) -> Result<Option<AdoptionMode>, ConfigError> {
     let Some(raw) = value.get(AdoptionMode::KEY) else {
         return Ok(None);
     };
@@ -733,9 +740,11 @@ pub fn load(
             })?;
             // `[review]`, `[agents]` and `adoption_mode` are this same file's own
             // entries, read separately by `review_config`, `agents_config` and
-            // `adoption_mode`. Drop them
-            // here so their presence never trips this struct's
-            // `deny_unknown_fields`.
+            // `adoption_mode`. Drop them here so their presence never trips
+            // this struct's `deny_unknown_fields`. `adoption_mode` is checked
+            // first, so an unsupported value stops every command that loads
+            // the config.
+            adoption_mode_of(&value, p)?;
             if let Some(table) = value.as_table_mut() {
                 table.remove("review");
                 table.remove("agents");
@@ -1891,6 +1900,27 @@ mod tests {
             .expect("osf.toml writes");
         serial(&[], || {
             load(Some(&file), &[], &[], false).expect("the key does not trip the layered load");
+        });
+    }
+
+    #[test]
+    fn an_unreadable_osf_toml_is_an_error_not_an_unset_mode() {
+        let dir = TempDir::new("osf-config-test-adoption-unreadable");
+        std::fs::write(dir.join("osf.toml"), [0xff, 0xfe, 0xfd]).expect("osf.toml writes");
+        let err = adoption_mode(&dir).expect_err("invalid UTF-8 is not an absent file");
+        assert!(err.to_string().contains("osf.toml"), "{err}");
+    }
+
+    #[test]
+    fn the_layered_load_refuses_an_unsupported_adoption_mode() {
+        let dir = TempDir::new("osf-config-test-adoption-layered-bad");
+        let file = dir.join("osf.toml");
+        std::fs::write(&file, "adoption_mode = \"vendored\"\n").expect("osf.toml writes");
+        serial(&[], || {
+            let err = load(Some(&file), &[], &[], false).expect_err("refused");
+            let text = err.to_string();
+            assert!(text.contains("adoption_mode"), "{text}");
+            assert!(text.contains("private-factory-repo"), "{text}");
         });
     }
 }
