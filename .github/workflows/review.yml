@@ -56,7 +56,7 @@ jobs:
       # directly on the runner (no job-level container), so this actually
       # covers every step's own network calls, including from docker run.
       - name: Restrict this job's outbound network access
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -156,7 +156,7 @@ jobs:
       packages: read
     steps:
       - name: Restrict this job's outbound network access
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -274,7 +274,7 @@ jobs:
       packages: read
     steps:
       - name: Restrict this job's outbound network access
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -382,7 +382,7 @@ jobs:
     steps:
       # opencode reads its model catalogue from models.opencode.ai at start.
       - name: Restrict this job's outbound network access
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -495,7 +495,7 @@ jobs:
       packages: read
     steps:
       - name: Restrict this job's outbound network access
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
           allowed-endpoints: >
@@ -619,7 +619,7 @@ jobs:
       # Blocks this job's own outbound network access; there is nothing
       # this job needs to reach, so every endpoint stays blocked.
       - name: Restrict this job's outbound network access
-        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
         with:
           egress-policy: block
 
