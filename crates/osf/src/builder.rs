@@ -105,8 +105,8 @@ pub struct Detected {
     /// Sorted and deduplicated. [`UNKNOWN`] stands for a trailer, or the
     /// lack of one, that names no family.
     pub families: Vec<String>,
-    /// One entry per reason a family is unknown: the trailer as written, or
-    /// the commit that carries none. Empty when every family is
+    /// One entry per commit whose family is unknown: its short hash and a
+    /// fixed cause. Never any text from the trailer itself. Empty when every family is
     /// known, and always empty for an override.
     pub unknown: Vec<String>,
 }
@@ -144,27 +144,29 @@ pub fn detect_detailed(
     if commits.is_empty() {
         return Ok(Detected {
             families: vec![UNKNOWN.to_string()],
-            unknown: vec!["no commits with a Code-Generator trailer to read".to_string()],
+            unknown: vec!["no commits to read a Code-Generator trailer from".to_string()],
         });
     }
     let mut families = Vec::new();
     let mut unknown: Vec<String> = Vec::new();
     for (hash, names) in &commits {
+        // A reason names the commit and a fixed cause, never the trailer's own
+        // text, so no diagnostic can repeat what an author wrote there.
+        let short: String = hash.chars().take(12).collect();
         if names.is_empty() {
             // One commit without attribution leaves the builder unknown, whatever
             // the other commits say.
-            let described = format!(
-                "commit {} has no Code-Generator trailer",
-                hash.chars().take(12).collect::<String>()
-            );
-            unknown.push(described);
+            unknown.push(format!("commit {short}: no Code-Generator trailer"));
             families.push(UNKNOWN.to_string());
         }
+        let mut named_unknown = false;
         for name in names {
             let family = family_of(name, aliases);
-            let described = format!("Code-Generator: {name}");
-            if family == UNKNOWN && !unknown.contains(&described) {
-                unknown.push(described);
+            if family == UNKNOWN && !named_unknown {
+                named_unknown = true;
+                unknown.push(format!(
+                    "commit {short}: Code-Generator trailer names no known model family"
+                ));
             }
             families.push(family);
         }
@@ -379,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn an_unrecognised_trailer_is_named_in_the_detail() {
+    fn an_unrecognised_trailer_is_reported_by_commit_never_by_its_text() {
         let root = TempDir::new("osf-builder-detail");
         init_repo(&root);
         commit(&root, "root commit");
@@ -390,10 +392,13 @@ mod tests {
         );
         let range = format!("{base}..HEAD");
         let found = detect_detailed(&root, &range, &[], &[]).expect("detect runs");
-        assert_eq!(
-            found.unknown,
-            vec!["Code-Generator: Some New Model".to_string()]
+        let reason = found.unknown.first().expect("one reason");
+        assert_eq!(found.unknown.len(), 1);
+        assert!(
+            reason.ends_with(": Code-Generator trailer names no known model family"),
+            "{reason}"
         );
+        assert!(!reason.contains("Some New Model"), "{reason}");
     }
 
     #[test]
@@ -434,7 +439,7 @@ mod tests {
             found
                 .unknown
                 .first()
-                .is_some_and(|u| u.contains("has no Code-Generator trailer")),
+                .is_some_and(|u| u.contains(": no Code-Generator trailer")),
             "{:?}",
             found.unknown
         );

@@ -647,8 +647,10 @@ review's decision still names every family it found, so a person
 reading the result can see why a reviewer sat out. When no trailer
 names a known family, or any one commit has none, `osf`
 records `unknown` and fails closed: no
-reviewer counts, the outcome is could-not-run, and the reason quotes the
-offending trailer. A reviewer left out for its family records
+reviewer counts, the outcome is could-not-run, and the reason names each
+unknown commit by its short hash and a fixed cause. It never repeats any
+text from a trailer, so an author's text cannot reach a saved run, the
+journal, the console or a posted review. A reviewer left out for its family records
 `skipped: same model family as the builder (<family>)` in its saved run
 and in the posted summary. Findings that point outside the pull request's
 diff are posted in the review body, not as inline comments; the body
@@ -662,8 +664,8 @@ either way, a dropped change and an extra edit all fail that test. A merge
 with a trailer counts like any commit. Any other merge without a trailer
 makes the family unknown, and the reason names the commit. A git older
 than 2.38 has no `merge-tree --write-tree`: every merge without a trailer
-then counts as unknown, so the check fails closed. The reason lists the
-first three commits and counts the rest.
+then counts as unknown, so the check fails closed. The reason lists up to
+three commits and counts the rest.
 
 Too few other families can then mean the review could-not-run.
 `decide_lens` still needs answers from two families to score a lens.

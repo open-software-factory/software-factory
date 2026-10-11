@@ -1534,7 +1534,7 @@ fn no_builder_family_detected_fails_closed_as_could_not_run() {
 }
 
 /// A trailer that names no family fails the run closed, and the reason
-/// quotes the trailer text so the author can fix it.
+/// names the commit and a fixed cause, not the trailer text.
 #[test]
 fn an_unrecognised_trailer_fails_closed_naming_the_trailer() {
     let fakes = Fakes::new(
@@ -1555,7 +1555,8 @@ fn an_unrecognised_trailer_fails_closed_naming_the_trailer() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("verdict: could-not-run"), "{stdout}");
     assert!(
-        stdout.contains("Code-Generator: Some New Model"),
+        stdout.contains("Code-Generator trailer names no known model family")
+            && !stdout.contains("Some New Model"),
         "{stdout}"
     );
 }
@@ -1653,13 +1654,17 @@ fn a_skipped_reviewer_s_saved_run_records_the_reason() {
     );
 }
 
-/// A secret in an unrecognised trailer reaches no output: not the saved run,
-/// the journal, the console, nor the posted review summary.
+/// A credential in a trailer, even one with `<` inside its quotes, reaches no
+/// destination: the diagnostic names the commit and a fixed cause, never the
+/// trailer's text. Checked in the saved run, the journal, stdout, stderr and
+/// the posted payload.
 #[test]
 #[cfg(unix)]
-fn a_secret_in_an_unrecognised_trailer_reaches_no_destination() {
-    let secret = format!("{}{}", "sk-", "ABCDEFGHIJKLMNOPQRSTUVWX0123456789");
-    let trailer = format!("Some New Model {secret}");
+fn a_credential_in_a_trailer_reaches_no_destination() {
+    // The trailer's model name stops at the first `<`, which here sits inside
+    // the quotes, so the credential loses its closing quote.
+    let secret = "Ab3dE6gH9kLmNp7Q";
+    let trailer = format!("Some New Model PASSWORD=\"{secret}<tail\"");
     let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
     let repo = review_repo_built_by("unknown-secret", &fakes.osf_toml, &trailer);
     let home = common::isolated_home("review-run-unknown-secret");
@@ -1691,8 +1696,8 @@ fn a_secret_in_an_unrecognised_trailer_reaches_no_destination() {
         String::from_utf8_lossy(&job.stderr)
     );
     let saved = std::fs::read_to_string(&file).expect("saved run reads");
-    assert!(saved.contains("redacted"), "{saved}");
-    assert!(!saved.contains(&secret), "saved JSON: {saved}");
+    assert!(saved.contains("names no known model family"), "{saved}");
+    assert!(!saved.contains(secret), "saved JSON: {saved}");
 
     // Console, journal and posted summary.
     let output = fakes.run_with_env(
@@ -1713,12 +1718,12 @@ fn a_secret_in_an_unrecognised_trailer_reaches_no_destination() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(console.contains("redacted"), "{console}");
-    assert!(!console.contains(&secret), "console: {console}");
-    assert!(!journal_text(&home).contains(&secret), "journal");
+    assert!(console.contains("names no known model family"), "{console}");
+    assert!(!console.contains(secret), "console: {console}");
+    assert!(!journal_text(&home).contains(secret), "journal");
     let payload = std::fs::read_to_string(&payload_file).expect("the fake gh saved the payload");
-    assert!(payload.contains("redacted"), "{payload}");
-    assert!(!payload.contains(&secret), "posted summary: {payload}");
+    assert!(payload.contains("names no known model family"), "{payload}");
+    assert!(!payload.contains(secret), "posted summary: {payload}");
 }
 
 /// Fifty commits without a trailer still let the explanatory review post: the
@@ -1762,136 +1767,14 @@ fn many_commits_without_a_trailer_still_post_a_review_within_the_limit() {
         .and_then(serde_json::Value::as_str)
         .expect("a body");
     assert!(body.len() <= 2000, "{}", body.len());
-    assert!(body.contains("more unrecognised trailer"), "{body}");
-    assert_eq!(
-        payload.get("event").and_then(serde_json::Value::as_str),
-        Some("COMMENT")
-    );
-}
-
-/// Long trailers made of four-byte characters, many commits and the standard
-/// lenses together still post the explanatory review within the body limit.
-#[test]
-#[cfg(unix)]
-fn long_wide_character_trailers_with_every_lens_still_post_within_the_limit() {
-    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
-    let repo = TempRepo::new("wide-untrailed");
-    let mut shipped = vec!["correctness"];
-    shipped.extend(OTHER_ALWAYS_LENS_NAMES.iter().copied());
-    write_active_lenses_to(&repo.dir, &shipped);
-    repo.write("osf.toml", &fakes.osf_toml);
-    repo.write("README.md", "base\n");
-    repo.commit("base");
-    repo.track_origin_main();
-    for n in 0..5 {
-        repo.write("README.md", &format!("base\nchange {n}\n"));
-        repo.commit(&format!(
-            "change {n}\n\nCode-Generator: {n} {} <noreply@example.com>\n",
-            "😀".repeat(200)
-        ));
-    }
-    let home = common::isolated_home("review-run-wide-untrailed");
-    let gh_holder = TempDir::new("review-run-wide-untrailed-gh");
-    let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
-    let path = path_with_dir_first(&gh_dir);
-    let payload_file = gh_holder.join("payload.json");
-    let payload_path = payload_file.display().to_string();
-    let output = fakes.run_with_env(
-        &repo.dir,
-        &home,
-        &[("PATH", &path), ("FAKE_GH_PAYLOAD", &payload_path)],
-        &[
-            "review",
-            "run",
-            "--base",
-            "origin/main",
-            "--post-to",
-            "open-software-factory/widgets#7",
-        ],
-    );
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("posted review"), "{stdout}");
-    let payload: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(&payload_file).expect("the fake gh saved the payload"),
-    )
-    .expect("payload is JSON");
-    let body = payload
-        .get("body")
-        .and_then(serde_json::Value::as_str)
-        .expect("a body");
-    assert!(body.len() <= 2000, "{}", body.len());
-    assert_eq!(
-        payload.get("event").and_then(serde_json::Value::as_str),
-        Some("COMMENT")
-    );
-}
-
-/// The saved run of `codex` for a repository whose commits carry these
-/// trailer names, one commit each, oldest first.
-#[cfg(unix)]
-fn saved_not_run_for_trailers(name: &str, trailers: &[String]) -> String {
-    let fakes = Fakes::new("", &[("codex", Fake::Answers(&fixture("valid.json")))]);
-    let (first, rest) = trailers.split_first().expect("at least one trailer");
-    let repo = review_repo_built_by(name, &fakes.osf_toml, first);
-    for (n, trailer) in rest.iter().enumerate() {
-        repo.write("README.md", &format!("base\nchange {n}\n"));
-        repo.commit(&format!(
-            "change {n}\n\nCode-Generator: {trailer} <noreply@example.com>\n"
-        ));
-    }
-    let home = common::isolated_home(&format!("review-run-{name}"));
-    let file = repo.dir.join("codex.json").display().to_string();
-    let job = fakes.run(
-        &repo.dir,
-        &home,
-        &[
-            "review",
-            "run",
-            "--reviewer",
-            "codex",
-            "--out",
-            &file,
-            "--base",
-            "origin/main",
-        ],
-    );
     assert!(
-        job.status.success(),
-        "{}",
-        String::from_utf8_lossy(&job.stderr)
+        body.contains("more commits with an unknown builder family"),
+        "{body}"
     );
-    let text = std::fs::read_to_string(&file).expect("saved run reads");
-    let run: serde_json::Value = serde_json::from_str(&text).expect("saved run is JSON");
-    run.get("not_run")
-        .and_then(serde_json::Value::as_str)
-        .expect("a reason")
-        .to_string()
-}
-
-/// A quoted credential whose closing quote sits just past the 120-character
-/// cut of one reason is redacted before the cut, so no part of it is shown.
-#[test]
-#[cfg(unix)]
-fn a_credential_cut_at_the_per_reason_limit_is_not_shown() {
-    // "Code-Generator: " (16) + `PASSWORD="` (10) + 94 value characters = 120.
-    let value = format!("{}Ab3d", "Ab3dE6gH9k".repeat(9));
-    let trailer = format!("PASSWORD=\"{value}\"");
-    let reason = saved_not_run_for_trailers("cut-per-reason", &[trailer]);
-    assert!(!reason.contains("Ab3dE6gH9k"), "{reason}");
-}
-
-/// The same for the 400-byte cap on the joined detail: the credential ends at
-/// byte 400, with its closing quote just past the cut.
-#[test]
-#[cfg(unix)]
-fn a_credential_cut_at_the_detail_cap_is_not_shown() {
-    let first = "😀".repeat(40);
-    let second = "🙂".repeat(40);
-    // Two 176-byte reasons and their separators put the third at byte 356;
-    // `Code-Generator: PASSWORD="` is 26 bytes, so 18 value bytes end at 400.
-    let third = "PASSWORD=\"Zq7Zq7Zq7Zq7Zq7Zq7\"".to_string();
-    let reason = saved_not_run_for_trailers("cut-detail-cap", &[first, second, third]);
-    assert!(!reason.contains("Zq7Zq7"), "{reason}");
+    assert_eq!(
+        payload.get("event").and_then(serde_json::Value::as_str),
+        Some("COMMENT")
+    );
 }
 
 /// A saved run of a reviewer that fails closed on an unknown builder family
@@ -1928,7 +1811,8 @@ fn an_unknown_builder_family_is_recorded_in_each_saved_run() {
         .and_then(serde_json::Value::as_str)
         .expect("a reason");
     assert!(
-        reason.contains("Code-Generator: Some New Model"),
+        reason.contains("Code-Generator trailer names no known model family")
+            && !reason.contains("Some New Model"),
         "{reason}"
     );
     assert!(
