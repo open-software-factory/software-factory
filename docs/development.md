@@ -700,6 +700,27 @@ files, checks the findings against the files, journals, and decides. Both
 reach the same decision. Pass `--pull-request <file>`, a JSON file with
 the `number`, `title` and `body`, to put the pull request in the prompt.
 
+## The adoption mode
+
+The `adoption_mode` key in `osf.toml` says how osf is placed in an
+organisation. [Decision 0006 (distribution and packaging)](architecture/decisions/0006-distribution-and-packaging.md)
+allows two shapes and says neither is a step toward the other. The key
+makes a command state which shape it supports.
+
+The key is a top-level string. Leave it out and osf reads no mode. A
+command that needs a mode stops with a message that names the key, the
+command and the modes the command supports. A value osf does not know
+stops osf with a message that names the key and lists the supported
+values.
+
+| Value | Covers | Does not cover |
+|---|---|---|
+| `private-factory-repo` | A private repository in the adopter's organisation that holds the org-wide config, private lenses and prompts, the pinned osf release, and the list of watched repositories | Reading the list of watched repositories, which is not built yet. The factory vendored into one repository, which has no value yet. |
+
+Code reads the key through `config::adoption_mode`. A command that
+depends on the mode calls `config::require_adoption_mode` with the modes
+it supports. No command depends on the mode yet.
+
 ## Which osf a check uses
 
 The git hooks always call `/opt/factory/bin/osf`, the version pinned and
