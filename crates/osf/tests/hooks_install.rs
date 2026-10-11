@@ -176,13 +176,13 @@ fn a_real_git_commit_runs_the_pre_commit_checkpoint() {
     );
 }
 
-/// Whether any journal buffer file under `home`'s state directory belongs to
+/// Whether any journal file under `home`'s state directory belongs to
 /// a run whose id starts with `prefix`: proof a checkpoint actually ran,
 /// rather than guessing at a check's own findings.
 fn journal_has_run_prefixed(prefix: &str, home: &Path) -> bool {
-    let buffer_dir = home.join(".osf").join("state").join("buffer");
-    std::fs::read_dir(&buffer_dir)
-        .unwrap_or_else(|e| panic!("cannot read {}: {e}", buffer_dir.display()))
+    let runs_dir = home.join(".osf").join("state").join("runs");
+    std::fs::read_dir(&runs_dir)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", runs_dir.display()))
         .any(|entry| {
             entry
                 .expect("dir entry reads")
@@ -255,19 +255,19 @@ fn a_real_git_push_runs_the_pre_push_checkpoint() {
     let _ = std::fs::remove_dir_all(&bare_dir);
 }
 
-/// `prefix`'s one journal buffer file under `home`'s state directory,
+/// `prefix`'s one journal file under `home`'s state directory,
 /// parsed as one JSON value per line. Panics when no such file exists.
 fn journal_events_for_run_prefixed(prefix: &str, home: &Path) -> Vec<serde_json::Value> {
-    let buffer_dir = home.join(".osf").join("state").join("buffer");
-    let path = std::fs::read_dir(&buffer_dir)
-        .unwrap_or_else(|e| panic!("cannot read {}: {e}", buffer_dir.display()))
+    let runs_dir = home.join(".osf").join("state").join("runs");
+    let path = std::fs::read_dir(&runs_dir)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", runs_dir.display()))
         .filter_map(Result::ok)
         .map(|entry| entry.path())
         .find(|p| {
             p.file_name()
                 .is_some_and(|n| n.to_string_lossy().starts_with(prefix))
         })
-        .unwrap_or_else(|| panic!("no journal buffer file starts with {prefix}"));
+        .unwrap_or_else(|| panic!("no journal file starts with {prefix}"));
     std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()))
         .lines()

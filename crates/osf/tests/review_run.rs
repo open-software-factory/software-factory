@@ -471,16 +471,16 @@ fn write_answer_file(dir: &TempDir, name: &str, content: &str) -> String {
     path.to_string_lossy().into_owned()
 }
 
-/// Every `event_type` value found in a journal buffer file's own lines.
+/// Every `event_type` value found in a journal file's own lines.
 fn journal_event_types(home: &Path) -> Vec<String> {
-    let buffer_dir = home.join(".osf/state/buffer");
+    let runs_dir = home.join(".osf/state/runs");
     let mut types = Vec::new();
-    let Ok(entries) = std::fs::read_dir(&buffer_dir) else {
+    let Ok(entries) = std::fs::read_dir(&runs_dir) else {
         return types;
     };
     for entry in entries {
         let entry = entry.expect("dir entry reads");
-        let text = std::fs::read_to_string(entry.path()).expect("journal buffer reads");
+        let text = std::fs::read_to_string(entry.path()).expect("journal reads");
         for line in text.lines() {
             let value: serde_json::Value =
                 serde_json::from_str(line).expect("journal line is JSON");
@@ -492,15 +492,15 @@ fn journal_event_types(home: &Path) -> Vec<String> {
     types
 }
 
-/// The payload of the single `review-decision` event in the journal buffer
+/// The payload of the single `review-decision` event in the journal
 /// under `home`.
 fn journal_review_decision(home: &Path) -> serde_json::Value {
-    let buffer_dir = home.join(".osf/state/buffer");
-    let entries = std::fs::read_dir(&buffer_dir).expect("journal buffer dir reads");
+    let runs_dir = home.join(".osf/state/runs");
+    let entries = std::fs::read_dir(&runs_dir).expect("journal dir reads");
     let mut found = None;
     for entry in entries {
         let entry = entry.expect("dir entry reads");
-        let text = std::fs::read_to_string(entry.path()).expect("journal buffer reads");
+        let text = std::fs::read_to_string(entry.path()).expect("journal reads");
         for line in text.lines() {
             let value: serde_json::Value =
                 serde_json::from_str(line).expect("journal line is JSON");
@@ -514,22 +514,22 @@ fn journal_review_decision(home: &Path) -> serde_json::Value {
     found.expect("a review-decision event in the journal")
 }
 
-/// The whole content of every journal buffer file under `home`, concatenated.
+/// The whole content of every journal file under `home`, concatenated.
 fn journal_text(home: &Path) -> String {
-    let buffer_dir = home.join(".osf/state/buffer");
+    let runs_dir = home.join(".osf/state/runs");
     let mut text = String::new();
-    let Ok(entries) = std::fs::read_dir(&buffer_dir) else {
+    let Ok(entries) = std::fs::read_dir(&runs_dir) else {
         return text;
     };
     for entry in entries {
         let entry = entry.expect("dir entry reads");
-        text.push_str(&std::fs::read_to_string(entry.path()).expect("journal buffer reads"));
+        text.push_str(&std::fs::read_to_string(entry.path()).expect("journal reads"));
     }
     text
 }
 
 /// Asserts `secret` is nowhere in `output`'s standard output or standard
-/// error, nor in any journal buffer file under `home`, nor (when given) in
+/// error, nor in any journal file under `home`, nor (when given) in
 /// the file at `sarif_out`.
 fn assert_no_leak(
     secret: &str,
@@ -558,14 +558,14 @@ fn assert_no_leak(
     }
 }
 
-/// The payload of the first `review-answer` event in the journal buffer
+/// The payload of the first `review-answer` event in the journal
 /// under `home`.
 fn journal_first_review_answer(home: &Path) -> serde_json::Value {
-    let buffer_dir = home.join(".osf/state/buffer");
-    let entries = std::fs::read_dir(&buffer_dir).expect("journal buffer dir reads");
+    let runs_dir = home.join(".osf/state/runs");
+    let entries = std::fs::read_dir(&runs_dir).expect("journal dir reads");
     for entry in entries {
         let entry = entry.expect("dir entry reads");
-        let text = std::fs::read_to_string(entry.path()).expect("journal buffer reads");
+        let text = std::fs::read_to_string(entry.path()).expect("journal reads");
         for line in text.lines() {
             let value: serde_json::Value =
                 serde_json::from_str(line).expect("journal line is JSON");
@@ -1004,8 +1004,8 @@ fn a_could_not_run_verdict_reports_no_score_or_threshold() {
     assert_eq!(verdict_line, "verdict: could-not-run", "{stdout}");
     assert!(!verdict_line.contains("score"), "{verdict_line}");
     let decision = journal_review_decision(&home);
-    assert_eq!(decision.get("score"), Some(&serde_json::Value::Null));
-    assert_eq!(decision.get("threshold"), Some(&serde_json::Value::Null));
+    assert!(decision.get("score").is_none(), "{decision}");
+    assert!(decision.get("threshold").is_none(), "{decision}");
 }
 
 #[test]
@@ -3507,18 +3507,18 @@ fn write_lens_answers(dir: &Path, lenses: &[&str]) {
     }
 }
 
-/// Every `review-answer` payload in the journal buffer under `home`, in the
+/// Every `review-answer` payload in the journal under `home`, in the
 /// order the journal holds them.
 #[cfg(unix)]
 fn journal_review_answers(home: &Path) -> Vec<serde_json::Value> {
-    let buffer_dir = home.join(".osf/state/buffer");
+    let runs_dir = home.join(".osf/state/runs");
     let mut answers = Vec::new();
-    let Ok(entries) = std::fs::read_dir(&buffer_dir) else {
+    let Ok(entries) = std::fs::read_dir(&runs_dir) else {
         return answers;
     };
     for entry in entries {
         let entry = entry.expect("dir entry reads");
-        let text = std::fs::read_to_string(entry.path()).expect("journal buffer reads");
+        let text = std::fs::read_to_string(entry.path()).expect("journal reads");
         for line in text.lines() {
             let value: serde_json::Value =
                 serde_json::from_str(line).expect("journal line is JSON");
