@@ -2259,6 +2259,35 @@ fn action_str(action: answer::Action) -> &'static str {
     }
 }
 
+/// The plan for a post. The pull request's diff is read only when a finding
+/// could be an inline comment. When GitHub will not give the diff (it
+/// refuses a very large one), every finding goes into the body with a line
+/// saying so, and the review still posts.
+fn plan_for_post(
+    findings: &[review::Finding],
+    summary: &str,
+    block_on: &[String],
+    overall: Option<reducer::Verdict>,
+    repo: &str,
+    pr: u64,
+) -> Result<review::Plan, review::ReviewError> {
+    let candidates = findings
+        .iter()
+        .any(|f| f.action != "dismiss" && f.line.is_some());
+    let diff = if candidates {
+        match review::fetch_diff(repo, pr) {
+            Ok(diff) => Some(diff),
+            Err(e) => {
+                eprintln!("osf: {e}; placing every finding in the review body");
+                Some(review::DiffLines::unavailable())
+            }
+        }
+    } else {
+        None
+    };
+    review::plan_review_in_diff(findings, summary, block_on, overall, diff.as_ref())
+}
+
 /// A run's kept findings, as `review::Finding`s `osf review post`'s own
 /// planning already knows how to turn into inline comments. Each finding's
 /// id is its lens name and its place within that lens, one-based, since a
@@ -2307,19 +2336,13 @@ fn post_run_outcome(outcome: &review_run::RunOutcome, post_to: &str) -> bool {
     let findings = review_findings_for_post(&outcome.findings);
     let summary = review_run_summary(outcome);
     let block_on = resolve_block_on(None);
-    let diff = match review::fetch_diff(&repo, pr) {
-        Ok(diff) => diff,
-        Err(e) => {
-            eprintln!("osf review run --post-to: {e}");
-            return false;
-        }
-    };
-    let plan = match review::plan_review_in_diff(
+    let plan = match plan_for_post(
         &findings,
         &summary,
         &block_on,
         Some(outcome.verdict),
-        Some(&diff),
+        &repo,
+        pr,
     ) {
         Ok(plan) => plan,
         Err(e) => {
@@ -2871,15 +2894,7 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
         }
     };
     let block_on = resolve_block_on(args.block_on.as_deref());
-    let diff = match review::fetch_diff(&args.repo, args.pr) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("osf: {e}");
-            return ExitCode::from(2);
-        }
-    };
-    let plan = match review::plan_review_in_diff(&findings, &summary, &block_on, None, Some(&diff))
-    {
+    let plan = match plan_for_post(&findings, &summary, &block_on, None, &args.repo, args.pr) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("osf: {e}");

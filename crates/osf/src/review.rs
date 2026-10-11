@@ -113,6 +113,9 @@ pub struct Plan {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DiffLines {
     files: BTreeMap<String, Vec<(u64, u64)>>,
+    /// The diff could not be read (GitHub refuses a very large one), so no
+    /// line can be shown to be on it.
+    unavailable: bool,
 }
 
 impl DiffLines {
@@ -159,7 +162,20 @@ impl DiffLines {
                 }
             }
         }
-        DiffLines { files }
+        DiffLines {
+            files,
+            unavailable: false,
+        }
+    }
+
+    /// A diff that could not be read: nothing is on it, so every finding goes
+    /// into the review body, and the body says why.
+    #[must_use]
+    pub fn unavailable() -> Self {
+        DiffLines {
+            files: BTreeMap::new(),
+            unavailable: true,
+        }
     }
 
     /// Whether `line` of `path` is on the diff's right side.
@@ -355,6 +371,11 @@ pub fn plan_review_in_diff(
     };
     let unanchored: Vec<&&Finding> = posted.iter().filter(|f| !anchored(f)).collect();
     let mut body = summary.trim_end_matches('\n').to_string();
+    if diff.is_some_and(|d| d.unavailable) && posted.iter().any(|f| f.line.is_some()) {
+        body.push_str(
+            "\n\n(inline placement was unavailable: the pull request's diff could not be read)",
+        );
+    }
     if !unanchored.is_empty() {
         body = append_outside_findings(&body, &unanchored);
     }
@@ -965,44 +986,80 @@ mod tests {
         );
     }
 
-    // The advisory prefix counts against the limit: the same finding inside
-    // and outside the diff still falls back to a comment, with the verdict
-    // and the omission notice kept.
+    // The advisory prefix counts against the limit: a body that fits on its
+    // own but overflows once the prefix is added is cut, not rejected, and the
+    // verdict stays in the prefix.
     #[test]
-    fn an_advisory_body_near_the_limit_is_cut_not_rejected() {
-        let findings = vec![
-            finding("in-1", "src/a.rs", Some(2), "major", "should-fix"),
-            Finding {
-                id: "big-2".to_string(),
-                path: "src/a.rs".to_string(),
-                line: Some(99),
-                severity: "minor".to_string(),
-                action: "maybe-fix".to_string(),
-                body: "y".repeat(3000),
-            },
-        ];
-        let summary = "s".repeat(1900);
+    fn an_advisory_body_that_only_overflows_with_the_prefix_is_cut_not_rejected() {
         let inside = DiffLines::parse(DIFF);
         let outside = DiffLines::parse("");
-        for diff in [&inside, &outside] {
+        let cases = [
+            // An inline finding and a summary that nearly fills the body.
+            (
+                vec![finding("in-1", "src/a.rs", Some(2), "major", "should-fix")],
+                1950,
+            ),
+            // The same finding outside the diff, with a long body that fills the rest.
+            (
+                vec![Finding {
+                    body: "z".repeat(330),
+                    ..finding("in-1", "src/a.rs", Some(2), "major", "should-fix")
+                }],
+                1500,
+            ),
+        ];
+        for (index, (findings, summary_len)) in cases.iter().enumerate() {
+            let diff = if index == 0 { &inside } else { &outside };
+            let summary = "s".repeat(*summary_len);
             let plan =
-                plan_review_in_diff(&findings, &summary, &default_block_on(), None, Some(diff))
+                plan_review_in_diff(findings, &summary, &default_block_on(), None, Some(diff))
                     .expect("plans");
+            assert!(
+                plan.body.len() <= BODY_LIMIT,
+                "case {index}: {}",
+                plan.body.len()
+            );
+            assert!(
+                plan.body.len() + 130 > BODY_LIMIT,
+                "case {index}: {}",
+                plan.body.len()
+            );
             let next = after_first_attempt(PostAttempt::RefusedSelfReview, &plan, "deadbeef");
             let NextStep::RetryAsComment(payload) = next else {
-                panic!("expected a comment retry, got {next:?}");
+                panic!("case {index}: expected a comment retry, got {next:?}");
             };
             let body = payload.get("body").and_then(Value::as_str).expect("a body");
-            assert!(body.len() <= BODY_LIMIT, "{}", body.len());
+            assert!(body.len() <= BODY_LIMIT, "case {index}: {}", body.len());
             assert!(
                 body.contains("Verdict (advisory): REQUEST_CHANGES"),
                 "{body}"
             );
-            assert!(
-                body.contains(MORE_FINDINGS_MARK) || plan.body.len() + 130 <= BODY_LIMIT,
-                "{body}"
-            );
         }
+    }
+
+    #[test]
+    fn findings_go_into_the_body_when_the_diff_is_unavailable() {
+        let findings = vec![finding("in-1", "src/a.rs", Some(2), "major", "should-fix")];
+        let diff = DiffLines::unavailable();
+        let plan = plan_review_in_diff(
+            &findings,
+            "Summary.",
+            &default_block_on(),
+            None,
+            Some(&diff),
+        )
+        .expect("plans");
+        assert_eq!(plan.comments, Vec::<Comment>::new());
+        assert!(
+            plan.body.contains("inline placement was unavailable"),
+            "{}",
+            plan.body
+        );
+        assert!(plan.body.contains("in-1"), "{}", plan.body);
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
+        let none = plan_review_in_diff(&[], "Summary.", &default_block_on(), None, Some(&diff))
+            .expect("plans");
+        assert!(!none.body.contains("unavailable"), "{}", none.body);
     }
 
     #[test]

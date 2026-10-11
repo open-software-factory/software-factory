@@ -2151,7 +2151,7 @@ fn write_fake_gh(dir: &Path, head_sha: &str) -> PathBuf {
         "#!/bin/sh\n\
          case \"$1 $2\" in\n\
          \x20\x20'pr view') echo '{{\"headRefOid\":\"{head_sha}\"}}' ;;\n\
-         \x20\x20'pr diff') printf 'diff --git a/README.md b/README.md\\n--- a/README.md\\n+++ b/README.md\\n@@ -1 +1,2 @@\\n base\\n+plus a change to review\\n' ;;\n\
+         \x20\x20'pr diff') if [ \"$FAKE_GH_DIFF\" = 'fail' ]; then echo 'gh: HTTP 406: diff too large' 1>&2; exit 1; fi; printf 'diff --git a/README.md b/README.md\\n--- a/README.md\\n+++ b/README.md\\n@@ -1 +1,2 @@\\n base\\n+plus a change to review\\n' ;;\n\
          \x20\x20'api -X')\n\
          \x20\x20\x20\x20cat > \"${{FAKE_GH_PAYLOAD:-/dev/null}}\"\n\
          \x20\x20\x20\x20if [ \"$FAKE_GH_MODE\" = 'refuse' ]; then\n\
@@ -2239,6 +2239,92 @@ fn post_to_puts_a_finding_outside_the_diff_in_the_body() {
         .expect("a body");
     assert!(body.contains("Findings outside the diff"), "{body}");
     assert!(body.contains("src/lib.rs:2"), "{body}");
+}
+
+/// Runs `--post-to` with a fake `gh` whose diff call fails, and returns the
+/// run's stdout and the review payload the fake `gh` kept.
+#[cfg(unix)]
+fn post_with_failing_diff(name: &str, answer: &str) -> (String, serde_json::Value) {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture(answer))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo(name, &fakes.osf_toml);
+    let home = common::isolated_home(&format!("review-run-{name}"));
+    let gh_holder = TempDir::new(&format!("review-run-{name}-gh"));
+    let gh_dir = write_fake_gh(&gh_holder, "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+    let path = path_with_dir_first(&gh_dir);
+    let payload_file = gh_holder.join("payload.json");
+    let payload_path = payload_file.display().to_string();
+    let output = fakes.run_with_env(
+        &repo.dir,
+        &home,
+        &[
+            ("PATH", &path),
+            ("FAKE_GH_PAYLOAD", &payload_path),
+            ("FAKE_GH_DIFF", "fail"),
+        ],
+        &[
+            "review",
+            "run",
+            "--base",
+            "origin/main",
+            "--post-to",
+            "open-software-factory/widgets#7",
+        ],
+    );
+    let payload: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(&payload_file).expect("the fake gh saved the payload"),
+    )
+    .expect("payload is JSON");
+    (
+        String::from_utf8_lossy(&output.stdout).into_owned(),
+        payload,
+    )
+}
+
+/// A diff GitHub refuses (HTTP 406 for a very large one) must not stop the
+/// review: every finding goes into the body, with a line saying why, and the
+/// verdict stays.
+#[test]
+#[cfg(unix)]
+fn post_to_places_findings_in_the_body_when_the_diff_cannot_be_read() {
+    let (stdout, payload) = post_with_failing_diff("post-to-diff-fails", "blocker.json");
+    assert!(stdout.contains("posted review"), "{stdout}");
+    assert_eq!(
+        payload
+            .get("comments")
+            .and_then(serde_json::Value::as_array),
+        Some(&Vec::new()),
+        "{payload}"
+    );
+    let body = payload
+        .get("body")
+        .and_then(serde_json::Value::as_str)
+        .expect("body");
+    assert!(body.contains("inline placement was unavailable"), "{body}");
+    assert!(body.contains("src/lib.rs:2"), "{body}");
+    assert_eq!(
+        payload.get("event").and_then(serde_json::Value::as_str),
+        Some("REQUEST_CHANGES")
+    );
+}
+
+/// With no finding to place, the diff is never asked for, so a refused diff
+/// changes nothing.
+#[test]
+#[cfg(unix)]
+fn post_to_with_no_findings_does_not_need_the_diff() {
+    let (stdout, payload) = post_with_failing_diff("post-to-no-findings-diff-fails", "valid.json");
+    assert!(stdout.contains("posted review"), "{stdout}");
+    let body = payload
+        .get("body")
+        .and_then(serde_json::Value::as_str)
+        .expect("body");
+    assert!(!body.contains("unavailable"), "{body}");
 }
 
 /// `--post-to` posts the kept findings by reusing `osf review post`'s own
