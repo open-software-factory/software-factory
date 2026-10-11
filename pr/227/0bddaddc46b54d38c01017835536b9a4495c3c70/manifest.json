@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "0bddaddc46b54d38c01017835536b9a4495c3c70",
+    "contentHash": "1fcd6cf0124cbf491491098844b01f19"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "forge-seam-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ca4a2f03f33421e1c21d320bb51288fa",
+      "bytes": 17349,
+      "width": 1450,
+      "height": 532,
+      "animated": false,
+      "path": "forge-seam-light-ca4a2f03f33421e1c21d320bb51288fa.svg"
+    },
+    {
+      "id": "forge-seam-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "forge-seam",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b75768b11239ddb74ccb270f9080e448",
+      "bytes": 17551,
+      "width": 1450,
+      "height": 532,
+      "animated": false,
+      "path": "forge-seam-dark-b75768b11239ddb74ccb270f9080e448.svg"
+    },
+    {
+      "id": "callers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "callers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "92df2469ab2da4660902ed2d81319026",
+      "bytes": 16612,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "callers-light-92df2469ab2da4660902ed2d81319026.svg"
+    },
+    {
+      "id": "callers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "callers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a7ae1cc68df12506fe0acba9eb424e8a",
+      "bytes": 16826,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "callers-dark-a7ae1cc68df12506fe0acba9eb424e8a.svg"
+    }
+  ]
+}
