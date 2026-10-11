@@ -106,7 +106,7 @@ jobs:
           cargo build --release --bin osf
 
       - name: Keep the built osf for the reviewer jobs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: osf-binary
           path: build-out/target/release/osf
@@ -136,7 +136,7 @@ jobs:
             --out /work-item/work-item.json
 
       - name: Keep the work item for the reviewer jobs
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: work-item
           path: work-item/work-item.json
@@ -256,7 +256,7 @@ jobs:
 
       - name: Keep this reviewer's saved answers
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: review-run-codex
           path: out/codex.json
@@ -363,7 +363,7 @@ jobs:
 
       - name: Keep this reviewer's saved answers
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: review-run-claude
           path: out/claude.json
@@ -472,7 +472,7 @@ jobs:
 
       - name: Keep this reviewer's saved answers
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: review-run-opencode
           path: out/opencode.json
@@ -597,7 +597,7 @@ jobs:
 
       - name: Keep the review findings
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: review-findings
           path: out/review.sarif
