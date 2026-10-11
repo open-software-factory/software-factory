@@ -1,0 +1,566 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "id": "osf-adoption-mode",
+  "generatedAt": "2026-10-11T08:49:54.305Z",
+  "title": "Adoption mode: a new osf.toml key and its gate",
+  "summary": "Adds a top-level `adoption_mode` key to a repository's own `osf.toml`, read by a new `config::adoption_mode` and enforced by `config::require_adoption_mode`, which refuses to run a command unless the configured mode is one the command declares it supports. Only one mode exists so far, `private-factory-repo`; no command depends on it yet. The layered config loader is taught to drop the key so it never trips `deny_unknown_fields`, and the development docs describe the key and its values.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "c7aa158a1b8c0c0866411e093d29c3fb5b27390a",
+      "ref": "c7aa158a1b8c0c0866411e093d29c3fb5b27390a"
+    },
+    "pullRequest": {
+      "number": 291,
+      "url": "https://github.com/open-software-factory/software-factory/pull/291"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "adopter-repo",
+      "label": "Adopter repository",
+      "subtitle": "files on disk",
+      "order": 0,
+      "summary": "The repository osf is run against: its own osf.toml and the layered config files that sit beside it."
+    },
+    {
+      "id": "osf-config",
+      "label": "osf config crate",
+      "subtitle": "crates/osf/src/config.rs",
+      "order": 1,
+      "summary": "The config module: the layered loader plus the per-section readers that parse a repository's own osf.toml."
+    },
+    {
+      "id": "osf-commands",
+      "label": "osf commands",
+      "subtitle": "CLI entry points",
+      "order": 2,
+      "summary": "The commands that will declare which adoption modes they support. None depends on the mode yet."
+    },
+    {
+      "id": "docs",
+      "label": "Documentation",
+      "subtitle": "docs/development.md",
+      "order": 3,
+      "summary": "The developer-facing description of the key, its values and the two functions that read it."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "osf-toml",
+      "label": "osf.toml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "adopter-repo",
+      "subtitle": "adoption_mode = \"private-factory-repo\"",
+      "summary": "A repository's own config file. It now carries an optional top-level `adoption_mode` string alongside its `[review]` and `[agents]` tables.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 270,
+          "endLine": 362
+        }
+      ],
+      "badges": [
+        "new key"
+      ]
+    },
+    {
+      "id": "layered-config-files",
+      "label": "Layered config files",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "adopter-repo",
+      "subtitle": "user / project / file layers",
+      "summary": "The config files merged by `load`. They are parsed into a struct with `deny_unknown_fields`, so any key the struct does not know must be stripped before the merge.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 731,
+          "endLine": 745
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode-reader",
+      "label": "adoption_mode()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-config",
+      "subtitle": "fn adoption_mode(root: &Path) -> Result<Option<AdoptionMode>, ConfigError>",
+      "summary": "Reads `<root>/osf.toml`, returns `None` when the file or the key is absent, parses the string against `AdoptionMode::ALL`, and errors naming the key and the supported values when the value is unknown or the file is not valid TOML.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 316,
+          "endLine": 340
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "require-adoption-mode",
+      "label": "require_adoption_mode()",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-config",
+      "subtitle": "fn require_adoption_mode(root, command, supported) -> Result<AdoptionMode, ConfigError>",
+      "summary": "The gate a command calls: reads the key and checks the mode against the list the command supports. An unset key is refused as well, so a command never runs on a guessed mode.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 342,
+          "endLine": 362
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adoption-mode-enum",
+      "label": "AdoptionMode",
+      "kind": "module",
+      "delta": "added",
+      "lane": "osf-config",
+      "subtitle": "enum AdoptionMode { PrivateFactoryRepo }",
+      "summary": "The mode vocabulary: `KEY` names the config key, `ALL` lists every supported mode, `name()` gives the value written in osf.toml, and `parse()` maps a raw string back to a variant. A later mode adds a variant and a name in `ALL`.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 273,
+          "endLine": 303
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "layered-load",
+      "label": "load()",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf-config",
+      "subtitle": "fn load(...) -> Result<Config, ConfigError>",
+      "summary": "The layered loader. It now removes `adoption_mode` from each file's table before merging, exactly as it already removes `review` and `agents`, so the key never trips the struct's `deny_unknown_fields`.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 731,
+          "endLine": 745
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-config",
+      "label": "review_config()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf-config",
+      "subtitle": "[review] section reader",
+      "summary": "The existing sibling reader for the `[review]` table of the same file. It establishes the pattern the new adoption-mode reader follows: read the file, pull one entry, error with the path and the offending value.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 363
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-config",
+      "label": "agents_config()",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf-config",
+      "subtitle": "[agents] section reader",
+      "summary": "The existing sibling reader for the `[agents]` table, and the function the new code is inserted directly after.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 270
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-tests",
+      "label": "config tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "osf-config",
+      "subtitle": "mod tests",
+      "summary": "Five new tests: the key is unset when the file or key is absent, the one supported value parses, an unsupported value is refused naming the key and the values, `require_adoption_mode` refuses a command whose supported list excludes the configured mode and refuses an unset key, and the layered load ignores the key.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1829,
+          "endLine": 1896
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf commands",
+      "kind": "app",
+      "delta": "unchanged",
+      "lane": "osf-commands",
+      "subtitle": "osf demo, osf review, ...",
+      "summary": "The commands that will call `require_adoption_mode` with the modes they support. No command depends on the mode yet, so the gate is currently unexercised outside tests.",
+      "files": [],
+      "badges": [
+        "no caller yet"
+      ]
+    },
+    {
+      "id": "development-doc",
+      "label": "docs/development.md",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "docs",
+      "subtitle": "The adoption mode",
+      "summary": "A new section describing the key, the one value it accepts, what that value covers and does not cover, and the two functions a command uses to read it.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 703,
+          "endLine": 723
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "decision-0006",
+      "label": "Decision 0006",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "docs",
+      "subtitle": "distribution and packaging",
+      "summary": "The architecture decision that allows two adoption shapes and says neither is a step toward the other. The new key is the mechanism that lets a command state which shape it supports.",
+      "files": [
+        {
+          "path": "docs/architecture/decisions/0006-distribution-and-packaging.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "osf-toml-read-by-reader",
+      "from": "adoption-mode-reader",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "added",
+      "label": "reads adoption_mode",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new reader opens the repository's own osf.toml and pulls the top-level `adoption_mode` string.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 316,
+          "endLine": 340
+        }
+      ]
+    },
+    {
+      "id": "reader-uses-enum",
+      "from": "adoption-mode-reader",
+      "to": "adoption-mode-enum",
+      "kind": "call",
+      "delta": "added",
+      "label": "AdoptionMode::parse",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The raw string is matched against `AdoptionMode::ALL`; a miss becomes an error listing the supported values.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 331,
+          "endLine": 340
+        }
+      ]
+    },
+    {
+      "id": "require-calls-reader",
+      "from": "require-adoption-mode",
+      "to": "adoption-mode-reader",
+      "kind": "call",
+      "delta": "added",
+      "label": "adoption_mode(root)",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The gate reads the key first, then checks the result against the modes the calling command declared.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 348,
+          "endLine": 362
+        }
+      ]
+    },
+    {
+      "id": "require-uses-enum",
+      "from": "require-adoption-mode",
+      "to": "adoption-mode-enum",
+      "kind": "call",
+      "delta": "added",
+      "label": "supported.contains(&mode)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Membership in the command's supported list is the whole check; an unset key falls into the same error arm.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 348,
+          "endLine": 362
+        }
+      ]
+    },
+    {
+      "id": "cli-would-call-require",
+      "from": "osf-cli",
+      "to": "require-adoption-mode",
+      "kind": "call",
+      "delta": "unchanged",
+      "label": "not wired yet",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "No command calls the gate yet; the edge is drawn to show where the dependency will land.",
+      "files": []
+    },
+    {
+      "id": "load-strips-key",
+      "from": "layered-load",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "modified",
+      "label": "removes adoption_mode",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The layered loader now strips the key from each file's table before merging, alongside `review` and `agents`.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 731,
+          "endLine": 745
+        }
+      ]
+    },
+    {
+      "id": "load-reads-layers",
+      "from": "layered-load",
+      "to": "layered-config-files",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "merge_document",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The unchanged path: each layer is parsed and merged into the layered config.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 731,
+          "endLine": 745
+        }
+      ]
+    },
+    {
+      "id": "tests-cover-reader",
+      "from": "config-tests",
+      "to": "adoption-mode-reader",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "5 tests",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Absent file, absent key, the supported value, an unsupported value, and the layered load ignoring the key.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1829,
+          "endLine": 1896
+        }
+      ]
+    },
+    {
+      "id": "tests-cover-require",
+      "from": "config-tests",
+      "to": "require-adoption-mode",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "supported / unsupported / unset",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Covers a command whose supported list includes the configured mode, one whose list is empty, and an unset key.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 1866,
+          "endLine": 1896
+        }
+      ]
+    },
+    {
+      "id": "doc-describes-reader",
+      "from": "development-doc",
+      "to": "adoption-mode-reader",
+      "kind": "other",
+      "delta": "added",
+      "label": "config::adoption_mode",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new section names the function a reader uses to read the key.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 703,
+          "endLine": 723
+        }
+      ]
+    },
+    {
+      "id": "doc-describes-require",
+      "from": "development-doc",
+      "to": "require-adoption-mode",
+      "kind": "other",
+      "delta": "added",
+      "label": "config::require_adoption_mode",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new section names the function a command calls with the modes it supports.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 703,
+          "endLine": 723
+        }
+      ]
+    },
+    {
+      "id": "doc-cites-decision",
+      "from": "development-doc",
+      "to": "decision-0006",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "decision 0006",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The section points at the decision that allows two adoption shapes.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 703,
+          "endLine": 723
+        }
+      ]
+    },
+    {
+      "id": "reader-sibling-of-agents",
+      "from": "adoption-mode-reader",
+      "to": "agents-config",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "same file, same pattern",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The new reader sits directly after `agents_config` and follows the same shape: read the file, pull one entry, error with the path.",
+      "files": [
+        {
+          "path": "crates/osf/src/config.rs",
+          "startLine": 270,
+          "endLine": 340
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 2,
+    "additions": 179,
+    "deletions": 2,
+    "chips": [
+      {
+        "label": "New config key",
+        "value": "adoption_mode",
+        "tone": "added"
+      },
+      {
+        "label": "Supported modes",
+        "value": "1",
+        "tone": "neutral"
+      },
+      {
+        "label": "Commands gated",
+        "value": "0 yet",
+        "tone": "modified"
+      },
+      {
+        "label": "New tests",
+        "value": "5",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "adoption-mode-context",
+      "title": "Adoption mode in the config layer",
+      "lens": "architecture",
+      "summary": "Where the new key lives, who reads it, and how the layered loader is kept from tripping over it.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "adoption-mode-gate",
+      "title": "The gate a command will call",
+      "lens": "architecture",
+      "summary": "The two new functions and the enum they share, plus the command edge that does not exist yet.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "adoption-mode-reader",
+          "require-adoption-mode",
+          "adoption-mode-enum",
+          "osf-cli",
+          "osf-toml",
+          "config-tests"
+        ],
+        "edges": [
+          "osf-toml-read-by-reader",
+          "reader-uses-enum",
+          "require-calls-reader",
+          "require-uses-enum",
+          "cli-would-call-require",
+          "tests-cover-reader",
+          "tests-cover-require"
+        ],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
