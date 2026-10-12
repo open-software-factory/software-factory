@@ -620,13 +620,10 @@ stalls on one missing key.
 against the owner's own Claude subscription. Claude Code reads it the
 same way it would outside `osf`, and talks to Anthropic directly.
 
-DeepSeek Harness needs one adjustment the other agents do not need. Its
-headless profile takes the task as a command-line argument. It never
-reads one from standard input. Its entry in the list wraps the call in a
-small shell script instead: `sh -c 'exec dsh --profile headless
-"$(cat "$1")"' sh {prompt_file}`. That script reads the prompt file
-`osf` already writes. It then passes that file's text as the argument
-DeepSeek Harness expects.
+DeepSeek Harness runs its headless profile, which reads the task from
+standard input when no task argument is given. `osf` starts it directly as
+`dsh --profile headless` and writes the prompt to its standard input, as it
+does for the other agents, so it needs no shell on any platform.
 
 To write each enabled agent's stop and prompt hook settings, run
 `osf hooks install --agents --root <dir>`. It writes one settings file

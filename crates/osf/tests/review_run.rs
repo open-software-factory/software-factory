@@ -308,8 +308,7 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         .expect("fake agent chmod");
 }
 
-/// The Windows form: a `.cmd` file that runs `fake-harness.ps1`. The dsh agent
-/// is started through `sh -c`, so a fake `sh.cmd` stands in for it too.
+/// The Windows form: a `.cmd` file that runs `fake-harness.ps1`.
 #[cfg(windows)]
 fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
     let harness = fixture("fake-harness.ps1");
@@ -332,9 +331,6 @@ fn write_fake_agent(bin: &Path, agent: &str, fake: &Fake) {
         ),
     };
     std::fs::write(bin.join(format!("{agent}.cmd")), &body).expect("fake agent writes");
-    if agent == "dsh" {
-        std::fs::write(bin.join("sh.cmd"), &body).expect("fake sh writes");
-    }
 }
 
 /// A folder of fake agent programs, one per reviewer and named as the real
@@ -2229,6 +2225,36 @@ fn a_prompt_file_named_by_the_trusted_config_is_used() {
     assert!(prompt.contains("TRUSTED-FRAME for correctness"), "{prompt}");
     assert!(prompt.contains("review-answer schema"), "{prompt}");
     assert!(!prompt.contains("read-only checkout"), "{prompt}");
+}
+
+/// dsh is started directly, with its headless profile, and gets the prompt on
+/// standard input and its read-only permission mode in the environment.
+#[test]
+#[cfg(unix)]
+fn dsh_is_started_directly_and_reads_its_prompt_from_standard_input() {
+    let rec = TempDir::new("review-run-dsh-launch-rec");
+    let fakes = Fakes::new("", &[("dsh", Fake::Records(&fixture("valid.json"), &rec))]);
+    let repo = review_repo("dsh-launch", &fakes.osf_toml);
+    let home = common::isolated_home("review-run-dsh-launch");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(recorded(&rec, "args").trim(), "--profile\nheadless");
+    let prompt = recorded(&rec, "prompt");
+    assert!(prompt.contains("review-answer schema"), "{prompt}");
+    assert!(
+        recorded(&rec, "env")
+            .lines()
+            .any(|line| line == "DSH_PERMISSION_MODE=read-only"),
+        "dsh runs in its read-only permission mode"
+    );
 }
 
 /// A pull request that names its own prompt file in its own `osf.toml`

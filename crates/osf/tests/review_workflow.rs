@@ -667,30 +667,52 @@ fn reviewer_job_ids(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// The reviewers this repository's `osf.toml` names, each checked against the agent list.
+fn configured_reviewers() -> Vec<String> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let names: Vec<String> = osf::reviewers::roster(&root)
+        .expect("this repository's osf.toml roster loads")
+        .into_iter()
+        .map(|reviewer| reviewer.name)
+        .collect();
+    for name in &names {
+        assert!(
+            osf::agents::AGENTS.iter().any(|a| a.name == name),
+            "{name} is not in the agent list"
+        );
+    }
+    names
+}
+
 #[test]
-fn the_reviewer_jobs_are_codex_claude_and_dsh_and_the_last_job_waits_for_each() {
+fn the_reviewer_jobs_are_the_configured_reviewers_and_the_last_job_waits_for_each() {
     let text = workflow_text();
+    let configured = configured_reviewers();
     assert_eq!(
         reviewer_job_ids(&text),
-        vec!["codex", "claude", "dsh"],
-        "the workflow runs the reviewers osf.toml names"
+        configured,
+        "the workflow runs the reviewers osf.toml names, in order"
     );
-    assert!(
-        !text.contains("review-opencode") && !text.contains("review opencode"),
-        "the opencode reviewer job is gone"
-    );
+    for (id, body) in reviewer_jobs(&text) {
+        assert_eq!(id, format!("review-{}", reviewer_of(&body)));
+    }
     let last = job_body(&text, "review");
     let needs = last
         .lines()
         .find(|line| line.trim_start().starts_with("needs:"))
         .unwrap_or_else(|| panic!("the last job has no needs: {last}"));
-    assert!(
-        needs.contains("review-codex")
-            && needs.contains("review-claude")
-            && needs.contains("review-dsh")
-            && !needs.contains("review-opencode"),
-        "{needs}"
-    );
+    let listed: Vec<&str> = needs
+        .trim_start()
+        .trim_start_matches("needs:")
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .split(',')
+        .map(str::trim)
+        .filter(|job| job.starts_with("review-"))
+        .collect();
+    let expected: Vec<String> = configured.iter().map(|n| format!("review-{n}")).collect();
+    assert_eq!(listed, expected, "{needs}");
 }
 
 #[test]

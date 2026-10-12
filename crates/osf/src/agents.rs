@@ -254,17 +254,12 @@ pub struct Agent {
 pub const AGENTS: &[Agent] = &[
     // dsh keeps every conversation under a `sessions` folder in its home
     // directory. It has no session page on any host. Its headless profile
-    // takes the task as an argument, so a shell reads the prompt file.
+    // reads the task from standard input when no task argument is given, so
+    // osf starts it directly and needs no shell on any platform.
     Agent {
         name: "dsh",
         family: Family::Fixed("deepseek"),
-        command: &[
-            "sh",
-            "-c",
-            "exec dsh --profile headless \"$(cat \"$1\")\"",
-            "sh",
-            "{prompt_file}",
-        ],
+        command: &["dsh", "--profile", "headless"],
         hooks: Hooks::DshPatch {
             file: ".dsh/cordis.patch.yml",
             package: "@open-software-factory/osf-dsh-plugin",
@@ -989,10 +984,25 @@ mod tests {
         assert_eq!(in_container_of("dsh"), None);
     }
 
+    /// No agent is started through a shell: a platform without a POSIX shell
+    /// must still start every agent in the list.
+    #[test]
+    fn no_agent_is_started_through_a_shell() {
+        for a in AGENTS {
+            let program = a.command.first().copied().unwrap_or_default();
+            assert!(
+                !matches!(program, "sh" | "bash" | "cmd" | "powershell" | "pwsh"),
+                "{}: starts through {program}",
+                a.name
+            );
+            assert!(!a.command.contains(&"{prompt_file}"), "{}", a.name);
+        }
+    }
+
     #[test]
     fn dsh_reviews_through_its_headless_profile_and_answers_on_standard_output() {
         let dsh = AGENTS.iter().find(|a| a.name == "dsh").expect("dsh");
-        assert!(dsh.command.join(" ").contains("--profile headless"));
+        assert_eq!(dsh.command, &["dsh", "--profile", "headless"]);
         let review = dsh.review.as_ref().expect("dsh reviews");
         assert_eq!(review.schema_flag, None);
         assert_eq!(review.answer_pointer, "");
