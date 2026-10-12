@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "a37ba75726758acf09227a8d3a79032b394f9e1e",
+    "contentHash": "3d8d6daa376784979cd059400bda8dcf"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-system-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-system",
+      "mediaType": "image/svg+xml",
+      "contentHash": "6257a4b34f1dd5b8c712aa1597b23e32",
+      "bytes": 33994,
+      "width": 1846,
+      "height": 760,
+      "animated": false,
+      "path": "review-system-light-6257a4b34f1dd5b8c712aa1597b23e32.svg"
+    },
+    {
+      "id": "review-system-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-system",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2d7d8b12fa2c3b326361fbba165f3fbf",
+      "bytes": 34356,
+      "width": 1846,
+      "height": 760,
+      "animated": false,
+      "path": "review-system-dark-2d7d8b12fa2c3b326361fbba165f3fbf.svg"
+    },
+    {
+      "id": "dsh-reviewer-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dsh-reviewer",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fe03d861fdcb3e110eabb1bbb5bfb4e2",
+      "bytes": 19952,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "dsh-reviewer-light-fe03d861fdcb3e110eabb1bbb5bfb4e2.svg"
+    },
+    {
+      "id": "dsh-reviewer-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dsh-reviewer",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a0b06ff7ee8c69c252b68b54e0883e7c",
+      "bytes": 20155,
+      "width": 1708,
+      "height": 532,
+      "animated": false,
+      "path": "dsh-reviewer-dark-a0b06ff7ee8c69c252b68b54e0883e7c.svg"
+    },
+    {
+      "id": "dsh-review-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "dsh-review-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ba56677fd4d4aa62df0e6ee002a8bd20",
+      "bytes": 15514,
+      "width": 1641,
+      "height": 451,
+      "animated": true,
+      "path": "dsh-review-flow-light-ba56677fd4d4aa62df0e6ee002a8bd20.svg"
+    },
+    {
+      "id": "dsh-review-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "dsh-review-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3b4b3e72741ad371eb5e745a386b54c6",
+      "bytes": 15660,
+      "width": 1641,
+      "height": 451,
+      "animated": true,
+      "path": "dsh-review-flow-dark-3b4b3e72741ad371eb5e745a386b54c6.svg"
+    }
+  ]
+}
