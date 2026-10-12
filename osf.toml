@@ -39,11 +39,15 @@ builder = "dsh"
 # The agents that review, in the order they run. Decision 0016 needs each
 # reviewer's family to differ from the builder's.
 #
-# dsh documents no read-only mode, so it cannot review. The review
-# environment holds OPENAI_API_KEY (passed to codex as CODEX_API_KEY),
-# CLAUDE_CODE_OAUTH_TOKEN and OPENROUTER_API_KEY. Each agent's list entry
-# names the only variables its reviewer sees.
-reviewers = ["codex", "claude", "opencode"]
+# The review environment holds OPENAI_API_KEY (passed to codex as
+# CODEX_API_KEY), CLAUDE_CODE_OAUTH_TOKEN and DEEPSEEK_API_KEY. Each agent's
+# list entry names the only variables its reviewer sees.
+#
+# opencode is off the roster, with its job removed from the review workflow.
+# The owner stated on 2026-10-11 that OpenRouter, opencode's provider, is not
+# going to be used at the moment, and that the working agents are dsh, codex
+# and claude.
+reviewers = ["codex", "claude", "dsh"]
 
 # A model per agent. An agent left out uses its own default model, and dsh
 # and omp take no model flag.

@@ -214,7 +214,7 @@ when the pull request text is edited.
 
 The workflow has one job for each step. A `build` job builds the `osf`
 tool from the base branch only, with no secrets. Each reviewer then runs
-in its own job: `review codex`, `review claude` and `review opencode`.
+in its own job: `review codex`, `review claude` and `review dsh`.
 All three reviewer jobs run `osf` in the container.
 A reviewer job gets only its own provider's key. Its network list holds
 only its own provider host and the hosts it needs to run. It saves what
@@ -352,7 +352,9 @@ symbolic link. Where an agent documents a switch that ignores project
 settings, `osf` passes it too. The quote check still reads the real
 checkout at the head commit. Claude Code, opencode and omp have file tools
 only: read, grep and glob. They have no
-shell. Before the reviewer starts, `osf` writes the commit log and the
+shell. DeepSeek Harness keeps its shell, web and subagent tools, and a
+read-only permission mode confines what they write, as described under
+"Enable a reviewer". Before the reviewer starts, `osf` writes the commit log and the
 output of `git diff --no-color <base>...<head>` to one file in a new
 read-only folder, and the prompt gives the path of that file. `osf` pastes
 no diff and no file text into the prompt. The prompt holds these items:
@@ -505,9 +507,8 @@ hosts that job needs. The `build` job names four GitHub hosts:
 names `index.crates.io`, `static.crates.io` and `crates.io`
 for the crates.io registry. A reviewer job names GitHub and the
 container registry, and also `api.openai.com` for codex,
-`api.anthropic.com` for claude and `openrouter.ai` for opencode.
-opencode also reads its model catalogue from `models.opencode.ai`, so
-that host is on its list. The last job names GitHub and the container
+`api.anthropic.com` for claude and `api.deepseek.com` for dsh. The
+last job names GitHub and the container
 registry.
 
 This step-security/harden-runner action needs sudo access on the
@@ -529,7 +530,7 @@ repository's `osf.toml` selects from that list under `[agents]`:
 [agents]
 enabled = ["dsh", "omp", "opencode", "codex", "claude"]
 builder = "dsh"
-reviewers = ["codex", "claude", "opencode"]
+reviewers = ["codex", "claude", "dsh"]
 
 [agents.models]
 claude = "claude-sonnet-5"
@@ -549,7 +550,7 @@ family.
 | Reviewer | Family | Model | Reads its key from | Read-only mode, and where it comes from |
 |---|---|---|---|---|
 | `codex` | openai | its own default | `CODEX_API_KEY`, the variable `codex exec` reads | `--sandbox read-only` outside the container, and `--dangerously-bypass-approvals-and-sandbox` inside it; both from `codex exec --help` |
-| `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | none: `dsh --help` documents no read-only mode, so it cannot review |
+| `dsh` | deepseek | its own default | `DEEPSEEK_API_KEY` | the `DSH_PERMISSION_MODE` variable set to `read-only`, read by dsh's base profile; `dsh --help` does not list it |
 | `claude` | anthropic | `claude-sonnet-5` | `CLAUDE_CODE_OAUTH_TOKEN` | `--restricted`, `--tools Read,Grep,Glob`, `--add-dir` for the diff folder and `--permission-prompts none`, from `claude --help` |
 | `opencode` | qwen, from its model | `openrouter/qwen/qwen3-coder-next` | `OPENROUTER_API_KEY` | the `OPENCODE_PERMISSION` setting, with bash denied, from the opencode CLI docs |
 | `omp` | from its model | none: it takes no model flag | its own login | `--tools read,grep,glob`, from `omp --help` |
@@ -560,6 +561,18 @@ the container limits it, as described below.
 `agents.rs` records the exact flags or
 settings of each agent as data, and `osf` adds them to the agent's
 command. An agent with no documented read-only mode has none recorded.
+dsh's mode is a permission mode read from the environment. In `read-only`
+its file tools refuse every write and edit, its shell tool cannot write a
+file, and a request to move to a wider mode finds no approval channel in a
+headless run, so it fails. It does not remove tools: the shell, web fetch,
+web search and subagent tools stay in dsh's tool list, and dsh's sandbox
+does not confine the network. The review job's network list is what bounds
+them, and it names only GitHub, the container registry and
+`api.deepseek.com`. The dsh job checks that the review image carries the
+pinned dsh version, because the variable is read by that release. dsh
+prints only the final answer on standard output, takes no answer-schema
+flag and no model flag, so the prompt asks for the JSON answer and the
+reviewer runs dsh's default model.
 A reviewer list that names it reports could-not-run with the reason "no
 read-only mode", and the agent never starts. The `claude`, `opencode`
 and `omp` modes give file tools only, with no shell. osf runs codex with
@@ -588,7 +601,7 @@ codex reviews outside the container. Inside the container the check is
 empty.
 `osf` also gives each reviewer a temporary folder inside its own home.
 
-Codex, Claude and DeepSeek Harness each run one family. opencode and omp
+Codex, Claude and DeepSeek Harness each run one family. A change that dsh built leaves the dsh reviewer out, because its family is the builder's. opencode and omp
 run models from any family. The model they run decides their family.
 `MODEL_FAMILIES` in `agents.rs` maps a model id prefix to a family. For
 example, `openrouter/qwen/` maps to qwen, and `claude-` maps to anthropic.
@@ -607,13 +620,10 @@ stalls on one missing key.
 against the owner's own Claude subscription. Claude Code reads it the
 same way it would outside `osf`, and talks to Anthropic directly.
 
-DeepSeek Harness needs one adjustment the other agents do not need. Its
-headless profile takes the task as a command-line argument. It never
-reads one from standard input. Its entry in the list wraps the call in a
-small shell script instead: `sh -c 'exec dsh --profile headless
-"$(cat "$1")"' sh {prompt_file}`. That script reads the prompt file
-`osf` already writes. It then passes that file's text as the argument
-DeepSeek Harness expects.
+DeepSeek Harness runs its headless profile, which reads the task from
+standard input when no task argument is given. `osf` starts it directly as
+`dsh --profile headless` and writes the prompt to its standard input, as it
+does for the other agents, so it needs no shell on any platform.
 
 To write each enabled agent's stop and prompt hook settings, run
 `osf hooks install --agents --root <dir>`. It writes one settings file
