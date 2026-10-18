@@ -1,0 +1,546 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T13:07:25.894Z",
+  "title": "Review workflow: keys move from workflow_call secrets to per-job environments",
+  "summary": "The reusable review-check workflow stops declaring `workflow_call` secrets and stops asking callers to pass them. Instead, each called job that needs a key names the `review` (or `fork-review`) environment itself and reads `secrets.<NAME>` from it, so the keys stay environment secrets of the repository that holds the caller. The caller workflow drops `secrets: inherit`, the adopter guide drops the by-name secret mapping, and the workflow tests now assert that no `workflow_call` secret is declared and that the caller passes none.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "18ffd01b9aa31989431b0c43b5d73cba08bbbe79",
+      "ref": "18ffd01b9aa31989431b0c43b5d73cba08bbbe79"
+    },
+    "pullRequest": {
+      "number": 316,
+      "url": "https://github.com/open-software-factory/software-factory/pull/316"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "caller",
+      "label": "Caller repository",
+      "subtitle": "GitHub Actions, adopter or osf",
+      "order": 0,
+      "delta": "modified",
+      "summary": "The thin caller workflow that invokes the reusable review check. It no longer passes any secret."
+    },
+    {
+      "id": "reusable",
+      "label": "Reusable workflow",
+      "subtitle": "review-check.yml jobs",
+      "order": 1,
+      "delta": "modified",
+      "summary": "The called workflow: build, per-reviewer jobs, and the final collect-and-post job. It declares no `workflow_call` secret."
+    },
+    {
+      "id": "github",
+      "label": "GitHub platform",
+      "subtitle": "Environments and secrets",
+      "order": 2,
+      "delta": "unchanged",
+      "summary": "Environment secrets of the `review` and `fork-review` environments, and the branch limit that guards them."
+    },
+    {
+      "id": "external",
+      "label": "Reviewer providers",
+      "subtitle": "Model APIs",
+      "order": 3,
+      "delta": "unchanged",
+      "summary": "The model providers the reviewer jobs sign in to with the keys they read."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "caller-workflow",
+      "label": "review.yml caller",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "caller",
+      "subtitle": "one job, calls only",
+      "summary": "The caller job invokes the reusable workflow with inputs only. The `secrets: inherit` line is gone, and the comment now says each called job names the environment itself.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 28,
+          "endLine": 36
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-check-workflow",
+      "label": "review-check.yml",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "reusable",
+      "subtitle": "workflow_call, no secrets",
+      "summary": "The reusable workflow's `on.workflow_call` block no longer declares VERIFIER_APP_PRIVATE_KEY, OPENAI_API_KEY, CLAUDE_CODE_OAUTH_TOKEN or OPENROUTER_API_KEY. The header comment now explains that the keys are environment secrets read by the jobs that need them.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 22,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-job",
+      "label": "build job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "reusable",
+      "group": "jobs",
+      "summary": "Builds the osf binary the reviewer jobs run. Reads no key.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-jobs",
+      "label": "reviewer jobs",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "reusable",
+      "group": "jobs",
+      "subtitle": "codex, claude, opencode",
+      "summary": "Each reviewer job names the `review` environment (or `fork-review` for a fork) and reads its own key from `secrets.<NAME>` there. A reviewer whose key is empty still runs, cannot sign in, and counts as could-not-run.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "collect-post-job",
+      "label": "collect & post job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "reusable",
+      "group": "jobs",
+      "subtitle": "mints verifier app token",
+      "summary": "The last job collects the saved answers, decides, and posts. It alone mints the verifier app's token, reading VERIFIER_APP_PRIVATE_KEY from the `review` environment it names.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-environment",
+      "label": "review environment",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "github",
+      "group": "environments",
+      "subtitle": "main-branch limited",
+      "summary": "Holds the reviewer keys and the verifier app private key as environment secrets. Its limit to the main branch still applies because the jobs that read it name it.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 949,
+          "endLine": 965
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fork-review-environment",
+      "label": "fork-review environment",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "github",
+      "group": "environments",
+      "summary": "The environment a fork pull request's reviewer jobs name instead of `review`.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 949,
+          "endLine": 965
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "environment-secrets",
+      "label": "environment secrets",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "github",
+      "group": "environments",
+      "subtitle": "secrets.<NAME>",
+      "summary": "The secret store a called job reads from once it names an environment. A key missing from it resolves to an empty string with no error.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 949,
+          "endLine": 965
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-provider",
+      "label": "OpenAI",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "group": "providers",
+      "summary": "The codex reviewer's provider, reached with OPENAI_API_KEY.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "claude-provider",
+      "label": "Anthropic",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "group": "providers",
+      "summary": "The claude reviewer's provider, reached with CLAUDE_CODE_OAUTH_TOKEN.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "opencode-provider",
+      "label": "OpenRouter",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "group": "providers",
+      "summary": "The opencode reviewer's provider, reached with OPENROUTER_API_KEY.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "workflow-tests",
+      "label": "review_workflow.rs",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "reusable",
+      "group": "tests",
+      "subtitle": "workflow shape assertions",
+      "summary": "The tests drop the `declared_secrets` parser and now assert that no `workflow_call` secret is declared, that the jobs still read their keys, that the caller contains no `secrets:`, and that the guide maps no secret.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1016,
+          "endLine": 1050
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "adopter-guide",
+      "label": "development.md guide",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "caller",
+      "group": "docs",
+      "subtitle": "adopter example",
+      "summary": "The adopter example drops the `secrets:` mapping and the prose now says the caller passes no secret and that the keys are environment secrets of the repository holding the caller.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 902,
+          "endLine": 965
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "caller-calls-reusable",
+      "from": "caller-workflow",
+      "to": "review-check-workflow",
+      "kind": "call",
+      "delta": "modified",
+      "label": "workflow_call, inputs only",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The caller still invokes the reusable workflow, but passes inputs only; the `secrets: inherit` line is removed.",
+      "files": [
+        {
+          "path": ".github/workflows/review.yml",
+          "startLine": 28,
+          "endLine": 36
+        }
+      ]
+    },
+    {
+      "id": "reusable-runs-build",
+      "from": "review-check-workflow",
+      "to": "build-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow runs the build job first.",
+      "files": []
+    },
+    {
+      "id": "reusable-runs-reviewers",
+      "from": "review-check-workflow",
+      "to": "reviewer-jobs",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow fans out to the selected reviewer jobs.",
+      "files": []
+    },
+    {
+      "id": "reusable-runs-collect",
+      "from": "review-check-workflow",
+      "to": "collect-post-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The workflow runs the collect-and-post job last.",
+      "files": []
+    },
+    {
+      "id": "reviewers-name-review-env",
+      "from": "reviewer-jobs",
+      "to": "review-environment",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "environment: review",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "Each reviewer job now names the `review` environment itself, which is what lets it read the keys without a caller passing them.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 949,
+          "endLine": 965
+        }
+      ]
+    },
+    {
+      "id": "reviewers-name-fork-env",
+      "from": "reviewer-jobs",
+      "to": "fork-review-environment",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "fork PRs",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A fork pull request's reviewer jobs name `fork-review` instead.",
+      "files": []
+    },
+    {
+      "id": "collect-names-review-env",
+      "from": "collect-post-job",
+      "to": "review-environment",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The collect-and-post job names the `review` environment to read the verifier app private key.",
+      "files": []
+    },
+    {
+      "id": "review-env-holds-secrets",
+      "from": "review-environment",
+      "to": "environment-secrets",
+      "kind": "data",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The environment supplies its secrets to a job that names it.",
+      "files": []
+    },
+    {
+      "id": "fork-env-holds-secrets",
+      "from": "fork-review-environment",
+      "to": "environment-secrets",
+      "kind": "data",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The fork environment supplies its secrets the same way.",
+      "files": []
+    },
+    {
+      "id": "reviewers-read-secrets",
+      "from": "reviewer-jobs",
+      "to": "environment-secrets",
+      "kind": "data",
+      "delta": "modified",
+      "label": "secrets.<NAME>",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The reviewer jobs read their keys from the environment they name rather than from a passed `workflow_call` secret.",
+      "files": []
+    },
+    {
+      "id": "collect-reads-secrets",
+      "from": "collect-post-job",
+      "to": "environment-secrets",
+      "kind": "data",
+      "delta": "modified",
+      "label": "VERIFIER_APP_PRIVATE_KEY",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The last job reads the verifier app private key from the environment it names.",
+      "files": []
+    },
+    {
+      "id": "reviewers-call-codex",
+      "from": "reviewer-jobs",
+      "to": "codex-provider",
+      "kind": "http",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The codex reviewer calls OpenAI with its key.",
+      "files": []
+    },
+    {
+      "id": "reviewers-call-claude",
+      "from": "reviewer-jobs",
+      "to": "claude-provider",
+      "kind": "http",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The claude reviewer calls Anthropic with its token.",
+      "files": []
+    },
+    {
+      "id": "reviewers-call-opencode",
+      "from": "reviewer-jobs",
+      "to": "opencode-provider",
+      "kind": "http",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The opencode reviewer calls OpenRouter with its key.",
+      "files": []
+    },
+    {
+      "id": "tests-check-workflow",
+      "from": "workflow-tests",
+      "to": "review-check-workflow",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "no secrets: block",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The tests assert the workflow declares no `workflow_call` secret and still reads its keys.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1016,
+          "endLine": 1050
+        }
+      ]
+    },
+    {
+      "id": "tests-check-caller",
+      "from": "workflow-tests",
+      "to": "caller-workflow",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "no secrets:",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The tests assert the caller contains no `secrets:` line.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1247,
+          "endLine": 1255
+        }
+      ]
+    },
+    {
+      "id": "tests-check-guide",
+      "from": "workflow-tests",
+      "to": "adopter-guide",
+      "kind": "dependency",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The tests assert the guide says the caller passes no secret and maps none.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_workflow.rs",
+          "startLine": 1346,
+          "endLine": 1356
+        }
+      ]
+    },
+    {
+      "id": "guide-documents-caller",
+      "from": "adopter-guide",
+      "to": "caller-workflow",
+      "kind": "other",
+      "delta": "modified",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The guide's adopter example now shows a caller with no `secrets:` block.",
+      "files": []
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 4,
+    "additions": 47,
+    "deletions": 97,
+    "chips": [
+      {
+        "label": "workflow_call secrets",
+        "value": "4 → 0",
+        "tone": "removed"
+      },
+      {
+        "label": "Caller secret passing",
+        "value": "removed",
+        "tone": "removed"
+      },
+      {
+        "label": "Jobs naming environment",
+        "value": "per key",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "review-secret-flow",
+      "title": "Where the review keys come from now",
+      "lens": "architecture",
+      "summary": "The caller passes nothing; each called job names the environment and reads its key from there.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    }
+  ]
+}

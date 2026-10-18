@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "18ffd01b9aa31989431b0c43b5d73cba08bbbe79",
+    "contentHash": "c22a1777418596ce2e474f392184c105"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-secret-flow-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-secret-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fba28ea5dc8e0bef75a544ca494945d7",
+      "bytes": 21729,
+      "width": 1787,
+      "height": 874,
+      "animated": false,
+      "path": "review-secret-flow-light-fba28ea5dc8e0bef75a544ca494945d7.svg"
+    },
+    {
+      "id": "review-secret-flow-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-secret-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "18fb3ce399cecd497ad8c42b33eb7189",
+      "bytes": 21945,
+      "width": 1787,
+      "height": 874,
+      "animated": false,
+      "path": "review-secret-flow-dark-18fb3ce399cecd497ad8c42b33eb7189.svg"
+    }
+  ]
+}
