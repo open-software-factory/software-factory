@@ -1,7 +1,7 @@
 use osf::pr_status::GhClient;
 use osf::{
     agents, answer, assets, changeset_risk, changeset_tests, check, checkpoint, config, exclude,
-    git, githooks, hook, journal, lints, pr_status, pr_tree, reducer, review, review_run,
+    git, githooks, hook, journal, lints, pr_check, pr_status, pr_tree, reducer, review, review_run,
     reviewers, scan, section, verify,
 };
 
@@ -222,6 +222,31 @@ enum PrAction {
         #[command(subcommand)]
         action: TreeAction,
     },
+    /// Check a pull request's title and description against the template.
+    Check(PrCheckArgs),
+}
+
+#[derive(Args)]
+struct PrCheckArgs {
+    /// A pull request event payload: a JSON file with a `pull_request` object
+    /// holding `title` and `body`, as `$GITHUB_EVENT_PATH` names on a runner.
+    #[arg(long)]
+    event: PathBuf,
+    /// The pull request template that lists the required headings and the
+    /// tool-written blocks.
+    #[arg(long, default_value = ".github/PULL_REQUEST_TEMPLATE.md")]
+    template: PathBuf,
+    /// A folder to write the hand-written text to, as `title.txt` and
+    /// `body.md`, for `osf scan` and `osf lint writing` to read. The text
+    /// is written even when a structural check fails, unless a tool-written
+    /// block is malformed.
+    #[arg(long)]
+    out_dir: PathBuf,
+    /// A pull request author whose description a service writes, such as a
+    /// dependency-update bot. A pull request from this login is not checked
+    /// and nothing is written to `--out-dir`; the command says so. Repeatable.
+    #[arg(long = "exempt-author")]
+    exempt_authors: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -935,6 +960,7 @@ fn pr_cmd(action: &PrAction) -> ExitCode {
         PrAction::Tree {
             action: TreeAction::Render(args),
         } => pr_tree_render_cmd(args),
+        PrAction::Check(args) => pr_check_cmd(args),
     }
 }
 
@@ -2878,6 +2904,90 @@ fn review_post_cmd(args: &ReviewPostArgs) -> ExitCode {
     }
     let outcome = post_plan(&args.repo, args.pr, &plan, &head_sha);
     report_outcome(outcome, args, &head_sha)
+}
+
+fn pr_check_cmd(args: &PrCheckArgs) -> ExitCode {
+    let read = |path: &Path| {
+        std::fs::read_to_string(path).map_err(|e| {
+            eprintln!("osf: cannot read {}: {e}", path.display());
+            ExitCode::from(2)
+        })
+    };
+    let (event, template) = match (read(&args.event), read(&args.template)) {
+        (Ok(e), Ok(t)) => (e, t),
+        (Err(code), _) | (_, Err(code)) => return code,
+    };
+    let payload: serde_json::Value = match serde_json::from_str(&event) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("osf: {} is not JSON: {e}", args.event.display());
+            return ExitCode::from(2);
+        }
+    };
+    let Some(pr) = payload.get("pull_request").filter(|v| v.is_object()) else {
+        eprintln!(
+            "osf: {} has no `pull_request` object, so this is not a pull request event",
+            args.event.display()
+        );
+        return ExitCode::from(2);
+    };
+    let text = |key: &str| match pr.get(key) {
+        Some(serde_json::Value::String(s)) => Ok(s.clone()),
+        Some(serde_json::Value::Null) | None => Ok(String::new()),
+        Some(_) => Err(key.to_string()),
+    };
+    let (title, body) = match (text("title"), text("body")) {
+        (Ok(t), Ok(b)) => (t, b),
+        (Err(k), _) | (_, Err(k)) => {
+            eprintln!("osf: the event's pull_request.{k} is not text");
+            return ExitCode::from(2);
+        }
+    };
+    let author = pr
+        .get("user")
+        .and_then(|u| u.get("login"))
+        .and_then(serde_json::Value::as_str);
+    if let Some(login) = author.filter(|l| args.exempt_authors.iter().any(|e| e == l)) {
+        println!(
+            "osf pr check: NOT CHECKED. The author {login} is exempt because a service writes \
+             the description. Nothing was read and nothing was written to {}.",
+            args.out_dir.display()
+        );
+        return ExitCode::SUCCESS;
+    }
+    println!(
+        "osf pr check: reads the title and description, and the headings and block names in {}; \
+         does not read what is under a heading or whether a tool wrote a block",
+        args.template.display()
+    );
+    let (hand, problems) = match pr_check::check(&title, &body, &template) {
+        Ok(h) => (Some(h), Vec::new()),
+        Err(p) => (
+            pr_check::strip_generated(&body, &pr_check::generated_block_names(&template))
+                .ok()
+                .map(|b| pr_check::HandWritten { title, body: b }),
+            p,
+        ),
+    };
+    if let Some(h) = &hand {
+        let written = std::fs::create_dir_all(&args.out_dir)
+            .and_then(|()| std::fs::write(args.out_dir.join("title.txt"), format!("{}\n", h.title)))
+            .and_then(|()| std::fs::write(args.out_dir.join("body.md"), &h.body));
+        if let Err(e) = written {
+            eprintln!("osf: cannot write to {}: {e}", args.out_dir.display());
+            return ExitCode::from(2);
+        }
+    }
+    for p in &problems {
+        println!("osf pr check: {p}");
+    }
+    if problems.is_empty() {
+        println!("osf pr check: 0 problem(s)");
+        ExitCode::SUCCESS
+    } else {
+        println!("osf pr check: {} problem(s)", problems.len());
+        ExitCode::from(1)
+    }
 }
 
 fn pr_tree_render_cmd(args: &TreeRenderArgs) -> ExitCode {

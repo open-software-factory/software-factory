@@ -2,6 +2,10 @@ name: CI
 
 on:
   pull_request:
+    # edited: the hygiene job reads the title and description, so editing
+    # either one runs the checks again. A run of the opened or synchronize
+    # event keeps the text it started with, even when it is re-run.
+    types: [opened, synchronize, reopened, edited]
   # The merge queue runs the required checks on its own queue branch, and
   # only a workflow that listens for this event is run there.
   merge_group:
@@ -126,6 +130,32 @@ jobs:
           ./target/release/osf scan \
             --commits "origin/${{ github.base_ref }}..HEAD" \
             --format human
+
+      # The text comes from the event payload on disk. It is attacker-controlled,
+      # so it is never put in a command line or in `run:` text. `osf pr check`
+      # cuts out the tool-written blocks and writes the hand-written part to
+      # files, which the same scan and writing lint as above then read.
+      - name: Check the pull request title and description
+        if: github.event_name == 'pull_request'
+        env:
+          OSF_CONFIG: osf.toml
+          OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/pr-text"
+          rm -rf "$out"
+          status=0
+          # Dependency-update bots write their own descriptions from release notes.
+          ./target/release/osf pr check --event "$GITHUB_EVENT_PATH" --out-dir "$out" \
+            --exempt-author 'dependabot[bot]' --exempt-author 'renovate[bot]' || status=$?
+          if [ -f "$out/title.txt" ]; then
+            ./target/release/osf scan --no-suppress --format human "$out/title.txt" "$out/body.md" || status=$?
+            ./target/release/osf lint writing --no-suppress --gate --format human --context commit "$out/title.txt" || status=$?
+            ./target/release/osf lint writing --no-suppress --gate --format human --context document "$out/body.md" || status=$?
+          elif [ "$status" -eq 0 ]; then
+            echo "::notice::the title and description were not checked: the author is exempt"
+          fi
+          exit "$status"
 
   integrations:
     name: integrations (${{ matrix.folder }})
