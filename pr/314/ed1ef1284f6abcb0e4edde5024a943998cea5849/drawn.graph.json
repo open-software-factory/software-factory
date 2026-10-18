@@ -1,0 +1,644 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T08:18:59.315Z",
+  "title": "Per-worktree dev containers: launcher, stub-engine test, docs",
+  "summary": "Adds `.devcontainer/worktree-container`, a POSIX sh launcher that starts, execs into, names and stops one development container per git worktree. It mounts the worktree read-write at /workspace, the main clone's git directory read-write at its host path, and the shared `.git/config` read-only on top of it, passing GH_TOKEN by name only. A stub-engine shell test exercises the mount set, name uniqueness and the main-clone refusal, and `docs/development.md` gains a section describing coverage and limits.",
+  "lenses": [
+    "architecture"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "78cf83dafb5d4db3c01910719b00c9bf1fd737ad",
+      "ref": "78cf83dafb5d4db3c01910719b00c9bf1fd737ad"
+    },
+    "head": {
+      "sha": "ed1ef1284f6abcb0e4edde5024a943998cea5849",
+      "ref": "ed1ef1284f6abcb0e4edde5024a943998cea5849"
+    },
+    "pullRequest": {
+      "number": 314,
+      "url": "https://github.com/open-software-factory/software-factory/pull/314"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "developer",
+      "label": "Developer / orchestrator",
+      "subtitle": "host shell",
+      "order": 0,
+      "summary": "The person or CI step that invokes the launcher from a host shell."
+    },
+    {
+      "id": "launcher",
+      "label": "Launcher",
+      "subtitle": "POSIX sh on the host",
+      "order": 1,
+      "summary": "The new worktree-container script: resolves the worktree, derives the container name, and drives the engine."
+    },
+    {
+      "id": "engine",
+      "label": "Container engine",
+      "subtitle": "docker or OSF_CONTAINER_ENGINE",
+      "order": 2,
+      "summary": "The Docker-compatible engine the launcher shells out to; a stub stands in for it in the test."
+    },
+    {
+      "id": "container",
+      "label": "Dev container",
+      "subtitle": "image OSF_IMAGE",
+      "order": 3,
+      "summary": "The per-worktree container: /workspace, the shared git directory, and the image's own home."
+    },
+    {
+      "id": "host-git",
+      "label": "Host git state",
+      "subtitle": "main clone .git",
+      "order": 4,
+      "summary": "The main clone's git directory and shared config, mounted into the container."
+    },
+    {
+      "id": "tests-docs",
+      "label": "Tests & docs",
+      "subtitle": "repo files",
+      "order": 5,
+      "summary": "The stub-engine test script and the development guide section that describe and check the launcher."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "developer-shell",
+      "label": "Developer shell",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "developer",
+      "subtitle": "start / exec / stop / name",
+      "summary": "The caller supplies a worktree path, an optional GH_TOKEN, and the command to run. Nothing in this change alters the caller; it only gains a new entry point.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "worktree-container",
+      "label": "worktree-container",
+      "kind": "app",
+      "delta": "added",
+      "lane": "launcher",
+      "subtitle": "start | exec | stop | name",
+      "summary": "New POSIX sh script. Parses the subcommand and optional worktree argument, refuses a main clone, computes the common git dir, derives the container name from folder name plus a cksum of the full path, and dispatches to the engine.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 1,
+          "endLine": 92
+        }
+      ],
+      "badges": [
+        "new entry point"
+      ]
+    },
+    {
+      "id": "worktree-resolver",
+      "label": "Worktree resolver",
+      "kind": "function",
+      "delta": "added",
+      "lane": "launcher",
+      "group": "launcher-internals",
+      "subtitle": "rev-parse --show-toplevel / --git-common-dir",
+      "summary": "Resolves the worktree root, rejects it when `.git` is a directory (a main clone), and resolves the shared git directory to a physical path so the mount matches what the worktree file names.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 38,
+          "endLine": 47
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "name-deriver",
+      "label": "Container name deriver",
+      "kind": "function",
+      "delta": "added",
+      "lane": "launcher",
+      "group": "launcher-internals",
+      "subtitle": "osf-wt-<folder>-<cksum>",
+      "summary": "Builds the container name from the sanitised folder name plus a checksum of the full worktree path, so two worktrees with the same folder name never collide.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 49,
+          "endLine": 54
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-args-builder",
+      "label": "Run-args builder",
+      "kind": "function",
+      "delta": "added",
+      "lane": "launcher",
+      "group": "launcher-internals",
+      "subtitle": "three -v mounts, -e GH_TOKEN",
+      "summary": "Assembles the `run -d --init` invocation: the worktree at /workspace, the common git dir at its host path, the config file read-only over it, GH_TOKEN by name, and the image.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 60,
+          "endLine": 72
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "container-engine",
+      "label": "Container engine",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "engine",
+      "subtitle": "docker / OSF_CONTAINER_ENGINE",
+      "summary": "Any Docker-compatible engine. The launcher uses only options both Docker and Podman share, though only Docker is exercised.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 24,
+          "endLine": 25
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dev-container",
+      "label": "Dev container",
+      "kind": "service",
+      "delta": "added",
+      "lane": "container",
+      "subtitle": "sleep infinity, -w /workspace",
+      "summary": "One long-lived container per worktree, started detached and kept alive with `sleep infinity`; commands arrive through `exec -w /workspace`.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 66,
+          "endLine": 72
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "workspace-mount",
+      "label": "/workspace mount",
+      "kind": "other",
+      "delta": "added",
+      "lane": "container",
+      "group": "mounts",
+      "subtitle": "worktree, read-write",
+      "summary": "The worktree itself, mounted read-write at /workspace, which is what makes the git wrapper and forced hooks path apply.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 68,
+          "endLine": 68
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "git-dir-mount",
+      "label": "Shared .git mount",
+      "kind": "other",
+      "delta": "added",
+      "lane": "container",
+      "group": "mounts",
+      "subtitle": "common dir, read-write",
+      "summary": "The main clone's git directory at its own host path, read-write, because a commit writes objects, refs and this worktree's own files there.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 69,
+          "endLine": 69
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "config-mount",
+      "label": "Config overlay",
+      "kind": "other",
+      "delta": "added",
+      "lane": "container",
+      "group": "mounts",
+      "subtitle": ".git/config, read-only",
+      "summary": "The shared config file mounted read-only on top of the git directory, so no process in the container can change branch tracking or git town parents.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 70,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "image-home",
+      "label": "Image dev home",
+      "kind": "other",
+      "delta": "unchanged",
+      "lane": "container",
+      "subtitle": "HOME inside the container",
+      "summary": "The image's own home for its dev user. No host home or login folder is mounted, so it disappears with the container.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 14,
+          "endLine": 16
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "main-git-dir",
+      "label": "Main clone .git",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "host-git",
+      "subtitle": "objects, refs, worktree files",
+      "summary": "The shared git directory of the main clone. The change makes it writable from inside the container for the first time.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 46,
+          "endLine": 46
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "shared-config",
+      "label": "Shared .git/config",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "host-git",
+      "subtitle": "read-only from the container",
+      "summary": "The one file the launcher deliberately protects; writes to it from inside the container fail with a busy device.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 70,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "stub-engine-test",
+      "label": "worktree-container.sh",
+      "kind": "test",
+      "delta": "added",
+      "lane": "tests-docs",
+      "subtitle": "stub engine, 11 checks",
+      "summary": "Shell test that puts a recording stub engine on OSF_CONTAINER_ENGINE, creates real worktrees in a temp repo, and asserts the mount set, the token-by-name pass, name uniqueness and the main-clone refusal.",
+      "files": [
+        {
+          "path": ".devcontainer/tests/worktree-container.sh",
+          "startLine": 1,
+          "endLine": 90
+        }
+      ],
+      "badges": [
+        "no engine needed"
+      ]
+    },
+    {
+      "id": "development-doc",
+      "label": "development.md section",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "tests-docs",
+      "subtitle": "One container per worktree",
+      "summary": "New section documenting the mount table, the naming scheme, the build/start/exec/stop recipe, the worktree-scoped commit identity, token passing, and an explicit covered / not-covered list.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 39,
+          "endLine": 135
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "developer-invokes-launcher",
+      "from": "developer-shell",
+      "to": "worktree-container",
+      "kind": "call",
+      "delta": "added",
+      "label": "start|exec|stop|name",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The caller runs the script with a worktree path and, for exec, a command after `--`.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 1,
+          "endLine": 8
+        }
+      ]
+    },
+    {
+      "id": "launcher-resolves-worktree",
+      "from": "worktree-container",
+      "to": "worktree-resolver",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every subcommand first resolves the worktree root and the shared git directory.",
+      "files": []
+    },
+    {
+      "id": "launcher-derives-name",
+      "from": "worktree-container",
+      "to": "name-deriver",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The name is computed before any engine call, so `name` needs no engine at all.",
+      "files": []
+    },
+    {
+      "id": "launcher-builds-run-args",
+      "from": "worktree-container",
+      "to": "run-args-builder",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "On `start`, when no container exists yet, the run arguments are assembled and handed to the engine.",
+      "files": []
+    },
+    {
+      "id": "launcher-calls-engine",
+      "from": "worktree-container",
+      "to": "container-engine",
+      "kind": "call",
+      "delta": "added",
+      "label": "inspect / run / exec / rm",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The launcher is a thin wrapper: it shells out to the engine for every lifecycle step and never talks to the container directly.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 56,
+          "endLine": 88
+        }
+      ]
+    },
+    {
+      "id": "engine-starts-container",
+      "from": "container-engine",
+      "to": "dev-container",
+      "kind": "other",
+      "delta": "added",
+      "label": "run -d --init",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The engine creates the detached container from OSF_IMAGE and keeps it alive with `sleep infinity`.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 66,
+          "endLine": 72
+        }
+      ]
+    },
+    {
+      "id": "engine-execs-command",
+      "from": "container-engine",
+      "to": "dev-container",
+      "kind": "call",
+      "delta": "added",
+      "label": "exec -e GH_TOKEN -w /workspace",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Each `exec` call carries the caller's current GH_TOKEN by name and runs the command in /workspace.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 78,
+          "endLine": 82
+        }
+      ]
+    },
+    {
+      "id": "container-mounts-workspace",
+      "from": "dev-container",
+      "to": "workspace-mount",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The worktree is the only read-write source tree the container sees.",
+      "files": []
+    },
+    {
+      "id": "container-mounts-git-dir",
+      "from": "dev-container",
+      "to": "git-dir-mount",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The shared git directory is mounted at its host path so the worktree file's recorded path resolves unchanged.",
+      "files": []
+    },
+    {
+      "id": "container-mounts-config",
+      "from": "dev-container",
+      "to": "config-mount",
+      "kind": "data",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The config file is layered read-only over the writable git directory.",
+      "files": []
+    },
+    {
+      "id": "container-uses-image-home",
+      "from": "dev-container",
+      "to": "image-home",
+      "kind": "other",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "HOME resolves inside the container; nothing from the host home is mounted.",
+      "files": []
+    },
+    {
+      "id": "git-dir-mount-targets-main-git",
+      "from": "git-dir-mount",
+      "to": "main-git-dir",
+      "kind": "data",
+      "delta": "added",
+      "label": "read-write",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "This is the change's real subject: the shared git directory becomes writable from inside the container so commits work, while the config stays protected.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 69,
+          "endLine": 69
+        }
+      ]
+    },
+    {
+      "id": "config-mount-targets-shared-config",
+      "from": "config-mount",
+      "to": "shared-config",
+      "kind": "data",
+      "delta": "added",
+      "label": "read-only",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The overlay that keeps branch tracking and git town parents out of reach.",
+      "files": [
+        {
+          "path": ".devcontainer/worktree-container",
+          "startLine": 70,
+          "endLine": 70
+        }
+      ]
+    },
+    {
+      "id": "test-drives-launcher",
+      "from": "stub-engine-test",
+      "to": "worktree-container",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The test invokes the real script with a stub engine on OSF_CONTAINER_ENGINE and inspects the recorded arguments.",
+      "files": [
+        {
+          "path": ".devcontainer/tests/worktree-container.sh",
+          "startLine": 44,
+          "endLine": 60
+        }
+      ]
+    },
+    {
+      "id": "test-stubs-engine",
+      "from": "stub-engine-test",
+      "to": "container-engine",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "stub on OSF_CONTAINER_ENGINE",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A shell stub records each call and reports no existing container, so no engine or image is needed.",
+      "files": [
+        {
+          "path": ".devcontainer/tests/worktree-container.sh",
+          "startLine": 31,
+          "endLine": 38
+        }
+      ]
+    },
+    {
+      "id": "doc-describes-launcher",
+      "from": "development-doc",
+      "to": "worktree-container",
+      "kind": "other",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The new section documents the mount table, naming, usage recipe and the covered / not-covered list.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 39,
+          "endLine": 135
+        }
+      ]
+    }
+  ],
+  "flows": [],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 279,
+    "deletions": 0,
+    "chips": [
+      {
+        "label": "New mounts per container",
+        "value": "3",
+        "tone": "added"
+      },
+      {
+        "label": "Host home mounts",
+        "value": "0",
+        "tone": "hero"
+      },
+      {
+        "label": "Stub-engine checks",
+        "value": "11",
+        "tone": "neutral"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "worktree-container-context",
+      "title": "Launcher in its host and container context",
+      "lens": "architecture",
+      "summary": "Who calls the launcher, what it shells out to, and what the resulting container can see of the host.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "mount-boundary",
+      "title": "Mount boundary: what crosses into the container",
+      "lens": "architecture",
+      "summary": "The three mounts and the one file they deliberately protect.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "dev-container",
+          "workspace-mount",
+          "git-dir-mount",
+          "config-mount",
+          "main-git-dir",
+          "shared-config",
+          "image-home"
+        ],
+        "edges": [
+          "container-mounts-workspace",
+          "container-mounts-git-dir",
+          "container-mounts-config",
+          "container-uses-image-home",
+          "git-dir-mount-targets-main-git",
+          "config-mount-targets-shared-config"
+        ],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
