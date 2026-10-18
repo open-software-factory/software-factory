@@ -642,20 +642,32 @@ repository's own `osf.toml` can add more names to that table, under
 this reading and names the family directly; pass it more than once for
 more than one family.
 
-A reviewer whose family matches does not run for this change, while a
-reviewer of another family is configured. The review's decision still
-names every family it found, so a person reading the result can see why
-a reviewer sat out. A different family for the reviewer is a preference,
-not a requirement. When no trailer names a known family, or any one
-commit has none, `osf` records `unknown`. When every configured
-reviewer is of the builder's family, the same holds. In both cases the
-review runs anyway, with the first configured reviewer only. The
-summary says `builder family unknown, independence not achieved` or
-`reviewer family same as builder, independence not achieved`, and for an
-unknown family it names each unknown commit by its short hash and a fixed
+A reviewer whose family matches does not run first for this change. The
+review's decision still names every family it found, so a person reading
+the result can see why a reviewer sat out. A different family for the
+reviewer is a preference, not a requirement, and a reviewer of the
+builder's family is a last resort. It counts only when no reviewer of
+another family answered the lens, and only with evidence: the summary
+lists every configured reviewer of another family and the error text of
+each attempt that failed. A reviewer that was never tried is no evidence.
+Without the evidence the reviewer is not counted, and the lens is
+could-not-run. When no reviewer of another family is configured, the
+summary says so, and the reviewer counts. `osf review run` tries the
+reviewers of other families first, in the configured order, and starts the
+builder's family only afterwards. A single reviewer job (`--reviewer`)
+starts a reviewer of the builder's family only when the roster holds no
+reviewer of another family; otherwise `osf review reduce` finds that
+reviewer's run empty and does not count it.
+
+When no trailer names a known family, or any one commit has none, `osf`
+records `unknown`. No reviewer is left out, every configured reviewer is
+tried, and the summary says `builder family unknown, independence not
+achieved` and names each unknown commit by its short hash and a fixed
 cause. It never repeats any text from a trailer, so an author's text
 cannot reach a saved run, the journal, the console or a posted review. The
-verdict counts like any other. A reviewer left out for its family records
+verdict counts like any other. A reviewer counted as the last resort adds
+`reviewer family same as builder, independence not achieved` and its
+evidence to the summary. A reviewer left out for its family records
 `skipped: same model family as the builder (<family>)` in its saved run
 and in the posted summary. Findings that point outside the pull request's
 diff are posted in the review body, not as inline comments; the body

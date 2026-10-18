@@ -280,18 +280,9 @@ struct Setup {
     prompt: String,
     builder_families: Vec<String>,
     skip_families: BTreeSet<String>,
-    /// Set when no reviewer can be shown to come from a different family
-    /// than the builder's: the review still runs, with one reviewer, and
-    /// says so.
-    fallback: Option<Fallback>,
-}
-
-/// The review that runs without independence: one reviewer, and the note
-/// that says independence was not achieved.
-struct Fallback {
-    /// The first configured reviewer that can run. The others sit out.
-    reviewer: String,
-    note: String,
+    /// Why the builder's family is unknown, when it is. Every reviewer is
+    /// then tried, and the note says that independence was not achieved.
+    unknown_builder: Option<String>,
 }
 
 /// The reason a reviewer sits out because its family built the change.
@@ -308,51 +299,69 @@ fn unknown_builder_note(detail: &str) -> String {
     )
 }
 
-/// The note for a run whose every reviewer is of the builder's family.
+/// What a lens note says when a reviewer of the builder's family counted.
 const SAME_FAMILY_NOTE: &str = "reviewer family same as builder, independence not achieved";
 
-/// The reason a reviewer sits out while the run has no independent reviewer
-/// and only the first configured one runs.
-const ONLY_FIRST_RUNS: &str =
-    "skipped: independence not achieved, so only the first configured reviewer runs";
+/// What one configured reviewer of another family did on one lens.
+struct Other {
+    name: String,
+    family: String,
+    /// Whether the reviewer made at least one attempt. A reviewer that was
+    /// never tried is no evidence that it was unavailable.
+    tried: bool,
+    /// The error text of each attempt that did not answer.
+    reasons: Vec<String>,
+}
 
-/// Picks the fallback, if the run needs one. A different model family for
-/// the reviewer is a preference: when the builder's family is unknown, or
-/// every reviewer that can run is of the builder's family, the first
-/// reviewer runs anyway and the note says independence was not achieved.
-fn choose_fallback(
-    roster: &[Reviewer],
-    skip_families: &BTreeSet<String>,
-    unknown: Option<&str>,
-) -> Option<Fallback> {
-    let mut runnable = roster.iter().filter(|r| r.family_error.is_none());
-    let first = runnable.next()?;
-    let note = if let Some(detail) = unknown {
-        unknown_builder_note(detail)
-    } else if first.is_excluded_by(skip_families)
-        && runnable.all(|r| r.is_excluded_by(skip_families))
-    {
-        SAME_FAMILY_NOTE.to_string()
-    } else {
-        return None;
-    };
-    Some(Fallback {
-        reviewer: first.name.clone(),
-        note,
-    })
+/// The evidence that a reviewer of the builder's family may count as the last
+/// resort: one line for each configured reviewer of another family, saying why
+/// it could not answer, from what was actually tried. An empty list is valid
+/// when no reviewer of another family is configured.
+///
+/// # Errors
+/// Names the first reviewer that was never tried: it is no evidence.
+fn last_resort_evidence(others: &[Other]) -> Result<Vec<String>, String> {
+    if let Some(untried) = others.iter().find(|o| !o.tried) {
+        return Err(format!(
+            "reviewer {} of another family was never tried, so it is no evidence that another family was unavailable",
+            plain(&untried.name)
+        ));
+    }
+    Ok(others
+        .iter()
+        .map(|o| {
+            let why = if o.reasons.is_empty() {
+                "tried, no error text recorded".to_string()
+            } else {
+                o.reasons.join("; ")
+            };
+            format!(
+                "reviewer {} ({}) did not answer: {why}",
+                plain(&o.name),
+                o.family
+            )
+        })
+        .collect())
 }
 
 impl Setup {
-    /// Why `reviewer` makes no attempt on this change, when it does not: its
-    /// family built the change, or another reviewer is the one that runs
-    /// without independence.
+    /// Why `reviewer` is not started in the first pass: its family built the
+    /// change. A reviewer of another family runs first; this one runs only as
+    /// the last resort, see [`last_resort_evidence`].
     fn skip_reason(&self, reviewer: &Reviewer) -> Option<String> {
-        if let Some(fallback) = &self.fallback {
-            return (fallback.reviewer != reviewer.name).then(|| ONLY_FIRST_RUNS.to_string());
-        }
         reviewer
             .is_excluded_by(&self.skip_families)
             .then(|| same_family_reason(&reviewer.family))
+    }
+
+    /// Whether a reviewer of the builder's family may start in a single
+    /// reviewer job: only when the roster holds no reviewer of another family
+    /// that could run first.
+    fn last_resort_only(&self) -> bool {
+        !self
+            .roster
+            .iter()
+            .any(|r| r.family_error.is_none() && !r.is_excluded_by(&self.skip_families))
     }
 
     fn selected_lenses(&self) -> Vec<&Lens> {
@@ -386,13 +395,9 @@ fn setup(req: &Request) -> Result<Setup, String> {
     let prompt = review_prompt::load(req.config_root, review_config.prompt_file.as_deref())?;
     let BuilderFamilies {
         all: builder_families,
-        mut skip,
+        skip,
         unknown,
     } = detect_builder_families(req, &review_config)?;
-    let fallback = choose_fallback(&roster, &skip, unknown.as_deref());
-    if fallback.is_some() {
-        skip.clear();
-    }
     Ok(Setup {
         catalogue,
         selected,
@@ -405,7 +410,7 @@ fn setup(req: &Request) -> Result<Setup, String> {
         prompt,
         builder_families,
         skip_families: skip,
-        fallback,
+        unknown_builder: unknown,
     })
 }
 
@@ -417,11 +422,21 @@ fn setup(req: &Request) -> Result<Setup, String> {
 /// Returns an error when [`setup`] fails; see there.
 pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     let setup = setup(req)?;
-    let runs: Vec<ReviewerRun> = setup
+    // Reviewers of another family go first, in the configured order. A
+    // reviewer of the builder's family starts only when some lens got no
+    // answer from them: the last resort.
+    let mut runs: Vec<ReviewerRun> = setup
         .roster
         .iter()
-        .map(|reviewer| run_reviewer_with(req, &setup, reviewer))
+        .map(|reviewer| run_reviewer_with(req, &setup, reviewer, false))
         .collect();
+    if setup.selected.iter().any(|lens| !answered_on(&runs, lens)) {
+        for (run, reviewer) in runs.iter_mut().zip(&setup.roster) {
+            if setup.skip_reason(reviewer).is_some() {
+                *run = run_reviewer_with(req, &setup, reviewer, true);
+            }
+        }
+    }
     Ok(reduce_with(
         req,
         &setup,
@@ -432,11 +447,20 @@ pub fn run(req: &Request, state_dir: &Path) -> Result<RunOutcome, String> {
     ))
 }
 
+/// Whether some reviewer in `runs` answered at least one attempt on `lens`.
+fn answered_on(runs: &[ReviewerRun], lens: &str) -> bool {
+    runs.iter()
+        .flat_map(|run| &run.lenses)
+        .filter(|l| l.lens == lens)
+        .flat_map(|l| &l.attempts)
+        .any(|a| a.result == "answered")
+}
+
 /// Runs the roster reviewer called `name` over every selected lens, and
 /// returns what it did, unchecked and unjournaled. A reviewer whose family
 /// built the change, while another family is available, is not started: its
-/// run holds no attempts. So is every reviewer but the first when the run
-/// has no independent reviewer.
+/// run holds no attempts, unless the roster holds no reviewer of another
+/// family to try first.
 ///
 /// # Errors
 /// Returns an error when [`setup`] fails, or the roster has no reviewer
@@ -448,7 +472,8 @@ pub fn run_reviewer(req: &Request, name: &str) -> Result<ReviewerRun, String> {
         .iter()
         .find(|r| r.name == name)
         .ok_or_else(|| format!("reviewer \"{name}\" is not in the roster"))?;
-    Ok(run_reviewer_with(req, &setup, reviewer))
+    let last_resort = setup.last_resort_only();
+    Ok(run_reviewer_with(req, &setup, reviewer, last_resort))
 }
 
 /// Runs one lens in its own worker: a [`CleanCopy`] of the change per lens
@@ -620,8 +645,15 @@ fn deadline_after(total: Duration) -> Result<Instant, String> {
         .ok_or_else(|| "[review]: total_timeout_seconds is too large to count from now".to_string())
 }
 
-fn run_reviewer_with(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
-    let mut run = run_reviewer_unscrubbed(req, setup, reviewer);
+/// `allow_same_family` lets a reviewer of the builder's family start: it is
+/// the last resort, and the caller has the reason to take it.
+fn run_reviewer_with(
+    req: &Request,
+    setup: &Setup,
+    reviewer: &Reviewer,
+    allow_same_family: bool,
+) -> ReviewerRun {
+    let mut run = run_reviewer_unscrubbed(req, setup, reviewer, allow_same_family);
     scrub_run(req, &mut run);
     run
 }
@@ -643,7 +675,12 @@ fn scrub_run(req: &Request, run: &mut ReviewerRun) {
     }
 }
 
-fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) -> ReviewerRun {
+fn run_reviewer_unscrubbed(
+    req: &Request,
+    setup: &Setup,
+    reviewer: &Reviewer,
+    allow_same_family: bool,
+) -> ReviewerRun {
     let sources = Sources {
         root: req.root,
         config_root: req.config_root,
@@ -657,6 +694,8 @@ fn run_reviewer_unscrubbed(req: &Request, setup: &Setup, reviewer: &Reviewer) ->
     };
     let not_run = if let Some(reason) = &reviewer.family_error {
         Some(format!("could not run: {reason}"))
+    } else if allow_same_family {
+        None
     } else {
         setup.skip_reason(reviewer)
     };
@@ -1048,7 +1087,12 @@ fn reduce_with(
     let mut findings = Vec::new();
 
     for lens in selected {
-        let (verdict, judged, interim) = judge_lens(req, setup, runs, refused, lens);
+        let (verdict, judged, interim, lens_notes) = judge_lens(req, setup, runs, refused, lens);
+        for note in lens_notes {
+            if !notes.contains(&note) {
+                notes.push(note);
+            }
+        }
         for attempt in judged {
             if let Some(journal) = journal.as_mut() {
                 let event = attempt.into_event(&lens.name);
@@ -1107,11 +1151,14 @@ fn reduce_with(
 }
 
 /// One note per roster reviewer the run left out on purpose, so a posted
-/// summary says who did not look and why. A run without independence leads
+/// summary says who did not look and why. An unknown builder family leads
 /// with its own note, so the reader learns that the review is not
 /// independent of the builder.
 fn left_out_notes(setup: &Setup) -> Vec<String> {
-    let independence = setup.fallback.iter().map(|f| f.note.clone());
+    let independence = setup
+        .unknown_builder
+        .iter()
+        .map(|d| unknown_builder_note(d));
     let left_out = setup
         .roster
         .iter()
@@ -1295,60 +1342,67 @@ fn judge_lens(
     runs: &[ReviewerRun],
     refused: &BTreeMap<String, String>,
     lens: &Lens,
-) -> (LensVerdict, Vec<Judged>, bool) {
+) -> (LensVerdict, Vec<Judged>, bool, Vec<String>) {
     let mut judged: Vec<Judged> = Vec::new();
     let mut context_error: Option<String> = None;
     let mut ran: Vec<(&Reviewer, Vec<Judged>)> = Vec::new();
+    let mut others: Vec<Other> = Vec::new();
+    let mut last_resort: Vec<&Reviewer> = Vec::new();
     for reviewer in &setup.roster {
         if let Some(reason) = &reviewer.family_error {
             judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
             continue;
         }
-        if let Some(reason) = setup.skip_reason(reviewer) {
-            judged.push(Judged::missing(reviewer, "skipped", reason));
+        if reviewer.is_excluded_by(&setup.skip_families) {
+            last_resort.push(reviewer);
             continue;
         }
-        if let Some(reason) = refused.get(&reviewer.name) {
-            judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
-            continue;
-        }
-        let mut lens_runs = runs
-            .iter()
-            .filter(|r| r.reviewer == reviewer.name)
-            .flat_map(|r| r.lenses.iter())
-            .filter(|l| l.lens == lens.name);
-        let lens_run = lens_runs.next();
-        if lens_runs.next().is_some() {
-            judged.push(Judged::missing(
-                reviewer,
-                "could-not-run",
-                "its saved run holds this lens more than once".to_string(),
-            ));
-            continue;
-        }
-        match lens_run {
-            Some(run) if run.context_error.is_some() => {
-                let reason = run.context_error.clone().unwrap_or_default();
-                judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
-                context_error = context_error.or(Some(reason));
-            }
-            Some(run) if run.attempts.len() > MAX_ATTEMPTS => judged.push(Judged::missing(
-                reviewer,
-                "could-not-run",
-                "its saved run holds more attempts than a run makes".to_string(),
-            )),
-            Some(run) if !run.attempts.is_empty() => {
-                ran.push((reviewer, judge_attempts(req, reviewer, lens, &run.attempts)));
-            }
-            _ => judged.push(Judged::missing(
-                reviewer,
-                "could-not-run",
-                "its run left no answer for this lens".to_string(),
-            )),
+        let before = judged.len();
+        let ctx = LensCtx {
+            req,
+            runs,
+            refused,
+            lens,
+        };
+        let attempts = judge_reviewer(&ctx, reviewer, &mut judged, &mut context_error);
+        let reasons: Vec<String> = match &attempts {
+            Some(attempts) => attempts
+                .iter()
+                .filter(|a| a.lens_answer.answer.is_none())
+                .filter_map(|a| a.lens_answer.reason.clone())
+                .collect(),
+            None => judged
+                .get(before..)
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|a| a.lens_answer.reason.clone())
+                .collect(),
+        };
+        others.push(Other {
+            name: reviewer.name.clone(),
+            family: reviewer.family.clone(),
+            tried: attempts.is_some(),
+            reasons,
+        });
+        if let Some(attempts) = attempts {
+            ran.push((reviewer, attempts));
         }
     }
+    let lens_notes = settle_last_resort(
+        &LensCtx {
+            req,
+            runs,
+            refused,
+            lens,
+        },
+        &last_resort,
+        &others,
+        &mut ran,
+        &mut judged,
+        &mut context_error,
+    );
     if let Some(reason) = context_error {
-        return (LensVerdict::CouldNotRun(reason), judged, false);
+        return (LensVerdict::CouldNotRun(reason), judged, false, lens_notes);
     }
     for (_, attempts) in ran {
         judged.extend(attempts);
@@ -1372,7 +1426,144 @@ fn judge_lens(
     let judged = kept_attempts;
     let verdict = name_builder_exclusion(verdict, &setup.skip_families, &judged);
     let interim = counted.interim && !matches!(verdict, LensVerdict::CouldNotRun(_));
-    (verdict, judged, interim)
+    (verdict, judged, interim, lens_notes)
+}
+
+/// What judging one lens reads: the run's request, the saved runs, the
+/// reviewers refused at binding, and the lens.
+struct LensCtx<'a> {
+    req: &'a Request<'a>,
+    runs: &'a [ReviewerRun],
+    refused: &'a BTreeMap<String, String>,
+    lens: &'a Lens,
+}
+
+/// Decides whether the reviewers of the builder's family count on this lens as
+/// the last resort. They count only when no reviewer of another family
+/// answered and [`last_resort_evidence`] holds. Returns the notes that say
+/// so, for the summary.
+fn settle_last_resort<'a>(
+    ctx: &LensCtx<'_>,
+    last_resort: &[&'a Reviewer],
+    others: &[Other],
+    ran: &mut Vec<(&'a Reviewer, Vec<Judged>)>,
+    judged: &mut Vec<Judged>,
+    context_error: &mut Option<String>,
+) -> Vec<String> {
+    let mut lens_notes: Vec<String> = Vec::new();
+    if last_resort.is_empty() {
+        return lens_notes;
+    }
+    let others_answered = ran
+        .iter()
+        .any(|(_, attempts)| attempts.iter().any(|a| a.lens_answer.answer.is_some()));
+    let evidence = if others_answered {
+        Err(String::new())
+    } else {
+        last_resort_evidence(others)
+    };
+    let lens_name = plain(&ctx.lens.name);
+    for &reviewer in last_resort {
+        let skipped = |why: &str| {
+            let mut reason = same_family_reason(&reviewer.family);
+            if !why.is_empty() {
+                reason = format!("{reason}; {why}");
+            }
+            Judged::missing(reviewer, "skipped", reason)
+        };
+        match &evidence {
+            Err(why) => {
+                if !why.is_empty() {
+                    lens_notes.push(format!(
+                        "{lens_name}: reviewer {} not counted as the last resort: {why}",
+                        plain(&reviewer.name)
+                    ));
+                }
+                judged.push(skipped(why));
+            }
+            Ok(evidence) => {
+                let mut scratch = Vec::new();
+                match judge_reviewer(ctx, reviewer, &mut scratch, context_error) {
+                    Some(attempts) => {
+                        let proof = if evidence.is_empty() {
+                            "no reviewer of another family is configured".to_string()
+                        } else {
+                            format!("other families tried first: {}", evidence.join("; "))
+                        };
+                        lens_notes.push(format!(
+                            "{lens_name}: reviewer {} counted as the last resort. {SAME_FAMILY_NOTE}; {proof}",
+                            plain(&reviewer.name)
+                        ));
+                        ran.push((reviewer, attempts));
+                    }
+                    None => judged.push(skipped("it was not run as the last resort")),
+                }
+            }
+        }
+    }
+    lens_notes
+}
+
+/// Judges what the roster reviewer `reviewer` saved for `lens`. Returns its
+/// attempts when it made any. Otherwise it pushes the reason onto `judged` and
+/// returns `None`: the reviewer was not tried.
+fn judge_reviewer(
+    ctx: &LensCtx<'_>,
+    reviewer: &Reviewer,
+    judged: &mut Vec<Judged>,
+    context_error: &mut Option<String>,
+) -> Option<Vec<Judged>> {
+    let LensCtx {
+        req,
+        runs,
+        refused,
+        lens,
+    } = *ctx;
+    if let Some(reason) = refused.get(&reviewer.name) {
+        judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
+        return None;
+    }
+    let mut lens_runs = runs
+        .iter()
+        .filter(|r| r.reviewer == reviewer.name)
+        .flat_map(|r| r.lenses.iter())
+        .filter(|l| l.lens == lens.name);
+    let lens_run = lens_runs.next();
+    if lens_runs.next().is_some() {
+        judged.push(Judged::missing(
+            reviewer,
+            "could-not-run",
+            "its saved run holds this lens more than once".to_string(),
+        ));
+        return None;
+    }
+    match lens_run {
+        Some(run) if run.context_error.is_some() => {
+            let reason = run.context_error.clone().unwrap_or_default();
+            judged.push(Judged::missing(reviewer, "could-not-run", reason.clone()));
+            *context_error = context_error.take().or(Some(reason));
+            None
+        }
+        Some(run) if run.attempts.len() > MAX_ATTEMPTS => {
+            judged.push(Judged::missing(
+                reviewer,
+                "could-not-run",
+                "its saved run holds more attempts than a run makes".to_string(),
+            ));
+            None
+        }
+        Some(run) if !run.attempts.is_empty() => {
+            Some(judge_attempts(req, reviewer, lens, &run.attempts))
+        }
+        _ => {
+            judged.push(Judged::missing(
+                reviewer,
+                "could-not-run",
+                "its run left no answer for this lens".to_string(),
+            ));
+            None
+        }
+    }
 }
 
 /// Every attempt of one reviewer at `lens`, judged. The round and the
@@ -2044,58 +2235,37 @@ mod tests {
         assert!(unknown_detail(&four).ends_with("and 1 more commit with an unknown builder family"));
     }
 
-    fn roster_entry(name: &str, family: &str, family_error: Option<&str>) -> Reviewer {
-        Reviewer {
+    fn other(name: &str, tried: bool, reasons: &[&str]) -> Other {
+        Other {
             name: name.to_string(),
-            family: family.to_string(),
-            family_error: family_error.map(str::to_string),
-            command: Vec::new(),
-            read_only: None,
-            clean_copy: reviewers::Switches {
-                args: &[],
-                env: &[],
-            },
-            schema_flag: None,
-            schema_as: reviewers::SchemaArg::default(),
-            answer_pointer: String::new(),
-            model: None,
-            model_flag: None,
-            credential_env: Vec::new(),
-            login_paths: Vec::new(),
-            review_dir: None,
+            family: "f2".to_string(),
+            tried,
+            reasons: reasons.iter().map(ToString::to_string).collect(),
         }
     }
 
     #[test]
-    fn independence_is_a_preference_so_the_first_reviewer_runs_without_it() {
-        let skip: BTreeSet<String> = ["f1".to_string()].into();
-        let same = [roster_entry("a", "f1", None), roster_entry("b", "f1", None)];
-        let fallback =
-            choose_fallback(&same, &skip, None).expect("every reviewer is the builder's");
-        assert_eq!(
-            (fallback.reviewer.as_str(), fallback.note.as_str()),
-            ("a", SAME_FAMILY_NOTE)
+    fn the_last_resort_needs_evidence_from_reviewers_that_were_tried() {
+        let failed = last_resort_evidence(&[other("a", true, &["401 rejected"])])
+            .expect("a tried reviewer is evidence");
+        let line = failed.first().expect("one line");
+        assert!(line.contains("reviewer a (f2)") && line.contains("401 rejected"));
+
+        let untried = last_resort_evidence(&[other("a", true, &["x"]), other("b", false, &[])])
+            .expect_err("a reviewer never tried is no evidence");
+        assert!(
+            untried.contains("reviewer b") && untried.contains("never tried"),
+            "{untried}"
         );
 
-        let mixed = [roster_entry("a", "f1", None), roster_entry("b", "f2", None)];
-        assert!(choose_fallback(&mixed, &skip, None).is_none());
-
-        let unknown = choose_fallback(&mixed, &BTreeSet::new(), Some("commit 0000: none"))
-            .expect("an unknown builder family");
-        assert_eq!(unknown.reviewer, "a");
-        assert!(unknown
-            .note
-            .starts_with("builder family unknown, independence not achieved"));
-
-        // A reviewer whose own family is unknown cannot be the one that runs.
-        let broken_first = [
-            roster_entry("a", "unknown", Some("why")),
-            roster_entry("b", "f1", None),
-        ];
-        let fallback = choose_fallback(&broken_first, &skip, None).expect("b is the builder's");
-        assert_eq!(fallback.reviewer, "b");
-        assert!(choose_fallback(&broken_first[..1], &skip, Some("x")).is_none());
-        assert!(choose_fallback(&[], &skip, None).is_none());
+        assert_eq!(last_resort_evidence(&[]), Ok(Vec::new()));
+        let silent = last_resort_evidence(&[other("a", true, &[])]).expect("tried");
+        assert!(
+            silent
+                .first()
+                .is_some_and(|l| l.contains("no error text recorded")),
+            "{silent:?}"
+        );
     }
 
     #[test]

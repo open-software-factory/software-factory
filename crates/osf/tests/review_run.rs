@@ -1496,11 +1496,11 @@ fn opencode_on_an_unknown_model_is_could_not_run_and_never_started() {
 }
 
 /// No `Code-Generator:` trailer at all on the reviewed commit leaves the
-/// builder family unknown. The review runs anyway, with the first configured
-/// reviewer only, and says that independence was not achieved. Its verdict
-/// counts like any other.
+/// builder family unknown. The review runs anyway, tries every configured
+/// reviewer, and says that independence was not achieved. Its verdict counts
+/// like any other.
 #[test]
-fn no_builder_family_detected_runs_the_first_reviewer_and_says_so() {
+fn no_builder_family_detected_tries_every_reviewer_and_says_so() {
     let fakes = Fakes::new(
         "",
         &[
@@ -1523,15 +1523,12 @@ fn no_builder_family_detected_runs_the_first_reviewer_and_says_so() {
             && stdout.contains("no Code-Generator trailer"),
         "{stdout}"
     );
-    assert!(
-        journal_lines_of(&home, "codex").contains("\"result\":\"answered\""),
-        "the first reviewer ran"
-    );
-    let second = journal_lines_of(&home, "claude");
-    assert!(
-        !second.contains("\"result\":\"answered\"") && second.contains("only the first"),
-        "{second}"
-    );
+    for reviewer in ["codex", "claude"] {
+        assert!(
+            journal_lines_of(&home, reviewer).contains("\"result\":\"answered\""),
+            "{reviewer} was tried"
+        );
+    }
     let decision = journal_review_decision(&home);
     let builder_families: Vec<&str> = decision
         .get("builder_families")
@@ -1541,6 +1538,145 @@ fn no_builder_family_detected_runs_the_first_reviewer_and_says_so() {
         .map(|v| v.as_str().expect("a family name"))
         .collect();
     assert_eq!(builder_families, vec!["unknown"]);
+}
+
+/// With an unknown builder family the first reviewer fails, and the second is
+/// still tried before the review settles: both appear in the journal, the
+/// failure with its error text.
+#[test]
+fn an_unknown_builder_family_tries_the_next_reviewer_after_a_failure() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::FailsWithText("ERROR: 401 Unauthorized")),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo_built_by("unknown-then-next", &fakes.osf_toml, "Some New Model");
+    let home = common::isolated_home("review-run-unknown-then-next");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(0), "{stdout}");
+    assert!(
+        stdout.contains("builder family unknown, independence not achieved"),
+        "{stdout}"
+    );
+    let first = journal_lines_of(&home, "codex");
+    assert!(
+        first.contains("\"result\":\"could-not-run\"") && first.contains("rejected the credential"),
+        "{first}"
+    );
+    assert!(
+        journal_lines_of(&home, "claude").contains("\"result\":\"answered\""),
+        "the second reviewer was tried"
+    );
+}
+
+/// The reviewer of another family fails with an error text, so the reviewer of
+/// the builder's family counts as the last resort, and the summary records
+/// that text as the evidence that the other family was unavailable.
+#[test]
+fn the_builder_s_family_is_the_last_resort_and_records_why_another_failed() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::FailsWithText("ERROR: 401 Unauthorized")),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo_built_by("last-resort", &fakes.osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-last-resort");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(output.status.code(), Some(0), "{stdout}");
+    assert!(
+        stdout.contains("reviewer family same as builder, independence not achieved")
+            && stdout.contains("reviewer codex (openai) did not answer")
+            && stdout.contains("rejected the credential"),
+        "{stdout}"
+    );
+    assert!(
+        journal_lines_of(&home, "claude").contains("\"result\":\"answered\""),
+        "the builder's family ran as the last resort"
+    );
+}
+
+/// A reviewer of another family that was never tried is no evidence that
+/// another family was unavailable: with only the builder's family saved, the
+/// reduce step does not count it, and says which reviewer was never tried.
+#[test]
+fn an_untried_reviewer_of_another_family_is_not_evidence_for_the_last_resort() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo_built_by("untried-evidence", &fakes.osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-untried-evidence");
+    let dir = TempDir::new("osf-review-untried-evidence");
+    let file = dir.join("claude.json").display().to_string();
+    let job = fakes.run(
+        &repo.dir,
+        &home,
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "claude",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    assert!(job.status.success(), "{}", stdout_of(&job));
+    let reduced = reduce_saved_files(&fakes, &repo, "untried-evidence", &[&file]);
+    let stdout = stdout_of(&reduced);
+    assert_eq!(reduced.status.code(), Some(2), "{stdout}");
+    assert!(
+        stdout.contains("reviewer codex of another family was never tried"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("not counted as the last resort"),
+        "{stdout}"
+    );
+}
+
+/// When a reviewer of another family answers, the builder's family is never
+/// started: it is not the last resort.
+#[test]
+fn the_builder_s_family_is_not_started_when_another_family_answers() {
+    let fakes = Fakes::new(
+        "",
+        &[
+            ("codex", Fake::Answers(&fixture("valid.json"))),
+            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
+        ],
+    );
+    let repo = review_repo_built_by("not-last-resort", &fakes.osf_toml, "Claude Sonnet 5");
+    let home = common::isolated_home("review-run-not-last-resort");
+    let output = fakes.run(
+        &repo.dir,
+        &home,
+        &["review", "run", "--base", "origin/main"],
+    );
+    assert_eq!(output.status.code(), Some(0));
+    let second = journal_lines_of(&home, "claude");
+    assert!(
+        !second.contains("\"result\":\"answered\"") && second.contains("skipped"),
+        "{second}"
+    );
 }
 
 /// A trailer that names no family does not stop the review for any agent in
@@ -1610,7 +1746,8 @@ fn a_reviewer_of_the_builder_s_family_runs_when_no_other_family_is_configured() 
         assert_eq!(output.status.code(), Some(0), "{agent}: {stdout}");
         assert!(stdout.contains("verdict: pass"), "{agent}: {stdout}");
         assert!(
-            stdout.contains("reviewer family same as builder, independence not achieved"),
+            stdout.contains("reviewer family same as builder, independence not achieved")
+                && stdout.contains("no reviewer of another family is configured"),
             "{agent}: {stdout}"
         );
         assert!(
@@ -1869,50 +2006,6 @@ fn an_unknown_builder_family_still_gives_a_saved_run_with_attempts() {
         run.pointer("/lenses/0/attempts")
             .and_then(serde_json::Value::as_array)
             .is_some_and(|attempts| !attempts.is_empty()),
-        "{run}"
-    );
-}
-
-/// With two reviewers and an unknown builder family, only the first runs; the
-/// second records why it sat out.
-#[test]
-fn only_the_first_reviewer_runs_when_independence_is_not_achieved() {
-    let fakes = Fakes::new(
-        "",
-        &[
-            ("codex", Fake::Answers(&fixture("valid.json"))),
-            ("claude", Fake::Answers(&fixture("claude-envelope.json"))),
-        ],
-    );
-    let repo = review_repo_built_by("only-first", &fakes.osf_toml, "Some New Model");
-    let home = common::isolated_home("review-run-only-first");
-    let file = repo.dir.join("claude.json").display().to_string();
-    let job = fakes.run(
-        &repo.dir,
-        &home,
-        &[
-            "review",
-            "run",
-            "--reviewer",
-            "claude",
-            "--out",
-            &file,
-            "--base",
-            "origin/main",
-        ],
-    );
-    assert!(
-        job.status.success(),
-        "{}",
-        String::from_utf8_lossy(&job.stderr)
-    );
-    let run: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(&file).expect("saved run reads"))
-            .expect("saved run is JSON");
-    assert!(
-        run.get("not_run")
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|reason| reason.contains("only the first configured reviewer runs")),
         "{run}"
     );
 }
