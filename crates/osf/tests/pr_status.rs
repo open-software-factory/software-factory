@@ -147,12 +147,49 @@ fn no_gates_yet_reads_as_waiting_never_as_passed() {
 }
 
 #[test]
-fn a_check_that_has_no_implementation_is_not_run_and_never_passed() {
+fn the_contributor_agreement_has_no_check_and_is_never_passed() {
     let block = render_ok("rust: passed", &advisory_two_rounds_review());
-    assert!(row(&block, "Commit messages").contains("⏸ not run"));
     assert!(row(&block, "Contributor agreement").contains("⏸ not run"));
-    assert!(!row(&block, "Commit messages").contains('✅'));
     assert!(!row(&block, "Contributor agreement").contains('✅'));
+}
+
+#[test]
+fn a_passed_commit_scan_shows_what_it_covers() {
+    let block = render_ok(
+        "rust: passed, commit messages: passed",
+        &advisory_two_rounds_review(),
+    );
+    let line = row(&block, "Commit messages");
+    assert!(line.starts_with("| **Commit messages** | ✅ passed | scanned for "));
+    assert!(line.contains("local paths") && line.contains("secrets"));
+    assert_eq!(row(&block, "CI"), "| **CI** | ✅ passed | all 1 passed |");
+}
+
+#[test]
+fn a_failed_commit_scan_shows_its_reason_and_leaves_ci_alone() {
+    let block = render_ok(
+        "rust: passed, commit messages: failed: completed",
+        &advisory_two_rounds_review(),
+    );
+    assert_eq!(
+        row(&block, "Commit messages"),
+        "| **Commit messages** | ❌ failed | completed |"
+    );
+    assert_eq!(row(&block, "CI"), "| **CI** | ✅ passed | all 1 passed |");
+}
+
+#[test]
+fn a_failed_commit_scan_without_a_reason_is_still_failed() {
+    let block = render_ok("commit messages: failed", &advisory_two_rounds_review());
+    assert!(row(&block, "Commit messages").contains("❌ failed"));
+}
+
+#[test]
+fn an_absent_commit_scan_is_not_run_and_never_passed() {
+    let block = render_ok("rust: passed", &advisory_two_rounds_review());
+    let line = row(&block, "Commit messages");
+    assert!(line.contains("⏸ not run") && line.contains("no result"));
+    assert!(!line.contains('✅'));
 }
 
 #[test]

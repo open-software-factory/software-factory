@@ -39,7 +39,7 @@ reasons and the review rounds sit in collapsed sections with bold titles.
 | Risk | The blast radius tier from `osf changeset risk`, with its reasons. |
 | Tests | The Rust test summary. |
 | CI | The gate results from the pull request's checks. |
-| Commit messages | Not run yet, because no check lints commit messages. |
+| Commit messages | The `commit messages` CI job, which runs `osf scan --commits` on the commits the pull request adds. It checks for session links, agent state paths, co-author trailers, local paths, foreign repository references, secrets and private names; it does not check prose or that a `Code-Generator:` trailer is present. Not run when the job reported no result. |
 | Contributor agreement | Not run yet, because no check reads the agreement. |
 | Automated review | The last advisory review verdict and the latest review round's counts. |
 | Human review | The review decision GitHub reports. |

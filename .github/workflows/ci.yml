@@ -115,8 +115,32 @@ jobs:
           OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}
         run: ./target/release/osf scan --format human --no-suppress
 
+  # Its own job, so the pull request's status block can read this scan's
+  # result: a check run is per job, never per step. The required checks keep
+  # their names.
+  commit-messages:
+    name: commit messages
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Cache the build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build the tool
+        run: cargo build --release --bin osf
+
       - name: Scan the commit messages this change adds
-        if: github.event_name == 'pull_request'
         env:
           OSF_CONFIG: osf.toml
           OSF_DENYLIST: ${{ secrets.PRIVATE_NAME_DENYLIST }}

@@ -15,6 +15,16 @@ use std::process::Command;
 const NAME: &str = "status";
 const SHORT_SHA_LEN: usize = 7;
 
+/// The name of the CI job that runs `osf scan --commits` over the commits a
+/// pull request adds. The Commit messages row reads that job's result, and
+/// the CI row leaves it out so one result is not counted twice.
+pub const COMMIT_SCAN_CHECK: &str = "commit messages";
+
+/// What the commit-message scan covers, from the rules in
+/// `crates/osf/src/scan`. It does not check prose, message length or format,
+/// or that a `Code-Generator:` trailer is present.
+const COMMIT_SCAN_COVERS: &str = "session links, agent state paths, co-author trailers, local paths, foreign repository references, secrets and private names";
+
 /// A `status` operation could not run: bad input, or a failed `gh` call.
 /// Distinct from the operation running and finding nothing to do.
 #[derive(Debug)]
@@ -84,6 +94,7 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
     let risk_details = reasons.first().map_or("no reason recorded", String::as_str);
     let (tests_result, tests_details, tests_rest) = tests_row(input.tests);
     let (ci_result, ci_details) = gates.ci_row();
+    let (commit_result, commit_details) = gates.commit_row();
     let (auto_result, auto_details) = automated_review_row(&review);
     let (human_result, human_details) = human_review_row(&review);
     let auto_details =
@@ -102,7 +113,7 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
          | **Risk** | {risk_result} | {risk} |\n\
          | **Tests** | {tests_result} | {tests_details} |\n\
          | **CI** | {ci_result} | {ci_details} |\n\
-         | **Commit messages** | ⏸ not run | no check lints commit messages yet |\n\
+         | **Commit messages** | {commit_result} | {commit_details} |\n\
          | **Contributor agreement** | ⏸ not run | no check yet; a first-time author posts the CONTRIBUTING.md sentence |\n\
          | **Automated review** | {auto_result} | {auto_details} |\n\
          | **Human review** | {human_result} | {human_details} |\n",
@@ -112,6 +123,8 @@ pub fn render(input: &RenderInput) -> Result<String, StatusError> {
         tests_result = cell(&tests_result),
         ci_result = cell(&ci_result),
         ci_details = cell(&ci_details),
+        commit_result = cell(&commit_result),
+        commit_details = cell(&commit_details),
         auto_result = cell(&auto_result),
         auto_details = cell(&auto_details),
     )
@@ -408,9 +421,34 @@ struct GateSummary {
     total: usize,
     passed: usize,
     failed_desc: Vec<String>,
+    /// The commit-message scan: `Ok` when it passed, `Err` with the reason
+    /// when it failed, `None` when no result was reported.
+    commit_scan: Option<Result<(), String>>,
 }
 
 impl GateSummary {
+    /// The Commit messages row, from the commit-message scan's own result.
+    /// With no result it says so and why, and never reads as passed.
+    fn commit_row(&self) -> (String, String) {
+        match &self.commit_scan {
+            Some(Ok(())) => (
+                "✅ passed".to_string(),
+                format!("scanned for {COMMIT_SCAN_COVERS}"),
+            ),
+            Some(Err(reason)) if reason.is_empty() => (
+                "❌ failed".to_string(),
+                format!("the scan found a problem; it covers {COMMIT_SCAN_COVERS}"),
+            ),
+            Some(Err(reason)) => ("❌ failed".to_string(), reason.clone()),
+            None => (
+                "⏸ not run".to_string(),
+                format!(
+                    "no result from the `{COMMIT_SCAN_CHECK}` check; it runs on pull requests only"
+                ),
+            ),
+        }
+    }
+
     /// The CI row. The checks tab already lists every check by name, so the
     /// details name only the failing ones: `all N passed`, `no checks
     /// reported yet`, or `P of N passed, failed: name (reason), ...`.
@@ -457,8 +495,28 @@ fn parse_gates(spec: &str) -> Result<GateSummary, StatusError> {
         };
         let name = item[..colon].trim().to_string();
         let result = item[colon + 1..].trim();
-        summary.total += 1;
-        if result.strip_prefix("passed").is_some() {
+        let is_commit_scan = name == COMMIT_SCAN_CHECK;
+        if !is_commit_scan {
+            summary.total += 1;
+        }
+        if is_commit_scan {
+            summary.commit_scan = Some(match result.strip_prefix("passed") {
+                Some(_) => Ok(()),
+                None => match result.strip_prefix("failed") {
+                    Some(rest) => Err(rest
+                        .trim()
+                        .strip_prefix(':')
+                        .unwrap_or(rest.trim())
+                        .trim()
+                        .to_string()),
+                    None => {
+                        return Err(StatusError(format!(
+                            "gate entry '{item}' must end ': passed' or ': failed: <reason>'"
+                        )))
+                    }
+                },
+            });
+        } else if result.strip_prefix("passed").is_some() {
             summary.passed += 1;
         } else if let Some(rest) = result.strip_prefix("failed") {
             let reason = rest
