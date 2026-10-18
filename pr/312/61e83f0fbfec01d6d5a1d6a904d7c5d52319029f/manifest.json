@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "61e83f0fbfec01d6d5a1d6a904d7c5d52319029f",
+    "contentHash": "070d0616f21251b19fa0f92ceed17334"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "scratch-git-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "scratch-git-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7c7e74a07a3dc9708221d641d9cb60d8",
+      "bytes": 24300,
+      "width": 1718,
+      "height": 532,
+      "animated": false,
+      "path": "scratch-git-architecture-light-7c7e74a07a3dc9708221d641d9cb60d8.svg"
+    },
+    {
+      "id": "scratch-git-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "scratch-git-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "cfdb17f640fa374f9c7c0e4814fc7a29",
+      "bytes": 24635,
+      "width": 1718,
+      "height": 532,
+      "animated": false,
+      "path": "scratch-git-architecture-dark-cfdb17f640fa374f9c7c0e4814fc7a29.svg"
+    },
+    {
+      "id": "helper-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "helper-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "33fe313b9943327e7f48219015c7fd74",
+      "bytes": 6865,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "helper-internals-light-33fe313b9943327e7f48219015c7fd74.svg"
+    },
+    {
+      "id": "helper-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "helper-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "15852b8dbe115f7da73bd9d39ffdfc30",
+      "bytes": 6960,
+      "width": 436,
+      "height": 304,
+      "animated": false,
+      "path": "helper-internals-dark-15852b8dbe115f7da73bd9d39ffdfc30.svg"
+    }
+  ]
+}
