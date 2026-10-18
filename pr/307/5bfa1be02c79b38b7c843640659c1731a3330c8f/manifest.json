@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "5bfa1be02c79b38b7c843640659c1731a3330c8f",
+    "contentHash": "6a0b05c75d260372c0db36bae47a49fa"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "pr-gate-context-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "pr-gate-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "f8808b5ced002f3b8ac3800925c0e1e3",
+      "bytes": 23227,
+      "width": 1738,
+      "height": 760,
+      "animated": false,
+      "path": "pr-gate-context-light-f8808b5ced002f3b8ac3800925c0e1e3.svg"
+    },
+    {
+      "id": "pr-gate-context-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "pr-gate-context",
+      "mediaType": "image/svg+xml",
+      "contentHash": "23308f1e727361406581deeeff1414d9",
+      "bytes": 23452,
+      "width": 1738,
+      "height": 760,
+      "animated": false,
+      "path": "pr-gate-context-dark-23308f1e727361406581deeeff1414d9.svg"
+    },
+    {
+      "id": "pr-check-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "pr-check-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "78e26ab850a0d76be3e133a6f9bf2f27",
+      "bytes": 11420,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "pr-check-internals-light-78e26ab850a0d76be3e133a6f9bf2f27.svg"
+    },
+    {
+      "id": "pr-check-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "pr-check-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3c7491a4e60a6322eb056faec05efc03",
+      "bytes": 11531,
+      "width": 860,
+      "height": 532,
+      "animated": false,
+      "path": "pr-check-internals-dark-3c7491a4e60a6322eb056faec05efc03.svg"
+    }
+  ]
+}
