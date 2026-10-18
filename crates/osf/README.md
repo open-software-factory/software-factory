@@ -200,8 +200,8 @@ no description on first use. Everyday names such as GitHub or Rust are built in.
 
 `crates/osf/src/agents.rs` is the one list of agents osf can drive: dsh, omp
 (which covers pi), opencode, codex, and claude. Each entry holds the agent's
-name, model family, command, hook wiring, session folders, and the login
-files a reviewer needs. A repository selects from it in `osf.toml`:
+name, model family, command, hook wiring, session folders, and the
+credential variables a reviewer needs. A repository selects from it in `osf.toml`:
 
 ```toml
 [agents]
@@ -215,8 +215,9 @@ claude = "claude-sonnet-5"
 
 A name the list does not hold is an error, and so is a builder or reviewer
 that is not enabled, and a model for an agent that takes none. A reviewer
-runs headless in a fresh home that holds only its own login files and its
-own credential variables.
+runs headless in a fresh, empty home with only its own credential variables
+in the environment. osf copies no login file. A reviewer whose variable is
+not set does not start and reports could-not-run.
 ## Configuration
 
 The writing lint's limits and word lists come from four layers, a later one

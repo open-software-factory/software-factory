@@ -185,7 +185,7 @@ pub struct Attempt {
     /// `answered`, `invalid` or `could-not-run`.
     pub result: String,
     pub reason: Option<String>,
-    /// What the run noted, such as a declared login path that was missing.
+    /// What the run noted. Empty for a run that noted nothing.
     pub notes: Vec<String>,
     /// The reviewer's own attempt number for this lens, one-based.
     pub round: u32,
@@ -691,8 +691,8 @@ impl Attempts<'_> {
             };
         }
         let given = self.per_attempt.min(remaining);
-        let (outcome, notes) =
-            reviewers::run_one_noted(self.reviewer, self.prompt, self.lens, self.workdir, given);
+        let outcome =
+            reviewers::run_one(self.reviewer, self.prompt, self.lens, self.workdir, given);
         let (result, reason, answer) = match outcome {
             Outcome::Answered(answer) => (
                 "answered",
@@ -710,7 +710,7 @@ impl Attempts<'_> {
         Attempt {
             result: result.to_string(),
             reason,
-            notes,
+            notes: Vec::new(),
             round,
             critical,
             answer,

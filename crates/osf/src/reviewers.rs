@@ -60,14 +60,9 @@ pub struct Reviewer {
     /// The environment variable names that carry this reviewer's own
     /// provider credential. [`run_one`] starts this reviewer with only
     /// these, plus the variables every child needs to run at all; no other
-    /// reviewer's credential is ever in its environment.
+    /// reviewer's credential is ever in its environment. The reviewer does
+    /// not start when none of these is set, or when the list is empty.
     pub credential_env: Vec<String>,
-    /// The paths, relative to the real home directory, that this agent's
-    /// own login needs. [`run_one`] copies only these into the reviewer's
-    /// fresh home before it runs; nothing else of the real home, and no other
-    /// reviewer's login, goes in. A path that is missing is left out and
-    /// named in the run's notes.
-    pub login_paths: Vec<String>,
     /// The read-only folder that holds the change's diff and log. It takes
     /// the place of `{review_dir}` in the read-only arguments and environment.
     pub review_dir: Option<PathBuf>,
@@ -113,7 +108,6 @@ impl Reviewer {
             model: model.map(str::to_string),
             model_flag: review.model_flag.map(str::to_string),
             credential_env: owned(review.credential_env),
-            login_paths: owned(review.login_paths),
             review_dir: None,
         })
     }
@@ -320,91 +314,6 @@ impl RunHome {
     }
 }
 
-impl RunHome {
-    /// Copies each of `paths` from `real_home` into this home, and returns a
-    /// note for each one left out because it is missing or not a path inside
-    /// the home. A missing path is no error: the reviewer runs without it.
-    ///
-    /// # Errors
-    /// Returns an error when a path exists but cannot be copied.
-    fn seed_login(
-        &self,
-        real_home: Option<&Path>,
-        paths: &[String],
-    ) -> Result<Vec<String>, String> {
-        let mut notes = Vec::new();
-        for rel in paths {
-            let rel_path = Path::new(rel);
-            let inside = !rel.is_empty()
-                && rel_path
-                    .components()
-                    .all(|c| matches!(c, std::path::Component::Normal(_)));
-            if !inside {
-                notes.push(format!(
-                    "login path \"{rel}\" is not a path inside the home and was left out"
-                ));
-                continue;
-            }
-            let copied = match real_home {
-                Some(real) => copy_login(&real.join(rel_path), &self.path.join(rel_path))
-                    .map_err(|e| format!("cannot copy login path \"{rel}\": {e}"))?,
-                None => false,
-            };
-            if !copied {
-                notes.push(format!(
-                    "login path \"{rel}\" is missing from the home directory; the reviewer ran without it"
-                ));
-            }
-        }
-        Ok(notes)
-    }
-}
-
-/// The real home directory of the user running `osf`, when it is set.
-fn real_home() -> Option<PathBuf> {
-    #[cfg(unix)]
-    let var = "HOME";
-    #[cfg(windows)]
-    let var = "USERPROFILE";
-    std::env::var_os(var)
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-}
-
-/// Copies the file or directory at `source` to `dest`, and says whether
-/// `source` existed. A symbolic link inside a directory is not followed.
-fn copy_login(source: &Path, dest: &Path) -> std::io::Result<bool> {
-    let meta = match std::fs::metadata(source) {
-        Ok(meta) => meta,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(e) => return Err(e),
-    };
-    if let Some(parent) = dest.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    if meta.is_dir() {
-        copy_dir(source, dest)?;
-    } else {
-        std::fs::copy(source, dest)?;
-    }
-    Ok(true)
-}
-
-fn copy_dir(source: &Path, dest: &Path) -> std::io::Result<()> {
-    std::fs::create_dir_all(dest)?;
-    for entry in std::fs::read_dir(source)? {
-        let entry = entry?;
-        let kind = entry.file_type()?;
-        let target = dest.join(entry.file_name());
-        if kind.is_dir() {
-            copy_dir(&entry.path(), &target)?;
-        } else if kind.is_file() {
-            std::fs::copy(entry.path(), &target)?;
-        }
-    }
-    Ok(())
-}
-
 impl Drop for RunHome {
     fn drop(&mut self) {
         // `remove_dir_all` does not follow a link: a home replaced by a link
@@ -439,30 +348,31 @@ pub fn run_one(
     workdir: &Path,
     timeout: Duration,
 ) -> Outcome {
-    run_one_noted(reviewer, prompt, lens, workdir, timeout).0
+    run_with_retry(reviewer, prompt, lens, workdir, timeout)
 }
 
-/// [`run_one`], and the run's notes: one for each of the reviewer's declared
-/// `login_paths` that was missing, so it ran without it.
-#[must_use]
-pub fn run_one_noted(
-    reviewer: &Reviewer,
-    prompt: &str,
-    lens: &Lens,
-    workdir: &Path,
-    timeout: Duration,
-) -> (Outcome, Vec<String>) {
-    let mut notes = Vec::new();
-    let outcome = run_with_retry(
-        reviewer,
-        prompt,
-        lens,
-        workdir,
-        timeout,
-        real_home().as_deref(),
-        &mut notes,
-    );
-    (outcome, notes)
+/// Why `reviewer` cannot start for want of a credential, or `None` when one
+/// of its `credential_env` variables is set. Names variables, never values.
+/// A reviewer signs in only through those variables: osf copies no login file.
+fn missing_credential(reviewer: &Reviewer) -> Option<String> {
+    if reviewer.credential_env.is_empty() {
+        return Some(format!(
+            "reviewer '{}' cannot start: no API key variable is defined for this agent",
+            reviewer.name
+        ));
+    }
+    let set = reviewer
+        .credential_env
+        .iter()
+        .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()));
+    if set {
+        return None;
+    }
+    Some(format!(
+        "reviewer '{}' cannot start: the API key variable {} is not set",
+        reviewer.name,
+        reviewer.credential_env.join(" or ")
+    ))
 }
 
 fn run_with_retry(
@@ -471,8 +381,6 @@ fn run_with_retry(
     lens: &Lens,
     workdir: &Path,
     timeout: Duration,
-    real_home: Option<&Path>,
-    notes: &mut Vec<String>,
 ) -> Outcome {
     let started = std::time::Instant::now();
     if reviewer.read_only.is_none() {
@@ -480,6 +388,9 @@ fn run_with_retry(
             "reviewer '{}' has no read-only mode",
             reviewer.name
         ));
+    }
+    if let Some(reason) = missing_credential(reviewer) {
+        return Outcome::CouldNotRun(reason);
     }
     // The first run and its retry share `timeout`.
     let left = || {
@@ -501,9 +412,7 @@ fn run_with_retry(
         Ok(remaining) => remaining,
         Err(timeout) => return Outcome::TimedOut(timeout),
     };
-    let raw = match run_child(
-        reviewer, prompt, &schema, workdir, remaining, real_home, notes,
-    ) {
+    let raw = match run_child(reviewer, prompt, &schema, workdir, remaining) {
         Ok(text) => text,
         Err(failure) => return failure.into(),
     };
@@ -515,15 +424,7 @@ fn run_with_retry(
                 Ok(remaining) => remaining,
                 Err(timeout) => return Outcome::TimedOut(timeout),
             };
-            match run_child(
-                reviewer,
-                &retry_prompt,
-                &schema,
-                workdir,
-                remaining,
-                real_home,
-                notes,
-            ) {
+            match run_child(reviewer, &retry_prompt, &schema, workdir, remaining) {
                 Ok(raw) => match validate_stage(&raw, reviewer, lens) {
                     Ok(answer) => Outcome::Answered(answer),
                     Err(reason) => Outcome::Invalid(reason),
@@ -599,19 +500,8 @@ fn prepare_command(
     program: &str,
     rest: &[String],
     workdir: &Path,
-    real_home: Option<&Path>,
-) -> Result<(Command, RunHome, Vec<String>), String> {
+) -> Result<(Command, RunHome), String> {
     let home = RunHome::create()?;
-    // A key in the environment is enough to sign in, so no login file is copied where a read tool could reach it.
-    let key_in_environment = reviewer
-        .credential_env
-        .iter()
-        .any(|var| std::env::var(var).is_ok_and(|value| !value.is_empty()));
-    let notes = if key_in_environment {
-        Vec::new()
-    } else {
-        home.seed_login(real_home, &reviewer.login_paths)?
-    };
     let mut command = Command::new(resolve_program(program));
     command.args(rest).current_dir(workdir).env_clear();
     home.apply(&mut command);
@@ -629,7 +519,7 @@ fn prepare_command(
         }
     }
     home.apply_temp(&mut command);
-    Ok((command, home, notes))
+    Ok((command, home))
 }
 
 /// One attempt at running `reviewer`'s harness to completion: its captured
@@ -638,11 +528,10 @@ fn prepare_command(
 ///
 /// The child starts with an allow-listed environment: only [`RUN_ENV_VARS`]
 /// (the variables any program needs to run at all, such as `PATH`), its own
-/// fresh home directory holding only `reviewer.login_paths` copied from
-/// `real_home`, and `reviewer.credential_env` (that reviewer's own provider
-/// credential, by name). Every other reviewer's credential and login, and
-/// `osf`'s own `GH_TOKEN`, stay out, whatever else is set on `osf`'s own
-/// process. A missing login path adds a note to `notes`, once.
+/// empty home directory, and `reviewer.credential_env` (that reviewer's own
+/// provider credential, by name). No login file is ever copied into the home.
+/// Every other reviewer's credential, and `osf`'s own `GH_TOKEN`, stay out,
+/// whatever else is set on `osf`'s own process.
 /// Why a reviewer that exited with an error failed: its name, exit code,
 /// seconds run, and the category its output points to, never that output.
 fn exit_reason(
@@ -674,8 +563,6 @@ fn run_child(
     schema: &str,
     workdir: &Path,
     timeout: Duration,
-    real_home: Option<&Path>,
-    notes: &mut Vec<String>,
 ) -> Result<String, Failure> {
     let prompt_file = write_temp_file("osf-review-prompt", prompt)?;
     let schema_file = write_temp_file("osf-review-schema", schema)?;
@@ -690,19 +577,13 @@ fn run_child(
         return Err(format!("reviewer '{}' has an empty command", reviewer.name).into());
     };
 
-    let (mut command, _home, home_notes) =
-        match prepare_command(reviewer, program, rest, workdir, real_home) {
-            Ok(prepared) => prepared,
-            Err(e) => {
-                cleanup();
-                return Err(e.into());
-            }
-        };
-    for note in home_notes {
-        if !notes.contains(&note) {
-            notes.push(note);
+    let (mut command, _home) = match prepare_command(reviewer, program, rest, workdir) {
+        Ok(prepared) => prepared,
+        Err(e) => {
+            cleanup();
+            return Err(e.into());
         }
-    }
+    };
     command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -883,104 +764,8 @@ mod tests {
             model: None,
             model_flag: None,
             credential_env: Vec::new(),
-            login_paths: Vec::new(),
             review_dir: None,
         }
-    }
-
-    /// Prints the child's `HOME` and every file under it, in order.
-    #[cfg(unix)]
-    fn file_lister(login_paths: &[&str]) -> Reviewer {
-        let mut r = reviewer(
-            "file-lister",
-            vec![
-                "sh",
-                "-c",
-                "printf '%s|' \"$HOME\"; cd \"$HOME\" && find . -type f | sort | tr '\\n' ' '",
-            ],
-        );
-        r.login_paths = login_paths.iter().map(ToString::to_string).collect();
-        r
-    }
-
-    /// A stand-in real home holding two harnesses' logins and an unrelated file.
-    #[cfg(unix)]
-    fn stand_in_home() -> crate::test_support::TempDir {
-        let home = crate::test_support::TempDir::new("osf-reviewers-real-home");
-        for (path, text) in [
-            (".a-login/auth.json", "login-a"),
-            (".b-login/auth.json", "login-b"),
-            (".unrelated", "other"),
-        ] {
-            let file = home.join(path);
-            std::fs::create_dir_all(file.parent().expect("parent")).expect("dir creates");
-            std::fs::write(file, text).expect("file writes");
-        }
-        home
-    }
-
-    #[cfg(unix)]
-    fn run_lister(
-        reviewer: &Reviewer,
-        real_home: &Path,
-    ) -> (String, Vec<String>, Result<(), String>) {
-        let mut notes = Vec::new();
-        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only lists its HOME
-        let out = run_child(
-            reviewer,
-            "",
-            answer::SCHEMA,
-            &workdir,
-            Duration::from_secs(30),
-            Some(real_home),
-            &mut notes,
-        );
-        match out {
-            Ok(text) => (text, notes, Ok(())),
-            Err(e) => (String::new(), notes, Err(e.to_string())),
-        }
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_reviewers_home_holds_only_its_own_declared_login() {
-        let real = stand_in_home();
-        let (out, notes, result) = run_lister(&file_lister(&[".a-login/auth.json"]), &real);
-        result.expect("the lister runs");
-        let (home, files) = out.split_once('|').expect("home and files");
-        assert_eq!(files.trim(), "./.a-login/auth.json");
-        assert!(notes.is_empty(), "{notes:?}");
-        assert!(
-            !Path::new(home).exists(),
-            "the home is removed after the run"
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_login_directory_is_copied_whole_and_the_real_home_is_left_alone() {
-        let real = stand_in_home();
-        let (out, _notes, result) = run_lister(&file_lister(&[".b-login"]), &real);
-        result.expect("the lister runs");
-        let (_, files) = out.split_once('|').expect("home and files");
-        assert_eq!(files.trim(), "./.b-login/auth.json");
-        let kept = std::fs::read_to_string(real.join(".b-login/auth.json")).expect("source reads");
-        assert_eq!(kept, "login-b");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn no_login_file_is_copied_when_the_reviewers_key_is_in_the_environment() {
-        let real = stand_in_home();
-        let mut lister = file_lister(&[".a-login/auth.json"]);
-        lister.credential_env = vec!["OSF_TEST_LOGIN_SKIP_KEY".to_string()];
-        std::env::set_var("OSF_TEST_LOGIN_SKIP_KEY", "a-key-held-in-the-environment");
-        let (out, notes, result) = run_lister(&lister, &real);
-        std::env::remove_var("OSF_TEST_LOGIN_SKIP_KEY");
-        result.expect("the lister runs");
-        let (_, files) = out.split_once('|').expect("home and files");
-        assert_eq!(files.trim(), "");
-        assert!(notes.is_empty(), "{notes:?}");
     }
 
     #[cfg(unix)]
@@ -1000,69 +785,9 @@ mod tests {
             env: &[("IGNORE_PROJECT", "yes")],
         };
         let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints a variable
-        let out = run_child(
-            &r,
-            "",
-            answer::SCHEMA,
-            &workdir,
-            Duration::from_secs(30),
-            None,
-            &mut Vec::new(),
-        )
-        .expect("the reporter runs");
+        let out = run_child(&r, "", answer::SCHEMA, &workdir, Duration::from_secs(30))
+            .expect("the reporter runs");
         assert_eq!(out, "yes|--ignore-project");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_missing_login_path_is_noted_and_is_not_an_error() {
-        let real = stand_in_home();
-        let lister = file_lister(&[".a-login/auth.json", ".gone/auth.json"]);
-        let (out, notes, result) = run_lister(&lister, &real);
-        result.expect("a missing path is not an error");
-        let (home, files) = out.split_once('|').expect("home and files");
-        assert_eq!(files.trim(), "./.a-login/auth.json");
-        assert_eq!(notes.len(), 1, "{notes:?}");
-        assert!(
-            notes.iter().all(|n| n.contains(".gone/auth.json")),
-            "{notes:?}"
-        );
-        assert!(
-            !Path::new(home).exists(),
-            "the home is removed after the run"
-        );
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn a_login_path_outside_the_home_is_noted_and_never_copied() {
-        let real = stand_in_home();
-        let lister = file_lister(&["../escape", "/etc/hostname", ""]);
-        let (out, notes, result) = run_lister(&lister, &real);
-        result.expect("the lister runs");
-        let (_, files) = out.split_once('|').expect("home and files");
-        assert_eq!(files.trim(), "");
-        assert_eq!(notes.len(), 3, "{notes:?}");
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn an_unknown_real_home_notes_every_login_path_as_missing() {
-        let mut notes = Vec::new();
-        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only lists its HOME
-        let out = run_child(
-            &file_lister(&[".a-login/auth.json"]),
-            "",
-            answer::SCHEMA,
-            &workdir,
-            Duration::from_secs(30),
-            None,
-            &mut notes,
-        )
-        .expect("the lister runs");
-        let (_, files) = out.split_once('|').expect("home and files");
-        assert_eq!(files.trim(), "");
-        assert_eq!(notes.len(), 1, "{notes:?}");
     }
 
     /// Prints the child's `HOME` and how many entries that directory holds.
@@ -1091,8 +816,6 @@ mod tests {
                 answer::SCHEMA,
                 &workdir,
                 Duration::from_secs(30),
-                None,
-                &mut Vec::new(),
             )
             .expect("the reporter runs");
             let (home, count) = out.split_once('|').expect("home and count");
@@ -1148,7 +871,7 @@ mod tests {
         assert_eq!(codex.family, "openai");
         assert_eq!(codex.command, vec!["codex", "exec"]);
         assert_eq!(codex.model.as_deref(), Some("o4-mini"));
-        assert_eq!(codex.login_paths, vec![".codex/auth.json"]);
+        assert_eq!(codex.credential_env, vec!["CODEX_API_KEY"]);
         assert_eq!(r.get(1).expect("dsh entry").model, None);
     }
 
@@ -1329,16 +1052,8 @@ mod tests {
             env: &[("MODE_FLAG", "locked")],
         });
         let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints a variable
-        let out = run_child(
-            &r,
-            "",
-            answer::SCHEMA,
-            &workdir,
-            Duration::from_secs(30),
-            None,
-            &mut Vec::new(),
-        )
-        .expect("the reporter runs");
+        let out = run_child(&r, "", answer::SCHEMA, &workdir, Duration::from_secs(30))
+            .expect("the reporter runs");
         assert_eq!(out, "locked");
     }
 
@@ -1354,17 +1069,9 @@ mod tests {
             ],
         );
         let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the child only prints
-        let err = run_child(
-            &r,
-            "",
-            answer::SCHEMA,
-            &workdir,
-            Duration::from_secs(30),
-            None,
-            &mut Vec::new(),
-        )
-        .expect_err("the reviewer fails")
-        .to_string();
+        let err = run_child(&r, "", answer::SCHEMA, &workdir, Duration::from_secs(30))
+            .expect_err("the reviewer fails")
+            .to_string();
         assert!(
             err.starts_with("reviewer 'synthetic' exited with code 1 after "),
             "{err}"
@@ -1398,8 +1105,8 @@ mod tests {
             .collect();
         for (program, starts) in runs {
             let r = reviewer("synthetic", vec![program]);
-            let (mut command, home, _) =
-                prepare_command(&r, program, &args, &workdir, None).expect("prepares");
+            let (mut command, home) =
+                prepare_command(&r, program, &args, &workdir).expect("prepares");
             let path = home.path.clone();
             assert!(path.exists(), "the home exists while the run is prepared");
             let spawned = command.spawn();
@@ -1479,5 +1186,181 @@ mod tests {
         let e =
             extract_pointer("not json at all", "/structured_output").expect_err("not JSON at all");
         assert!(e.contains("JSON"), "{e}");
+    }
+
+    /// Serialises the tests below that set `HOME` or a credential variable.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Every agent that can review, as a reviewer whose command is `command`
+    /// and whose read-only mode is present, so only its credential decides
+    /// whether it starts.
+    fn every_reviewing_agent(command: &[&str]) -> Vec<Reviewer> {
+        crate::agents::AGENTS
+            .iter()
+            .filter_map(|agent| Reviewer::from_agent(agent, None))
+            .map(|mut r| {
+                r.command = command.iter().map(ToString::to_string).collect();
+                r.read_only = Some(ReadOnly {
+                    args: &[],
+                    env: &[],
+                });
+                r
+            })
+            .collect()
+    }
+
+    fn shipped_lens() -> Lens {
+        toml::from_str(include_str!("../defaults/review-lenses/correctness.toml"))
+            .expect("shipped lens parses")
+    }
+
+    #[test]
+    fn a_reviewer_without_its_key_variable_does_not_start_and_names_the_variable() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let marker = crate::test_support::TempDir::new("osf-reviewers-no-key");
+        let started = marker.join("started");
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the harness never starts
+        let command = ["sh", "-c", &format!("touch '{}'", started.display())];
+        let reviewers = every_reviewing_agent(&command);
+        assert!(!reviewers.is_empty());
+        for r in &reviewers {
+            for var in &r.credential_env {
+                std::env::remove_var(var);
+            }
+            match run_one(
+                r,
+                "prompt",
+                &shipped_lens(),
+                &workdir,
+                Duration::from_secs(30),
+            ) {
+                Outcome::CouldNotRun(reason) => {
+                    if r.credential_env.is_empty() {
+                        assert!(
+                            reason.contains("no API key variable is defined for this agent"),
+                            "{}: {reason}",
+                            r.name
+                        );
+                    } else {
+                        for var in &r.credential_env {
+                            assert!(reason.contains(var.as_str()), "{}: {reason}", r.name);
+                        }
+                    }
+                }
+                other => panic!("{}: expected could-not-run, got {other:?}", r.name),
+            }
+            assert!(
+                !started.exists(),
+                "{}: the harness must never start",
+                r.name
+            );
+        }
+    }
+
+    #[test]
+    fn an_empty_key_variable_counts_as_not_set_and_its_value_is_never_named() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut r = reviewer("empty-key", vec!["osf-no-such-program-for-this-test"]);
+        r.credential_env = vec!["OSF_TEST_EMPTY_KEY".to_string()];
+        std::env::set_var("OSF_TEST_EMPTY_KEY", "");
+        let reason = missing_credential(&r);
+        std::env::remove_var("OSF_TEST_EMPTY_KEY");
+        let reason = reason.expect("an empty variable is no credential");
+        assert!(reason.contains("OSF_TEST_EMPTY_KEY"), "{reason}");
+        assert!(reason.contains("is not set"), "{reason}");
+    }
+
+    /// Runs every reviewing agent's reviewer, with its key variable set to a
+    /// dummy value, against a fake real home that holds a login file in each
+    /// agent's state folders and is made unreadable when `unreadable` is set.
+    /// The fake harness lists its own home; the lists are returned by agent.
+    #[cfg(unix)]
+    fn run_every_agent_against_a_fake_home(unreadable: bool) -> Vec<(String, String)> {
+        use std::os::unix::fs::PermissionsExt;
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let real = crate::test_support::TempDir::new("osf-reviewers-fake-real-home");
+        for agent in crate::agents::AGENTS {
+            for dir in agent.state_dirs {
+                let file = real.join(dir).join("auth.json");
+                std::fs::create_dir_all(file.parent().expect("parent")).expect("dir creates");
+                std::fs::write(file, "a-fake-login").expect("file writes");
+            }
+        }
+        let out = crate::test_support::TempDir::new("osf-reviewers-fake-home-out");
+        let capture = out.join("listing");
+        let script = format!(
+            "cd \"$HOME\" && find . -type f -not -path './tmp/*' | sort > '{}'",
+            capture.display()
+        );
+        let workdir = std::env::temp_dir(); // osf: temp-dir allowed, the harness only lists its HOME
+        let saved_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", &*real);
+        if unreadable {
+            std::fs::set_permissions(&*real, std::fs::Permissions::from_mode(0o000))
+                .expect("home locks");
+        }
+        let mut listings = Vec::new();
+        for r in every_reviewing_agent(&["sh", "-c", &script]) {
+            for var in &r.credential_env {
+                std::env::set_var(var, "a-dummy-key");
+            }
+            let _ = std::fs::remove_file(&capture);
+            let outcome = run_one(
+                &r,
+                "prompt",
+                &shipped_lens(),
+                &workdir,
+                Duration::from_secs(30),
+            );
+            for var in &r.credential_env {
+                std::env::remove_var(var);
+            }
+            if r.credential_env.is_empty() {
+                assert!(
+                    matches!(outcome, Outcome::CouldNotRun(_)) && !capture.exists(),
+                    "{}: a reviewer with no key variable must not start",
+                    r.name
+                );
+                continue;
+            }
+            let listing = std::fs::read_to_string(&capture)
+                .unwrap_or_else(|e| panic!("{}: the harness must start: {e}", r.name));
+            listings.push((r.name.clone(), listing));
+        }
+        if unreadable {
+            std::fs::set_permissions(&*real, std::fs::Permissions::from_mode(0o700))
+                .expect("home unlocks");
+        }
+        match saved_home {
+            Some(home) => std::env::set_var("HOME", home),
+            None => std::env::remove_var("HOME"),
+        }
+        listings
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn no_agents_reviewer_home_holds_a_login_file_from_the_real_home() {
+        let listings = run_every_agent_against_a_fake_home(false);
+        assert!(!listings.is_empty());
+        for (name, listing) in listings {
+            assert_eq!(listing.trim(), "", "{name}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_reviewer_runs_the_same_when_the_real_home_cannot_be_read() {
+        let listings = run_every_agent_against_a_fake_home(true);
+        assert!(!listings.is_empty());
+        for (name, listing) in listings {
+            assert_eq!(listing.trim(), "", "{name}");
+        }
     }
 }

@@ -411,6 +411,17 @@ impl Fakes {
         let mut all: Vec<(&str, &str)> =
             env.iter().copied().filter(|(k, _)| *k != "PATH").collect();
         all.push(("PATH", &path));
+        // A reviewer does not start without its key variable, so every agent
+        // in the list gets a dummy one unless the test names its own.
+        let keys = osf::agents::AGENTS
+            .iter()
+            .filter_map(|agent| agent.review.as_ref())
+            .flat_map(|review| review.credential_env.iter().copied());
+        for key in keys {
+            if !all.iter().any(|(k, _)| *k == key) {
+                all.push((key, "a-dummy-key"));
+            }
+        }
         common::run_osf_with_env(dir, home, &all, args)
     }
 }
