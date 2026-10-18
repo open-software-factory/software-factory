@@ -1,0 +1,354 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T13:07:22.885Z",
+  "title": "Review-check workflow: pin devcontainer image to new digest",
+  "summary": "A one-line repin of the container image the review-check workflow runs in. The REVIEW_IMAGE env var now points at the manifest-list digest built from commit 373b26c0 instead of e40b471d, so every job that consumes that image (the codex review job and its version check) picks up the newer devcontainer build. No job structure, trigger or step logic changes; only the pinned artifact identity moves.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852",
+      "ref": "3ac1f2bea71e0ad1cbabd8d8de0cf649edfc5852"
+    },
+    "head": {
+      "sha": "29525d21366b5c71178bfbad1bde8614c9d99294",
+      "ref": "29525d21366b5c71178bfbad1bde8614c9d99294"
+    },
+    "pullRequest": {
+      "number": 317,
+      "url": "https://github.com/open-software-factory/software-factory/pull/317"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "subtitle": "GitHub events",
+      "order": 0,
+      "summary": "Events that start the review-check workflow."
+    },
+    {
+      "id": "workflow",
+      "label": "review-check workflow",
+      "subtitle": "GitHub Actions",
+      "order": 1,
+      "summary": "The workflow definition and its job graph, including the pinned image reference."
+    },
+    {
+      "id": "jobs",
+      "label": "Jobs",
+      "subtitle": "Runners",
+      "order": 2,
+      "summary": "Jobs that execute on GitHub-hosted runners inside the pinned devcontainer image."
+    },
+    {
+      "id": "external",
+      "label": "External",
+      "subtitle": "Registries and APIs",
+      "order": 3,
+      "summary": "Registries and services the workflow pulls from or calls."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pull-request-event",
+      "label": "Pull request event",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "triggers",
+      "summary": "The GitHub event that kicks off the review-check workflow.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "review-check-workflow",
+      "label": "review-check.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "REVIEW_IMAGE repinned",
+      "summary": "Workflow definition. The only change is the REVIEW_IMAGE env value: a new manifest-list digest and the commit comment naming the build it came from.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 86,
+          "endLine": 93
+        }
+      ],
+      "badges": [
+        "1 line repinned"
+      ]
+    },
+    {
+      "id": "review-image-ref",
+      "label": "REVIEW_IMAGE",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "group": "env",
+      "subtitle": "ghcr.io/.../devcontainer@sha256:afe41eed…",
+      "summary": "The pinned container image digest every job runs in. Now resolves to the devcontainer build from commit 373b26c0 rather than e40b471d.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 89,
+          "endLine": 91
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-version",
+      "label": "CODEX_VERSION",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "group": "env",
+      "subtitle": "0.161.0",
+      "summary": "The codex version the image is expected to carry; the codex job asserts the image matches it.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 92,
+          "endLine": 93
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-job",
+      "label": "codex job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "jobs",
+      "summary": "Runs the review inside the pinned devcontainer image and checks the codex version it carries.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "ghcr",
+      "label": "GHCR",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "subtitle": "ghcr.io",
+      "summary": "Container registry the runner pulls the pinned devcontainer image from.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "codex-api",
+      "label": "Codex API",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "external",
+      "summary": "Upstream model service the codex job calls during review.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "pr-event-triggers-workflow",
+      "from": "pull-request-event",
+      "to": "review-check-workflow",
+      "kind": "event",
+      "delta": "unchanged",
+      "label": "pull_request",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-reads-image-ref",
+      "from": "review-check-workflow",
+      "to": "review-image-ref",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "env",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The workflow's jobs resolve their container from this env value; the repin is the whole change.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 89,
+          "endLine": 91
+        }
+      ]
+    },
+    {
+      "id": "workflow-reads-codex-version",
+      "from": "review-check-workflow",
+      "to": "codex-version",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "env",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-runs-codex-job",
+      "from": "review-check-workflow",
+      "to": "codex-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "codex-job-pulls-image",
+      "from": "codex-job",
+      "to": "ghcr",
+      "kind": "http",
+      "delta": "modified",
+      "label": "pull by digest",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The job pulls the image by the new digest; the registry serves a different manifest list than before.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "startLine": 89,
+          "endLine": 91
+        }
+      ]
+    },
+    {
+      "id": "codex-job-calls-api",
+      "from": "codex-job",
+      "to": "codex-api",
+      "kind": "http",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "image-resolution",
+      "title": "How the pinned image reaches the codex job",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-check-workflow",
+          "label": "review-check.yml"
+        },
+        {
+          "node": "review-image-ref",
+          "label": "REVIEW_IMAGE"
+        },
+        {
+          "node": "ghcr",
+          "label": "GHCR"
+        },
+        {
+          "node": "codex-job",
+          "label": "codex job"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-image-env",
+          "from": "review-check-workflow",
+          "to": "review-image-ref",
+          "label": "read REVIEW_IMAGE",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "The env value now names digest sha256:afe41eed… built from commit 373b26c0.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 89,
+              "endLine": 91
+            }
+          ]
+        },
+        {
+          "id": "pull-manifest",
+          "from": "codex-job",
+          "to": "ghcr",
+          "label": "pull manifest list by digest",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Same pull mechanism, different digest, so a different image is resolved.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml",
+              "startLine": 89,
+              "endLine": 91
+            }
+          ]
+        },
+        {
+          "id": "manifest-returned",
+          "from": "ghcr",
+          "to": "codex-job",
+          "label": "image layers",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "run-in-container",
+          "from": "codex-job",
+          "to": "codex-job",
+          "label": "run review steps in container",
+          "kind": "self",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 2,
+    "deletions": 2,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-check-architecture",
+      "title": "Review-check workflow architecture",
+      "lens": "architecture",
+      "summary": "Triggers, the workflow definition with its pinned env, the jobs that run, and the external services they touch.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "image-resolution-flow",
+      "title": "Image resolution flow",
+      "lens": "data-flow",
+      "summary": "How the REVIEW_IMAGE env value becomes the container the codex job runs in.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
