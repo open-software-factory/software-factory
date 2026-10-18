@@ -5,17 +5,11 @@
 mod common;
 use common::{git_with_hook_env, isolated_home, run_osf_with_env, unique_dir, TempRepo};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// `core.hooksPath`, read straight from the repository's own local config,
 /// `None` when it is not set. Never asserts: a test needs both outcomes.
 fn hooks_path_config(dir: &Path) -> Option<String> {
-    let mut command = Command::new("git");
-    command
-        .current_dir(dir)
-        .args(["config", "--local", "--get", "core.hooksPath"]);
-    osf::scrub_git_env(&mut command);
-    let output = command.output().expect("git runs");
+    let output = common::scratch_git::run(dir, &["config", "--local", "--get", "core.hooksPath"]);
     if !output.status.success() {
         return None;
     }
@@ -219,13 +213,7 @@ fn a_real_git_push_runs_the_pre_push_checkpoint() {
     repo.commit("a clean follow-up commit");
 
     let bare_dir = unique_dir("osf-hooks-install-push-bare.git");
-    let mut bare_init = Command::new("git");
-    bare_init.args(["init", "-q", "--bare"]).arg(&bare_dir);
-    osf::scrub_git_env(&mut bare_init);
-    assert!(
-        bare_init.status().expect("git init runs").success(),
-        "bare remote init failed"
-    );
+    common::scratch_git::init_bare(&bare_dir);
     repo.git(&[
         "remote",
         "add",

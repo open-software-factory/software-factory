@@ -175,25 +175,16 @@ impl Drop for CleanCopy {
 mod tests {
     use super::*;
     use crate::test_support::TempDir;
-    use std::process::Command;
 
     fn repo_with(files: &[(&str, &str)]) -> TempDir {
         let root = TempDir::new("osf-clean-copy-repo");
-        let git = |args: &[&str]| {
-            let out = Command::new("git")
-                .current_dir(&root)
-                .args(args)
-                .output()
-                .expect("git runs");
-            assert!(out.status.success(), "git {args:?}: {out:?}");
-        };
-        git(&["init", "--quiet"]);
+        crate::scratch_git::init(&root);
         for (path, text) in files {
             let full = root.join(path);
             std::fs::create_dir_all(full.parent().expect("parent")).expect("dirs");
             std::fs::write(full, text).expect("file writes");
         }
-        git(&["add", "--all"]);
+        crate::scratch_git::ok(&root, &["add", "--all"]);
         root
     }
 

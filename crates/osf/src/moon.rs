@@ -81,8 +81,12 @@ fn moon_binary() -> PathBuf {
 /// run the nested moon against the outer task's workspace instead of this
 /// one. Removes every `MOON_*` variable this process has from `command`'s
 /// environment; explicit `env()` calls made after this still apply, since
-/// this only removes what would otherwise be inherited.
+/// this only removes what would otherwise be inherited. Also removes the
+/// repository-locating `GIT_*` variables, since moon runs git itself and
+/// must find the repository from its working directory, not from a caller's
+/// own `GIT_DIR`.
 fn strip_inherited_moon_vars(command: &mut Command) {
+    crate::git::scrub_locating_git_env(command);
     for (key, _) in std::env::vars() {
         if key.starts_with("MOON_") {
             command.env_remove(key);

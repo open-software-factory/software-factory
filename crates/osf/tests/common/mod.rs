@@ -4,6 +4,8 @@
 //! only one of them calls is not dead code, just unused in this one.
 #![allow(dead_code)]
 
+pub mod scratch_git;
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -76,12 +78,8 @@ pub struct TempRepo {
 impl TempRepo {
     pub fn new(name: &str) -> Self {
         let dir = unique_dir(&format!("osf-verify-test-{name}"));
-        std::fs::create_dir_all(&dir).expect("temp repo dir creates");
-        let repo = TempRepo { dir };
-        repo.git(&["init", "-q", "-b", "main"]);
-        repo.git(&["config", "user.email", "test@example.com"]);
-        repo.git(&["config", "user.name", "Test"]);
-        repo
+        scratch_git::init(&dir);
+        TempRepo { dir }
     }
 
     /// Runs `git` in this repository, with [`path_with_osf_first`] on
@@ -89,12 +87,8 @@ impl TempRepo {
     /// test run's own built binary, not whatever the machine running the
     /// test does or does not have installed.
     pub fn git(&self, args: &[&str]) -> String {
-        let mut command = Command::new("git");
-        command.current_dir(&self.dir).args(args);
-        osf::scrub_git_env(&mut command);
-        scrub_osf_and_moon_env(&mut command);
-        command.env("PATH", path_with_osf_first());
-        let output = command.output().expect("git runs");
+        let path = path_with_osf_first();
+        let output = scratch_git::run_with_env(&self.dir, args, &[("PATH", path.as_ref())]);
         assert!(
             output.status.success(),
             "git {args:?} failed: {}",
@@ -221,15 +215,7 @@ pub struct BareRepo {
 impl BareRepo {
     pub fn new(name: &str) -> Self {
         let dir = unique_dir(&format!("osf-verify-test-{name}"));
-        let mut command = Command::new("git");
-        command.args(["init", "-q", "--bare"]).arg(&dir);
-        osf::scrub_git_env(&mut command);
-        let status = command.status().expect("git init runs");
-        assert!(
-            status.success(),
-            "bare git init failed for {}",
-            dir.display()
-        );
+        scratch_git::init_bare(&dir);
         BareRepo { dir }
     }
 }
@@ -334,22 +320,22 @@ pub fn path_with_osf_first() -> std::ffi::OsString {
 /// `HOME`/`USERPROFILE` and [`path_with_osf_first`] on `PATH`, so a git
 /// operation that triggers an installed hook script resolves bare `osf` to
 /// this test run's binary and reads this test's own isolated state, not the
-/// real machine's. Every inherited `GIT_*`, `OSF_*` and `MOON_*` variable is
-/// scrubbed first.
+/// real machine's. Runs from an empty environment, like every test git call.
 pub fn git_with_hook_env(
     dir: &std::path::Path,
     home: &std::path::Path,
     args: &[&str],
 ) -> std::process::Output {
-    let mut command = Command::new("git");
-    command.current_dir(dir).args(args);
-    osf::scrub_git_env(&mut command);
-    scrub_osf_and_moon_env(&mut command);
-    command
-        .env("PATH", path_with_osf_first())
-        .env("HOME", home)
-        .env("USERPROFILE", home);
-    command.output().expect("git runs")
+    let path = path_with_osf_first();
+    scratch_git::run_with_env(
+        dir,
+        args,
+        &[
+            ("PATH", path.as_ref()),
+            ("HOME", home.as_os_str()),
+            ("USERPROFILE", home.as_os_str()),
+        ],
+    )
 }
 
 /// Runs the compiled `osf` binary in `dir`, with `home` standing in for

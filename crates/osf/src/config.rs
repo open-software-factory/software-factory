@@ -322,8 +322,8 @@ impl Default for ReviewConfig {
     }
 }
 
-/// One model-name prefix, matched case-insensitively against the first word
-/// of a `Code-Generator:` trailer's model name, and the family it maps to.
+/// One model-name prefix, matched case-insensitively against each word of a
+/// `Code-Generator:` trailer's model name, and the family it maps to.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BuilderFamilyAlias {
@@ -892,11 +892,7 @@ mod tests {
     /// Runs `git init --quiet` in `dir`, so `git rev-parse --show-toplevel`
     /// resolves to `dir` from anywhere under it.
     fn init_repo(dir: &Path) {
-        let mut command = std::process::Command::new("git");
-        command.arg("init").arg("--quiet").arg(dir);
-        crate::git::scrub_git_env(&mut command);
-        let status = command.status().expect("git init runs");
-        assert!(status.success(), "git init failed for {}", dir.display());
+        crate::scratch_git::init(dir);
     }
 
     #[test]
