@@ -1,0 +1,754 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T07:01:28.719Z",
+  "title": "dsh replaces opencode as the third reviewer",
+  "summary": "The review check's third reviewer job changes from opencode (OpenRouter) to dsh (DeepSeek). dsh gains a documented read-only mode — the `DSH_PERMISSION_MODE=read-only` environment variable — so it is no longer refused at run time, and its launch drops the `sh -c` wrapper: osf now starts `dsh --profile headless` directly and feeds the prompt on standard input. The workflow renames the job, swaps the provider secret and network allow-list entry to `api.deepseek.com`, and adds a step that fails unless the pinned image carries dsh 0.2.0-rc.2. The roster in osf.toml and the docs follow.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "e3e5757d01282a34ff5048a91777b06889990929",
+      "ref": "e3e5757d01282a34ff5048a91777b06889990929"
+    },
+    "head": {
+      "sha": "e6832d247ee01aa04f442d85e0138a659919f247",
+      "ref": "e6832d247ee01aa04f442d85e0138a659919f247"
+    },
+    "pullRequest": {
+      "number": 293,
+      "url": "https://github.com/open-software-factory/software-factory/pull/293"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workflow",
+      "label": "Review workflow",
+      "subtitle": "GitHub Actions jobs",
+      "order": 0,
+      "summary": "The reusable review-check workflow: a build job, one job per reviewer, and a final job that reduces and posts."
+    },
+    {
+      "id": "osf",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "summary": "The Rust tool that resolves the roster, launches each reviewer and reduces the saved answers."
+    },
+    {
+      "id": "agents",
+      "label": "Reviewer agents",
+      "subtitle": "inside the review container",
+      "order": 2,
+      "summary": "The coding agents that read the change and answer with findings."
+    },
+    {
+      "id": "providers",
+      "label": "Model providers",
+      "subtitle": "external APIs",
+      "order": 3,
+      "summary": "The external model endpoints each reviewer job's network allow-list admits."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-check-workflow",
+      "label": "review-check.yml",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "workflow",
+      "subtitle": "reusable workflow",
+      "summary": "Holds the build job, the per-reviewer jobs and the final reduce job. The opencode job is renamed review-dsh, its secret and allow-list entry change, and a version check step is added.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "build-job",
+      "label": "build job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "summary": "Builds osf from the workflow's trusted commit and runs `osf review work-item`. Holds no provider key.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-dsh-job",
+      "label": "review dsh job",
+      "kind": "job",
+      "delta": "added",
+      "lane": "workflow",
+      "subtitle": "replaces review-opencode",
+      "summary": "Runs `osf review run --reviewer dsh` in the pinned review image with only DEEPSEEK_API_KEY, an allow-list that adds api.deepseek.com, and a new step that fails unless `dsh --version` prints the pinned 0.2.0-rc.2.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-opencode-job",
+      "label": "review opencode job",
+      "kind": "job",
+      "delta": "removed",
+      "lane": "workflow",
+      "summary": "The job this change removes: it ran opencode with OPENROUTER_API_KEY and allowed openrouter.ai and models.opencode.ai.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-codex-job",
+      "label": "review codex job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "summary": "Runs codex in the review container with its sandbox bypass, its own key and api.openai.com on its allow-list.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-claude-job",
+      "label": "review claude job",
+      "kind": "job",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "summary": "Runs claude with its restricted tool set and its own key.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reduce-job",
+      "label": "review (reduce) job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "workflow",
+      "summary": "Reduces the saved answers and posts the result. Its `needs` list now waits on review-dsh instead of review-opencode.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "review-image",
+      "label": "review container image",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "workflow",
+      "subtitle": "pinned by digest",
+      "summary": "The single image every job runs, carrying osf, codex and dsh. The dsh job now asserts the dsh version it carries.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-review-run",
+      "label": "osf review run",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "osf",
+      "summary": "Resolves the roster, refuses a reviewer with neither a read-only nor a container mode, and launches the agent with its prompt on standard input.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agent-list",
+      "label": "AGENTS list",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "osf",
+      "subtitle": "crates/osf/src/agents.rs",
+      "summary": "The data table of agents. dsh's entry loses its `sh -c` wrapper and gains a ReadOnly mode with DSH_PERMISSION_MODE=read-only; new tests hold every reviewer to a mode and every agent off a shell.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "osf-toml",
+      "label": "osf.toml roster",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "osf",
+      "summary": "This repository's reviewer list becomes [\"codex\", \"claude\", \"dsh\"], with a comment recording why opencode is off.",
+      "files": [
+        {
+          "path": "osf.toml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "dsh-agent",
+      "label": "dsh",
+      "kind": "external",
+      "delta": "modified",
+      "lane": "agents",
+      "subtitle": "DeepSeek Harness, headless profile",
+      "summary": "Started directly as `dsh --profile headless`, reading the prompt from standard input and running under its read-only permission mode. It keeps its shell, web and subagent tools, bounded by the job's network allow-list.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "opencode-agent",
+      "label": "opencode",
+      "kind": "external",
+      "delta": "removed",
+      "lane": "agents",
+      "summary": "No longer on the roster; its job and provider key are gone.",
+      "files": [
+        {
+          "path": "osf.toml",
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "codex-agent",
+      "label": "codex",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agents",
+      "summary": "Runs in the container with its own sandbox bypass.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "claude-agent",
+      "label": "claude",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "agents",
+      "summary": "Runs with file tools only.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "deepseek-api",
+      "label": "api.deepseek.com",
+      "kind": "external",
+      "delta": "added",
+      "lane": "providers",
+      "summary": "The model endpoint dsh calls; the only provider host the dsh job's allow-list adds.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "openrouter-api",
+      "label": "openrouter.ai",
+      "kind": "external",
+      "delta": "removed",
+      "lane": "providers",
+      "summary": "opencode's provider, no longer admitted by any job.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml",
+          "revision": "base"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "openai-api",
+      "label": "api.openai.com",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "providers",
+      "summary": "codex's provider host.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "anthropic-api",
+      "label": "api.anthropic.com",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "providers",
+      "summary": "claude's provider host.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "workflow-to-build",
+      "from": "review-check-workflow",
+      "to": "build-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-dsh-job",
+      "from": "review-check-workflow",
+      "to": "review-dsh-job",
+      "kind": "call",
+      "delta": "added",
+      "label": "one job per reviewer",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The workflow gains the dsh reviewer job in place of the opencode one.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ]
+    },
+    {
+      "id": "workflow-to-codex-job",
+      "from": "review-check-workflow",
+      "to": "review-codex-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-claude-job",
+      "from": "review-check-workflow",
+      "to": "review-claude-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "workflow-to-reduce",
+      "from": "review-check-workflow",
+      "to": "reduce-job",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "dsh-job-needs-build",
+      "from": "review-dsh-job",
+      "to": "build-job",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "needs: build",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "reduce-needs-dsh",
+      "from": "reduce-job",
+      "to": "review-dsh-job",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "needs",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The final job's needs list names review-dsh where it named review-opencode.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ]
+    },
+    {
+      "id": "dsh-job-runs-image",
+      "from": "review-dsh-job",
+      "to": "review-image",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "docker run",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "dsh-job-version-check",
+      "from": "review-dsh-job",
+      "to": "dsh-agent",
+      "kind": "other",
+      "delta": "added",
+      "label": "dsh --version == 0.2.0-rc.2",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A new step runs the image's dsh and fails the job unless it prints the pinned version.",
+      "files": [
+        {
+          "path": ".github/workflows/review-check.yml"
+        }
+      ]
+    },
+    {
+      "id": "dsh-job-runs-osf",
+      "from": "review-dsh-job",
+      "to": "osf-review-run",
+      "kind": "call",
+      "delta": "modified",
+      "label": "--reviewer dsh",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "codex-job-runs-osf",
+      "from": "review-codex-job",
+      "to": "osf-review-run",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "claude-job-runs-osf",
+      "from": "review-claude-job",
+      "to": "osf-review-run",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "osf-reads-roster",
+      "from": "osf-review-run",
+      "to": "osf-toml",
+      "kind": "data",
+      "delta": "modified",
+      "label": "reviewers",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "osf-reads-agents",
+      "from": "osf-review-run",
+      "to": "agent-list",
+      "kind": "data",
+      "delta": "modified",
+      "label": "command, read_only",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "osf-starts-dsh",
+      "from": "osf-review-run",
+      "to": "dsh-agent",
+      "kind": "call",
+      "delta": "modified",
+      "label": "dsh --profile headless",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "osf now starts dsh directly with its headless profile and writes the prompt to standard input, instead of wrapping it in `sh -c`.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs"
+        }
+      ]
+    },
+    {
+      "id": "osf-starts-codex",
+      "from": "osf-review-run",
+      "to": "codex-agent",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "osf-starts-claude",
+      "from": "osf-review-run",
+      "to": "claude-agent",
+      "kind": "call",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "dsh-calls-deepseek",
+      "from": "dsh-agent",
+      "to": "deepseek-api",
+      "kind": "http",
+      "delta": "added",
+      "label": "model calls",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "codex-calls-openai",
+      "from": "codex-agent",
+      "to": "openai-api",
+      "kind": "http",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    },
+    {
+      "id": "claude-calls-anthropic",
+      "from": "claude-agent",
+      "to": "anthropic-api",
+      "kind": "http",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "dsh-review-run",
+      "title": "A dsh review run",
+      "summary": "How the dsh reviewer job turns a pull request into a saved answer after this change: the job checks the image's dsh version, osf resolves the roster, starts dsh directly with the prompt on standard input under the read-only permission mode, and dsh answers on standard output.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-dsh-job",
+          "label": "review dsh job"
+        },
+        {
+          "node": "review-image",
+          "label": "review image"
+        },
+        {
+          "node": "osf-review-run",
+          "label": "osf review run"
+        },
+        {
+          "node": "dsh-agent",
+          "label": "dsh"
+        },
+        {
+          "node": "deepseek-api",
+          "label": "api.deepseek.com"
+        }
+      ],
+      "messages": [
+        {
+          "id": "step-version-check",
+          "from": "review-dsh-job",
+          "to": "review-image",
+          "label": "dsh --version",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "Fails the job unless the image prints the pinned 0.2.0-rc.2.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml"
+            }
+          ]
+        },
+        {
+          "id": "step-run-osf",
+          "from": "review-dsh-job",
+          "to": "osf-review-run",
+          "label": "osf review run --reviewer dsh",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Only DEEPSEEK_API_KEY is passed in; the checkout, base and work item are mounted read-only.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml"
+            }
+          ]
+        },
+        {
+          "id": "step-resolve-roster",
+          "from": "osf-review-run",
+          "to": "osf-review-run",
+          "label": "resolve roster and read-only mode",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "dsh now has a read-only mode, so it is no longer refused as could-not-run.",
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs"
+            }
+          ]
+        },
+        {
+          "id": "step-start-dsh",
+          "from": "osf-review-run",
+          "to": "dsh-agent",
+          "label": "dsh --profile headless",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "note": "Started directly, no shell; the prompt goes to standard input and DSH_PERMISSION_MODE=read-only to the environment.",
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs"
+            }
+          ]
+        },
+        {
+          "id": "step-model-call",
+          "from": "dsh-agent",
+          "to": "deepseek-api",
+          "label": "model calls",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "note": "The only provider host the job's allow-list admits.",
+          "files": [
+            {
+              "path": ".github/workflows/review-check.yml"
+            }
+          ]
+        },
+        {
+          "id": "step-answer",
+          "from": "dsh-agent",
+          "to": "osf-review-run",
+          "label": "JSON answer on stdout",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "note": "dsh takes no answer-schema flag, so the prompt asks for the JSON answer and osf reads it from standard output.",
+          "files": [
+            {
+              "path": "crates/osf/src/agents.rs"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 9,
+    "additions": 352,
+    "deletions": 101,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "review-check-containers",
+      "title": "Review check containers",
+      "lens": "architecture",
+      "summary": "The workflow's jobs, the osf CLI they run, the agents it starts and the provider hosts each job admits.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "dsh-reviewer-component",
+      "title": "The dsh reviewer",
+      "lens": "architecture",
+      "summary": "Inside the dsh path: the job, the agent list entry, the launch and the provider.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "review-dsh-job",
+          "review-image",
+          "osf-review-run",
+          "agent-list",
+          "osf-toml",
+          "dsh-agent",
+          "deepseek-api"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    },
+    {
+      "id": "dsh-review-run-flow",
+      "title": "A dsh review run",
+      "lens": "data-flow",
+      "summary": "The ordered steps of one dsh reviewer job after the change.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [],
+        "edges": [],
+        "flows": [
+          "dsh-review-run"
+        ]
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "e6832d247ee01aa04f442d85e0138a659919f247",
+    "contentHash": "5084a36a4d4b44846ef3aad1fe45e00b"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-check-containers-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-check-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "082dc6d7223c809fd530e859732debfb",
+      "bytes": 28238,
+      "width": 1884,
+      "height": 948,
+      "animated": false,
+      "path": "review-check-containers-light-082dc6d7223c809fd530e859732debfb.svg"
+    },
+    {
+      "id": "review-check-containers-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-check-containers",
+      "mediaType": "image/svg+xml",
+      "contentHash": "ee5b6d893dc0675ff88282e5e26ff6d6",
+      "bytes": 28578,
+      "width": 1884,
+      "height": 948,
+      "animated": false,
+      "path": "review-check-containers-dark-ee5b6d893dc0675ff88282e5e26ff6d6.svg"
+    },
+    {
+      "id": "dsh-reviewer-component-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "dsh-reviewer-component",
+      "mediaType": "image/svg+xml",
+      "contentHash": "b04bf718eb44db9ccebbb2c79d4641e1",
+      "bytes": 14051,
+      "width": 1708,
+      "height": 522,
+      "animated": false,
+      "path": "dsh-reviewer-component-light-b04bf718eb44db9ccebbb2c79d4641e1.svg"
+    },
+    {
+      "id": "dsh-reviewer-component-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "dsh-reviewer-component",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c6d8cf31bd11571d7243989fd9e22698",
+      "bytes": 14199,
+      "width": 1708,
+      "height": 522,
+      "animated": false,
+      "path": "dsh-reviewer-component-dark-c6d8cf31bd11571d7243989fd9e22698.svg"
+    },
+    {
+      "id": "dsh-review-run-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "dsh-review-run-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "51d53f8a0176c29e30067256f7939630",
+      "bytes": 13434,
+      "width": 1666,
+      "height": 391,
+      "animated": true,
+      "path": "dsh-review-run-flow-light-51d53f8a0176c29e30067256f7939630.svg"
+    },
+    {
+      "id": "dsh-review-run-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "dsh-review-run-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "7d8f010b7261421734a96c0d124d5747",
+      "bytes": 13580,
+      "width": 1666,
+      "height": 391,
+      "animated": true,
+      "path": "dsh-review-run-flow-dark-7d8f010b7261421734a96c0d124d5747.svg"
+    }
+  ]
+}
