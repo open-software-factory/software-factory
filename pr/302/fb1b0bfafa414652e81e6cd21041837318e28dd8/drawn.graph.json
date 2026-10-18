@@ -1,0 +1,547 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T00:12:02.196Z",
+  "title": "Bump @types/node to 26.6.5 across integrations",
+  "summary": "A dependency-only change: the three integration packages (dsh, omp, opencode) each raise their devDependency on @types/node from 26.6.2 to 26.6.5, and pnpm-lock.yaml is regenerated to match. Because @types/node is a peer of several transitive packages (vite, sharp, @huggingface/transformers, @oh-my-pi/pi-coding-agent, protobufjs), the lockfile re-keys those snapshots onto the new version and pulls in a newer @babel/runtime (7.29.10) for @testing-library/dom. No runtime code, build config or published surface changes.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "fb1b0bfafa414652e81e6cd21041837318e28dd8",
+      "ref": "fb1b0bfafa414652e81e6cd21041837318e28dd8"
+    },
+    "pullRequest": {
+      "number": 302,
+      "url": "https://github.com/open-software-factory/software-factory/pull/302"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "integration-packages",
+      "label": "Integration packages",
+      "subtitle": "integrations/*",
+      "order": 0,
+      "summary": "The three workspace packages that ship editor/agent integrations. Each declares its own devDependency set."
+    },
+    {
+      "id": "workspace-tooling",
+      "label": "Workspace tooling",
+      "subtitle": "root importer",
+      "order": 1,
+      "summary": "The root workspace importer and its build/test toolchain that also resolves @types/node."
+    },
+    {
+      "id": "lockfile",
+      "label": "Lockfile",
+      "subtitle": "pnpm-lock.yaml",
+      "order": 2,
+      "summary": "The single resolved dependency graph shared by every importer in the workspace."
+    },
+    {
+      "id": "registry",
+      "label": "npm registry",
+      "subtitle": "external",
+      "order": 3,
+      "summary": "Upstream packages whose published versions and peer ranges the lockfile pins."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pkg-dsh",
+      "label": "integrations/dsh",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration-packages",
+      "subtitle": "@types/node 26.6.2 → 26.6.5",
+      "summary": "DeepSeek integration package. Only its devDependencies block changed: the @types/node pin moves to 26.6.5.",
+      "files": [
+        {
+          "path": "integrations/dsh/package.json",
+          "startLine": 30,
+          "endLine": 36
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pkg-omp",
+      "label": "integrations/omp",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration-packages",
+      "subtitle": "@types/node 26.6.2 → 26.6.5",
+      "summary": "oh-my-pi integration package. Its @types/node devDependency pin moves to 26.6.5; the @oh-my-pi/pi-coding-agent dependency is untouched but re-resolves against the new peer.",
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 20,
+          "endLine": 27
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pkg-opencode",
+      "label": "integrations/opencode",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "integration-packages",
+      "subtitle": "@types/node 26.6.2 → 26.6.5",
+      "summary": "opencode integration package. Same one-line devDependency bump; @opencode-ai/plugin stays at 1.18.34.",
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 26,
+          "endLine": 33
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "root-importer",
+      "label": "root workspace importer",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "workspace-tooling",
+      "subtitle": "vite + plugin-react + singlefile",
+      "summary": "The root importer's own package.json is not in the diff, but its lockfile entries are re-keyed because vite resolves @types/node as an optional peer.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 28,
+          "endLine": 40
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "vite-toolchain",
+      "label": "vite toolchain",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "workspace-tooling",
+      "subtitle": "vite 8.3.1, plugin-react 6.1.1, singlefile 2.3.3",
+      "summary": "Build toolchain snapshots whose peer key changes from @types/node@26.6.2 to 26.6.5. Versions themselves are unchanged.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2841,
+          "endLine": 2850
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3546,
+          "endLine": 3566
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "types-node",
+      "label": "@types/node",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "26.6.2 → 26.6.5",
+      "summary": "The single package whose version actually moves. It is a devDependency of all three integrations and an optional peer of vite, sharp, transformers and protobufjs, so its version string appears in many snapshot keys.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1093,
+          "endLine": 1097
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2777,
+          "endLine": 2781
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "babel-runtime",
+      "label": "@babel/runtime",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "7.29.7 → 7.29.10 for @testing-library/dom",
+      "summary": "A second, incidental resolution change: @testing-library/dom now depends on @babel/runtime 7.29.10, which is added as a new package entry and snapshot while 7.29.7 remains for other consumers.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 151,
+          "endLine": 158
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2756,
+          "endLine": 2762
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "peer-consumers",
+      "label": "peer consumers",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "sharp, transformers, pi-coding-agent, protobufjs",
+      "summary": "Packages that list @types/node as a peer or optional dependency. Their snapshot keys are rewritten to the new version; their own versions and dependency sets are unchanged.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2118,
+          "endLine": 2130
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2302,
+          "endLine": 2336
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3392,
+          "endLine": 3428
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "npm-registry",
+      "label": "npm registry",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "registry",
+      "summary": "Source of the published @types/node 26.6.5 and @babel/runtime 7.29.10 tarballs and their integrity hashes recorded in the lockfile.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "dsh-declares-types-node",
+      "from": "pkg-dsh",
+      "to": "types-node",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 26.6.5",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "integrations/dsh/package.json",
+          "startLine": 33,
+          "endLine": 33
+        }
+      ]
+    },
+    {
+      "id": "omp-declares-types-node",
+      "from": "pkg-omp",
+      "to": "types-node",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 26.6.5",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "integrations/omp/package.json",
+          "startLine": 23,
+          "endLine": 23
+        }
+      ]
+    },
+    {
+      "id": "opencode-declares-types-node",
+      "from": "pkg-opencode",
+      "to": "types-node",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "devDependency 26.6.5",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "integrations/opencode/package.json",
+          "startLine": 29,
+          "endLine": 29
+        }
+      ]
+    },
+    {
+      "id": "root-resolves-vite",
+      "from": "root-importer",
+      "to": "vite-toolchain",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer key re-resolved",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 28,
+          "endLine": 40
+        }
+      ]
+    },
+    {
+      "id": "vite-peers-types-node",
+      "from": "vite-toolchain",
+      "to": "types-node",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "optional peer",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3559,
+          "endLine": 3566
+        }
+      ]
+    },
+    {
+      "id": "consumers-peer-types-node",
+      "from": "peer-consumers",
+      "to": "types-node",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer / optional dep",
+      "emphasis": "hero",
+      "animated": false,
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3392,
+          "endLine": 3428
+        }
+      ]
+    },
+    {
+      "id": "testing-library-uses-babel-runtime",
+      "from": "peer-consumers",
+      "to": "babel-runtime",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "@testing-library/dom",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2756,
+          "endLine": 2762
+        }
+      ]
+    },
+    {
+      "id": "lockfile-pins-registry",
+      "from": "types-node",
+      "to": "npm-registry",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "integrity hash",
+      "emphasis": "normal",
+      "animated": false,
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1093,
+          "endLine": 1097
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "types-node-resolution",
+      "title": "How @types/node 26.6.5 reaches every importer",
+      "summary": "A version bump propagates from the three integration manifests through the shared lockfile, which re-keys every snapshot that names @types/node as a peer.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "pkg-dsh",
+          "label": "dsh"
+        },
+        {
+          "node": "pkg-omp",
+          "label": "omp"
+        },
+        {
+          "node": "pkg-opencode",
+          "label": "opencode"
+        },
+        {
+          "node": "types-node"
+        },
+        {
+          "node": "peer-consumers",
+          "label": "peer consumers"
+        },
+        {
+          "node": "npm-registry",
+          "label": "registry"
+        }
+      ],
+      "messages": [
+        {
+          "id": "dsh-bump",
+          "from": "pkg-dsh",
+          "to": "types-node",
+          "label": "pin 26.6.5",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "integrations/dsh/package.json",
+              "startLine": 33,
+              "endLine": 33
+            }
+          ]
+        },
+        {
+          "id": "omp-bump",
+          "from": "pkg-omp",
+          "to": "types-node",
+          "label": "pin 26.6.5",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "integrations/omp/package.json",
+              "startLine": 23,
+              "endLine": 23
+            }
+          ]
+        },
+        {
+          "id": "opencode-bump",
+          "from": "pkg-opencode",
+          "to": "types-node",
+          "label": "pin 26.6.5",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "integrations/opencode/package.json",
+              "startLine": 29,
+              "endLine": 29
+            }
+          ]
+        },
+        {
+          "id": "resolve-tarball",
+          "from": "types-node",
+          "to": "npm-registry",
+          "label": "fetch 26.6.5 tarball",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1093,
+              "endLine": 1097
+            }
+          ]
+        },
+        {
+          "id": "rekey-peers",
+          "from": "types-node",
+          "to": "peer-consumers",
+          "label": "peer key rewritten",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 3392,
+              "endLine": 3428
+            }
+          ]
+        },
+        {
+          "id": "lockfile-written",
+          "from": "peer-consumers",
+          "to": "types-node",
+          "label": "snapshots updated",
+          "kind": "return",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 2777,
+              "endLine": 2781
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 4,
+    "additions": 36,
+    "deletions": 30,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "architecture-overview",
+      "title": "Workspace dependency resolution",
+      "lens": "architecture",
+      "summary": "The three integration manifests, the root toolchain and the shared lockfile, with the @types/node bump as the only version that moves.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "lockfile-detail",
+      "title": "Lockfile: what re-keyed",
+      "lens": "architecture",
+      "summary": "Inside pnpm-lock.yaml: the @types/node entry, the peer consumers whose snapshot keys change, and the incidental @babel/runtime addition.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "types-node",
+          "peer-consumers",
+          "babel-runtime",
+          "vite-toolchain",
+          "npm-registry"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
