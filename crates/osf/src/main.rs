@@ -499,7 +499,8 @@ impl ReviewBindingArgs {
 
 #[derive(Args)]
 struct ReviewReduceArgs {
-    /// The saved reviewer files.
+    /// The saved reviewer files. A folder stands for the `.json` files
+    /// directly inside it.
     files: Vec<PathBuf>,
     #[command(flatten)]
     binding: ReviewBindingArgs,
@@ -2066,8 +2067,7 @@ fn review_slot_off(args: &ReviewRunArgs) -> u8 {
 
 /// The pull request's number, title and body, from the JSON file at `path`.
 fn load_pull_request(path: &Path) -> Result<osf::review_context::PullRequest, String> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
+    osf::review_context::PullRequest::load(path)
 }
 
 /// Prints `outcome`, writes SARIF and posts as asked, and returns the exit
@@ -2118,8 +2118,15 @@ fn review_reduce_exit_code(args: &ReviewReduceArgs) -> u8 {
         eprintln!("osf review reduce: a base is required: pass --base or set OSF_BASE");
         return 2;
     };
-    let mut runs = Vec::with_capacity(args.files.len());
-    for file in &args.files {
+    let files = match review_run::expand_saved_runs(&args.files) {
+        Ok(files) => files,
+        Err(e) => {
+            eprintln!("osf review reduce: {e}");
+            return 2;
+        }
+    };
+    let mut runs = Vec::with_capacity(files.len());
+    for file in &files {
         let name = file
             .file_stem()
             .and_then(std::ffi::OsStr::to_str)

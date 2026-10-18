@@ -39,7 +39,7 @@ use crate::reviewers::{self, Outcome, Reviewer};
 use crate::secret_values;
 use crate::{changeset_risk, config, git};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -259,6 +259,33 @@ impl ReviewerRun {
         let text = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
         serde_json::from_str(&text).map_err(|e| format!("{}: {e}", path.display()))
     }
+}
+
+/// Each saved reviewer file named in `paths`, in order. A folder stands for
+/// the `.json` files directly inside it, sorted by name.
+///
+/// # Errors
+/// Names the folder and the reason when one cannot be read.
+pub fn expand_saved_runs(paths: &[PathBuf]) -> Result<Vec<PathBuf>, String> {
+    let mut files = Vec::with_capacity(paths.len());
+    for path in paths {
+        if !path.is_dir() {
+            files.push(path.clone());
+            continue;
+        }
+        let mut inside = Vec::new();
+        let entries = std::fs::read_dir(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("{}: {e}", path.display()))?;
+            let file = entry.path();
+            if file.is_file() && file.extension().is_some_and(|ext| ext == "json") {
+                inside.push(file);
+            }
+        }
+        inside.sort();
+        files.extend(inside);
+    }
+    Ok(files)
 }
 
 /// Everything a run reads from the trusted config root and the repository
@@ -1747,6 +1774,19 @@ fn now_millis() -> u64 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_folder_of_saved_runs_expands_to_its_json_files_in_name_order() {
+        let dir = std::env::temp_dir().join(format!("osf-expand-runs-{}", std::process::id())); // osf: temp-dir allowed, a test folder named by this process id and removed at the end
+        std::fs::create_dir_all(dir.join("sub")).expect("temp folder");
+        for name in ["b.json", "a.json", "note.txt"] {
+            std::fs::write(dir.join(name), "{}").expect("write");
+        }
+        let single = std::path::PathBuf::from("single.json");
+        let files = super::expand_saved_runs(&[single.clone(), dir.clone()]).expect("expands");
+        assert_eq!(files, vec![single, dir.join("a.json"), dir.join("b.json")]);
+        std::fs::remove_dir_all(&dir).expect("clean up");
+    }
+
     use super::*;
     use crate::lenses::{Runs, SeverityGuide, Trigger};
 
