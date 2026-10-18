@@ -24,6 +24,7 @@ pub mod lenses;
 pub mod lints;
 pub mod marker;
 pub mod moon;
+pub mod pr_check;
 pub mod pr_status;
 pub mod pr_tree;
 pub mod process;

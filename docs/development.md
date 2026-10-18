@@ -200,6 +200,58 @@ Add this entry to your coding agent's settings file, alongside `Stop` and
 }
 ```
 
+## Check the pull request title and description
+
+The `hygiene` job in `.github/workflows/ci.yml` checks the title and the
+description of every pull request. It runs again when either one is
+edited. A run of an earlier event keeps the text it started with, even
+when you re-run it. Edit the text instead, and the edit starts a new run.
+
+The job reads the title and the description from the event payload file
+that `$GITHUB_EVENT_PATH` names. It never puts that text in a command line.
+`osf pr check` does the structural checks. It then writes the hand-written
+text to two files, and the job runs the same `osf scan` and
+`osf lint writing` as for the tracked files and the commit messages.
+Run it by hand with any event file:
+
+```sh
+osf pr check --event event.json --out-dir out
+osf scan --no-suppress --format human out/title.txt out/body.md
+osf lint writing --no-suppress --gate --format human --context commit out/title.txt
+osf lint writing --no-suppress --gate --format human --context document out/body.md
+```
+
+What it checks:
+
+| Check | Fails when |
+|---|---|
+| Title | The title is empty. |
+| Headings | The description lacks a `## ` heading that `.github/PULL_REQUEST_TEMPLATE.md` holds outside its comments and code fences. The list is read from the template, so a new heading there is required at once. |
+| Tool-written blocks | A block between `<!-- osf:NAME:start ... -->` and `<!-- osf:NAME:end -->` markers opens or closes more than once, or closes first. The names come from the template. |
+| `osf scan` | The title or the hand-written description holds a private name, a local path, a secret, a foreign reference, or a match for the private-name denylist. |
+| `osf lint writing` | The title, as a commit message, or the hand-written description has a writing error. A warning does not fail the check. |
+
+What it does not check:
+
+- Text between the markers of a tool-written block. The tools write those
+  blocks. Nothing checks that a tool wrote what sits between the markers.
+- That the text under a heading is right or complete. A heading with no
+  text under it passes.
+- The stack list at the end of a description, if a tool adds one, is not
+  cut out. It is checked as hand-written text.
+- Pull requests from `dependabot[bot]` and `renovate[bot]`. A service
+  writes their descriptions from release notes, so they have no template
+  headings and quote other projects. The job prints `NOT CHECKED` for
+  these. Their titles are not checked either.
+- A fork's pull request when no secret is available. The denylist is empty
+  then, so only the other rules run.
+- Comments on a pull request and the review text. `osf review` reads
+  those.
+
+The check runs the pull request's own copy of `osf` and its `osf.toml`, as
+the rest of the `hygiene` job does. The writing lint uses `--gate`, so the
+change cannot loosen the writing rules through its own configuration.
+
 ## Review at pre-push and the pull request
 
 A moon task named `review` runs `osf review run` at pre-push. It prints
