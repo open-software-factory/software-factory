@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "38436d59bc4c54445c040f28ae79531c070fe3e5",
+    "contentHash": "d35a16baa0d7024008321de3eb57e65f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "pr-text-gate-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "pr-text-gate-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "2bee8fc88576413091f46ae933894a0c",
+      "bytes": 21797,
+      "width": 1718,
+      "height": 770,
+      "animated": false,
+      "path": "pr-text-gate-architecture-light-2bee8fc88576413091f46ae933894a0c.svg"
+    },
+    {
+      "id": "pr-text-gate-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "pr-text-gate-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "e3a0651cff0da7f61239e7dcec84d8b6",
+      "bytes": 22055,
+      "width": 1718,
+      "height": 770,
+      "animated": false,
+      "path": "pr-text-gate-architecture-dark-e3a0651cff0da7f61239e7dcec84d8b6.svg"
+    },
+    {
+      "id": "pr-check-internals-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "pr-check-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "30bb5240ba7040c074b1b2e679be2900",
+      "bytes": 10768,
+      "width": 446,
+      "height": 646,
+      "animated": false,
+      "path": "pr-check-internals-light-30bb5240ba7040c074b1b2e679be2900.svg"
+    },
+    {
+      "id": "pr-check-internals-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "pr-check-internals",
+      "mediaType": "image/svg+xml",
+      "contentHash": "55d568e82129177712480cae4c7bb65d",
+      "bytes": 10912,
+      "width": 446,
+      "height": 646,
+      "animated": false,
+      "path": "pr-check-internals-dark-55d568e82129177712480cae4c7bb65d.svg"
+    },
+    {
+      "id": "pr-text-gate-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "pr-text-gate-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "fd4ff2abd96db251f531a22e9fd67582",
+      "bytes": 13142,
+      "width": 1526,
+      "height": 407,
+      "animated": true,
+      "path": "pr-text-gate-flow-light-fd4ff2abd96db251f531a22e9fd67582.svg"
+    },
+    {
+      "id": "pr-text-gate-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "pr-text-gate-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "a4306b0d70614b8073e701cace0ecda9",
+      "bytes": 13264,
+      "width": 1526,
+      "height": 407,
+      "animated": true,
+      "path": "pr-text-gate-flow-dark-a4306b0d70614b8073e701cace0ecda9.svg"
+    }
+  ]
+}

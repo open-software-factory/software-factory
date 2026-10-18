@@ -1,0 +1,695 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T06:07:09.252Z",
+  "title": "PR title and description gate in the hygiene job",
+  "summary": "Adds `osf pr check`, a new subcommand that reads a pull request event payload and the repository's PR template, verifies the title is non-empty, that every `## ` heading the template requires is present, and that each tool-written `<!-- osf:NAME:start/end -->` block pairs up exactly once. It then writes the hand-written title and body to `title.txt` and `body.md` so the existing `osf scan` and `osf lint writing` checks can run over them, and the CI `hygiene` job wires this in, re-running on `edited` events and exempting dependency-update bots.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "38436d59bc4c54445c040f28ae79531c070fe3e5",
+      "ref": "38436d59bc4c54445c040f28ae79531c070fe3e5"
+    },
+    "pullRequest": {
+      "number": 307,
+      "url": "https://github.com/open-software-factory/software-factory/pull/307"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "ci",
+      "label": "CI runner",
+      "subtitle": "GitHub Actions",
+      "order": 0,
+      "summary": "The hygiene job that runs on pull request events and shells out to the built `osf` binary."
+    },
+    {
+      "id": "osf-cli",
+      "label": "osf CLI",
+      "subtitle": "crates/osf",
+      "order": 1,
+      "summary": "The command surface: `pr check` plus the existing `scan` and `lint writing` commands it hands off to."
+    },
+    {
+      "id": "pr-check",
+      "label": "pr_check module",
+      "subtitle": "structural checks",
+      "order": 2,
+      "summary": "Pure functions that read the template, strip tool-written blocks and compare headings."
+    },
+    {
+      "id": "inputs",
+      "label": "Inputs",
+      "subtitle": "event payload, template, denylist",
+      "order": 3,
+      "summary": "Files and secrets the job reads: the event payload on disk, the PR template, and the private-name denylist secret."
+    }
+  ],
+  "nodes": [
+    {
+      "id": "hygiene-job",
+      "label": "hygiene job",
+      "kind": "job",
+      "delta": "modified",
+      "lane": "ci",
+      "subtitle": "ci.yml",
+      "summary": "The existing hygiene job gains a step that runs `osf pr check` on the event payload, then `osf scan` and `osf lint writing` on the files it writes. It now also triggers on `edited` so a description edit re-runs the checks.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 131,
+          "endLine": 162
+        }
+      ],
+      "badges": [
+        "edited trigger"
+      ]
+    },
+    {
+      "id": "event-payload",
+      "label": "Event payload",
+      "kind": "datastore",
+      "delta": "unchanged",
+      "lane": "inputs",
+      "subtitle": "$GITHUB_EVENT_PATH",
+      "summary": "The JSON file GitHub writes for the event. Holds `pull_request.title`, `pull_request.body` and `pull_request.user.login`. Attacker-controlled, so it is read from disk and never interpolated into a command line.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pr-template",
+      "label": "PR template",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "inputs",
+      "subtitle": ".github/PULL_REQUEST_TEMPLATE.md",
+      "summary": "The source of truth for required `## ` headings and for the names of tool-written blocks. Both lists are read from it, never copied into code.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "denylist-secret",
+      "label": "Private-name denylist",
+      "kind": "config",
+      "delta": "unchanged",
+      "lane": "inputs",
+      "subtitle": "OSF_DENYLIST",
+      "summary": "A repository secret passed to the scan step. Empty on fork pull requests, in which case only the other scan rules run.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "pr-check-cmd",
+      "label": "pr check",
+      "kind": "function",
+      "delta": "added",
+      "lane": "osf-cli",
+      "subtitle": "pr_check_cmd",
+      "summary": "Reads the event and template, parses the payload, applies author exemptions, calls `pr_check::check`, writes `title.txt` and `body.md`, and maps problems to exit code 1 (or 2 for usage errors).",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2909,
+          "endLine": 2995
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scan-cmd",
+      "label": "osf scan",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "private names, paths, secrets",
+      "summary": "The existing scanner, now pointed at the two files `pr check` writes instead of tracked files.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 150,
+          "endLine": 151
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "lint-writing-cmd",
+      "label": "osf lint writing",
+      "kind": "function",
+      "delta": "unchanged",
+      "lane": "osf-cli",
+      "subtitle": "--context commit / document",
+      "summary": "The existing writing lint, run with `--gate` on the title as a commit message and on the body as a document.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 152,
+          "endLine": 153
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "check-fn",
+      "label": "check",
+      "kind": "function",
+      "delta": "added",
+      "lane": "pr-check",
+      "subtitle": "check(title, body, template)",
+      "summary": "Orchestrates the structural checks: empty title, strip tool blocks, then compare required headings against those present. Returns `HandWritten` or every `Problem` found.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_check.rs",
+          "startLine": 216,
+          "endLine": 252
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "strip-generated",
+      "label": "strip_generated",
+      "kind": "function",
+      "delta": "added",
+      "lane": "pr-check",
+      "subtitle": "cut tool blocks",
+      "summary": "Removes each named tool-written block between its start and end markers, replacing it with a newline. Errors when markers do not pair once each or the end comes first.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_check.rs",
+          "startLine": 160,
+          "endLine": 190
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "headings-fn",
+      "label": "headings",
+      "kind": "function",
+      "delta": "added",
+      "lane": "pr-check",
+      "subtitle": "visible ## lines",
+      "summary": "Returns every `## ` heading outside HTML comments and fenced code blocks, so a heading hidden in either does not satisfy the template.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_check.rs",
+          "startLine": 110,
+          "endLine": 118
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "generated-block-names",
+      "label": "generated_block_names",
+      "kind": "function",
+      "delta": "added",
+      "lane": "pr-check",
+      "subtitle": "from template markers",
+      "summary": "Scans the template for `<!-- osf:NAME:start` markers and returns the distinct block names, so the block list is derived from the template rather than hard-coded.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_check.rs",
+          "startLine": 124,
+          "endLine": 140
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "marker-mod",
+      "label": "marker",
+      "kind": "module",
+      "delta": "unchanged",
+      "lane": "pr-check",
+      "subtitle": "find_starts / find_ends",
+      "summary": "The existing marker helpers that locate `osf:NAME:start` and `osf:NAME:end` comments in a description.",
+      "files": [
+        {
+          "path": "crates/osf/src/marker.rs"
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "pr-check-tests",
+      "label": "pr_check tests",
+      "kind": "test",
+      "delta": "added",
+      "lane": "pr-check",
+      "subtitle": "unit + end-to-end",
+      "summary": "Unit tests for headings, block names, stripping and the check itself, plus end-to-end tests that run the real binary against fixtures and the repository's real template.",
+      "files": [
+        {
+          "path": "crates/osf/src/pr_check.rs",
+          "startLine": 254,
+          "endLine": 326
+        },
+        {
+          "path": "crates/osf/tests/pr_check.rs",
+          "startLine": 1,
+          "endLine": 281
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "fixtures",
+      "label": "pr-description fixtures",
+      "kind": "test",
+      "delta": "added",
+      "lane": "pr-check",
+      "subtitle": "good, missing-heading, puffery, …",
+      "summary": "Markdown bodies with placeholders for a local path, a puffery sentence and a denylisted name, so no tracked file holds the strings the repository scan would flag.",
+      "files": [
+        {
+          "path": "crates/osf/tests/fixtures/pr-description/good.md"
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "hygiene-runs-pr-check",
+      "from": "hygiene-job",
+      "to": "pr-check-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "./target/release/osf pr check",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The new step invokes the built binary with the event path and an output directory, exempting dependabot and renovate.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 141,
+          "endLine": 147
+        }
+      ]
+    },
+    {
+      "id": "hygiene-runs-scan",
+      "from": "hygiene-job",
+      "to": "scan-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "on title.txt + body.md",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "After `pr check` writes the files, the job runs the same scan as for tracked files.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 150,
+          "endLine": 151
+        }
+      ]
+    },
+    {
+      "id": "hygiene-runs-lint",
+      "from": "hygiene-job",
+      "to": "lint-writing-cmd",
+      "kind": "call",
+      "delta": "added",
+      "label": "--gate",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The writing lint runs twice: title as a commit message, body as a document.",
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "startLine": 152,
+          "endLine": 153
+        }
+      ]
+    },
+    {
+      "id": "pr-check-reads-event",
+      "from": "pr-check-cmd",
+      "to": "event-payload",
+      "kind": "data",
+      "delta": "added",
+      "label": "read JSON",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The command reads the payload file from disk and pulls out title, body and author login.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2910,
+          "endLine": 2955
+        }
+      ]
+    },
+    {
+      "id": "pr-check-reads-template",
+      "from": "pr-check-cmd",
+      "to": "pr-template",
+      "kind": "data",
+      "delta": "added",
+      "label": "headings + block names",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The template supplies both the required headings and the tool-block names.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2910,
+          "endLine": 2915
+        }
+      ]
+    },
+    {
+      "id": "pr-check-calls-check",
+      "from": "pr-check-cmd",
+      "to": "check-fn",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The command delegates the structural checks to the module.",
+      "files": [
+        {
+          "path": "crates/osf/src/main.rs",
+          "startLine": 2960,
+          "endLine": 2970
+        }
+      ]
+    },
+    {
+      "id": "check-calls-strip",
+      "from": "check-fn",
+      "to": "strip-generated",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Tool-written blocks are cut out before headings are compared.",
+      "files": []
+    },
+    {
+      "id": "check-calls-headings",
+      "from": "check-fn",
+      "to": "headings-fn",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Required and present headings are both computed with the same function.",
+      "files": []
+    },
+    {
+      "id": "check-calls-names",
+      "from": "check-fn",
+      "to": "generated-block-names",
+      "kind": "call",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The block names to strip come from the template.",
+      "files": []
+    },
+    {
+      "id": "strip-uses-marker",
+      "from": "strip-generated",
+      "to": "marker-mod",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Marker positions are found with the existing helpers.",
+      "files": []
+    },
+    {
+      "id": "scan-reads-denylist",
+      "from": "scan-cmd",
+      "to": "denylist-secret",
+      "kind": "data",
+      "delta": "unchanged",
+      "label": "OSF_DENYLIST",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The scan consults the denylist secret when it is present.",
+      "files": []
+    },
+    {
+      "id": "tests-cover-check",
+      "from": "pr-check-tests",
+      "to": "check-fn",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Unit and end-to-end tests exercise the check against fixtures and the real template.",
+      "files": []
+    },
+    {
+      "id": "tests-use-fixtures",
+      "from": "pr-check-tests",
+      "to": "fixtures",
+      "kind": "dependency",
+      "delta": "added",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Fixture bodies are substituted and fed through the real binary.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "pr-text-gate",
+      "title": "Pull request text through the gate",
+      "summary": "How a pull request's title and description travel from the event payload to the scan and writing lint, with tool-written blocks removed on the way.",
+      "delta": "added",
+      "participants": [
+        {
+          "node": "event-payload"
+        },
+        {
+          "node": "pr-check-cmd"
+        },
+        {
+          "node": "check-fn"
+        },
+        {
+          "node": "scan-cmd"
+        },
+        {
+          "node": "lint-writing-cmd"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-event",
+          "from": "event-payload",
+          "to": "pr-check-cmd",
+          "label": "pull_request.title / body / user.login",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "serde_json::Value",
+              "shape": "{ pull_request: { title: string, body: string | null, user: { login: string } } }",
+              "sample": {
+                "pull_request": {
+                  "title": "Reject unsigned tokens at the gate",
+                  "body": "## What and why\n\nText.\n\n<!-- osf:pr-lens:start head=0123abc -->\nA diagram block written by a tool.\n<!-- osf:pr-lens:end -->\n\n## Testing notes\n\nMore.\n",
+                  "user": {
+                    "login": "someone"
+                  }
+                }
+              },
+              "source": {
+                "path": "crates/osf/tests/pr_check.rs",
+                "startLine": 60,
+                "endLine": 75
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "exempt-check",
+          "from": "pr-check-cmd",
+          "to": "pr-check-cmd",
+          "label": "author exempt?",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "A login in `--exempt-author` short-circuits with NOT CHECKED and writes nothing.",
+          "files": []
+        },
+        {
+          "id": "call-check",
+          "from": "pr-check-cmd",
+          "to": "check-fn",
+          "label": "check(title, body, template)",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "(&str, &str, &str)",
+              "shape": "title, body, template",
+              "sample": [
+                "Reject unsigned tokens at the gate",
+                "## What and why\n\nText.\n\n<!-- osf:pr-lens:start head=0123abc -->\nA diagram block written by a tool.\n<!-- osf:pr-lens:end -->\n\n## Testing notes\n\nMore.\n",
+                "Issue: link\n\n## What and why\n\n<!-- osf:pr-lens:start head=<sha> -->\n<!-- osf:pr-lens:end -->\n\n## Testing notes\n"
+              ],
+              "changedPaths": []
+            },
+            "response": {
+              "type": "Result<HandWritten, Vec<Problem>>",
+              "shape": "Ok(HandWritten { title, body }) | Err(Vec<Problem>)",
+              "sample": {
+                "title": "Reject unsigned tokens at the gate",
+                "body": "## What and why\n\nText.\n\n\n## Testing notes\n\nMore.\n"
+              },
+              "source": {
+                "path": "crates/osf/src/pr_check.rs",
+                "startLine": 216,
+                "endLine": 252
+              },
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "write-files",
+          "from": "pr-check-cmd",
+          "to": "pr-check-cmd",
+          "label": "write title.txt + body.md",
+          "kind": "self",
+          "delta": "added",
+          "animated": true,
+          "note": "Written even when a structural check fails, unless a tool block is malformed.",
+          "files": []
+        },
+        {
+          "id": "scan-files",
+          "from": "pr-check-cmd",
+          "to": "scan-cmd",
+          "label": "out/title.txt out/body.md",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "[PathBuf; 2]",
+              "shape": "title.txt, body.md",
+              "sample": [
+                "out/title.txt",
+                "out/body.md"
+              ],
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "lint-files",
+          "from": "pr-check-cmd",
+          "to": "lint-writing-cmd",
+          "label": "--context commit / document",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [],
+          "payload": {
+            "request": {
+              "type": "[PathBuf; 2]",
+              "shape": "title.txt (commit), body.md (document)",
+              "sample": [
+                "out/title.txt",
+                "out/body.md"
+              ],
+              "changedPaths": []
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 13,
+    "additions": 970,
+    "deletions": 1,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "pr-text-gate-architecture",
+      "title": "PR text gate",
+      "lens": "architecture",
+      "summary": "The hygiene job, the osf commands it runs, the pr_check module behind them, and the files and secrets they read.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "pr-check-internals",
+      "title": "Inside pr_check",
+      "lens": "architecture",
+      "summary": "The pure functions that make up the structural check and the existing marker helpers they lean on.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "check-fn",
+          "strip-generated",
+          "headings-fn",
+          "generated-block-names",
+          "marker-mod",
+          "pr-check-tests",
+          "fixtures"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "pr-text-gate-flow",
+          "title": "Title and description through the gate",
+          "lens": "data-flow",
+          "summary": "The ordered path from event payload to scan and writing lint, with tool blocks stripped in between.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [],
+            "edges": [],
+            "flows": [
+              "pr-text-gate"
+            ]
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
