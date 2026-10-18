@@ -30,11 +30,106 @@ the main clone's `.git` by its absolute path on the host. Mounting only
 the worktree at `/workspace` breaks every git command inside the
 container, because that absolute path does not exist there.
 
-Mount the main clone's `.git` directory read-only at the same absolute
-path inside the container that it has on the host. Add this alongside
-the worktree mount at `/workspace`, in `devcontainer.json`'s `mounts` or
-on `docker run`'s own `-v`. Git then finds the path its worktree file
-already names, unchanged.
+Mount the main clone's `.git` directory at the same absolute path inside
+the container that it has on the host. Add this alongside the worktree
+mount at `/workspace`, in `devcontainer.json`'s `mounts` or on
+`docker run`'s own `-v`. Git then finds the path its worktree file
+already names, unchanged. Mount it read-write when you commit in the
+container, because a commit writes objects, refs, and this worktree's
+own files under it. [One container per worktree](#one-container-per-worktree)
+shows how to keep the shared config file read-only on top of that.
+
+## One container per worktree
+
+Run each worktree's build, test, and git work in its own container, so
+two worktrees never share a process, a scratch folder, or a leaked
+setting. `.devcontainer/worktree-container` starts and drives one. It
+is a POSIX `sh` script that calls `docker` (or the engine named in
+`OSF_CONTAINER_ENGINE`) and `git`. It is not an osf command: osf starts
+no container in this release, and the person or orchestrator supplies it.
+
+What a container holds:
+
+| Mount | Where | Access |
+|---|---|---|
+| The worktree | `/workspace` | read-write |
+| The main clone's `.git` directory | its host path | read-write |
+| The main clone's `.git/config` file | its host path | read-only, over the line above |
+
+Nothing else comes from the host. The real home folder and every login
+folder stay out. `HOME` is the image's own home for its `dev` user, and
+goes away with the container. The name is `osf-wt-<folder>-<checksum of
+the full path>`, so two worktrees never share a container, even when
+their folders have the same name.
+
+Build the image once, then start a container and run commands in it:
+
+```sh
+docker build -t osf-devcontainer -f .devcontainer/Dockerfile .
+# or: export OSF_IMAGE=<the pinned image you pulled>
+
+W=/path/to/worktree
+.devcontainer/worktree-container start "$W"
+.devcontainer/worktree-container exec "$W" -- git status
+.devcontainer/worktree-container exec "$W" -- cargo fmt --all -- --check
+.devcontainer/worktree-container exec "$W" -- cargo clippy --workspace --all-targets -- -D warnings
+.devcontainer/worktree-container exec "$W" -- cargo test --workspace
+.devcontainer/worktree-container stop "$W"
+```
+
+Leave `"$W"` out to use the current directory's worktree. Start as many
+worktrees as you like. Each gets its own container, and they run side by
+side.
+
+Set the commit identity once per worktree, in the worktree's own scope.
+The shared config is read-only, so `--worktree` is the only scope that
+works, and the repository already enables it:
+
+```sh
+.devcontainer/worktree-container exec "$W" -- git config --worktree user.name "<builder app name>"
+.devcontainer/worktree-container exec "$W" -- git config --worktree user.email "<bot user id>+<slug>[bot]@users.noreply.github.com"
+```
+
+To push or call `gh`, set the builder's token in the same shell call.
+The script passes `GH_TOKEN` by name, so the value is in no argument and
+no file. A token from an app lasts about an hour, so pass a fresh one
+on each call rather than only at `start`:
+
+```sh
+GH_TOKEN=<token from your token tool> .devcontainer/worktree-container exec "$W" -- \
+  sh -c 'gh auth setup-git && git push https://github.com/<owner>/<repo>.git HEAD:refs/heads/<branch>'
+```
+
+Push with a full URL and a `HEAD:refs/heads/<branch>` refspec. A push
+with `-u` or a `git town` command writes branch settings to the shared
+config, and fails (see below).
+
+What is covered:
+
+- A POSIX shell with `git` and a Docker-compatible engine on Linux, macOS,
+  and Windows through WSL. The image is Linux, so the container is too.
+- The git wrapper and the forced hooks path apply, because the worktree
+  is mounted at `/workspace`.
+
+What is not covered:
+
+- A native Windows shell, and Git Bash on Windows: it rewrites the mount
+  paths. Use WSL.
+- A host user whose id is not 1000. The image's `dev` user is 1000, so
+  files in the worktree would be owned by another id.
+- Podman: the script uses only options both engines share, but no test
+  has run it there.
+- A change to the shared config. Anything that writes a branch's tracking
+  or `git town` parent, such as `git push -u`, `git branch --set-upstream-to`,
+  or `git town hack`, fails with `Device or resource busy`. Do those on
+  the host, outside the container, or avoid them. This is the point of
+  the read-only mount.
+- A hook or a script in the shared `.git/hooks` directory: it is
+  read-write. The wrapper forces the hooks path, so git does not run it,
+  but a process can still write there.
+- Network limits: the container has the engine's default network.
+- An image tag: the script defaults to `osf-devcontainer:latest` and does
+  not build or pull it.
 
 ## What the hooks check
 

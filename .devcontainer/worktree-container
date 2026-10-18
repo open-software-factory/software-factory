@@ -43,12 +43,12 @@ if [ "$#" -gt 0 ] && [ "$1" != "--" ]; then
 fi
 
 worktree=$(git -C "${worktree_arg:-.}" rev-parse --show-toplevel)
-common=$(cd "$(git -C "$worktree" rev-parse --git-common-dir)" && pwd -P)
 if [ -d "$worktree/.git" ]; then
   echo "worktree-container: $worktree is a main clone, not a linked worktree." >&2
   echo "Add a worktree with 'git worktree add' and pass that." >&2
   exit 1
 fi
+common=$(cd "$worktree" && cd "$(git rev-parse --git-common-dir)" && pwd -P)
 
 # The name carries the folder name for a person and a checksum of the full
 # path so two worktrees with the same folder name never share a container.
