@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "f24b567bc95c784487d50a74543f69924fb5d4a4",
+    "contentHash": "421c6894ca5074cf03b75bf110f9dac5"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "reviewer-launch-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "reviewer-launch",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c74a99b800d2c1e7d5db0085bf17a023",
+      "bytes": 24469,
+      "width": 1753,
+      "height": 760,
+      "animated": false,
+      "path": "reviewer-launch-light-c74a99b800d2c1e7d5db0085bf17a023.svg"
+    },
+    {
+      "id": "reviewer-launch-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "reviewer-launch",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3d1f757c45d1181e20134fd74c71bef7",
+      "bytes": 24779,
+      "width": 1753,
+      "height": 760,
+      "animated": false,
+      "path": "reviewer-launch-dark-3d1f757c45d1181e20134fd74c71bef7.svg"
+    },
+    {
+      "id": "credential-gate-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "credential-gate",
+      "mediaType": "image/svg+xml",
+      "contentHash": "358a535a36c99f0c92b1ddafdadedceb",
+      "bytes": 9858,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "credential-gate-light-358a535a36c99f0c92b1ddafdadedceb.svg"
+    },
+    {
+      "id": "credential-gate-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "credential-gate",
+      "mediaType": "image/svg+xml",
+      "contentHash": "23c90d2c9989a9a5963860f3b7f788af",
+      "bytes": 9961,
+      "width": 1284,
+      "height": 532,
+      "animated": false,
+      "path": "credential-gate-dark-23c90d2c9989a9a5963860f3b7f788af.svg"
+    },
+    {
+      "id": "reviewer-launch-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "reviewer-launch-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "54fa86b1e339ecec3125d3abbc1636b2",
+      "bytes": 14667,
+      "width": 2121,
+      "height": 429,
+      "animated": true,
+      "path": "reviewer-launch-flow-light-54fa86b1e339ecec3125d3abbc1636b2.svg"
+    },
+    {
+      "id": "reviewer-launch-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "reviewer-launch-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "023ebafbf82d02c75a91386ec52f73f6",
+      "bytes": 14814,
+      "width": 2121,
+      "height": 429,
+      "animated": true,
+      "path": "reviewer-launch-flow-dark-023ebafbf82d02c75a91386ec52f73f6.svg"
+    }
+  ]
+}

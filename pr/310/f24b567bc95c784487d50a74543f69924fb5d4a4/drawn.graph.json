@@ -1,0 +1,785 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T06:40:15.116Z",
+  "title": "Reviewers sign in by key variable only",
+  "summary": "The reviewer launch path stops copying login files out of the real home. `login_paths` disappears from the agent list and from `Reviewer`, `RunHome::seed_login` and its copy helpers are deleted, and `run_one_noted` collapses back into `run_one` with an empty notes list. In their place a single gate, `missing_credential`, runs before any child is spawned: a reviewer whose `credential_env` is empty, or none of whose variables is set to a non-empty value, returns could-not-run with a reason that names the variable and never its value. Tests and docs move with it — the fake harnesses now declare a dummy key, and the docs state that osf never copies a login file.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "f24b567bc95c784487d50a74543f69924fb5d4a4",
+      "ref": "f24b567bc95c784487d50a74543f69924fb5d4a4"
+    },
+    "pullRequest": {
+      "number": 310,
+      "url": "https://github.com/open-software-factory/software-factory/pull/310"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "callers",
+      "label": "Review orchestration",
+      "subtitle": "crates/osf",
+      "order": 0
+    },
+    {
+      "id": "reviewers",
+      "label": "Reviewer launch",
+      "subtitle": "crates/osf/src/reviewers.rs",
+      "order": 1
+    },
+    {
+      "id": "agent-list",
+      "label": "Agent registry",
+      "subtitle": "crates/osf/src/agents.rs",
+      "order": 2
+    },
+    {
+      "id": "harness",
+      "label": "Agent harness process",
+      "subtitle": "child process, fresh home",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "review-run",
+      "label": "review_run",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "callers",
+      "subtitle": "Attempts::run",
+      "summary": "Drives one reviewer attempt and records the outcome. It no longer asks for notes: it calls `reviewers::run_one` and stores an empty notes vector, since the only note source (a missing login path) is gone.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 185,
+          "endLine": 195
+        },
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 691,
+          "endLine": 715
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "attempt-record",
+      "label": "Attempt",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "callers",
+      "subtitle": "result, reason, notes",
+      "summary": "The per-attempt record. Its `notes` field stays in the shape but is now always empty; the doc comment drops the login-path example. A credential failure arrives as `result: could-not-run` with the reason string instead.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 180,
+          "endLine": 195
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-one",
+      "label": "run_one",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "pub fn run_one(..) -> Outcome",
+      "summary": "The public entry point. It is now a thin wrapper over `run_with_retry`; the `run_one_noted` variant that returned notes is deleted, so callers get an `Outcome` and nothing else.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 340,
+          "endLine": 352
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-with-retry",
+      "label": "run_with_retry",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "read-only check, credential gate, retry",
+      "summary": "Checks the reviewer has a read-only mode, then the new credential gate, then runs the child and retries once on an invalid answer. It no longer threads `real_home` or a notes buffer through to the child.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 374,
+          "endLine": 430
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "missing-credential",
+      "label": "missing_credential",
+      "kind": "function",
+      "delta": "added",
+      "lane": "reviewers",
+      "subtitle": "fn missing_credential(&Reviewer) -> Option<String>",
+      "summary": "The new gate. Returns a reason when `credential_env` is empty, or when none of its variables is set to a non-empty value; returns `None` when one is. The reason names the variable or variables and never the value.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 351,
+          "endLine": 372
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "prepare-command",
+      "label": "prepare_command",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "builds Command + RunHome",
+      "summary": "Creates the fresh home and assembles the child command with a cleared environment. It no longer seeds login files and no longer returns notes, so its signature loses `real_home` and the notes vector.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 496,
+          "endLine": 522
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-child",
+      "label": "run_child",
+      "kind": "function",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "one harness invocation",
+      "summary": "Writes the prompt and schema temp files, prepares the command, spawns the harness and captures its output. The `real_home` and `notes` parameters are gone; the doc comment now says the home is empty and no login file is ever copied.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 524,
+          "endLine": 600
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "run-home",
+      "label": "RunHome",
+      "kind": "module",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "fresh home, removed on drop",
+      "summary": "The temporary home a reviewer runs in. `seed_login` and the `real_home`/`copy_login`/`copy_dir` helpers are deleted, leaving create, apply, apply_temp and the drop-time removal.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 300,
+          "endLine": 320
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewer-struct",
+      "label": "Reviewer",
+      "kind": "other",
+      "delta": "modified",
+      "lane": "reviewers",
+      "subtitle": "credential_env, no login_paths",
+      "summary": "The runtime reviewer description. The `login_paths` field is removed and `credential_env`'s doc now states the reviewer does not start when none of its variables is set or the list is empty.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 55,
+          "endLine": 70
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "agents-list",
+      "label": "AGENTS",
+      "kind": "datastore",
+      "delta": "modified",
+      "lane": "agent-list",
+      "subtitle": "the one list of agents",
+      "summary": "The static registry of drivable agents. Every `login_paths` entry is dropped from the five review blocks, and the `Review` struct loses the field; `credential_env` is now the only sign-in channel. omp keeps an empty list, so it can never start as a reviewer.",
+      "files": [
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 95,
+          "endLine": 110
+        },
+        {
+          "path": "crates/osf/src/agents.rs",
+          "startLine": 280,
+          "endLine": 460
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "harness-process",
+      "label": "Agent harness",
+      "kind": "external",
+      "delta": "unchanged",
+      "lane": "harness",
+      "subtitle": "codex, claude, opencode, dsh",
+      "summary": "The coding-agent CLI osf spawns headless. It starts with an allow-listed environment, its own credential variable, and a fresh empty home; it signs in through the key alone.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 524,
+          "endLine": 545
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "reviewers-tests",
+      "label": "reviewers tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "reviewers",
+      "group": "tests",
+      "subtitle": "unit tests",
+      "summary": "The login-copying tests are replaced by credential-gate tests: every reviewing agent without its key reports could-not-run and never starts, an empty variable counts as unset, and no agent's home holds a login file even when the real home is unreadable.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 1187,
+          "endLine": 1366
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "integration-tests",
+      "label": "integration tests",
+      "kind": "test",
+      "delta": "modified",
+      "lane": "callers",
+      "group": "tests",
+      "subtitle": "tests/review_run.rs, tests/reviewers.rs",
+      "summary": "The fakes now supply a dummy value for every agent's credential variable, and the fake reviewer declares `OSF_FAKE_REVIEWER_KEY`, so the new gate does not stop the harnesses the tests rely on.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_run.rs",
+          "startLine": 411,
+          "endLine": 424
+        },
+        {
+          "path": "crates/osf/tests/reviewers.rs",
+          "startLine": 88,
+          "endLine": 126
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "docs",
+      "label": "Docs and ADRs",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "agent-list",
+      "group": "docs",
+      "subtitle": "README, development.md, 0016, 0020",
+      "summary": "Prose follows the code: osf never copies a login file, a reviewer signs in only through its key variable, and a missing variable means could-not-run with the variable named. The agent table gains a per-agent key-variable column.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 340,
+          "endLine": 350
+        },
+        {
+          "path": "docs/architecture/decisions/0016-the-review-check.md",
+          "startLine": 177,
+          "endLine": 181
+        },
+        {
+          "path": "docs/architecture/decisions/0020-who-can-post-a-review-result.md",
+          "startLine": 2,
+          "endLine": 2
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "review-run-calls-run-one",
+      "from": "review-run",
+      "to": "run-one",
+      "kind": "call",
+      "delta": "modified",
+      "label": "run_one(..)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The attempt loop calls the simplified entry point and no longer receives notes back.",
+      "files": [
+        {
+          "path": "crates/osf/src/review_run.rs",
+          "startLine": 691,
+          "endLine": 700
+        }
+      ]
+    },
+    {
+      "id": "run-one-calls-retry",
+      "from": "run-one",
+      "to": "run-with-retry",
+      "kind": "call",
+      "delta": "modified",
+      "label": "Outcome",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "`run_one` is now just `run_with_retry`, with no notes wrapper around it.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 348,
+          "endLine": 352
+        }
+      ]
+    },
+    {
+      "id": "retry-calls-missing-credential",
+      "from": "run-with-retry",
+      "to": "missing-credential",
+      "kind": "call",
+      "delta": "added",
+      "label": "gate before spawn",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The connection the change is really about: before any child is prepared, the run asks whether the reviewer has a credential and returns could-not-run when it does not.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 389,
+          "endLine": 394
+        }
+      ]
+    },
+    {
+      "id": "retry-calls-run-child",
+      "from": "run-with-retry",
+      "to": "run-child",
+      "kind": "call",
+      "delta": "modified",
+      "label": "first run and retry",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Both the first attempt and the retry call `run_child` without a real home or notes buffer.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 412,
+          "endLine": 430
+        }
+      ]
+    },
+    {
+      "id": "run-child-calls-prepare",
+      "from": "run-child",
+      "to": "prepare-command",
+      "kind": "call",
+      "delta": "modified",
+      "label": "(Command, RunHome)",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The child asks for a prepared command and home; the tuple no longer carries notes.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 577,
+          "endLine": 585
+        }
+      ]
+    },
+    {
+      "id": "prepare-creates-home",
+      "from": "prepare-command",
+      "to": "run-home",
+      "kind": "call",
+      "delta": "modified",
+      "label": "RunHome::create",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The home is created empty and nothing is seeded into it; the seeding path is deleted.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 500,
+          "endLine": 505
+        }
+      ]
+    },
+    {
+      "id": "run-child-spawns-harness",
+      "from": "run-child",
+      "to": "harness-process",
+      "kind": "other",
+      "delta": "unchanged",
+      "label": "spawn, stdin prompt",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The harness is spawned with the allow-listed environment and its own credential variable, in the empty home.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 585,
+          "endLine": 600
+        }
+      ]
+    },
+    {
+      "id": "reviewer-struct-from-agents",
+      "from": "reviewer-struct",
+      "to": "agents-list",
+      "kind": "data",
+      "delta": "modified",
+      "label": "from_agent",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "A `Reviewer` is built from an `AGENTS` entry; the `login_paths` copy is gone, so `credential_env` is the only sign-in data carried across.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 100,
+          "endLine": 112
+        }
+      ]
+    },
+    {
+      "id": "missing-credential-reads-env",
+      "from": "missing-credential",
+      "to": "reviewer-struct",
+      "kind": "data",
+      "delta": "added",
+      "label": "credential_env",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The gate reads the reviewer's declared variable names and checks the process environment for a non-empty value.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 351,
+          "endLine": 372
+        }
+      ]
+    },
+    {
+      "id": "unit-tests-cover-gate",
+      "from": "reviewers-tests",
+      "to": "missing-credential",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "no key, no start",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "New tests assert every reviewing agent without its key reports could-not-run and that the harness never starts.",
+      "files": [
+        {
+          "path": "crates/osf/src/reviewers.rs",
+          "startLine": 1200,
+          "endLine": 1250
+        }
+      ]
+    },
+    {
+      "id": "integration-tests-cover-run-one",
+      "from": "integration-tests",
+      "to": "run-one",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "dummy keys",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The integration fakes set a dummy value for each agent's credential variable so the new gate lets the fake harnesses run.",
+      "files": [
+        {
+          "path": "crates/osf/tests/review_run.rs",
+          "startLine": 411,
+          "endLine": 424
+        }
+      ]
+    },
+    {
+      "id": "docs-describe-gate",
+      "from": "docs",
+      "to": "missing-credential",
+      "kind": "other",
+      "delta": "modified",
+      "label": "could-not-run",
+      "emphasis": "muted",
+      "animated": false,
+      "summary": "The README, development guide and both ADRs now describe the key-variable-only sign-in and the could-not-run outcome.",
+      "files": [
+        {
+          "path": "docs/development.md",
+          "startLine": 340,
+          "endLine": 350
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "reviewer-start-gate",
+      "title": "Starting a reviewer after the change",
+      "summary": "How one reviewer attempt reaches the harness, and where it now stops when no key variable is set.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "review-run",
+          "label": "Attempts"
+        },
+        {
+          "node": "run-one",
+          "label": "run_one"
+        },
+        {
+          "node": "missing-credential",
+          "label": "missing_credential"
+        },
+        {
+          "node": "run-child",
+          "label": "run_child"
+        },
+        {
+          "node": "harness-process",
+          "label": "Harness"
+        }
+      ],
+      "messages": [
+        {
+          "id": "attempt-calls-run-one",
+          "from": "review-run",
+          "to": "run-one",
+          "label": "run_one(reviewer, prompt, lens, workdir, timeout)",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/review_run.rs",
+              "startLine": 691,
+              "endLine": 700
+            }
+          ]
+        },
+        {
+          "id": "run-one-enters-retry",
+          "from": "run-one",
+          "to": "run-one",
+          "label": "run_with_retry",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "note": "The notes wrapper is gone; the outcome is returned as-is.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 348,
+              "endLine": 352
+            }
+          ]
+        },
+        {
+          "id": "retry-asks-credential",
+          "from": "run-one",
+          "to": "missing-credential",
+          "label": "is a credential variable set?",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 389,
+              "endLine": 394
+            }
+          ],
+          "payload": {
+            "request": {
+              "type": "Reviewer",
+              "shape": "credential_env: Vec<String>",
+              "sample": {
+                "name": "codex",
+                "credential_env": [
+                  "CODEX_API_KEY"
+                ]
+              },
+              "source": {
+                "path": "crates/osf/src/reviewers.rs",
+                "startLine": 351,
+                "endLine": 372
+              },
+              "changedPaths": []
+            },
+            "response": {
+              "type": "Option<String>",
+              "shape": "None | Some(reason)",
+              "sample": null,
+              "changedPaths": []
+            }
+          }
+        },
+        {
+          "id": "credential-missing",
+          "from": "missing-credential",
+          "to": "run-one",
+          "label": "could-not-run: the API key variable CODEX_API_KEY is not set",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "note": "Returned before any child is prepared, so the harness never starts.",
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 360,
+              "endLine": 372
+            }
+          ]
+        },
+        {
+          "id": "retry-runs-child",
+          "from": "run-one",
+          "to": "run-child",
+          "label": "run_child(..) — only when a key is set",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 412,
+              "endLine": 430
+            }
+          ]
+        },
+        {
+          "id": "child-spawns-harness",
+          "from": "run-child",
+          "to": "harness-process",
+          "label": "spawn with empty home and own key",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": [
+            {
+              "path": "crates/osf/src/reviewers.rs",
+              "startLine": 585,
+              "endLine": 600
+            }
+          ]
+        },
+        {
+          "id": "harness-answers",
+          "from": "harness-process",
+          "to": "run-child",
+          "label": "stdout answer",
+          "kind": "return",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 9,
+    "additions": 295,
+    "deletions": 399,
+    "chips": [
+      {
+        "label": "Login-copy helpers removed",
+        "value": "4",
+        "tone": "removed"
+      },
+      {
+        "label": "Agents with no key variable",
+        "value": "1 (omp)",
+        "tone": "modified"
+      },
+      {
+        "label": "New gate",
+        "value": "missing_credential",
+        "tone": "added"
+      }
+    ]
+  },
+  "views": [
+    {
+      "id": "reviewer-launch",
+      "title": "Reviewer launch path",
+      "lens": "architecture",
+      "summary": "The orchestration, launch and registry pieces the change touches, plus the harness they drive.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "credential-gate",
+      "title": "The credential gate",
+      "lens": "architecture",
+      "summary": "The new gate and the data it reads, narrowed to the nodes that decide whether a reviewer starts.",
+      "scope": {
+        "kind": "selection",
+        "lanes": [],
+        "nodes": [
+          "missing-credential",
+          "reviewer-struct",
+          "agents-list",
+          "run-with-retry",
+          "harness-process"
+        ],
+        "edges": [],
+        "flows": []
+      },
+      "defaultOpen": false,
+      "children": [
+        {
+          "id": "reviewer-launch-flow",
+          "title": "Start sequence",
+          "lens": "data-flow",
+          "summary": "The ordered steps from attempt to harness, including the early could-not-run return.",
+          "scope": {
+            "kind": "selection",
+            "lanes": [],
+            "nodes": [],
+            "edges": [],
+            "flows": [
+              "reviewer-start-gate"
+            ]
+          },
+          "defaultOpen": false,
+          "children": []
+        }
+      ]
+    }
+  ]
+}
