@@ -1,0 +1,356 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T00:07:08.075Z",
+  "title": "serde_json 1.0.154 bump pulls in foldhash",
+  "summary": "A lockfile-only change: serde_json moves from 1.0.151 to 1.0.154 and, as a consequence, a new transitive crate foldhash 0.2.0 enters the dependency graph. No application source, build script or manifest is touched, so the runtime shape of the workspace is unchanged; what changes is the resolved crate set that every Rust binary and library in the workspace links against.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "1921f44a14847f27a4e8bb3b9c17542ac768dbea",
+      "ref": "1921f44a14847f27a4e8bb3b9c17542ac768dbea"
+    },
+    "pullRequest": {
+      "number": 298,
+      "url": "https://github.com/open-software-factory/software-factory/pull/298"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "workspace",
+      "label": "Workspace crates",
+      "subtitle": "Rust source in this repo",
+      "order": 0
+    },
+    {
+      "id": "lockfile",
+      "label": "Lockfile resolution",
+      "subtitle": "Cargo.lock",
+      "order": 1
+    },
+    {
+      "id": "registry",
+      "label": "crates.io registry",
+      "subtitle": "External packages",
+      "order": 2
+    }
+  ],
+  "nodes": [
+    {
+      "id": "workspace-crates",
+      "label": "Workspace crates",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "workspace",
+      "subtitle": "binaries and libraries",
+      "summary": "The Rust crates built from this repository. None of their sources or manifests change; they simply resolve against a new lockfile.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "cargo-lock",
+      "label": "Cargo.lock",
+      "kind": "config",
+      "delta": "modified",
+      "lane": "lockfile",
+      "subtitle": "resolved dependency graph",
+      "summary": "The single changed file. serde_json is re-pinned to 1.0.154 with a new checksum, and a foldhash 0.2.0 package entry is added to the resolution.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 483,
+          "endLine": 489
+        },
+        {
+          "path": "Cargo.lock",
+          "startLine": 1451,
+          "endLine": 1462
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "serde-json",
+      "label": "serde_json",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "registry",
+      "subtitle": "1.0.151 → 1.0.154",
+      "summary": "JSON serialization crate used across the workspace. The version and checksum change, and foldhash joins its dependency list.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1451,
+          "endLine": 1462
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "foldhash",
+      "label": "foldhash",
+      "kind": "package",
+      "delta": "added",
+      "lane": "registry",
+      "subtitle": "0.2.0",
+      "summary": "New transitive dependency introduced by the serde_json bump. It appears only as a package entry plus a dependency line; nothing in the workspace names it directly.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 486,
+          "endLine": 489
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "indexmap",
+      "label": "indexmap",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "existing serde_json dep",
+      "summary": "Already a serde_json dependency before the change; stays in the list alongside the new foldhash entry.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1459,
+          "endLine": 1462
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "itoa",
+      "label": "itoa",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "existing serde_json dep",
+      "summary": "Unchanged serde_json dependency, kept as context for what the bump did and did not touch.",
+      "files": [],
+      "badges": []
+    },
+    {
+      "id": "memchr",
+      "label": "memchr",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "registry",
+      "subtitle": "existing serde_json dep",
+      "summary": "Unchanged serde_json dependency, kept as context for what the bump did and did not touch.",
+      "files": [],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "workspace-depends-lock",
+      "from": "workspace-crates",
+      "to": "cargo-lock",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "cargo build resolves",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Every workspace crate is built against the resolved graph in Cargo.lock.",
+      "files": []
+    },
+    {
+      "id": "lock-pins-serde-json",
+      "from": "cargo-lock",
+      "to": "serde-json",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "1.0.151 → 1.0.154",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The lockfile re-pins serde_json to 1.0.154 with a new checksum.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1451,
+          "endLine": 1456
+        }
+      ]
+    },
+    {
+      "id": "serde-json-depends-foldhash",
+      "from": "serde-json",
+      "to": "foldhash",
+      "kind": "dependency",
+      "delta": "added",
+      "label": "new dep",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The only structural change: serde_json now lists foldhash among its dependencies.",
+      "files": [
+        {
+          "path": "Cargo.lock",
+          "startLine": 1457,
+          "endLine": 1458
+        }
+      ]
+    },
+    {
+      "id": "serde-json-depends-indexmap",
+      "from": "serde-json",
+      "to": "indexmap",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Pre-existing dependency, unchanged by the bump.",
+      "files": []
+    },
+    {
+      "id": "serde-json-depends-itoa",
+      "from": "serde-json",
+      "to": "itoa",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Pre-existing dependency, unchanged by the bump.",
+      "files": []
+    },
+    {
+      "id": "serde-json-depends-memchr",
+      "from": "serde-json",
+      "to": "memchr",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Pre-existing dependency, unchanged by the bump.",
+      "files": []
+    }
+  ],
+  "flows": [
+    {
+      "id": "lockfile-resolution",
+      "title": "How the bump reaches a build",
+      "summary": "Cargo reads the lockfile, resolves serde_json at its new version, and pulls the newly listed foldhash crate into the build graph.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "workspace-crates",
+          "label": "Workspace crates"
+        },
+        {
+          "node": "cargo-lock",
+          "label": "Cargo.lock"
+        },
+        {
+          "node": "serde-json",
+          "label": "serde_json"
+        },
+        {
+          "node": "foldhash",
+          "label": "foldhash"
+        }
+      ],
+      "messages": [
+        {
+          "id": "read-lockfile",
+          "from": "workspace-crates",
+          "to": "cargo-lock",
+          "label": "read resolved graph",
+          "kind": "sync",
+          "delta": "unchanged",
+          "animated": true,
+          "files": []
+        },
+        {
+          "id": "resolve-serde-json",
+          "from": "cargo-lock",
+          "to": "serde-json",
+          "label": "pin 1.0.154",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1451,
+              "endLine": 1456
+            }
+          ]
+        },
+        {
+          "id": "resolve-foldhash",
+          "from": "serde-json",
+          "to": "foldhash",
+          "label": "dependency edge",
+          "kind": "sync",
+          "delta": "added",
+          "animated": true,
+          "files": [
+            {
+              "path": "Cargo.lock",
+              "startLine": 1457,
+              "endLine": 1458
+            }
+          ]
+        },
+        {
+          "id": "link-foldhash",
+          "from": "foldhash",
+          "to": "workspace-crates",
+          "label": "linked into build",
+          "kind": "return",
+          "delta": "added",
+          "animated": true,
+          "files": []
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 1,
+    "additions": 9,
+    "deletions": 2,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "dependency-resolution",
+      "title": "Dependency resolution",
+      "lens": "architecture",
+      "summary": "Workspace crates resolve through Cargo.lock to serde_json 1.0.154, which now depends on foldhash.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "lockfile-resolution-flow",
+      "title": "Lockfile resolution flow",
+      "lens": "data-flow",
+      "summary": "The ordered path from a workspace build through the lockfile to the new foldhash crate.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
