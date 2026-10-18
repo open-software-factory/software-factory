@@ -334,8 +334,9 @@ fn mode_names(modes: &[AdoptionMode]) -> String {
 /// when the file, or the key, is absent.
 ///
 /// # Errors
-/// Returns an error naming the key and the supported values when the file is
-/// not valid TOML or the value is not a supported mode.
+/// Returns an error naming the file when it is not valid TOML. Returns an
+/// error naming the key and the supported values when the value is not a
+/// supported mode.
 pub fn adoption_mode(root: &Path) -> Result<Option<AdoptionMode>, ConfigError> {
     let Some(value) = repo_document(root)? else {
         return Ok(None);
@@ -436,8 +437,8 @@ impl Default for ReviewConfig {
     }
 }
 
-/// One model-name prefix, matched case-insensitively against the first word
-/// of a `Code-Generator:` trailer's model name, and the family it maps to.
+/// One model-name prefix, matched case-insensitively against each word of a
+/// `Code-Generator:` trailer's model name, and the family it maps to.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BuilderFamilyAlias {
@@ -754,11 +755,11 @@ pub fn load(
     if let Some(p) = &path {
         if let Some(text) = osf_lint_core::read_config_file(p, explicit)? {
             let mut value = parse_repo_document(&text, p)?;
-            // `[review]`, `[agents]` and `adoption_mode` are this same file's own
-            // entries, read separately by `review_config`, `agents_config` and
-            // `adoption_mode`. Drop them here so their presence never trips
-            // this struct's `deny_unknown_fields`. `parse_repo_document` has
-            // already checked `adoption_mode`.
+            // `[review]`, `[agents]` and `adoption_mode` are this same file's
+            // own entries, read separately by `review_config`, `agents_config`
+            // and `adoption_mode`. Drop them here so their presence never
+            // trips this struct's `deny_unknown_fields`. `parse_repo_document`
+            // has already checked `adoption_mode`.
             if let Some(table) = value.as_table_mut() {
                 table.remove("review");
                 table.remove("agents");
@@ -1887,6 +1888,26 @@ mod tests {
     }
 
     #[test]
+    fn a_non_string_adoption_mode_is_refused_naming_the_key_and_the_values() {
+        for (n, literal) in ["5", "[\"private-factory-repo\"]", "{ mode = 1 }"]
+            .into_iter()
+            .enumerate()
+        {
+            let dir = TempDir::new(&format!("osf-config-test-adoption-type-{n}"));
+            std::fs::write(dir.join("osf.toml"), format!("adoption_mode = {literal}\n"))
+                .expect("osf.toml writes");
+            let err = adoption_mode(&dir).expect_err("a non-string value is refused");
+            let text = err.to_string();
+            assert!(text.contains("adoption_mode is "), "{literal}: {text}");
+            assert!(text.contains("not supported"), "{literal}: {text}");
+            assert!(
+                text.contains("supported values: private-factory-repo"),
+                "{literal}: {text}"
+            );
+        }
+    }
+
+    #[test]
     fn require_adoption_mode_refuses_a_command_whose_modes_do_not_include_the_configured_one() {
         let dir = TempDir::new("osf-config-test-adoption-require");
         std::fs::write(
@@ -1900,12 +1921,17 @@ mod tests {
             AdoptionMode::PrivateFactoryRepo
         );
         let err = require_adoption_mode(&dir, "osf demo", &[]).expect_err("unsupported");
-        assert!(err.to_string().contains("osf demo"), "{err}");
-        assert!(err.to_string().contains("adoption_mode"), "{err}");
+        assert_eq!(
+            err.to_string(),
+            "osf demo needs adoption_mode set to one of: ; found private-factory-repo"
+        );
         let unset = TempDir::new("osf-config-test-adoption-require-unset");
         let err = require_adoption_mode(&unset, "osf demo", &[AdoptionMode::PrivateFactoryRepo])
             .expect_err("unset is refused");
-        assert!(err.to_string().contains("adoption_mode"), "{err}");
+        assert_eq!(
+            err.to_string(),
+            "osf demo needs adoption_mode set to one of: private-factory-repo; found no value"
+        );
     }
 
     #[test]

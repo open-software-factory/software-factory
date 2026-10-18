@@ -9,6 +9,7 @@
 //! and holds no network call; only [`fetch_head_sha`] and [`post_via_gh`]
 //! run an external command.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Write as _;
 use std::path::Path;
@@ -105,6 +106,103 @@ pub struct Plan {
     pub comments: Vec<Comment>,
 }
 
+/// The lines of each file that a pull request's diff shows on its right
+/// (new) side, the only lines GitHub accepts an inline review comment on.
+/// A comment on any other path or line makes the whole review fail with
+/// HTTP 422.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DiffLines {
+    files: BTreeMap<String, Vec<(u64, u64)>>,
+    /// The diff could not be read (GitHub refuses a very large one), so no
+    /// line can be shown to be on it.
+    unavailable: bool,
+}
+
+impl DiffLines {
+    /// Reads a unified diff, such as `git diff` or `gh pr diff` prints. Each
+    /// hunk header `@@ -a,b +c,d @@` makes lines `c` to `c+d-1` of the new
+    /// file commentable, context lines included. A deleted file has no new
+    /// side. Renames count under the new path.
+    #[must_use]
+    pub fn parse(diff: &str) -> Self {
+        let mut files: BTreeMap<String, Vec<(u64, u64)>> = BTreeMap::new();
+        let mut current: Option<String> = None;
+        // Lines of the current hunk still to read, on the old and new side.
+        let (mut old_left, mut new_left) = (0_u64, 0_u64);
+        for line in diff.lines() {
+            if old_left > 0 || new_left > 0 {
+                // Inside a hunk every line is content, whatever it looks like.
+                match line.chars().next() {
+                    Some('+') => new_left = new_left.saturating_sub(1),
+                    Some('-') => old_left = old_left.saturating_sub(1),
+                    Some('\\') => {}
+                    _ => {
+                        old_left = old_left.saturating_sub(1);
+                        new_left = new_left.saturating_sub(1);
+                    }
+                }
+                continue;
+            }
+            if line.starts_with("diff --git ") {
+                current = None;
+            } else if let Some(path) = line.strip_prefix("+++ ") {
+                let path = path.split('\t').next().unwrap_or(path);
+                current = path.strip_prefix("b/").map(str::to_string);
+            } else if let Some(rest) = line.strip_prefix("@@ ") {
+                let (old, new) = hunk_counts(rest);
+                old_left = old.unwrap_or(0);
+                new_left = new.map_or(0, |(_, count)| count);
+                if let (Some(path), Some((start, count))) = (&current, new) {
+                    if count > 0 {
+                        files
+                            .entry(path.clone())
+                            .or_default()
+                            .push((start, start + count - 1));
+                    }
+                }
+            }
+        }
+        DiffLines {
+            files,
+            unavailable: false,
+        }
+    }
+
+    /// A diff that could not be read: nothing is on it, so every finding goes
+    /// into the review body, and the body says why.
+    #[must_use]
+    pub fn unavailable() -> Self {
+        DiffLines {
+            files: BTreeMap::new(),
+            unavailable: true,
+        }
+    }
+
+    /// Whether `line` of `path` is on the diff's right side.
+    #[must_use]
+    pub fn contains(&self, path: &str, line: u64) -> bool {
+        self.files
+            .get(path)
+            .is_some_and(|ranges| ranges.iter().any(|(a, b)| (*a..=*b).contains(&line)))
+    }
+}
+
+/// The old line count, and the new start and count, of a hunk header's text
+/// after `@@ `: `-a,b +c,d @@`. A count left out means one.
+fn hunk_counts(rest: &str) -> (Option<u64>, Option<(u64, u64)>) {
+    let side = |sign: char| {
+        let word = rest.split_whitespace().find(|w| w.starts_with(sign))?;
+        let mut numbers = word.trim_start_matches(sign).split(',');
+        let start = numbers.next()?.parse::<u64>().ok()?;
+        let count = match numbers.next() {
+            Some(n) => n.parse::<u64>().ok()?,
+            None => 1,
+        };
+        Some((start, count))
+    };
+    (side('-').map(|(_, count)| count), side('+'))
+}
+
 /// Splits a comma-separated block list into trimmed, non-empty entries.
 #[must_use]
 pub fn parse_block_on(raw: &str) -> Vec<String> {
@@ -116,14 +214,95 @@ pub fn parse_block_on(raw: &str) -> Vec<String> {
 }
 
 fn unanchored_line(f: &Finding) -> String {
+    let place = match f.line {
+        Some(line) => format!("{}:{line}", f.path),
+        None => f.path.clone(),
+    };
     format!(
         "- **{}** ({}, {}) `{}`: {}",
         f.id,
         f.severity,
         f.action,
-        f.path,
+        place,
         f.body.replace('\n', " ")
     )
+}
+
+/// The heading over the findings that cannot be inline comments.
+const OUTSIDE_HEADING: &str = "\n\n**Findings outside the diff**\n";
+
+/// The words every line counting unshown findings ends with.
+const MORE_FINDINGS_MARK: &str = "in the run's saved artifact";
+
+/// The line that says how many findings did not fit.
+fn more_findings_line(count: usize) -> String {
+    let noun = if count == 1 {
+        "finding is"
+    } else {
+        "findings are"
+    };
+    format!("\n- {count} more {noun} {MORE_FINDINGS_MARK}")
+}
+
+/// Bytes kept for the findings when a long summary has to be cut.
+const FINDINGS_BUDGET: usize = 500;
+
+/// `text` cut on a character boundary to [`BODY_LIMIT`] bytes, marked when cut.
+fn cut_to_limit(text: &str) -> String {
+    if text.len() <= BODY_LIMIT {
+        return text.to_string();
+    }
+    let mut end = BODY_LIMIT.saturating_sub(SUMMARY_CUT.len());
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}{SUMMARY_CUT}", text.get(..end).unwrap_or_default())
+}
+
+/// Marks a summary that was cut so the findings notice could fit.
+const SUMMARY_CUT: &str = "\n(summary shortened to fit)";
+
+/// `summary`, then as many of `findings` under [`OUTSIDE_HEADING`] as fit in
+/// [`BODY_LIMIT`], then a line counting the rest. A summary that leaves no
+/// room for the heading and the count line is cut at a character boundary
+/// and marked, so where a finding points never stops a review from posting.
+fn append_outside_findings(summary: &str, findings: &[&&Finding]) -> String {
+    let reserve =
+        OUTSIDE_HEADING.len() + FINDINGS_BUDGET.max(more_findings_line(findings.len()).len());
+    let room = BODY_LIMIT.saturating_sub(reserve);
+    let mut body = if summary.len() <= room {
+        summary.to_string()
+    } else {
+        let mut end = room.saturating_sub(SUMMARY_CUT.len());
+        while !summary.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!("{}{SUMMARY_CUT}", summary.get(..end).unwrap_or_default())
+    };
+    body.push_str(OUTSIDE_HEADING);
+    let mut shown = 0;
+    for finding in findings {
+        let line = unanchored_line(finding);
+        let remaining = findings.len() - shown - 1;
+        let tail = if remaining == 0 {
+            0
+        } else {
+            more_findings_line(remaining).len()
+        };
+        let needed = usize::from(shown != 0) + line.len() + tail;
+        if body.len() + needed > BODY_LIMIT {
+            break;
+        }
+        if shown > 0 {
+            body.push('\n');
+        }
+        body.push_str(&line);
+        shown += 1;
+    }
+    if shown < findings.len() {
+        body.push_str(&more_findings_line(findings.len() - shown));
+    }
+    body
 }
 
 /// Decides the verdict, builds the final body, and lays out the inline
@@ -131,8 +310,9 @@ fn unanchored_line(f: &Finding) -> String {
 /// before any of this runs; it is never posted anywhere.
 ///
 /// # Errors
-/// Returns [`ReviewError::BodyTooLong`] when the summary, with any
-/// unanchored findings appended, is over [`BODY_LIMIT`] characters.
+/// Never fails today: a body over [`BODY_LIMIT`] bytes is cut on a character
+/// boundary and marked, and findings that do not fit are counted. The `Result`
+/// stays so a caller handles a future refusal.
 pub fn plan_review(
     findings: &[Finding],
     summary: &str,
@@ -148,12 +328,30 @@ pub fn plan_review(
 /// from the findings alone, as `osf review post` does.
 ///
 /// # Errors
-/// Returns [`ReviewError::BodyTooLong`] when the body is over [`BODY_LIMIT`].
+/// Never fails today; see [`plan_review_in_diff`].
 pub fn plan_review_for(
     findings: &[Finding],
     summary: &str,
     block_on: &[String],
     overall: Option<crate::reducer::Verdict>,
+) -> Result<Plan, ReviewError> {
+    plan_review_in_diff(findings, summary, block_on, overall, None)
+}
+
+/// [`plan_review_for`], with `diff` naming the lines the pull request's diff
+/// shows. A finding whose path or line is not in `diff` cannot be an inline
+/// comment, because GitHub refuses the whole review for one; it goes into the
+/// body under "Findings outside the diff" with its place named. `None` takes
+/// every finding with a line as anchored.
+///
+/// # Errors
+/// Never fails today; see [`plan_review_in_diff`].
+pub fn plan_review_in_diff(
+    findings: &[Finding],
+    summary: &str,
+    block_on: &[String],
+    overall: Option<crate::reducer::Verdict>,
+    diff: Option<&DiffLines>,
 ) -> Result<Plan, ReviewError> {
     let posted: Vec<&Finding> = findings.iter().filter(|f| f.action != "dismiss").collect();
     let blocking = posted
@@ -166,22 +364,27 @@ pub fn plan_review_for(
         Some(crate::reducer::Verdict::Pass) | None => Verdict::Approve,
     };
 
-    let unanchored: Vec<&&Finding> = posted.iter().filter(|f| f.line.is_none()).collect();
+    let anchored = |f: &Finding| match (f.line, diff) {
+        (None, _) => false,
+        (Some(_), None) => true,
+        (Some(line), Some(diff)) => diff.contains(&f.path, line),
+    };
+    let unanchored: Vec<&&Finding> = posted.iter().filter(|f| !anchored(f)).collect();
     let mut body = summary.trim_end_matches('\n').to_string();
+    if diff.is_some_and(|d| d.unavailable) && posted.iter().any(|f| f.line.is_some()) {
+        body.push_str(
+            "\n\n(inline placement was unavailable: the pull request's diff could not be read)",
+        );
+    }
     if !unanchored.is_empty() {
-        let lines: Vec<String> = unanchored.iter().map(|f| unanchored_line(f)).collect();
-        body.push_str("\n\n**Findings outside the diff**\n");
-        body.push_str(&lines.join("\n"));
+        body = append_outside_findings(&body, &unanchored);
     }
-    if body.len() > BODY_LIMIT {
-        return Err(ReviewError::BodyTooLong {
-            len: body.len(),
-            limit: BODY_LIMIT,
-        });
-    }
+    // Whatever made the summary long, the review posts: it is cut to the limit.
+    body = cut_to_limit(&body);
 
     let comments = posted
         .iter()
+        .filter(|f| anchored(f))
         .filter_map(|f| {
             f.line.map(|line| Comment {
                 path: f.path.clone(),
@@ -330,25 +533,38 @@ pub fn classify_post_result(success: bool, output_text: &str) -> PostAttempt {
 /// as `COMMENT` instead of `REQUEST_CHANGES` or `APPROVE`.
 ///
 /// # Errors
-/// Returns [`ReviewError::AdvisoryTooLong`] when the advisory prefix pushes
-/// the body over [`BODY_LIMIT`].
+/// Never fails today: the advisory prefix counts against [`BODY_LIMIT`], and a
+/// body that no longer fits is cut and marked.
 pub fn build_advisory_payload(
     plan: &Plan,
     verdict: Verdict,
     head_sha: &str,
 ) -> Result<Value, ReviewError> {
-    let advisory_body = format!(
+    let prefix = format!(
         "**Verdict (advisory): {}** — posted as a comment, because the reviewer and the author \
-         share one GitHub identity.\n\n{}",
-        verdict.as_event(),
-        plan.body
+         share one GitHub identity.\n\n",
+        verdict.as_event()
     );
-    if advisory_body.len() > BODY_LIMIT {
-        return Err(ReviewError::AdvisoryTooLong {
-            len: advisory_body.len(),
-            limit: BODY_LIMIT,
-        });
-    }
+    // The prefix counts against the limit. A body that no longer fits is cut
+    // on a character boundary, keeping its last line when that is the notice
+    // counting findings that did not fit.
+    let (head, tail) = match plan.body.rsplit_once('\n') {
+        Some((head, last)) if last.contains(MORE_FINDINGS_MARK) => (head, format!("\n{last}")),
+        _ => (plan.body.as_str(), String::new()),
+    };
+    let room = BODY_LIMIT.saturating_sub(prefix.len() + tail.len());
+    let advisory_body = if prefix.len() + plan.body.len() <= BODY_LIMIT {
+        format!("{prefix}{}", plan.body)
+    } else {
+        let mut end = room.saturating_sub(SUMMARY_CUT.len());
+        while !head.is_char_boundary(end) {
+            end -= 1;
+        }
+        format!(
+            "{prefix}{}{SUMMARY_CUT}{tail}",
+            head.get(..end).unwrap_or_default()
+        )
+    };
     Ok(payload(head_sha, &advisory_body, "COMMENT", &plan.comments))
 }
 
@@ -433,6 +649,25 @@ pub fn fetch_head_sha(repo: &str, pr: u64) -> Result<String, String> {
     }
     parse_head_sha_json(&String::from_utf8_lossy(&output.stdout))
         .map_err(|e| format!("{e} ({repo}#{pr})"))
+}
+
+/// The diff of a pull request, as GitHub shows it.
+///
+/// # Errors
+/// Returns an error if `gh` cannot run or fails.
+pub fn fetch_diff(repo: &str, pr: u64) -> Result<DiffLines, String> {
+    let output = Command::new("gh")
+        .args(["pr", "diff", &pr.to_string(), "--repo", repo])
+        .output()
+        .map_err(|e| format!("cannot run gh: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "could not read the diff of {repo}#{pr}: {}",
+            stderr.trim()
+        ));
+    }
+    Ok(DiffLines::parse(&String::from_utf8_lossy(&output.stdout)))
 }
 
 /// Posts one review or comment payload to a pull request. Thin: it only
@@ -592,27 +827,60 @@ mod tests {
         assert!(!plan.body.contains("hyg-09"), "{}", plan.body);
     }
 
-    // The limit applies to the final body, unanchored findings included.
+    // The limit applies to the final body: a finding that does not fit is
+    // counted, and the review still posts with its verdict.
     #[test]
-    fn an_oversized_final_body_is_refused_with_the_reason_named() {
-        let long_body = "x".repeat(1900);
+    fn findings_that_do_not_fit_are_counted_not_refused() {
+        let mut findings = vec![finding("in-1", "README.md", Some(1), "major", "should-fix")];
+        for n in 0..5 {
+            findings.push(Finding {
+                id: format!("big-{n}"),
+                path: "README.md".to_string(),
+                line: None,
+                severity: "minor".to_string(),
+                action: "maybe-fix".to_string(),
+                body: "x".repeat(700),
+            });
+        }
+        let summary = "A short review summary. ".repeat(4);
+        let plan = plan_review(&findings, &summary, &default_block_on()).expect("plans");
+        assert!(plan.body.len() <= BODY_LIMIT, "{}", plan.body.len());
+        assert!(plan.body.contains("big-0"), "{}", plan.body);
+        assert!(!plan.body.contains("big-4"), "{}", plan.body);
+        assert!(
+            plan.body
+                .contains("more findings are in the run's saved artifact"),
+            "{}",
+            plan.body
+        );
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
+        assert_eq!(plan.comments.len(), 1);
+    }
+
+    #[test]
+    fn a_single_finding_too_long_to_fit_is_counted() {
         let findings = vec![Finding {
             id: "big-01".to_string(),
             path: "README.md".to_string(),
             line: None,
             severity: "minor".to_string(),
             action: "maybe-fix".to_string(),
-            body: long_body,
+            body: "x".repeat(1900),
         }];
-        let summary = "A short review summary, well under the limit on its own. ".repeat(4);
-        let err =
-            plan_review(&findings, &summary, &default_block_on()).expect_err("body is too long");
-        assert!(err.to_string().contains("review body is"), "{err}");
+        let summary = "A short review summary. ".repeat(4);
+        let plan = plan_review(&findings, &summary, &default_block_on()).expect("plans");
+        assert!(plan.body.len() <= BODY_LIMIT);
+        assert!(
+            plan.body
+                .contains("1 more finding is in the run's saved artifact"),
+            "{}",
+            plan.body
+        );
     }
 
-    // A summary over 2,000 characters is refused with the limit named.
+    // A summary over 2,000 bytes is cut, never refused.
     #[test]
-    fn a_long_summary_alone_is_refused_with_the_limit_named() {
+    fn a_long_summary_alone_is_cut_to_the_limit() {
         let findings = vec![finding(
             "cor-01",
             "README.md",
@@ -621,9 +889,13 @@ mod tests {
             "should-fix",
         )];
         let long_summary = "x".repeat(2100);
-        let err = plan_review(&findings, &long_summary, &default_block_on())
-            .expect_err("summary is too long");
-        assert!(err.to_string().contains("limit is 2000"), "{err}");
+        let plan = plan_review(&findings, &long_summary, &default_block_on()).expect("plans");
+        assert!(plan.body.len() <= BODY_LIMIT, "{}", plan.body.len());
+        assert!(plan.body.contains("summary shortened"), "{}", plan.body);
+        let wide = "😀".repeat(900);
+        let plan = plan_review(&findings, &wide, &default_block_on()).expect("plans");
+        assert!(plan.body.len() <= BODY_LIMIT, "{}", plan.body.len());
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
     }
 
     // Nothing in the specification exercises the self-review fallback
@@ -714,23 +986,80 @@ mod tests {
         );
     }
 
+    // The advisory prefix counts against the limit: a body that fits on its
+    // own but overflows once the prefix is added is cut, not rejected, and the
+    // verdict stays in the prefix.
     #[test]
-    fn an_advisory_body_over_the_limit_is_rejected_before_a_retry() {
-        let findings = vec![Finding {
-            id: "cor-01".to_string(),
-            path: "README.md".to_string(),
-            line: Some(1),
-            severity: "major".to_string(),
-            action: "should-fix".to_string(),
-            body: "x".to_string(),
-        }];
-        let long_summary = "x".repeat(1990);
-        let plan = plan_review(&findings, &long_summary, &default_block_on()).expect("plans");
-        let next = after_first_attempt(PostAttempt::RefusedSelfReview, &plan, "deadbeef");
+    fn an_advisory_body_that_only_overflows_with_the_prefix_is_cut_not_rejected() {
+        let inside = DiffLines::parse(DIFF);
+        let outside = DiffLines::parse("");
+        let cases = [
+            // An inline finding and a summary that nearly fills the body.
+            (
+                vec![finding("in-1", "src/a.rs", Some(2), "major", "should-fix")],
+                1950,
+            ),
+            // The same finding outside the diff, with a long body that fills the rest.
+            (
+                vec![Finding {
+                    body: "z".repeat(330),
+                    ..finding("in-1", "src/a.rs", Some(2), "major", "should-fix")
+                }],
+                1500,
+            ),
+        ];
+        for (index, (findings, summary_len)) in cases.iter().enumerate() {
+            let diff = if index == 0 { &inside } else { &outside };
+            let summary = "s".repeat(*summary_len);
+            let plan =
+                plan_review_in_diff(findings, &summary, &default_block_on(), None, Some(diff))
+                    .expect("plans");
+            assert!(
+                plan.body.len() <= BODY_LIMIT,
+                "case {index}: {}",
+                plan.body.len()
+            );
+            assert!(
+                plan.body.len() + 130 > BODY_LIMIT,
+                "case {index}: {}",
+                plan.body.len()
+            );
+            let next = after_first_attempt(PostAttempt::RefusedSelfReview, &plan, "deadbeef");
+            let NextStep::RetryAsComment(payload) = next else {
+                panic!("case {index}: expected a comment retry, got {next:?}");
+            };
+            let body = payload.get("body").and_then(Value::as_str).expect("a body");
+            assert!(body.len() <= BODY_LIMIT, "case {index}: {}", body.len());
+            assert!(
+                body.contains("Verdict (advisory): REQUEST_CHANGES"),
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn findings_go_into_the_body_when_the_diff_is_unavailable() {
+        let findings = vec![finding("in-1", "src/a.rs", Some(2), "major", "should-fix")];
+        let diff = DiffLines::unavailable();
+        let plan = plan_review_in_diff(
+            &findings,
+            "Summary.",
+            &default_block_on(),
+            None,
+            Some(&diff),
+        )
+        .expect("plans");
+        assert_eq!(plan.comments, Vec::<Comment>::new());
         assert!(
-            matches!(next, NextStep::Done(Outcome::Rejected(_))),
-            "{next:?}"
+            plan.body.contains("inline placement was unavailable"),
+            "{}",
+            plan.body
         );
+        assert!(plan.body.contains("in-1"), "{}", plan.body);
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
+        let none = plan_review_in_diff(&[], "Summary.", &default_block_on(), None, Some(&diff))
+            .expect("plans");
+        assert!(!none.body.contains("unavailable"), "{}", none.body);
     }
 
     #[test]
@@ -823,5 +1152,98 @@ mod tests {
         let err = load_findings(&path).expect_err("not an array");
         assert!(err.contains("must be a JSON array"), "{err}");
         std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    const DIFF: &str = "diff --git a/src/a.rs b/src/a.rs\n--- a/src/a.rs\n+++ b/src/a.rs\n@@ -1,3 +1,4 @@\n x\n+y\n z\n w\n@@ -20 +21,2 @@\n-a\n+b\n+c\ndiff --git a/gone.rs b/gone.rs\n--- a/gone.rs\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-a\n-b\n";
+
+    #[test]
+    fn diff_lines_reads_the_right_side_of_each_hunk() {
+        let diff = DiffLines::parse(DIFF);
+        assert!(diff.contains("src/a.rs", 1));
+        assert!(diff.contains("src/a.rs", 4));
+        assert!(!diff.contains("src/a.rs", 5));
+        assert!(!diff.contains("src/a.rs", 20));
+        assert!(diff.contains("src/a.rs", 21));
+        assert!(diff.contains("src/a.rs", 22));
+        assert!(!diff.contains("gone.rs", 1));
+        assert!(!diff.contains("other.rs", 1));
+    }
+
+    #[test]
+    fn a_finding_outside_the_diff_goes_into_the_body_not_an_inline_comment() {
+        let diff = DiffLines::parse(DIFF);
+        let findings = vec![
+            finding("in-1", "src/a.rs", Some(2), "major", "should-fix"),
+            finding("line-2", "src/a.rs", Some(99), "major", "should-fix"),
+            finding("path-3", "src/untouched.rs", Some(1), "minor", "maybe-fix"),
+        ];
+        let plan = plan_review_in_diff(
+            &findings,
+            "Summary.",
+            &default_block_on(),
+            None,
+            Some(&diff),
+        )
+        .expect("plans");
+        assert_eq!(plan.comments.len(), 1);
+        assert_eq!(plan.comments.first().map(|c| c.line), Some(2));
+        assert!(
+            plan.body.contains("Findings outside the diff"),
+            "{}",
+            plan.body
+        );
+        assert!(plan.body.contains("line-2"), "{}", plan.body);
+        assert!(plan.body.contains("src/a.rs:99"), "{}", plan.body);
+        assert!(plan.body.contains("path-3"), "{}", plan.body);
+        assert!(!plan.body.contains("in-1"), "{}", plan.body);
+        // Still blocks: moving a finding to the body never lowers the verdict.
+        assert_eq!(plan.verdict, Verdict::RequestChanges);
+    }
+
+    #[test]
+    fn header_like_added_text_is_content_not_a_file_header() {
+        let diff = "diff --git a/a.rs b/a.rs\n--- a/a.rs\n+++ b/a.rs\n@@ -1,2 +1,2 @@\n x\n+++ b/other.rs\n-- old\n@@ -10 +11 @@\n-z\n+w\n";
+        let lines = DiffLines::parse(diff);
+        assert!(lines.contains("a.rs", 1));
+        assert!(lines.contains("a.rs", 2));
+        assert!(!lines.contains("a.rs", 3));
+        assert!(
+            lines.contains("a.rs", 11),
+            "the second hunk still belongs to a.rs"
+        );
+        assert!(!lines.contains("other.rs", 1));
+        assert!(!lines.contains("other.rs", 11));
+    }
+
+    // A summary that posts with an inline finding still posts when that
+    // finding moves outside the diff: the summary is cut, the verdict stays.
+    #[test]
+    fn a_near_limit_summary_still_posts_when_the_finding_moves_outside_the_diff() {
+        let summary = "s".repeat(BODY_LIMIT - 10);
+        let findings = vec![finding("in-1", "src/a.rs", Some(2), "major", "should-fix")];
+        let inside = DiffLines::parse(DIFF);
+        let outside = DiffLines::parse("");
+        let a = plan_review_in_diff(
+            &findings,
+            &summary,
+            &default_block_on(),
+            None,
+            Some(&inside),
+        )
+        .expect("plans inside");
+        let b = plan_review_in_diff(
+            &findings,
+            &summary,
+            &default_block_on(),
+            None,
+            Some(&outside),
+        )
+        .expect("plans outside");
+        assert_eq!(a.comments.len(), 1);
+        assert_eq!(b.comments.len(), 0);
+        assert!(b.body.len() <= BODY_LIMIT, "{}", b.body.len());
+        assert!(b.body.contains("in-1"), "{}", b.body);
+        assert!(b.body.contains("summary shortened"), "{}", b.body);
+        assert_eq!(a.verdict, b.verdict);
     }
 }
