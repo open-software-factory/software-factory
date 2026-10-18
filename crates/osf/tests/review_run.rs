@@ -1300,6 +1300,113 @@ fn a_secret_inside_a_recognised_error_is_named_by_category_only() {
     }
 }
 
+/// Every attempt's `cause` in a saved run's JSON, for the one lens.
+fn saved_causes(saved: &str) -> Vec<Option<osf::review_run::AttemptCause>> {
+    let run: osf::review_run::ReviewerRun =
+        serde_json::from_str(saved).expect("the saved run is JSON");
+    run.lenses
+        .into_iter()
+        .flat_map(|lens| lens.attempts)
+        .map(|attempt| attempt.cause)
+        .collect()
+}
+
+#[test]
+fn a_failed_attempt_keeps_the_providers_words_and_the_basis() {
+    for agent in reviewer_agents() {
+        let (_, saved) = save_failed_run(
+            agent,
+            Fake::FailsWithText("ERROR: unexpected status 429 Too Many Requests: slow down"),
+            "cause-kept",
+        );
+        let saved = saved.expect("the file is still written");
+        let causes = saved_causes(&saved);
+        assert!(!causes.is_empty(), "{agent}: {saved}");
+        for cause in causes {
+            let cause = cause.expect("a failed attempt saves its cause");
+            assert!(cause.tail.contains("slow down"), "{agent}: {cause:?}");
+            assert_eq!(cause.basis.as_deref(), Some("http status 429"), "{agent}");
+        }
+    }
+}
+
+/// A line that holds a secret is replaced whole by the pattern redaction, so
+/// the tail keeps the cause's basis and never the secret, on the console, the
+/// journal, SARIF and the saved file alike.
+#[test]
+fn a_secret_in_a_failed_attempts_output_never_reaches_the_saved_tail() {
+    for agent in reviewer_agents() {
+        let secret = common::fake_provider_key("sk-");
+        let text = format!("ERROR: status 429 Too Many Requests: key {secret}");
+        let (journal, saved) =
+            assert_secret_stays_out(agent, Fake::FailsWithText(&text), &secret, "cause-secret");
+        let causes = saved_causes(&saved);
+        assert!(!causes.is_empty(), "{agent}: {saved}");
+        for cause in causes {
+            let cause = cause.expect("a failed attempt saves its cause");
+            assert!(!cause.tail.is_empty(), "{agent}");
+            assert_eq!(cause.basis.as_deref(), Some("http status 429"), "{agent}");
+        }
+        assert!(!journal.contains("Too Many Requests"), "{agent}: {journal}");
+    }
+}
+
+/// The reviewer's held key, in plain, base64 and hex form, is removed from the
+/// saved tail, and the tail keeps only its last 40 lines.
+#[test]
+#[cfg(unix)]
+fn a_failed_attempts_tail_is_limited_to_forty_lines_and_holds_no_held_key() {
+    let key = "reviewer-key-7c2e5b19d0a84f36";
+    let script = format!(
+        "i=1\nwhile [ $i -le 60 ]; do echo \"line $i\" 1>&2; i=$((i+1)); done\n\
+         echo \"ERROR: status 429 Too Many Requests plain {key} b64 {} hex {}\" 1>&2\nexit 1",
+        base64_of(key),
+        hex_of(key)
+    );
+    let fakes = Fakes::new("", &[("codex", Fake::Script(script))]);
+    let repo = review_repo("cause-tail-limit", &fakes.osf_toml);
+    let saved = TempDir::new("review-run-cause-tail-limit");
+    let file = saved.join("codex.json").to_string_lossy().into_owned();
+    let home = common::isolated_home("review-run-cause-tail-limit");
+    let output = fakes.run_with_env(
+        &repo.dir,
+        &home,
+        &[("CODEX_API_KEY", key)],
+        &[
+            "review",
+            "run",
+            "--reviewer",
+            "codex",
+            "--out",
+            &file,
+            "--base",
+            "origin/main",
+        ],
+    );
+    let text = std::fs::read_to_string(&file)
+        .unwrap_or_else(|e| panic!("--out: {e}: {}", String::from_utf8_lossy(&output.stderr)));
+    for form in [key.to_string(), base64_of(key), hex_of(key)] {
+        assert!(!text.contains(&form), "the saved run holds {form}: {text}");
+    }
+    let causes = saved_causes(&text);
+    assert!(!causes.is_empty(), "{text}");
+    for cause in causes {
+        let cause = cause.expect("a failed attempt saves its cause");
+        let tail = cause.tail;
+        let lines: Vec<&str> = tail.lines().collect();
+        assert_eq!(lines.len(), 40, "{tail}");
+        assert_eq!(lines.first(), Some(&"line 22"), "{tail}");
+        assert!(
+            lines
+                .get(39)
+                .is_some_and(|l| l.contains("Too Many Requests")),
+            "{tail}"
+        );
+        assert!(tail.contains("a secret this job holds"), "{tail}");
+        assert_eq!(cause.basis.as_deref(), Some("http status 429"));
+    }
+}
+
 #[test]
 fn a_secret_in_an_invalid_answers_property_name_never_reaches_any_output() {
     let dir = TempDir::new("osf-review-invalid-secret");
