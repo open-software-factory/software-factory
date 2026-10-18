@@ -892,11 +892,7 @@ mod tests {
     /// Runs `git init --quiet` in `dir`, so `git rev-parse --show-toplevel`
     /// resolves to `dir` from anywhere under it.
     fn init_repo(dir: &Path) {
-        let mut command = std::process::Command::new("git");
-        command.arg("init").arg("--quiet").arg(dir);
-        crate::git::scrub_git_env(&mut command);
-        let status = command.status().expect("git init runs");
-        assert!(status.success(), "git init failed for {}", dir.display());
+        crate::scratch_git::init(dir);
     }
 
     #[test]
