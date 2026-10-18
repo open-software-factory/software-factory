@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "ebe45e4758c0aba2e8be860cc6ae92e5234ab2c8",
+    "contentHash": "3a7ebd6730130f029387528a0c3e8ee0"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "review-check-architecture-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "review-check-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "3afbdd3715d3295d689221ddec1ca4cd",
+      "bytes": 11920,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "review-check-architecture-light-3afbdd3715d3295d689221ddec1ca4cd.svg"
+    },
+    {
+      "id": "review-check-architecture-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "review-check-architecture",
+      "mediaType": "image/svg+xml",
+      "contentHash": "149ede503515966daa8386a38b05dcfc",
+      "bytes": 12011,
+      "width": 1708,
+      "height": 646,
+      "animated": false,
+      "path": "review-check-architecture-dark-149ede503515966daa8386a38b05dcfc.svg"
+    },
+    {
+      "id": "verifier-token-flow-light",
+      "lens": "data-flow",
+      "theme": "light",
+      "view": "verifier-token-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "dd55a19d5d5df3fba5e1883338018b91",
+      "bytes": 12634,
+      "width": 2036,
+      "height": 337,
+      "animated": true,
+      "path": "verifier-token-flow-light-dd55a19d5d5df3fba5e1883338018b91.svg"
+    },
+    {
+      "id": "verifier-token-flow-dark",
+      "lens": "data-flow",
+      "theme": "dark",
+      "view": "verifier-token-flow",
+      "mediaType": "image/svg+xml",
+      "contentHash": "c113a93db3c121723a68a7d1fbd48ca7",
+      "bytes": 12747,
+      "width": 2036,
+      "height": 337,
+      "animated": true,
+      "path": "verifier-token-flow-dark-c113a93db3c121723a68a7d1fbd48ca7.svg"
+    }
+  ]
+}
