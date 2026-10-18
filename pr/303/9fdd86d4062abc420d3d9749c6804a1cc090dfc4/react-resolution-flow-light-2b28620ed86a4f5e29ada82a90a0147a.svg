@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1712 471" width="1712" height="471" role="img" aria-label="React 19 resolution through the lockfile" font-family="-apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, &quot;Noto Sans&quot;, Helvetica, Arial, sans-serif">
+<title>React 19 resolution through the lockfile</title>
+<desc>The ordered path from the manifest pins through peer re-keying to the installed react, react-dom and scheduler versions.</desc>
+<defs><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1" fill="rgba(140,149,159,.5)"/></pattern><marker id="mk-added" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#1f883d"/></marker><marker id="mko-added" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#1f883d" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-modified" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#bf8700"/></marker><marker id="mko-modified" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#bf8700" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-removed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#cf222e"/></marker><marker id="mko-removed" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#cf222e" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker><marker id="mk-neutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8c959f"/></marker><marker id="mko-neutral" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M2,1 L10,5 L2,9" fill="none" stroke="#8c959f" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<rect x="0" y="0" width="1712" height="471" rx="12" fill="#f4f5f7"/>
+<rect x="0" y="0" width="1712" height="471" rx="12" fill="url(#dots)"/>
+<g transform="translate(12,10)"><g><rect class="lanebox" x="4" y="6" width="226" height="439" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="286" y="6" width="226" height="439" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="568" y="6" width="226" height="439" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="850" y="6" width="226" height="439" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="1132" y="6" width="226" height="439" rx="12" fill="rgba(255,255,255,.55)"/>
+<rect class="lanebox" x="1414" y="6" width="226" height="439" rx="12" fill="rgba(255,255,255,.55)"/></g>
+<g><line class="lifeline" x1="117" y1="82" x2="117" y2="433" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="399" y1="82" x2="399" y2="433" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="681" y1="82" x2="681" y2="433" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<line class="lifeline" x1="963" y1="82" x2="963" y2="433" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="957" y="123" width="12" height="202.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="1245" y1="82" x2="1245" y2="433" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="1239" y="161" width="12" height="202.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/>
+<line class="lifeline" x1="1527" y1="82" x2="1527" y2="433" stroke="#d1d9e0" stroke-width="1" stroke-dasharray="3 4"/>
+<rect class="actbar" x="1521" y="351" width="12" height="50.67" rx="4" fill="#b9f0c4" stroke="rgba(31,136,61,.55)"/></g>
+<g><g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="16" y="18" width="202" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="30" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><rect class="glyph-stroke" x="36" y="43" width="14" height="12" rx="2" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M36,47 h14" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="66" y="45" font-size="13" font-weight="600" fill="#1f2328">console-lab</text>
+<text class="nsub" x="66" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">Vite dev harness</text>
+<g class="bdg bdg-modified"><rect x="144.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="177.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="298" y="18" width="202" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="312" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M325,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M318.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M325,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="348" y="45" font-size="13" font-weight="600" fill="#1f2328">console-ui</text>
+<text class="nsub" x="348" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">Shared component library</text>
+<g class="bdg bdg-modified"><rect x="426.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="459.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="580" y="18" width="202" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="594" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M607,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M600.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M607,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="630" y="45" font-size="13" font-weight="600" fill="#1f2328">react-aria-components</text>
+<text class="nsub" x="630" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">1.21.1</text>
+<g class="bdg bdg-modified"><rect x="708.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="741.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="862" y="18" width="202" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="876" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M889,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M882.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M889,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="912" y="45" font-size="13" font-weight="600" fill="#1f2328">react 19.3.1</text>
+<text class="nsub" x="912" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">Core renderer</text>
+<g class="bdg bdg-modified"><rect x="990.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1023.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1144" y="18" width="202" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1158" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1171,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1164.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1171,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1194" y="45" font-size="13" font-weight="600" fill="#1f2328">react-dom 19.3.1</text>
+<text class="nsub" x="1194" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">DOM renderer</text>
+<g class="bdg bdg-modified"><rect x="1272.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1305.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g>
+<g class="cardsh" filter="drop-shadow(0 1px 2px rgba(31,35,40,.14))"><rect class="card card-modified" x="1426" y="18" width="202" height="62" rx="10" fill="#ffffff" stroke-width="1" stroke="#bf8700" stroke-opacity="0.5"/>
+<rect class="chip" x="1440" y="36" width="26" height="26" rx="7" fill="#f1f3f5"/><g><path class="glyph-stroke" d="M1453,42 l6.5,3.5 v7 l-6.5,3.5 l-6.5,-3.5 v-7 Z" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1446.5,45.5 l6.5,3.5 l6.5,-3.5" stroke="#59636e" stroke-width="1.4" fill="none"/>
+<path class="glyph-stroke" d="M1453,49 v7" stroke="#59636e" stroke-width="1.4" fill="none"/></g>
+<text class="ntitle" x="1476" y="45" font-size="13" font-weight="600" fill="#1f2328">scheduler 0.28.0</text>
+<text class="nsub" x="1476" y="63" font-size="9.5" fill="#59636e" font-family="ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, Consolas, monospace">React scheduler</text>
+<g class="bdg bdg-modified"><rect x="1554.38" y="10" width="66.62" height="16" rx="8" fill="#fae17d" stroke="rgba(154,103,0,.55)" stroke-width="1"/><text x="1587.69" y="21" text-anchor="middle" font-size="8.5" font-weight="700" letter-spacing=".06em" fill="#7d4e00">CHANGED</text></g></g></g>
+<g><path class="msg edge-modified" d="M117,123 L952,123" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="11.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0;0.125;1" calcMode="linear" path="M117,123 L952,123"/><animate attributeName="opacity" dur="11.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0;0.01;0.115;0.125;1"/></circle>
+<path class="msg edge-modified" d="M117,161 L1234,161" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="11.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.125;0.25;1" calcMode="linear" path="M117,161 L1234,161"/><animate attributeName="opacity" dur="11.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.125;0.135;0.24;0.25;1"/></circle>
+<path class="msg edge-modified" d="M399,199 L952,199" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="11.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.25;0.375;1" calcMode="linear" path="M399,199 L952,199"/><animate attributeName="opacity" dur="11.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.25;0.26;0.365;0.375;1"/></circle>
+<path class="msg edge-modified" d="M399,237 L1234,237" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="11.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.375;0.5;1" calcMode="linear" path="M399,237 L1234,237"/><animate attributeName="opacity" dur="11.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.375;0.385;0.49;0.5;1"/></circle>
+<path class="msg edge-modified" d="M681,275 L952,275" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="11.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.5;0.625;1" calcMode="linear" path="M681,275 L952,275"/><animate attributeName="opacity" dur="11.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.5;0.51;0.615;0.625;1"/></circle>
+<path class="msg edge-modified" d="M1239,313 L974,313" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="11.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.625;0.75;1" calcMode="linear" path="M1239,313 L974,313"/><animate attributeName="opacity" dur="11.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.625;0.635;0.74;0.75;1"/></circle>
+<path class="msg edge-modified" d="M1251,351 L1516,351" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="11.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.75;0.875;1" calcMode="linear" path="M1251,351 L1516,351"/><animate attributeName="opacity" dur="11.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.75;0.76;0.865;0.875;1"/></circle>
+<path class="msg edge-modified" d="M1533,389 h52 a7,7 0 0 1 7,7 v6 a7,7 0 0 1 -7,7 h-47" marker-end="url(#mk-modified)" fill="none" stroke="#bf8700" stroke-width="1.5"/>
+<circle r="2.6" fill="#bf8700" opacity="0"><animateMotion dur="11.2s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.875;1;1" calcMode="linear" path="M1533,389 h52 a7,7 0 0 1 7,7 v6 a7,7 0 0 1 -7,7 h-47"/><animate attributeName="opacity" dur="11.2s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.875;0.885;0.99;1;1"/></circle></g>
+<g><g><rect class="lpill" x="499.91" y="115.5" width="69.18" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="534.5" y="126.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">react 19.3.1</text></g>
+<g><rect class="lpill" x="629.44" y="153.5" width="92.12" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="675.5" y="164.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">react-dom 19.3.1</text></g>
+<g><rect class="lpill" x="639.67" y="191.5" width="71.67" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="675.5" y="202.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">peer ^19.3.1</text></g>
+<g><rect class="lpill" x="780.67" y="229.5" width="71.67" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="816.5" y="240.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">peer ^19.3.1</text></g>
+<g><rect class="lpill" x="774.65" y="267.5" width="83.71" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="816.5" y="278.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">re-resolve peer</text></g>
+<g><rect class="lpill" x="1070.67" y="305.5" width="71.67" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1106.5" y="316.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">peer ^19.3.1</text></g>
+<g><rect class="lpill" x="1338.28" y="343.5" width="90.45" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1383.5" y="354.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">scheduler 0.28.0</text></g>
+<g><rect class="lpill" x="1600" y="391.5" width="83.73" height="15" rx="7.5" fill="#ffffff" stroke="#d8dee4" stroke-width="1"/><text class="ltext ltext-modified" x="1641.87" y="402.5" text-anchor="middle" font-size="9.5" font-weight="600" fill="#7d4e00">0.28.0 installed</text></g></g></g>
+</svg>

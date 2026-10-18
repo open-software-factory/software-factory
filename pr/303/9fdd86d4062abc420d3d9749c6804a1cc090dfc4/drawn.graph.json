@@ -1,0 +1,793 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "graph",
+  "generatedAt": "2026-10-18T01:41:38.631Z",
+  "title": "React 19 upgrade for console-lab and console-ui",
+  "summary": "Bumps the React runtime from 18.3.1 to 19.3.1 in the console-lab app and the console-ui package, moving console-ui's peer range to ^19.3.1 and re-resolving the lockfile so react-aria-components, react-aria, react-stately, @react-types/shared, use-sync-external-store and @testing-library/react all bind against the new React. The lockfile drops the React 18 chain (loose-envify, scheduler 0.23.2) and adds react-dom 19.3.1 with scheduler 0.28.0. No application source changes; the blast radius is the dependency graph of the two console packages.",
+  "lenses": [
+    "architecture",
+    "data-flow"
+  ],
+  "provenance": {
+    "repo": {
+      "owner": "open-software-factory",
+      "name": "software-factory",
+      "host": "github.com"
+    },
+    "base": {
+      "sha": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142",
+      "ref": "d1e1ae79e3f085b4aaac7d2e34e82f750eeff142"
+    },
+    "head": {
+      "sha": "9fdd86d4062abc420d3d9749c6804a1cc090dfc4",
+      "ref": "9fdd86d4062abc420d3d9749c6804a1cc090dfc4"
+    },
+    "pullRequest": {
+      "number": 303,
+      "url": "https://github.com/open-software-factory/software-factory/pull/303"
+    },
+    "generator": {
+      "name": "pr-lens-cli",
+      "version": "0.13.0",
+      "model": "deepseek-chat"
+    }
+  },
+  "lanes": [
+    {
+      "id": "apps",
+      "label": "Applications",
+      "subtitle": "Runnable entry points",
+      "order": 0
+    },
+    {
+      "id": "packages",
+      "label": "Workspace packages",
+      "subtitle": "Shared libraries",
+      "order": 1
+    },
+    {
+      "id": "runtime",
+      "label": "React runtime",
+      "subtitle": "Resolved from the lockfile",
+      "order": 2
+    },
+    {
+      "id": "third-party",
+      "label": "Third-party libraries",
+      "subtitle": "npm registry",
+      "order": 3
+    }
+  ],
+  "nodes": [
+    {
+      "id": "console-lab",
+      "label": "console-lab",
+      "kind": "app",
+      "delta": "modified",
+      "lane": "apps",
+      "subtitle": "Vite dev harness",
+      "summary": "The lab app that mounts console-ui components. Its direct react and react-dom dependencies move from 18.3.1 to 19.3.1, which is what forces the whole lockfile re-resolution.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 11,
+          "endLine": 18
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-ui",
+      "label": "console-ui",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "packages",
+      "subtitle": "Shared component library",
+      "summary": "The component library consumed by console-lab. Its peerDependencies range moves to ^19.3.1 and its devDependencies pin react/react-dom 19.3.1 so tests run against the same runtime the peers demand.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 21,
+          "endLine": 35
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "console-model",
+      "label": "console-model",
+      "kind": "package",
+      "delta": "unchanged",
+      "lane": "packages",
+      "subtitle": "Workspace dependency",
+      "summary": "Sibling workspace package that console-lab also depends on. Untouched by this change but present in the same dependency block, so it shares the resolution.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 12,
+          "endLine": 13
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react",
+      "label": "react 19.3.1",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "Core renderer",
+      "summary": "The React runtime itself. Replaces react@18.3.1 in the lockfile; the 18.3.1 entry and its loose-envify dependency are removed.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1687,
+          "endLine": 1694
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-dom",
+      "label": "react-dom 19.3.1",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "DOM renderer",
+      "summary": "DOM renderer paired with react 19.3.1. The 18.3.1 snapshot is dropped and a new 19.3.1 snapshot is added, pulling scheduler 0.28.0 instead of 0.23.2.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1673,
+          "endLine": 1676
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "scheduler",
+      "label": "scheduler 0.28.0",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "runtime",
+      "subtitle": "React scheduler",
+      "summary": "Transitive scheduler used by react-dom. The 0.23.2 version (which depended on loose-envify) is removed and 0.28.0 is added.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1708,
+          "endLine": 1710
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-aria-components",
+      "label": "react-aria-components",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "third-party",
+      "subtitle": "1.21.1",
+      "summary": "Accessible component primitives used by console-ui. Version is unchanged, but its peer resolution is re-keyed from react 18.3.1 to 19.3.1.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 21,
+          "endLine": 21
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3285,
+          "endLine": 3297
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-aria",
+      "label": "react-aria",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "third-party",
+      "subtitle": "3.52.1",
+      "summary": "Transitive hook layer under react-aria-components. Same version, re-resolved against react 19.3.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3299,
+          "endLine": 3312
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "react-stately",
+      "label": "react-stately",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "third-party",
+      "subtitle": "3.50.0",
+      "summary": "State management layer for react-aria. Same version, re-resolved against react 19.3.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3326,
+          "endLine": 3334
+        }
+      ],
+      "badges": []
+    },
+    {
+      "id": "testing-library-react",
+      "label": "@testing-library/react",
+      "kind": "package",
+      "delta": "modified",
+      "lane": "third-party",
+      "subtitle": "16.3.3",
+      "summary": "Test renderer used by console-ui's devDependencies. Version unchanged; its peer snapshot now points at react-dom 19.3.1.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 27,
+          "endLine": 27
+        },
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2757,
+          "endLine": 2763
+        }
+      ],
+      "badges": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "console-lab-depends-console-ui",
+      "from": "console-lab",
+      "to": "console-ui",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "workspace:*",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The lab app consumes the component library through a workspace link.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 13,
+          "endLine": 13
+        }
+      ]
+    },
+    {
+      "id": "console-lab-depends-console-model",
+      "from": "console-lab",
+      "to": "console-model",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "workspace:*",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Sibling workspace dependency, unaffected by the React bump.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 12,
+          "endLine": 12
+        }
+      ]
+    },
+    {
+      "id": "console-lab-depends-react",
+      "from": "console-lab",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "19.3.1",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "The direct dependency bump that drives the whole change: console-lab now requires react 19.3.1 instead of 18.3.1.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 14,
+          "endLine": 14
+        }
+      ]
+    },
+    {
+      "id": "console-lab-depends-react-dom",
+      "from": "console-lab",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "19.3.1",
+      "emphasis": "hero",
+      "animated": false,
+      "summary": "console-lab's react-dom pin moves to 19.3.1, matching the new react version.",
+      "files": [
+        {
+          "path": "apps/console-lab/package.json",
+          "startLine": 15,
+          "endLine": 15
+        }
+      ]
+    },
+    {
+      "id": "console-ui-peers-react",
+      "from": "console-ui",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer ^19.3.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The peer range console-ui advertises moves from ^18.3.1 to ^19.3.1, so consumers must supply React 19.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 24,
+          "endLine": 24
+        }
+      ]
+    },
+    {
+      "id": "console-ui-peers-react-dom",
+      "from": "console-ui",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer ^19.3.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The react-dom peer range moves to ^19.3.1 in lockstep with react.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 25,
+          "endLine": 25
+        }
+      ]
+    },
+    {
+      "id": "console-ui-dev-react",
+      "from": "console-ui",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "dev 19.3.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "console-ui's own devDependency pin moves to 19.3.1 so its tests run on the same runtime its peers demand.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 31,
+          "endLine": 31
+        }
+      ]
+    },
+    {
+      "id": "console-ui-dev-react-dom",
+      "from": "console-ui",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "dev 19.3.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "console-ui's react-dom devDependency pin moves to 19.3.1.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 32,
+          "endLine": 32
+        }
+      ]
+    },
+    {
+      "id": "console-ui-depends-rac",
+      "from": "console-ui",
+      "to": "react-aria-components",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "1.21.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The component library's runtime dependency on react-aria-components is unchanged in version but re-resolved against React 19.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 21,
+          "endLine": 21
+        }
+      ]
+    },
+    {
+      "id": "console-ui-dev-testing-library",
+      "from": "console-ui",
+      "to": "testing-library-react",
+      "kind": "dependency",
+      "delta": "unchanged",
+      "label": "dev 16.3.3",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Test renderer dependency, unchanged in version but re-keyed to react-dom 19.3.1 in the lockfile.",
+      "files": [
+        {
+          "path": "packages/console-ui/package.json",
+          "startLine": 27,
+          "endLine": 27
+        }
+      ]
+    },
+    {
+      "id": "rac-depends-react",
+      "from": "react-aria-components",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "react-aria-components' peer snapshot is re-keyed from react 18.3.1 to 19.3.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3285,
+          "endLine": 3297
+        }
+      ]
+    },
+    {
+      "id": "rac-depends-react-dom",
+      "from": "react-aria-components",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Same re-keying for react-dom inside the react-aria-components snapshot.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3285,
+          "endLine": 3297
+        }
+      ]
+    },
+    {
+      "id": "rac-depends-react-aria",
+      "from": "react-aria-components",
+      "to": "react-aria",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "3.52.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Transitive dependency re-resolved against React 19.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3293,
+          "endLine": 3293
+        }
+      ]
+    },
+    {
+      "id": "rac-depends-react-stately",
+      "from": "react-aria-components",
+      "to": "react-stately",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "3.50.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "Transitive dependency re-resolved against React 19.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3295,
+          "endLine": 3295
+        }
+      ]
+    },
+    {
+      "id": "react-aria-depends-react",
+      "from": "react-aria",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "react-aria's snapshot now binds react 19.3.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3299,
+          "endLine": 3312
+        }
+      ]
+    },
+    {
+      "id": "react-stately-depends-react",
+      "from": "react-stately",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "react-stately's snapshot now binds react 19.3.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 3326,
+          "endLine": 3334
+        }
+      ]
+    },
+    {
+      "id": "testing-library-depends-react",
+      "from": "testing-library-react",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The testing library's peer snapshot moves to react 19.3.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2757,
+          "endLine": 2763
+        }
+      ]
+    },
+    {
+      "id": "testing-library-depends-react-dom",
+      "from": "testing-library-react",
+      "to": "react-dom",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "peer",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "The testing library's peer snapshot moves to react-dom 19.3.1.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 2757,
+          "endLine": 2763
+        }
+      ]
+    },
+    {
+      "id": "react-dom-depends-react",
+      "from": "react-dom",
+      "to": "react",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "^19.3.1",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "react-dom 19.3.1 declares a peer on react ^19.3.1, replacing the 18.3.1 pairing.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1673,
+          "endLine": 1676
+        }
+      ]
+    },
+    {
+      "id": "react-dom-depends-scheduler",
+      "from": "react-dom",
+      "to": "scheduler",
+      "kind": "dependency",
+      "delta": "modified",
+      "label": "0.28.0",
+      "emphasis": "normal",
+      "animated": false,
+      "summary": "react-dom 19.3.1 pulls scheduler 0.28.0, replacing the 0.23.2 chain that depended on loose-envify.",
+      "files": [
+        {
+          "path": "pnpm-lock.yaml",
+          "startLine": 1673,
+          "endLine": 1676
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "react-version-resolution",
+      "title": "How the React 19 pin propagates through the lockfile",
+      "summary": "A package manager run walks from the two manifest edits down through the peer graph to the concrete runtime packages that get installed.",
+      "delta": "modified",
+      "participants": [
+        {
+          "node": "console-lab"
+        },
+        {
+          "node": "console-ui"
+        },
+        {
+          "node": "react-aria-components"
+        },
+        {
+          "node": "react"
+        },
+        {
+          "node": "react-dom"
+        },
+        {
+          "node": "scheduler"
+        }
+      ],
+      "messages": [
+        {
+          "id": "lab-pins-react",
+          "from": "console-lab",
+          "to": "react",
+          "label": "react 19.3.1",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "apps/console-lab/package.json",
+              "startLine": 14,
+              "endLine": 14
+            }
+          ]
+        },
+        {
+          "id": "lab-pins-react-dom",
+          "from": "console-lab",
+          "to": "react-dom",
+          "label": "react-dom 19.3.1",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "apps/console-lab/package.json",
+              "startLine": 15,
+              "endLine": 15
+            }
+          ]
+        },
+        {
+          "id": "ui-widens-peer",
+          "from": "console-ui",
+          "to": "react",
+          "label": "peer ^19.3.1",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "packages/console-ui/package.json",
+              "startLine": 24,
+              "endLine": 24
+            }
+          ]
+        },
+        {
+          "id": "ui-widens-peer-dom",
+          "from": "console-ui",
+          "to": "react-dom",
+          "label": "peer ^19.3.1",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "packages/console-ui/package.json",
+              "startLine": 25,
+              "endLine": 25
+            }
+          ]
+        },
+        {
+          "id": "rac-rekeys",
+          "from": "react-aria-components",
+          "to": "react",
+          "label": "re-resolve peer",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 3285,
+              "endLine": 3297
+            }
+          ]
+        },
+        {
+          "id": "dom-binds-react",
+          "from": "react-dom",
+          "to": "react",
+          "label": "peer ^19.3.1",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1673,
+              "endLine": 1676
+            }
+          ]
+        },
+        {
+          "id": "dom-binds-scheduler",
+          "from": "react-dom",
+          "to": "scheduler",
+          "label": "scheduler 0.28.0",
+          "kind": "sync",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1673,
+              "endLine": 1676
+            }
+          ]
+        },
+        {
+          "id": "scheduler-resolved",
+          "from": "scheduler",
+          "to": "scheduler",
+          "label": "0.28.0 installed",
+          "kind": "self",
+          "delta": "modified",
+          "animated": true,
+          "files": [
+            {
+              "path": "pnpm-lock.yaml",
+              "startLine": 1708,
+              "endLine": 1710
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "stats": {
+    "filesChanged": 3,
+    "additions": 61,
+    "deletions": 74,
+    "chips": []
+  },
+  "views": [
+    {
+      "id": "console-dependency-view",
+      "title": "Console packages and their React runtime",
+      "lens": "architecture",
+      "summary": "The two changed manifests and the runtime packages they resolve to, with the unchanged workspace sibling and third-party libraries that share the resolution.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": true,
+      "children": []
+    },
+    {
+      "id": "react-resolution-flow",
+      "title": "React 19 resolution through the lockfile",
+      "lens": "data-flow",
+      "summary": "The ordered path from the manifest pins through peer re-keying to the installed react, react-dom and scheduler versions.",
+      "scope": {
+        "kind": "all"
+      },
+      "defaultOpen": false,
+      "children": []
+    }
+  ]
+}
