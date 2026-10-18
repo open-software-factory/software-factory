@@ -2,7 +2,7 @@
 
 Status: accepted
 
-Date: 2026-09-20
+Date: 2026-09-20, amended 2026-10-05 to say the replay digest, not the chain head, reproduces.
 
 ## Context
 
@@ -18,7 +18,7 @@ Inside the boundary: reading the work item from the tracker, starting the defaul
 
 Outside the boundary: deployment, containment and recovery, more than one item at a time, remote platforms, merging without a person, the console's own features beyond reading the journal, cost attribution across runs, the agent-host protocol gateway, and canonical verification through moon, a build task runner the execution design adopts later.
 
-Done means one ready work item in a real repository reaches in review with no person acting, the pull request carries the evidence, the journal validates and its head hash reproduces, a blocked run raises attention and stops, and every check re-runs to the same result.
+Done means one ready work item in a real repository reaches in review with no person acting, the pull request carries the evidence, the journal validates and its replay digest reproduces, a blocked run raises attention and stops, and every check re-runs to the same result.
 
 The design is [`../smallest-working-engine.md`](../smallest-working-engine.md).
 
