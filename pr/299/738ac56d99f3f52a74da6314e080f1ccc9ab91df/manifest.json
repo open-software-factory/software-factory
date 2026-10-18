@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.2.0",
+  "kind": "render-manifest",
+  "graph": {
+    "headSha": "738ac56d99f3f52a74da6314e080f1ccc9ab91df",
+    "contentHash": "926a4171324461a629e59473c28e1a8f"
+  },
+  "renderer": {
+    "name": "@coldtea/pr-lens-renderer",
+    "version": "0.3.2"
+  },
+  "assets": [
+    {
+      "id": "console-lab-build-graph-light",
+      "lens": "architecture",
+      "theme": "light",
+      "view": "console-lab-build-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "00e01999c2c746af2d3b946c443f2f13",
+      "bytes": 24114,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "console-lab-build-graph-light-00e01999c2c746af2d3b946c443f2f13.svg"
+    },
+    {
+      "id": "console-lab-build-graph-dark",
+      "lens": "architecture",
+      "theme": "dark",
+      "view": "console-lab-build-graph",
+      "mediaType": "image/svg+xml",
+      "contentHash": "38e8b28c8d4e2dd6d00166a06913dfc0",
+      "bytes": 24379,
+      "width": 1708,
+      "height": 760,
+      "animated": false,
+      "path": "console-lab-build-graph-dark-38e8b28c8d4e2dd6d00166a06913dfc0.svg"
+    }
+  ]
+}
